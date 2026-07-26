@@ -442,3 +442,17 @@ class TestCounterKeepsTheSideThatHasANumber:
 
     def test_two_malformed_sides_keep_ours(self) -> None:
         assert self._counted(2, "a", "b") == "a"
+
+
+class TestTopLevelKeyOrderMatchesTheGeneratedSchema:
+    """PR #3348 review: a merge must not reorder unchanged content.
+
+    The generator always writes nodes, then patterns, then edges. If
+    ``merge_graphs`` emitted a different order, a merge that changed no
+    content would still rewrite the whole file and produce a noisy diff.
+    """
+
+    def test_collections_are_emitted_nodes_then_patterns_then_edges(self) -> None:
+        merged = merge_graphs(_graph(), _graph(), _graph())
+        collection_keys = [key for key in merged if key in {"nodes", "patterns", "edges"}]
+        assert collection_keys == ["nodes", "patterns", "edges"]

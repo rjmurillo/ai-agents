@@ -46,11 +46,14 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 
 # Which record collections we merge, and the field that identifies a record
 # within each. Node and pattern ids are content hashes; an edge is identified by
-# the triple it connects.
+# the triple it connects. Ordered nodes, patterns, edges to match the schema
+# order the generator writes (see .agents/memory/causality/causal-graph.json),
+# so a merge that changes no content does not also reorder the top-level JSON
+# and produce a noisy diff.
 _COLLECTIONS: dict[str, tuple[str, ...]] = {
     "nodes": ("id",),
-    "edges": ("source", "target", "type"),
     "patterns": ("id",),
+    "edges": ("source", "target", "type"),
 }
 
 # Field-merge policy. Anything not named here falls through to _prefer_diverged.
