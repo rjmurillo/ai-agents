@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
       "caused_by": [
-        "e015"
+        "e017"
       ],
       "leads_to": [
         "e002"
@@ -168,7 +168,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e015",
@@ -177,6 +179,28 @@
       "content": "Commit: 5e1cc81eedff747d075c6fa9e48d3c4e02693700",
       "caused_by": [
         "e013"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed malformed-JSON data loss and memory scope findings in review round 5.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0c0298d127e14253ce9a83d0d75370cf7d819aae",
+      "caused_by": [
+        "e015"
       ],
       "leads_to": [
         "e001"
@@ -188,7 +212,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 3
   },
   "lessons": []

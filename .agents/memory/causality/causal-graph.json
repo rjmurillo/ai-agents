@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T07:50:31.404220+00:00",
+  "updated": "2026-07-26T08:05:06.733919+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15779,6 +15779,24 @@
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-26T07:50:31.400751+00:00"
+    },
+    {
+      "id": "dd6c0cc86d99",
+      "type": "milestone",
+      "label": "milestone: Closed malformed-JSON data loss and memory scope findings in review round 5.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T08:05:06.730301+00:00"
+    },
+    {
+      "id": "4537a096f6ee",
+      "type": "commit",
+      "label": "commit: Commit: 0c0298d127e14253ce9a83d0d75370cf7d819aae",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T08:05:06.730367+00:00"
     }
   ],
   "patterns": [
