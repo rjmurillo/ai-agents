@@ -125,9 +125,10 @@
       "outcome": "Two tests block the import via sys.modules and assert MissingScriptSkip; a third runs a tree that does exist so a guard which skipped everything would fail. Moving the import back above the check turns both skip tests red with ModuleNotFoundError."
     }
   ],
-  "endingCommit": "acb78c20bbc2a893e1623f4199d6580468f96df0",
+  "endingCommit": "f22ebf0079",
   "nextSteps": [
     "Open the PR for fix/3377-table-guards and check it before any long push; three PRs merged mid-push this session.",
-    "Fix the _HOOK_PATH_RE comment wording on PR #3397."
+    "Fix the _HOOK_PATH_RE comment wording on PR #3397.",
+    "The endingCommit above names the last code commit on the branch; the session log commit that carries this file follows it."
   ]
 }
