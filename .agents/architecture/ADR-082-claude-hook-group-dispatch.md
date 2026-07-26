@@ -139,6 +139,13 @@ neutral in this ADR; only the publishing repo takes prunes.
    registration is dropped (advisory; ADR changes remain gated at commit
    by `invoke_adr_review_guard.py` and on Write/Edit by
    `invoke_adr_architect_gate.py`). Plugin membership is unchanged.
+   **Amended 2026-07-26 (Issue #3373):** both named hooks have since been
+   deleted. The parenthetical recorded why the prune was safe at the time
+   and is left standing as the decision's rationale, but a reader looking
+   for today's enforcement point should go to the lefthook `adr-review-policy`
+   job, which runs `scripts/validation/git_hook_policy.py adr-review` over
+   the staged set. The prune itself is unaffected: the registration it
+   dropped is still dropped.
 10. **Group ids are opaque.** A group id is a dispatcher lookup key. It
     carries no contract with the shims the group holds, the matcher it uses,
     the event it serves, or the order of anything. Nothing may assert on its
