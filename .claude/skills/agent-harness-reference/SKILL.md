@@ -81,86 +81,37 @@ tests, generated mirrors, and Serena memory in the same change.
 
 ## GitHub Copilot CLI Contract
 
-### Locations and schema
+Every vendor fact for this harness lives in `references/official-hook-contracts.md`,
+with the official source cited per row: the configuration schema, the 14 native
+events and their PascalCase aliases, matcher targets and compiled semantics, the
+PreToolUse, PermissionRequest and Stop output shapes, the exit-code and timeout
+table, the per-event output fields, the `DOCS SILENT` rows, and the cloud agent
+restrictions. Read that file for the contract. This section records only what
+this repository decided on top of it.
 
-Copilot CLI combines hook entries from policy files, repository
-`.github/hooks/*.json`, user `$COPILOT_HOME/hooks/*.json`, inline Copilot and
-Claude settings, and installed plugins. Cloud agent loads only repository
-`.github/hooks/*.json`.
+Two rows are worth repeating here because they are the ones most often guessed
+wrong. PreToolUse output is a top-level `permissionDecision`, never Claude's
+nested `hookSpecificOutput` envelope and never a top-level `decision`. Timeouts
+fail open on every event, including policy PreToolUse, which is the one exception
+to exit 2 denying.
 
-Config files use:
+### Shipped registrations
 
-```json
-{
-  "version": 1,
-  "hooks": {
-    "preToolUse": [
-      {
-        "type": "command",
-        "bash": "python3 hook.py",
-        "powershell": "py -3 hook.py",
-        "cwd": ".",
-        "env": {},
-        "timeoutSec": 30,
-        "matcher": "bash"
-      }
-    ]
-  }
-}
-```
-
-Command entries support `bash`, `powershell`, or `command`; `cwd`; `env`;
-`timeout` or `timeoutSec`; and optional `type: "command"`. HTTP hooks and
-sessionStart prompt hooks are also supported. See the sidecar for field limits
-and cloud restrictions.
-
-### Exact native event set
-
-The exact 14 native events are:
-
-```text
-agentStop
-errorOccurred
-notification
-permissionRequest
-postToolUse
-postToolUseFailure
-preCompact
-preToolUse
-sessionEnd
-sessionStart
-subagentStart
-subagentStop
-userPromptSubmitted
-userPromptTransformed
-```
-
-PascalCase compatibility aliases exist for the shared Open Plugins events used
-by this repository. Event casing selects payload casing:
-
-- native camelCase event keys receive camelCase fields;
-- PascalCase compatibility keys receive snake_case fields;
-- `agentStop` maps to PascalCase `Stop`;
-- `userPromptSubmitted` maps to PascalCase `UserPromptSubmit`;
-- `Stop` is per-turn completion. `SessionEnd` is process lifecycle.
-
-Current shipped inventory:
-
-- Vendored Claude plugin source, `.claude/hooks/hooks.json`: two registrations
-  across PreToolUse and PostToolUse.
+- Vendored Claude plugin source, `.claude/hooks/hooks.json`: two registrations,
+  PreToolUse and PostToolUse.
 - Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: two dispatcher
-  registrations, one for each active event.
+  registrations, one per active event.
 - Local repository settings, `.claude/settings.json`: five registrations across
-  SessionStart, PostToolUse, Stop, and PreCompact. These local hooks do not feed
-  the vendored Copilot plugin generator.
+  SessionStart, PostToolUse, Stop, and PreCompact. These do not feed the vendored
+  Copilot plugin generator.
 
-Repository mapping and dormant adapter policy:
+### Event policy
 
 | Claude source | Copilot registration | Policy |
 |---|---|---|
 | PreToolUse | PreToolUse | Active consolidated gate dispatcher, one source shim |
 | PostToolUse | PostToolUse | Active consolidated observe dispatcher, one source shim |
-| PermissionRequest | None | Generic approve/deny translation remains tested; test-runner auto-approval is removed |
+| PermissionRequest | None | Generic approve/deny translation stays tested; test-runner auto-approval is removed |
 | SessionStart | None | Supported observe/discard policy if a vendored source registration is added |
 | UserPromptSubmit | None | Supported observe/discard policy if a vendored source registration is added |
 | PreCompact | None | Supported observe/discard policy if a vendored source registration is added |
@@ -169,176 +120,42 @@ Repository mapping and dormant adapter policy:
 | SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |
 | PostToolUseFailure | PostToolUseFailure | Supported if a source is added |
 
+Unclassified future events stay direct host registrations until their output and
+failure semantics are reviewed.
+
 Do not rely on `subagentStart` or `subagentStop` from Copilot's built-in
-`general-purpose` agent. Current GitHub docs say it emits neither event. Other
-built-in YAML agents and custom agents emit them. The 1.0.72-1 probe record has
-a conflicting observation; treat that row as unresolved and version-specific.
+`general-purpose` agent. The 1.0.72-1 probe record conflicts with the docs, so
+treat that row as unresolved and version-specific.
 
-### Matchers
+Keep script-side self-filtering as defense in depth. Matchers do work, but 1.0.57
+and 1.0.58 shipped matcher bugs, so a hook that filters only through the host has
+one point of failure.
 
-Matchers are supported. Native event matchers are full-value regular
-expressions. PascalCase PreToolUse and PermissionRequest use Claude-compatible
-tool-name semantics:
+### Adapter behavior
 
-- `*`, `**`, or empty matches every tool;
-- a literal or `|` alternation matches exact Claude tool names;
-- other patterns are case-sensitive, whole-name regular expressions.
+The PermissionRequest adapter accepts one complete JSON document regardless of
+whitespace or pretty printing, and rejects trailing content after it. Translated
+`approve` and `deny` require a string `reason`. Malformed exit-0 output is
+diagnosed on stderr and suppressed so the host uses its documented default flow.
+A translated `ask` emits nothing, because Copilot has no `ask` value.
 
-Copilot CLI 1.0.57 and 1.0.58 had matcher bugs. The changelog records the fix,
-and 1.0.72-1 selectively fired a PascalCase `Bash` matcher. Keep script-side
-self-filtering as defense in depth, not as evidence that the host lacks
-matchers.
+The PostToolUse adapter captures plain stdout from successful observers,
+preserves registration order, and emits one `{"additionalContext":"..."}` object
+with a blank line between contributions. Failed-observer partial output is
+discarded. It emits nothing when every observer is silent. It does not merge
+`modifiedResult` or pre-structured JSON.
 
-### PreToolUse decisions
+The Claude grouped dispatcher shares that process-level capture boundary and
+emits one Claude protocol document. It treats only event-valid blocking shapes as
+terminal: `continue: false`; Stop or SubagentStop `decision: block` with a string
+reason; or nested PreToolUse `permissionDecision: deny` with a string reason.
+Generic JSON with no protocol keys becomes context and later guards still run.
+Malformed object-shaped JSON, allow-shaped decisions, unsupported decision
+fields, and invalid field types fail closed in gate modes.
 
-Copilot CLI uses a top-level object:
-
-```json
-{
-  "permissionDecision": "allow",
-  "permissionDecisionReason": "Reason",
-  "modifiedArgs": {}
-}
-```
-
-`permissionDecision` accepts `allow`, `deny`, or `ask`.
-`permissionDecisionReason` is required for deny. `modifiedArgs` replaces the
-tool arguments.
-
-Do not emit Claude's nested `hookSpecificOutput` envelope to Copilot CLI.
-Do not emit top-level `decision: "deny"` for PreToolUse. Copilot documents
-`decision` only for Stop and SubagentStop.
-
-### PermissionRequest decisions
-
-Copilot CLI accepts only:
-
-```json
-{
-  "behavior": "allow",
-  "message": "Reason",
-  "interrupt": false
-}
-```
-
-`behavior` accepts only `allow` or `deny`. Claude's canonical `ask` has no
-Copilot value. The adapter must emit no stdout so normal permission handling
-continues. `behavior: "ask"` is invalid. A 1.0.72-1 noninteractive probe denied
-after empty output. That is mode-dependent host behavior, not an empty-output
-deny contract.
-
-The repository adapter accepts one complete JSON document regardless of
-whitespace or pretty printing. It rejects trailing content after that document.
-Translated `approve` and `deny` decisions require a string `reason`; malformed
-exit-0 output is diagnosed on stderr and suppressed so the host uses its
-documented default flow.
-
-Cloud agent pre-approves tools, so PermissionRequest does not provide a usable
-cloud policy gate. Use PreToolUse for cloud enforcement.
-
-### Stop decisions
-
-Stop and SubagentStop use:
-
-```json
-{
-  "decision": "block",
-  "reason": "Continue because..."
-}
-```
-
-Current Claude Code uses the same top-level `decision: "block"` and `reason`
-shape. Shared Stop producers do not need a harness-specific adapter.
-
-`block` forces another turn. Omitting `decision` permits completion. Keep
-multiple Stop or SubagentStop hooks as separate registrations unless a
-dispatcher implements a real decision merger. Copilot parses one final JSON
-document per command hook; concatenating two objects produces malformed output
-and discards both.
-
-### Exit, timeout, and malformed-output behavior
-
-| Condition | Copilot behavior |
-|---|---|
-| PreToolUse exit 0 with allow JSON | Uses JSON decision |
-| PreToolUse exit 2 | Denies |
-| PreToolUse other nonzero or crash | Denies |
-| PermissionRequest exit 2 | Denies |
-| Other command-hook nonzero | Logs and fails open |
-| Any command-hook timeout | Fails open, including policy PreToolUse |
-| Exit 0 with malformed JSON | Ignores output and uses default behavior |
-| Empty exit-0 output | No hook decision |
-
-Exit 2 is not a Claude-only blocking convention. Current Copilot docs and
-changelog both state that PreToolUse exit 2 denies. Timeouts are the exception:
-all command-hook timeouts fail open.
-
-Copilot docs say exit-2 stderr is surfaced to the user in the general case.
-PermissionRequest documents stderr as ignored for its exit-2 path. The docs do
-not say stderr enters model context.
-
-### Output fields
-
-| Event | Documented config-file output |
-|---|---|
-| PreToolUse | `permissionDecision`, `permissionDecisionReason`, `modifiedArgs` |
-| PostToolUse | `modifiedResult`, `additionalContext` |
-| PermissionRequest | `behavior`, `message`, `interrupt` |
-| agentStop / subagentStop | `decision`, `reason` |
-| notification | `additionalContext` |
-| userPromptTransformed | `modifiedTransformedPrompt` |
-| SessionStart | `additionalContext` |
-| SubagentStart | `additionalContext` |
-| PostToolUseFailure exit 2 | stdout becomes `additionalContext` |
-
-`suppressOutput` appears in implementation-only SDK types but not in the
-official config-file hook contract. Do not use it in strict plugin hooks.
-
-Copilot parses at most one final JSON document from each command hook. This
-constraint applies to every structured output, not only Stop decisions. A
-dispatcher that runs several field-producing hooks must merge their documented
-fields into one event-valid object, or keep those producers as direct host
-registrations. The repository adapter captures plain stdout from successful
-PostToolUse observers, preserves registration order, and emits one
-`{"additionalContext":"..."}` object. A blank line separates each flat
-contribution. Failed-observer partial output is discarded. It emits nothing
-when all observers are silent. This text merger does not merge `modifiedResult`
-or pre-structured JSON. The Claude grouped dispatcher uses the same
-process-level capture boundary before it emits one Claude protocol document.
-It treats only event-valid blocking shapes as terminal: `continue: false`;
-Stop or SubagentStop `decision: block` with a string reason; or nested
-PreToolUse `permissionDecision: deny` with a string reason. Generic JSON with
-no protocol keys becomes context and later guards run. Malformed object-shaped
-JSON, allow-shaped decisions, unsupported decision fields, and invalid field
-types fail closed in gate modes.
-
-SessionStart supports `additionalContext`, but the vendored plugin has no current
-SessionStart registration. The tested adapter policy captures Python streams,
-direct file-descriptor writes, and inherited child-process output, then discards
-the content instead of turning repository text into model instructions.
-Copilot documents no config-file output field for PreCompact. It also has no
-current vendored source registration. Direct rollback tests preserve lifecycle
-side effects while suppressing stdout and stderr at the shell boundary.
-PostToolUseFailure also stays direct because exit-2 stdout has host-defined
-recovery-context semantics that generic observe mode cannot preserve.
-
-Copilot documents no config-file output field for UserPromptSubmitted, including
-its PascalCase UserPromptSubmit compatibility event. No current vendored source
-registration exists. The tested dispatcher and direct rollback policies keep its
-output out of model context. Whether stderr enters model context is docs silent.
-Every unclassified future event remains a direct host registration until its
-output and failure semantics are reviewed.
-
-### Cloud agent
-
-Cloud agent loads `.github/hooks/*.json` only, and the file must exist on the
-default branch. It runs in an ephemeral Linux sandbox. Only `bash`, or
-`command` fallback, executes. Tools are pre-approved. Notification does not
-fire. PreCompact fires only for automatic compaction. PreToolUse `ask` becomes
-deny because no user can answer.
-
-Installed plugin hooks, user hooks, repository settings, and PowerShell entries
-do not reach the cloud agent.
+Discarding lifecycle prose means capturing Python streams, direct
+file-descriptor writes, and inherited child-process output, then dropping the
+content rather than turning repository text into model instructions.
 
 ## Copilot Plugin Runtime Fields
 
