@@ -53,8 +53,12 @@ MAX_TIMEOUT = 300
 _SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*\"?(.+?\.py)\"?(?:\s|$)")
 
 # Plugin registrations address their scripts through the harness-provided
-# plugin root. Inside the checkout that publishes the plugin, that root is
-# .claude, so resolving it lets the same contract cover the published surface.
+# plugin root. Inside the checkout that publishes the plugin, that root is a
+# real directory, so resolving it lets the same contract cover the published
+# surface. Each surface publishes from a different one.
+CLAUDE_ROOT = ".claude"
+COPILOT_ROOT = "src/copilot-cli"
+
 #
 # The default clause excludes both braces, so a nested fallback like
 # ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}} is not consumed up to the inner
@@ -123,28 +127,33 @@ def _resolve_script_path(base_path: Path, script_path: str) -> Path | None:
     return candidate
 
 
-def _resolve_plugin_root(path: str) -> str:
+def _resolve_plugin_root(path: str, root: str = CLAUDE_ROOT) -> str:
     """Substitute plugin-root expansions until none are left.
 
     One pass is not enough for a nested default: resolving the inner
     ${CLAUDE_PLUGIN_ROOT} is what turns the outer expansion into a form the
     pattern can match. The pass count is bounded so a pathological string
     cannot spin.
+
+    ``root`` is the checkout directory that publishes the surface being read.
+    The same registration text ships on two surfaces, and the expansion means a
+    different directory on each, so the caller that knows which file it opened
+    supplies it.
     """
     for _ in range(_MAX_PLUGIN_ROOT_PASSES):
-        resolved = _PLUGIN_ROOT_PATTERN.sub(".claude", path)
+        resolved = _PLUGIN_ROOT_PATTERN.sub(root, path)
         if resolved == path:
             return resolved
         path = resolved
     return path
 
 
-def extract_script_path(command: str) -> str | None:
+def extract_script_path(command: str, root: str = CLAUDE_ROOT) -> str | None:
     """Extract the Python script path from a hook command string."""
     match = _SCRIPT_PATH_PATTERN.search(command)
     if not match:
         return None
-    return _resolve_plugin_root(match.group(1)).strip("\"'")
+    return _resolve_plugin_root(match.group(1), root).strip("\"'")
 
 
 _GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
@@ -153,8 +162,18 @@ _GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
 # the bare --group flag would mis-expand any hook that happens to take one.
 DISPATCHER_SCRIPT_NAME = "invoke_dispatch_claude.py"
 
-DISPATCH_GROUPS_PATH = Path(".claude") / "hooks" / "dispatch_groups.json"
-PLUGIN_HOOKS_PATH = Path(".claude") / "hooks" / "hooks.json"
+DISPATCH_GROUPS_PATH = Path(CLAUDE_ROOT) / "hooks" / "dispatch_groups.json"
+PLUGIN_HOOKS_PATH = Path(CLAUDE_ROOT) / "hooks" / "hooks.json"
+
+# The Copilot surface registers the same shims through a different file shape.
+# Its entries sit directly under the event rather than inside a nested "hooks"
+# list, carry the command under "bash" rather than "command", and spell the
+# timeout "timeoutSec". It also dispatches per event directory instead of
+# through one script taking --group, so its shim membership lives in a manifest
+# beside each dispatcher rather than in one central map.
+COPILOT_HOOKS_PATH = Path(COPILOT_ROOT) / "hooks" / "hooks.json"
+COPILOT_DISPATCHER_NAME = "_dispatch.py"
+COPILOT_MANIFEST_NAME = "_manifest.json"
 
 
 def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
@@ -331,7 +350,9 @@ def _expand_dispatch_group(
     return expanded, violations
 
 
-def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Violation]]:
+def parse_settings(
+    settings_path: Path, root: str = CLAUDE_ROOT
+) -> tuple[dict, list[HookEntry], list[Violation]]:
     """Parse settings.json and extract all hook entries.
 
     Returns (raw_settings, hook_entries, parse_violations).
@@ -362,7 +383,7 @@ def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Vio
                     continue
 
                 command = hook.get("command", "")
-                script_path = extract_script_path(command)
+                script_path = extract_script_path(command, root)
                 if not script_path:
                     if _PWSH_PATTERN.search(command):
                         parse_violations.append(
@@ -390,6 +411,147 @@ def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Vio
                 )
 
     return settings, entries, parse_violations
+
+
+def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violation]]:
+    """Read the Copilot CLI registration file into the shared entry shape.
+
+    The file differs from the Claude one in three ways that all have to be
+    absorbed here, so that everything downstream stays surface-agnostic: the
+    entries sit directly under the event name, the command lives under "bash",
+    and the timeout is spelled "timeoutSec". Once an entry carries a
+    repo-relative script path, no later validator needs to know where it came
+    from.
+
+    The PowerShell twin of each registration is deliberately not read. It runs
+    the same script through a different launcher, so validating it would report
+    every violation twice.
+    """
+    content = hooks_path.read_text(encoding="utf-8")
+    data = json.loads(content)
+
+    hooks_config = data.get("hooks", {})
+    entries: list[HookEntry] = []
+    violations: list[Violation] = []
+    if not isinstance(hooks_config, dict):
+        return entries, [
+            Violation(
+                hook_type="plugin",
+                script=str(COPILOT_HOOKS_PATH),
+                category="invalid_plugin_hooks",
+                message=(
+                    f"Copilot registrations declare 'hooks' as "
+                    f"{type(hooks_config).__name__}, not an object"
+                ),
+            )
+        ]
+
+    for hook_type, registrations in hooks_config.items():
+        if not isinstance(registrations, list):
+            continue
+        for registration in registrations:
+            if not isinstance(registration, dict):
+                continue
+            if registration.get("type") != "command":
+                continue
+            command = registration.get("bash", "")
+            if not isinstance(command, str):
+                continue
+            script_path = extract_script_path(command, COPILOT_ROOT)
+            if not script_path:
+                continue
+            entries.append(
+                HookEntry(
+                    hook_type=hook_type,
+                    script_path=script_path,
+                    command=command,
+                    matcher=registration.get("matcher"),
+                    timeout=registration.get("timeoutSec"),
+                )
+            )
+
+    return entries, violations
+
+
+def _expand_copilot_manifest(
+    entry: HookEntry, base_path: Path
+) -> tuple[list[HookEntry], list[Violation]]:
+    """Fan a Copilot dispatcher registration out to the shims it runs.
+
+    Without this the gate checks that the dispatcher exists and stops, which is
+    the same blind spot the Claude side had before group expansion: every shim
+    the dispatcher actually runs goes unchecked.
+
+    A missing manifest is a violation rather than a quiet skip. The dispatcher
+    reads it at startup and fails closed, so its absence breaks every hook for
+    that event.
+    """
+    script = Path(entry.script_path)
+    if script.name != COPILOT_DISPATCHER_NAME:
+        return [entry], []
+
+    manifest_path = script.parent / COPILOT_MANIFEST_NAME
+
+    def _fail(category: str, message: str) -> tuple[list[HookEntry], list[Violation]]:
+        return [entry], [
+            Violation(
+                hook_type=entry.hook_type,
+                script=str(manifest_path),
+                category=category,
+                message=message,
+            )
+        ]
+
+    resolved = _resolve_script_path(base_path, str(manifest_path))
+    if resolved is None or not resolved.is_file():
+        return _fail(
+            "missing_dispatch_manifest",
+            f"Dispatcher for {entry.hook_type} has no manifest; it fails closed without one",
+        )
+    try:
+        manifest = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return _fail("invalid_dispatch_manifest", f"Dispatch manifest cannot be read: {exc}")
+    if not isinstance(manifest, dict):
+        return _fail(
+            "invalid_dispatch_manifest",
+            f"Dispatch manifest is a {type(manifest).__name__}, not an object",
+        )
+
+    shims = manifest.get("shims")
+    if not isinstance(shims, list) or not shims:
+        return _fail(
+            "invalid_dispatch_manifest",
+            "Dispatch manifest lists no shims, so the registration runs nothing",
+        )
+
+    timeouts = manifest.get("timeouts")
+    if not isinstance(timeouts, dict):
+        timeouts = {}
+
+    expanded: list[HookEntry] = [entry]
+    violations: list[Violation] = []
+    for shim in shims:
+        if not isinstance(shim, str):
+            violations.append(
+                Violation(
+                    hook_type=entry.hook_type,
+                    script=str(manifest_path),
+                    category="malformed_shim",
+                    message=f"Dispatch manifest has a shim entry that is not a path: {shim!r}",
+                )
+            )
+            continue
+        expanded.append(
+            HookEntry(
+                hook_type=entry.hook_type,
+                script_path=str(script.parent / shim),
+                command=entry.command,
+                matcher=entry.matcher,
+                timeout=timeouts.get(shim, entry.timeout),
+            )
+        )
+    return expanded, violations
 
 
 def validate_script_exists(
@@ -520,6 +682,36 @@ def validate_duplicate_entries(entries: list[HookEntry]) -> list[Violation]:
     return violations
 
 
+def _read_copilot_surface(base_path: Path) -> tuple[list[HookEntry], list[Violation]]:
+    """Read and expand the Copilot CLI registrations.
+
+    Absent is legitimate: a checkout that publishes only the Claude plugin has
+    no such file. Present but unreadable is not, because the harness would fail
+    to register anything.
+    """
+    hooks_path = base_path / COPILOT_HOOKS_PATH
+    if not hooks_path.is_file():
+        return [], []
+    try:
+        entries, violations = parse_copilot_hooks(hooks_path)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+        return [], [
+            Violation(
+                hook_type="plugin",
+                script=str(COPILOT_HOOKS_PATH),
+                category="invalid_plugin_hooks",
+                message=f"Copilot hook registrations cannot be read: {exc}",
+            )
+        ]
+
+    expanded: list[HookEntry] = []
+    for entry in entries:
+        shims, shim_violations = _expand_copilot_manifest(entry, base_path)
+        expanded.extend(shims)
+        violations.extend(shim_violations)
+    return expanded, violations
+
+
 def validate_all(
     settings_path: Path,
     base_path: Path,
@@ -581,6 +773,10 @@ def validate_all(
             expanded.extend(shims)
             parse_violations.extend(violations)
         entries = expanded
+
+    copilot_entries, copilot_violations = _read_copilot_surface(base_path)
+    entries.extend(copilot_entries)
+    parse_violations.extend(copilot_violations)
 
     report = ContractReport(entries=entries)
     report.violations.extend(parse_violations)
