@@ -1700,7 +1700,7 @@ class TestChangesCommittedIsTheCommitSource:
             ending="abc1234def",
             work_log=[],
         )
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert set(shas) == {"abc1234def", "fed4321abc"}
 
     def test_a_sha_only_in_work_log_prose_is_not_a_commit(self):
@@ -1710,7 +1710,7 @@ class TestChangesCommittedIsTheCommitSource:
             ending="abc1234def",
             work_log=[{"phase": "Merge", "summary": "Took the bot's commit deadbee1234."}],
         )
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == ["abc1234def"]
         assert "deadbee1234" not in shas
 
@@ -1721,7 +1721,7 @@ class TestChangesCommittedIsTheCommitSource:
             ending="eee3333fff",
             work_log=[{"phase": "Implement", "summary": "Did the work."}],
         )
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert set(shas) == {"aaa1111bbb", "ccc2222ddd", "eee3333fff"}
 
     def test_metrics_and_events_agree_on_the_commit_set(self):
@@ -1746,8 +1746,37 @@ class TestChangesCommittedIsTheCommitSource:
             ending="abc1234def",
             work_log=[],
         )
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == ["abc1234def"]
+
+    def test_evidence_naming_only_the_base_still_reaches_the_prose_fallback(self):
+        """The base is not a commit the session produced, so it cannot count.
+
+        Discriminating case for the fallback condition. If the filter ran after
+        the "did any source yield a SHA" check instead of before it, the base
+        would populate the set, suppress the work log, and the session's real
+        commit would be lost.
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="Based on aaaaaaa. Committed the work.",
+        )
+        log["endingCommit"] = ""
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
+
+    def test_a_decimal_only_token_in_the_evidence_is_not_a_commit(self):
+        """Evidence is a sentence, so it carries CI run ids and issue numbers.
+
+        Scanning it with the unfiltered structured-field pattern read a 20-digit
+        run id as a commit: it counted toward metrics.commits, emitted a commit
+        event, and populated the set well enough to suppress the work log.
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="Verified in CI run 12345678901234567890.",
+        )
+        log["endingCommit"] = ""
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
 
     def test_prose_still_works_when_there_is_no_structured_record(self):
         """Logs that record their commits only in the work log still resolve.
@@ -1763,7 +1792,7 @@ class TestChangesCommittedIsTheCommitSource:
             "Complete": True,
             "Evidence": "Committed the work.",
         }
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert "abc1234def" in shas
 
     def test_prose_is_reached_when_the_evidence_string_is_empty(self):
@@ -1778,7 +1807,7 @@ class TestChangesCommittedIsTheCommitSource:
             committed="",
         )
         log["endingCommit"] = ""
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert "abc1234def" in shas
 
     def test_a_sha_in_the_evidence_suppresses_the_prose_fallback(self):
@@ -1792,7 +1821,7 @@ class TestChangesCommittedIsTheCommitSource:
             committed="Committed abc1234def.",
         )
         log["endingCommit"] = ""
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == ["abc1234def"]
 
     def test_lowercase_evidence_key_is_read(self):
@@ -1804,18 +1833,18 @@ class TestChangesCommittedIsTheCommitSource:
             "complete": True,
             "evidence": "One commit: abc1234def.",
         }
-        assert extract_session_episode._collect_shas(log, include_starting=False) == ["abc1234def"]
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
 
     def test_a_missing_compliance_section_does_not_raise(self):
         log = _json_log([{"phase": "x", "summary": "committed as abc1234def"}])
         log["endingCommit"] = ""
         del log["protocolCompliance"]
-        assert extract_session_episode._collect_shas(log, include_starting=False) == ["abc1234def"]
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
 
     def test_a_non_dict_compliance_section_does_not_raise(self):
         log = _json_log([])
         log["protocolCompliance"] = "not a dict"
-        assert extract_session_episode._collect_shas(log, include_starting=False) == ["bbbbbbb1234"]
+        assert extract_session_episode._collect_shas(log) == ["bbbbbbb1234"]
 
 
 class TestOneCommitCountsOnceAcrossAbbreviations:
@@ -1842,7 +1871,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
 
     def test_an_abbreviation_of_the_ending_commit_is_not_a_second_commit(self):
         log = self._log(evidence=f"Committed as {self._SHORT}.", ending=self._FULL)
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == [self._FULL]
 
     def test_the_first_spelling_seen_is_the_one_kept(self):
@@ -1850,7 +1879,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
         spelling wins even when the evidence names the longer form.
         """
         log = self._log(evidence=f"Committed as {self._FULL}.", ending=self._SHORT)
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == [self._SHORT]
 
     def test_two_genuinely_different_commits_both_survive(self):
@@ -1861,7 +1890,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
         """
         other = "abfeed09876543210fedcba9876543210fedcba9"
         log = self._log(evidence=f"Two commits: {self._FULL} and {other}.", ending="")
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == [self._FULL, other]
 
     def test_a_prose_fallback_sha_matching_a_structured_one_is_not_added_twice(self):
@@ -1869,7 +1898,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
             [{"phase": "implementation", "summary": f"Committed {self._SHORT}."}]
         )
         log["endingCommit"] = self._FULL
-        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        shas = extract_session_episode._collect_shas(log)
         assert shas == [self._FULL]
 
     def test_already_seen_needs_seven_shared_characters(self):

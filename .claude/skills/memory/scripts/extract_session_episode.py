@@ -528,9 +528,14 @@ def _gate_complete(data: dict, phase: str, gate: str) -> bool:
 def _same_commit(a: str, b: str) -> bool:
     """True when two hex SHA strings denote the same commit, allowing for git
     abbreviation: the shorter is a prefix of the longer with at least 7 shared
-    hex chars (git's minimum unambiguous abbreviation length). Exact equality
-    is the equal-length case. This lets a full 40-char ``startingCommit`` match
-    a 7-char abbreviation of it repeated in work-log prose (issue #3123)."""
+    hex chars. Exact equality is the equal-length case. This lets a full 40-char
+    ``startingCommit`` match a 7-char abbreviation of it repeated in work-log
+    prose (issue #3123).
+
+    Seven is this module's own floor, not a git contract. Git's abbreviation
+    length is repo-dependent (``core.abbrev``, and git widens it as the object
+    count grows), so there is no minimum to inherit. Seven is chosen because it
+    is what this repository's tooling emits and short enough prefixes collide."""
     a = a.strip().lower()
     b = b.strip().lower()
     if not a or not b:
@@ -688,7 +693,7 @@ def _changes_committed_evidence(data: dict) -> str:
     return ""
 
 
-def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
+def _collect_shas(data: dict) -> list[str]:
     """Distinct commit SHAs a session produced, newest source of truth first.
 
     Distinctness is abbreviation-aware: two fields that spell the same commit
@@ -722,46 +727,30 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     than the starting commit, and the work log does. It carries the existing
     hex-letter (issue #3301) and committer-date (issue #3328) filters.
 
-    Excludes the starting commit by default: it is the base, not a commit the
-    session produced, including when prose repeats it at a different
-    abbreviation length (issue #3123).
+    Excludes the starting commit: it is the base, not a commit the session
+    produced, including when prose repeats it at a different abbreviation
+    length (issue #3123).
     """
     seen: list[str] = []
     session = _as_dict(data.get("session"))
     starting = str(session.get("startingCommit") or "").strip()
     session_date = str(session.get("date") or "").strip()
 
-    def _add_structured(field: str) -> None:
-        """Take every SHA a structured field names.
-
-        Structured fields are the protocol's record, so no prose heuristic is
-        applied to them. The one exclusion is the starting commit, which the
-        session inherited rather than produced, and which the caller can keep
-        with ``include_starting``.
-        """
-        for sha in _SHA_RE.findall(field):
-            if not include_starting and starting and _same_commit(sha, starting):
+    def _take(shas: list[str]) -> None:
+        """Record every SHA that is neither the base commit nor already held."""
+        for sha in shas:
+            if starting and _same_commit(sha, starting):
                 continue
             if not _already_seen(sha, seen):
                 seen.append(sha)
 
-    _add_structured(str(data.get("endingCommit") or ""))
-
-    # changesCommitted evidence is prose, not a structured single-SHA field:
-    # apply the hex-letter filter to avoid counting decimal-only tokens as
-    # commits (issue #3363, mirrors _prose_shas logic from issue #3301).
-    evidence = _changes_committed_evidence(data)
-    for sha in _prose_shas(evidence):
-        if not include_starting and starting and _same_commit(sha, starting):
-            continue
-        if not _already_seen(sha, seen):
-            seen.append(sha)
-
-    # startingCommit is a structured field, not prose: scan it unfiltered.
-    if include_starting:
-        for sha in _SHA_RE.findall(starting):
-            if not _already_seen(sha, seen):
-                seen.append(sha)
+    # endingCommit is the protocol's own field, so no prose heuristic applies.
+    _take(_SHA_RE.findall(str(data.get("endingCommit") or "")))
+    # changesCommitted evidence is a free-text sentence rather than a bare SHA,
+    # so the hex-letter filter applies: a 20-digit CI run id quoted there is not
+    # a commit (issue #3301). Scanning it unfiltered also let a decimal-only
+    # match populate ``seen`` and suppress the work-log fallback below.
+    _take(_prose_shas(_changes_committed_evidence(data)))
 
     if seen:
         return seen
@@ -769,7 +758,7 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     # Fallback for logs with no structured commit record at all.
     for entry in _as_list(data.get("workLog")):
         for sha in _prose_shas(_entry_text(entry)):
-            if not include_starting and starting and _same_commit(sha, starting):
+            if starting and _same_commit(sha, starting):
                 continue
             if _already_seen(sha, seen):
                 continue
@@ -854,7 +843,7 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
     # event stream and metrics.commits share a single provenance rule
     # (issue #3123). Excludes the starting/base SHA, including work-log
     # mentions of it, matching json_metrics.
-    for sha in _collect_shas(data, include_starting=False):
+    for sha in _collect_shas(data):
         add("commit", f"Commit: {sha}")
 
     return events
@@ -965,7 +954,7 @@ def json_metrics(data: dict) -> dict:
     # session-end changesCommitted evidence, falling back to work-log prose only
     # when neither of those yields a SHA (issue #3363). Excludes the starting
     # commit: it is the base, not a commit the session produced.
-    commit_count = len(_collect_shas(data, include_starting=False))
+    commit_count = len(_collect_shas(data))
     metrics = {
         "duration_minutes": 0,
         "tool_calls": 0,
