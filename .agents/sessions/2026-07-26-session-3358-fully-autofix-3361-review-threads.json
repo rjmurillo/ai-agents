@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and gate-repair commits through ef99879c51 contain all code, workflow, graph, and evidence fixes; this commit refreshes the session artifacts."
+        "Evidence": "All implementation and review-response fixes are committed through c2f267acd1; this evidence commit refreshes the session artifacts."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The repository suite passed 14,012 tests with 28 skips and 45 expected failures; mypy, full gh-act worktree handling, workflow validation, security, QA, and ruff passed."
+        "Evidence": "The final edge suite passed 131 tests with 5 documented skips; mypy and ruff passed alongside the full repository and workflow gates."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -153,8 +153,13 @@
       "time": "2026-07-26T09:25:00Z",
       "action": "Fixed the final pre-push gate failures",
       "result": "Mypy now narrows annotated assignments. Reachability runs in the generated-agent workflow for every caller surface. The exact linked-worktree gh-act annotation is downgraded only when no unrelated error annotation exists."
+    },
+    {
+      "time": "2026-07-26T10:13:00Z",
+      "action": "Closed the last malformed-input review edges",
+      "result": "Complex YAML keys now fail as malformed definitions, and unreadable skill entry surfaces report their repository path. The final targeted suite passed 131 tests."
     }
   ],
-  "endingCommit": "ef99879c515852cfcff27c1a62b504e064ad7268",
+  "endingCommit": "c2f267acd1b983dbe44d515875752d147da06a05",
   "nextSteps": []
 }

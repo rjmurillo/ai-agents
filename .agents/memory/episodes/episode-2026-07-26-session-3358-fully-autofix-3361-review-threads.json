@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the PR live-state gate and created an isolated worktree",
       "caused_by": [
-        "e009"
+        "e010"
       ],
       "leads_to": [
         "e002"
@@ -98,13 +98,25 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e009",
       "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the last malformed-input review edges",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: ef99879c515852cfcff27c1a62b504e064ad7268",
+      "content": "Commit: c2f267acd1b983dbe44d515875752d147da06a05",
       "caused_by": [],
       "leads_to": [
         "e001"

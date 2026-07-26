@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T09:54:18.621468+00:00",
+  "updated": "2026-07-26T10:23:28.039843+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15988,15 +15988,6 @@
       "created": "2026-07-26T09:54:18.617788+00:00"
     },
     {
-      "id": "fe662e4558b1",
-      "type": "commit",
-      "label": "commit: Commit: ef99879c515852cfcff27c1a62b504e064ad7268",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T09:54:18.617853+00:00"
-    },
-    {
       "id": "5ad2dc05281a",
       "type": "milestone",
       "label": "milestone: Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
@@ -16436,6 +16427,24 @@
         "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T09:39:53.684404+00:00"
+    },
+    {
+      "id": "77a1dd4b7d58",
+      "type": "milestone",
+      "label": "milestone: Closed the last malformed-input review edges",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T10:23:28.036063+00:00"
+    },
+    {
+      "id": "457ee951cff0",
+      "type": "commit",
+      "label": "commit: Commit: c2f267acd1b983dbe44d515875752d147da06a05",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T10:23:28.036133+00:00"
     }
   ],
   "patterns": [
