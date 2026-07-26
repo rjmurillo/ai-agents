@@ -18,11 +18,14 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+from yaml.nodes import MappingNode
+
 logger = logging.getLogger(__name__)
 
 # Reuse existing frontmatter parsing from build utilities
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "build"))
-from generate_agents_common import parse_simple_frontmatter, read_yaml_frontmatter  # noqa: E402
+from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 
 # Files in src/claude/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
@@ -54,11 +57,37 @@ class ValidationResult:
 
     @property
     def ok(self) -> bool:
-        return len(self.errors) == 0
+        return not self.errors
 
 
 class MalformedAgentFileError(Exception):
     """A markdown file in the agent directory is not a usable agent definition."""
+
+
+def _parse_frontmatter(file_path: Path, text: str) -> dict[str, object]:
+    """Parse one frontmatter mapping and reject duplicate top-level keys."""
+    try:
+        node = yaml.compose(text, Loader=yaml.SafeLoader)
+        parsed = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise MalformedAgentFileError(f"{file_path.name}: invalid YAML frontmatter: {exc}") from exc
+    if not isinstance(node, MappingNode) or not isinstance(parsed, dict):
+        raise MalformedAgentFileError(f"{file_path.name}: frontmatter is not a YAML mapping")
+
+    keys: set[tuple[str, str]] = set()
+    for key_node, _ in node.value:
+        key = (key_node.tag, key_node.value)
+        if key in keys:
+            raise MalformedAgentFileError(
+                f"{file_path.name}: duplicate frontmatter key '{key_node.value}'"
+            )
+        keys.add(key)
+    return parsed
+
+
+def _text_field(frontmatter: dict[str, object], name: str) -> str:
+    value = frontmatter.get(name)
+    return value.strip() if isinstance(value, str) else ""
 
 
 def parse_agent_file(file_path: Path) -> AgentDefinition:
@@ -76,11 +105,11 @@ def parse_agent_file(file_path: Path) -> AgentDefinition:
     if raw is None:
         raise MalformedAgentFileError(f"{file_path.name}: no YAML frontmatter")
 
-    fm = parse_simple_frontmatter(raw["frontmatter_raw"])
-    name = (fm.get("name") or "").strip()
-    description = (fm.get("description") or "").strip()
-    model = (fm.get("model") or "").strip()
-    argument_hint = (fm.get("argument-hint") or "").strip()
+    fm = _parse_frontmatter(file_path, raw["frontmatter_raw"])
+    name = _text_field(fm, "name")
+    description = _text_field(fm, "description")
+    model = _text_field(fm, "model")
+    argument_hint = _text_field(fm, "argument-hint")
 
     if not name:
         raise MalformedAgentFileError(f"{file_path.name}: frontmatter has no name")
@@ -109,6 +138,8 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
             agents.append(parse_agent_file(md_file))
         except MalformedAgentFileError as e:
             errors.append(str(e))
+        except UnicodeDecodeError as e:
+            errors.append(f"{md_file.name}: cannot decode as UTF-8: {e}")
         except OSError as e:
             errors.append(f"Cannot read file {md_file.name}: {e}")
     return agents, errors
@@ -177,6 +208,8 @@ def main(argv: list[str] | None = None) -> int:
     agents, parsing_errors = parse_agent_files(args.agent_dir)
     result = validate(agents)
     result.errors.extend(parsing_errors)
+    if not agents and not result.errors:
+        result.errors.append(f"No agent definitions found in {args.agent_dir}")
 
     if args.json:
         import json

@@ -68,7 +68,6 @@ class TestParseAgentFile:
             """,
         )
         agent = parse_agent_file(path)
-        assert agent is not None
         assert agent.name == "tester"
         assert agent.description == "Runs tests"
         assert agent.model == "sonnet"
@@ -87,19 +86,46 @@ class TestParseAgentFile:
         with pytest.raises(MalformedAgentFileError, match="no YAML frontmatter"):
             parse_agent_file(path)
 
-    def test_missing_name(self, tmp_agent_dir: Path) -> None:
+    @pytest.mark.parametrize(
+        "name_field",
+        ["", 'name: "   "\n'],
+        ids=["missing", "blank"],
+    )
+    def test_missing_or_blank_name(self, tmp_agent_dir: Path, name_field: str) -> None:
         path = _write_agent(
             tmp_agent_dir,
-            "no_name.md",
-            """\
-            ---
-            description: Agent without a name
-            model: sonnet
-            ---
-            # Nameless
-            """,
+            "invalid_name.md",
+            f"---\n{name_field}description: Agent without a usable name\nmodel: sonnet\n---\n",
         )
         with pytest.raises(MalformedAgentFileError, match="frontmatter has no name"):
+            parse_agent_file(path)
+
+    @pytest.mark.parametrize(
+        ("frontmatter", "message"),
+        [
+            (
+                "name: broken\ndescription: invalid: plain scalar\nmodel: sonnet",
+                "invalid YAML frontmatter",
+            ),
+            (
+                "name: first\nname: second\ndescription: duplicate\nmodel: sonnet",
+                "duplicate frontmatter key 'name'",
+            ),
+        ],
+        ids=["invalid-yaml", "duplicate-key"],
+    )
+    def test_malformed_yaml_is_rejected(
+        self,
+        tmp_agent_dir: Path,
+        frontmatter: str,
+        message: str,
+    ) -> None:
+        path = _write_agent(
+            tmp_agent_dir,
+            "malformed.md",
+            f"---\n{frontmatter}\n---\n",
+        )
+        with pytest.raises(MalformedAgentFileError, match=message):
             parse_agent_file(path)
 
     def test_optional_argument_hint(self, tmp_agent_dir: Path) -> None:
@@ -116,7 +142,6 @@ class TestParseAgentFile:
             """,
         )
         agent = parse_agent_file(path)
-        assert agent is not None
         assert agent.argument_hint == ""
 
 
@@ -198,6 +223,17 @@ class TestParseAgentFiles:
         assert errors == []
         names = [a.name for a in agents]
         assert names == ["alpha", "middle", "zebra"]
+
+    def test_invalid_utf8_bytes_fail_cli(
+        self,
+        tmp_agent_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        bad = tmp_agent_dir / "corrupt.md"
+        bad.write_bytes(b"---\nname: corrupt\n---\n\xff\xfe invalid utf-8")
+
+        assert main(["--agent-dir", str(tmp_agent_dir)]) == 1
+        assert "corrupt.md: cannot decode as UTF-8" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -330,3 +366,4 @@ class TestAMalformedFileFailsInsteadOfDisappearing:
         agents, errors = parse_agent_files(tmp_agent_dir)
         assert agents == []
         assert errors == []
+        assert main(["--agent-dir", str(tmp_agent_dir)]) == 1
