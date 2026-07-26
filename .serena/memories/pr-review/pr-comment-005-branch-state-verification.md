@@ -14,6 +14,12 @@ Before any file modification during PR comment response.
 2. Confirm output matches expected PR branch
 3. If mismatch, checkout correct branch before proceeding
 
+## Concurrent Push Extension
+
+Before every push, compare the PR's live `headRefOid` with the local commit that was last fetched or extended. Stop when they differ. A failed fetch or a missing expected remote ref also blocks the push. Pushing from a stale snapshot can recreate a branch that GitHub deleted after merge.
+
+**Evidence**: PRs #3340, #3347, and #3348 had concurrent branch updates. SHA checks preserved those commits and prevented overwrite.
+
 ## Benefit
 
 Prevents edits to wrong branch when branch checkouts fail silently with uncommitted changes.
