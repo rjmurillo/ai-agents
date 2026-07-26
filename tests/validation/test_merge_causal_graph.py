@@ -367,9 +367,10 @@ class TestDriverExitContract:
         ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
         theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
         ours.chmod(0o640)
+        expected_mode = stat.S_IMODE(ours.stat().st_mode)
 
         assert main([str(base), str(ours), str(theirs)]) == 0
-        assert stat.S_IMODE(ours.stat().st_mode) == 0o640
+        assert stat.S_IMODE(ours.stat().st_mode) == expected_mode
 
     def test_corrupt_side_exits_one_and_leaves_ours_untouched(self, tmp_path: Path) -> None:
         """The behavior that stops a silent side-take from deleting graph state."""
@@ -528,6 +529,32 @@ class TestDriverExitContract:
         assert "failed to remove temporary file" in error
         assert "Permission denied" in error
 
+    def test_fdopen_descriptor_close_failure_is_reported_beside_the_primary_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+
+        def refuse_fdopen(_fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            raise OSError(errno.EMFILE, "Too many open files")
+
+        def refuse_close(_fd: int) -> None:
+            raise OSError(errno.EIO, "Input/output error")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", refuse_fdopen)
+        monkeypatch.setattr(merge_causal_graph.os, "close", refuse_close)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "Too many open files" in error
+        assert "failed to close temporary file descriptor" in error
+        assert "Input/output error" in error
+
     def test_close_failure_does_not_mask_a_partial_write_failure(
         self,
         tmp_path: Path,
@@ -590,6 +617,47 @@ class TestDriverExitContract:
         assert main([str(base), str(ours), str(theirs)]) == 3
         error = capsys.readouterr().err
         assert "No space left on device" in error
+        assert "failed to remove temporary file" in error
+        assert "Permission denied" in error
+
+    def test_close_and_cleanup_failures_are_both_reported(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        original_fdopen = merge_causal_graph.os.fdopen
+
+        class WriteCloseFailure:
+            def __init__(self, fd: int) -> None:
+                self._handle: TextIO = original_fdopen(fd, "w", encoding="utf-8")
+
+            def write(self, _text: str) -> None:
+                raise OSError(errno.ENOSPC, "No space left on device")
+
+            def close(self) -> None:
+                self._handle.close()
+                raise OSError(errno.EIO, "Input/output error")
+
+        def fail_write_and_close(fd: int, _mode: str, *, encoding: str) -> WriteCloseFailure:
+            assert encoding == "utf-8"
+            return WriteCloseFailure(fd)
+
+        def refuse_cleanup(_path: Path, missing_ok: bool = False) -> None:
+            assert missing_ok
+            raise OSError(errno.EACCES, "Permission denied")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", fail_write_and_close)
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "No space left on device" in error
+        assert "failed to close temporary file" in error
+        assert "Input/output error" in error
         assert "failed to remove temporary file" in error
         assert "Permission denied" in error
 
@@ -1054,6 +1122,31 @@ class TestTheTemporaryNeverOutlivesTheWrite:
         assert self._siblings(path) == []
         assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
 
+    def test_an_interrupt_reports_a_cleanup_failure_before_reraising(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        path = self._destination(tmp_path)
+
+        def interrupting_replace(_source: Any, _target: Any) -> None:
+            raise _Interrupt()
+
+        def refuse_cleanup(_path: Path, missing_ok: bool = False) -> None:
+            assert missing_ok
+            raise OSError(errno.EACCES, "Permission denied")
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", interrupting_replace)
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        error = capsys.readouterr().err
+        assert "failed to remove temporary file" in error
+        assert "Permission denied" in error
+
     def test_an_interrupt_with_the_temporary_open_closes_it_before_removing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1117,13 +1210,11 @@ class TestTheTemporaryNeverOutlivesTheWrite:
         assert path.name in seen[0]
 
 
-class TestTheContentReachesDiskBeforeTheRename:
-    """Refs #3368. os.replace is atomic against processes, not against a crash.
+class TestTheContentIsFlushedBeforeTheRename:
+    """Refs #3368. Flush the temporary before replacing the destination.
 
-    Renaming over the destination without flushing the temporary can leave the
-    destination naming data that never reached disk, which is the partial-file
-    outcome the atomic write exists to prevent, moved from the write to the
-    rename.
+    This prevents replacing the destination while Python still buffers the
+    payload. It does not claim the directory entry survives a power loss.
     """
 
     def test_fsync_runs_before_replace(
@@ -1166,6 +1257,29 @@ class TestTheContentReachesDiskBeforeTheRename:
             raise OSError(errno.EIO, "sync failed")
 
         monkeypatch.setattr(merge_causal_graph.os, "fsync", failing_fsync)
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "base.json",
+            "ours.json",
+            "theirs.json",
+        ]
+
+    def test_a_failed_chmod_exits_three_without_touching_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base = tmp_path / "base.json"
+        ours = tmp_path / "ours.json"
+        theirs = tmp_path / "theirs.json"
+        base.write_text(json.dumps(_graph()), encoding="utf-8")
+        ours.write_text(json.dumps(_graph(nodes=[_node("ours")])), encoding="utf-8")
+        theirs.write_text(json.dumps(_graph(nodes=[_node("theirs")])), encoding="utf-8")
+        before = ours.read_text(encoding="utf-8")
+
+        def failing_chmod(_path: str, _mode: int) -> None:
+            raise OSError(errno.EACCES, "chmod failed")
+
+        monkeypatch.setattr(merge_causal_graph.os, "chmod", failing_chmod)
         assert main([str(base), str(ours), str(theirs)]) == 3
         assert ours.read_text(encoding="utf-8") == before
         assert sorted(p.name for p in tmp_path.iterdir()) == [

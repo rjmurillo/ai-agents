@@ -35,7 +35,7 @@ which is why registration is automatic.
 from __future__ import annotations
 
 import argparse
-import contextlib
+import errno
 import json
 import os
 import stat
@@ -92,7 +92,7 @@ def _discard(temporary: str) -> OSError | None:
 
 
 def _release(handle: TextIO | None, temporary: str) -> str | None:
-    """Close the temporary and remove it, describing the first failure.
+    """Close the temporary and remove it, describing every failure.
 
     Closing comes first because Windows refuses to unlink an open file: a
     temporary that was still open when the write unwound would survive the
@@ -100,16 +100,36 @@ def _release(handle: TextIO | None, temporary: str) -> str | None:
     and the damage is a leaked descriptor instead, which is quieter and just as
     real inside a long-lived `git merge`.
     """
+    failures: list[str] = []
     if handle is not None:
         try:
             handle.close()
         except OSError as close_error:
-            _discard(temporary)
-            return f"failed to close temporary file {temporary}: {close_error}"
+            failures.append(f"failed to close temporary file {temporary}: {close_error}")
     cleanup = _discard(temporary)
     if cleanup is not None:
-        return f"failed to remove temporary file {temporary}: {cleanup}"
+        failures.append(f"failed to remove temporary file {temporary}: {cleanup}")
+    return "; ".join(failures) or None
+
+
+def _close_descriptor(fd: int) -> str | None:
+    """Close a descriptor left by fdopen, ignoring only already-closed."""
+    try:
+        os.close(fd)
+    except OSError as close_error:
+        if close_error.errno != errno.EBADF:
+            return f"failed to close temporary file descriptor {fd}: {close_error}"
     return None
+
+
+def _surface_cleanup(primary: BaseException, *details: str | None) -> None:
+    """Preserve an OSError cause, or report cleanup beside an interrupt."""
+    detail = "; ".join(item for item in details if item is not None)
+    if not detail:
+        return
+    if isinstance(primary, OSError):
+        raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
+    print(f"ERROR: causal graph merge driver cleanup: {detail}", file=sys.stderr)
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -123,26 +143,23 @@ def _atomic_write_text(path: Path, text: str) -> None:
         # descriptor and leaves it open, an unknown encoding raises after and
         # closes it on the way out. An interrupt can land on either side. So
         # this close is required in the first case and answers EBADF in the
-        # second, which is the first reason for the suppress. The second is
-        # that we are already unwinding, and a cleanup failure here would
-        # replace the error that actually explains the write.
-        with contextlib.suppress(OSError):
-            os.close(fd)
+        # second. Only EBADF is harmless; every other close failure is reported
+        # beside the error that explains why fdopen failed.
+        close_detail = _close_descriptor(fd)
         # No handle to close: fdopen did not return one, and the descriptor is
         # already settled above. _release still owns the message, so a failure
         # to remove the temporary reads the same here as on the write path.
         detail = _release(None, temporary)
-        if detail is not None and isinstance(primary, OSError):
-            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
+        _surface_cleanup(primary, close_detail, detail)
         raise
 
     open_handle: TextIO | None = handle
     try:
         handle.write(text)
         handle.flush()
-        # os.replace is atomic against another process, not against a crash.
-        # Without the fsync the rename can land while the content is still in
-        # the page cache, leaving a name that points at nothing.
+        # Flush the payload before replace. This does not make the directory
+        # entry crash-durable; it prevents replacing the destination with a
+        # temporary whose content is still only buffered in this process.
         os.fsync(handle.fileno())
         handle.close()
         open_handle = None
@@ -154,8 +171,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
         # KeyboardInterrupt would otherwise leave the temporary beside the
         # graph it failed to replace.
         detail = _release(open_handle, temporary)
-        if detail is not None and isinstance(primary, OSError):
-            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
+        _surface_cleanup(primary, detail)
         raise
 
 
