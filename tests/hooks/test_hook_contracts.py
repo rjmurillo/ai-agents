@@ -1061,6 +1061,24 @@ class TestPluginSurfaceIsCovered:
         )
         assert report.is_valid
 
+    def test_a_malformed_plugin_hooks_file_is_reported(self, tmp_path):
+        """Invalid JSON in hooks.json must be caught and reported as a violation."""
+        _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json")
+        report = hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+        assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
+
+    def test_plugin_hooks_with_invalid_utf8_is_reported(self, tmp_path):
+        """Invalid UTF-8 bytes in hooks.json must be caught as a violation."""
+        _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_bytes(b"\xff\xfe")
+        report = hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+        assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
+
 
 class TestTheShippedTreeSatisfiesTheContract:
     """The gate is only wireable while this holds."""

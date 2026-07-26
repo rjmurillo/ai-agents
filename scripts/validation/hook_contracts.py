@@ -438,7 +438,7 @@ def validate_all(
             _, plugin_entries, plugin_violations = parse_settings(plugin_path)
             entries.extend(plugin_entries)
             parse_violations.extend(plugin_violations)
-        except UnicodeDecodeError as exc:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             parse_violations.append(
                 Violation(
                     hook_type="plugin",
