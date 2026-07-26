@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3355,
+    "date": "2026-07-26",
+    "branch": "fix/3355-session-number-filename",
+    "startingCommit": "263ce89d05",
+    "objective": "Validate session.number against the number in the log filename (issue 3355)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; serena-list_memories returned the project memory index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read at session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; treated as read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "code-review-and-quality and github skill catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded plugin-versioning, testing-practices, and hooks memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3371-collect-mirror-suites"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "663bbac488"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored the testpaths blackout finding and the per-tree collection workaround"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files in the diff; the change set is Python and JSON only, verified with git diff --name-only"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three commits: ccc84280fe, bec3366729, d655c5237b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both bundle trees green (1120 and 1085 passed, 4 skipped each); 1985 passed across tests/test_paths.py, tests/skills/, tests/test_chaos_experiment_scripts.py, tests/validation/test_check_vendor_portability.py; 8 passed in tests/test_skill_bundle_suites_run.py; ruff check and ruff format clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3371 commented with the corrected 82-directory scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; this session is one issue in a multi-issue autopilot run whose retrospective covers the whole run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Measured the two invariants issue 3355 proposes across all 933 committed session logs before implementing either.",
+      "result": "filename-stem to session.number holds 929/933. Branch-issue to session.number fails 207/276, in every month including 2026-07. The retrospective at .agents/retrospective/2026-07-26-pr-3354-session-log-churn.md reached the same conclusion independently, and review had already corrected its first draft on that exact point.",
+      "files": []
+    },
+    {
+      "action": "Implemented the filename invariant only, and documented in the docstring why the branch invariant was rejected.",
+      "result": "Added filename_session_number() and validate_filename_number() to scripts/validate_session_json.py, wired into main(). validate_session_log() keeps its path-free contract so the 149 existing tests are untouched.",
+      "files": [
+        "scripts/validate_session_json.py"
+      ]
+    },
+    {
+      "action": "Corrected the three committed logs that violated the invariant, using neighbouring session numbers to decide which side was wrong.",
+      "result": "Two took a session.number correction (9, 1711). One had the correct number and a truncated filename, so it was renamed to carry 1198; the retrospective link to it was updated in the same change. A fourth candidate uses the legacy snake_case shape with no session object and is skipped by design.",
+      "files": [
+        ".agents/sessions/2026-01-18-session-09-add-memory-naming-convention-section.json",
+        ".agents/sessions/2026-04-20-session-1711-pr-description-backticks.json",
+        ".agents/retrospective/2026-07-26-pr-3354-session-log-churn.md"
+      ]
+    },
+    {
+      "action": "Wrote 22 tests including a corpus test that runs the guard over every committed log.",
+      "result": "171 pass. The corpus test checks 930 logs with zero violations. The suite caught a real defect during authoring: the first regex read session-64a as 64, which would have failed six pre-convention logs; the digit run now has to end at a hyphen or the stem end.",
+      "files": [
+        "tests/test_validate_session_json.py"
+      ]
+    },
+    {
+      "action": "Ran three negative controls.",
+      "result": "Gutting the comparison turned 3 red. Reverting the regex boundary turned 2 red. Dropping the bool exclusion initially turned 0 red, which proved that test was not discriminating (True == 1 made a session-1 filename agree by coercion); the test was rewritten against a non-1 filename and the control then fired.",
+      "files": []
+    },
+    {
+      "action": "Verified the CLI path end to end.",
+      "result": "A log named session-9999 carrying number 3371 exits 1 with the mismatch message. The same log under its correct name exits 0.",
+      "files": []
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the 207/276 measurement.",
+    "Remaining unwired validators from issue 3360: traceability.py and consistency.py."
+  ]
+}
