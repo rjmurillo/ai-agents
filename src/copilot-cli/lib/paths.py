@@ -30,6 +30,11 @@ Two policies:
   consumer can redirect every skill's output to one place; the override wins
   over both `base` and the cwd default.
 
+- `artifact_dir(subdir, base=None)` applies the identical resolution rule but
+  creates nothing. A caller that only reads (probing for a prior artifact,
+  reporting where output would land) uses this so a read never materializes an
+  empty directory on the consumer's disk.
+
 Relationship to existing skills:
   The read path uses a three-location fallback like `/review`, but the
   environment variable and concrete resource paths are local to this helper.
@@ -145,14 +150,14 @@ def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
     return None
 
 
-def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) -> Path:
-    """Resolve and create the write directory for a skill artifact.
+def artifact_dir(subdir: str | Path, base: str | Path | None = None) -> Path:
+    """Resolve a skill artifact directory without creating it.
 
-    The default root is `<cwd>/.agents`. A caller that already knows the
-    repository root passes it as `base` so the root becomes `<base>/.agents`.
-    Both are overridden by the `AI_AGENTS_ARTIFACT_ROOT` environment variable,
-    which a consumer sets to redirect every skill's output to one place. The
-    returned directory (`<root>/<subdir>`) is created lazily with parents.
+    Applies the same resolution rule as `resolve_artifact_root` (the
+    `AI_AGENTS_ARTIFACT_ROOT` override, then `base`, then the cwd default) but
+    performs no filesystem mutation. A read path that only needs to know where
+    an artifact would live calls this, so probing for a prior artifact never
+    leaves an empty directory behind.
 
     Args:
         subdir: Artifact subdirectory under the artifact root (for example
@@ -163,11 +168,11 @@ def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) ->
             `AI_AGENTS_ARTIFACT_ROOT` override, when set, takes precedence.
 
     Returns:
-        The resolved absolute Path of the created `<root>/<subdir>`.
+        The resolved absolute Path of `<root>/<subdir>`, which may not exist.
 
     Raises:
-        ValueError: When subdir is empty, absolute, or contains `..`.
-        OSError: When the directory cannot be created.
+        ValueError: When subdir is empty, absolute, or contains `..`, or when
+            `base` is given and is not an existing directory.
     """
     if not str(subdir).strip():
         raise ValueError("subdir must be non-empty")
@@ -184,6 +189,36 @@ def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) ->
     else:
         root = Path.cwd().resolve() / ".agents"
 
-    target = (root / sub).resolve()
+    return (root / sub).resolve()
+
+
+def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) -> Path:
+    """Resolve and create the write directory for a skill artifact.
+
+    The default root is `<cwd>/.agents`. A caller that already knows the
+    repository root passes it as `base` so the root becomes `<base>/.agents`.
+    Both are overridden by the `AI_AGENTS_ARTIFACT_ROOT` environment variable,
+    which a consumer sets to redirect every skill's output to one place. The
+    returned directory (`<root>/<subdir>`) is created lazily with parents.
+
+    Callers that only read use `artifact_dir`, which applies the same rule
+    without creating anything.
+
+    Args:
+        subdir: Artifact subdirectory under the artifact root (for example
+            "analysis" or "metrics"). Must not be absolute or escape the
+            root with `..`.
+        base: Optional base directory whose `.agents` subdirectory anchors the
+            artifact root. Defaults to the current working directory. The
+            `AI_AGENTS_ARTIFACT_ROOT` override, when set, takes precedence.
+
+    Returns:
+        The resolved absolute Path of the created `<root>/<subdir>`.
+
+    Raises:
+        ValueError: When subdir is empty, absolute, or contains `..`.
+        OSError: When the directory cannot be created.
+    """
+    target = artifact_dir(subdir, base)
     target.mkdir(parents=True, exist_ok=True)
     return target

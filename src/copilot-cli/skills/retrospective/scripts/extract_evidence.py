@@ -66,7 +66,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import resolve_artifact_root  # noqa: E402
+from paths import artifact_dir as _resolve_artifact_dir  # noqa: E402
 
 
 def _artifact_root_is_set() -> bool:
@@ -75,9 +75,14 @@ def _artifact_root_is_set() -> bool:
 
 
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
-    """Resolve an artifact directory without creating it during evidence reads."""
+    """Resolve an artifact directory without creating it during evidence reads.
+
+    Gathering evidence is a read. `resolve_artifact_root` creates its target as
+    a side effect, so this uses the non-creating `artifact_dir` resolver: a
+    retrospective that finds no session log leaves no empty `sessions/` behind.
+    """
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
-        return Path(resolve_artifact_root(subdir))
+        return Path(_resolve_artifact_dir(subdir))
     return project_dir / ".agents" / subdir
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
