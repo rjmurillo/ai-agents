@@ -143,26 +143,24 @@ def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonV
     Summing ours and theirs would count everything they inherited twice. Three
     way keeps a counter that neither side touched unchanged.
     """
-    ours_number = isinstance(ours, (int, float))
-    theirs_number = isinstance(theirs, (int, float))
-    if not ours_number or not theirs_number:
+    ours_count = ours if isinstance(ours, (int, float)) else None
+    theirs_count = theirs if isinstance(theirs, (int, float)) else None
+    if ours_count is None or theirs_count is None:
         # Only one side holds a number, so there are no two deltas to reconcile.
         # Keep whichever side has one: dropping it because the other side is
         # malformed would lose the count the good side actually recorded.
-        if ours_number:
-            return ours
-        if theirs_number:
-            return theirs
+        if ours_count is not None:
+            return ours_count
+        if theirs_count is not None:
+            return theirs_count
         return ours if ours is not None else theirs
-    assert isinstance(ours, (int, float))
-    assert isinstance(theirs, (int, float))
     # When there is no ancestor value, both branches independently added this
     # record. Take the maximum rather than summing deltas, which would
     # double-count when both sides added the same content with the same count.
     if not isinstance(base, (int, float)):
-        return max(ours, theirs)
+        return max(ours_count, theirs_count)
     # Three-way merge: apply both sides' deltas to the ancestor.
-    merged = base + (ours - base) + (theirs - base)
+    merged = base + (ours_count - base) + (theirs_count - base)
     return max(merged, 0)
 
 
@@ -208,6 +206,33 @@ def _ordered_keys(ours: dict[str, Any], theirs: dict[str, Any]) -> list[str]:
     return list(ours) + [field for field in theirs if field not in ours]
 
 
+def _fields_to_merge(
+    base: dict[str, Any],
+    ours: dict[str, Any],
+    theirs: dict[str, Any],
+    exclude: frozenset[str] = frozenset(),
+) -> list[str]:
+    """Fields to merge: everything either side carries, plus recoverable ones.
+
+    A key neither side carries is normally an agreed deletion, and iterating
+    only what the sides carry is what keeps it deleted. _PREFER_PRESENT names
+    the exception. Those fields go missing because the generator drops them on
+    a fresh write, so once both sides have regenerated, neither carries the
+    field and the ancestor holds the only surviving copy.
+
+    Records and the top-level document share this for the same reason they
+    share _merge_fields. Extending only the top-level key list is how version
+    and updated became one-off special cases the first time.
+    """
+    keys = [field for field in _ordered_keys(ours, theirs) if field not in exclude]
+    recoverable = [
+        field
+        for field in base
+        if field in _PREFER_PRESENT and field not in keys and field not in exclude
+    ]
+    return recoverable + keys
+
+
 def _merge_fields(
     base: dict[str, Any],
     ours: dict[str, Any],
@@ -232,12 +257,15 @@ def _merge_fields(
         elif field in _LATEST:
             merged[field] = _extreme(base_value, ours_value, theirs_value, latest=True)
         elif field in _PREFER_PRESENT:
-            merged[field] = (
-                ours_value
-                if ours_value is not None
-                else theirs_value
-                if theirs_value is not None
-                else base_value
+            # Falling back to the ancestor matters. These fields go missing
+            # because the generator drops them on a fresh write, not because
+            # anyone deleted them. Without the base fallback, two sides that
+            # both regenerated would agree on the omission and merge_graphs
+            # would strip the field, turning a generator defect into a
+            # permanent loss the next merge cannot recover.
+            merged[field] = next(
+                (value for value in (ours_value, theirs_value, base_value) if value is not None),
+                None,
             )
         else:
             merged[field] = _prefer_diverged(base_value, ours_value, theirs_value)
@@ -255,7 +283,8 @@ def _merge_record(
     if theirs is None:
         return dict(ours)
 
-    return _merge_fields(base or {}, ours, theirs, _ordered_keys(ours, theirs))
+    ancestor = base or {}
+    return _merge_fields(ancestor, ours, theirs, _fields_to_merge(ancestor, ours, theirs))
 
 
 def _merge_collection(
@@ -283,10 +312,7 @@ def merge_graphs(
     """Merge two causal graphs against their common ancestor."""
     # Every top-level key either side carries, including ones the schema grows
     # later. Collections have their own union rule and are merged below.
-    scalars = [key for key in _ordered_keys(ours, theirs) if key not in _COLLECTIONS]
-    scalars.extend(
-        sorted(field for field in _PREFER_PRESENT if field in base and field not in scalars)
-    )
+    scalars = _fields_to_merge(base, ours, theirs, exclude=frozenset(_COLLECTIONS))
     merged = _merge_fields(base, ours, theirs, scalars)
 
     for collection, fields in _COLLECTIONS.items():

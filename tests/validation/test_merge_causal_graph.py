@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from scripts.validation import merge_causal_graph
 from scripts.validation.merge_causal_graph import (
     GraphMergeError,
     _load,
@@ -439,6 +440,28 @@ class TestGitActuallyUsesTheDriver:
 class TestRegistrationIsWiredAndIdempotent:
     """A driver nobody registers is a driver that never runs."""
 
+    def test_the_docstring_names_the_script_lefthook_actually_runs(self) -> None:
+        """PR #3348 review: the docstring credited a script that never runs it.
+
+        A wrong pointer here costs a maintainer the whole debugging session,
+        because the file they are told to inspect has nothing to do with the
+        driver being missing. Read the runner out of lefthook.yml so the claim
+        cannot drift from the wiring again.
+        """
+        lefthook = (_ROOT / "lefthook.yml").read_text(encoding="utf-8")
+        runners = [
+            line.split("python", 1)[1].strip()
+            for line in lefthook.splitlines()
+            if "install_merge_drivers.py" in line and "run:" in line
+        ]
+        assert runners, "lefthook.yml no longer runs install_merge_drivers.py"
+
+        docstring = merge_causal_graph.__doc__ or ""
+        assert runners[0] in docstring, (
+            f"module docstring must name {runners[0]}, the script lefthook runs"
+        )
+        assert "git_hook_policy.py install-merge-drivers" not in docstring
+
     def test_gitattributes_routes_the_graph_to_the_driver(self) -> None:
         attributes = (_ROOT / ".gitattributes").read_text(encoding="utf-8")
         assert ".agents/memory/causality/causal-graph.json merge=causal-graph" in attributes
@@ -568,9 +591,55 @@ class TestTopLevelFieldsGoThroughTheSamePolicyTable:
         assert merged["version"] == "1.0"
 
     def test_version_survives_when_both_sides_omit_it(self) -> None:
+        """The case that actually happens once the defect has run twice.
+
+        Two branches that each regenerated the graph both drop version, so
+        they agree on the omission and neither side can supply it. Without a
+        fallback to the ancestor, merge_graphs strips the field and the value
+        is gone for good: the next merge has no ancestor copy left to recover.
+        """
         base = {"version": "1.0", "nodes": []}
         merged = merge_graphs(base, {"nodes": []}, {"nodes": []})
         assert merged["version"] == "1.0"
+
+    def test_records_recover_the_same_fields_the_document_does(self) -> None:
+        """Recovery is a field policy, so it cannot live at one level only.
+
+        Extending just the top-level key list is how version and updated became
+        one-off special cases the first time. A record that both sides
+        regenerated has to recover the same way the document does.
+        """
+        base = {"nodes": [{"id": "n1", "version": "1.0", "label": "a"}]}
+        regenerated = {"nodes": [{"id": "n1", "label": "a"}]}
+        merged = merge_graphs(base, regenerated, regenerated)
+
+        assert merged["nodes"][0]["version"] == "1.0"
+
+    def test_a_present_side_still_outranks_the_ancestor(self) -> None:
+        """The base fallback is a floor, not a preference. A real bump wins."""
+        base = {"version": "1.0", "nodes": []}
+        bumped = {"version": "2.0", "nodes": []}
+        stripped: dict[str, Any] = {"nodes": []}
+
+        assert merge_graphs(base, bumped, stripped)["version"] == "2.0"
+        assert merge_graphs(base, stripped, bumped)["version"] == "2.0"
+
+    def test_only_prefer_present_fields_are_recovered_from_the_ancestor(self) -> None:
+        """The ancestor reach is deliberately narrow, and this pins the edge.
+
+        Widening it to every ancestor key would resurrect more than version.
+        `updated` is a _LATEST field, and _extreme returns the ancestor value
+        when neither side has one, so an unrestricted recovery would republish
+        a stale timestamp and claim the graph was touched then. Losing the
+        field is honest; backdating it is not. If dropping `updated` on a fresh
+        write turns out to need recovery too, fix the generator (issue #3351),
+        do not backdate here.
+        """
+        base = {"version": "1.0", "updated": "2026-01-01T00:00:00Z", "nodes": []}
+        merged = merge_graphs(base, {"nodes": []}, {"nodes": []})
+
+        assert merged["version"] == "1.0"
+        assert "updated" not in merged
 
     def test_updated_takes_the_later_timestamp(self) -> None:
         merged = merge_graphs(
