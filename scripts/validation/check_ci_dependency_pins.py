@@ -119,32 +119,49 @@ class Violation:
         )
 
 
+def _requirement_strings(value: object) -> list[str]:
+    """Return the requirement strings in ``value``; nothing if it is not a list of them.
+
+    pyproject is hand-authored TOML and this function runs inside a gate that
+    reports a verdict, so a malformed table must produce a result rather than a
+    traceback. Anything that is not a list of strings contributes no
+    constraints, which is the same outcome an unparseable requirement gets in
+    ``declared_constraints`` below. Note the shape ``Requirement()`` cannot
+    defend against on its own: a non-string argument raises ``TypeError``, not
+    ``InvalidRequirement``, so it would escape the handler there.
+    """
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _requirement_groups(table: object) -> list[list[str]]:
+    """Return the requirement lists held by a table of named groups."""
+    if not isinstance(table, dict):
+        return []
+    return [_requirement_strings(group) for group in table.values()]
+
+
 def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
     """Return canonical package name -> combined specifier from pyproject.
 
     Merges ``[project].dependencies`` with every entry under
-    ``[project.optional-dependencies]`` and ``[dependency-groups]``.
-    A package declared in more than one place contributes all of its
-    specifiers, so a pin must satisfy the intersection. That is the honest
-    reading: CI installs one version, and it has to work everywhere the
-    project claims to need the package.
+    ``[project.optional-dependencies]`` and ``[dependency-groups]``. A package
+    declared in more than one place contributes all of its specifiers, so a pin
+    must satisfy the intersection. That is the honest reading: CI installs one
+    version, and it has to work everywhere the project claims to need the
+    package.
+
+    Every table is read through the same two helpers, so a malformed section
+    degrades to "declares nothing" wherever it appears rather than only in the
+    one place someone remembered to guard.
     """
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    project = data.get("project", {})
-    deps = project.get("dependencies", [])
-    groups: list[list[str]] = []
-    if isinstance(deps, list):
-        groups.append([item for item in deps if isinstance(item, str)])
-    optional_deps = project.get("optional-dependencies", {})
-    if isinstance(optional_deps, dict):
-        for extra in optional_deps.values():
-            if isinstance(extra, list):
-                groups.append([item for item in extra if isinstance(item, str)])
-    dep_groups = data.get("dependency-groups", {})
-    if isinstance(dep_groups, dict):
-        for group in dep_groups.values():
-            if isinstance(group, list):
-                groups.append([item for item in group if isinstance(item, str)])
+    project = data.get("project")
+    project = project if isinstance(project, dict) else {}
+    groups: list[list[str]] = [_requirement_strings(project.get("dependencies"))]
+    groups.extend(_requirement_groups(project.get("optional-dependencies")))
+    groups.extend(_requirement_groups(data.get("dependency-groups")))
 
     merged: dict[str, SpecifierSet] = {}
     for group in groups:
