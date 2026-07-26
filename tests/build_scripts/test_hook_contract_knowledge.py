@@ -173,13 +173,12 @@ def test_reference_separates_stop_from_session_end() -> None:
     the skill's own Authority Order names as the owner of vendor contracts.
     """
     text = _reference_text()
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
 
     assert "| Stop | None | Direct entries if added, one JSON decision per command |" in text
     assert "| SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |" in text
-    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
-    assert "Omitting `decision` permits completion." in normalized_sidecar
-    assert "`block` forces another turn." in normalized_sidecar
+    assert "Omitting `decision` permits completion." in sidecar
+    assert "`block` forces another turn." in sidecar
     for document in (text, sidecar):
         assert "host merges structured decisions" not in document
         assert "Stop: SessionEnd" not in document
@@ -301,7 +300,7 @@ def test_serena_memory_routes_to_current_contract_sources() -> None:
 
 def test_reference_preserves_cross_harness_decision_shapes() -> None:
     """The three wire shapes are vendor facts; not confusing them is policy."""
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
 
     assert '"permissionDecision": "allow"' in sidecar
     assert '"behavior": "allow"' in sidecar
@@ -336,20 +335,18 @@ def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
 
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
-    assert "Shared Stop producers can emit this shape on" in sidecar
-    assert "both harnesses." in sidecar
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
 
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
-    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
-    assert "performs one `JSON.parse`" in normalized_sidecar
+    assert "performs one `JSON.parse`" in sidecar
     assert (
         "Two final JSON objects concatenate into invalid JSON and are ignored."
-        in normalized_sidecar
+        in sidecar
     )
     normalized = _normalized_text(REFERENCE)
     assert '`{"additionalContext":"..."}` object' in normalized
@@ -362,7 +359,7 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
 
 
 def test_official_sidecar_pins_sources_and_refresh_procedure() -> None:
-    text = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    text = _normalized_text(OFFICIAL_SOURCES)
 
     assert "https://docs.github.com/en/copilot/reference/hooks-reference" in text
     assert "github/docs/blob/0b02cd6336f4eebda1e409b45a89dab5c2193d9a" in text

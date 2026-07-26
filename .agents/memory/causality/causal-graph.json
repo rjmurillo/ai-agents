@@ -15349,15 +15349,6 @@
       "created": "2026-07-26T02:36:17.987276+00:00"
     },
     {
-      "id": "6d7cb82e4883",
-      "type": "commit",
-      "label": "commit: Commit: f65741cbea",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:36:17.987339+00:00"
-    },
-    {
       "id": "a1fc21797f4e",
       "type": "commit",
       "label": "commit: Commit: 9f69ff63e6",
@@ -15482,6 +15473,33 @@
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
       "created": "2026-07-26T02:05:18.496436+00:00"
+    },
+    {
+      "id": "22607683e6a1",
+      "type": "commit",
+      "label": "commit: Commit: 006a88767",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:20:26.354959+00:00"
+    },
+    {
+      "id": "c91028991273",
+      "type": "milestone",
+      "label": "milestone: Address the PR #3354 review round",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:22:10.117591+00:00"
+    },
+    {
+      "id": "ff531ab50669",
+      "type": "milestone",
+      "label": "milestone: Reword the SKILL.md pointer and re-extract the episode",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:22:10.117662+00:00"
     }
   ],
   "patterns": [

@@ -87,8 +87,8 @@ events and their PascalCase aliases, matcher targets and compiled semantics, the
 PreToolUse, PermissionRequest and Stop output shapes, the exit-code and timeout
 table, the per-event output fields, the `DOCS SILENT` rows, and the cloud agent
 restrictions. Read that file for the contract. This section records what this
-repository decided on top of it, plus the two rows below that are repeated here
-because they are the ones most often guessed wrong.
+repository decided on top of it, plus the two facts repeated below because
+they are the ones most often guessed wrong.
 
 PreToolUse output is a top-level `permissionDecision`, never Claude's
 nested `hookSpecificOutput` envelope and never a top-level `decision`. Exit 2

@@ -124,6 +124,16 @@
       "task": "Correct the session number the autofix bot moved the wrong way",
       "outcome": "session.number keys off the issue number in the branch name, not a monotonic counter. The branch is fix/3342-harness-reference-size, so the number is 3342 and the original filename was already right. The bot read 3343 as a collision, incremented to 3344, then renamed the file to match its own wrong value.",
       "evidence": "Across the eight most recent logs, session.number equals the issue number in session.branch every time: 3324, 3328, 3330, 3332, 3343, 3346, and 3347. Nothing in scripts/validate_session_json.py checks that relationship, which is why both the seeded 3343 and the bot's 3344 validated clean. Filed as a tooling gap."
+    },
+    {
+      "task": "Address the PR #3354 review round",
+      "outcome": "Every sidecar read that pins a fact now goes through _normalized_text. The reviewer flagged one site; the same defect was in four, and one of them asserted the two halves of a wrapped sentence separately, which would break on any reflow while proving nothing about content. Two raw reads stay raw because normalizing would defeat them: one parses a fenced code block by line structure, the other asserts byte-for-byte mirror equality.",
+      "evidence": "Rewrapping that sentence leaves all 24 content tests green where it previously failed one. Changing a real fact ('block forces another turn' to 'block ends the turn') still turns test_reference_separates_stop_from_session_end red. 25 pass in tests/build_scripts/test_hook_contract_knowledge.py."
+    },
+    {
+      "task": "Reword the SKILL.md pointer and re-extract the episode",
+      "outcome": "'the two rows below' became 'the two facts repeated below', because what follows is prose rather than table rows. Applied to the canonical copy and mirrored with build/scripts/generate_skills.py. The episode was re-extracted from the final session log so the derived artifacts match their source.",
+      "evidence": "Both SKILL.md copies carry the new wording at line 90; generate_skills.py wrote 598 files across 95 skills with no residual diff."
     }
   ],
   "endingCommit": "006a88767",
