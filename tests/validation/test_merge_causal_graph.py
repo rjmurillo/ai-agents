@@ -23,6 +23,7 @@ from scripts.maintenance import install_merge_drivers
 from scripts.validation import merge_causal_graph
 from scripts.validation.merge_causal_graph import (
     GraphMergeError,
+    _atomic_write_text,
     _load,
     main,
     merge_graphs,
@@ -932,3 +933,136 @@ class TestTopLevelKeyOrderMatchesTheGeneratedSchema:
         merged = merge_graphs(_graph(), _graph(), _graph())
         collection_keys = [key for key in merged if key in {"nodes", "patterns", "edges"}]
         assert collection_keys == ["nodes", "patterns", "edges"]
+
+
+class _Interrupt(BaseException):
+    """Stands in for KeyboardInterrupt without stopping the test runner."""
+
+
+class TestTheTemporaryNeverOutlivesTheWrite:
+    """Refs #3368. The destination surviving is only half the guarantee.
+
+    A merge driver runs inside an interactive `git merge`, so the realistic
+    failure is Ctrl-C, not ENOSPC. KeyboardInterrupt is not an OSError, so a
+    cleanup path attached to OSError alone never sees it and the sibling
+    temporary is left in the graph directory.
+    """
+
+    def _destination(self, tmp_path: Path) -> Path:
+        path = tmp_path / "causal-graph.json"
+        path.write_text('{"nodes": []}\n', encoding="utf-8")
+        return path
+
+    def _siblings(self, path: Path) -> list[str]:
+        return sorted(p.name for p in path.parent.iterdir() if p != path)
+
+    def test_an_interrupt_mid_write_leaves_only_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = self._destination(tmp_path)
+        real_fdopen = os.fdopen
+
+        def interrupting_fdopen(fd: int, *args: Any, **kwargs: Any) -> TextIO:
+            handle = real_fdopen(fd, *args, **kwargs)
+            handle.close()
+            raise _Interrupt()
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", interrupting_fdopen)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
+    def test_an_interrupt_before_the_rename_leaves_only_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The window is widest here: the temporary holds a full copy."""
+        path = self._destination(tmp_path)
+
+        def interrupting_replace(source: Any, target: Any) -> None:
+            raise _Interrupt()
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", interrupting_replace)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
+    def test_a_leaked_temporary_would_name_the_file_it_failed_to_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """mkstemp's default name points at nothing; a leak must be greppable."""
+        path = self._destination(tmp_path)
+        seen: list[str] = []
+        real_mkstemp = merge_causal_graph.tempfile.mkstemp
+
+        def recording_mkstemp(*args: Any, **kwargs: Any) -> tuple[int, str]:
+            fd, name = real_mkstemp(*args, **kwargs)
+            seen.append(Path(name).name)
+            return fd, name
+
+        monkeypatch.setattr(merge_causal_graph.tempfile, "mkstemp", recording_mkstemp)
+        _atomic_write_text(path, "replacement")
+
+        assert len(seen) == 1
+        assert path.name in seen[0]
+
+
+class TestTheContentReachesDiskBeforeTheRename:
+    """Refs #3368. os.replace is atomic against processes, not against a crash.
+
+    Renaming over the destination without flushing the temporary can leave the
+    destination naming data that never reached disk, which is the partial-file
+    outcome the atomic write exists to prevent, moved from the write to the
+    rename.
+    """
+
+    def test_fsync_runs_before_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "causal-graph.json"
+        path.write_text("{}\n", encoding="utf-8")
+        order: list[str] = []
+        real_fsync = os.fsync
+        real_replace = os.replace
+
+        def recording_fsync(fd: int) -> None:
+            order.append("fsync")
+            real_fsync(fd)
+
+        def recording_replace(source: Any, target: Any) -> None:
+            order.append("replace")
+            real_replace(source, target)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fsync", recording_fsync)
+        monkeypatch.setattr(merge_causal_graph.os, "replace", recording_replace)
+        _atomic_write_text(path, "replacement")
+
+        assert order == ["fsync", "replace"]
+        assert path.read_text(encoding="utf-8") == "replacement"
+
+    def test_a_failed_fsync_exits_three_without_touching_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A sync failure is a filesystem failure, not malformed input."""
+        base = tmp_path / "base.json"
+        ours = tmp_path / "ours.json"
+        theirs = tmp_path / "theirs.json"
+        base.write_text(json.dumps(_graph()), encoding="utf-8")
+        ours.write_text(json.dumps(_graph(nodes=[_node("ours")])), encoding="utf-8")
+        theirs.write_text(json.dumps(_graph(nodes=[_node("theirs")])), encoding="utf-8")
+        before = ours.read_text(encoding="utf-8")
+
+        def failing_fsync(fd: int) -> None:
+            raise OSError(errno.EIO, "sync failed")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fsync", failing_fsync)
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "base.json",
+            "ours.json",
+            "theirs.json",
+        ]

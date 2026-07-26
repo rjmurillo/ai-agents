@@ -77,9 +77,22 @@ class GraphMergeError(Exception):
     """An input could not be read or was not a causal graph."""
 
 
+def _discard(temporary: str) -> OSError | None:
+    """Remove the sibling temporary, returning any failure instead of raising.
+
+    The caller is already unwinding a more interesting error. Raising from
+    cleanup would replace it.
+    """
+    try:
+        Path(temporary).unlink(missing_ok=True)
+    except OSError as cleanup:
+        return cleanup
+    return None
+
+
 def _atomic_write_text(path: Path, text: str) -> None:
     """Replace ``path`` only after its full content reaches a sibling file."""
-    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         try:
             handle = os.fdopen(fd, "w", encoding="utf-8")
@@ -95,6 +108,8 @@ def _atomic_write_text(path: Path, text: str) -> None:
             raise
         try:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
         except OSError as write_error:
             try:
                 handle.close()
@@ -109,14 +124,19 @@ def _atomic_write_text(path: Path, text: str) -> None:
         os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
         os.replace(temporary, path)
     except OSError as primary:
-        try:
-            Path(temporary).unlink(missing_ok=True)
-        except OSError as cleanup:
+        cleanup = _discard(temporary)
+        if cleanup is not None:
             message = (
                 f"{primary.strerror or primary}; failed to remove temporary file "
                 f"{temporary}: {cleanup}"
             )
             raise OSError(primary.errno, message) from primary
+        raise
+    except BaseException:
+        # KeyboardInterrupt is not an OSError, and a merge driver runs during an
+        # interactive `git merge`, which is exactly where Ctrl-C lands. Without
+        # this the temporary survives beside the graph it failed to replace.
+        _discard(temporary)
         raise
 
 
