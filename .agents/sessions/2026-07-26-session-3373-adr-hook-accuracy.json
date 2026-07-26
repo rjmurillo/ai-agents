@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3373,
+    "date": "2026-07-26",
+    "branch": "fix/3373-adr-hook-accuracy",
+    "startingCommit": "881046b7aa",
+    "objective": "Hold ADR status tables honest about which hooks exist, and record the opaque-group-id decision (#3373, #3374)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3373-adr-hook-accuracy before any edit"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session; Python-first and no-logic-in-YAML honored"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status --porcelain clean except the untracked pr3097-worktree/; HEAD 881046b7aa matches origin"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/3373-adr-hook-accuracy"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-read_memory returned usage-mandatory; serena-* tools are live in this session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called and read this session"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not needed; this session edited two ADRs and one test, no skill script involved"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena-read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote decision-session-protocol-workflow-stdlib-only"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The markdown auto-lint PostToolUse hook ran on both ADR edits and reported fixed formatting; .agents/** is excluded from the repo markdownlint config"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit a085af7add on fix/3373-adr-hook-accuracy, 3 files"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/hooks/test_adr_hook_claims.py: 99 passed"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three review threads on PR #3397 resolved by this change"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Deferred to the objective-level retrospective"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Review response",
+      "actions": [
+        "Read the three unresolved review threads on PR #3397 in full",
+        "Verified the retirement count against the ADR-008 status table: three of five retired, not four",
+        "Verified issue #3373's own title says three, confirming the PR prose was the drift",
+        "Moved invoke_test_auto_approval.py out of the amendment table into prose; the row admitted it was never one of the five and so inflated the count",
+        "Corrected the test docstring: two purges touched the five (#3184, #3349), not three",
+        "Repointed the ADR-082 item 9 amendment citation from #3373 (ADR-008 scoped) to #3399, which names this exact site"
+      ],
+      "outcome": "All three threads resolved with a code change, not an argument"
+    }
+  ],
+  "endingCommit": "a085af7add",
+  "nextSteps": [
+    "Merge PR #3397 once checks pass",
+    "Adjudicate the remaining 24 ADR prose hook-claim sites under #3399"
+  ]
+}

@@ -139,6 +139,28 @@ neutral in this ADR; only the publishing repo takes prunes.
    registration is dropped (advisory; ADR changes remain gated at commit
    by `invoke_adr_review_guard.py` and on Write/Edit by
    `invoke_adr_architect_gate.py`). Plugin membership is unchanged.
+   **Amended 2026-07-26 (Issue #3399):** both named hooks have since been
+   deleted. The parenthetical recorded why the prune was safe at the time
+   and is left standing as the decision's rationale, but a reader looking
+   for today's enforcement point should go to the lefthook `adr-review-policy`
+   job, which runs `scripts/validation/git_hook_policy.py adr-review` over
+   the staged set. The prune itself is unaffected: the registration it
+   dropped is still dropped.
+10. **Group ids are opaque.** A group id is a dispatcher lookup key. It
+    carries no contract with the shims the group holds, the matcher it uses,
+    the event it serves, or the order of anything. Nothing may make semantic
+    assertions on its content. The decision is recorded because the silence reads as an
+    invitation: a group-name coherence gate (an id should name the hooks it
+    holds) was proposed while closing #3349 and looks like an obvious
+    invariant. Replayed across the last 14 revisions of
+    `.claude/hooks/dispatch_groups.json` it fired on healthy groups in 12 of
+    them. `pretooluse-write-edit` names its matcher rather than its shims and
+    is correct; `plugin-posttooluse-1-markdown_auto_lint` matches today only
+    because the group holds one shim, and would break the moment a second
+    joined. A rule clean against exactly one tree is tuned to that tree, not
+    to an invariant. The falsification is in PR #3372 and the #3349 discourse.
+    Membership, event, and mode are the contract, and the manifest already
+    states all three; naming is a convenience for humans reading the file.
 
 ## Measured effect
 
