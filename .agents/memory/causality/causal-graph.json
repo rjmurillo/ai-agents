@@ -14525,7 +14525,8 @@
       "type": "milestone",
       "label": "milestone: Applied the three ADR-057 reference normalizations and verified against source",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3357-atomic-merge-write"
       ],
       "created": "2026-07-25T07:04:38.859304+00:00"
     },
@@ -14534,7 +14535,8 @@
       "type": "milestone",
       "label": "milestone: Ran a proportionate adr-review under the ADR Review Protocol",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3357-atomic-merge-write"
       ],
       "created": "2026-07-25T07:04:38.859367+00:00"
     },
@@ -14543,7 +14545,8 @@
       "type": "milestone",
       "label": "milestone: Re-verified the reviewers' factual claims directly against the working tree",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3357-atomic-merge-write"
       ],
       "created": "2026-07-25T07:04:38.859420+00:00"
     },
@@ -14552,7 +14555,8 @@
       "type": "milestone",
       "label": "milestone: Produced the governance artifacts and prepared the stacked commit",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3357-atomic-merge-write"
       ],
       "created": "2026-07-25T07:04:38.859471+00:00"
     },
@@ -15365,6 +15369,33 @@
         "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
       ],
       "created": "2026-07-26T02:02:26.671569+00:00"
+    },
+    {
+      "id": "5b1f3ecd25c4",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:20:25.446361+00:00"
+    },
+    {
+      "id": "86ba34f6f06c",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534e7",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:20:25.446425+00:00"
+    },
+    {
+      "id": "897339e3c991",
+      "type": "outcome",
+      "label": "Outcome: success - Make the causal graph merge driver write atomically so a failed write leaves ours intact (#3357)",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:20:25.446481+00:00"
     }
   ],
   "patterns": [

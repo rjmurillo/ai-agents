@@ -36,7 +36,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -334,6 +337,40 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Replace path with text, or leave path exactly as it was.
+
+    Git hands the driver the working-tree file as %A and reads the exit code to
+    decide whether to trust it. A plain write truncates first, so a disk-full or
+    interrupted write leaves a half-written graph on disk. The nonzero exit that
+    follows tells git to keep the conflict, and what git then keeps is the
+    damaged file rather than the original ours side.
+
+    Writing a sibling temporary and renaming it over the destination removes
+    that window: the rename either happens or it does not, and every failure
+    before it leaves the destination byte-identical.
+    """
+    mode = stat.S_IMODE(path.stat().st_mode)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+    except BaseException:
+        os.close(fd)
+        tmp.unlink(missing_ok=True)
+        raise
+    try:
+        with handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     """Return 0 on a written merge, 1 when git must leave the conflict alone."""
     args = parse_args(argv)
@@ -343,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
             _load(args.ours, "ours"),
             _load(args.theirs, "theirs"),
         )
-        args.ours.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        _atomic_write(args.ours, json.dumps(merged, indent=2) + "\n")
     except GraphMergeError as exc:
         print(f"ERROR: causal graph merge driver: {exc}", file=sys.stderr)
         print("Leaving the conflict in place; resolve it by hand.", file=sys.stderr)

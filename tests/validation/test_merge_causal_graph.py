@@ -9,6 +9,7 @@ a `.gitattributes` entry from becoming a no-op.
 from __future__ import annotations
 
 import json
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -393,16 +394,115 @@ class TestDriverExitContract:
         base = self._write(tmp_path, "base.json", _graph())
         ours = self._write(tmp_path, "ours.json", _graph())
         theirs = self._write(tmp_path, "theirs.json", _graph())
-        original = Path.write_text
 
-        def refuse(self: Path, *args: Any, **kwargs: Any) -> int:
-            if self == ours:
-                raise OSError(28, "No space left on device")
-            return original(self, *args, **kwargs)
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise OSError(28, "No space left on device")
 
-        monkeypatch.setattr(Path, "write_text", refuse)
+        monkeypatch.setattr(merge_causal_graph.os, "replace", refuse)
 
         assert main([str(base), str(ours), str(theirs)]) == 3
+
+
+class TestAFailedWriteLeavesOursIntact:
+    """Issue #3357: git keeps whatever is in %A when the driver exits nonzero.
+
+    ``Path.write_text`` truncates before it writes, so a disk-full or
+    interrupted write left a half-written graph on disk and the nonzero exit
+    told git to preserve exactly that. These tests pin the replacement:
+    the destination is either fully updated or untouched.
+    """
+
+    def _case(self, tmp_path: Path) -> tuple[Path, Path, Path]:
+        for name, graph in (
+            ("base.json", _graph()),
+            ("ours.json", _graph(nodes=[_node("a")])),
+            ("theirs.json", _graph(nodes=[_node("b")])),
+        ):
+            body = graph if isinstance(graph, str) else json.dumps(graph, indent=2)
+            (tmp_path / name).write_text(body + "\n", encoding="utf-8")
+        return tmp_path / "base.json", tmp_path / "ours.json", tmp_path / "theirs.json"
+
+    def _strays(self, tmp_path: Path) -> list[str]:
+        known = {"base.json", "ours.json", "theirs.json"}
+        return sorted(p.name for p in tmp_path.iterdir() if p.name not in known)
+
+    def test_a_refused_rename_leaves_ours_byte_identical(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base, ours, theirs = self._case(tmp_path)
+        before = ours.read_bytes()
+
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", refuse)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_bytes() == before
+
+    def test_a_refused_rename_leaves_no_temporary_behind(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base, ours, theirs = self._case(tmp_path)
+
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", refuse)
+
+        main([str(base), str(ours), str(theirs)])
+        assert self._strays(tmp_path) == []
+
+    def test_a_refused_body_write_leaves_ours_byte_identical(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The failure the old code could not survive: mid-payload, post-truncate."""
+        base, ours, theirs = self._case(tmp_path)
+        before = ours.read_bytes()
+        real_fdopen = merge_causal_graph.os.fdopen
+
+        class Stingy:
+            def __init__(self, handle: Any) -> None:
+                self._handle = handle
+
+            def write(self, _text: str) -> int:
+                raise OSError(28, "No space left on device")
+
+            def __enter__(self) -> Stingy:
+                return self
+
+            def __exit__(self, *exc: Any) -> None:
+                self._handle.close()
+
+        monkeypatch.setattr(
+            merge_causal_graph.os, "fdopen", lambda *a, **k: Stingy(real_fdopen(*a, **k))
+        )
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_bytes() == before
+        assert self._strays(tmp_path) == []
+
+    def test_a_successful_merge_preserves_the_destination_mode(self, tmp_path: Path) -> None:
+        """os.replace carries the temporary's mode, not the destination's.
+
+        mkstemp creates at 0600, so without an explicit chmod a merged graph
+        would come back private to the user who ran the merge.
+        """
+        base, ours, theirs = self._case(tmp_path)
+        ours.chmod(0o640)
+
+        assert main([str(base), str(ours), str(theirs)]) == 0
+        assert stat.S_IMODE(ours.stat().st_mode) == 0o640
+
+    def test_a_successful_merge_writes_the_union_and_leaves_no_temporary(
+        self, tmp_path: Path
+    ) -> None:
+        base, ours, theirs = self._case(tmp_path)
+
+        assert main([str(base), str(ours), str(theirs)]) == 0
+        written = json.loads(ours.read_text(encoding="utf-8"))
+        assert {n["id"] for n in written["nodes"]} == {"a", "b"}
+        assert self._strays(tmp_path) == []
 
 
 class TestGitActuallyUsesTheDriver:
