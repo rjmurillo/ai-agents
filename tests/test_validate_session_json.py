@@ -1170,6 +1170,20 @@ class TestSchemaIsActuallyEnforced:
         result = validate_session_log(log)
         assert result.errors == []
 
+    def test_offset_naive_history_timestamp_is_rejected(self) -> None:
+        """`datetime.fromisoformat` accepts a timestamp with no UTC offset,
+        but RFC 3339 section 5.6 (what the schema's `format: "date-time"`
+        means) requires one. A naive parse must not pass as RFC 3339."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "2026-07-26T01:12:11"}],
+        }
+        result = validate_session_log(log)
+        assert any(
+            "developmentPhase.history" in e and e.startswith("Schema:") for e in result.errors
+        )
+
 
 class TestProtocolChecksSurviveSchemaEnforcement:
     """The schema cannot express these; adding it must not displace them."""

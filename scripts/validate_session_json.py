@@ -58,7 +58,9 @@ SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 # jsonschema treats "format" as annotation-only, so that constraint was
 # silently unenforced. datetime.fromisoformat (Python 3.11+, this project
 # requires >=3.14) accepts RFC 3339's "Z" suffix, so a stdlib-only checker
-# covers the one format the schema uses without adding a dependency.
+# covers the one format the schema uses without adding a dependency. It is
+# also looser than RFC 3339 on its own (see _check_date_time), which the
+# tzinfo check below closes.
 _FORMAT_CHECKER = FormatChecker()
 
 
@@ -69,14 +71,19 @@ def _check_date_time(value: object) -> bool:
     Non-strings are not this keyword's concern: JSON Schema's "format" applies
     only to the type it names, and "type": "string" elsewhere in the schema
     already rejects a non-string value.
+
+    RFC 3339 section 5.6 requires a time-offset (``Z`` or a numeric offset);
+    ``datetime.fromisoformat`` is looser and also accepts a naive timestamp
+    with no offset at all, which would defeat the point of enforcing this
+    format. Reject a parse that came back timezone-naive.
     """
     if not isinstance(value, str):
         return True
     try:
-        datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return False
-    return True
+    return parsed.tzinfo is not None
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
