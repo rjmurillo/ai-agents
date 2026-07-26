@@ -123,6 +123,18 @@
       "time": "2026-07-26T04:30:00Z",
       "action": "Filed #3360 for the three validators that fail against the current tree",
       "result": "Allowlisted with the issue reference rather than wired, because wiring them requires first fixing what they report."
+    },
+    {
+      "time": "2026-07-26T14:20:00Z",
+      "action": "Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script."
+    },
+    {
+      "time": "2026-07-26T14:45:00Z",
+      "action": "The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists."
+    },
+    {
+      "time": "2026-07-26T15:05:00Z",
+      "action": "parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going."
     }
   ],
   "learnings": {

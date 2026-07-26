@@ -330,3 +330,39 @@ class TestAMalformedFileFailsInsteadOfDisappearing:
         agents, errors = parse_agent_files(tmp_agent_dir)
         assert agents == []
         assert errors == []
+
+
+class TestAnUnreadableFileFailsCleanly:
+    """A traceback is not a validation result; CI cannot act on it."""
+
+    def test_non_utf8_bytes_raise_the_registry_error(self, tmp_path: Path) -> None:
+        bad = tmp_path / "broken.md"
+        bad.write_bytes(b"---\nname: x\n---\n\xff\xfe not utf-8\n")
+        with pytest.raises(MalformedAgentFileError, match="not valid UTF-8"):
+            parse_agent_file(bad)
+
+    def test_non_utf8_bytes_are_reported_not_raised_by_the_directory_walk(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "good.md").write_text(
+            "---\nname: good\ndescription: d\n---\n", encoding="utf-8"
+        )
+        (tmp_path / "bad.md").write_bytes(b"---\nname: x\n---\n\xff\xfe\n")
+        agents, errors = parse_agent_files(tmp_path)
+        assert [a.name for a in agents] == ["good"]
+        assert any("not valid UTF-8" in e for e in errors)
+
+    def test_the_error_names_the_offending_file(self, tmp_path: Path) -> None:
+        bad = tmp_path / "culprit.md"
+        bad.write_bytes(b"---\nname: x\n---\n\xff\n")
+        with pytest.raises(MalformedAgentFileError, match="culprit.md"):
+            parse_agent_file(bad)
+
+    def test_a_directory_in_place_of_a_file_reports_rather_than_crashes(
+        self, tmp_path: Path
+    ) -> None:
+        """OSError takes the same path; the walk must not die on one bad entry."""
+        (tmp_path / "notafile.md").mkdir()
+        agents, errors = parse_agent_files(tmp_path)
+        assert agents == []
+        assert any("notafile.md" in e for e in errors)

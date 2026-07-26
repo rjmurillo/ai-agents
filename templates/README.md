@@ -364,10 +364,12 @@ Exit codes:
 
 ### CI gating
 
-`validate_templates_schema.py` runs in `build-validation.yml` (added in
-REQ-003 M2). A failing exit blocks the PR. Treat the validator as
-authoritative: if it rejects a YAML change, fix the YAML, do not relax
-the validator without an ADR amendment.
+`validate_templates_schema.py` has no CI home. It was added in REQ-003 M2 to
+run in `build-validation.yml`, and that workflow no longer exists, so nothing
+runs the validator on a template change today. Wiring it is tracked in #3366.
+It exits 0 against the current tree, so run it by hand before changing a
+platform config, and treat it as authoritative when it rejects one: fix the
+YAML, do not relax the validator without an ADR amendment.
 
 ### Constraints (ADR-006 Amendment Conditions 3 + 7)
 

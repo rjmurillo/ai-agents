@@ -64,14 +64,23 @@ class MalformedAgentFileError(Exception):
 def parse_agent_file(file_path: Path) -> AgentDefinition:
     """Parse a single agent markdown file.
 
-    Raises MalformedAgentFileError when the file carries no YAML frontmatter or no
-    name. Both used to return None, which dropped the file from the registry
-    and left validate() with nothing to complain about, so an agent that had
-    lost its frontmatter passed the check that exists to catch exactly that.
-    Every file here is meant to be an agent; the ones that are not are listed
-    in _EXCLUDED_FILES.
+    Raises MalformedAgentFileError when the file cannot be read as UTF-8, or
+    carries no YAML frontmatter, or has no name. All three used to end the
+    run badly: the first two as a traceback, the last two as a silent None
+    that dropped the file from the registry and left validate() with nothing
+    to complain about, so an agent that had lost its frontmatter passed the
+    check that exists to catch exactly that. Every file here is meant to be
+    an agent; the ones that are not are listed in _EXCLUDED_FILES.
     """
-    content = file_path.read_text(encoding="utf-8")
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise MalformedAgentFileError(
+            f"{file_path.name}: not valid UTF-8 at byte {exc.start}"
+        ) from exc
+    except OSError as exc:
+        raise MalformedAgentFileError(f"{file_path.name}: unreadable ({exc})") from exc
+
     raw = read_yaml_frontmatter(content)
     if raw is None:
         raise MalformedAgentFileError(f"{file_path.name}: no YAML frontmatter")

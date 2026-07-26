@@ -28,7 +28,7 @@ script under a skill's ``scripts/`` is read as text that can name something, not
 seeded as a root: it becomes reachable only when a ``SKILL.md`` or another
 surface names it.
 
-Under that model the same 89 scripts yield five unreachable, each of which is a
+Under that model the same 89 scripts yield seven unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -49,6 +49,14 @@ from tests.ci.test_ci_scripts_are_wired import _live_run_blocks, _strip_commente
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _GUARDED_DIRS = ("scripts/validation", "build/scripts")
+
+# AST nodes that can own a docstring as the first statement of their body.
+_DOCSTRING_OWNERS = (
+    ast.Module,
+    ast.ClassDef,
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+)
 
 # Spelled-out counts, so the module docstring can be checked against reality.
 _NUMBER_WORDS = {
@@ -76,6 +84,20 @@ _CALLER_ROOTS = (
 # Scripts with no caller on any entry surface. Each needs a non-empty reason,
 # so adding one is a decision rather than a way to silence this test.
 _NO_CALLER: dict[str, str] = {
+    "validate_templates_schema.py": (
+        "No caller on any entry surface. It looked wired only because "
+        "build/scripts/yaml_loader.py names it in a module docstring, an edge "
+        "that points from the library to its own consumer. templates/README.md "
+        "said it runs in build-validation.yml, a workflow that no longer "
+        "exists. Exits 0 today, so wiring it cannot turn CI red on arrival. "
+        "Tracked in #3366."
+    ),
+    "check_skill_portability.py": (
+        "No caller on any entry surface. Its only references are the docstrings "
+        "of check_skill_md_portability.py and checks_spec.py. It carries a "
+        "drift baseline of 173 and measures 166, and a ratchet nothing runs "
+        "does not ratchet. Exits 0 today. Tracked in #3366."
+    ),
     "validate_seed_parity.py": (
         "Forensic tool, and its own module docstring says so: 'This is a "
         "FORENSIC TOOL, not a regression gate. Do NOT add it to CI.' It answers "
@@ -149,6 +171,51 @@ def _imported_names(source: str) -> set[str]:
     return names
 
 
+def _scannable_text(source: str) -> str:
+    """String literals that are not docstrings, joined for substring search.
+
+    The substring scan exists for subprocess invocations, where a script is
+    named by a string literal rather than imported. Scanning the raw file
+    instead lets a comment or a docstring manufacture reachability, which is
+    the same defect `_strip_commented_lines` exists to prevent on the
+    workflow side: `yaml_loader.py` lists `validate_templates_schema.py` in
+    its module docstring, and that mention alone made an unwired script look
+    wired, with the edge pointing from the library to its own consumer.
+
+    Comments never reach the AST, so excluding them is free. Docstrings are
+    excluded explicitly. Everything else a string literal can hold, including
+    the pieces of an f-string, is kept.
+
+    Falls back to the raw source when the file does not parse, because
+    over-approximating reachability is safer than dropping a real edge.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:  # validate_python_syntax.py owns reporting this
+        return source
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if not isinstance(body, list) or not body:
+            continue
+        if not isinstance(node, _DOCSTRING_OWNERS):
+            continue
+        first = body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            docstrings.add(id(first.value))
+    return "\n".join(
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+    )
+
+
 @functools.lru_cache(maxsize=1)
 def _source_index() -> dict[str, tuple[str, ...]]:
     """Every in-repo Python source under `_CALLER_ROOTS`, keyed by module stem."""
@@ -178,9 +245,10 @@ def _reference_graph() -> dict[str, frozenset[str]]:
         except OSError:
             continue
         names = _imported_names(source)
+        scannable = _scannable_text(source)
         reached: set[str] = set()
         for stem, targets in index.items():
-            if stem in names or f"{stem}.py" in source:
+            if stem in names or f"{stem}.py" in scannable:
                 reached.update(targets)
         graph[rel] = frozenset(reached - {rel})
     return graph
@@ -281,7 +349,7 @@ def test_the_allowlist_stays_small_enough_to_read() -> None:
     """The failure this guards is a list nobody reads.
 
     59 entries would be the literal-reference model's answer. The bound is
-    generous against the five real entries so that ordinary churn does not trip
+    generous against the seven real entries so that ordinary churn does not trip
     it, and tight enough that a bulk exemption has to argue for itself.
     """
     assert len(_NO_CALLER) <= 12, (
@@ -403,3 +471,41 @@ class TestTheDocstringMatchesTheAllowlist:
             f"module docstring should say {stated!r}; it drifts every time "
             f"_NO_CALLER changes unless something checks it"
         )
+
+
+class TestProseDoesNotManufactureReachability:
+    """A script named in a comment is discussed, not run."""
+
+    def test_a_comment_does_not_create_an_edge(self) -> None:
+        source = "# see scripts/validation/pre_pr.py for the gate\nx = 1\n"
+        assert "pre_pr.py" not in _scannable_text(source)
+
+    def test_a_module_docstring_does_not_create_an_edge(self) -> None:
+        source = '"""Consumers:\n\n- pre_pr.py (REQ-001)\n"""\n\nx = 1\n'
+        assert "pre_pr.py" not in _scannable_text(source)
+
+    def test_a_function_docstring_does_not_create_an_edge(self) -> None:
+        source = 'def f():\n    """Mirrors pre_pr.py."""\n    return 1\n'
+        assert "pre_pr.py" not in _scannable_text(source)
+
+    def test_a_subprocess_argument_still_creates_an_edge(self) -> None:
+        """The scan exists for this shape, so it must survive the filter."""
+        source = 'run(["python3", "scripts/validation/pre_pr.py", "--ci"])\n'
+        assert "pre_pr.py" in _scannable_text(source)
+
+    def test_an_f_string_argument_still_creates_an_edge(self) -> None:
+        source = 'run(f"python3 scripts/validation/pre_pr.py {flag}")\n'
+        assert "pre_pr.py" in _scannable_text(source)
+
+    def test_an_unparseable_file_falls_back_to_the_raw_source(self) -> None:
+        """Over-approximating beats dropping a real edge on a syntax error."""
+        source = "def broken(:\n    pre_pr.py\n"
+        assert _scannable_text(source) == source
+
+    def test_the_yaml_loader_docstring_no_longer_reaches_its_consumer(self) -> None:
+        """The concrete case: the edge pointed library to consumer, backwards."""
+        loader = _REPO_ROOT / "build" / "scripts" / "yaml_loader.py"
+        if not loader.is_file():
+            pytest.skip("yaml_loader.py has moved")
+        edges = _reference_graph().get("build/scripts/yaml_loader.py", frozenset())
+        assert "build/scripts/validate_templates_schema.py" not in edges
