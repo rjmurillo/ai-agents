@@ -111,12 +111,21 @@ class TestParseAgentFile:
                 "name: first\nname: second\ndescription: duplicate\nmodel: sonnet",
                 "duplicate frontmatter key 'name'",
             ),
+            # A YAML complex key (a sequence or mapping used as a key) makes
+            # key_node.value a list, which the duplicate-key set cannot hash.
+            # _parse_frontmatter rejects non-scalar key nodes before it builds
+            # that set. Both shapes are covered: a reader who sees only the
+            # sequence case would not know the mapping case is handled too.
             (
-                "? [complex, key]\n: value\nname: valid\ndescription: invalid key\nmodel: sonnet",
+                "? [a, b]\n: value\nname: seqkey\n",
+                "frontmatter keys must be scalar values",
+            ),
+            (
+                "? {a: 1}\n: value\nname: mapkey\n",
                 "frontmatter keys must be scalar values",
             ),
         ],
-        ids=["invalid-yaml", "duplicate-key", "complex-key"],
+        ids=["invalid-yaml", "duplicate-key", "sequence-key", "mapping-key"],
     )
     def test_malformed_yaml_is_rejected(
         self,

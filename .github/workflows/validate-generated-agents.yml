@@ -135,7 +135,13 @@ jobs:
 
       - name: Install validator dependencies
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==8.3.3'
+        # pytest is pinned to the project floor in pyproject.toml
+        # (pytest>=9.0.3). A review suggested aligning this down to the 8.3.3
+        # used by .github/actions/validate-plugin-manifests; that action is the
+        # stale one, and installing below the declared floor here would run the
+        # reachability suite on a pytest the project does not support.
+        # Refs #3377.
+        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3'
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'

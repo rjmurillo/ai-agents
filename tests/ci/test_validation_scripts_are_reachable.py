@@ -358,6 +358,12 @@ def _module_path(rel: str) -> str:
 
 
 def _read_text(path: Path, surface: str) -> str:
+    """Read one entry surface, naming the file when it cannot be read.
+
+    Without the path in the message an unreadable file surfaces as a bare
+    OSError from somewhere inside a reachability computation, which tells the
+    next reader nothing about which surface to go look at.
+    """
     try:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
@@ -719,3 +725,67 @@ class TestCommentedHookLinesDoNotSeedReachability:
             )
         finally:
             _entry_points.cache_clear()
+
+
+class TestUnreadableEntrySurfacesNameTheFile:
+    """An unreadable entry surface reports its path, not a bare decode error.
+
+    `_text_of` wrapped its reads from the start. The per-skill SKILL.md scan in
+    `_entry_points` used a raw `read_text`, so a file with a bad encoding failed
+    there with no indication of which surface broke. Both now go through
+    `_read_text`, which also collapsed the two passes over the SKILL.md corpus
+    into one.
+    """
+
+    def test_a_decode_error_names_the_path(self) -> None:
+        bad = _REPO_ROOT / "tests" / "ci" / "__unreadable_probe__.md"
+        bad.write_bytes(b"\xff\xfe\x00 not utf-8 \xc3\x28")
+        try:
+            with pytest.raises(RuntimeError, match=r"__unreadable_probe__\.md"):
+                _read_text(bad, "entry surface")
+        finally:
+            bad.unlink()
+
+    def test_the_message_carries_the_surface_label(self) -> None:
+        """The label distinguishes a workflow surface from a skill surface."""
+        bad = _REPO_ROOT / "tests" / "ci" / "__labelled_probe__.md"
+        bad.write_bytes(b"\xff\xfe\x00 \xc3\x28")
+        try:
+            with pytest.raises(RuntimeError, match=r"skill entry surface"):
+                _read_text(bad, "skill entry surface")
+        finally:
+            bad.unlink()
+
+    def test_a_readable_file_returns_its_text(self) -> None:
+        good = _REPO_ROOT / "tests" / "ci" / "__readable_probe__.md"
+        good.write_text("# heading\n", encoding="utf-8")
+        try:
+            assert _read_text(good, "entry surface") == "# heading\n"
+        finally:
+            good.unlink()
+
+    def test_each_skill_md_is_read_once(self, monkeypatch) -> None:
+        """`_entry_points` reads the SKILL.md corpus in a single pass.
+
+        The earlier shape called `_text_of(skill_patterns)` and then re-globbed
+        the same files in the per-skill loop, reading every SKILL.md twice.
+        Counting the reads is what proves the second pass is gone.
+        """
+        counts: dict[str, int] = {}
+        real = _read_text
+
+        def counting(path: Path, surface: str) -> str:
+            if path.name == "SKILL.md":
+                counts[path.as_posix()] = counts.get(path.as_posix(), 0) + 1
+            return real(path, surface)
+
+        monkeypatch.setattr("tests.ci.test_validation_scripts_are_reachable._read_text", counting)
+        _entry_points.cache_clear()
+        try:
+            _entry_points()
+        finally:
+            _entry_points.cache_clear()
+
+        assert counts, "no SKILL.md was read; the scan patterns matched nothing"
+        repeated = {rel: n for rel, n in counts.items() if n != 1}
+        assert not repeated, f"SKILL.md files read more than once: {repeated}"
