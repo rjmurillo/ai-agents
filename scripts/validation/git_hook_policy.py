@@ -1241,6 +1241,14 @@ def update_causal_graph(repo_root: Path) -> int:
         return _stage_causal_graph(graph_path, repo_root)
     _restore_file(graph_path, snapshot)
     print("WARNING: causal graph update failed; original graph restored", file=sys.stderr)
+    # The restore preserves the file as found, so a corrupt graph stays corrupt
+    # and this warning repeats on every commit. Name the repair (issue #3370).
+    print(
+        "         If the graph file is corrupt, rebuild it from the episodes:\n"
+        "           python3 .claude/skills/memory/scripts/update_causal_graph.py "
+        "--reset-graph",
+        file=sys.stderr,
+    )
     return 0
 
 

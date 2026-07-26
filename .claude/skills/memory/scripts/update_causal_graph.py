@@ -629,6 +629,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to causal graph JSON file",
     )
     parser.add_argument(
+        "--reset-graph", action="store_true",
+        help=(
+            "Discard the existing graph and rebuild from the episodes on disk. "
+            "The repair path for a corrupted graph file: the graph is derived "
+            "data, so a full run reconstructs it (issue #3370)."
+        ),
+    )
+    parser.add_argument(
         "--prune-episode-ids", type=str, default=None,
         help=(
             "Comma-separated episode ids whose contributions to remove from the "
@@ -678,14 +686,31 @@ def main(argv: list[str] | None = None) -> int:
         if pid.strip()
     ]
 
-    if not episode_files and not prune_ids:
+    if not episode_files and not prune_ids and not args.reset_graph:
         print("No episode files found to process.", file=sys.stderr)
         return 0
 
     print(f"Found {len(episode_files)} episode(s) to process", file=sys.stderr)
 
-    # Load existing graph
-    graph = load_causal_graph(graph_path)
+    # Load existing graph. A corrupt file is preserved rather than replaced,
+    # so the failure has to carry its own repair instruction: without one the
+    # hook warns on every commit forever with nothing the user can act on.
+    if args.reset_graph:
+        print("Discarding the existing graph and rebuilding from episodes.", file=sys.stderr)
+        graph = _empty_graph()
+    else:
+        try:
+            graph = load_causal_graph(graph_path)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            print(
+                "The graph is derived from the episodes on disk, so it can be "
+                "rebuilt. Repair with:\n"
+                "  python3 .claude/skills/memory/scripts/update_causal_graph.py "
+                "--reset-graph",
+                file=sys.stderr,
+            )
+            return 2
 
     stats = {
         "episodes_processed": 0,
