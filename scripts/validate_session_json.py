@@ -48,6 +48,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
+from scripts.validation.session_scope import session_log_is_new  # noqa: E402
 
 SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 
@@ -401,7 +402,7 @@ def _has_contradiction(evidence: str) -> bool:
 
 
 def validate_must_item(
-    check_data: dict[str, Any],
+    check_data: object,
     item_name: str,
     section_name: str,
     result: ValidationResult,
@@ -414,6 +415,19 @@ def validate_must_item(
         section_name: Section name for error messages.
         result: ValidationResult to update with errors/warnings.
     """
+    if not isinstance(check_data, dict):
+        # Six committed logs from 2026-01 and 2026-02 store a bare boolean here
+        # instead of the {complete, level, evidence} object. Reading .items()
+        # off that raised AttributeError, which main() turned into "FATAL:
+        # 'bool' object has no attribute 'items'" and exit 2. Exit 2 means the
+        # validator broke, not the log, so the operator was sent to debug the
+        # wrong file. Report it as what it is: a malformed item.
+        result.errors.append(
+            f"Malformed item: {section_name}.{item_name} is "
+            f"{type(check_data).__name__}, not an object with complete/level/evidence"
+        )
+        return
+
     is_complete = get_case_insensitive(check_data, "complete")
     evidence = get_case_insensitive(check_data, "evidence")
     level = get_case_insensitive(check_data, "level")
@@ -589,7 +603,7 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: object) -> ValidationResult:
+def validate_session_log(data: object, *, existing_log: bool = False) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
@@ -597,6 +611,15 @@ def validate_session_log(data: object) -> ValidationResult:
             any JSON value can reach here, so the type is the parser's, not the
             schema's. The schema reports a non-object; the protocol checks below
             need a mapping and are skipped without one.
+        existing_log: True when the log was already committed and this change
+            only edits it. Two different questions are bundled in this file, and
+            they have different answers on an old log. Shape ("is this record
+            well formed") is always the log's own property and always binds.
+            Checklist completeness ("did the session run markdownlint") is a
+            property of a session that already ended: it cannot be made true by
+            editing the record, and demanding it is a demand to invent evidence.
+            So an existing log is validated as a record, and a new one is
+            validated as a record *and* as a compliance claim. See issue #3385.
 
     Returns:
         ValidationResult with errors and warnings.
@@ -617,7 +640,7 @@ def validate_session_log(data: object) -> ValidationResult:
     if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if isinstance(data.get("protocolCompliance"), dict):
+    if not existing_log and isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
     return result
@@ -777,6 +800,20 @@ def report_results(
             print(f"  - {warning}")
 
 
+def _repo_relative(path: Path) -> str:
+    """Return ``path`` as a repo-relative POSIX path for ``git cat-file``.
+
+    Git addresses blobs by their path inside the tree, so an absolute path
+    never resolves. A path outside the repository is returned unchanged; the
+    probe then reports "not in the merge base", which is the strict answer.
+    """
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(_PROJECT_ROOT).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -796,6 +833,25 @@ def parse_args() -> argparse.Namespace:
         "--pre-commit",
         action="store_true",
         help="Suppress verbose output when called from pre-commit hook",
+    )
+    parser.add_argument(
+        "--existing-log",
+        action="store_true",
+        help=(
+            "Validate as a record only: skip the session-compliance checklist. "
+            "Set this for a log that was already committed and is only being "
+            "edited, where a checklist item cannot be made true retroactively. "
+            "A newly added log must not set it."
+        ),
+    )
+    parser.add_argument(
+        "--scope-from-git",
+        action="store_true",
+        help=(
+            "Derive --existing-log from git: a log already present at the "
+            "merge base with origin/main is validated as a record. Use this "
+            "where computing the scope out-of-band would restate the rule."
+        ),
     )
     parser.add_argument(
         "--json-output",
@@ -860,7 +916,14 @@ def main() -> int:
             return 1
 
         # Validate session log
-        result = validate_session_log(data)
+        existing_log = args.existing_log
+        if args.scope_from_git and not existing_log:
+            existing_log = not session_log_is_new(
+                _repo_relative(validated_path),
+                _PROJECT_ROOT,
+            )
+
+        result = validate_session_log(data, existing_log=existing_log)
         validate_filename_number(validated_path, data, result)
 
         # Report results
