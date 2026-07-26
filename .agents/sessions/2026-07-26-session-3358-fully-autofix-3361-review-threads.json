@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3358,
+    "date": "2026-07-26",
+    "branch": "fix/3341-extend-wiring-guard",
+    "startingCommit": "038cdc9399",
+    "objective": "Fully autofix PR 3361 review threads, CI, generated artifacts, and merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory and symbol tools operated against this repository; the harness exposed no separate activation call."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed before code changes."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and found no issue 3341 or PR 3361 handoff file."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed the GitHub skill scripts and read github, pr-autofix, pr-comment-responder, session-init, session-end, session-log-fixer, memory-reflexion, and prose-self-check skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the usage-mandatory Serena memory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and matching path rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, skills-pr-review-index, validation-pr-gates, Copilot frontmatter, and session-log-fixer memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3341-extend-wiring-guard"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3341-extend-wiring-guard"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified the isolated worktree on fix/3341-extend-wiring-guard and preserved the dirty primary checkout."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "038cdc9399"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session MUST gates completed with command evidence in this worktree."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged; no issue-specific handoff existed."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory reflexion regenerated the 3341 episode and reconciled its Tier 3 causal graph provenance."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 exited 0; no tracked Markdown files changed and ignored PR coordination files matched the repository exclusion set."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commits e89f065eb7 and 8847d08f51 contain the code and workflow fixes; this commit finalizes causal and session evidence."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted tests passed 129 with 5 skips; workflow, actionlint, direct validator, security, QA, and code-review gates passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR comment map and task list record all 26 comments; both active fix tasks are complete."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No separate retrospective; the session work log records the concurrent-head and generated-artifact recovery."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-26T04:35:58Z",
+      "action": "Ran the PR live-state gate and created an isolated worktree",
+      "result": "PR 3361 was open and actionable; the primary main checkout remained untouched."
+    },
+    {
+      "time": "2026-07-26T04:47:15Z",
+      "action": "Integrated concurrent branch updates and current main without force push",
+      "result": "Remote agent fixes and main merged cleanly; local review fixes were reconciled against the new head."
+    },
+    {
+      "time": "2026-07-26T05:09:39Z",
+      "action": "Regenerated and verified session 3341 memory evidence",
+      "result": "The episode contains only 3341 milestones and commit 0fc3df9a7f; the causal graph no longer assigns ADR-057 or duplicate commit nodes to it."
+    },
+    {
+      "time": "2026-07-26T05:30:00Z",
+      "action": "Hardened the reachability and agent registry guards",
+      "result": "The registry rejects malformed agent files. Reachability resolves exact imports and execution paths, ignores prose, and runs for every caller surface."
+    },
+    {
+      "time": "2026-07-26T06:15:00Z",
+      "action": "Ran QA, security, code review, targeted tests, workflow validation, and local workflow dry runs",
+      "result": "All blocking checks passed. Security reported no high or critical findings."
+    }
+  ],
+  "endingCommit": "8847d08f519a370ba0c176c6f9786fd36c78dfa8",
+  "nextSteps": []
+}
