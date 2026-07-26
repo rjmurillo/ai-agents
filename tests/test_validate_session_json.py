@@ -7,6 +7,7 @@ per ADR-042.
 
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 import sys
@@ -1705,8 +1706,9 @@ class TestValidateFilenameNumber:
 # current validator the same way, so this is the schema having moved, not
 # this log being unusually bad.
 #
-# Touching it therefore turns a green PR red for a defect five months older
-# than the change. The invariant is recorded here instead, and the retro at
+# Touching it therefore turns a green PR red for a schema gap the log did not
+# introduce and this change cannot close. The invariant is recorded here
+# instead, and the retro at
 # .agents/retrospective/2026-07-26-pr-3354-session-log-churn.md names the
 # same file. Tracked in issue #3385.
 _UNFIXABLE_LEGACY_LOGS = {"2026-02-11-session-1-pr-review-1146-security-fixes.json"}
@@ -1803,8 +1805,10 @@ class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
     def test_the_shipped_guard_shares_this_loop(self) -> None:
         """Ties the lifted copy to the real one: if the guard stops reporting
         read failures, this catches the divergence.
+
+        Reads the guard through inspect rather than slicing this file's text,
+        so renaming a neighbouring test or reindenting cannot break it.
         """
-        source = Path(__file__).read_text(encoding="utf-8")
-        marker = "class TestEveryCommittedLogSatisfiesTheFilenameInvariant"
-        body = source.split(marker, 1)[1].split("\n    def test_the_exemption", 1)[0]
+        guard = TestEveryCommittedLogSatisfiesTheFilenameInvariant
+        body = inspect.getsource(guard.test_no_committed_session_log_violates_it)
         assert "cannot be read as JSON" in body
