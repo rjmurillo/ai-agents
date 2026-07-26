@@ -537,6 +537,12 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
         result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, schema layer skipped: {exc}")
         return
 
+    if not isinstance(schema, dict):
+        result.errors.append(
+            f"Schema: {SCHEMA_PATH.name} root is not a JSON object, schema layer skipped"
+        )
+        return
+
     validator_cls = validator_for(schema)
     try:
         validator_cls.check_schema(schema)
