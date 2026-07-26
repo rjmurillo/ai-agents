@@ -2533,6 +2533,40 @@ def test_causal_graph_restores_snapshot_on_failure(
     assert graph.read_text(encoding="utf-8") == '{"original": true}\n'
 
 
+def test_causal_graph_aborts_when_snapshot_cannot_be_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    graph = repo / ".agents/memory/causality/causal-graph.json"
+    graph.parent.mkdir(parents=True)
+    graph.write_bytes(b'{"original": true}\n')
+    episode = repo / ".agents/memory/episodes/episode-test.json"
+    episode.parent.mkdir(parents=True)
+    episode.write_text(
+        json.dumps(_episode_payload("episode-test", "content")),
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
+    original_read_bytes = Path.read_bytes
+
+    def fail_graph_read(path: Path) -> bytes:
+        if path == graph:
+            raise OSError("snapshot read failed")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_graph_read)
+    monkeypatch.setattr(
+        policy,
+        "_apply_causal_graph_updates",
+        lambda *_args: pytest.fail("update must not run without a snapshot"),
+    )
+
+    assert policy.update_causal_graph(repo) == 2
+    assert original_read_bytes(graph) == b'{"original": true}\n'
+
+
 def test_causal_graph_noops_without_staged_episodes(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)

@@ -26,6 +26,29 @@ class TestLoadCausalGraph:
         assert "patterns" in graph
         assert graph["nodes"] == []
 
+    def test_missing_graph_does_not_use_a_stat_preflight(self, tmp_path, monkeypatch):
+        def fail_is_file(*_args, **_kwargs):
+            raise AssertionError("load_causal_graph must read directly")
+
+        monkeypatch.setattr(Path, "is_file", fail_is_file)
+
+        graph = update_causal_graph.load_causal_graph(tmp_path / "absent.json")
+
+        assert graph["version"] == update_causal_graph.GRAPH_VERSION
+        assert graph["nodes"] == []
+
+    def test_an_unreadable_existing_graph_fails_closed(self, tmp_path, monkeypatch):
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_text("{}", encoding="utf-8")
+
+        def fail_read_text(*_args, **_kwargs):
+            raise OSError("read failed")
+
+        monkeypatch.setattr(Path, "read_text", fail_read_text)
+
+        with pytest.raises(ValueError, match="could not be read"):
+            update_causal_graph.load_causal_graph(graph_file)
+
 
 class TestAddCausalNode:
     """Tests for add_causal_node function."""

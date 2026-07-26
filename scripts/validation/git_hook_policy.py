@@ -1266,7 +1266,13 @@ def update_causal_graph(repo_root: Path) -> int:
     if graph_path is None:
         print("ERROR: unsafe causal graph output path", file=sys.stderr)
         return 2
-    snapshot = graph_path.read_bytes() if graph_path.is_file() else None
+    try:
+        snapshot = graph_path.read_bytes()
+    except FileNotFoundError:
+        snapshot = None
+    except OSError as exc:
+        print(f"ERROR: could not snapshot causal graph: {exc}", file=sys.stderr)
+        return 2
     result = _apply_causal_graph_updates(staged, deleted, graph_path, repo_root)
     if result == 0:
         return _stage_causal_graph(graph_path, repo_root)

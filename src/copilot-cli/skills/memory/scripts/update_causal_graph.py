@@ -53,10 +53,10 @@ def load_causal_graph(graph_path: Path) -> dict[str, Any]:
             corrupted file that must not be silently replaced, allowing the
             caller (e.g., a git hook) to restore the original.
     """
-    if not graph_path.is_file():
-        return _empty_graph()
     try:
         data = json.loads(graph_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return _empty_graph()
     except UnicodeDecodeError as exc:
         msg = f"causal graph file is not valid UTF-8: {graph_path}"
         raise ValueError(msg) from exc
