@@ -15500,6 +15500,15 @@
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
       "created": "2026-07-26T05:22:10.117662+00:00"
+    },
+    {
+      "id": "9fe69287ecc6",
+      "type": "milestone",
+      "label": "milestone: Reconcile the manifest version with the PR description",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:26:29.537418+00:00"
     }
   ],
   "patterns": [

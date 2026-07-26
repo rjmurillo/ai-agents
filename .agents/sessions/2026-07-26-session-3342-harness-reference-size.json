@@ -134,6 +134,11 @@
       "task": "Reword the SKILL.md pointer and re-extract the episode",
       "outcome": "'the two rows below' became 'the two facts repeated below', because what follows is prose rather than table rows. Applied to the canonical copy and mirrored with build/scripts/generate_skills.py. The episode was re-extracted from the final session log so the derived artifacts match their source.",
       "evidence": "Both SKILL.md copies carry the new wording at line 90; generate_skills.py wrote 598 files across 95 skills with no residual diff."
+    },
+    {
+      "task": "Reconcile the manifest version with the PR description",
+      "outcome": "Both plugin manifests read 0.6.111, matching what the PR description claims. The review found the description at 0.6.111 against manifests at 0.6.110. This round changed .claude/skills/agent-harness-reference/SKILL.md, so the bump is earned rather than cosmetic.",
+      "evidence": "check_plugin_manifest_parity.py reports 'Plugin manifest versions match: 0.6.111'; main is at 0.6.106, so the strictly-greater gate holds."
     }
   ],
   "endingCommit": "006a88767",

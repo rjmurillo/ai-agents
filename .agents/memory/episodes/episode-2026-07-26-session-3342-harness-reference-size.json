@@ -168,6 +168,18 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconcile the manifest version with the PR description",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": []
     }
   ],
