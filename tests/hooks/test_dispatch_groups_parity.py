@@ -185,8 +185,10 @@ def test_plugin_registrations_are_dispatcher_only():
 # The gate deliberately asserts identity, not naming. A group-name coherence
 # assertion was tried first and falsified: replayed over the last 14 revisions
 # of dispatch_groups.json it flagged healthy descriptive groups such as
-# `pretooluse-write-edit` in 12 of them, because ADR-082 makes group ids
-# opaque dispatcher keys with no semantic contract. Names are not a gate.
+# `pretooluse-write-edit` in 12 of them. ADR-082 specifies a group's event,
+# mode, membership, merge rules, and timeout ownership; it says nothing about
+# ids, so a name carries no contract to check against. That silence is tracked
+# in #3374. Names are not a gate.
 #
 # The authorized set is small and shrinking while the running set is what
 # drifts, so this stays cheap and gets stronger as the ROI program completes.
