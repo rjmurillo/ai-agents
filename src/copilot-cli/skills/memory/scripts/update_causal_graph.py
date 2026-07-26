@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -622,6 +623,27 @@ def _repair_invocation() -> str:
         return str(script)
 
 
+def _repair_command(episode_path: Path, graph_path: Path) -> str:
+    """Return the exact command that rebuilds ``graph_path`` from ``episode_path``.
+
+    Both paths are spelled out rather than left to the defaults. The default
+    episode directory is derived from this file's location, which differs
+    between the canonical tree and the Copilot CLI mirror, and a caller who
+    passed ``--graph-path`` would otherwise be told to rebuild a file other
+    than the corrupt one.
+    """
+    parts = [
+        "python3",
+        _repair_invocation(),
+        "--reset-graph",
+        "--episode-path",
+        str(episode_path),
+        "--graph-path",
+        str(graph_path),
+    ]
+    return " ".join(shlex.quote(part) for part in parts)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update the causal graph from episode data.",
@@ -717,12 +739,9 @@ def main(argv: list[str] | None = None) -> int:
             graph = load_causal_graph(graph_path)
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
-            repair_cmd = f"python3 {_repair_invocation()} --reset-graph"
-            if args.graph_path:
-                repair_cmd += f" --graph-path {graph_path}"
             print(
                 "The graph is derived from the episodes on disk, so it can be "
-                f"rebuilt. Repair with:\n  {repair_cmd}",
+                f"rebuilt. Repair with:\n  {_repair_command(episode_path, graph_path)}",
                 file=sys.stderr,
             )
             return 2

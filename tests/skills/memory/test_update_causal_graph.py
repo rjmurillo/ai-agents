@@ -1,7 +1,9 @@
 """Tests for update_causal_graph.py."""
 
+import importlib.util
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -1011,6 +1013,23 @@ class TestResetGraphIsTheDocumentedRepairPath:
         assert any("ep-0" in n.get("episodes", []) for n in rebuilt["nodes"])
 
 
+def _hook_repair_command(graph_path, repo_root):
+    """Import the wrapper's helper without putting the whole module on sys.path."""
+    validation = Path(__file__).resolve().parents[3] / "scripts" / "validation"
+    spec = importlib.util.spec_from_file_location(
+        "_ghp_for_repair_tests", validation / "git_hook_policy.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    # Registered before exec because the module defines slotted dataclasses,
+    # which resolve their own module out of sys.modules during class creation.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module._causal_repair_command(graph_path, repo_root)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 class TestTheHookWarningNamesTheRepair:
     """The wrapper restores the file as found, so a corrupt graph stays corrupt.
     Its warning has to name the same repair command the script prints.
@@ -1024,7 +1043,56 @@ class TestTheHookWarningNamesTheRepair:
         marker = "causal graph update failed; original graph restored"
         assert marker in source
         tail = source.split(marker, 1)[1][:600]
-        assert "--reset-graph" in tail
+        assert "_causal_repair_command(" in tail
+
+    def test_the_wrapper_command_carries_the_reset_flag(self):
+        command = _hook_repair_command(Path("/repo/g.json"), Path("/repo"))
+        assert "--reset-graph" in shlex.split(command)
+
+    def test_the_wrapper_command_names_the_on_disk_episode_directory(self):
+        argv = shlex.split(_hook_repair_command(Path("/repo/g.json"), Path("/repo")))
+        assert argv[argv.index("--episode-path") + 1] == ".agents/memory/episodes"
+
+    def test_the_wrapper_command_names_the_graph_it_just_restored(self):
+        graph = Path("/repo/.agents/memory/causality/causal-graph.json")
+        argv = shlex.split(_hook_repair_command(graph, Path("/repo")))
+        assert argv[argv.index("--graph-path") + 1] == (
+            ".agents/memory/causality/causal-graph.json"
+        )
+
+    def test_a_graph_outside_the_repo_keeps_its_absolute_path(self):
+        argv = shlex.split(_hook_repair_command(Path("/other place/g.json"), Path("/repo")))
+        assert argv[argv.index("--graph-path") + 1] == "/other place/g.json"
+
+    def test_the_wrapper_runs_the_script_its_advice_names(self):
+        """One home for the path: the subprocess and the advice cannot drift."""
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "scripts" / "validation" / "git_hook_policy.py"
+        ).read_text(encoding="utf-8")
+        assert ".claude/skills/memory/scripts/update_causal_graph.py" not in (
+            source.split("_CAUSAL_UPDATER = ", 1)[1].split("\n", 1)[1]
+        )
+
+
+def _repair_argv(tmp_path, capsys, graph_path=None):
+    """Run a load failure and return the printed repair command, shell-split.
+
+    ``shlex.split`` rather than ``str.split`` so a quoted path with spaces
+    stays one argument, which is the whole point of quoting it.
+    """
+    graph = graph_path if graph_path is not None else tmp_path / "graph.json"
+    graph.write_text("{", encoding="utf-8")
+    _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+    assert update_causal_graph.main(
+        ["--episode-path", str(tmp_path / "ep"), "--graph-path", str(graph)]
+    ) == 2
+
+    err = capsys.readouterr().err
+    printed = [ln for ln in err.splitlines() if "--reset-graph" in ln]
+    assert printed, "the failure must print the repair command"
+    return shlex.split(printed[0])
 
 
 class TestTheRepairPathIsDerivedNotHardCoded:
@@ -1050,20 +1118,37 @@ class TestTheRepairPathIsDerivedNotHardCoded:
         assert Path(invocation).is_absolute()
         assert Path(invocation).exists()
 
-    def test_the_printed_message_carries_no_upstream_literal(self, tmp_path, capsys):
-        """The mirrored copy must not advertise a .claude path it does not have."""
-        monkeypatch_target = tmp_path / "graph.json"
-        monkeypatch_target.write_text("{", encoding="utf-8")
-        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+    def test_the_printed_script_path_exists_on_disk(self, tmp_path, capsys):
+        """A repair command naming a script the reader does not have is not advice."""
+        argv = _repair_argv(tmp_path, capsys)
+        assert Path(argv[1]).exists()
 
-        update_causal_graph.main(
-            [
-                "--episode-path", str(tmp_path / "ep"),
-                "--graph-path", str(monkeypatch_target),
-            ]
-        )
 
-        err = capsys.readouterr().err
-        printed = [ln for ln in err.splitlines() if "--reset-graph" in ln]
-        assert printed, "the failure must print the repair command"
-        assert Path(printed[0].split()[1]).exists()
+class TestTheRepairCommandNamesThePathsInPlay:
+    """A bare ``--reset-graph`` rebuilds paths derived from the script's own
+    location, which differ between the canonical tree and the Copilot CLI
+    mirror, and ignore any ``--graph-path`` the caller passed. Copy-pasting it
+    could rebuild somewhere other than the file that just failed to load.
+    """
+
+    def test_the_command_repeats_the_callers_graph_path(self, tmp_path, capsys):
+        argv = _repair_argv(tmp_path, capsys)
+        assert argv[argv.index("--graph-path") + 1] == str(tmp_path / "graph.json")
+
+    def test_the_command_repeats_the_callers_episode_path(self, tmp_path, capsys):
+        argv = _repair_argv(tmp_path, capsys)
+        assert argv[argv.index("--episode-path") + 1] == str(tmp_path / "ep")
+
+    def test_a_path_with_spaces_survives_a_shell_round_trip(self, tmp_path, capsys):
+        target = tmp_path / "two words"
+        target.mkdir()
+        argv = _repair_argv(tmp_path, capsys, graph_path=target / "graph.json")
+        assert argv[argv.index("--graph-path") + 1] == str(target / "graph.json")
+
+    def test_the_pasted_command_actually_rebuilds_the_corrupt_file(
+        self, tmp_path, capsys
+    ):
+        argv = _repair_argv(tmp_path, capsys)
+        graph = tmp_path / "graph.json"
+        assert update_causal_graph.main(argv[2:]) == 0
+        assert json.loads(graph.read_text(encoding="utf-8"))["nodes"]
