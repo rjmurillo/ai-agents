@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the PR live-state gate and created an isolated worktree",
       "caused_by": [
-        "e007"
+        "e008"
       ],
       "leads_to": [
         "e002"
@@ -74,13 +74,25 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
       "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the pre-push graph fixture regression",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 826e9ba82dc0412077695df50772eb426b35fdaf",
+      "content": "Commit: 730339fedecf1e71fd8a88ceb386f313f0c5ce78",
       "caused_by": [],
       "leads_to": [
         "e001"
@@ -93,7 +105,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 5
+    "files_changed": 3
   },
   "lessons": []
 }

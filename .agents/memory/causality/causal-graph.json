@@ -1,16 +1,7 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T08:05:06.733919+00:00",
+  "updated": "2026-07-26T09:14:36.473277+00:00",
   "nodes": [
-    {
-      "episodes": [],
-      "label": "Status test node",
-      "success_rate": 1.0,
-      "frequency": 1,
-      "id": "n001",
-      "type": "decision",
-      "created": null
-    },
     {
       "id": "b1cc1534da48",
       "type": "outcome",
@@ -15619,15 +15610,6 @@
       "created": "2026-07-26T09:01:35.420805+00:00"
     },
     {
-      "id": "18322fd3732c",
-      "type": "commit",
-      "label": "commit: Commit: 826e9ba82dc0412077695df50772eb426b35fdaf",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T09:01:35.420870+00:00"
-    },
-    {
       "id": "7bb14fff4ca0",
       "type": "milestone",
       "label": "milestone: Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
@@ -15986,49 +15968,27 @@
         "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
       ],
       "created": "2026-07-26T08:05:06.730367+00:00"
+    },
+    {
+      "id": "ed3e465b8fc0",
+      "type": "milestone",
+      "label": "milestone: Fixed the pre-push graph fixture regression",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:14:36.469582+00:00"
+    },
+    {
+      "id": "2b321b1d08e0",
+      "type": "commit",
+      "label": "commit: Commit: 730339fedecf1e71fd8a88ceb386f313f0c5ce78",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:14:36.469676+00:00"
     }
   ],
   "patterns": [
-    {
-      "success_rate": 0.9,
-      "occurrences": 1,
-      "id": "p001",
-      "name": "Good pattern",
-      "last_used": "2026-02-10T17:55:45.9796943-08:00",
-      "description": "",
-      "action": "A1",
-      "trigger": "T1"
-    },
-    {
-      "success_rate": 0.2,
-      "occurrences": 2,
-      "id": "p002",
-      "name": "Bad pattern",
-      "last_used": "2026-02-10T17:55:45.9892911-08:00",
-      "description": "",
-      "action": "A2",
-      "trigger": "T2"
-    },
-    {
-      "success_rate": 0.1,
-      "occurrences": 2,
-      "id": "p003",
-      "name": "Worse pattern",
-      "last_used": "2026-02-10T17:55:46.0158342-08:00",
-      "description": "",
-      "action": "A3",
-      "trigger": "T3"
-    },
-    {
-      "success_rate": 1.0,
-      "occurrences": 1,
-      "id": "p004",
-      "name": "Status test pattern",
-      "last_used": "2026-02-10T17:55:46.0986929-08:00",
-      "description": "",
-      "action": "A",
-      "trigger": "T"
-    },
     {
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",

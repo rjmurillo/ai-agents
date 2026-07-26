@@ -94,17 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and review-response commits through 826e9ba82d contain the code, workflow, merge, and allowlist fixes; the final evidence commit follows."
+        "Evidence": "Implementation, review-response, and concurrent merge commits through the current main merge tip contain all code and workflow fixes; this commit removes merge-reintroduced graph fixtures."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Reachability passed 108 tests with 5 documented skips; registry, workflow, actionlint, pre_pr, security, QA, and code-review gates passed."
+        "Evidence": "The full pre-push suite reached 14,008 passes before four retired graph-fixture guards failed; the fixtures were removed and the focused five-test guard now passes."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR comment tracking covers the current comment inventory; all code fixes are committed locally."
+        "Evidence": "PR comment tracking covers 39 acknowledged comments; all reported code and evidence fixes are committed locally."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -143,8 +143,13 @@
       "time": "2026-07-26T08:59:30Z",
       "action": "Processed the final review batch before push",
       "result": "The source walk was already cached, README guidance now names its CI workflow, markdownlint passed on templates/README.md, and the no-caller expiry guard passed 108 tests."
+    },
+    {
+      "time": "2026-07-26T09:08:00Z",
+      "action": "Fixed the pre-push graph fixture regression",
+      "result": "Merging current main through the content union driver reintroduced one retired node and four retired patterns. Removed those unreproducible seed rows; all five committed-graph fixture guards pass."
     }
   ],
-  "endingCommit": "826e9ba82dc0412077695df50772eb426b35fdaf",
+  "endingCommit": "730339fedecf1e71fd8a88ceb386f313f0c5ce78",
   "nextSteps": []
 }
