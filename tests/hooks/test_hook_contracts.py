@@ -1259,3 +1259,61 @@ class TestMalformedPluginHooksAreAttributed:
         )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert "invalid_plugin_hooks" not in {v.category for v in report.violations}
+
+
+class TestUnreadableSettingsExitsTwoNotATraceback:
+    """The ADR-035 contract says a configuration problem exits 2. main() caught
+    only decode and type errors, so a settings file that is unreadable or holds
+    invalid UTF-8 escaped as a traceback: the two failure modes most likely on
+    a real machine (a permission bit, a truncated write) were the two the
+    handler missed.
+    """
+
+    def test_a_directory_in_place_of_the_settings_file_exits_two(self, tmp_path, capsys):
+        settings = tmp_path / "settings.json"
+        settings.write_text("{}", encoding="utf-8")
+        # Point --settings at a path that passes is_file() then fails to read.
+        unreadable = tmp_path / "locked.json"
+        unreadable.write_text("{}", encoding="utf-8")
+        unreadable.chmod(0o000)
+        try:
+            rc = hook_contracts.main(
+                ["--path", str(tmp_path), "--settings", str(unreadable)]
+            )
+        finally:
+            unreadable.chmod(0o644)
+        if rc == 0:
+            pytest.skip("running as a user that ignores the permission bit")
+        assert rc == 2
+        assert "Cannot read hook registrations" in capsys.readouterr().err
+
+    def test_invalid_utf8_in_the_settings_file_exits_two(self, tmp_path, capsys):
+        settings = tmp_path / "settings.json"
+        settings.write_bytes(b'{"hooks": {"\xff\xfe": []}}')
+
+        rc = hook_contracts.main(["--path", str(tmp_path), "--settings", str(settings)])
+
+        assert rc == 2
+        assert "Cannot read hook registrations" in capsys.readouterr().err
+
+    def test_the_message_names_the_path_that_was_read(self, tmp_path, capsys):
+        """--settings can name a file that is not settings.json, so a message
+        hard-coding that name would point the reader at the wrong file.
+        """
+        settings = tmp_path / "elsewhere.json"
+        settings.write_text("{ not json", encoding="utf-8")
+
+        rc = hook_contracts.main(["--path", str(tmp_path), "--settings", str(settings)])
+
+        assert rc == 2
+        assert "elsewhere.json" in capsys.readouterr().err
+
+    def test_a_readable_settings_file_still_exits_zero(self, tmp_path, capsys):
+        """Negative control: the widened except must not swallow a healthy run."""
+        settings = tmp_path / "settings.json"
+        settings.write_text('{"hooks": {}}', encoding="utf-8")
+
+        rc = hook_contracts.main(["--path", str(tmp_path), "--settings", str(settings)])
+
+        assert rc == 0
+        assert "Cannot read hook registrations" not in capsys.readouterr().err

@@ -477,8 +477,8 @@ def validate_all(
     plugin_path = base_path / PLUGIN_HOOKS_PATH
     if plugin_path.is_file():
         # Attribute a failure here to the plugin file. Letting it escape would
-        # surface as "Invalid settings.json" in main(), which names the wrong
-        # file and loses the category.
+        # surface as a generic read failure in main(), which names the
+        # settings path and loses the category.
         try:
             _, plugin_entries, plugin_violations = parse_settings(plugin_path)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError) as exc:
@@ -633,9 +633,20 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         report = validate_all(settings_path, base_path)
-    except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        TypeError,
+        AttributeError,
+    ) as exc:
+        # OSError and UnicodeDecodeError reach here from the settings read
+        # itself: an unreadable file or one holding invalid UTF-8. Without
+        # them the script exits on a traceback instead of the ADR-035
+        # configuration code, and --settings can name a file that is not
+        # settings.json, so the message reports the path it actually read.
         print(
-            f"Error: Invalid settings.json: {exc}",
+            f"Error: Cannot read hook registrations from {settings_path}: {exc}",
             file=sys.stderr,
         )
         return 2

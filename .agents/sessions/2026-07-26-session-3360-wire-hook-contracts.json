@@ -138,6 +138,10 @@
       "phase": "Test",
       "summary": "Added 15 tests covering dispatcher expansion and the plugin surface.",
       "evidence": "197 passed across the hook-contract and reachability modules, plus 567 workflow tests. Negative controls: disabling group expansion turned 6 red, skipping the plugin surface turned 3 red, reverting the path regex turned 6 red."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Review found the exit-code contract still had a hole: main() caught JSONDecodeError, TypeError, and AttributeError, but not OSError or UnicodeDecodeError, so an unreadable settings file or one holding invalid UTF-8 escaped as a traceback instead of the ADR-035 configuration code. Those are the two failure modes most likely on a real machine. Widened the tuple and made the message name the path actually read, since --settings can point at a file that is not settings.json. Added 4 tests; narrowing the tuple again turns 2 of them red. Bumped both manifests to 0.6.118 because the rebase pulled a change to .claude/hooks/invoke_dispatch_claude.py into the diff."
     }
   ],
   "endingCommit": "d655c5237b",
