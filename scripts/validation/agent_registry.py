@@ -13,16 +13,52 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
+
+import yaml
+from yaml.nodes import MappingNode, ScalarNode
 
 logger = logging.getLogger(__name__)
 
-# Reuse existing frontmatter parsing from build utilities
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "build"))
-from generate_agents_common import parse_simple_frontmatter, read_yaml_frontmatter  # noqa: E402
+
+def _build_utility_path() -> Path:
+    """Absolute path of the build helper this module borrows its parser from."""
+    return Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
+
+
+def _load_read_yaml_frontmatter(path: Path | None = None) -> Callable[[str], dict[str, str] | None]:
+    """Load `read_yaml_frontmatter` from the build tree without touching sys.path.
+
+    This runs at import time, so a failure here takes down every caller of this
+    module. `spec_from_file_location` returns a populated spec even when the
+    file does not exist, so the spec guard below only covers an unloadable
+    suffix; a missing or broken file surfaces from `exec_module` instead. Both
+    paths are wrapped so the failure says which utility could not be loaded,
+    rather than a bare FileNotFoundError from inside a validation script.
+    """
+    path = path or _build_utility_path()
+    spec = importlib.util.spec_from_file_location("_agent_registry_build_common", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    try:
+        loaded = module.read_yaml_frontmatter
+    except AttributeError as exc:
+        raise ImportError(f"Build utility {path} does not define read_yaml_frontmatter") from exc
+    return cast(Callable[[str], dict[str, str] | None], loaded)
+
+
+read_yaml_frontmatter = _load_read_yaml_frontmatter()
 
 # Files in src/claude/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
@@ -54,27 +90,68 @@ class ValidationResult:
 
     @property
     def ok(self) -> bool:
-        return len(self.errors) == 0
+        return not self.errors
 
 
-def parse_agent_file(file_path: Path) -> AgentDefinition | None:
+class MalformedAgentFileError(Exception):
+    """A markdown file in the agent directory is not a usable agent definition."""
+
+
+def _parse_frontmatter(file_path: Path, text: str) -> dict[str, object]:
+    """Parse one frontmatter mapping and reject duplicate top-level keys."""
+    try:
+        node = yaml.compose(text, Loader=yaml.SafeLoader)
+        if not isinstance(node, MappingNode):
+            raise MalformedAgentFileError(f"{file_path.name}: frontmatter is not a YAML mapping")
+
+        keys: set[tuple[str, str]] = set()
+        for key_node, _ in node.value:
+            if not isinstance(key_node, ScalarNode):
+                raise MalformedAgentFileError(
+                    f"{file_path.name}: frontmatter keys must be scalar values"
+                )
+            key = (key_node.tag, key_node.value)
+            if key in keys:
+                raise MalformedAgentFileError(
+                    f"{file_path.name}: duplicate frontmatter key '{key_node.value}'"
+                )
+            keys.add(key)
+        parsed = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise MalformedAgentFileError(f"{file_path.name}: invalid YAML frontmatter: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise MalformedAgentFileError(f"{file_path.name}: frontmatter is not a YAML mapping")
+    return parsed
+
+
+def _text_field(frontmatter: dict[str, object], name: str) -> str:
+    value = frontmatter.get(name)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def parse_agent_file(file_path: Path) -> AgentDefinition:
     """Parse a single agent markdown file.
 
-    Returns AgentDefinition on success, None if frontmatter is missing.
+    Raises MalformedAgentFileError when the file carries no YAML frontmatter or no
+    name. Both used to return None, which dropped the file from the registry
+    and left validate() with nothing to complain about, so an agent that had
+    lost its frontmatter passed the check that exists to catch exactly that.
+    Every file here is meant to be an agent; the ones that are not are listed
+    in _EXCLUDED_FILES.
     """
     content = file_path.read_text(encoding="utf-8")
     raw = read_yaml_frontmatter(content)
     if raw is None:
-        return None
+        raise MalformedAgentFileError(f"{file_path.name}: no YAML frontmatter")
 
-    fm = parse_simple_frontmatter(raw["frontmatter_raw"])
-    name = (fm.get("name") or "").strip()
-    description = (fm.get("description") or "").strip()
-    model = (fm.get("model") or "").strip()
-    argument_hint = (fm.get("argument-hint") or "").strip()
+    fm = _parse_frontmatter(file_path, raw["frontmatter_raw"])
+    name = _text_field(fm, "name")
+    description = _text_field(fm, "description")
+    model = _text_field(fm, "model")
+    argument_hint = _text_field(fm, "argument-hint")
 
     if not name:
-        return None
+        raise MalformedAgentFileError(f"{file_path.name}: frontmatter has no name")
 
     return AgentDefinition(
         name=name,
@@ -97,9 +174,11 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
         if md_file.name in _EXCLUDED_FILES:
             continue
         try:
-            defn = parse_agent_file(md_file)
-            if defn is not None:
-                agents.append(defn)
+            agents.append(parse_agent_file(md_file))
+        except MalformedAgentFileError as e:
+            errors.append(str(e))
+        except UnicodeDecodeError as e:
+            errors.append(f"{md_file.name}: cannot decode as UTF-8: {e}")
         except OSError as e:
             errors.append(f"Cannot read file {md_file.name}: {e}")
     return agents, errors
@@ -168,6 +247,8 @@ def main(argv: list[str] | None = None) -> int:
     agents, parsing_errors = parse_agent_files(args.agent_dir)
     result = validate(agents)
     result.errors.extend(parsing_errors)
+    if not agents and not result.errors:
+        result.errors.append(f"No agent definitions found in {args.agent_dir}")
 
     if args.json:
         import json

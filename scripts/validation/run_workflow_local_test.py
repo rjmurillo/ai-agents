@@ -487,6 +487,9 @@ def _select_act_event(wf_path: Path) -> str | None:
 # .git directory, so git-calling actions such as dorny/paths-filter abort with
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
+_ACT_GIT_REV_PARSE_ANNOTATION = (
+    "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+)
 
 # dorny/paths-filter resolves its comparison base from the event payload. On a
 # real push or pull_request run GitHub always populates
@@ -534,6 +537,12 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         lambda text: _GIT_REPO_MISSING_PATTERN in text,
         "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
         "fail only in local act, not in CI.",
+    ),
+    (
+        None,
+        lambda text: _ACT_GIT_REV_PARSE_ANNOTATION in text,
+        "act container cannot resolve the linked-worktree git metadata, so "
+        "dorny/paths-filter fails only in local act, not in CI.",
     ),
     (
         None,

@@ -55,6 +55,7 @@ jobs:
               - 'src/copilot-cli/**'
               - 'src/claude/**'
               - 'build/generate_agents.py'
+              - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
               - 'scripts/validation/**'
@@ -63,19 +64,27 @@ jobs:
               - '.claude/hooks/**'
               - '.claude/settings.json'
               - '.claude/rules/**'
+              - 'lefthook.yml'
+              - '.config/lefthook.yml'
+              - '.githooks/**'
               - '.github/agents/**'
+              - '.github/actions/**'
               - '.github/instructions/**'
               - '.github/prompts/**'
-              - '.github/workflows/validate-generated-agents.yml'
+              - '.github/workflows/**'
+              - 'tests/ci/test_validation_scripts_are_reachable.py'
 
       - name: Determine if validation should run
         id: determine
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AGENTS_CHANGED: ${{ steps.filter.outputs.agents }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
             echo "Decision: Run validation (manual trigger)"
           else
-            AGENTS="${{ steps.filter.outputs.agents }}"
+            AGENTS="$AGENTS_CHANGED"
 
             echo "Agent files changed: $AGENTS"
 
@@ -118,6 +127,26 @@ jobs:
           # shallow checkout leaves that ref unresolvable.
           fetch-depth: 0
 
+      - name: Set up Python
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Install validator dependencies
+        if: steps.should-run.outputs.skip != 'true'
+        # pytest is pinned to the project floor in pyproject.toml
+        # (pytest>=9.0.3). A review suggested aligning this down to the 8.3.3
+        # used by .github/actions/validate-plugin-manifests; that action is the
+        # stale one, and installing below the declared floor here would run the
+        # reachability suite on a pytest the project does not support.
+        # Refs #3377.
+        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3'
+
+      - name: Validate script reachability
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 -m pytest -q tests/ci/test_validation_scripts_are_reachable.py
+
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'
         run: |
@@ -132,6 +161,10 @@ jobs:
         run: |
           echo "Running build_all.py --check..."
           python3 build/scripts/build_all.py --check
+
+      - name: Validate platform template schema (REQ-003-002)
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 build/scripts/validate_templates_schema.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
@@ -191,9 +224,9 @@ jobs:
         # class in CI (not only the local pre_pr gate). Exit 1 on malformed.
         run: |
           echo "Validating Copilot agent frontmatter..."
-          python3 -m pip install 'PyYAML==6.0.3'
           python3 scripts/validation/validate_copilot_agent_frontmatter.py
           python3 scripts/validation/validate_argument_hint.py
+          python3 scripts/validation/agent_registry.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
