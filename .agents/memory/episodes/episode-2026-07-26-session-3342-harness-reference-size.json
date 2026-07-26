@@ -60,7 +60,7 @@
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
       "caused_by": [
-        "e016"
+        "e021"
       ],
       "leads_to": [
         "e007"
@@ -147,15 +147,17 @@
         "e011"
       ],
       "leads_to": [
-        "e017"
+        "e013"
       ]
     },
     {
       "id": "e013",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 006a88767",
-      "caused_by": [],
+      "type": "milestone",
+      "content": "Correct the false session.number claim in the PR-3354 retrospective",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [
         "e014"
       ]
@@ -163,8 +165,8 @@
     {
       "id": "e014",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b09c57cfe1",
+      "type": "milestone",
+      "content": "Purge the disproven branch-name invariant from this log",
       "caused_by": [
         "e013"
       ],
@@ -175,8 +177,8 @@
     {
       "id": "e015",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: da5401a16f",
+      "type": "milestone",
+      "content": "Attribute the shared Stop shape to both vendor references",
       "caused_by": [
         "e014"
       ],
@@ -187,36 +189,70 @@
     {
       "id": "e016",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 618d8e1a70",
+      "type": "milestone",
+      "content": "Reconcile every recorded manifest version with what the branch ships",
       "caused_by": [
         "e015"
       ],
       "leads_to": [
-        "e005"
+        "e017"
       ]
     },
     {
       "id": "e017",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Correct the false session.number claim in the PR-3354 retrospective",
+      "content": "Regenerate memory artifacts after the final evidence edits",
       "caused_by": [
-        "e012"
+        "e016"
       ],
-      "leads_to": [
-        "e018"
-      ]
+      "leads_to": []
     },
     {
       "id": "e018",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Purge the disproven branch-name invariant from this log",
+      "type": "commit",
+      "content": "Commit: 199a5c04c",
+      "caused_by": [],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b09c57cfe1",
       "caused_by": [
-        "e017"
+        "e018"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: da5401a16f",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 618d8e1a70",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {

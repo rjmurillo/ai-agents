@@ -159,6 +159,11 @@
       "task": "Reconcile every recorded manifest version with what the branch ships",
       "outcome": "Three artifacts still asserted 0.6.111 after the Stop-citation commit moved both manifests to 0.6.112: two work-log entries and the retrospective's file inventory. The work-log entries were true when written, so they now name the round they describe and then state the shipped version, which keeps the chronology honest without leaving a reader to conclude 0.6.111 shipped. The retrospective table is a net-change inventory rather than a chronology, so its rows were corrected outright. Re-measuring the table against origin/main also caught a second stale row: official-hook-contracts.md is +5 lines, not +4, because the dual citation added one. The PR body carried the same 0.6.111 claim and was updated.",
       "evidence": "git diff --numstat origin/main...HEAD reports 6/1 for both copies of official-hook-contracts.md and 1/1 for both plugin.json files, which now read 0.6.112. Every surviving 0.6.111 mention is explicitly past tense and paired with the shipped value. Both session logs pass validate_session_json.py; zero em or en dashes in all three files and in the PR body."
+    },
+    {
+      "task": "Regenerate memory artifacts after the final evidence edits",
+      "outcome": "Re-extracted both PR-3354 episodes from their final session logs and refreshed the causal graph so the durable memory layer matches the corrected manifest evidence.",
+      "evidence": "Both episode files parse, their metrics match their commit-event counts, and the causal graph parses after pruning and reprocessing both episode identifiers."
     }
   ],
   "endingCommit": "199a5c04c",
