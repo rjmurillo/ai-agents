@@ -866,3 +866,162 @@ class TestTheCommittedGraphCarriesNoTestFixtures:
 
         assert graph["version"]
         assert graph["updated"]
+
+
+def _episode_file(directory: Path, episode_id: str, chosen: str) -> Path:
+    """Write an episode that yields at least one node and edge."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"episode-{episode_id}.json"
+    path.write_text(
+        json.dumps(
+            {
+                "id": episode_id,
+                "timestamp": "2026-07-26T00:00:00+00:00",
+                "decisions": [{"chosen": chosen, "rationale": "because"}],
+                "events": [{"type": "milestone", "content": f"{chosen} shipped"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+class TestResetGraphIsTheDocumentedRepairPath:
+    """Issue #3370: a corrupt graph is preserved rather than overwritten, so the
+    failure has to carry its own repair path. Without one the pre-commit hook
+    restores the same corrupt bytes and warns generically on every commit,
+    forever, with nothing the user can act on.
+    """
+
+    def test_a_corrupt_graph_is_preserved_and_the_run_exits_two(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        graph_path.write_text('{"nodes":[', encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        rc = update_causal_graph.main(
+            ["--episode-path", str(tmp_path / "ep"), "--graph-path", str(graph_path)]
+        )
+
+        assert rc == 2
+        assert graph_path.read_text(encoding="utf-8") == '{"nodes":['
+
+    def test_the_failure_names_the_repair_command(self, tmp_path, capsys):
+        graph_path = tmp_path / "graph.json"
+        graph_path.write_text("not json at all", encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        update_causal_graph.main(
+            ["--episode-path", str(tmp_path / "ep"), "--graph-path", str(graph_path)]
+        )
+
+        err = capsys.readouterr().err
+        assert "--reset-graph" in err
+        assert "update_causal_graph.py" in err
+
+    def test_reset_rebuilds_a_corrupt_graph(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        graph_path.write_text('{"nodes":[', encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        rc = update_causal_graph.main(
+            [
+                "--episode-path", str(tmp_path / "ep"),
+                "--graph-path", str(graph_path),
+                "--reset-graph",
+            ]
+        )
+
+        assert rc == 0
+        rebuilt = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert rebuilt["nodes"], "reset must rebuild content from the episodes on disk"
+
+    def test_reset_drops_state_no_episode_on_disk_supports(self, tmp_path):
+        """The proof that reset rebuilds rather than merges: a node whose only
+        supporting episode is gone from disk must not survive the repair.
+        """
+        graph_path = tmp_path / "graph.json"
+        stale = update_causal_graph._empty_graph()
+        update_causal_graph.add_causal_node(stale, "decision", "Deleted", "ep-gone")
+        graph_path.write_text(json.dumps(stale), encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        rc = update_causal_graph.main(
+            [
+                "--episode-path", str(tmp_path / "ep"),
+                "--graph-path", str(graph_path),
+                "--reset-graph",
+            ]
+        )
+
+        assert rc == 0
+        rebuilt = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert all("ep-gone" not in n.get("episodes", []) for n in rebuilt["nodes"])
+
+    def test_reset_on_a_missing_graph_file_writes_one(self, tmp_path):
+        graph_path = tmp_path / "absent" / "graph.json"
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        rc = update_causal_graph.main(
+            [
+                "--episode-path", str(tmp_path / "ep"),
+                "--graph-path", str(graph_path),
+                "--reset-graph",
+            ]
+        )
+
+        assert rc == 0
+        assert graph_path.exists()
+
+    def test_reset_with_no_episodes_still_writes_an_empty_graph(self, tmp_path):
+        """The no-episodes early return would otherwise leave the corrupt file
+        in place and report success, which is the failure this flag exists to
+        prevent.
+        """
+        graph_path = tmp_path / "graph.json"
+        graph_path.write_text('{"nodes":[', encoding="utf-8")
+
+        rc = update_causal_graph.main(
+            [
+                "--episode-path", str(tmp_path / "no-such-dir"),
+                "--graph-path", str(graph_path),
+                "--reset-graph",
+            ]
+        )
+
+        assert rc == 0
+        rebuilt = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert rebuilt["nodes"] == []
+
+    def test_a_valid_graph_is_untouched_by_the_new_error_path(self, tmp_path):
+        """Negative control on the try/except: a healthy run must still load and
+        extend the existing graph rather than fall into the repair branch.
+        """
+        graph_path = tmp_path / "graph.json"
+        seeded = update_causal_graph._empty_graph()
+        update_causal_graph.add_causal_node(seeded, "decision", "Kept", "ep-0")
+        graph_path.write_text(json.dumps(seeded), encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        rc = update_causal_graph.main(
+            ["--episode-path", str(tmp_path / "ep"), "--graph-path", str(graph_path)]
+        )
+
+        assert rc == 0
+        rebuilt = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert any("ep-0" in n.get("episodes", []) for n in rebuilt["nodes"])
+
+
+class TestTheHookWarningNamesTheRepair:
+    """The wrapper restores the file as found, so a corrupt graph stays corrupt.
+    Its warning has to name the same repair command the script prints.
+    """
+
+    def test_the_restore_warning_cites_the_reset_flag(self):
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "scripts" / "validation" / "git_hook_policy.py"
+        ).read_text(encoding="utf-8")
+        marker = "causal graph update failed; original graph restored"
+        assert marker in source
+        tail = source.split(marker, 1)[1][:600]
+        assert "--reset-graph" in tail
