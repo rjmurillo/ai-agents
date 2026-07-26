@@ -1814,3 +1814,66 @@ class TestChangesCommittedIsTheCommitSource:
         log = _json_log([])
         log["protocolCompliance"] = "not a dict"
         assert extract_session_episode._collect_shas(log, include_starting=False) == ["bbbbbbb1234"]
+
+
+class TestOneCommitCountsOnceAcrossAbbreviations:
+    """Issue #3363: `_collect_shas` promises distinct commits, so two fields
+    that spell one commit at different abbreviation lengths must not both land.
+    Exact string membership let a full 40-char `endingCommit` and a 7-char
+    abbreviation of it in the evidence through as two entries, double-counting
+    `metrics.commits` and emitting two causal-graph nodes for one commit.
+    """
+
+    _FULL = "abc1234def5678901234567890abcdef12345678"
+    _SHORT = "abc1234"
+
+    @staticmethod
+    def _log(*, evidence: str, ending: str) -> dict:
+        log = _json_log([])
+        log["endingCommit"] = ending
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": evidence,
+        }
+        return log
+
+    def test_an_abbreviation_of_the_ending_commit_is_not_a_second_commit(self):
+        log = self._log(evidence=f"Committed as {self._SHORT}.", ending=self._FULL)
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == [self._FULL]
+
+    def test_the_first_spelling_seen_is_the_one_kept(self):
+        """Ordering has to stay stable: endingCommit is read first, so its
+        spelling wins even when the evidence names the longer form.
+        """
+        log = self._log(evidence=f"Committed as {self._FULL}.", ending=self._SHORT)
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == [self._SHORT]
+
+    def test_two_genuinely_different_commits_both_survive(self):
+        """Negative control: the de-duplication must not collapse distinct
+        commits that merely share a short prefix below git's 7-char minimum.
+        """
+        other = "abfeed09876543210fedcba9876543210fedcba9"
+        log = self._log(evidence=f"Two commits: {self._FULL} and {other}.", ending="")
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == [self._FULL, other]
+
+    def test_a_prose_fallback_sha_matching_a_structured_one_is_not_added_twice(self):
+        log = _json_log(
+            [{"phase": "implementation", "summary": f"Committed {self._SHORT}."}]
+        )
+        log["endingCommit"] = self._FULL
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == [self._FULL]
+
+    def test_already_seen_needs_seven_shared_characters(self):
+        """`_same_commit` requires git's minimum unambiguous length, so a
+        six-character prefix is not treated as the same commit.
+        """
+        assert not extract_session_episode._already_seen("abc123", [self._FULL])
+        assert extract_session_episode._already_seen(self._SHORT, [self._FULL])
+
+    def test_an_empty_seen_list_matches_nothing(self):
+        assert not extract_session_episode._already_seen(self._FULL, [])

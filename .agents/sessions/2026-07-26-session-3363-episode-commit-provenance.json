@@ -133,6 +133,10 @@
       "phase": "Test",
       "summary": "Added 9 provenance tests and corrected 12 existing tests that asserted the disproven prose-primary contract, preserving each one's intent.",
       "evidence": "162 passed. The #2170 multi-commit tests now source from changesCommitted; the #3123 events-equal-metrics invariant is unchanged; the #3328 predating fixtures now take the fallback shape so that filter is still exercised. Negative controls: dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red including the exact foreign-SHA case."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Review caught a real defect: _collect_shas promised distinct commits but tested membership with exact string equality, so a full 40-char endingCommit and a 7-char abbreviation of the same commit in the changesCommitted evidence both landed. That double-counted metrics.commits and emitted two commit events and two causal-graph nodes for one commit. Added _already_seen, which compares through the existing _same_commit predicate, and routed all four membership checks through it while keeping the first spelling seen. Added 6 tests including a negative control proving two commits sharing a sub-7-character prefix still count separately; reverting to exact membership turned 3 of them red. Also wrapped a 101-character line the ruff ratchet rejected."
     }
   ],
   "endingCommit": "72dc6e1d34",

@@ -539,6 +539,18 @@ def _same_commit(a: str, b: str) -> bool:
     return len(lo) >= 7 and hi.startswith(lo)
 
 
+def _already_seen(sha: str, seen: list[str]) -> bool:
+    """True when ``seen`` already holds this commit at any abbreviation length.
+
+    Exact string membership lets one commit in twice when two fields spell it
+    at different lengths: a full 40-char ``endingCommit`` and a 7-char
+    abbreviation of the same commit in the ``changesCommitted`` evidence. That
+    double-counts ``metrics.commits`` and emits two commit events and two
+    causal-graph nodes for a single commit (issue #3363).
+    """
+    return any(_same_commit(sha, existing) for existing in seen)
+
+
 def _prose_shas(text: str) -> list[str]:
     """Commit SHAs mentioned in free-text prose.
 
@@ -679,6 +691,9 @@ def _changes_committed_evidence(data: dict) -> str:
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs a session produced, newest source of truth first.
 
+    Distinctness is abbreviation-aware: two fields that spell the same commit
+    at different lengths yield one entry, keeping the first spelling seen.
+
     The commit set comes from the two fields the session protocol treats as the
     record of what a session committed: ``endingCommit`` and the session-end
     ``changesCommitted`` evidence. Work-log prose is a fallback, consulted only
@@ -722,7 +737,7 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         for sha in _SHA_RE.findall(field):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
-            if sha not in seen:
+            if not _already_seen(sha, seen):
                 seen.append(sha)
 
     _add_structured(str(data.get("endingCommit") or ""))
@@ -731,7 +746,7 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     # startingCommit is a structured field, not prose: scan it unfiltered.
     if include_starting:
         for sha in _SHA_RE.findall(starting):
-            if sha not in seen:
+            if not _already_seen(sha, seen):
                 seen.append(sha)
 
     if seen:
@@ -742,7 +757,7 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         for sha in _prose_shas(_entry_text(entry)):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
-            if sha in seen:
+            if _already_seen(sha, seen):
                 continue
             if _prose_sha_predates_session(sha, session_date):
                 continue
@@ -1585,7 +1600,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     json.dumps(
                         {
-                            "Error": "--preserve requires the existing episode to be a JSON object.",
+                            "Error": (
+                                "--preserve requires the existing episode to be "
+                                "a JSON object."
+                            ),
                         }
                     ),
                     file=sys.stderr,
