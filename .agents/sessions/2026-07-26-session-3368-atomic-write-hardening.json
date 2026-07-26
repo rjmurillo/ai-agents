@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, one per change: removing the BaseException handler turns 2 red, removing the fsync turns 2 red, removing the mkstemp prefix turns 1 red. ruff check and ruff format clean."
+        "Evidence": "76 tests pass in tests/validation/test_merge_causal_graph.py. Four negative controls, one per change: removing the BaseException handler turns 2 red, removing the fsync turns 2 red, removing the mkstemp prefix turns 1 red, and restoring the dropped _discard return in the fdopen path turns 1 red. ruff check, ruff format and mypy clean."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -146,6 +146,10 @@
       "task": "Report a cleanup failure on the fdopen path, not only on the write path",
       "outcome": "_discard exists to return its failure rather than raise, so the caller can report it without replacing the error that explains the write. The write handler used that return value; the fdopen handler called _discard and threw the return away. Same disk fault, legible or silent depending on which call happened to fail first. Switched the fdopen handler to _release(None, temporary) and composed the detail into the primary when it is an OSError, exactly as the write handler does. Passing None for the handle is correct and not a shortcut: fdopen did not return one, and the raw descriptor is already settled by the suppressed os.close above.",
       "evidence": "Added test_fdopen_cleanup_failure_is_reported_beside_the_primary_error: fdopen raises EMFILE after closing the descriptor and Path.unlink raises EACCES, so stderr must carry all three of 'Too many open files', 'failed to remove temporary file', and 'Permission denied'. 76 pass. Negative control restored the dropped-return form and only that test went red, so the assertion is pinned to the composition and not to the exit code. ruff check, ruff format and mypy all clean."
+    },
+    {
+      "phase": "validation",
+      "summary": "Corrected the validationPassed count from 73 to 76. It was true when written and went stale when the review round added the fdopen cleanup test. sessionEnd evidence describes the shipped state rather than a moment in the session, so it carries the final number; workLog entries that were true when written keep their original figures instead."
     }
   ],
   "endingCommit": "2796f956e5",
