@@ -13,3 +13,4 @@
 | 2026-07-03 | [2026-07-03-auto-retro.md](2026-07-03-auto-retro.md) | Auto-generated session retro |
 | 2026-07-19 | [2026-07-19-auto-retro.md](2026-07-19-auto-retro.md) | Auto-generated session retro |
 | 2026-07-25 | [2026-07-25-adr057-normalization.md](2026-07-25-adr057-normalization.md) | Auto-generated session retro |
+| 2026-07-26 | [2026-07-26-auto-retro.md](2026-07-26-auto-retro.md) | Auto-generated session retro |
