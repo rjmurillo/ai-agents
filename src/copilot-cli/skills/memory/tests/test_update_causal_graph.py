@@ -72,6 +72,23 @@ class TestLoadCausalGraph:
         assert graph["edges"] == []
         assert graph["patterns"] == []
 
+    @pytest.mark.parametrize(
+        "content",
+        ["[]", '"text"', "42", "null", "true"],
+        ids=["array", "string", "number", "null", "boolean"],
+    )
+    def test_non_object_json(self, tmp_path: Path, content: str) -> None:
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_text(content, encoding="utf-8")
+
+        graph = load_causal_graph(graph_file)
+
+        assert graph["version"] == GRAPH_VERSION
+        assert graph["updated"]
+        assert graph["nodes"] == []
+        assert graph["edges"] == []
+        assert graph["patterns"] == []
+
 
 class TestSaveCausalGraph:
     """Tests for saving causal graph."""

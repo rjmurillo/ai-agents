@@ -48,10 +48,12 @@ def load_causal_graph(graph_path: Path) -> dict[str, Any]:
     if not graph_path.is_file():
         return _empty_graph()
     try:
-        data: dict[str, Any] = json.loads(graph_path.read_text(encoding="utf-8"))
-        return data
+        data = json.loads(graph_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return _empty_graph()
+    if not isinstance(data, dict):
+        return _empty_graph()
+    return data
 
 
 def save_causal_graph(graph_path: Path, graph: dict[str, Any]) -> None:
