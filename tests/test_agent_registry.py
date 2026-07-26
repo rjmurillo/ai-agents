@@ -379,4 +379,7 @@ class TestAnUnreadableFileFailsCleanly:
         """
         tree = ast.parse(textwrap.dedent(inspect.getsource(parse_agent_files)))
         handlers = [n for n in ast.walk(tree) if isinstance(n, ast.ExceptHandler)]
-        assert [ast.unparse(h.type) for h in handlers] == ["MalformedAgentFileError"]
+        assert len(handlers) == 1
+        caught = handlers[0].type
+        assert caught is not None, "a bare except would swallow the OSError again"
+        assert ast.unparse(caught) == "MalformedAgentFileError"
