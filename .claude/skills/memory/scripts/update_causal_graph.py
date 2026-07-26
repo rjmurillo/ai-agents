@@ -720,8 +720,6 @@ def main(argv: list[str] | None = None) -> int:
             repair_cmd = f"python3 {_repair_invocation()} --reset-graph"
             if args.graph_path:
                 repair_cmd += f" --graph-path {graph_path}"
-            if args.episode_path:
-                repair_cmd += f" --episode-path {episode_path}"
             print(
                 "The graph is derived from the episodes on disk, so it can be "
                 f"rebuilt. Repair with:\n  {repair_cmd}",

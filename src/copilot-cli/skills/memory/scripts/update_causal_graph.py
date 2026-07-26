@@ -717,10 +717,12 @@ def main(argv: list[str] | None = None) -> int:
             graph = load_causal_graph(graph_path)
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
+            repair_cmd = f"python3 {_repair_invocation()} --reset-graph"
+            if args.graph_path:
+                repair_cmd += f" --graph-path {graph_path}"
             print(
                 "The graph is derived from the episodes on disk, so it can be "
-                f"rebuilt. Repair with:\n  python3 {_repair_invocation()} "
-                "--reset-graph",
+                f"rebuilt. Repair with:\n  {repair_cmd}",
                 file=sys.stderr,
             )
             return 2
