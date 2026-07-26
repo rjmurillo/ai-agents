@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from ..scripts.update_causal_graph import (
+    GRAPH_VERSION,
     add_causal_edge,
     add_causal_node,
     add_pattern,
@@ -46,7 +47,11 @@ class TestLoadCausalGraph:
 
     def test_missing_file(self, tmp_path: Path) -> None:
         graph = load_causal_graph(tmp_path / "missing.json")
-        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        assert graph["version"] == GRAPH_VERSION
+        assert graph["updated"]
+        assert graph["nodes"] == []
+        assert graph["edges"] == []
+        assert graph["patterns"] == []
 
     def test_valid_file(self, tmp_path: Path) -> None:
         graph_file = tmp_path / "graph.json"
@@ -56,12 +61,36 @@ class TestLoadCausalGraph:
         graph = load_causal_graph(graph_file)
         assert len(graph["nodes"]) == 1
 
-    def test_invalid_json(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "content",
+        ["not json", "{", '{"nodes": ['],
+        ids=["plain-text", "bare-brace", "truncated-object"],
+    )
+    def test_invalid_json_raises(self, tmp_path: Path, content: str) -> None:
         graph_file = tmp_path / "graph.json"
-        graph_file.write_text("not json", encoding="utf-8")
+        graph_file.write_text(content, encoding="utf-8")
 
-        graph = load_causal_graph(graph_file)
-        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        with pytest.raises(ValueError, match="invalid JSON"):
+            load_causal_graph(graph_file)
+
+    @pytest.mark.parametrize(
+        "content",
+        ["[]", '"text"', "42", "null", "true"],
+        ids=["array", "string", "number", "null", "boolean"],
+    )
+    def test_non_object_json_raises(self, tmp_path: Path, content: str) -> None:
+        """Non-dict JSON raises ValueError so hooks can restore the original.
+
+        When the file is valid JSON but not an object (e.g., null, array),
+        the loader must fail rather than silently returning an empty graph.
+        This allows the hook to detect the failure and restore the snapshot,
+        preventing data loss from a partial update overwriting the full graph.
+        """
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_text(content, encoding="utf-8")
+
+        with pytest.raises(ValueError, match="not an object"):
+            load_causal_graph(graph_file)
 
 
 class TestSaveCausalGraph:
