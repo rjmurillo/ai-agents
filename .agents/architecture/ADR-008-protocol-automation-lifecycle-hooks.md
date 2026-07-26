@@ -136,17 +136,20 @@ its row and gains a retirement note rather than disappearing.
 
 ### Amendment 2026-07-21 (Issue #3373)
 
-Four of the five hooks this ADR introduced have been retired. Until this
-amendment all five were still marked implemented, three of them across two
-purges, so the document answered "what is the lifecycle-hook surface" with
-files that are not on disk.
+Three of the five hooks this ADR introduced have been retired, across two
+purges. Until this amendment all five were still marked implemented, so the
+document answered "what is the lifecycle-hook surface" with files that are not
+on disk.
 
 | Hook | Retired by | Reason of record |
 |------|-----------|------------------|
 | `invoke_false_completion_gate.py` | #3184 | Hook ROI reduction; the claim it gated is covered by CI test evidence |
 | `invoke_plan_state_sync.py` | #3184 | Same program; the state it checkpointed had no reader |
 | `invoke_auto_retrospective.py` | #3349 | Same program; retrospectives are authored, not generated |
-| `invoke_test_auto_approval.py` | #3295 | PermissionRequest hook, never part of the #1703 five, named in prose below |
+
+A fourth hook, `invoke_test_auto_approval.py`, was retired by #3295. It is
+named in the prose below but was never one of the five this ADR introduced, so
+it is not counted above.
 
 The two survivors are recorded in `AUTHORIZED_HOOKS` in
 `tests/hooks/test_dispatch_groups_parity.py`, which is the live ledger of what

@@ -1,9 +1,9 @@
 """An ADR may not mark a hook implemented when its file is absent (Issue #3373).
 
-ADR-008 marked five hooks implemented. Four had been deleted, three of them
-across two separate purges (#3184, #3295, #3349), and each purge left the ADR
-alone. ADR-008 is the document a reader reaches for when asking what the
-lifecycle-hook surface is, and it answered with files that are not on disk.
+ADR-008 marked five hooks implemented. Three had been deleted across two
+separate purges (#3184, #3349), and each purge left the ADR alone. ADR-008 is
+the document a reader reaches for when asking what the lifecycle-hook surface
+is, and it answered with files that are not on disk.
 
 Correcting the prose once buys one clean read. This is the part that survives
 the next purge: delete a hook without amending the ADR that claims it and this

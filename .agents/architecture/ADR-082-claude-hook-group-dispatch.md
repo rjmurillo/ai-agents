@@ -139,7 +139,7 @@ neutral in this ADR; only the publishing repo takes prunes.
    registration is dropped (advisory; ADR changes remain gated at commit
    by `invoke_adr_review_guard.py` and on Write/Edit by
    `invoke_adr_architect_gate.py`). Plugin membership is unchanged.
-   **Amended 2026-07-26 (Issue #3373):** both named hooks have since been
+   **Amended 2026-07-26 (Issue #3399):** both named hooks have since been
    deleted. The parenthetical recorded why the prune was safe at the time
    and is left standing as the decision's rationale, but a reader looking
    for today's enforcement point should go to the lefthook `adr-review-policy`
