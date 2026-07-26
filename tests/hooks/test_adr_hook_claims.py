@@ -35,9 +35,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ADR_DIR = PROJECT_ROOT / ".agents" / "architecture"
 HOOKS_ROOT = PROJECT_ROOT / ".claude" / "hooks"
 
-# A backticked path ending .py that sits under a hooks directory, spelled either
-# from the repository root (.claude/hooks/Stop/x.py) or from the hooks root
-# (Stop/x.py). ADR-008 uses both spellings, so both have to resolve.
+# A backticked path naming an `invoke_*.py` file directly under an event
+# directory (`Stop/invoke_x.py`), optionally prefixed by the repo-relative
+# hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
+# so both have to resolve.
 _HOOK_PATH_RE = re.compile(r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
 _RETIRED_RE = re.compile(r"\bretired\b|\bremoved\b|\bdeleted\b|\bsuperseded\b", re.IGNORECASE)
