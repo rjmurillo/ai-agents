@@ -47,15 +47,18 @@ def load_causal_graph(graph_path: Path) -> dict[str, Any]:
     """Load causal graph from JSON file or return empty graph.
 
     Raises:
-        ValueError: When the file contains invalid JSON or valid JSON that is
-            not a dict. This signals a corrupted file that must not be silently
-            replaced, allowing the caller (e.g., a git hook) to restore the
-            original.
+        ValueError: When the file cannot be decoded as UTF-8, contains invalid
+            JSON, or contains valid JSON that is not a dict. This signals a
+            corrupted file that must not be silently replaced, allowing the
+            caller (e.g., a git hook) to restore the original.
     """
     if not graph_path.is_file():
         return _empty_graph()
     try:
         data = json.loads(graph_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        msg = f"causal graph file is not valid UTF-8: {graph_path}"
+        raise ValueError(msg) from exc
     except json.JSONDecodeError as exc:
         msg = f"causal graph file contains invalid JSON: {graph_path}"
         raise ValueError(msg) from exc
@@ -81,6 +84,15 @@ def save_causal_graph(graph_path: Path, graph: dict[str, Any]) -> None:
     that is already the repo's worst conflict source. When the rendered
     content matches what is on disk, the write is skipped entirely and the
     file stays byte-identical.
+
+    The comparison read is an optimization, not a load, so every way it can
+    fail means "I could not prove the bytes already match" and the write
+    proceeds. ``UnicodeDecodeError`` is listed alongside ``OSError`` because it
+    is a ``ValueError`` subclass rather than an ``OSError`` one, so an
+    undecodable file on disk would otherwise abort the save instead of
+    replacing it. ``load_causal_graph`` treats the same bytes as fatal, and the
+    asymmetry is deliberate: the load asks what the current state is, the save
+    only asks whether its own output is already there.
     """
     graph.setdefault("version", GRAPH_VERSION)
     graph.setdefault("updated", datetime.now(UTC).isoformat())
@@ -88,7 +100,7 @@ def save_causal_graph(graph_path: Path, graph: dict[str, Any]) -> None:
     try:
         if graph_path.read_text(encoding="utf-8") == unchanged:
             return
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         pass
     graph["updated"] = datetime.now(UTC).isoformat()
     graph_path.parent.mkdir(parents=True, exist_ok=True)

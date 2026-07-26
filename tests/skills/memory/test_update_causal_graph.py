@@ -622,6 +622,60 @@ class TestGraphMetadataSurvivesAFreshWrite:
         with pytest.raises(ValueError, match="not an object"):
             update_causal_graph.load_causal_graph(graph_file)
 
+    def test_bytes_that_are_not_utf8_raise_rather_than_escaping_raw(self, tmp_path):
+        """UnicodeDecodeError is a ValueError, not an OSError.
+
+        It therefore slipped past both existing handlers and propagated with a
+        message about a byte position and no mention of the causal graph. The
+        outcome was already correct, since git_hook_policy restores its
+        snapshot on any non-zero exit, but the operator saw a raw traceback
+        where every other corruption produces a sentence naming the file.
+        """
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_bytes(b'{"nodes": [], "edges": [\xff\xfe], "patterns": []}')
+
+        with pytest.raises(ValueError, match="not valid UTF-8"):
+            update_causal_graph.load_causal_graph(graph_file)
+
+    def test_a_save_over_undecodable_bytes_replaces_them(self, tmp_path):
+        """The comparison read is an optimization, so failing it means write.
+
+        save_causal_graph short-circuits when the rendered content already
+        matches the file. That read used to guard only OSError, so undecodable
+        bytes on disk aborted the save with a UnicodeDecodeError instead of
+        overwriting them. A graph that cannot be read is exactly the graph that
+        most needs replacing.
+        """
+        path = tmp_path / "g.json"
+        path.write_bytes(b"\xff\xfe not utf-8 at all")
+
+        update_causal_graph.save_causal_graph(path, {"nodes": [], "edges": [], "patterns": []})
+
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        assert on_disk["nodes"] == []
+        assert on_disk["version"] == update_causal_graph.GRAPH_VERSION
+
+    def test_a_save_over_an_unreadable_path_still_writes(self, tmp_path, monkeypatch):
+        """The OSError half of the same contract, pinned alongside it.
+
+        Without this the pair could regress to catching only UnicodeDecodeError
+        and the suite would stay green.
+        """
+        path = tmp_path / "g.json"
+        path.write_text("stale", encoding="utf-8")
+        real_read = Path.read_text
+
+        def refuse(self, *args, **kwargs):
+            if self == path:
+                raise OSError("read refused")
+            return real_read(self, *args, **kwargs)
+
+        with monkeypatch.context() as patched:
+            patched.setattr(Path, "read_text", refuse)
+            update_causal_graph.save_causal_graph(path, {"nodes": [], "edges": [], "patterns": []})
+
+        assert json.loads(path.read_text(encoding="utf-8"))["nodes"] == []
+
     def test_a_fresh_write_lands_version_and_updated_on_disk(self, tmp_path):
         path = tmp_path / "g.json"
 
