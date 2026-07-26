@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 3343,
+    "number": 3344,
     "date": "2026-07-26",
     "branch": "fix/3342-harness-reference-size",
     "startingCommit": "c798e0df7d",
@@ -75,7 +75,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Three atomic commits on fix/3342-harness-reference-size: the content move, the test repointing plus manifest bumps, and this log."
+        "Evidence": "Two atomic commits on fix/3342-harness-reference-size: the content move (b09c57cfe), and the test repointing plus manifest bumps (da5401a16)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,7 +116,7 @@
       "evidence": "Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "da5401a16",
   "nextSteps": [
     "Open the PR for #3342 and drive checks green.",
     "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",

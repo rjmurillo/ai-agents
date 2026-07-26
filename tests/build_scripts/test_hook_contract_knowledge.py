@@ -350,7 +350,6 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
     assert "Failed-observer partial output is discarded." in normalized
     assert "It emits nothing when every observer is silent." in normalized
     assert "| PreCompact | DOCS SILENT:" in sidecar
-    assert "| PreCompact | DOCS SILENT:" in sidecar
     assert "| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT:" in sidecar
     assert "Preserve one valid structured output per command hook" in rule
     assert "Byte passthrough is not output merging." in rule
