@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3383,
+    "date": "2026-07-26",
+    "branch": "fix/3383-log-contamination",
+    "startingCommit": "17b894570870d68d18c5d06f408502f73810ed73",
+    "objective": "Catch session logs whose evidence describes a different session than the record does."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3383-log-contamination, stacked on fix/3385-historical-session-logs because the claim tier it uses is not yet on main."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/TESTING-RIGOR.md before adding the checks."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git rev-parse HEAD = 668afae6b93b719c5aca788989421269dc0c65cd; merge-base with origin/main = 17b894570870d68d18c5d06f408502f73810ed73."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md; did not edit it (ADR-014)."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3383-log-contamination, not main."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP is live in this harness; serena-initial_instructions and serena-list_memories both returned. Project already active."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Called serena-initial_instructions and read the returned Serena Instructions Manual before continuing."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, .agents/sessions/2026-07-26-session-3383-log-contamination.json."
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Worked directly in scripts/validate_session_json.py; no skill script fronts this validator."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .serena/memories/usage-mandatory.md from disk."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item in this file carries evidence written for this session; none inherited from a prior log."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; git status shows no modification to it."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote decision-session-log-guard-tiers via serena-write_memory, recording why agreement checks are claim tier and why guard 3 is unshippable."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No markdown changed on this branch; scoped lint has nothing to run."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Two implementation commits, 668afae6b9 and 740890409f, plus this log. Head is 740890409fd1e15f8e9aa63adb37d2d17b740ea2."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "222 tests pass in tests/test_validate_session_json.py; 1333 across validator, validation and hooks. ruff and mypy clean. Corpus after the change: 4 of 946 contradict themselves on the claim tier, 0 on the record tier, which is what CI sees."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3383 is the tracked item; three of its four proposed guards ship here and the fourth is rejected with measurements."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "The reusable finding is recorded in Serena: a guard calibrated on a hand-picked sample of its own hits will ship an 86 percent false-positive rate, and this one did until it was measured against the whole corpus."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Measure all four guards the issue proposes across every committed log before writing any",
+      "outcome": "946 logs parsed. Guard 1 (branch) and guard 2 (starting commit) together flag 10 logs, 0 false positives on inspection. Guard 4 (endingCommit empty while changesCommitted is complete) flags 404, which is 43 percent of the corpus."
+    },
+    {
+      "task": "Test guard 3, that startingCommit must resolve in the repo",
+      "outcome": "Rejected on evidence. 326 of 594 unique starting commits (54 percent) do not resolve in a full local clone, because squash-merge destroys the branch commits a log was started from. The guard would fail more logs than it passed and is unshippable as written."
+    },
+    {
+      "task": "Decide which tier the agreement checks belong to",
+      "outcome": "The claim tier, from #3385. The record's shape is that branchVerified holds an evidence string; whether that string describes this session is a claim about conduct. It matters practically: git cannot adjudicate the 10 contradictions, so on the record side they would be a permanent block no honest edit could clear."
+    },
+    {
+      "task": "Attempt to adjudicate the 10 contradictions with git so they could be corrected",
+      "outcome": "Not possible. Three of the seven disputed commits are missing from the clone entirely; where both sides resolve, both are plausible same-day commits on the same issue. Correcting them would mean inventing the answer, which is the defect this issue exists to stop."
+    },
+    {
+      "task": "Implement the three shippable checks with one function owning cross-field agreement",
+      "outcome": "validate_evidence_agrees_with_session reads branch and commit facts the record already holds. Only conventional type/slug names count as branches, so main and origin/main in a merge-base note do not flag. SHA comparison tolerates prefixes because git abbreviates to whatever is unambiguous."
+    },
+    {
+      "task": "Fix the crash a robustness case surfaced next door",
+      "outcome": "validate_session_section called BRANCH_PATTERN.match on session.branch without a type guard. Schema errors are collected rather than raised, so a log declaring a non-string branch reached that line and took the validator down with TypeError, turning a reportable violation into a crash."
+    },
+    {
+      "task": "Calibrate the branch check against the corpus instead of trusting a four-row sample",
+      "outcome": "The first version flagged any second feature branch and caught seven logs. Six were false positives: renamed-from, stacked-on, branched-from, switched-to. It also flagged this branch's own log, which is stacked on #3385. The rule was narrowed to match the starting-commit check beside it: flag only when the evidence names branches and none is this one. Corpus fell from 10 contradictions to 4, all genuine."
+    },
+    {
+      "task": "Prove the checks bite",
+      "outcome": "Six negative controls in total. Removing the cross-field call turns 5 tests red; neutering the branch comparison turns 3 red; making the SHA comparison exact turns the abbreviation-tolerance test red; restoring the unguarded branch match turns the malformed-log test red; reverting the narrowing turns 4 relationship cases red; tolerating everything turns the contamination cases red. 222 tests pass in the validator suite and 1333 across validator, validation and hooks."
+    }
+  ],
+  "endingCommit": "740890409fd1e15f8e9aa63adb37d2d17b740ea2",
+  "nextSteps": [
+    "Comment on #3383 with the guard 3 rejection evidence and the list of 10 self-contradicting logs.",
+    "Work the causal graph cluster: #3350, #3356, #3367, #3375."
+  ]
+}
