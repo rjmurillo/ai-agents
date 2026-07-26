@@ -417,6 +417,84 @@ class TestRegistrationIsWiredAndIdempotent:
         assert _DRIVER in _DRIVERS["causal-graph"]["driver"]
         assert _DRIVERS["causal-graph"]["driver"].endswith('"%O" "%A" "%B"')
 
+    def test_the_driver_is_stdlib_only(self) -> None:
+        """The premise of registering a bare interpreter instead of `uv run`.
+
+        If this driver ever imports a third-party package, the registered
+        command stops being sufficient and every clone that has not synced its
+        environment falls back to the text merge.
+        """
+        import ast
+
+        tree = ast.parse((_ROOT / _DRIVER).read_text(encoding="utf-8"))
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported.add(node.module.split(".")[0])
+
+        assert imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
+
+    def test_the_registered_command_does_not_route_through_a_package_manager(self) -> None:
+        """A merge must not need uv, a network, or a synced environment.
+
+        Routing the driver through `uv run` fails wherever uv cannot run, and a
+        failed merge driver is not a loud error. Git falls back to the text
+        merge, which is exactly the conflict issue #3345 exists to remove.
+        """
+        from scripts.maintenance.install_merge_drivers import _DRIVERS
+
+        command = _DRIVERS["causal-graph"]["driver"]
+
+        assert not command.startswith("uv ")
+        assert "uv run" not in command
+        assert command.startswith('"')
+
+    def test_the_registered_interpreter_exists_and_runs_the_driver(self, tmp_path: Path) -> None:
+        """The baked path must be a working interpreter, not just a string."""
+        from scripts.maintenance.install_merge_drivers import _DRIVERS
+
+        interpreter = _DRIVERS["causal-graph"]["driver"].split('"')[1]
+
+        assert Path(interpreter).is_file()
+
+        base = tmp_path / "b.json"
+        ours = tmp_path / "o.json"
+        theirs = tmp_path / "t.json"
+        base.write_text(json.dumps({"nodes": [{"id": "a"}]}), encoding="utf-8")
+        ours.write_text(json.dumps({"nodes": [{"id": "a"}, {"id": "b"}]}), encoding="utf-8")
+        theirs.write_text(json.dumps({"nodes": [{"id": "a"}, {"id": "c"}]}), encoding="utf-8")
+
+        result = subprocess.run(
+            [interpreter, str(_ROOT / _DRIVER), *map(str, (base, ours, theirs))],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert len(json.loads(ours.read_text(encoding="utf-8"))["nodes"]) == 3
+
+    def test_the_interpreter_is_posix_separated_for_sh(self) -> None:
+        r"""Git hands the driver string to sh even on Windows, and sh eats
+        backslashes, so a native D:\...\python.exe would arrive mangled."""
+        from scripts.maintenance.install_merge_drivers import _DRIVERS
+
+        assert "\\" not in _DRIVERS["causal-graph"]["driver"]
+
+    def test_an_interpreter_that_cannot_name_itself_falls_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """sys.executable is documented as possibly empty in embedded hosts."""
+        from scripts.maintenance import install_merge_drivers
+
+        monkeypatch.setattr(sys, "executable", "")
+
+        assert install_merge_drivers._interpreter() == "python3"
+
     def test_installing_twice_writes_once(self, capsys: pytest.CaptureFixture[str]) -> None:
         from scripts.maintenance import install_merge_drivers
 

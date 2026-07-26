@@ -20,6 +20,24 @@ from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+
+def _interpreter() -> str:
+    """Return the interpreter to bake into the registered driver command.
+
+    The merge driver is stdlib-only, so any Python that can start will run it.
+    Registering this process's own interpreter is therefore both sufficient and
+    the one path proven to work: it is running right now.
+
+    ``as_posix`` matters because git hands the driver string to ``sh`` even on
+    Windows, and ``sh`` eats the backslashes in a native ``D:\\...\\python.exe``.
+
+    ``sys.executable`` is documented as possibly empty when the interpreter
+    cannot determine its own path (embedded hosts). ``python3`` is the only
+    fallback left at that point.
+    """
+    return Path(sys.executable).as_posix() if sys.executable else "python3"
+
+
 # driver name -> (config key suffix, value)
 _DRIVERS: dict[str, dict[str, str]] = {
     "causal-graph": {
@@ -31,9 +49,21 @@ _DRIVERS: dict[str, dict[str, str]] = {
         # %O %A %B are quoted as a matter of shell hygiene. Git substitutes them
         # into this string before sh parses it, and today it substitutes bare
         # temp names like .merge_file_yvRBP2 that cannot contain a space.
-        "driver": (
-            'uv run --frozen python scripts/validation/merge_causal_graph.py "%O" "%A" "%B"'
-        ),
+        #
+        # An absolute interpreter path rather than `uv run --frozen python`.
+        # The driver imports only argparse, json, sys, pathlib and typing, so it
+        # needs no project environment, and routing it through uv would let a
+        # merge fail wherever uv cannot run: offline, before the first sync, or
+        # in a clone that never installed it. A failed driver is not a loud
+        # error, it is a silent fall back to the text merge and the conflict
+        # this driver exists to eliminate.
+        #
+        # The path is machine-local, which is the right scope: it is written to
+        # `git config --local`, which is never committed. It self-heals because
+        # the installer runs from pre-commit and rewrites the key whenever the
+        # computed value differs from what is registered, so a recreated or
+        # relocated venv is repaired on the next commit.
+        "driver": (f'"{_interpreter()}" scripts/validation/merge_causal_graph.py "%O" "%A" "%B"'),
     },
 }
 
