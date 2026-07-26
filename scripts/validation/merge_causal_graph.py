@@ -45,8 +45,9 @@ from typing import Any, TypeAlias
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 # Which record collections we merge, and the field that identifies a record
-# within each. Node and pattern ids are content hashes; an edge is identified by
-# the triple it connects. Ordered nodes, patterns, edges to match the schema
+# within each. Node ids are content hashes, patterns are keyed by name because
+# committed patterns may omit ids, and an edge is identified by the triple it
+# connects. Ordered nodes, patterns, edges to match the schema
 # order the generator writes (see .agents/memory/causality/causal-graph.json),
 # so a merge that changes no content does not also reorder the top-level JSON
 # and produce a noisy diff.
