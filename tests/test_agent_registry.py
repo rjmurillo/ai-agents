@@ -111,8 +111,12 @@ class TestParseAgentFile:
                 "name: first\nname: second\ndescription: duplicate\nmodel: sonnet",
                 "duplicate frontmatter key 'name'",
             ),
+            (
+                "? [complex, key]\n: value\nname: valid\ndescription: invalid key\nmodel: sonnet",
+                "frontmatter keys must be scalar values",
+            ),
         ],
-        ids=["invalid-yaml", "duplicate-key"],
+        ids=["invalid-yaml", "duplicate-key", "complex-key"],
     )
     def test_malformed_yaml_is_rejected(
         self,

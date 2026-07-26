@@ -357,16 +357,20 @@ def _module_path(rel: str) -> str:
     return rel[: -len(".py")].replace("/", ".")
 
 
+def _read_text(path: Path, surface: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        raise RuntimeError(f"Cannot inspect {surface} {rel}: {exc}") from exc
+
+
 def _text_of(patterns: tuple[str, ...]) -> str:
     chunks: list[str] = []
     for pattern in patterns:
         for path in _REPO_ROOT.glob(pattern):
             if path.is_file():
-                try:
-                    chunks.append(path.read_text(encoding="utf-8"))
-                except (OSError, UnicodeError) as exc:
-                    rel = path.relative_to(_REPO_ROOT).as_posix()
-                    raise RuntimeError(f"Cannot inspect entry surface {rel}: {exc}") from exc
+                chunks.append(_read_text(path, "entry surface"))
     return "\n".join(chunks)
 
 
@@ -390,24 +394,27 @@ def _entry_points() -> frozenset[str]:
         ".claude/skills/*/SKILL.md",
         "src/copilot-cli/skills/*/SKILL.md",
     )
-    skill_text = _text_of(skill_patterns)
+    skill_documents = [
+        (skill_md, _read_text(skill_md, "skill entry surface"))
+        for pattern in skill_patterns
+        for skill_md in _REPO_ROOT.glob(pattern)
+    ]
+    skill_text = "\n".join(text for _, text in skill_documents)
     corpus = "\n".join((workflow_text, hook_text, skill_text))
     script_tokens = {token.removeprefix("./") for token in _SCRIPT_TOKEN_RE.findall(corpus)}
     module_tokens = set(_MODULE_TOKEN_RE.findall(corpus))
     named = {
         rel for rel in _source_paths() if rel in script_tokens or _module_path(rel) in module_tokens
     }
-    for pattern in skill_patterns:
-        for skill_md in _REPO_ROOT.glob(pattern):
-            text = skill_md.read_text(encoding="utf-8")
-            skill_dir = skill_md.parent
-            local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
-            local_names = {Path(token).name for token in local_tokens}
-            for helper in skill_dir.glob("scripts/**/*.py"):
-                helper_rel = helper.relative_to(_REPO_ROOT).as_posix()
-                local_rel = helper.relative_to(skill_dir).as_posix()
-                if local_rel in local_tokens or helper.name in local_names:
-                    named.add(helper_rel)
+    for skill_md, text in skill_documents:
+        skill_dir = skill_md.parent
+        local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
+        local_names = {Path(token).name for token in local_tokens}
+        for helper in skill_dir.glob("scripts/**/*.py"):
+            helper_rel = helper.relative_to(_REPO_ROOT).as_posix()
+            local_rel = helper.relative_to(skill_dir).as_posix()
+            if local_rel in local_tokens or helper.name in local_names:
+                named.add(helper_rel)
     return frozenset(named)
 
 
