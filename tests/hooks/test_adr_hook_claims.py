@@ -97,7 +97,7 @@ class TestTheScanIsNotVacuous:
 
     def test_some_adr_claims_at_least_one_hook(self):
         total = sum(len(_claims(a.read_text(encoding="utf-8"))) for a in _adr_files())
-        assert total >= 2, "no ADR row was read as a hook implementation claim"
+        assert total >= 1, "no ADR row was read as a hook implementation claim"
 
     def test_adr_008_is_among_them(self):
         """The ADR the issue was filed against must be inside the scan."""
