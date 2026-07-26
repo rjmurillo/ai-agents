@@ -5,7 +5,8 @@ Issue #2050: skills in a vendored plugin install hard-code paths
 (`.agents/`, `.claude/lib/`) that exist only in the upstream
 `rjmurillo/ai-agents` checkout. In a consumer repo those paths do not
 exist, so the skill fails or degrades silently. The fix (Phase 1) ships a
-`.claude/lib/paths.py` helper with `resolve_artifact_root` (write path) and
+`.claude/lib/paths.py` helper with `resolve_artifact_root` (write path),
+`artifact_dir` (resolve a write location without creating it), and
 `resolve_skill_resource` (read path). This check stops NEW scripts from
 hard-coding those paths instead of routing through the helper.
 
@@ -13,8 +14,9 @@ What it flags:
   A Python file under a scanned skill-scripts root that contains a non-docstring
   string literal or f-string text with `.agents`, `.agents/`, `.agents\\`,
   `.claude/lib`, or `.claude\\lib` AND does not import and use the
-  portability helper (`paths`, exposing `resolve_artifact_root` /
-  `resolve_skill_resource`). A file that imports the helper is assumed to
+  portability helper (`paths`, exposing `artifact_dir` /
+  `resolve_artifact_root` / `resolve_skill_resource`). A file that imports the
+  helper is assumed to
   resolve paths through it; the literal is then the documented lazy default
   or prose, not a hard-coded dependency. Comments and docstrings are ignored.
 
@@ -71,7 +73,7 @@ if hasattr(tokenize, "FSTRING_MIDDLE"):
 
 # Helper function names exposed by .claude/lib/paths.py.
 _HELPER_FUNCTIONS: frozenset[str] = frozenset(
-    {"resolve_artifact_root", "resolve_skill_resource"}
+    {"artifact_dir", "resolve_artifact_root", "resolve_skill_resource"}
 )
 
 # Keyword argument names whose value is CLI prose, not an I/O path.
@@ -81,9 +83,7 @@ _HELPER_FUNCTIONS: frozenset[str] = frozenset(
 # stderr by the CLI parser. It never opens or writes a file, so it cannot
 # be migrated through the portability helper and must not be flagged.
 # Issue #2510.
-_PROSE_KWARGS: frozenset[str] = frozenset(
-    {"help", "description", "epilog", "metavar", "usage"}
-)
+_PROSE_KWARGS: frozenset[str] = frozenset({"help", "description", "epilog", "metavar", "usage"})
 
 # Directories scanned for vendor-shipped scripts.
 _SCAN_ROOTS: tuple[str, ...] = (".claude/skills",)
@@ -351,6 +351,7 @@ def format_report(new: list[Offender], known: list[Offender]) -> str:
     )
     lines.append(
         "Use .claude/lib/paths.py: resolve_artifact_root() for write paths, "
+        "artifact_dir() to resolve a write location without creating it, "
         "resolve_skill_resource() for read paths. See Issue #2050."
     )
     lines.append("")
