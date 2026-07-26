@@ -122,11 +122,11 @@
     {
       "phase": "Measure",
       "summary": "Measured all 933 session logs before designing, so the fallback policy follows the data rather than a guess.",
-      "evidence": "194 logs name SHAs in changesCommitted evidence; 192 carry endingCommit with no prose SHAs; 20 are prose-only (all pre-2026-02); 483 record no commit. 44 sit in the contested shape (endingCommit set, evidence has no SHAs, prose does): of the 83 prose SHAs there, 46 are unresolvable by git, 23 are provably not in the session's line, and the 14 remaining are ancestors of the ending commit, which every prior commit on main also is. No evidence prose names own commits in that shape."
+      "evidence": "194 logs name SHAs in changesCommitted evidence; 192 carry endingCommit with no prose SHAs; 15 are prose-only; 483 record no commit. Prose-only means neither endingCommit nor the changesCommitted evidence names a SHA other than the starting commit, while the work log does: 12 carry an evidence string with no SHA in it, 3 carry no evidence string at all. Measured over 938 logs. 44 sit in the contested shape (endingCommit set, evidence has no SHAs, prose does): of the 83 prose SHAs there, 46 are unresolvable by git, 23 are provably not in the session's line, and the 14 remaining are ancestors of the ending commit, which every prior commit on main also is. No evidence prose names own commits in that shape."
     },
     {
       "phase": "Implement",
-      "summary": "Made endingCommit plus the changesCommitted evidence authoritative and demoted work-log prose to a fallback used only when both are empty, which keeps the 20 prose-only logs working. json_metrics and json_events already share _collect_shas, so the count cannot drift from the event stream.",
+      "summary": "Made endingCommit plus the changesCommitted evidence authoritative and demoted work-log prose to a fallback used only when both are empty, which keeps the 15 prose-only logs working. json_metrics and json_events already share _collect_shas, so the count cannot drift from the event stream.",
       "evidence": "Added _changes_committed_evidence reading both Evidence and evidence casings and tolerating a missing or non-dict compliance section. Regenerated the fix/3342 episode: 7 commit events exactly matching the 7 SHAs changesCommitted names, zero extra, zero missing."
     },
     {

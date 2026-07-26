@@ -699,8 +699,8 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     ``changesCommitted`` evidence. Work-log prose is a fallback, consulted only
     when neither of those two yields a SHA. That is a weaker condition than
     "both fields are empty": evidence reading ``Committed.`` with no SHA in it
-    also reaches the fallback, and has to, because that is the shape 20 of the
-    25 prose-only logs are in.
+    also reaches the fallback, and has to, because that is the shape 12 of the
+    15 prose-only logs are in.
 
     Prose is not a primary source (issue #3363). A work-log entry legitimately
     cites SHAs the session did not author: a bot's housekeeping commits, a
@@ -711,11 +711,15 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     ``fix/3342-harness-reference-size`` the episode counted two foreign commits
     and dropped three of the session's own.
 
-    The fallback is kept because 25 logs, all pre-2026-02, record their commits
-    only in the work log. Five have no evidence string at all; the other 20
-    have one that names no SHA. Deleting the fallback would drop every commit
-    those 25 sessions made. It carries the existing hex-letter (issue #3301)
-    and committer-date (issue #3328) filters.
+    The fallback is kept because 15 logs record their commits only in the work
+    log. Three have no evidence string at all; the other 12 have one that names
+    no SHA. Deleting the fallback would drop every commit those 15 sessions
+    made. They are not a closed historical set: they run 2026-01-15 to
+    2026-07-08, so the fallback is load-bearing for logs still being written.
+    Measured over 938 logs by the definition this docstring states: neither
+    ``endingCommit`` nor the ``changesCommitted`` evidence names a SHA other
+    than the starting commit, and the work log does. It carries the existing
+    hex-letter (issue #3301) and committer-date (issue #3328) filters.
 
     Excludes the starting commit by default: it is the base, not a commit the
     session produced, including when prose repeats it at a different

@@ -1767,7 +1767,7 @@ class TestChangesCommittedIsTheCommitSource:
     def test_prose_is_reached_when_the_evidence_string_is_empty(self):
         """The other prose-only shape: no evidence string at all.
 
-        Five of the 25 prose-only logs are in this shape rather than carrying a
+        Three of the 15 prose-only logs are in this shape rather than carrying a
         SHA-less sentence. Both have to reach the fallback, which is why the
         condition is "neither source yielded a SHA" and not "both are empty".
         """
