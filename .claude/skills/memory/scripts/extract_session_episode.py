@@ -671,23 +671,63 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     return committed.astimezone(UTC) < floor
 
 
+def _changes_committed_evidence(data: dict) -> str:
+    """The session-end ``changesCommitted`` evidence string, or empty.
+
+    The session protocol treats this field as the record of what the session
+    committed, so it is the authoritative commit source alongside
+    ``endingCommit``.
+    """
+    compliance = _as_dict(data.get("protocolCompliance"))
+    session_end = _as_dict(compliance.get("sessionEnd"))
+    item = _as_dict(session_end.get("changesCommitted"))
+    for key in ("Evidence", "evidence"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
-    """Distinct commit SHAs from the structured commit fields and work-log
-    evidence. Excludes the starting commit by default (it is the base, not a
-    commit the session produced), including when work-log prose repeats it at a
-    different abbreviation length than ``startingCommit`` is stored (issue
-    #3123). Also excludes any prose SHA git proves was committed before the
-    session's date window (issue #3328)."""
+    """Distinct commit SHAs a session produced, newest source of truth first.
+
+    The commit set comes from the two fields the session protocol treats as the
+    record of what a session committed: ``endingCommit`` and the session-end
+    ``changesCommitted`` evidence. Work-log prose is a fallback used only when
+    both are empty.
+
+    Prose is not a primary source (issue #3363). A work-log entry legitimately
+    cites SHAs the session did not author: a bot's housekeeping commits, a
+    commit it bisected, the base of a PR it read. Counting those inflated
+    ``metrics.commits`` and seeded commit nodes in the causal graph for work the
+    session never did, while the session's own commits, recorded only in
+    ``changesCommitted``, were missed entirely. On
+    ``fix/3342-harness-reference-size`` the episode counted two foreign commits
+    and dropped three of the session's own.
+
+    The fallback is kept because 27 pre-2026-02 logs record commits only in the
+    work log and have no structured evidence to fall back to. It carries the
+    existing hex-letter (issue #3301) and committer-date (issue #3328) filters.
+
+    Excludes the starting commit by default: it is the base, not a commit the
+    session produced, including when prose repeats it at a different
+    abbreviation length (issue #3123).
+    """
     seen: list[str] = []
     session = _as_dict(data.get("session"))
     starting = str(session.get("startingCommit") or "").strip()
     session_date = str(session.get("date") or "").strip()
 
-    # Process endingCommit first without filtering - it's authoritative, not prose
-    ending_field = str(data.get("endingCommit") or "")
-    for sha in _SHA_RE.findall(ending_field):
-        if sha not in seen:
-            seen.append(sha)
+    def _add_structured(field: str) -> None:
+        """Structured fields are the protocol's record; scan them unfiltered."""
+        for sha in _SHA_RE.findall(field):
+            if not include_starting and starting and _same_commit(sha, starting):
+                continue
+            if sha not in seen:
+                seen.append(sha)
+
+    _add_structured(str(data.get("endingCommit") or ""))
+    _add_structured(_changes_committed_evidence(data))
 
     # startingCommit is a structured field, not prose: scan it unfiltered.
     if include_starting:
@@ -695,8 +735,10 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
             if sha not in seen:
                 seen.append(sha)
 
-    # work-log entries are free-text prose: require a hex letter so decimal-only
-    # IDs are not counted as commits (issue #3301).
+    if seen:
+        return seen
+
+    # Fallback for logs with no structured commit record at all.
     for entry in _as_list(data.get("workLog")):
         for sha in _prose_shas(_entry_text(entry)):
             if not include_starting and starting and _same_commit(sha, starting):
@@ -888,9 +930,11 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
 
 
 def json_metrics(data: dict) -> dict:
-    # Count every distinct commit the session documents (ending commit plus any
-    # SHAs in work-log evidence), not just the ending commit. Excludes the
-    # starting commit (the base, not a commit the session produced).
+    # Count every distinct commit the session documents, from the same source
+    # as the commit events so the two can never disagree: endingCommit plus the
+    # session-end changesCommitted evidence, falling back to work-log prose only
+    # when both are empty (issue #3363). Excludes the starting commit (the base,
+    # not a commit the session produced).
     commit_count = len(_collect_shas(data, include_starting=False))
     metrics = {
         "duration_minutes": 0,

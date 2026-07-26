@@ -291,8 +291,14 @@ def _lowercase_gate(complete):
     return {"level": "MUST", "complete": complete, "evidence": "x"}
 
 
-def _json_log(work_log, end_complete=True):
+def _json_log(work_log, end_complete=True, committed=None):
+    """``committed`` populates the session-end changesCommitted evidence, which
+    is the protocol's authoritative record of what the session committed and
+    the source commit provenance reads first (issue #3363)."""
     gate = _gate(end_complete)
+    committed_gate = dict(gate)
+    if committed is not None:
+        committed_gate["Evidence"] = committed
     return {
         "session": {
             "number": 1,
@@ -305,7 +311,7 @@ def _json_log(work_log, end_complete=True):
             "sessionStart": {},
             "sessionEnd": {
                 "checklistComplete": gate,
-                "changesCommitted": gate,
+                "changesCommitted": committed_gate,
                 "validationPassed": gate,
             },
         },
@@ -654,26 +660,25 @@ class TestJsonLessonsObjectShape:
 
 
 class TestJsonCommitMetric:
-    """`json_metrics["commits"]` counts every distinct documented commit (#2170)."""
+    """`json_metrics["commits"]` counts every distinct documented commit (#2170).
 
-    def test_counts_ending_and_worklog_shas(self):
-        data = _json_log(
-            [
-                {"task": "Commit A", "outcome": "1234abc. Added parser"},
-                {"task": "Commit B", "outcome": "5678def0. Fixed lint"},
-            ]
-        )
-        # endingCommit bbbbbbb1234 + two work-log SHAs = 3 distinct.
+    #2170 established that a session's commit count is not just ``endingCommit``.
+    #3363 corrected where the rest come from: the session-end changesCommitted
+    evidence, not work-log narrative, which also cites commits the session read
+    rather than authored.
+    """
+
+    def test_counts_ending_and_changes_committed_shas(self):
+        data = _json_log([], committed="Commits: 1234abc (parser), 5678def0 (lint).")
+        # endingCommit bbbbbbb1234 + two changesCommitted SHAs = 3 distinct.
         assert extract_session_episode.json_metrics(data)["commits"] == 3
 
     def test_dedupes_repeated_sha(self):
         data = _json_log(
-            [
-                {"task": "Commit A", "outcome": "1234abc. Added parser"},
-                {"task": "Re-reference", "evidence": "see 1234abc for details"},
-            ]
+            [{"task": "Re-reference", "evidence": "see 1234abc for details"}],
+            committed="Commit 1234abc, verified again as 1234abc.",
         )
-        # endingCommit + one distinct work-log SHA (1234abc counted once) = 2.
+        # endingCommit + one distinct evidence SHA (1234abc counted once) = 2.
         assert extract_session_episode.json_metrics(data)["commits"] == 2
 
     def test_no_sha_yields_zero(self):
@@ -743,17 +748,14 @@ class TestCommitProvenanceConsistency:
         return data
 
     def test_fresh_events_equal_metrics(self):
-        data = self._log(
-            "e07f40f",
-            [
-                {"task": "Commit A", "outcome": "45576b6. parser"},
-                {"task": "Commit B", "outcome": "24da6b2. lint"},
-            ],
+        data = self._log("e07f40f")
+        data["protocolCompliance"]["sessionEnd"]["changesCommitted"]["Evidence"] = (
+            "Commits: 45576b6 (parser), 24da6b2 (lint)."
         )
         commit_events = self._commit_events(
             {"events": extract_session_episode.json_events(data, self._NOW)}
         )
-        # endingCommit + two work-log SHAs = 3 documented commits, all retained.
+        # endingCommit + two changesCommitted SHAs = 3 documented, all retained.
         assert len(commit_events) == 3
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
 
@@ -1548,17 +1550,24 @@ class TestPredatingProseShaExclusion:
 
     @staticmethod
     def _log(anchor, prose, *, date=SESSION_DAY):
-        data = _json_log([{"task": "Cited", "outcome": prose}])
+        """A log with no structured commit record, so prose is consulted.
+
+        Since #3363 work-log prose is a fallback used only when ``endingCommit``
+        and the changesCommitted evidence are both empty (20 pre-2026-02 logs
+        take this shape). The predating filter guards that fallback, so the
+        fixture has to reach it.
+        """
+        data = _json_log([{"task": "Cited", "outcome": prose}], committed="Committed.")
         data["session"]["date"] = date
         data["session"]["startingCommit"] = anchor
-        data["endingCommit"] = anchor
+        data["endingCommit"] = ""
         return data
 
     def test_sha_predating_the_session_is_not_counted(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"reproduced against {cited}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 1
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
 
     def test_own_commit_from_the_evening_before_is_counted(self, tmp_path, monkeypatch):
         # Regression for the ancestor form of this check. ``evening`` is an
@@ -1568,7 +1577,7 @@ class TestPredatingProseShaExclusion:
         repo, _cited, evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"spec committed in {evening}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_squash_merge_of_own_work_is_counted(self, tmp_path, monkeypatch):
         # Regression for the descendant form. A squash commit shares no
@@ -1576,20 +1585,20 @@ class TestPredatingProseShaExclusion:
         repo, _cited, _evening, anchor, squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"merged as {squashed}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_commit_made_during_the_session_day_is_counted(self, tmp_path, monkeypatch):
         repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         later = _commit(repo, "later.txt", "later", when=SESSION_DAY_NOON)
         data = self._log(anchor, f"landed {later}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_unresolvable_sha_fails_open(self, tmp_path, monkeypatch):
         repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, "see deadbee for context")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_non_commit_object_fails_open(self, tmp_path, monkeypatch):
         # A blob SHA cannot be peeled to a commit, so git exits nonzero and the
@@ -1598,20 +1607,23 @@ class TestPredatingProseShaExclusion:
         monkeypatch.chdir(repo)
         blob = _git(repo, "rev-parse", "HEAD:anchor.txt")
         data = self._log(anchor, f"blob {blob}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_missing_session_date_fails_open(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"reproduced against {cited}", date="")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_outside_a_git_repo_fails_open(self, tmp_path, monkeypatch):
         outside = tmp_path / "not-a-repo"
         outside.mkdir()
         monkeypatch.chdir(outside)
-        data = _json_log([{"task": "Cited", "outcome": "1234abc. Added parser"}])
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        data = _json_log(
+            [{"task": "Cited", "outcome": "1234abc. Added parser"}], committed="Committed."
+        )
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_events_and_metrics_agree(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
@@ -1654,4 +1666,121 @@ class TestPredatingProseShaExclusion:
         anchor = _commit(repo, "anchor.txt", "anchor", when="2026-05-10T12:00:00+00:00")
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"landed in {early}", date="2026-05-11T00:00:00+14:00")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+
+class TestChangesCommittedIsTheCommitSource:
+    """Issue #3363: commits come from the protocol's record, not from prose.
+
+    A work-log entry legitimately cites SHAs the session did not author: a
+    bot's housekeeping commits, a commit it bisected, the base of a PR it read.
+    Counting those inflated metrics.commits and seeded causal-graph commit
+    nodes for work the session never did, while the session's own commits,
+    recorded only in changesCommitted, were missed entirely.
+    """
+
+    @staticmethod
+    def _log(*, evidence: str, ending: str, work_log: list) -> dict:
+        log = _json_log(work_log)
+        log["endingCommit"] = ending
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": evidence,
+        }
+        return log
+
+    def test_changes_committed_shas_become_commits(self):
+        log = self._log(
+            evidence="Two commits: the fix (abc1234def) and the test (fed4321abc).",
+            ending="abc1234def",
+            work_log=[],
+        )
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert set(shas) == {"abc1234def", "fed4321abc"}
+
+    def test_a_sha_only_in_work_log_prose_is_not_a_commit(self):
+        """The fix/3342 shape: narrative cites a bot commit the session did not author."""
+        log = self._log(
+            evidence="One commit: the fix (abc1234def).",
+            ending="abc1234def",
+            work_log=[{"phase": "Merge", "summary": "Took the bot's commit deadbee1234."}],
+        )
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == ["abc1234def"]
+        assert "deadbee1234" not in shas
+
+    def test_a_session_commit_named_only_in_evidence_is_not_dropped(self):
+        """The other half of #3363: prose-only extraction missed real commits."""
+        log = self._log(
+            evidence="Three commits: aaa1111bbb, ccc2222ddd, and eee3333fff.",
+            ending="eee3333fff",
+            work_log=[{"phase": "Implement", "summary": "Did the work."}],
+        )
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert set(shas) == {"aaa1111bbb", "ccc2222ddd", "eee3333fff"}
+
+    def test_metrics_and_events_agree_on_the_commit_set(self):
+        """A count that disagrees with the events is the bug that was reported."""
+        log = self._log(
+            evidence="Two commits: abc1234def and fed4321abc.",
+            ending="abc1234def",
+            work_log=[{"phase": "Note", "summary": "Mentioned deadbee1234 in passing."}],
+        )
+        events = [
+            e["content"].replace("Commit: ", "")
+            for e in extract_session_episode.json_events(log, "2026-05-31T00:00:00+00:00")
+            if e["type"] == "commit"
+        ]
+        assert extract_session_episode.json_metrics(log)["commits"] == len(events)
+        assert set(events) == {"abc1234def", "fed4321abc"}
+
+    def test_the_starting_commit_is_still_excluded_from_evidence(self):
+        """changesCommitted evidence often restates the base; it is not output."""
+        log = self._log(
+            evidence="Based on aaaaaaa, committed abc1234def.",
+            ending="abc1234def",
+            work_log=[],
+        )
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == ["abc1234def"]
+
+    def test_prose_still_works_when_there_is_no_structured_record(self):
+        """27 pre-2026-02 logs record commits only in the work log."""
+        log = _json_log([{"phase": "Implement", "summary": "committed as abc1234def"}])
+        log["endingCommit"] = ""
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": "Committed the work.",
+        }
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert "abc1234def" in shas
+
+    def test_lowercase_evidence_key_is_read(self):
+        """Session logs use both Evidence and evidence casings."""
+        log = _json_log([])
+        log["endingCommit"] = ""
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "complete": True,
+            "evidence": "One commit: abc1234def.",
+        }
+        assert extract_session_episode._collect_shas(log, include_starting=False) == [
+            "abc1234def"
+        ]
+
+    def test_a_missing_compliance_section_does_not_raise(self):
+        log = _json_log([{"phase": "x", "summary": "committed as abc1234def"}])
+        log["endingCommit"] = ""
+        del log["protocolCompliance"]
+        assert extract_session_episode._collect_shas(log, include_starting=False) == [
+            "abc1234def"
+        ]
+
+    def test_a_non_dict_compliance_section_does_not_raise(self):
+        log = _json_log([])
+        log["protocolCompliance"] = "not a dict"
+        assert extract_session_episode._collect_shas(log, include_starting=False) == [
+            "bbbbbbb1234"
+        ]
