@@ -118,9 +118,14 @@ def _atomic_write_text(path: Path, text: str) -> None:
     try:
         handle = os.fdopen(fd, "w", encoding="utf-8")
     except BaseException:
-        # fdopen never took ownership, so the raw descriptor is still ours.
-        # Suppressed because we are already unwinding: a close failure here
-        # would replace the error that actually explains the write.
+        # Whether the descriptor is still ours depends on how far io.open got.
+        # Measured on CPython: an invalid mode raises before it wraps the
+        # descriptor and leaves it open, an unknown encoding raises after and
+        # closes it on the way out. An interrupt can land on either side. So
+        # this close is required in the first case and answers EBADF in the
+        # second, which is the first reason for the suppress. The second is
+        # that we are already unwinding, and a cleanup failure here would
+        # replace the error that actually explains the write.
         with contextlib.suppress(OSError):
             os.close(fd)
         _discard(temporary)

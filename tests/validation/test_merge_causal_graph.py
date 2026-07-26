@@ -464,6 +464,34 @@ class TestDriverExitContract:
         assert ours.read_text(encoding="utf-8") == before
         assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
+    def test_fdopen_that_closed_the_descriptor_before_failing_is_survivable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The sibling test covers fdopen raising before it took the descriptor.
+
+        io.open also raises after taking it: an unknown encoding gets past the
+        FileIO construction and the descriptor is closed on the way out. An
+        interrupt can land on either side of that line, so the cleanup has to
+        survive closing a descriptor that is already closed. Without the
+        suppress around os.close the EBADF would propagate from the cleanup and
+        replace the error that actually explains the write.
+        """
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+
+        def close_then_refuse(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            os.close(fd)
+            raise OSError(24, "Too many open files")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", close_then_refuse)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
     def test_close_failure_does_not_mask_a_partial_write_failure(
         self,
         tmp_path: Path,
