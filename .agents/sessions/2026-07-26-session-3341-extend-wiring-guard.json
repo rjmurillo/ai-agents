@@ -139,6 +139,10 @@
     {
       "time": "2026-07-26T15:20:00Z",
       "action": "Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding."
+    },
+    {
+      "time": "2026-07-26T15:40:00Z",
+      "action": "Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it."
     }
   ],
   "learnings": {

@@ -59,6 +59,9 @@ _DOCSTRING_OWNERS = (
 )
 
 # Spelled-out counts, so the module docstring can be checked against reality.
+# Covers the full range test_the_allowlist_stays_small_enough_to_read permits,
+# so growth inside that bound fails with the docstring assertion rather than a
+# KeyError from this table.
 _NUMBER_WORDS = {
     0: "no",
     1: "one",
@@ -69,7 +72,15 @@ _NUMBER_WORDS = {
     6: "six",
     7: "seven",
     8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
 }
+
+# The most entries _NO_CALLER may hold before the allowlist stops being
+# readable. _NUMBER_WORDS must span this whole range; a test pins that.
+_ALLOWLIST_CEILING = 12
 
 # Directories searched when following a reference from one script to another.
 _CALLER_ROOTS = (
@@ -352,7 +363,7 @@ def test_the_allowlist_stays_small_enough_to_read() -> None:
     generous against the seven real entries so that ordinary churn does not trip
     it, and tight enough that a bulk exemption has to argue for itself.
     """
-    assert len(_NO_CALLER) <= 12, (
+    assert len(_NO_CALLER) <= _ALLOWLIST_CEILING, (
         f"{len(_NO_CALLER)} allowlist entries. Past a dozen this is a bulk "
         f"exemption rather than a set of decisions, which is the #3329 defect "
         f"with extra ceremony."
@@ -470,6 +481,19 @@ class TestTheDocstringMatchesTheAllowlist:
         assert stated in __doc__, (
             f"module docstring should say {stated!r}; it drifts every time "
             f"_NO_CALLER changes unless something checks it"
+        )
+
+    def test_the_word_table_covers_every_size_the_allowlist_may_reach(self) -> None:
+        """Otherwise growth inside the permitted range dies on a KeyError.
+
+        The two bounds are set in different places and drifted apart once
+        already: the table stopped at eight while the cap allowed twelve, so
+        the ninth allowlist entry would have crashed this class instead of
+        reporting the stale docstring it exists to report.
+        """
+        assert set(range(_ALLOWLIST_CEILING + 1)) <= set(_NUMBER_WORDS), (
+            f"_NUMBER_WORDS covers up to {max(_NUMBER_WORDS)} but the allowlist "
+            f"may reach {_ALLOWLIST_CEILING}"
         )
 
 

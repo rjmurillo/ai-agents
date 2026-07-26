@@ -15482,6 +15482,15 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T05:45:45.775196+00:00"
+    },
+    {
+      "id": "f5878db40ab8",
+      "type": "milestone",
+      "label": "milestone: Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:54:20.572514+00:00"
     }
   ],
   "patterns": [
