@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import os
 import subprocess
@@ -752,3 +753,170 @@ class TestValidation5DashCheck:
             # scripts.validation.pr_description, the error wording is
             # "PR description contains U+2014 or U+2013 (line N). ..."
             assert "U+2014" in stderr or "U+2013" in stderr
+
+
+class TestACrashedValidatorIsNotSuccess:
+    """A validator that never ran must not read as a clean scan.
+
+    detect_test_coverage_gaps.py died on an import error while this wrapper
+    printed "All pre-creation validations passed", so a broken quality gate
+    produced success-shaped output and the PR was created anyway (#3391).
+    Both warning-only detectors document exit 0 as "ran, findings are
+    warnings", so any non-zero code is the validator failing, not a finding.
+    """
+
+    @staticmethod
+    def _run(tmp_path, *, coverage_rc: int, skill_rc: int = 0, title: str = "feat: x"):
+        for name in ("detect_test_coverage_gaps.py", "detect_skill_violation.py"):
+            script = tmp_path / "scripts" / name
+            script.parent.mkdir(parents=True, exist_ok=True)
+            script.write_text("# mock", encoding="utf-8")
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout="src/main.py\n", rc=0)
+            if len(cmd) > 1 and cmd[1].endswith("detect_test_coverage_gaps.py"):
+                return _completed(stderr="ModuleNotFoundError\n", rc=coverage_rc)
+            if len(cmd) > 1 and cmd[1].endswith("detect_skill_violation.py"):
+                return _completed(rc=skill_rc)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch", title=title)
+
+    def test_a_crashed_coverage_detector_blocks_creation(self, tmp_path, capsys):
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, coverage_rc=1)
+        assert exc.value.code == 1
+        assert "All pre-creation validations passed" not in capsys.readouterr().out
+
+    def test_the_message_names_the_validator_that_did_not_run(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            self._run(tmp_path, coverage_rc=1)
+        stderr = capsys.readouterr().err
+        assert "detect_test_coverage_gaps.py" in stderr
+        assert "did not run" in stderr
+
+    def test_a_crashed_skill_detector_blocks_too(self, tmp_path, capsys):
+        """The same swallow existed on validation 2."""
+        with pytest.raises(SystemExit):
+            self._run(tmp_path, coverage_rc=0, skill_rc=2)
+        assert "detect_skill_violation.py" in capsys.readouterr().err
+
+    def test_the_detector_output_still_reaches_the_operator(self, tmp_path, capsys):
+        """Capturing the subprocess must not hide what it printed."""
+        with pytest.raises(SystemExit):
+            self._run(tmp_path, coverage_rc=1)
+        assert "ModuleNotFoundError" in capsys.readouterr().err
+
+    def test_clean_detectors_still_report_success(self, tmp_path, capsys):
+        """Negative control: the block must be keyed on the failure."""
+        self._run(tmp_path, coverage_rc=0)
+        assert "All pre-creation validations passed" in capsys.readouterr().out
+
+
+class TestCapturedOutputPinsItsCodec:
+    """Every capturing subprocess.run must pin utf-8, on both mirrors.
+
+    subprocess.run(text=True) with no encoding decodes with
+    locale.getpreferredencoding(False). On Windows that is cp1252, and the
+    reader thread raises UnicodeDecodeError on the UTF-8 bytes git and gh
+    routinely emit (branch names, commit subjects, gh's status glyphs). The
+    exception surfaces in a helper thread rather than the caller, so
+    subprocess.run returns with stdout set to None instead of raising. Callers
+    that then do result.stdout.strip() die with AttributeError; callers that
+    check truthiness silently treat a crashed tool as one that printed nothing.
+
+    That last shape is the exact failure issue #3391 exists to prevent, so this
+    file must not reintroduce it. An AST check rather than a grep so a new call
+    site is covered the day it is written.
+
+    Scoped to calls that both capture and decode. A run() with no capture
+    inherits the parent's stdio and never decodes, so text= is inert there and
+    the codec is not its concern.
+    """
+
+    _MIRRORS = (
+        Path(__file__).resolve().parents[1]
+        / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+        Path(__file__).resolve().parents[1]
+        / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+    )
+
+    @staticmethod
+    def _set_true(kwargs: dict[str, ast.expr], name: str) -> bool:
+        """True when the keyword is present and spelled as a truthy literal."""
+        value = kwargs.get(name)
+        return isinstance(value, ast.Constant) and bool(value.value)
+
+    @staticmethod
+    def _capturing_runs(source: str):
+        """(lineno, {kwarg names}) for each subprocess.run that decodes output."""
+        found = []
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and func.attr == "run"):
+                continue
+            if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
+                continue
+            kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+            set_true = TestCapturedOutputPinsItsCodec._set_true
+            captures = (
+                set_true(kwargs, "capture_output")
+                or "stdout" in kwargs
+                or "stderr" in kwargs
+            )
+            decodes = (
+                set_true(kwargs, "text")
+                or set_true(kwargs, "universal_newlines")
+                or "encoding" in kwargs
+            )
+            if captures and decodes:
+                found.append((node.lineno, set(kwargs)))
+        return found
+
+    @pytest.mark.parametrize("mirror", _MIRRORS, ids=lambda p: p.parts[-6])
+    def test_every_capturing_run_pins_utf8(self, mirror):
+        offenders = [
+            lineno
+            for lineno, kwargs in self._capturing_runs(mirror.read_text(encoding="utf-8"))
+            if "encoding" not in kwargs
+        ]
+        assert not offenders, (
+            f"{mirror}: subprocess.run at line(s) {offenders} captures and decodes "
+            "output without encoding='utf-8'; this crashes the reader thread on "
+            "Windows cp1252 and returns stdout=None"
+        )
+
+    @pytest.mark.parametrize("mirror", _MIRRORS, ids=lambda p: p.parts[-6])
+    def test_every_capturing_run_survives_undecodable_bytes(self, mirror):
+        """errors= must be set too: a pinned codec still raises without it."""
+        offenders = [
+            lineno
+            for lineno, kwargs in self._capturing_runs(mirror.read_text(encoding="utf-8"))
+            if "errors" not in kwargs
+        ]
+        assert not offenders, (
+            f"{mirror}: subprocess.run at line(s) {offenders} pins a codec but no "
+            "errors= policy, so undecodable bytes raise instead of degrading"
+        )
+
+    def test_the_check_finds_something_to_check(self):
+        """Vacuity control: an AST walk that matches nothing proves nothing."""
+        runs = self._capturing_runs(self._MIRRORS[0].read_text(encoding="utf-8"))
+        assert len(runs) >= 5
+
+    def test_a_bare_text_run_is_reported(self):
+        """Negative control on the walker itself."""
+        offenders = self._capturing_runs(
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, text=True)\n"
+        )
+        assert offenders == [(2, {"capture_output", "text"})]
+
+    def test_a_non_capturing_run_is_out_of_scope(self):
+        """text= without capture never decodes, so it is not this rule's business."""
+        assert self._capturing_runs(
+            "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
+        ) == []

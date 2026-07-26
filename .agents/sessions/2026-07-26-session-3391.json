@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3391,
+    "date": "2026-07-26",
+    "branch": "fix/3391-coverage-detector-import-path",
+    "startingCommit": "9768d5412c",
+    "objective": "Make the pre-PR coverage detector importable and stop reporting a crashed validator as a passing scan"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; memory and symbol tools returned project data"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read before editing"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill scripts under .claude/skills/github/scripts/pr listed while locating new_pr.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory and the plugin-versioning manifest-parity memory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3391-coverage-detector-import-path"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3391-coverage-detector-import-path"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "9768d5412c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded that a subprocess import-path test is not a guard under an editable install unless launched with -S -I"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this session"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 2ddaebad8d and 9814c716c0"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "11 tests in tests/test_detect_test_coverage_gaps.py and 51 in tests/test_new_pr.py passed; both fixes carry a negative control that went red when reverted; ruff ratchet passed for 5 changed Python files; build_all.py wrote no unexpected output"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3391 assigned and fixed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; the 2026-07-26 auto-retrospective covers this continuous run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Reproduced #3391. scripts/detect_test_coverage_gaps.py imports scripts.github_core.repo with no sys.path insert, unlike the two sibling scripts new_pr.py invokes the same way (detect_skill_violation.py and validate_session_json.py), both of which set _SCRIPT_DIR/_PROJECT_ROOT and insert before importing."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added the same _SCRIPT_DIR/_PROJECT_ROOT/sys.path.insert prologue to the detector with a comment citing #3391, and marked the now-late import # noqa: E402 to match the siblings. Chose this over setting PYTHONPATH in the caller so one mechanism serves all three scripts.",
+      "files": [
+        "scripts/detect_test_coverage_gaps.py"
+      ]
+    },
+    {
+      "phase": "testing",
+      "summary": "The first regression test passed with the fix reverted: the test venv installs this project editable, so a .pth file in site-packages puts the repo root on sys.path no matter what the script does. Relaunching with -S -I skips site processing and the user site dir, leaving the script's own insert as the only thing that can satisfy the import. Both new tests then failed on revert. A second test runs the detector from a real linked git worktree; git worktree add checks out HEAD, so the working-tree file is copied in.",
+      "files": [
+        "tests/test_detect_test_coverage_gaps.py"
+      ]
+    },
+    {
+      "phase": "investigation",
+      "summary": "Traced why the broken detector never surfaced: new_pr.py captured each warning-only detector's stdout and ignored its exit code, then printed All pre-creation validations passed regardless. Both detectors document exit 0 as ran, findings are warnings, so non-zero is unambiguously the validator failing rather than a finding."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added _run_warning_validator, which returns stdout on success and None on any non-zero exit or OSError while surfacing the child's stderr. run_validations collects the validators that did not run and exits 1 naming them instead of printing success. Behavior change: a crashed warning-only validator now blocks PR creation; --skip-validation with --audit-reason remains the escape hatch.",
+      "files": [
+        ".claude/skills/github/scripts/pr/new_pr.py",
+        "src/copilot-cli/skills/github/scripts/pr/new_pr.py"
+      ]
+    },
+    {
+      "phase": "testing",
+      "summary": "Five wrapper tests cover a crashed coverage detector, a crashed skill detector, the message naming the validator, the child stderr reaching the operator, and a negative control that a clean run still reports success. Disabling the new block turned the first four red and left the control green.",
+      "files": [
+        "tests/test_new_pr.py"
+      ]
+    },
+    {
+      "phase": "validation",
+      "summary": "Both new_pr.py copies kept byte-identical. build_all.py exit 0 with no unexpected writes. Both plugin manifests bumped to 0.6.121 because .claude/skills and src/copilot-cli/skills are plugin trees. Ruff ratchet passed for 5 changed Python files.",
+      "files": [
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    }
+  ],
+  "endingCommit": "9814c716c0",
+  "nextSteps": [
+    "Re-poll PRs #3380, #3381, and #3382 for new review threads",
+    "Work the remaining open issues in the causal graph cluster"
+  ]
+}

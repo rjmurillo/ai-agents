@@ -70,6 +70,44 @@ _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 # ---------------------------------------------------------------------------
 
 
+def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
+    """Run a warning-only validator. Return its name when it failed to run.
+
+    Both detectors document exit 0 as "ran; findings are warnings" and any
+    non-zero exit as an error, so a non-zero code here means the validator did
+    not produce findings at all. Discarding it turned a validator that never
+    ran into success-shaped output: detect_test_coverage_gaps.py died on an
+    import error while this wrapper still printed "All pre-creation
+    validations passed" (issue #3391).
+    """
+    name = os.path.basename(argv[1]) if len(argv) > 1 else argv[0]
+    try:
+        result = subprocess.run(
+            argv,
+            timeout=timeout,
+            env=_git_env(),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"  ERROR: {name} could not be run: {exc}", file=sys.stderr)
+        return name
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        print(
+            f"  ERROR: {name} exited {result.returncode}, so its findings are"
+            " unknown. This is a validator failure, not a clean scan.",
+            file=sys.stderr,
+        )
+        return name
+    return None
+
+
 def _git_env() -> dict[str, str]:
     """Return environment with git hook override variables stripped."""
     return {
@@ -92,6 +130,8 @@ def get_repo_root() -> str:
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         env=_git_env(),
     )
@@ -224,6 +264,7 @@ def run_validations(
     body_file: str = "",
 ) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
+    unrun_validators: list[str] = []
     try:
         os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
     except PermissionError as exc:
@@ -238,6 +279,8 @@ def run_validations(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         env=_git_env(),
     )
@@ -284,6 +327,8 @@ def run_validations(
                             ],
                             capture_output=True,
                             text=True,
+                            encoding="utf-8",
+                            errors="replace",
                             timeout=60,
                         )
                         if vresult.returncode != 0:
@@ -305,11 +350,9 @@ def run_validations(
         skill_args = [sys.executable, skill_script]
         for changed_file in scannable_files:
             skill_args.extend(["--file", changed_file])
-        subprocess.run(
-            skill_args,
-            timeout=30,
-            env=_git_env(),
-        )
+        failed = _run_warning_validator(skill_args, timeout=30)
+        if failed:
+            unrun_validators.append(failed)
     elif os.path.exists(skill_script):
         if diff_failed:
             print("  Skipped: git diff failed, changed files unknown (see warning above).")
@@ -324,10 +367,11 @@ def run_validations(
     print("[3/5] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
-        subprocess.run(
-            [sys.executable, test_script, "--staged-only"],
-            timeout=30,
+        failed = _run_warning_validator(
+            [sys.executable, test_script, "--staged-only"], timeout=30
         )
+        if failed:
+            unrun_validators.append(failed)
 
     # Validation 4: PR Description validation (WARNING)
     print()
@@ -342,7 +386,14 @@ def run_validations(
             val_args.extend(["--body", body])
         elif body_file:
             val_args.extend(["--body-file", body_file])
-        val_result = subprocess.run(val_args, capture_output=True, text=True, timeout=30)
+        val_result = subprocess.run(
+            val_args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
         # Print human-readable output (on stderr from validator)
         if val_result.stderr:
             print(val_result.stderr, end="", file=sys.stderr)
@@ -402,6 +453,15 @@ def run_validations(
     print("  No prohibited characters in title or body.")
 
     print()
+    if unrun_validators:
+        print(
+            "Validation incomplete: "
+            + ", ".join(sorted(set(unrun_validators)))
+            + " did not run. Fix the validator or re-run with"
+            ' --skip-validation --audit-reason "...".',
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     print("All pre-creation validations passed!")
     print()
 
@@ -469,6 +529,8 @@ def main(argv: list[str] | None = None) -> int:
         ["gh", "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
     )
     if gh_check.returncode != 0:
@@ -482,6 +544,8 @@ def main(argv: list[str] | None = None) -> int:
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             env=_git_env(),
         )
