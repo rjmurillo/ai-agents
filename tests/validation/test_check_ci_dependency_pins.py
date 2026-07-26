@@ -24,6 +24,10 @@ dependencies = ["PyYAML==6.0.3", "requests"]
 [project.optional-dependencies]
 dev = ["pytest>=9.0.3", "pytest-cov>=7.1.0"]
 eval = ["pytest>=8.0"]
+
+[dependency-groups]
+lint = ["ruff>=0.15.16", {include-group = "dev"}]
+dev = ["pytest>=9.0.3"]
 """
 
 
@@ -43,7 +47,38 @@ def _pyproject(tmp_path: Path, body: str = _PYPROJECT) -> Path:
 class TestDeclaredConstraints:
     def test_it_merges_base_and_every_extra(self, tmp_path):
         c = gate.declared_constraints(_pyproject(tmp_path))
-        assert set(c) == {"pyyaml", "pytest", "pytest-cov"}
+        assert set(c) == {"pyyaml", "pytest", "pytest-cov", "ruff"}
+
+    def test_a_constraint_only_in_a_dependency_group_is_enforced(self, tmp_path):
+        """ruff is declared nowhere but [dependency-groups].lint.
+
+        uv sync installs dependency groups by default and ignores extras, so a
+        pin that contradicts one is a real drift the gate has to see.
+        """
+        c = gate.declared_constraints(_pyproject(tmp_path))
+        assert not c["ruff"].contains(gate.Version("0.15.0"), prereleases=True)
+        assert c["ruff"].contains(gate.Version("0.15.16"), prereleases=True)
+
+    def test_an_include_group_table_is_not_read_as_a_requirement(self, tmp_path):
+        """PEP 735 lets a group include another by table, not by string.
+
+        Requirement() would reject the dict outright; the named group is read
+        on its own pass, so skipping the table loses nothing.
+        """
+        c = gate.declared_constraints(_pyproject(tmp_path))
+        assert "include-group" not in c
+
+    def test_a_dependency_group_that_is_not_a_list_is_skipped(self, tmp_path):
+        """A malformed table must not take the gate down.
+
+        The gate runs in CI ahead of the tests that would diagnose it, so a
+        TypeError here reads as a pin failure rather than a broken pyproject.
+        """
+        path = _pyproject(
+            tmp_path,
+            '[project]\nname="x"\ndependencies=["pytest>=9"]\n[dependency-groups]\ndev="oops"\n',
+        )
+        assert set(gate.declared_constraints(path)) == {"pytest"}
 
     def test_a_package_in_two_groups_intersects_its_specifiers(self, tmp_path):
         """pytest is >=9.0.3 in dev and >=8.0 in eval. CI installs one version,

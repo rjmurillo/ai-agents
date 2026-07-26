@@ -133,6 +133,9 @@ def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
     groups: list[list[str]] = [list(project.get("dependencies", []))]
     for extra in project.get("optional-dependencies", {}).values():
         groups.append(list(extra))
+    for group in data.get("dependency-groups", {}).values():
+        if isinstance(group, list):
+            groups.append([item for item in group if isinstance(item, str)])
 
     merged: dict[str, SpecifierSet] = {}
     for group in groups:
