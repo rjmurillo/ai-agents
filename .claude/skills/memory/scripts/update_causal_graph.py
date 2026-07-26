@@ -44,7 +44,13 @@ def _empty_graph() -> dict[str, Any]:
 
 
 def load_causal_graph(graph_path: Path) -> dict[str, Any]:
-    """Load causal graph from JSON file or return empty graph."""
+    """Load causal graph from JSON file or return empty graph.
+
+    Raises:
+        ValueError: When the file contains valid JSON that is not a dict.
+            This signals a corrupted file that must not be silently replaced,
+            allowing the caller (e.g., a git hook) to restore the original.
+    """
     if not graph_path.is_file():
         return _empty_graph()
     try:
@@ -52,7 +58,8 @@ def load_causal_graph(graph_path: Path) -> dict[str, Any]:
     except (json.JSONDecodeError, OSError):
         return _empty_graph()
     if not isinstance(data, dict):
-        return _empty_graph()
+        msg = f"causal graph file is valid JSON but not an object: {graph_path}"
+        raise ValueError(msg)
     return data
 
 
