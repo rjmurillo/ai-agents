@@ -1025,3 +1025,45 @@ class TestTheHookWarningNamesTheRepair:
         assert marker in source
         tail = source.split(marker, 1)[1][:600]
         assert "--reset-graph" in tail
+
+
+class TestTheRepairPathIsDerivedNotHardCoded:
+    """This file is mirrored into the Copilot CLI plugin, where an upstream
+    ``.claude/...`` literal names a path that does not exist. The vendor
+    portability ratchet (issue #2050) rejects the literal, so the repair
+    command has to name the script's own location.
+    """
+
+    def test_the_repair_path_resolves_to_this_script(self):
+        resolved = (Path.cwd() / update_causal_graph._repair_invocation()).resolve()
+        assert resolved == Path(update_causal_graph.__file__).resolve()
+
+    def test_the_path_is_relative_when_the_script_sits_under_the_cwd(self, monkeypatch):
+        monkeypatch.chdir(Path(update_causal_graph.__file__).resolve().parents[4])
+        assert not Path(update_causal_graph._repair_invocation()).is_absolute()
+
+    def test_the_path_is_absolute_when_the_script_sits_outside_the_cwd(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        invocation = update_causal_graph._repair_invocation()
+        assert Path(invocation).is_absolute()
+        assert Path(invocation).exists()
+
+    def test_the_printed_message_carries_no_upstream_literal(self, tmp_path, capsys):
+        """The mirrored copy must not advertise a .claude path it does not have."""
+        monkeypatch_target = tmp_path / "graph.json"
+        monkeypatch_target.write_text("{", encoding="utf-8")
+        _episode_file(tmp_path / "ep", "ep-1", "Use Python")
+
+        update_causal_graph.main(
+            [
+                "--episode-path", str(tmp_path / "ep"),
+                "--graph-path", str(monkeypatch_target),
+            ]
+        )
+
+        err = capsys.readouterr().err
+        printed = [ln for ln in err.splitlines() if "--reset-graph" in ln]
+        assert printed, "the failure must print the repair command"
+        assert Path(printed[0].split()[1]).exists()

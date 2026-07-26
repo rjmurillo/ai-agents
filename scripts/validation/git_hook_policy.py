@@ -1245,8 +1245,7 @@ def update_causal_graph(repo_root: Path) -> int:
     # and this warning repeats on every commit. Name the repair (issue #3370).
     print(
         "         If the graph file is corrupt, rebuild it from the episodes:\n"
-        "           python3 .claude/skills/memory/scripts/update_causal_graph.py "
-        "--reset-graph",
+        f"           python3 {_CAUSAL_UPDATER} --reset-graph",
         file=sys.stderr,
     )
     return 0
@@ -1300,7 +1299,7 @@ def _prune_deleted_episodes(
     result = _run_command(
         [
             sys.executable,
-            ".claude/skills/memory/scripts/update_causal_graph.py",
+            _CAUSAL_UPDATER,
             "--prune-episode-ids",
             ",".join(episode_ids),
             "--episode-path",
@@ -1313,6 +1312,11 @@ def _prune_deleted_episodes(
     if result.returncode != 0:
         _print_process_output(result)
     return result.returncode
+
+
+# One home for the updater path: the invocation and the repair advice must
+# name the same script (issue #3370).
+_CAUSAL_UPDATER = ".claude/skills/memory/scripts/update_causal_graph.py"
 
 
 def _deleted_episode_id(relative_path: str, repo_root: Path) -> str:

@@ -608,6 +608,20 @@ def build_causal_chains(episode: dict[str, Any]) -> list[dict[str, Any]]:
     return chains
 
 
+def _repair_invocation() -> str:
+    """Return this script's own path, relative to the caller's cwd when possible.
+
+    Derived rather than hard-coded: this file is mirrored into the Copilot CLI
+    plugin, where an upstream ``.claude/...`` literal names a path that does not
+    exist and trips the vendor-portability ratchet (issue #2050).
+    """
+    script = Path(__file__).resolve()
+    try:
+        return str(script.relative_to(Path.cwd()))
+    except ValueError:
+        return str(script)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update the causal graph from episode data.",
@@ -705,8 +719,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             print(
                 "The graph is derived from the episodes on disk, so it can be "
-                "rebuilt. Repair with:\n"
-                "  python3 .claude/skills/memory/scripts/update_causal_graph.py "
+                f"rebuilt. Repair with:\n  python3 {_repair_invocation()} "
                 "--reset-graph",
                 file=sys.stderr,
             )

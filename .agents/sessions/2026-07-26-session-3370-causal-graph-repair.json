@@ -137,6 +137,10 @@
     {
       "phase": "verification",
       "summary": "Ran five negative controls: reset ignoring the flag, the wrong exception type on the load, the early-return guard reverted, the repair line dropped from the hook warning, and the flag dropped from the error message. Each turned the matching test red; all restored. 65 tests pass, ruff clean, build_all.py reports no drift, manifest parity holds at 0.6.117."
+    },
+    {
+      "phase": "verification",
+      "summary": "The pre-push suite caught a real defect in the first draft: the repair message hard-coded .claude/skills/memory/scripts/update_causal_graph.py, a path that does not exist in the Copilot CLI mirror, which tripped the vendor-portability ratchet (issue 2050). Replaced it with _repair_invocation(), which derives the script's own location from __file__ and returns it relative to the caller's cwd when possible. Also gave git_hook_policy.py a single _CAUSAL_UPDATER constant so the subprocess invocation and the repair advice cannot drift apart. Added 4 tests and ran a sixth negative control: restoring the literal turned both the ratchet and a test red."
     }
   ],
   "endingCommit": "",
