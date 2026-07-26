@@ -434,9 +434,19 @@ def validate_all(
     # the whole published surface unvalidated.
     plugin_path = base_path / PLUGIN_HOOKS_PATH
     if plugin_path.is_file():
-        _, plugin_entries, plugin_violations = parse_settings(plugin_path)
-        entries.extend(plugin_entries)
-        parse_violations.extend(plugin_violations)
+        try:
+            _, plugin_entries, plugin_violations = parse_settings(plugin_path)
+            entries.extend(plugin_entries)
+            parse_violations.extend(plugin_violations)
+        except UnicodeDecodeError as exc:
+            parse_violations.append(
+                Violation(
+                    hook_type="plugin",
+                    script=str(PLUGIN_HOOKS_PATH),
+                    category="invalid_plugin_hooks",
+                    message=f"Cannot read {PLUGIN_HOOKS_PATH}: {exc}",
+                )
+            )
 
     groups, group_violations = _load_dispatch_groups(base_path)
     parse_violations.extend(group_violations)
