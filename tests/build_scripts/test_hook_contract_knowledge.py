@@ -365,6 +365,11 @@ def test_official_sidecar_pins_sources_and_refresh_procedure() -> None:
     assert "github/docs/blob/0b02cd6336f4eebda1e409b45a89dab5c2193d9a" in text
     assert "raw.githubusercontent.com/github/copilot-cli/fd24cea5" in text
     assert "https://code.claude.com/docs/en/hooks" in text
+    assert (
+        "Sources: GitHub Copilot hook reference, agentStop / subagentStop "
+        "decision control; Claude Code hooks reference, Stop decision control."
+        in text
+    )
     assert "## Refresh procedure" in text
     assert "DOCS SILENT" in text
 
