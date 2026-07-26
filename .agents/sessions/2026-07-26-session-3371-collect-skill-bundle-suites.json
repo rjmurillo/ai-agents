@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3371,
+    "date": "2026-07-26",
+    "branch": "fix/3371-collect-mirror-suites",
+    "startingCommit": "663bbac488",
+    "objective": "Collect the test suites that ship inside skill bundles and fix what they caught (issue 3371)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; serena-list_memories returned the project memory index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read at session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; treated as read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "code-review-and-quality and github skill catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded plugin-versioning, testing-practices, and hooks memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3371-collect-mirror-suites"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "663bbac488"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored the testpaths blackout finding and the per-tree collection workaround"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files in the diff; the change set is Python and JSON only, verified with git diff --name-only"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three commits: ccc84280fe, bec3366729, d655c5237b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both bundle trees green (1120 and 1085 passed, 4 skipped each); 1985 passed across tests/test_paths.py, tests/skills/, tests/test_chaos_experiment_scripts.py, tests/validation/test_check_vendor_portability.py; 8 passed in tests/test_skill_bundle_suites_run.py; ruff check and ruff format clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3371 commented with the corrected 82-directory scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; this session is one issue in a multi-issue autopilot run whose retrospective covers the whole run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Reproduced the conftest collision issue 3371 reported, then proved --import-mode=importlib does not fix it: pytest derives the module name from the __init__.py chain, and consider_namespace_packages cannot disambiguate because .claude is not a legal Python identifier."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Wrote the converse assertion and it detonated. The defect is 41 times larger than filed: 82 skill-bundle test directories, 118 files, 2052 test functions never collected, against 13969 collected. Issue 3371 named 2 of the 82."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Found the collision is cross-tree only. Skill names are unique within a tree, so one subprocess per tree collects everything: .claude in 10.15s, src/copilot-cli in 10.15s. Six tests were failing."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Fixed a real side-effect bug: _artifact_dir in the retrospective evidence reader promised in its docstring not to create the directory, then called resolve_artifact_root, which mkdirs. Split resolution from creation in paths.py so one place computes the path."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Repaired a stale classifier test that fed an absolute tmp_path to a repo-root-anchored segment matcher, and deleted a pre-ADR-080 fork of the requirements-interview contract test whose canonical copy under tests/ already passes."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added tests/test_skill_bundle_suites_run.py: one subprocess per tree root plus the converse guard that fails when a bundle suite sits outside the configured roots. Scans tracked git paths so local worktrees are not mistaken for shipped bundles."
+    },
+    {
+      "phase": "validation",
+      "summary": "Five negative controls, all confirmed red: reverting the non-creating resolver, making artifact_dir mkdir again, removing the chdir from the classifier test, dropping a tree root from the guard, and reintroducing a bundle failure."
+    }
+  ],
+  "endingCommit": "d655c5237b",
+  "nextSteps": [
+    "Push fix/3371-collect-mirror-suites and open a PR that fixes #3371.",
+    "Comment on #3371 with the corrected scope: 82 directories, not 2.",
+    "Re-poll the four open PRs for new review threads."
+  ]
+}
