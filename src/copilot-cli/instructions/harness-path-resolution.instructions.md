@@ -4,11 +4,11 @@ applyTo: src/copilot-cli/skills/**
 
 # Harness Path Resolution Rule
 
-A skill that shells out to a helper script must resolve that script's directory before invoking it. The resolver walks a candidate ladder: harness environment variables first, then a repo-relative path, then installed-plugin copies under `$HOME`. Every rung after the repo-relative one points at a *different copy of the code* — usually an older one.
+A skill that shells out to a helper script must resolve that script's directory before invoking it. The resolver walks a candidate ladder: harness environment variables first, then a repo-relative path, then installed-plugin copies under `$HOME`. Every rung after the repo-relative one points at a *different copy of the code*, usually an older one.
 
 This rule exists because `src/copilot-cli/skills/pr-autofix/SKILL.md` contains a `resolve_pr_scripts_dir()` whose repo-relative rung is the bare string `.claude`. A bare relative path only resolves when the process cwd is the repository root. Executed from `repo/src/`, the `.claude` probe misses and the resolver silently returns `$HOME/.copilot/installed-plugins/_direct/project-toolkit/skills/github/scripts/pr`.
 
-The consequence measured on `9768d541`: that installed copy was dated one month earlier than the repo, and its `check_pr_live_state.py` was 495 lines against the repo's 560 — 215 lines different. `check_pr_live_state.py` is the blocking per-PR live-state gate (issue #2455) that `pr-autofix` runs before every tier action. From a subdirectory, the skill enforced its primary safety gate using a month-old implementation, with no warning and no version check. The resolver fails open and fails silent.
+The consequence measured on `9768d541`: that installed copy was dated one month earlier than the repo, and its `check_pr_live_state.py` was 495 lines against the repo's 560, a 215-line difference. `check_pr_live_state.py` is the blocking per-PR live-state gate (issue #2455) that `pr-autofix` runs before every tier action. From a subdirectory, the skill enforced its primary safety gate using a month-old implementation, with no warning and no version check. The resolver fails open and fails silent.
 
 ## What a resolver MUST do
 
@@ -30,7 +30,7 @@ The consequence measured on `9768d541`: that installed copy was dated one month 
 
 When a diff adds or edits a resolver function in a `SKILL.md`, a command file, or a helper script:
 
-- Extract the resolver and execute it from at least three working directories: the repo root, a subdirectory of the repo, and a path outside the repo. Reading the ladder is not sufficient — the bare-`.claude` defect is invisible on inspection and obvious on execution.
+- Extract the resolver and execute it from at least three working directories: the repo root, a subdirectory of the repo, and a path outside the repo. Reading the ladder is not sufficient. The bare-`.claude` defect is invisible on inspection and obvious on execution.
 - Confirm the repo-relative rung is anchored to `git rev-parse --show-toplevel` or an equivalent absolute derivation.
 - If an installed-plugin rung exists, confirm it is ordered last and that selecting it is announced.
 
@@ -38,7 +38,7 @@ When a diff adds or edits a resolver function in a `SKILL.md`, a command file, o
 
 When a skill behaves differently than its scripts read, compare the copies directly before theorizing:
 
-```sh
+```bash
 diff <(wc -l < "$repo_root/.claude/skills/github/scripts/pr/check_pr_live_state.py") \
      <(wc -l < "$HOME/.copilot/installed-plugins/_direct/project-toolkit/skills/github/scripts/pr/check_pr_live_state.py")
 ```
