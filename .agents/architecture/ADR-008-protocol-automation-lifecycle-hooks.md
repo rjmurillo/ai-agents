@@ -97,17 +97,7 @@ Specifically:
 - ADR-004: Pre-Commit Hook Architecture (existing foundation)
 - SESSION-PROTOCOL.md (defines what hooks enforce)
 
-## Implementation Status (2026)
-
-Implemented via Issue #1703. Five new Python hooks added:
-
-| Hook | File | Purpose |
-|------|------|---------|
-| SessionStart | `.claude/hooks/SessionStart/invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective |
-| PreToolUse | `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` | Blocks false completion claims without test evidence |
-| PostToolUse | `.claude/hooks/PostToolUse/invoke_plan_state_sync.py` | Checkpoints plan/TODO state after edits |
-| PreCompact | `.claude/hooks/PreCompact/invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction |
-| Stop | `.claude/hooks/Stop/invoke_auto_retrospective.py` | Auto-generates session retrospective |
+## Failure Semantics
 
 All hooks follow ADR-042 (Python-first). Failure semantics are scoped:
 
@@ -123,34 +113,70 @@ All hooks follow ADR-042 (Python-first). Failure semantics are scoped:
 - [claude-flow hooks architecture](https://github.com/ruvnet/claude-flow)
 - `.agents/analysis/claude-flow-architecture-analysis.md`
 
-## Implementation Status (2026)
+## Implementation Status
 
-Implemented via Issue #1703. Five new hooks added to `.claude/hooks/`:
+This is the one status table in this ADR. It previously appeared twice, once
+above the References section and once here, with different columns and no
+statement of which was current. A reader could not tell which to trust and an
+editor could not tell which to update, which is part of why three retirements
+went unrecorded here. The upper section now holds only the failure-semantics
+amendment, which is the material that was unique to it.
+
+Implemented via Issue #1703. Status reflects the tree, not the 2026 decision:
+this ADR records what was decided, so a hook that has since been retired keeps
+its row and gains a retirement note rather than disappearing.
 
 | Hook | File | Type | Status |
 |------|------|------|--------|
-| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | ✅ Implemented |
-| **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | ✅ Implemented |
-| **Stop: Auto-Retrospective** | `Stop/invoke_auto_retrospective.py` | Stop | ✅ Implemented |
-| **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | ✅ Implemented |
-| **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | ✅ Implemented |
+| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented |
+| **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | Implemented, trimmed by #3273 |
+| **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | Retired by #3184 |
+| **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | Retired by #3184 |
+| **Stop: Auto-Retrospective** | `Stop/invoke_auto_retrospective.py` | Stop | Retired by #3349 |
+
+### Amendment 2026-07-21 (Issue #3373)
+
+Four of the five hooks this ADR introduced have been retired. Until this
+amendment all five were still marked implemented, three of them across two
+purges, so the document answered "what is the lifecycle-hook surface" with
+files that are not on disk.
+
+| Hook | Retired by | Reason of record |
+|------|-----------|------------------|
+| `invoke_false_completion_gate.py` | #3184 | Hook ROI reduction; the claim it gated is covered by CI test evidence |
+| `invoke_plan_state_sync.py` | #3184 | Same program; the state it checkpointed had no reader |
+| `invoke_auto_retrospective.py` | #3349 | Same program; retrospectives are authored, not generated |
+| `invoke_test_auto_approval.py` | #3295 | PermissionRequest hook, never part of the #1703 five, named in prose below |
+
+The two survivors are recorded in `AUTHORIZED_HOOKS` in
+`tests/hooks/test_dispatch_groups_parity.py`, which is the live ledger of what
+runs. This table is the historical record of what was decided; that ledger is
+the record of what executes. Consult the ledger when the question is "what runs
+today".
+
+`tests/hooks/test_adr_hook_claims.py` now fails when any ADR marks a hook
+implemented whose file is absent. Two prior purges left this section stale in
+silence; a third correction with no gate buys one clean read and nothing else.
 
 ### Acceptance Criteria Mapping
 
-| Criteria | Hook | Evidence |
-|----------|------|----------|
-| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro |
-| PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence |
-| Stop generates retros | Auto-Retrospective | Creates `.agents/retrospective/{date}-auto-retro.md` |
-| Hook execution logged | All hooks | Audit trail in `.agents/.hook-state/` |
-| Zero context reading failures | Context Loader | Eliminates manual context loading requirement |
+As accepted in 2026. Rows for retired hooks are kept because they record what
+the decision claimed at the time; the criterion is no longer met by a hook.
+
+| Criteria | Hook | Evidence | Still met by a hook |
+|----------|------|----------|---------------------|
+| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Yes |
+| Hook execution logged | All hooks | Audit trail in `.agents/.hook-state/` | Yes, for the survivors |
+| Zero context reading failures | Context Loader | Eliminates manual context loading requirement | Yes |
+| PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence | No, retired by #3184 |
+| Stop generates retros | Auto-Retrospective | Creates `.agents/retrospective/{date}-auto-retro.md` | No, retired by #3349 |
 
 ### Design Principles
 
 - **Fail-closed-and-loud (amended 2026-06-11 per ADR-066)**: hooks exit non-zero with actionable stderr on failures; the original "non-blocking hooks always exit 0" principle is superseded
 - **Typed memory lanes**: Each hook writes to its own state (per hilyfux feedback on #1703)
-- **Idempotent**: Stop retro skips if one already exists for today
-- **Bypass-friendly**: Environment variables for all gates (SKIP_COMPLETION_GATE, SKIP_AUTO_RETRO)
+- **Idempotent**: Stop retro skips if one already exists for today. Retired with the Stop hook in #3349; kept here as part of the accepted decision.
+- **Bypass-friendly**: Environment variables for all gates. The two named at acceptance, `SKIP_COMPLETION_GATE` and `SKIP_AUTO_RETRO`, went with their hooks in #3184 and #3349 and are no longer read anywhere.
 
 ---
 
