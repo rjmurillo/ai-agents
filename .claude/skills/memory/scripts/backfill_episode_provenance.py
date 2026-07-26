@@ -14,10 +14,12 @@ derivation in update_causal_graph.py over every episode file. Edge
 (source, target) keys and pattern names are byte-stable functions of episode
 content (node ids are sha256 hashes of type+label), so an edge or pattern in the
 graph maps back to exactly the episodes whose content reproduces it. Items that
-no surviving episode reproduces (test seed rows such as the p001 "Good pattern"
-fixture, which carry id/last_used fields the generator never writes) have no
-recoverable provenance and are left untouched; they remain the genuinely
-unattributable case the #3039 path treats as permanent.
+no surviving episode reproduces have no recoverable provenance and remain the
+genuinely unattributable case the #3039 path treats as permanent. The test seed
+rows that used to be the standing example of this (node ``n001`` and patterns
+``p001`` through ``p004``, which carried id/last_used fields the generator never
+writes) were removed from the committed graph under #3352; nothing regenerates
+them, because no episode reproduces them.
 
 Scope. Only the episodes[] field is written, and only when re-derivation adds an
 id that was not already recorded. weight, evidence_count, success_rate,
