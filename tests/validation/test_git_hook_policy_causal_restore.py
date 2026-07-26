@@ -120,13 +120,23 @@ class TestTheOrdinaryPathsAreUnchanged:
         err = capsys.readouterr().err
         assert "original graph restored" in err
 
-    def test_a_successful_restore_puts_the_bytes_back(self, repo):
+    def test_a_successful_restore_puts_the_bytes_back(self, repo, monkeypatch):
+        """The mutation has to happen after the snapshot, or the test is vacuous.
+
+        ``update_causal_graph`` snapshots at entry. Mutating the file before the
+        call puts the mutation *into* the snapshot, so the end state matches
+        whether restore ran or not. Writing it from inside the failing updater
+        is the only ordering that makes the assertion discriminate.
+        """
         graph = _write_graph(repo, '{"nodes": ["original"]}')
-        graph.write_text('{"nodes": ["mutated"]}', encoding="utf-8")
-        # Re-snapshot by re-reading: update_causal_graph snapshots at entry, so
-        # write the mutation first and let the failing updater trigger restore.
+
+        def _mutate_then_fail(*_a, **_k) -> int:
+            graph.write_text('{"nodes": ["mutated"]}', encoding="utf-8")
+            return 1
+
+        monkeypatch.setattr(policy, "_apply_causal_graph_updates", _mutate_then_fail)
         assert policy.update_causal_graph(repo) == 0
-        assert json.loads(graph.read_text(encoding="utf-8"))["nodes"] == ["mutated"]
+        assert json.loads(graph.read_text(encoding="utf-8"))["nodes"] == ["original"]
 
     def test_no_staged_episodes_is_a_no_op(self, tmp_path, monkeypatch):
         monkeypatch.setattr(policy, "_staged_episode_paths", lambda root, flt: [])
