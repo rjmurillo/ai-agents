@@ -519,12 +519,23 @@ def validate_all(
 
     groups, group_violations = _load_dispatch_groups(base_path)
     parse_violations.extend(group_violations)
-    expanded: list[HookEntry] = []
-    for entry in entries:
-        shims, violations = _expand_dispatch_group(entry, groups)
-        expanded.extend(shims)
-        parse_violations.extend(violations)
-    entries = expanded
+    # An unusable manifest yields no groups, so expanding against it would
+    # report every dispatcher registration as naming an unknown group and bury
+    # the one violation that explains all of them. Expansion is skipped, not
+    # the entries: the dispatcher registrations stay in the list and are still
+    # checked for script existence and exit-code docs. The shims cannot be
+    # checked because the file that names them is the thing that failed.
+    manifest_unusable = any(
+        violation.category == "invalid_dispatch_groups"
+        for violation in group_violations
+    )
+    if not manifest_unusable:
+        expanded: list[HookEntry] = []
+        for entry in entries:
+            shims, violations = _expand_dispatch_group(entry, groups)
+            expanded.extend(shims)
+            parse_violations.extend(violations)
+        entries = expanded
 
     report = ContractReport(entries=entries)
     report.violations.extend(parse_violations)

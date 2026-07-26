@@ -1423,3 +1423,54 @@ class TestAMalformedGroupsFieldIsAViolationNotAnEmptyMap:
             PROJECT_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py"
         ).read_text(encoding="utf-8")
         assert "field 'groups' must be an object" in source
+
+
+class TestAnUnusableManifestReportsOnceNotOncePerRegistration:
+    """One unreadable file, one violation.
+
+    Expanding registrations against the empty map an unusable manifest yields
+    turned a single root cause into one ``unknown_dispatch_group`` per
+    dispatcher registration, so the violation that explained all of them was
+    buried in the noise it caused.
+    """
+
+    @staticmethod
+    def _report(tmp_path, payload):
+        _tree(tmp_path, settings=_dispatch("g1"))
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            payload, encoding="utf-8"
+        )
+        return hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+
+    def test_an_unusable_manifest_reports_no_unknown_group(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"groups": []}))
+        assert not any(
+            v.category == "unknown_dispatch_group" for v in report.violations
+        )
+
+    def test_the_root_cause_is_still_reported(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"groups": []}))
+        assert (
+            sum(v.category == "invalid_dispatch_groups" for v in report.violations) == 1
+        )
+
+    def test_the_dispatcher_entry_survives_the_skipped_expansion(self, tmp_path):
+        """Skipping expansion must not drop the registration itself.
+
+        The harness runs the dispatcher whether or not its group resolves, so
+        dropping the entry would stop checking that the dispatcher exists and
+        documents its exit codes on exactly the checkouts most likely broken.
+        """
+        report = self._report(tmp_path, json.dumps({"groups": None}))
+        dispatcher = hook_contracts.DISPATCHER_SCRIPT_NAME
+        assert any(dispatcher in (entry.command or "") for entry in report.entries)
+
+    def test_a_usable_manifest_still_expands(self, tmp_path):
+        """Negative control: the skip must be keyed on the failure, not on all
+        manifests. A well-formed file that defines no matching group still has
+        to report the unknown group.
+        """
+        report = self._report(tmp_path, json.dumps({"groups": {"other": {}}}))
+        assert any(v.category == "unknown_dispatch_group" for v in report.violations)
