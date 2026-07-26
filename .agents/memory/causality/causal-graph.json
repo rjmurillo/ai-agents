@@ -15689,6 +15689,15 @@
         "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489971+00:00"
+    },
+    {
+      "id": "c0b66f070299",
+      "type": "milestone",
+      "label": "milestone: Correct the false session.number claim in the PR-3354 retrospective",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T06:31:00.873873+00:00"
     }
   ],
   "patterns": [

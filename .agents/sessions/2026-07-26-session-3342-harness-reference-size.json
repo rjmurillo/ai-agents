@@ -139,6 +139,11 @@
       "task": "Reconcile the manifest version with the PR description",
       "outcome": "Both plugin manifests read 0.6.111, matching what the PR description claims. The review found the description at 0.6.111 against manifests at 0.6.110. This round changed .claude/skills/agent-harness-reference/SKILL.md, so the bump is earned rather than cosmetic.",
       "evidence": "check_plugin_manifest_parity.py reports 'Plugin manifest versions match: 0.6.111'; main is at 0.6.106, so the strictly-greater gate holds."
+    },
+    {
+      "task": "Correct the false session.number claim in the PR-3354 retrospective",
+      "outcome": "Renamed .agents/retrospective/PR-3354-needs-split-analysis.md to 2026-07-26-pr-3354-session-log-churn.md so the filename carries a date and names the failure rather than a verdict. Removed the claim that session.number keys off the issue number in the branch name; the review supplied a counterexample and it holds. Replaced it with the invariant that actually holds, session.number equals the number encoded in the log filename, and linked #3355 where that validation belongs. Added issue, PR, and CI-run links to the header, linked every SHA in the execution trace, and added a Snapshot note recording that the tables are as-of commit 15 while the PR reached 22.",
+      "evidence": "2026-07-26-session-3347-resolve-remaining-3347-review-threads.json carries session.number 3347 on branch fix/3346-session-schema-enforcement, disproving the branch-name claim. Measured the filename-to-session.number invariant across .agents/sessions: 1150 of 1153 logs agree; the 3 exceptions are 2026-01-18-session-09 (7), 2026-02-11-session-1 (1198), and 2026-04-20-session-1711 (1)."
     }
   ],
   "endingCommit": "006a88767",

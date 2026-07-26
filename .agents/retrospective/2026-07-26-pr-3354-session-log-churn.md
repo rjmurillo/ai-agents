@@ -1,10 +1,17 @@
-# Retrospective: PR #3354 - needs-split Analysis
+# Retrospective: PR #3354, session-log churn against the commit gate
 
-**Branch**: fix/3342-harness-reference-size
-**Issue**: #3342
-**PR**: #3354
+**Branch**: `fix/3342-harness-reference-size`
+**Issue**: [#3342](https://github.com/rjmurillo/ai-agents/issues/3342)
+**PR**: [#3354](https://github.com/rjmurillo/ai-agents/pull/3354)
 **Status**: Final review autofix
-**Outcome**: PARTIAL - work delivered; process overhead triggered the needs-split label
+**Outcome**: PARTIAL. Work delivered; process overhead triggered the needs-split label.
+
+**Snapshot**: the commit trace and counts below are as of commit 15. The PR
+later reached 22 commits and tripped the hard limit, not just the warn
+threshold ([run 30190397373](https://github.com/rjmurillo/ai-agents/actions/runs/30190397373)).
+The additional 7 are review-iteration fixes across three further rounds, which
+strengthens Finding 1 rather than changing it: the share of commits carrying no
+content change went up, not down.
 
 ---
 
@@ -12,11 +19,11 @@
 
 **Primary Failure Mode**: FM-9 (Confident-Incorrectness Recurrence)
 
-The Cursor autofix bot applied a monotonic counter (3344) as `session.number` when the project convention keys this value to the issue number embedded in the branch name (3342). The bot delivered this value with full confidence; the validator accepted it because the schema checks type (integer) but not the branch-name relationship. The mismatch required five corrective commits across two merge cycles to fix.
+The Cursor autofix bot applied a monotonic counter (3344) as `session.number` while writing a filename built from 3342. The bot delivered both with full confidence; the validator accepted the pair because the schema checks type (integer) and nothing checks the number against the filename that encodes it. The mismatch required five corrective commits across two merge cycles to fix.
 
 **Secondary Pattern**: The validator's silent acceptance of 3344 is related to FM-10 (Silent Defaults and Guard-Clause Suppression) - the validation returned success when a semantic constraint was violated because that constraint was not encoded in the schema.
 
-**Reference**: `.agents/governance/FAILURE-MODES.md`
+**Reference**: [`.agents/governance/FAILURE-MODES.md`](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/FAILURE-MODES.md)
 
 ---
 
@@ -26,21 +33,21 @@ The Cursor autofix bot applied a monotonic counter (3344) as `session.number` wh
 
 | Order | SHA | Type | Author | Subject |
 |-------|-----|------|--------|---------|
-| 1 | f3f7dbe0 | session | Cursor Agent | fix(session): populate endingCommit with last code-deliverable SHA |
-| 2 | 9f69ff63 | session | Cursor Agent | fix(sessions): correct duplicate session number and remove duplicate assertion |
-| 3 | b34a7f68 | session | Cursor Agent | fix(sessions): align session log filename and id with session number |
-| 4 | b09c57cf | core | rjmurillo + Copilot | docs(harness): delete the vendor contract SKILL.md duplicated from its sidecar |
-| 5 | da5401a1 | core | rjmurillo + Copilot | test(harness): pin each contract fact against the file that owns it |
-| 6 | 34e2d9cb | session | rjmurillo + Copilot | chore(session): record the harness reference deduplication |
-| 7 | d92d4004 | merge | rjmurillo | Merge origin/main into fix/3342-harness-reference-size |
-| 8 | f65741cb | merge | rjmurillo | Merge bot corrections into fix/3342-harness-reference-size |
-| 9 | 726796d1 | session | rjmurillo + Copilot | chore(session): correct the commit accounting after the merges |
-| 10 | e876925d | merge | rjmurillo | Merge the bot rename before correcting the session number |
-| 11 | 3e998763 | session | rjmurillo + Copilot | chore(session): restore the issue-derived session number |
-| 12 | 618d8e1a | review-fix | rjmurillo + Copilot | fix(skills): correct exit-2 semantics and tighten contract pins |
-| 13 | 8a9ee9fa | merge | rjmurillo | Merge remote-tracking branch 'origin/main' into fix/3342-harness-reference-size |
-| 14 | 006a8876 | review-fix | rjmurillo | docs(agent-harness-reference): stop claiming the sidecar holds every vendor fact |
-| 15 | c4663154 | session | Cursor Agent | fix(session): align endingCommit with changesCommitted evidence |
+| 1 | [`f3f7dbe0`](https://github.com/rjmurillo/ai-agents/commit/f3f7dbe0) | session | Cursor Agent | fix(session): populate endingCommit with last code-deliverable SHA |
+| 2 | [`9f69ff63`](https://github.com/rjmurillo/ai-agents/commit/9f69ff63) | session | Cursor Agent | fix(sessions): correct duplicate session number and remove duplicate assertion |
+| 3 | [`b34a7f68`](https://github.com/rjmurillo/ai-agents/commit/b34a7f68) | session | Cursor Agent | fix(sessions): align session log filename and id with session number |
+| 4 | [`b09c57cf`](https://github.com/rjmurillo/ai-agents/commit/b09c57cf) | core | rjmurillo + Copilot | docs(harness): delete the vendor contract SKILL.md duplicated from its sidecar |
+| 5 | [`da5401a1`](https://github.com/rjmurillo/ai-agents/commit/da5401a1) | core | rjmurillo + Copilot | test(harness): pin each contract fact against the file that owns it |
+| 6 | [`34e2d9cb`](https://github.com/rjmurillo/ai-agents/commit/34e2d9cb) | session | rjmurillo + Copilot | chore(session): record the harness reference deduplication |
+| 7 | [`d92d4004`](https://github.com/rjmurillo/ai-agents/commit/d92d4004) | merge | rjmurillo | Merge origin/main into fix/3342-harness-reference-size |
+| 8 | [`f65741cb`](https://github.com/rjmurillo/ai-agents/commit/f65741cb) | merge | rjmurillo | Merge bot corrections into fix/3342-harness-reference-size |
+| 9 | [`726796d1`](https://github.com/rjmurillo/ai-agents/commit/726796d1) | session | rjmurillo + Copilot | chore(session): correct the commit accounting after the merges |
+| 10 | [`e876925d`](https://github.com/rjmurillo/ai-agents/commit/e876925d) | merge | rjmurillo | Merge the bot rename before correcting the session number |
+| 11 | [`3e998763`](https://github.com/rjmurillo/ai-agents/commit/3e998763) | session | rjmurillo + Copilot | chore(session): restore the issue-derived session number |
+| 12 | [`618d8e1a`](https://github.com/rjmurillo/ai-agents/commit/618d8e1a) | review-fix | rjmurillo + Copilot | fix(skills): correct exit-2 semantics and tighten contract pins |
+| 13 | [`8a9ee9fa`](https://github.com/rjmurillo/ai-agents/commit/8a9ee9fa) | merge | rjmurillo | Merge remote-tracking branch 'origin/main' into fix/3342-harness-reference-size |
+| 14 | [`006a8876`](https://github.com/rjmurillo/ai-agents/commit/006a8876) | review-fix | rjmurillo | docs(agent-harness-reference): stop claiming the sidecar holds every vendor fact |
+| 15 | [`c4663154`](https://github.com/rjmurillo/ai-agents/commit/c4663154) | session | Cursor Agent | fix(session): align endingCommit with changesCommitted evidence |
 
 ### Commit Category Summary
 
@@ -84,15 +91,19 @@ The Cursor autofix bot applied a monotonic counter (3344) as `session.number` wh
 **A1**: 7 session/bookkeeping commits and 4 merge commits account for 11 of 15.
 
 **Q2**: Why did the session bookkeeping produce 7 commits?
-**A2**: The Cursor autofix bot seeded session.number as 3344 (an incremented counter) instead of 3342 (the issue number from the branch name). Correcting the bot required 3 more commits from the bot plus 2 merge commits to absorb them, plus 2 additional cleanup commits to restore correct values.
+**A2**: The Cursor autofix bot seeded `session.number` as 3344 (an incremented counter) while the log filename encoded 3342. Correcting the bot required 3 more commits from the bot plus 2 merge commits to absorb them, plus 2 additional cleanup commits to restore correct values.
 
 **Q3**: Why did the bot choose 3344?
-**A3**: The bot applies a monotonic counter to avoid collisions. The project convention keys session.number off the issue number in the branch name, not a global counter. Nothing in the schema or validator enforces or documents that convention. The bot read 3343 as a collision with an existing session and incremented.
+**A3**: The bot applies a monotonic counter to avoid collisions. It read 3343 as a collision with an existing session and incremented.
 
-**Q4**: Why does nothing enforce the issue-number convention?
-**A4**: The session schema declares session.number as an integer with no constraint expression linking it to the branch name. The validator checks range and type, not the branch-name relationship.
+The first version of this retro said the project keys `session.number` off the issue number in the branch name. That is wrong, and review caught it. Counterexample: [`2026-07-26-session-3347-resolve-remaining-3347-review-threads.json`](https://github.com/rjmurillo/ai-agents/blob/main/.agents/sessions/2026-07-26-session-3347-resolve-remaining-3347-review-threads.json) carries `session.number: 3347` on branch `fix/3346-session-schema-enforcement`.
 
-**Root Cause A**: The session.number convention is undocumented in the schema and unvalidated at seed time. Bots applying a reasonable default (monotonic counter) violate the convention silently.
+The invariant that does hold is filename to `session.number`: the session-init generator derives the log filename from the number, and tooling reads it back out. Measured across all 1153 committed logs, 3 violate it ([`2026-01-18-session-09-...`](https://github.com/rjmurillo/ai-agents/blob/main/.agents/sessions/2026-01-18-session-09-add-memory-naming-convention-section.json) at 7, [`2026-02-11-session-1-...`](https://github.com/rjmurillo/ai-agents/blob/main/.agents/sessions/2026-02-11-session-1-pr-review-1146-security-fixes.json) at 1198, and [`2026-04-20-session-1711-...`](https://github.com/rjmurillo/ai-agents/blob/main/.agents/sessions/2026-04-20-session-1711-pr-description-backticks.json) at 1). Nothing in the schema or validator enforces it, which is why the bot's value passed.
+
+**Q4**: Why does nothing enforce the filename convention?
+**A4**: The session schema declares `session.number` as an integer with no constraint expression linking it to anything. The validator checks range and type, not the filename relationship. Tracked as [#3355](https://github.com/rjmurillo/ai-agents/issues/3355).
+
+**Root Cause A**: The `session.number` convention is undocumented in the schema and unvalidated at seed time. Bots applying a reasonable default (monotonic counter) desynchronize the number from the filename silently.
 
 **Q5 (merge commits)**: Why were there 4 merge commits?
 **A5**: Two were required to bring the bot's corrections onto the branch. Two were required to keep the branch current with main. The causal-graph.json file conflicted on both main merges (noted in both merge commit messages), requiring manual resolution each time.
@@ -104,8 +115,8 @@ The Cursor autofix bot applied a monotonic counter (3344) as `session.number` wh
 **Problem**: PR exceeded the commit warn threshold at 15.
 
 **Category: Session/Schema**
-- session.number has no branch-name linkage constraint.
-- Bot applies monotonic counter; project uses issue-number convention.
+- `session.number` has no linkage constraint to the filename that encodes it.
+- Bot applies a monotonic counter; the filename it writes is derived from a different number.
 - Validator does not catch the mismatch.
 
 **Category: Tooling/Bot Behavior**
@@ -171,18 +182,18 @@ The needs-split label reflects the commit count, not the scope. The scope is a s
 
 | Finding | Category | Proposed Action |
 |---------|----------|-----------------|
-| session.number convention unvalidated | ADD | Add schema constraint and validator rule linking session.number to issue number in branch name |
-| Bot applies wrong numbering convention | ADD | Document the convention in session schema comments; add it to the session-init skill checklist |
+| `session.number` convention unvalidated | ADD | Validate `session.number` against the number in the log filename, the invariant the generator relies on ([#3355](https://github.com/rjmurillo/ai-agents/issues/3355)) |
+| Bot applies a numbering convention the filename does not follow | ADD | Document the invariant in session schema comments; add it to the session-init skill checklist |
 | causal-graph.json conflict on every sync | ADD | Investigate merge strategy or regeneration script to reduce manual conflict resolution |
 | Sidecar cross-read not performed pre-push | ADD | Add sidecar self-check to the pre-push skill checklist for harness reference work |
 | Test pins using substring matching | ADD | Prefer full-sentence pinning via _normalized_text; add this to TESTING-RIGOR.md |
 
 ### SMART Validation
 
-**Proposed skill: session-number-must-match-issue**
+**Proposed skill: session-number-must-match-filename**
 - Specific: one rule, one field, one source of truth.
-- Measurable: validator can compare session.number to the integer parsed from the branch name.
-- Attainable: branch name is available to pre-commit hooks and the pre_pr.py script.
+- Measurable: the validator can compare `session.number` to the integer parsed from the log filename.
+- Attainable: the filename is available wherever the log is.
 - Relevant: applies on every PR that includes a session log.
 - Timely: trigger at session-init and at pre-push validation.
 - Atomicity: 91%
@@ -201,9 +212,9 @@ The needs-split label reflects the commit count, not the scope. The scope is a s
 
 ### Learning 1
 
-**Statement**: session.number must equal the issue number parsed from the branch name.
+**Statement**: `session.number` must equal the number encoded in the session log filename.
 **Atomicity Score**: 91%
-**Evidence**: Commits 9f69ff63 and 3e998763 corrected the bot's 3344 to 3342 to restore the issue-derived value. The causal chain required 5 commits and 2 merge cycles.
+**Evidence**: Commits [`9f69ff63`](https://github.com/rjmurillo/ai-agents/commit/9f69ff63) and [`3e998763`](https://github.com/rjmurillo/ai-agents/commit/3e998763) corrected the bot's 3344 to 3342 to match the filename. The causal chain required 5 commits and 2 merge cycles.
 **Skill Operation**: ADD
 **Target Domain**: session-protocol
 
@@ -237,10 +248,10 @@ The needs-split label reflects the commit count, not the scope. The scope is a s
 
 ### Pattern: Bot convention mismatch with project convention
 
-The Cursor autofix bot applies a monotonic session counter. The project uses the issue number from the branch name. These two conventions produce the same output when the issue number happens to be the next available counter value. When they diverge (as they did here at 3342 vs 3344), the bot's output is wrong and silently passes validation.
+The Cursor autofix bot applies a monotonic session counter, then writes a filename derived from a different number. The two agree when the counter happens to land on the same value. When they diverge (3342 against 3344 here), the log's number and its filename disagree and validation still passes.
 
 **Frequency**: Unknown. This is the first documented instance.
-**Detection**: A validator comparing session.number to the integer in the branch name would catch it at commit time.
+**Detection**: A validator comparing `session.number` to the integer in the log filename would catch it at commit time. See [#3355](https://github.com/rjmurillo/ai-agents/issues/3355).
 **Prevention**: Document the convention in the session schema. Enforce it in pre_pr.py.
 
 ### Pattern: causal-graph.json as merge hotspot
@@ -267,7 +278,7 @@ PR #3354's 15 commits break down as 2 core + 2 review fixes + 7 session + 4 merg
 - Commit messages carry enough detail to reconstruct the full causal chain.
 
 **Delta Change**
-- Validate session.number against the branch name at seed time to prevent the bot from applying a wrong convention.
+- Validate `session.number` against the log filename at seed time, so a bot's counter cannot desynchronize the pair ([#3355](https://github.com/rjmurillo/ai-agents/issues/3355)).
 - Add causal-graph.json to a list of files that need a merge strategy review.
 - Amend or squash session log commits before PR creation to avoid inflating the commit count.
 - Run the skill's own test suite locally before the first push when touching harness reference content.

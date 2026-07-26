@@ -146,7 +146,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e013",
@@ -193,6 +195,16 @@
       "leads_to": [
         "e005"
       ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the false session.number claim in the PR-3354 retrospective",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
