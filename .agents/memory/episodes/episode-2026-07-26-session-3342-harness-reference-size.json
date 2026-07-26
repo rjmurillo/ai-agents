@@ -60,7 +60,7 @@
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
       "caused_by": [
-        "e022"
+        "e025"
       ],
       "leads_to": [
         "e007"
@@ -218,26 +218,26 @@
       "caused_by": [
         "e017"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e019"
+      ]
     },
     {
       "id": "e019",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 199a5c04c",
-      "caused_by": [],
-      "leads_to": [
-        "e020"
-      ]
+      "type": "milestone",
+      "content": "Merge current main and resolve plugin manifest versions",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": []
     },
     {
       "id": "e020",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: b09c57cfe1",
-      "caused_by": [
-        "e019"
-      ],
+      "content": "Commit: 199a5c04c",
+      "caused_by": [],
       "leads_to": [
         "e021"
       ]
@@ -246,7 +246,7 @@
       "id": "e021",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: da5401a16f",
+      "content": "Commit: b09c57cfe1",
       "caused_by": [
         "e020"
       ],
@@ -258,9 +258,45 @@
       "id": "e022",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 618d8e1a70",
+      "content": "Commit: da5401a16f",
       "caused_by": [
         "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 618d8e1a70",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 663bbac488",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a2487c4ac1",
+      "caused_by": [
+        "e024"
       ],
       "leads_to": [
         "e005"
@@ -272,7 +308,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 6,
     "files_changed": 598
   },
   "lessons": []
