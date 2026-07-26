@@ -266,15 +266,21 @@ def _expand_dispatch_group(
             "the dispatcher fails closed on it",
         )
     event = spec.get("event")
-    if event is not None and (not isinstance(event, str) or not event):
-        # claude_hook_dispatch.validate_group raises TypeError on a non-string
-        # or empty event and the dispatcher exits 2. Reporting it is the point:
-        # coercing to the registration's own hook type instead would let a
-        # manifest the runtime refuses to load pass this gate silently. It also
-        # has to be caught here, because a non-string escaping into
-        # HookEntry.hook_type crashes validate_hook_type_known (unhashable set
-        # element) and validate_duplicate_entries (unhashable dict key).
-        found = "an empty string" if isinstance(event, str) else type(event).__name__
+    if not isinstance(event, str) or not event:
+        # claude_hook_dispatch.validate_group raises TypeError on a missing,
+        # null, non-string, or empty event and the dispatcher exits 2.
+        # Reporting it is the point: coercing to the registration's own hook
+        # type instead would let a manifest the runtime refuses to load pass
+        # this gate silently. It also has to be caught here, because a
+        # non-string escaping into HookEntry.hook_type crashes
+        # validate_hook_type_known (unhashable set element) and
+        # validate_duplicate_entries (unhashable dict key).
+        if event is None:
+            found = "null" if "event" in spec else "missing"
+        elif isinstance(event, str):
+            found = "an empty string"
+        else:
+            found = type(event).__name__
         return _fail(
             "malformed_dispatch_group",
             f"declares 'event' as {found}, not a non-empty string; "
