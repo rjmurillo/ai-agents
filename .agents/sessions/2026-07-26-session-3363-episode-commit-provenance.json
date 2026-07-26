@@ -4,7 +4,7 @@
     "number": 3363,
     "date": "2026-07-26",
     "branch": "fix/3363-episode-commit-provenance",
-    "startingCommit": "a366fe694416af511a0e7829245372d057c69987",
+    "startingCommit": "263ce89d05",
     "objective": "Fix issue #3363: the episode extractor sourced session commits from work-log prose, counting SHAs the session cited but did not author and missing its own."
   },
   "protocolCompliance": {
@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/3371-collect-mirror-suites"
+        "Evidence": "fix/3363-episode-commit-provenance"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+        "Evidence": "On fix/3363-episode-commit-provenance, branched off main 263ce89d05"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "663bbac488"
+        "Evidence": "263ce89d05"
       }
     },
     "sessionEnd": {
@@ -99,12 +99,12 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Both bundle trees green (1120 and 1085 passed, 4 skipped each); 1985 passed across tests/test_paths.py, tests/skills/, tests/test_chaos_experiment_scripts.py, tests/validation/test_check_vendor_portability.py; 8 passed in tests/test_skill_bundle_suites_run.py; ruff check and ruff format clean"
+        "Evidence": "164 passed in tests/skills/memory/test_extract_session_episode.py; three negative controls fired (7 red on dropping the changesCommitted source, 2 red on restoring prose-primary); ruff check and ruff format clean"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Issue #3371 commented with the corrected 82-directory scope"
+        "Evidence": "PR #3380 opened against issue #3363"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -135,10 +135,10 @@
       "evidence": "162 passed. The #2170 multi-commit tests now source from changesCommitted; the #3123 events-equal-metrics invariant is unchanged; the #3328 predating fixtures now take the fallback shape so that filter is still exercised. Negative controls: dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red including the exact foreign-SHA case."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "72dc6e1d34",
   "nextSteps": [
-    "Push fix/3371-collect-mirror-suites and open a PR that fixes #3371.",
-    "Comment on #3371 with the corrected scope: 82 directories, not 2.",
+    "Re-poll PR #3380 for review threads landing after this push.",
+    "Decide separately whether the markdown-path metrics.commits counter, which counts any line carrying a hex run, needs the same correction.",
     "Re-poll the four open PRs for new review threads."
   ]
 }
