@@ -1063,20 +1063,26 @@ class TestTheShippedTreeSatisfiesTheContract:
             PROJECT_ROOT / ".claude" / "settings.json", PROJECT_ROOT
         )
         assert report.is_valid, [v.message for v in report.violations]
-        groups = json.loads(
-            (PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
-        )["groups"]
+        groups_path = PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json"
+        groups = json.loads(groups_path.read_text(encoding="utf-8"))["groups"]
         expected_shims = {
-            f".claude/hooks/{s['file']}" for spec in groups.values() for s in spec.get("shims", [])
+            f".claude/hooks/{s['file']}"
+            for spec in groups.values()
+            for s in spec.get("shims", [])
         }
         validated_paths = {e.script_path for e in report.entries}
         assert expected_shims <= validated_paths
 
         # Also verify direct (non-dispatch) registrations are validated.
         # Build the expected set from both settings.json and hooks.json.
-        settings = json.loads((PROJECT_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        settings_path = PROJECT_ROOT / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
         plugin_path = PROJECT_ROOT / ".claude" / "hooks" / "hooks.json"
-        plugin = json.loads(plugin_path.read_text(encoding="utf-8")) if plugin_path.is_file() else {}
+        plugin = (
+            json.loads(plugin_path.read_text(encoding="utf-8"))
+            if plugin_path.is_file()
+            else {}
+        )
 
         def _direct_paths(hooks_config: dict) -> set:
             """Extract script paths from non-dispatch registrations."""
@@ -1269,7 +1275,7 @@ class TestUnreadableSettingsExitsTwoNotATraceback:
     handler missed.
     """
 
-    def test_a_directory_in_place_of_the_settings_file_exits_two(self, tmp_path, capsys):
+    def test_an_unreadable_settings_file_exits_two(self, tmp_path, capsys):
         settings = tmp_path / "settings.json"
         settings.write_text("{}", encoding="utf-8")
         # Point --settings at a path that passes is_file() then fails to read.
@@ -1278,7 +1284,7 @@ class TestUnreadableSettingsExitsTwoNotATraceback:
         unreadable.chmod(0o000)
         try:
             rc = hook_contracts.main(
-                ["--path", str(tmp_path), "--settings", str(unreadable)]
+                ["--path", str(tmp_path), "--settings", str(unreadable)],
             )
         finally:
             unreadable.chmod(0o644)
