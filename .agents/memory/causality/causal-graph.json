@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T05:37:29.468361+00:00",
+  "updated": "2026-07-26T06:05:31.485036+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15608,6 +15608,42 @@
         "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
       ],
       "created": "2026-07-26T05:37:29.465087+00:00"
+    },
+    {
+      "id": "a580ddfb2b28",
+      "type": "milestone",
+      "label": "milestone: Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:05:31.481437+00:00"
+    },
+    {
+      "id": "010d700ae517",
+      "type": "milestone",
+      "label": "milestone: Replaced the fixture guard's startswith checks with the shape the generator actually produces. 'Does not start with n' is both too broad and too narrow as a test for 'is not n001'; [0-9a-f]{12} is the real contract and rejects every hand-seeded shape. Control: reinserting n001 and p001 turns 3 red.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:05:31.481500+00:00"
+    },
+    {
+      "id": "1259e2ca5302",
+      "type": "milestone",
+      "label": "milestone: Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:05:31.481556+00:00"
+    },
+    {
+      "id": "d6ad1ae05d0b",
+      "type": "milestone",
+      "label": "milestone: Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:05:31.481611+00:00"
     }
   ],
   "patterns": [

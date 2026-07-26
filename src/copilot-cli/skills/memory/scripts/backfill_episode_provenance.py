@@ -10,16 +10,20 @@ the surviving episode corpus and records them in episodes[], making the items
 attributable so the prune path can reach them.
 
 Recoverability. Attribution is recovered by replaying the deterministic
-derivation in update_causal_graph.py over every episode file. Edge
-(source, target) keys and pattern names are byte-stable functions of episode
-content (node ids are sha256 hashes of type+label), so an edge or pattern in the
-graph maps back to exactly the episodes whose content reproduces it. Items that
-no surviving episode reproduces have no recoverable provenance and remain the
+derivation in update_causal_graph.py over every episode file. Edge (source,
+target) keys and pattern names are byte-stable functions of episode content
+(node ids are sha256 hashes of type+label), so an edge or pattern in the graph
+maps back to exactly the episodes whose content reproduces it. Items that no
+surviving episode reproduces have no recoverable provenance and remain the
 genuinely unattributable case the #3039 path treats as permanent. The test seed
 rows that used to be the standing example of this (node ``n001`` and patterns
-``p001`` through ``p004``, which carried id/last_used fields the generator never
-writes) were removed from the committed graph under #3352; nothing regenerates
-them, because no episode reproduces them.
+``p001`` through ``p004``) were removed from the committed graph under #3352;
+nothing regenerates them, because no episode reproduces them. Two things still
+mark them as hand-seeded rather than derived: they carry a ``last_used`` field,
+which the generator writes nowhere, and their ids are sequential, where every
+generated id is a 12-character sha256 prefix. The generator does now write
+pattern ids (#3353), so the presence of an ``id`` no longer separates them; the
+shape of it does.
 
 Scope. Only the episodes[] field is written, and only when re-derivation adds an
 id that was not already recorded. weight, evidence_count, success_rate,
