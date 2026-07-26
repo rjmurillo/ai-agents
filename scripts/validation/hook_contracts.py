@@ -50,7 +50,22 @@ MIN_TIMEOUT = 1
 MAX_TIMEOUT = 300
 
 # Pattern to extract script path from command string
-_SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*(.+\.py)(?:\s|$)")
+_SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*\"?(.+?\.py)\"?(?:\s|$)")
+
+# Plugin registrations address their scripts through the harness-provided
+# plugin root. Inside the checkout that publishes the plugin, that root is
+# .claude, so resolving it lets the same contract cover the published surface.
+#
+# The default clause excludes both braces, so a nested fallback like
+# ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}} is not consumed up to the inner
+# brace. The shipped copilot-cli registrations use exactly that form; a pattern
+# that allowed { in the default matched only the inner expansion and left a
+# stray } in the extracted path, which reads as a missing script.
+_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}")
+
+# A nested default needs more than one pass: the inner expansion resolves
+# first, which turns the outer one into the simple form the pattern matches.
+_MAX_PLUGIN_ROOT_PASSES = 5
 
 # Pattern to detect PowerShell commands
 _PWSH_PATTERN = re.compile(r"(?:pwsh|powershell)\s+.*\.ps1(?:\s|$)", re.IGNORECASE)
@@ -108,12 +123,212 @@ def _resolve_script_path(base_path: Path, script_path: str) -> Path | None:
     return candidate
 
 
+def _resolve_plugin_root(path: str) -> str:
+    """Substitute plugin-root expansions until none are left.
+
+    One pass is not enough for a nested default: resolving the inner
+    ${CLAUDE_PLUGIN_ROOT} is what turns the outer expansion into a form the
+    pattern can match. The pass count is bounded so a pathological string
+    cannot spin.
+    """
+    for _ in range(_MAX_PLUGIN_ROOT_PASSES):
+        resolved = _PLUGIN_ROOT_PATTERN.sub(".claude", path)
+        if resolved == path:
+            return resolved
+        path = resolved
+    return path
+
+
 def extract_script_path(command: str) -> str | None:
     """Extract the Python script path from a hook command string."""
     match = _SCRIPT_PATH_PATTERN.search(command)
-    if match:
-        return match.group(1)
-    return None
+    if not match:
+        return None
+    return _resolve_plugin_root(match.group(1)).strip("\"'")
+
+
+_GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
+
+# Only the dispatcher fans a registration out to a group. Keying expansion on
+# the bare --group flag would mis-expand any hook that happens to take one.
+DISPATCHER_SCRIPT_NAME = "invoke_dispatch_claude.py"
+
+DISPATCH_GROUPS_PATH = Path(".claude") / "hooks" / "dispatch_groups.json"
+PLUGIN_HOOKS_PATH = Path(".claude") / "hooks" / "hooks.json"
+
+
+def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
+    """Read the group membership map the dispatcher fans out to.
+
+    A missing file is not a violation: a checkout with no grouped hooks is
+    legitimate. A malformed one is, because the dispatcher would fail at
+    runtime, and it fails closed: every dispatched tool call is blocked.
+    """
+    path = base_path / DISPATCH_GROUPS_PATH
+    if not path.is_file():
+        return {}, []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=f"Cannot read {DISPATCH_GROUPS_PATH}: {exc}",
+            )
+        ]
+    if not isinstance(data, dict):
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=f"{DISPATCH_GROUPS_PATH} must be a JSON object, got {type(data).__name__}",
+            )
+        ]
+    groups = data.get("groups")
+    if not isinstance(groups, dict):
+        # invoke_dispatch_claude._load_group raises TypeError here and the
+        # dispatcher fails closed, so accepting it would let a file that blocks
+        # every tool call at runtime pass the contract check.
+        found = "missing" if "groups" not in data else type(groups).__name__
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=(
+                    f"{DISPATCH_GROUPS_PATH} 'groups' property must be an object, got {found}"
+                ),
+            )
+        ]
+    return groups, []
+
+
+def _expand_dispatch_group(
+    entry: HookEntry, groups: dict
+) -> tuple[list[HookEntry], list[Violation]]:
+    """Add the shims a dispatcher registration actually runs.
+
+    Since group dispatch (#3153) a registration names a group, not a script, so
+    validating the command alone checks the dispatcher over and over and never
+    checks the hooks. The shims are the code that runs, so they are what the
+    contract has to cover.
+
+    The dispatcher entry is kept alongside the shims rather than replaced by
+    them. The harness runs it either way, so dropping it on an unresolvable
+    group would stop checking that the dispatcher itself exists and documents
+    its exit codes, on exactly the registrations most likely to be broken.
+
+    Expansion is keyed on the dispatcher script name, not on the presence of a
+    --group flag, so an ordinary hook that takes a --group argument is left
+    alone.
+    """
+    script = extract_script_path(entry.command)
+    if script is None or Path(script).name != DISPATCHER_SCRIPT_NAME:
+        return [entry], []
+    match = _GROUP_FLAG_PATTERN.search(entry.command)
+    if not match:
+        return [entry], []
+    name = match.group(1)
+
+    def _fail(category: str, message: str) -> tuple[list[HookEntry], list[Violation]]:
+        return [entry], [
+            Violation(
+                hook_type=entry.hook_type,
+                script=entry.script_path,
+                category=category,
+                message=f"Hook dispatches to group '{name}', which {message}",
+            )
+        ]
+
+    # The categories below mirror the outcomes the Claude runtime already
+    # distinguishes across invoke_dispatch_claude._load_group and
+    # claude_hook_dispatch.validate_group: KeyError for an absent group,
+    # TypeError for a non-object group, TypeError for a non-string or empty
+    # event, TypeError for a non-list 'shims', and no error at all for an empty
+    # list. Reporting a wrong type as "does not define" sends the reader to add
+    # a group that is already there.
+    #
+    # Not mirrored: the event-to-mode pairing. This module never reads 'mode',
+    # and tests/hooks/test_dispatch_groups_parity.py already asserts the pairing
+    # over the real manifest, so repeating it here would be two owners for one
+    # rule.
+    if name not in groups:
+        return _fail("unknown_dispatch_group", f"{DISPATCH_GROUPS_PATH} does not define")
+    spec = groups[name]
+    if not isinstance(spec, dict):
+        return _fail(
+            "malformed_dispatch_group",
+            f"{DISPATCH_GROUPS_PATH} defines as {type(spec).__name__}, not an object; "
+            "the dispatcher fails closed on it",
+        )
+    event = spec.get("event")
+    if not isinstance(event, str) or not event:
+        # claude_hook_dispatch.validate_group raises TypeError on a missing,
+        # null, non-string, or empty event and the dispatcher exits 2.
+        # Reporting it is the point: coercing to the registration's own hook
+        # type instead would let a manifest the runtime refuses to load pass
+        # this gate silently. It also has to be caught here, because a
+        # non-string escaping into HookEntry.hook_type crashes
+        # validate_hook_type_known (unhashable set element) and
+        # validate_duplicate_entries (unhashable dict key).
+        if event is None:
+            found = "null" if "event" in spec else "missing"
+        elif isinstance(event, str):
+            found = "an empty string"
+        else:
+            found = type(event).__name__
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'event' as {found}, not a non-empty string; "
+            "the dispatcher fails closed on it",
+        )
+    matcher = spec.get("matcher", entry.matcher)
+    if matcher is not None and not isinstance(matcher, str):
+        # None is a legitimate manifest value (a group that matches every tool
+        # for its event), so the check is str-or-None rather than str.
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'matcher' as {type(matcher).__name__}, not a string or null",
+        )
+    shims = spec.get("shims")
+    if not isinstance(shims, list):
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'shims' as {type(shims).__name__}, not a list; "
+            "the dispatcher fails closed on it",
+        )
+    if not shims:
+        return _fail(
+            "empty_dispatch_group",
+            "lists no shims, so the registration runs nothing",
+        )
+    expanded: list[HookEntry] = [entry]
+    violations: list[Violation] = []
+    for shim in shims:
+        if not isinstance(shim, dict) or not isinstance(shim.get("file"), str):
+            violations.append(
+                Violation(
+                    hook_type=entry.hook_type,
+                    script=entry.script_path,
+                    category="malformed_shim",
+                    message=f"Group '{name}' has a shim entry with no file path",
+                )
+            )
+            continue
+        expanded.append(
+            HookEntry(
+                hook_type=event,
+                script_path=str(Path(".claude") / "hooks" / shim["file"]),
+                command=entry.command,
+                matcher=matcher,
+                timeout=shim.get("timeout", entry.timeout),
+                status_message=shim.get("statusMessage"),
+            )
+        )
+    return expanded, violations
 
 
 def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Violation]]:
@@ -319,6 +534,54 @@ def validate_all(
         ContractReport with all entries and violations found.
     """
     _, entries, parse_violations = parse_settings(settings_path)
+
+    # The plugin registers its own hooks, so a settings.json-only read leaves
+    # the whole published surface unvalidated.
+    plugin_path = base_path / PLUGIN_HOOKS_PATH
+    if plugin_path.is_file():
+        # Attribute a failure here to the plugin file. Letting it escape would
+        # surface as a generic read failure in main(), which names the
+        # settings path and loses the category.
+        try:
+            _, plugin_entries, plugin_violations = parse_settings(plugin_path)
+        except (
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            AttributeError,
+            TypeError,
+        ) as exc:
+            parse_violations.append(
+                Violation(
+                    hook_type="plugin",
+                    script=str(PLUGIN_HOOKS_PATH),
+                    category="invalid_plugin_hooks",
+                    message=f"Plugin hook registrations cannot be read: {exc}",
+                )
+            )
+        else:
+            entries.extend(plugin_entries)
+            parse_violations.extend(plugin_violations)
+
+    groups, group_violations = _load_dispatch_groups(base_path)
+    parse_violations.extend(group_violations)
+    # An unusable manifest yields no groups, so expanding against it would
+    # report every dispatcher registration as naming an unknown group and bury
+    # the one violation that explains all of them. Expansion is skipped, not
+    # the entries: the dispatcher registrations stay in the list and are still
+    # checked for script existence and exit-code docs. The shims cannot be
+    # checked because the file that names them is the thing that failed.
+    manifest_unusable = any(
+        violation.category == "invalid_dispatch_groups" for violation in group_violations
+    )
+    if not manifest_unusable:
+        expanded: list[HookEntry] = []
+        for entry in entries:
+            shims, violations = _expand_dispatch_group(entry, groups)
+            expanded.extend(shims)
+            parse_violations.extend(violations)
+        entries = expanded
+
     report = ContractReport(entries=entries)
     report.violations.extend(parse_violations)
 
@@ -449,9 +712,20 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         report = validate_all(settings_path, base_path)
-    except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        TypeError,
+        AttributeError,
+    ) as exc:
+        # OSError and UnicodeDecodeError reach here from the settings read
+        # itself: an unreadable file or one holding invalid UTF-8. Without
+        # them the script exits on a traceback instead of the ADR-035
+        # configuration code, and --settings can name a file that is not
+        # settings.json, so the message reports the path it actually read.
         print(
-            f"Error: Invalid settings.json: {exc}",
+            f"Error: Cannot read hook registrations from {settings_path}: {exc}",
             file=sys.stderr,
         )
         return 2
