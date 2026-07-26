@@ -108,6 +108,11 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
 
     Skips non-agent files listed in _EXCLUDED_FILES.
     Returns a tuple of parsed agents and a list of file-level errors.
+
+    MalformedAgentFileError is the only failure parse_agent_file raises;
+    it already converts an unreadable file into one. A second except OSError
+    here would be unreachable and would give the same condition a second
+    message format.
     """
     agents: list[AgentDefinition] = []
     errors: list[str] = []
@@ -118,8 +123,6 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
             agents.append(parse_agent_file(md_file))
         except MalformedAgentFileError as e:
             errors.append(str(e))
-        except OSError as e:
-            errors.append(f"Cannot read file {md_file.name}: {e}")
     return agents, errors
 
 

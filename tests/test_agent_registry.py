@@ -8,6 +8,8 @@ Covers:
 
 from __future__ import annotations
 
+import ast
+import inspect
 import os
 import textwrap
 from pathlib import Path
@@ -265,7 +267,7 @@ class TestIntegration:
 
 
 class TestAMalformedFileFailsInsteadOfDisappearing:
-    """PR #3361 review: this validator is wired into CI as a guard.
+    """Refs #3341: this PR wires agent_registry.py into CI as a guard.
 
     A file that lost its frontmatter used to be dropped from the registry,
     which left validate() with nothing to complain about and the CI step
@@ -365,4 +367,16 @@ class TestAnUnreadableFileFailsCleanly:
         (tmp_path / "notafile.md").mkdir()
         agents, errors = parse_agent_files(tmp_path)
         assert agents == []
-        assert any("notafile.md" in e for e in errors)
+        assert len(errors) == 1
+        assert errors[0].startswith("notafile.md: unreadable (")
+
+    def test_the_walk_carries_no_second_handler_for_the_same_condition(self) -> None:
+        """One condition, one message. A second except OSError would be dead.
+
+        parse_agent_file converts OSError into MalformedAgentFileError, so a
+        sibling handler in parse_agent_files can never fire and would only
+        supply a competing format for the error above.
+        """
+        tree = ast.parse(textwrap.dedent(inspect.getsource(parse_agent_files)))
+        handlers = [n for n in ast.walk(tree) if isinstance(n, ast.ExceptHandler)]
+        assert [ast.unparse(h.type) for h in handlers] == ["MalformedAgentFileError"]

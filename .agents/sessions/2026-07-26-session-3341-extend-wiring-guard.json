@@ -163,6 +163,11 @@
     {
       "time": "2026-07-26T16:40:00Z",
       "action": "First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red."
+    },
+    {
+      "task": "Collapse the duplicate unreadable-file error path in parse_agent_files",
+      "outcome": "Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes.",
+      "evidence": "23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files."
     }
   ],
   "learnings": {

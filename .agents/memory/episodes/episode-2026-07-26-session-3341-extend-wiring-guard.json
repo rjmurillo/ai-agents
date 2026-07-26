@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Measured the issue's headline claim before writing anything",
       "caused_by": [
-        "e011"
+        "e021"
       ],
       "leads_to": [
         "e002"
@@ -133,7 +133,7 @@
       "content": "Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
       "caused_by": [],
       "leads_to": [
-        "e001"
+        "e020"
       ]
     },
     {
@@ -216,13 +216,49 @@
       "caused_by": [
         "e017"
       ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Collapse the duplicate unreadable-file error path in parse_agent_files",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "test",
+      "content": "23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "error",
+      "content": "Collapse the duplicate unreadable-file error path in parse_agent_files     Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes. 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 1,
     "recoveries": 0,
     "commits": 1,
     "files_changed": 8
