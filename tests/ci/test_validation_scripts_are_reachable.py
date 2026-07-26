@@ -383,6 +383,10 @@ def _entry_points() -> frozenset[str]:
     ``token_budget.py`` down with it because it is only imported from there.
     """
     workflow_text = "\n".join(_strip_commented_lines(body) for _, body in _live_run_blocks())
+    # Hook configs are YAML and shell, where `#` opens a comment, so a
+    # commented-out command must not seed the closure. SKILL.md files are
+    # markdown, where `#` opens a heading and carries real prose; stripping
+    # those would drop live entry points. The asymmetry is deliberate.
     hook_text = _strip_commented_lines(
         _text_of(("lefthook.yml", ".config/lefthook.yml", ".githooks/*"))
     )
@@ -648,3 +652,63 @@ class TestInvokedScripts:
         )
         tree = ast.parse(f"subprocess.run(['python', {literal!r}])")
         assert _invoked_scripts(tree, "scripts/other/caller.py") == expected
+
+
+class TestCommentedHookLinesDoNotSeedReachability:
+    """A commented-out hook command must not count as an entry point.
+
+    `_entry_points` builds one corpus from workflow `run:` bodies, hook
+    configs, and SKILL.md files. Workflow bodies were comment-stripped from
+    the start; hook configs were not, so a `#` line in `lefthook.yml` or a
+    `.githooks/*` script that named a `*.py` path could mark a script
+    reachable when nothing ran it. That is the false-green this whole module
+    exists to prevent.
+    """
+
+    def test_a_commented_hook_line_is_stripped(self) -> None:
+        body = "# uv run python scripts/validation/ghost.py --ci\nreal --flag\n"
+
+        assert "ghost.py" not in _strip_commented_lines(body)
+
+    def test_an_indented_comment_is_stripped(self) -> None:
+        # lefthook.yml nests commands, so a comment is rarely at column zero.
+        body = "    #   python3 -m scripts.validation.ghost\n    run: real\n"
+
+        assert "scripts.validation.ghost" not in _strip_commented_lines(body)
+
+    def test_a_live_hook_line_survives(self) -> None:
+        # The converse: stripping must not swallow the commands that do run.
+        body = "  run: uv run python scripts/validation/live.py --ci\n"
+
+        assert "scripts/validation/live.py" in _strip_commented_lines(body)
+
+    def test_markdown_headings_are_not_treated_as_comments(self) -> None:
+        # SKILL.md text is deliberately NOT stripped: `#` opens a heading
+        # there, and a heading can sit above a live script reference.
+        skill_body = "## Scripts\n\nRun `scripts/validation/live.py` to check.\n"
+
+        assert "scripts/validation/live.py" in skill_body
+
+    def test_the_hook_corpus_is_stripped_in_the_entry_point_builder(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A commented hook line does not reach `_entry_points`.
+
+        Behavioral, not textual: the helper being imported is not the same as
+        the helper being applied, and that gap is the state this module
+        shipped in before the fix.
+        """
+        guarded = next(iter(_source_paths()))
+        module = "tests.ci.test_validation_scripts_are_reachable"
+        monkeypatch.setattr(f"{module}._live_run_blocks", lambda: ())
+        monkeypatch.setattr(
+            f"{module}._text_of",
+            lambda patterns: f"# uv run python {guarded}\n" if "lefthook.yml" in patterns else "",
+        )
+        _entry_points.cache_clear()
+        try:
+            assert guarded not in _entry_points(), (
+                f"{guarded} was named only in a comment but counted as an entry point"
+            )
+        finally:
+            _entry_points.cache_clear()
