@@ -407,7 +407,7 @@ class TestDriverExitContract:
 
         assert main([str(base), str(ours), str(theirs)]) == 3
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_a_partial_temporary_write_leaves_ours_untouched(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -438,7 +438,7 @@ class TestDriverExitContract:
 
         assert main([str(base), str(ours), str(theirs)]) == 3
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_fdopen_failure_closes_descriptor_and_leaves_ours_untouched(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -462,7 +462,7 @@ class TestDriverExitContract:
             os.fstat(captured_fd[0])
         assert closed.value.errno == errno.EBADF
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_close_failure_does_not_mask_a_partial_write_failure(
         self,
@@ -501,7 +501,7 @@ class TestDriverExitContract:
         assert "failed to close temporary file" in error
         assert "Input/output error" in error
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_cleanup_failure_reports_primary_and_cleanup_errors(
         self,
