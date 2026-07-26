@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from ..scripts.update_causal_graph import (
+    GRAPH_VERSION,
     add_causal_edge,
     add_causal_node,
     add_pattern,
@@ -46,7 +47,11 @@ class TestLoadCausalGraph:
 
     def test_missing_file(self, tmp_path: Path) -> None:
         graph = load_causal_graph(tmp_path / "missing.json")
-        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        assert graph["version"] == GRAPH_VERSION
+        assert graph["updated"]
+        assert graph["nodes"] == []
+        assert graph["edges"] == []
+        assert graph["patterns"] == []
 
     def test_valid_file(self, tmp_path: Path) -> None:
         graph_file = tmp_path / "graph.json"
@@ -61,7 +66,11 @@ class TestLoadCausalGraph:
         graph_file.write_text("not json", encoding="utf-8")
 
         graph = load_causal_graph(graph_file)
-        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        assert graph["version"] == GRAPH_VERSION
+        assert graph["updated"]
+        assert graph["nodes"] == []
+        assert graph["edges"] == []
+        assert graph["patterns"] == []
 
 
 class TestSaveCausalGraph:
