@@ -693,8 +693,11 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
 
     The commit set comes from the two fields the session protocol treats as the
     record of what a session committed: ``endingCommit`` and the session-end
-    ``changesCommitted`` evidence. Work-log prose is a fallback used only when
-    both are empty.
+    ``changesCommitted`` evidence. Work-log prose is a fallback, consulted only
+    when neither of those two yields a SHA. That is a weaker condition than
+    "both fields are empty": evidence reading ``Committed.`` with no SHA in it
+    also reaches the fallback, and has to, because that is the shape 20 of the
+    25 prose-only logs are in.
 
     Prose is not a primary source (issue #3363). A work-log entry legitimately
     cites SHAs the session did not author: a bot's housekeeping commits, a
@@ -705,9 +708,11 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     ``fix/3342-harness-reference-size`` the episode counted two foreign commits
     and dropped three of the session's own.
 
-    The fallback is kept because 27 pre-2026-02 logs record commits only in the
-    work log and have no structured evidence to fall back to. It carries the
-    existing hex-letter (issue #3301) and committer-date (issue #3328) filters.
+    The fallback is kept because 25 logs, all pre-2026-02, record their commits
+    only in the work log. Five have no evidence string at all; the other 20
+    have one that names no SHA. Deleting the fallback would drop every commit
+    those 25 sessions made. It carries the existing hex-letter (issue #3301)
+    and committer-date (issue #3328) filters.
 
     Excludes the starting commit by default: it is the base, not a commit the
     session produced, including when prose repeats it at a different
@@ -933,8 +938,8 @@ def json_metrics(data: dict) -> dict:
     # Count every distinct commit the session documents, from the same source
     # as the commit events so the two can never disagree: endingCommit plus the
     # session-end changesCommitted evidence, falling back to work-log prose only
-    # when both are empty (issue #3363). Excludes the starting commit (the base,
-    # not a commit the session produced).
+    # when neither of those yields a SHA (issue #3363). Excludes the starting
+    # commit: it is the base, not a commit the session produced.
     commit_count = len(_collect_shas(data, include_starting=False))
     metrics = {
         "duration_minutes": 0,

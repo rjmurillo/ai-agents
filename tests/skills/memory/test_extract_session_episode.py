@@ -294,7 +294,13 @@ def _lowercase_gate(complete):
 def _json_log(work_log, end_complete=True, committed=None):
     """``committed`` populates the session-end changesCommitted evidence, which
     is the protocol's authoritative record of what the session committed and
-    the source commit provenance reads first (issue #3363)."""
+    the source commit provenance reads first (issue #3363).
+
+    Left at None the evidence keeps the gate default, a non-empty string naming
+    no SHA. That is the real majority shape: 20 of the 25 prose-only logs look
+    like that. Pass ``committed=""`` for the empty-evidence shape the other
+    five are in.
+    """
     gate = _gate(end_complete)
     committed_gate = dict(gate)
     if committed is not None:
@@ -1552,10 +1558,11 @@ class TestPredatingProseShaExclusion:
     def _log(anchor, prose, *, date=SESSION_DAY):
         """A log with no structured commit record, so prose is consulted.
 
-        Since #3363 work-log prose is a fallback used only when ``endingCommit``
-        and the changesCommitted evidence are both empty (20 pre-2026-02 logs
-        take this shape). The predating filter guards that fallback, so the
-        fixture has to reach it.
+        Since #3363 work-log prose is a fallback, reached only when neither
+        ``endingCommit`` nor the changesCommitted evidence yields a SHA. The
+        fixture takes the majority prose-only shape: an evidence string that
+        names no SHA, which 20 of the 25 such logs carry. The predating filter
+        guards that fallback, so the fixture has to reach it.
         """
         data = _json_log([{"task": "Cited", "outcome": prose}], committed="Committed.")
         data["session"]["date"] = date
@@ -1746,7 +1753,12 @@ class TestChangesCommittedIsTheCommitSource:
         assert shas == ["abc1234def"]
 
     def test_prose_still_works_when_there_is_no_structured_record(self):
-        """27 pre-2026-02 logs record commits only in the work log."""
+        """Logs that record their commits only in the work log still resolve.
+
+        No count is pinned here on purpose: the figure is measured in the
+        source docstring, and repeating it turns every re-measurement into a
+        comment-only fix.
+        """
         log = _json_log([{"phase": "Implement", "summary": "committed as abc1234def"}])
         log["endingCommit"] = ""
         log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
@@ -1756,6 +1768,35 @@ class TestChangesCommittedIsTheCommitSource:
         }
         shas = extract_session_episode._collect_shas(log, include_starting=False)
         assert "abc1234def" in shas
+
+    def test_prose_is_reached_when_the_evidence_string_is_empty(self):
+        """The other prose-only shape: no evidence string at all.
+
+        Five of the 25 prose-only logs are in this shape rather than carrying a
+        SHA-less sentence. Both have to reach the fallback, which is why the
+        condition is "neither source yielded a SHA" and not "both are empty".
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="",
+        )
+        log["endingCommit"] = ""
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert "abc1234def" in shas
+
+    def test_a_sha_in_the_evidence_suppresses_the_prose_fallback(self):
+        """The fallback must not fire when evidence already named a commit.
+
+        This is the discriminating case: if the condition were "both fields are
+        empty" the foreign prose SHA would be picked up here too.
+        """
+        log = _json_log(
+            [{"phase": "Read", "summary": "reviewed base fed4321abc"}],
+            committed="Committed abc1234def.",
+        )
+        log["endingCommit"] = ""
+        shas = extract_session_episode._collect_shas(log, include_starting=False)
+        assert shas == ["abc1234def"]
 
     def test_lowercase_evidence_key_is_read(self):
         """Session logs use both Evidence and evidence casings."""
