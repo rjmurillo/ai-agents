@@ -123,10 +123,11 @@ def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
     """Return canonical package name -> combined specifier from pyproject.
 
     Merges ``[project].dependencies`` with every entry under
-    ``[project.optional-dependencies]``. A package declared in more than one
-    place contributes all of its specifiers, so a pin must satisfy the
-    intersection. That is the honest reading: CI installs one version, and it
-    has to work everywhere the project claims to need the package.
+    ``[project.optional-dependencies]`` and ``[dependency-groups]``.
+    A package declared in more than one place contributes all of its
+    specifiers, so a pin must satisfy the intersection. That is the honest
+    reading: CI installs one version, and it has to work everywhere the
+    project claims to need the package.
     """
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     project = data.get("project", {})
@@ -139,9 +140,11 @@ def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
         for extra in optional_deps.values():
             if isinstance(extra, list):
                 groups.append([item for item in extra if isinstance(item, str)])
-    for group in data.get("dependency-groups", {}).values():
-        if isinstance(group, list):
-            groups.append([item for item in group if isinstance(item, str)])
+    dep_groups = data.get("dependency-groups", {})
+    if isinstance(dep_groups, dict):
+        for group in dep_groups.values():
+            if isinstance(group, list):
+                groups.append([item for item in group if isinstance(item, str)])
 
     merged: dict[str, SpecifierSet] = {}
     for group in groups:
