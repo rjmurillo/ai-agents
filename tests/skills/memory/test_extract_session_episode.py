@@ -296,10 +296,12 @@ def _json_log(work_log, end_complete=True, committed=None):
     is the protocol's authoritative record of what the session committed and
     the source commit provenance reads first (issue #3363).
 
-    Left at None the evidence keeps the gate default, a non-empty string naming
-    no SHA. That is the real majority shape: 20 of the 25 prose-only logs look
-    like that. Pass ``committed=""`` for the empty-evidence shape the other
-    five are in.
+    Left at None the evidence keeps the gate default: a non-empty string that
+    names no SHA, which is the majority shape among prose-only logs. Pass
+    ``committed=""`` for the minority shape, where the evidence is absent
+    entirely. Both reach the prose fallback, and both are exercised below. The
+    corpus split behind that claim lives in the extractor docstring, so it has
+    one home to re-measure.
     """
     gate = _gate(end_complete)
     committed_gate = dict(gate)
@@ -721,9 +723,7 @@ class TestJsonCommitMetric:
 
     def test_prose_mixes_comment_id_and_sha_counts_only_sha(self):
         # #3301 edge: prose with both a decimal ID and a real SHA counts one.
-        data = _json_log(
-            [{"task": "t", "outcome": "fixed in abc1234 per run 29708719280"}]
-        )
+        data = _json_log([{"task": "t", "outcome": "fixed in abc1234 per run 29708719280"}])
         data["endingCommit"] = ""
         assert extract_session_episode.json_metrics(data)["commits"] == 1
 
@@ -834,16 +834,12 @@ class TestCommitProvenanceConsistency:
             self._log("e07f40f"), archive_fallback=False
         )
         once = extract_session_episode.merge_preserving(
-            extract_session_episode.extract_from_json(
-                self._log("e07f40f"), archive_fallback=False
-            ),
+            extract_session_episode.extract_from_json(self._log("e07f40f"), archive_fallback=False),
             base,
             session_id="s",
         )
         twice = extract_session_episode.merge_preserving(
-            extract_session_episode.extract_from_json(
-                self._log("e07f40f"), archive_fallback=False
-            ),
+            extract_session_episode.extract_from_json(self._log("e07f40f"), archive_fallback=False),
             once,
             session_id="s",
         )
@@ -1483,7 +1479,6 @@ class TestSequentialEventLinks:
                 assert ref in ids, f"dangling reference {ref} in {e['id']}"
 
 
-
 def _git(repo, *args, when=None):
     env = None
     if when is not None:
@@ -1561,8 +1556,8 @@ class TestPredatingProseShaExclusion:
         Since #3363 work-log prose is a fallback, reached only when neither
         ``endingCommit`` nor the changesCommitted evidence yields a SHA. The
         fixture takes the majority prose-only shape: an evidence string that
-        names no SHA, which 20 of the 25 such logs carry. The predating filter
-        guards that fallback, so the fixture has to reach it.
+        names no SHA. The predating filter guards that fallback, so the fixture
+        has to reach it.
         """
         data = _json_log([{"task": "Cited", "outcome": prose}], committed="Committed.")
         data["session"]["date"] = date
@@ -1807,21 +1802,15 @@ class TestChangesCommittedIsTheCommitSource:
             "complete": True,
             "evidence": "One commit: abc1234def.",
         }
-        assert extract_session_episode._collect_shas(log, include_starting=False) == [
-            "abc1234def"
-        ]
+        assert extract_session_episode._collect_shas(log, include_starting=False) == ["abc1234def"]
 
     def test_a_missing_compliance_section_does_not_raise(self):
         log = _json_log([{"phase": "x", "summary": "committed as abc1234def"}])
         log["endingCommit"] = ""
         del log["protocolCompliance"]
-        assert extract_session_episode._collect_shas(log, include_starting=False) == [
-            "abc1234def"
-        ]
+        assert extract_session_episode._collect_shas(log, include_starting=False) == ["abc1234def"]
 
     def test_a_non_dict_compliance_section_does_not_raise(self):
         log = _json_log([])
         log["protocolCompliance"] = "not a dict"
-        assert extract_session_episode._collect_shas(log, include_starting=False) == [
-            "bbbbbbb1234"
-        ]
+        assert extract_session_episode._collect_shas(log, include_starting=False) == ["bbbbbbb1234"]

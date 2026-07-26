@@ -43,10 +43,10 @@ def get_session_id_from_path(path: Path) -> str:
     distinct episode files.
     """
     stem = path.stem
-    match = re.search(r'(\d{4}-\d{2}-\d{2}-session-\d+(?:-.+)?)', stem)
+    match = re.search(r"(\d{4}-\d{2}-\d{2}-session-\d+(?:-.+)?)", stem)
     if match:
         return match.group(1)
-    match = re.search(r'(session-\d+(?:-.+)?)', stem)
+    match = re.search(r"(session-\d+(?:-.+)?)", stem)
     if match:
         return match.group(1)
     return stem
@@ -65,40 +65,40 @@ def parse_session_metadata(lines: list[str]) -> dict:
 
     for line in lines:
         # Title (first H1)
-        title_match = re.match(r'^#\s+(.+)$', line)
+        title_match = re.match(r"^#\s+(.+)$", line)
         if title_match and not metadata["title"]:
             metadata["title"] = title_match.group(1)
             continue
 
         # Date field
-        m = re.match(r'^\*\*Date\*\*:\s*(.+)$', line)
+        m = re.match(r"^\*\*Date\*\*:\s*(.+)$", line)
         if m:
             metadata["date"] = m.group(1).strip()
             continue
 
         # Status field
-        m = re.match(r'^\*\*Status\*\*:\s*(.+)$', line)
+        m = re.match(r"^\*\*Status\*\*:\s*(.+)$", line)
         if m:
             metadata["status"] = m.group(1).strip()
             continue
 
         # Objectives section
-        if re.match(r'^##\s*Objectives?', line):
+        if re.match(r"^##\s*Objectives?", line):
             in_section = "objectives"
             continue
 
         # Deliverables section
-        if re.match(r'^##\s*Deliverables?', line):
+        if re.match(r"^##\s*Deliverables?", line):
             in_section = "deliverables"
             continue
 
         # New section ends current
-        if re.match(r'^##\s', line):
+        if re.match(r"^##\s", line):
             in_section = ""
             continue
 
         # Collect list items
-        m = re.match(r'^\s*[-*]\s+(.+)$', line)
+        m = re.match(r"^\s*[-*]\s+(.+)$", line)
         if m:
             item = m.group(1).strip()
             if in_section == "objectives":
@@ -112,13 +112,13 @@ def parse_session_metadata(lines: list[str]) -> dict:
 def get_decision_type(text: str) -> str:
     """Categorize decision type from text."""
     lower = text.lower()
-    if re.search(r'design|architect|schema|structure', lower):
+    if re.search(r"design|architect|schema|structure", lower):
         return "design"
-    if re.search(r'test|pester|coverage|assert', lower):
+    if re.search(r"test|pester|coverage|assert", lower):
         return "test"
-    if re.search(r'recover|fix|retry|fallback', lower):
+    if re.search(r"recover|fix|retry|fallback", lower):
         return "recovery"
-    if re.search(r'route|delegate|agent|handoff', lower):
+    if re.search(r"route|delegate|agent|handoff", lower):
         return "routing"
     return "implementation"
 
@@ -131,22 +131,18 @@ def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict
     ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
     for i, line in enumerate(lines):
-        if re.match(r'^##\s*Decisions?', line):
+        if re.match(r"^##\s*Decisions?", line):
             in_decision_section = True
             continue
 
-        if in_decision_section and re.match(r'^##\s', line):
+        if in_decision_section and re.match(r"^##\s", line):
             in_decision_section = False
 
         # Decision patterns in various formats
         decision_text = None
-        m1 = re.match(r'^\*\*Decision\*\*:\s*(.+)$', line)
-        m2 = re.match(r'^Decision:\s*(.+)$', line)
-        m3 = (
-            re.match(r'^\s*[-*]\s+\*\*(.+?)\*\*:\s*(.+)$', line)
-            if in_decision_section
-            else None
-        )
+        m1 = re.match(r"^\*\*Decision\*\*:\s*(.+)$", line)
+        m2 = re.match(r"^Decision:\s*(.+)$", line)
+        m3 = re.match(r"^\s*[-*]\s+\*\*(.+?)\*\*:\s*(.+)$", line) if in_decision_section else None
 
         if m1:
             decision_text = m1.group(1)
@@ -159,38 +155,39 @@ def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict
             decision_index += 1
             context = ""
             if i > 0:
-                ctx_match = re.match(r'^\s*[-*]\s+(.+)$', lines[i - 1])
+                ctx_match = re.match(r"^\s*[-*]\s+(.+)$", lines[i - 1])
                 if ctx_match:
                     context = ctx_match.group(1)
 
-            decisions.append({
-                "id": f"d{decision_index:03d}",
-                "timestamp": ts,
-                "type": get_decision_type(decision_text),
-                "context": context,
-                "chosen": decision_text,
-                "rationale": "",
-                "outcome": "success",
-                "effects": [],
-            })
+            decisions.append(
+                {
+                    "id": f"d{decision_index:03d}",
+                    "timestamp": ts,
+                    "type": get_decision_type(decision_text),
+                    "context": context,
+                    "chosen": decision_text,
+                    "rationale": "",
+                    "outcome": "success",
+                    "effects": [],
+                }
+            )
             continue
 
         # Capture decisions from work log entries
-        if (
-            re.search(r'chose|decided|selected|opted for', line)
-            and not line.startswith('#')
-        ):
+        if re.search(r"chose|decided|selected|opted for", line) and not line.startswith("#"):
             decision_index += 1
-            decisions.append({
-                "id": f"d{decision_index:03d}",
-                "timestamp": ts,
-                "type": "implementation",
-                "context": "",
-                "chosen": line.strip(),
-                "rationale": "",
-                "outcome": "success",
-                "effects": [],
-            })
+            decisions.append(
+                {
+                    "id": f"d{decision_index:03d}",
+                    "timestamp": ts,
+                    "type": "implementation",
+                    "context": "",
+                    "chosen": line.strip(),
+                    "rationale": "",
+                    "outcome": "success",
+                    "effects": [],
+                }
+            )
 
     return decisions
 
@@ -205,9 +202,9 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
         evt = None
 
         # Commit events
-        m = re.search(r'commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})', line)
+        m = re.search(r"commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})", line)
         if not m:
-            m = re.search(r'([a-f0-9]{7,40})\s+\w+\(.+\):', line)
+            m = re.search(r"([a-f0-9]{7,40})\s+\w+\(.+\):", line)
         if m:
             event_index += 1
             evt = {
@@ -220,10 +217,7 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             }
 
         # Error events
-        if (
-            re.search(r'error|fail|exception', line, re.IGNORECASE)
-            and not line.startswith('#')
-        ):
+        if re.search(r"error|fail|exception", line, re.IGNORECASE) and not line.startswith("#"):
             event_index += 1
             evt = {
                 "id": f"e{event_index:03d}",
@@ -235,12 +229,11 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             }
 
         # Milestone events
-        if (
-            re.search(r'completed?|done|finished|success', line, re.IGNORECASE)
-            and re.match(r'^[-*]\s+(?!\*)', line)
+        if re.search(r"completed?|done|finished|success", line, re.IGNORECASE) and re.match(
+            r"^[-*]\s+(?!\*)", line
         ):
             event_index += 1
-            content = re.sub(r'^[-*]\s*', '', line.strip())
+            content = re.sub(r"^[-*]\s*", "", line.strip())
             evt = {
                 "id": f"e{event_index:03d}",
                 "timestamp": ts,
@@ -257,13 +250,13 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
         # a status vocabulary so objective/decision sentences that merely begin
         # with "Complete ..." do not misfire. Refs PR #2170 (thread GA722).
         elif re.match(
-            r'^[-*]\s+\*\*(?:status|result|outcome|state|resolution)\*\*\s*:\s*'
-            r'(complete|completed|done|success|finished)\b',
+            r"^[-*]\s+\*\*(?:status|result|outcome|state|resolution)\*\*\s*:\s*"
+            r"(complete|completed|done|success|finished)\b",
             line,
             re.IGNORECASE,
         ):
             event_index += 1
-            content = re.sub(r'^[-*]\s*', '', line.strip())
+            content = re.sub(r"^[-*]\s*", "", line.strip())
             evt = {
                 "id": f"e{event_index:03d}",
                 "timestamp": ts,
@@ -274,7 +267,7 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             }
 
         # Test events
-        if re.search(r'test[s]?\s+(pass|fail|run)', line, re.IGNORECASE) or 'Pester' in line:
+        if re.search(r"test[s]?\s+(pass|fail|run)", line, re.IGNORECASE) or "Pester" in line:
             event_index += 1
             evt = {
                 "id": f"e{event_index:03d}",
@@ -297,18 +290,18 @@ def parse_lessons(lines: list[str]) -> list[str]:
     in_lessons_section = False
 
     for line in lines:
-        if re.match(r'^##\s*(Lessons?\s*Learned?|Key\s*Learnings?|Takeaways?)', line):
+        if re.match(r"^##\s*(Lessons?\s*Learned?|Key\s*Learnings?|Takeaways?)", line):
             in_lessons_section = True
             continue
 
-        if in_lessons_section and re.match(r'^##\s', line):
+        if in_lessons_section and re.match(r"^##\s", line):
             in_lessons_section = False
 
-        m = re.match(r'^\s*[-*]\s+(.+)$', line)
+        m = re.match(r"^\s*[-*]\s+(.+)$", line)
         if in_lessons_section and m:
             lessons.append(m.group(1).strip())
         elif m and re.match(
-            r'(?:lessons?\s+learned|lessons?|learned|takeaways?|note\s+for\s+future)\b',
+            r"(?:lessons?\s+learned|lessons?|learned|takeaways?|note\s+for\s+future)\b",
             m.group(1),
             re.IGNORECASE,
         ):
@@ -334,25 +327,22 @@ def parse_metrics(lines: list[str]) -> dict:
 
     for line in lines:
         # Duration
-        m = re.search(r'(\d+)\s*minutes?', line)
+        m = re.search(r"(\d+)\s*minutes?", line)
         if not m:
-            m = re.search(r'duration:\s*(\d+)', line, re.IGNORECASE)
+            m = re.search(r"duration:\s*(\d+)", line, re.IGNORECASE)
         if m:
             metrics["duration_minutes"] = int(m.group(1))
 
         # Count commits
-        if re.search(r'[a-f0-9]{7,40}', line):
+        if re.search(r"[a-f0-9]{7,40}", line):
             metrics["commits"] += 1
 
         # Count errors
-        if (
-            re.search(r'error|fail|exception', line, re.IGNORECASE)
-            and not line.startswith('#')
-        ):
+        if re.search(r"error|fail|exception", line, re.IGNORECASE) and not line.startswith("#"):
             metrics["errors"] += 1
 
         # Count files
-        m = re.search(r'(\d+)\s+files?\s+(changed|modified|created)', line)
+        m = re.search(r"(\d+)\s+files?\s+(changed|modified|created)", line)
         if m:
             metrics["files_changed"] += int(m.group(1))
 
@@ -363,11 +353,11 @@ def get_session_outcome(metadata: dict, events: list[dict]) -> str:
     """Determine overall session outcome."""
     status = (metadata.get("status") or "").lower()
 
-    if re.search(r'complete|done|success', status):
+    if re.search(r"complete|done|success", status):
         return "success"
-    if re.search(r'partial|in.?progress|blocked', status):
+    if re.search(r"partial|in.?progress|blocked", status):
         return "partial"
-    if re.search(r'fail|abort|error', status):
+    if re.search(r"fail|abort|error", status):
         return "failure"
 
     error_count = sum(1 for e in events if e.get("type") == "error")
@@ -393,9 +383,7 @@ def get_session_outcome(metadata: dict, events: list[dict]) -> str:
 # captures the keyword so callers can reject HTTP-status-shaped error counts.
 # Refs PR #2170 (thread GANjI): leading numbers that are issue refs or status
 # codes must not inflate metrics.errors.
-_FAIL_COUNT_RE = re.compile(
-    r"(?<![#\w])([1-9]\d*)\s+(failed|failures|errors?)\b", re.IGNORECASE
-)
+_FAIL_COUNT_RE = re.compile(r"(?<![#\w])([1-9]\d*)\s+(failed|failures|errors?)\b", re.IGNORECASE)
 _PASS_COUNT_RE = re.compile(r"\b(\d+)\s+(?:passed|passing)\b", re.IGNORECASE)
 _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 # A commit SHA candidate pulled from free-text prose must contain at least one
@@ -724,7 +712,13 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     session_date = str(session.get("date") or "").strip()
 
     def _add_structured(field: str) -> None:
-        """Structured fields are the protocol's record; scan them unfiltered."""
+        """Take every SHA a structured field names.
+
+        Structured fields are the protocol's record, so no prose heuristic is
+        applied to them. The one exclusion is the starting commit, which the
+        session inherited rather than produced, and which the caller can keep
+        with ``include_starting``.
+        """
         for sha in _SHA_RE.findall(field):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
@@ -789,9 +783,7 @@ def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
     if additional_worklogs:
         worklogs_to_check = worklogs_to_check + additional_worklogs
 
-    explicit_failure = any(
-        _valid_fail_match(_entry_text(e)) is not None for e in worklogs_to_check
-    )
+    explicit_failure = any(_valid_fail_match(_entry_text(e)) is not None for e in worklogs_to_check)
 
     if explicit_failure and not all_complete:
         return "failure"
@@ -806,14 +798,16 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
     def add(evt_type: str, content: str) -> None:
         nonlocal idx
         idx += 1
-        events.append({
-            "id": f"e{idx:03d}",
-            "timestamp": now_iso,
-            "type": evt_type,
-            "content": content,
-            "caused_by": [],
-            "leads_to": [],
-        })
+        events.append(
+            {
+                "id": f"e{idx:03d}",
+                "timestamp": now_iso,
+                "type": evt_type,
+                "content": content,
+                "caused_by": [],
+                "leads_to": [],
+            }
+        )
 
     for entry in _as_list(data.get("workLog")):
         title = _entry_title(entry)
@@ -851,16 +845,18 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
         # not a bare status word ("success", "ok", ...).
         chosen = title or (outcome if outcome.lower() not in _STATUS_WORDS else "")
         idx += 1
-        decisions.append({
-            "id": f"d{idx:03d}",
-            "timestamp": now_iso,
-            "type": get_decision_type(text),
-            "context": title,
-            "chosen": chosen,
-            "rationale": _entry_field(entry, "evidence").strip(),
-            "outcome": "success",
-            "effects": [],
-        })
+        decisions.append(
+            {
+                "id": f"d{idx:03d}",
+                "timestamp": now_iso,
+                "type": get_decision_type(text),
+                "context": title,
+                "chosen": chosen,
+                "rationale": _entry_field(entry, "evidence").strip(),
+                "outcome": "success",
+                "effects": [],
+            }
+        )
     return decisions
 
 
@@ -1083,6 +1079,7 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
     ``chosen`` summary so the dedup key and output retain the content.
     Refs PR #2170 (thread GASBG).
     """
+
     def coerce(dec: Any) -> dict:
         if isinstance(dec, str):
             text = dec.strip()
@@ -1158,9 +1155,7 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     idempotent. Applying twice is a no-op.
     """
     existing = _as_dict(existing)
-    date = _deterministic_date(
-        session_id, new.get("timestamp"), existing.get("timestamp")
-    )
+    date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
     midnight = f"{date}T00:00:00+00:00" if date else None
 
     merged = dict(new)
@@ -1317,9 +1312,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                             lessons = archive_lessons
                 except (OSError, json.JSONDecodeError):
                     pass
-            has_events = any(
-                e.get("type") in ("milestone", "test", "error") for e in events
-            )
+            has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
             has_own_events = has_events or any(e.get("type") == "commit" for e in events)
             if not has_events or not decisions or not lessons:
                 archive_md_path = next(
@@ -1369,27 +1362,33 @@ def build_parser() -> argparse.ArgumentParser:
         description="Extract episode data from session logs.",
     )
     parser.add_argument(
-        "session_log_path", type=Path,
+        "session_log_path",
+        type=Path,
         help="Path to the session log file to extract from",
     )
     parser.add_argument(
-        "--output-path", type=Path, default=None,
+        "--output-path",
+        type=Path,
+        default=None,
         help="Output directory for episode JSON",
     )
     write_mode = parser.add_mutually_exclusive_group()
     write_mode.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="Overwrite existing episode file if it exists",
     )
     write_mode.add_argument(
-        "--preserve", action="store_true",
+        "--preserve",
+        action="store_true",
         help=(
             "Read-modify-write an existing episode file, merging fresh "
             "extraction over it without dropping richer existing data"
         ),
     )
     parser.add_argument(
-        "--pending-stage", action="store_true",
+        "--pending-stage",
+        action="store_true",
         help=(
             "Add 1 to staged files count to account for the episode file "
             "that will be staged after extraction (pre-commit hook context)"
@@ -1482,9 +1481,11 @@ def main(argv: list[str] | None = None) -> int:
         content = session_log_path.read_text(encoding="utf-8")
     except OSError as e:
         print(
-            json.dumps({
-                "Error": f"Failed to read session log: {e}",
-            }),
+            json.dumps(
+                {
+                    "Error": f"Failed to read session log: {e}",
+                }
+            ),
             file=sys.stderr,
         )
         return 1
@@ -1518,15 +1519,10 @@ def main(argv: list[str] | None = None) -> int:
                 timestamp = datetime.fromisoformat(metadata["date"]).isoformat()
             except ValueError:
                 print(
-                    f"  WARNING: Could not parse date '{metadata['date']}', "
-                    "using current time",
+                    f"  WARNING: Could not parse date '{metadata['date']}', using current time",
                     file=sys.stderr,
                 )
-        task = (
-            metadata["objectives"][0]
-            if metadata["objectives"]
-            else metadata["title"]
-        )
+        task = metadata["objectives"][0] if metadata["objectives"] else metadata["title"]
 
     # Best-effort backfill: when neither the JSON workLog nor the legacy
     # markdown recorded a files-changed count, derive it from the staged commit.
@@ -1577,17 +1573,21 @@ def main(argv: list[str] | None = None) -> int:
                 existing_raw = json.loads(episode_file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as e:
                 print(
-                    json.dumps({
-                        "Error": f"--preserve requires a readable existing episode: {e}",
-                    }),
+                    json.dumps(
+                        {
+                            "Error": f"--preserve requires a readable existing episode: {e}",
+                        }
+                    ),
                     file=sys.stderr,
                 )
                 return 1
             if not isinstance(existing_raw, dict):
                 print(
-                    json.dumps({
-                        "Error": "--preserve requires the existing episode to be a JSON object.",
-                    }),
+                    json.dumps(
+                        {
+                            "Error": "--preserve requires the existing episode to be a JSON object.",
+                        }
+                    ),
                     file=sys.stderr,
                 )
                 return 1
@@ -1598,12 +1598,14 @@ def main(argv: list[str] | None = None) -> int:
             outcome = episode["outcome"]
         elif not args.force:
             print(
-                json.dumps({
-                    "Error": (
-                        f"Episode file already exists: {episode_file}. "
-                        "Use --force to overwrite or --preserve to merge."
-                    ),
-                }),
+                json.dumps(
+                    {
+                        "Error": (
+                            f"Episode file already exists: {episode_file}. "
+                            "Use --force to overwrite or --preserve to merge."
+                        ),
+                    }
+                ),
                 file=sys.stderr,
             )
             return 1
