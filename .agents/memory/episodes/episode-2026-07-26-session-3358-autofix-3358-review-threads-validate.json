@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
       "caused_by": [
-        "e013"
+        "e015"
       ],
       "leads_to": [
         "e002"
@@ -132,7 +132,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e014"
+      ]
     },
     {
       "id": "e012",
@@ -155,6 +157,28 @@
         "e012"
       ],
       "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Handled valid non-object graph JSON in review round 4.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5e1cc81eedff747d075c6fa9e48d3c4e02693700",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -164,7 +188,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 3
   },
   "lessons": []
