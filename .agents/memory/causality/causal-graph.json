@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T03:47:08.171555+00:00",
+  "updated": "2026-07-26T04:54:27.210214+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -14516,8 +14516,7 @@
       "type": "milestone",
       "label": "milestone: Applied the three ADR-057 reference normalizations and verified against source",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859304+00:00"
     },
@@ -14526,8 +14525,7 @@
       "type": "milestone",
       "label": "milestone: Ran a proportionate adr-review under the ADR Review Protocol",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859367+00:00"
     },
@@ -14536,8 +14534,7 @@
       "type": "milestone",
       "label": "milestone: Re-verified the reviewers' factual claims directly against the working tree",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859420+00:00"
     },
@@ -14546,8 +14543,7 @@
       "type": "milestone",
       "label": "milestone: Produced the governance artifacts and prepared the stacked commit",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859471+00:00"
     },
@@ -15362,42 +15358,6 @@
       "created": "2026-07-26T02:02:26.671569+00:00"
     },
     {
-      "id": "5b1f3ecd25c4",
-      "type": "commit",
-      "label": "commit: Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T03:47:08.168130+00:00"
-    },
-    {
-      "id": "86ba34f6f06c",
-      "type": "commit",
-      "label": "commit: Commit: b2c8a534e7",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T03:47:08.168193+00:00"
-    },
-    {
-      "id": "25532ef523e0",
-      "type": "outcome",
-      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T03:47:08.168249+00:00"
-    },
-    {
-      "episodes": [],
-      "label": "Status test node",
-      "success_rate": 1.0,
-      "frequency": 1,
-      "id": "n001",
-      "type": "decision",
-      "created": null
-    },
-    {
       "id": "2e95507629ad",
       "type": "milestone",
       "label": "milestone: Created and claimed issue #3357 after confirming no existing PR.",
@@ -15477,6 +15437,87 @@
         "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
       ],
       "created": "2026-07-26T04:13:25.358593+00:00"
+    },
+    {
+      "id": "0e7df0e4f5ed",
+      "type": "milestone",
+      "label": "milestone: Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206127+00:00"
+    },
+    {
+      "id": "82e1a0850825",
+      "type": "milestone",
+      "label": "milestone: Restored graph metadata and added stable pattern ids in the canonical generator",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206201+00:00"
+    },
+    {
+      "id": "74dc1b2c83ee",
+      "type": "milestone",
+      "label": "milestone: Removed production graph seed rows and aligned provenance documentation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206264+00:00"
+    },
+    {
+      "id": "1306374f40b9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted and causal-graph validation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206325+00:00"
+    },
+    {
+      "id": "808e22f3e69e",
+      "type": "test",
+      "label": "test: Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206388+00:00"
+    },
+    {
+      "id": "467d4df7b417",
+      "type": "commit",
+      "label": "commit: Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206446+00:00"
+    },
+    {
+      "id": "7f59a57f4574",
+      "type": "commit",
+      "label": "commit: Commit: 29f35db5f4",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206505+00:00"
+    },
+    {
+      "id": "a26f057873d9",
+      "type": "commit",
+      "label": "commit: Commit: ae4a112ebc",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206563+00:00"
+    },
+    {
+      "id": "25532ef523e0",
+      "type": "outcome",
+      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T04:54:27.206623+00:00"
     }
   ],
   "patterns": [
@@ -15543,46 +15584,6 @@
       "success_rate": 1.0,
       "occurrences": 10,
       "created": "2026-07-07T18:50:46.157605+00:00"
-    },
-    {
-      "success_rate": 0.9,
-      "occurrences": 1,
-      "id": "p001",
-      "name": "Good pattern",
-      "last_used": "2026-02-10T17:55:45.9796943-08:00",
-      "description": "",
-      "action": "A1",
-      "trigger": "T1"
-    },
-    {
-      "success_rate": 0.2,
-      "occurrences": 2,
-      "id": "p002",
-      "name": "Bad pattern",
-      "last_used": "2026-02-10T17:55:45.9892911-08:00",
-      "description": "",
-      "action": "A2",
-      "trigger": "T2"
-    },
-    {
-      "success_rate": 0.1,
-      "occurrences": 2,
-      "id": "p003",
-      "name": "Worse pattern",
-      "last_used": "2026-02-10T17:55:46.0158342-08:00",
-      "description": "",
-      "action": "A3",
-      "trigger": "T3"
-    },
-    {
-      "success_rate": 1.0,
-      "occurrences": 1,
-      "id": "p004",
-      "name": "Status test pattern",
-      "last_used": "2026-02-10T17:55:46.0986929-08:00",
-      "description": "",
-      "action": "A",
-      "trigger": "T"
     }
   ],
   "edges": [

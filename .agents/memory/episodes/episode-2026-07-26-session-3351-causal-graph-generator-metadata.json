@@ -10,9 +10,9 @@
       "id": "e001",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Applied the three ADR-057 reference normalizations and verified against source",
+      "content": "Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
       "caused_by": [
-        "e006"
+        "e005"
       ],
       "leads_to": [
         "e002"
@@ -22,7 +22,7 @@
       "id": "e002",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran a proportionate adr-review under the ADR Review Protocol",
+      "content": "Restored graph metadata and added stable pattern ids in the canonical generator",
       "caused_by": [
         "e001"
       ],
@@ -34,7 +34,7 @@
       "id": "e003",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Re-verified the reviewers' factual claims directly against the working tree",
+      "content": "Removed production graph seed rows and aligned provenance documentation",
       "caused_by": [
         "e002"
       ],
@@ -46,7 +46,7 @@
       "id": "e004",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Produced the governance artifacts and prepared the stacked commit",
+      "content": "Ran targeted and causal-graph validation",
       "caused_by": [
         "e003"
       ],
@@ -55,23 +55,47 @@
     {
       "id": "e005",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
-      "caused_by": [],
+      "type": "test",
+      "content": "Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
-        "e006"
+        "e001"
       ]
     },
     {
       "id": "e006",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: b2c8a534e7",
+      "content": "Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 29f35db5f4",
       "caused_by": [
-        "e005"
+        "e006"
       ],
       "leads_to": [
-        "e001"
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae4a112ebc",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
       ]
     }
   ],
@@ -80,11 +104,11 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 10
   },
   "lessons": [
-    "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",
-    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact."
+    "Stamp generated metadata only when serialized content changes. Compare the rendered graph with the file before restamping updated, then skip the write when the bytes match.",
+    "Avoid: Allocate sequential ids inside a content-merged artifact. Derive each pattern id from its existing name identity so independent branches produce stable values."
   ]
 }
