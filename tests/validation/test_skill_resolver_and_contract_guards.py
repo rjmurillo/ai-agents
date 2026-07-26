@@ -206,6 +206,16 @@ class TestContractBindingNegativeControl:
         _write_skill(tmp_path, "demo", CONTRACT_SKILL)
         assert contract_guard.main(["--repo-root", str(tmp_path)]) == 2
 
+    def test_hyphenated_name_not_matched_by_suffix(self, tmp_path: Path) -> None:
+        """Skill 'pr-review' must not be bound by a test naming 'pr-review-v2'."""
+        _write_skill(tmp_path, "pr-review", CONTRACT_SKILL)
+        _write_test(
+            tmp_path,
+            "test_other.py",
+            "SKILL = 'pr-review-v2'\n\ndef test_x():\n    assert SKILL\n",
+        )
+        assert contract_guard.main(["--repo-root", str(tmp_path)]) == 1
+
 
 class TestBaselineRatchet:
     """The checked-in baseline must shrink, never grow."""
