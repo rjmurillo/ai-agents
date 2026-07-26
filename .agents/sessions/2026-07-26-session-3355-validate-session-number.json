@@ -127,12 +127,11 @@
       ]
     },
     {
-      "action": "Corrected the three committed logs that violated the invariant, using neighbouring session numbers to decide which side was wrong.",
-      "result": "Two took a session.number correction (9, 1711). One had the correct number and a truncated filename, so it was renamed to carry 1198; the retrospective link to it was updated in the same change. A fourth candidate uses the legacy snake_case shape with no session object and is skipped by design.",
+      "action": "Corrected the two committed logs that violated the invariant, using neighbouring session numbers to decide which side was wrong.",
+      "result": "Both took a session.number correction (9, 1711). Another candidate uses the legacy snake_case shape with no session object and is skipped by design.",
       "files": [
         ".agents/sessions/2026-01-18-session-09-add-memory-naming-convention-section.json",
-        ".agents/sessions/2026-04-20-session-1711-pr-description-backticks.json",
-        ".agents/retrospective/2026-07-26-pr-3354-session-log-churn.md"
+        ".agents/sessions/2026-04-20-session-1711-pr-description-backticks.json"
       ]
     },
     {

@@ -1781,26 +1781,26 @@ class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
             violations.extend(result.errors)
         return violations
 
-    def test_a_log_that_is_not_json_is_reported_not_skipped(self, tmp_path):
+    def test_a_log_that_is_not_json_is_reported_not_skipped(self, tmp_path: Path) -> None:
         (tmp_path / "2026-07-26-session-1-x.json").write_text("{ not json", encoding="utf-8")
         violations = self._walk(tmp_path)
         assert len(violations) == 1
         assert "2026-07-26-session-1-x.json" in violations[0]
 
-    def test_a_log_that_is_not_utf8_is_reported_not_skipped(self, tmp_path):
+    def test_a_log_that_is_not_utf8_is_reported_not_skipped(self, tmp_path: Path) -> None:
         (tmp_path / "2026-07-26-session-2-x.json").write_bytes(b'{"a": "\xff\xfe"}')
         violations = self._walk(tmp_path)
         assert len(violations) == 1
         assert "2026-07-26-session-2-x.json" in violations[0]
 
-    def test_a_readable_log_produces_no_read_violation(self, tmp_path):
+    def test_a_readable_log_produces_no_read_violation(self, tmp_path: Path) -> None:
         """Negative control: the new branch must not fire on a healthy log."""
         (tmp_path / "2026-07-26-session-7-x.json").write_text(
             json.dumps({"session": {"number": 7}}), encoding="utf-8"
         )
         assert self._walk(tmp_path) == []
 
-    def test_the_shipped_guard_shares_this_loop(self):
+    def test_the_shipped_guard_shares_this_loop(self) -> None:
         """Ties the lifted copy to the real one: if the guard stops reporting
         read failures, this catches the divergence.
         """
