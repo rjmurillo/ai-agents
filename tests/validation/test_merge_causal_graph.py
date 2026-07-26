@@ -134,11 +134,20 @@ class TestUnionSemantics:
         merged = merge_graphs(graph, graph, graph)
         assert [n["id"] for n in merged["nodes"]] == ["shared"]
 
-    def test_edges_key_on_the_triple_they_connect(self) -> None:
+    def test_edges_key_on_the_pair_they_connect(self) -> None:
+        """Edges with the same source/target but different types merge as one.
+
+        The generator (update_causal_graph.py) enforces at most one edge per
+        (source, target) pair, so the merge driver must do the same. When two
+        branches change the type field differently, the merge keeps one record
+        rather than emitting two edges for the same pair.
+        """
         edge = {"source": "a", "target": "b", "type": "causes", "evidence_count": 1}
         other = {"source": "a", "target": "b", "type": "enables", "evidence_count": 1}
         merged = merge_graphs(_graph(), _graph(edges=[edge]), _graph(edges=[other]))
-        assert len(merged["edges"]) == 2
+        assert len(merged["edges"]) == 1
+        assert merged["edges"][0]["source"] == "a"
+        assert merged["edges"][0]["target"] == "b"
 
     def test_union_is_independent_of_which_side_git_calls_ours(self) -> None:
         base = _graph(nodes=[_node("shared")])
