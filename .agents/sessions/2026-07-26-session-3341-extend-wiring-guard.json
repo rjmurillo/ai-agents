@@ -6,7 +6,7 @@
     "branch": "fix/3341-extend-wiring-guard",
     "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
     "objective": "Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)",
-    "endingCommit": "77732a243f48f5dc303f75b842d8f81288d91854"
+    "endingCommit": "0fc3df9a7f460a3390722c8238b9028d9c5c7030"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -75,7 +75,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes on fix/3341-extend-wiring-guard are committed and pushed; see the branch history."
+        "Evidence": "Every change on this branch is committed and pushed; endingCommit 0fc3df9a7f is the last commit recorded at the time this log was written, and any commit after it is a review-response commit on the same branch."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,6 +142,6 @@
       }
     ]
   },
-  "endingCommit": "77732a243f48f5dc303f75b842d8f81288d91854",
+  "endingCommit": "0fc3df9a7f460a3390722c8238b9028d9c5c7030",
   "nextSteps": []
 }

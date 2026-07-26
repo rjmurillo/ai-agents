@@ -21,7 +21,12 @@ way a script in this repository gets executed:
 
 - a live ``run:`` body in a workflow or composite action
 - a git hook, via ``lefthook.yml`` or ``.githooks/``
-- a skill, via ``SKILL.md`` or a script under a skill's ``scripts/``
+- a skill, via its ``SKILL.md`` or the text of a script under its ``scripts/``
+
+A script is an entry point when the text of one of those surfaces names it. A
+script under a skill's ``scripts/`` is read as text that can name something, not
+seeded as a root: it becomes reachable only when a ``SKILL.md`` or another
+surface names it.
 
 Under that model the same 89 scripts yield six unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.

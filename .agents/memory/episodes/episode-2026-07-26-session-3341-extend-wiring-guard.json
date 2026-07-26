@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Applied the three ADR-057 reference normalizations and verified against source",
       "caused_by": [
-        "e006"
+        "e014"
       ],
       "leads_to": [
         "e002"
@@ -73,7 +73,7 @@
         "e005"
       ],
       "leads_to": [
-        "e001"
+        "e014"
       ]
     },
     {
@@ -157,6 +157,18 @@
         "e012"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -164,8 +176,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": [
     "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",

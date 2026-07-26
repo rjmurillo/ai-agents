@@ -57,15 +57,24 @@ class ValidationResult:
         return len(self.errors) == 0
 
 
-def parse_agent_file(file_path: Path) -> AgentDefinition | None:
+class MalformedAgentFileError(Exception):
+    """A markdown file in the agent directory is not a usable agent definition."""
+
+
+def parse_agent_file(file_path: Path) -> AgentDefinition:
     """Parse a single agent markdown file.
 
-    Returns AgentDefinition on success, None if frontmatter is missing.
+    Raises MalformedAgentFileError when the file carries no YAML frontmatter or no
+    name. Both used to return None, which dropped the file from the registry
+    and left validate() with nothing to complain about, so an agent that had
+    lost its frontmatter passed the check that exists to catch exactly that.
+    Every file here is meant to be an agent; the ones that are not are listed
+    in _EXCLUDED_FILES.
     """
     content = file_path.read_text(encoding="utf-8")
     raw = read_yaml_frontmatter(content)
     if raw is None:
-        return None
+        raise MalformedAgentFileError(f"{file_path.name}: no YAML frontmatter")
 
     fm = parse_simple_frontmatter(raw["frontmatter_raw"])
     name = (fm.get("name") or "").strip()
@@ -74,7 +83,7 @@ def parse_agent_file(file_path: Path) -> AgentDefinition | None:
     argument_hint = (fm.get("argument-hint") or "").strip()
 
     if not name:
-        return None
+        raise MalformedAgentFileError(f"{file_path.name}: frontmatter has no name")
 
     return AgentDefinition(
         name=name,
@@ -97,9 +106,9 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
         if md_file.name in _EXCLUDED_FILES:
             continue
         try:
-            defn = parse_agent_file(md_file)
-            if defn is not None:
-                agents.append(defn)
+            agents.append(parse_agent_file(md_file))
+        except MalformedAgentFileError as e:
+            errors.append(str(e))
         except OSError as e:
             errors.append(f"Cannot read file {md_file.name}: {e}")
     return agents, errors
