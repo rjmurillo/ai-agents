@@ -105,6 +105,18 @@ class TestRecordsWithoutIdentityFieldsAreNotCollapsed:
         assert len(merged["edges"]) == 1
         assert merged["edges"][0]["evidence_count"] == 6
 
+    def test_patterns_key_on_name_and_merge_counters(self) -> None:
+        """Patterns are keyed by name, not id, aligning with the generator."""
+        base = _graph(patterns=[{"name": "shared", "occurrences": 1}])
+        ours = _graph(patterns=[{"name": "shared", "occurrences": 3}])
+        theirs = _graph(patterns=[{"name": "shared", "occurrences": 4}])
+
+        merged = merge_graphs(base, ours, theirs)
+
+        assert len(merged["patterns"]) == 1
+        assert merged["patterns"][0]["name"] == "shared"
+        assert merged["patterns"][0]["occurrences"] == 6
+
 
 class TestUnionSemantics:
     """Both sides survive. Taking one side is what caused the drift."""

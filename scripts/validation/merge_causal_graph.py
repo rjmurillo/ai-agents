@@ -52,7 +52,7 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 # and produce a noisy diff.
 _COLLECTIONS: dict[str, tuple[str, ...]] = {
     "nodes": ("id",),
-    "patterns": ("id",),
+    "patterns": ("name",),
     "edges": ("source", "target", "type"),
 }
 
