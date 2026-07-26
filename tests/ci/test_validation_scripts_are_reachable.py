@@ -370,6 +370,34 @@ def test_every_no_caller_entry_carries_a_reason() -> None:
         assert reason.strip(), f"_NO_CALLER[{name!r}] needs a reason"
 
 
+def test_no_caller_entries_are_still_unreachable() -> None:
+    """An entry that gains a caller has to lose its exemption.
+
+    The parametrized case skips every name in ``_NO_CALLER``, so once a script
+    is listed nothing re-examines it. Wire one of these up and the guard keeps
+    reporting a skip forever, which reproduces the #3329 defect the allowlist
+    exists to bound: a script whose own tests stay green while nothing checks
+    whether it still needs the exemption.
+
+    The sibling assertion in ``TestTheReachabilityProbeWorks`` covers the other
+    direction, that every unreachable script is listed. Together they pin the
+    allowlist to exactly the unreachable set.
+    """
+    reachable = _reachable()
+    wired = []
+    for script in _guarded_scripts():
+        if script.name not in _NO_CALLER:
+            continue
+        rel = script.relative_to(_REPO_ROOT).as_posix()
+        if rel in reachable:
+            wired.append(rel)
+    assert not wired, (
+        f"{wired} have callers now but are still in _NO_CALLER, so the "
+        f"reachability case skips them instead of checking them. Delete their "
+        f"entries."
+    )
+
+
 def test_every_no_caller_entry_still_exists() -> None:
     """A stale entry silently exempts nothing and hides a deleted script."""
     present = {p.name for p in _guarded_scripts()}
