@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -608,6 +609,41 @@ def build_causal_chains(episode: dict[str, Any]) -> list[dict[str, Any]]:
     return chains
 
 
+def _repair_invocation() -> str:
+    """Return this script's own path, relative to the caller's cwd when possible.
+
+    Derived rather than hard-coded: this file is mirrored into the Copilot CLI
+    plugin, where an upstream ``.claude/...`` literal names a path that does not
+    exist and trips the vendor-portability ratchet (issue #2050).
+    """
+    script = Path(__file__).resolve()
+    try:
+        return str(script.relative_to(Path.cwd()))
+    except ValueError:
+        return str(script)
+
+
+def _repair_command(episode_path: Path, graph_path: Path) -> str:
+    """Return the exact command that rebuilds ``graph_path`` from ``episode_path``.
+
+    Both paths are spelled out rather than left to the defaults. The default
+    episode directory is derived from this file's location, which differs
+    between the canonical tree and the Copilot CLI mirror, and a caller who
+    passed ``--graph-path`` would otherwise be told to rebuild a file other
+    than the corrupt one.
+    """
+    parts = [
+        "python3",
+        _repair_invocation(),
+        "--reset-graph",
+        "--episode-path",
+        str(episode_path),
+        "--graph-path",
+        str(graph_path),
+    ]
+    return " ".join(shlex.quote(part) for part in parts)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update the causal graph from episode data.",
@@ -627,6 +663,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--graph-path", type=Path, default=None,
         help="Path to causal graph JSON file",
+    )
+    parser.add_argument(
+        "--reset-graph", action="store_true",
+        help=(
+            "Discard the existing graph and rebuild from the episodes on disk. "
+            "The repair path for a corrupted graph file: the graph is derived "
+            "data, so a full run reconstructs it (issue #3370)."
+        ),
     )
     parser.add_argument(
         "--prune-episode-ids", type=str, default=None,
@@ -678,14 +722,29 @@ def main(argv: list[str] | None = None) -> int:
         if pid.strip()
     ]
 
-    if not episode_files and not prune_ids:
+    if not episode_files and not prune_ids and not args.reset_graph:
         print("No episode files found to process.", file=sys.stderr)
         return 0
 
     print(f"Found {len(episode_files)} episode(s) to process", file=sys.stderr)
 
-    # Load existing graph
-    graph = load_causal_graph(graph_path)
+    # Load existing graph. A corrupt file is preserved rather than replaced,
+    # so the failure has to carry its own repair instruction: without one the
+    # hook warns on every commit forever with nothing the user can act on.
+    if args.reset_graph:
+        print("Discarding the existing graph and rebuilding from episodes.", file=sys.stderr)
+        graph = _empty_graph()
+    else:
+        try:
+            graph = load_causal_graph(graph_path)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            print(
+                "The graph is derived from the episodes on disk, so it can be "
+                f"rebuilt. Repair with:\n  {_repair_command(episode_path, graph_path)}",
+                file=sys.stderr,
+            )
+            return 2
 
     stats = {
         "episodes_processed": 0,

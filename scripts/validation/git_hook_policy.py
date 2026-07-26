@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1223,6 +1224,36 @@ def _staged_episode_paths(repo_root: Path, diff_filter: str) -> list[str] | None
     ]
 
 
+# One home for the updater path and its episode source: the invocation and the
+# repair advice must name the same script and the same directory (issue #3370).
+_CAUSAL_UPDATER = ".claude/skills/memory/scripts/update_causal_graph.py"
+_CAUSAL_EPISODES = ".agents/memory/episodes"
+
+
+def _causal_repair_command(graph_path: Path, repo_root: Path) -> str:
+    """Return the rebuild command for ``graph_path``, with both paths spelled out.
+
+    The updater's own defaults derive from its file location, which differs
+    between the canonical tree and the Copilot CLI mirror, so a bare
+    ``--reset-graph`` can rebuild somewhere other than the file this hook
+    just restored.
+    """
+    try:
+        graph = str(graph_path.relative_to(repo_root))
+    except ValueError:
+        graph = str(graph_path)
+    parts = [
+        "python3",
+        _CAUSAL_UPDATER,
+        "--reset-graph",
+        "--episode-path",
+        _CAUSAL_EPISODES,
+        "--graph-path",
+        graph,
+    ]
+    return " ".join(shlex.quote(part) for part in parts)
+
+
 def update_causal_graph(repo_root: Path) -> int:
     staged = _staged_episode_paths(repo_root, "ACMR")
     deleted = _staged_episode_paths(repo_root, "D")
@@ -1241,6 +1272,13 @@ def update_causal_graph(repo_root: Path) -> int:
         return _stage_causal_graph(graph_path, repo_root)
     _restore_file(graph_path, snapshot)
     print("WARNING: causal graph update failed; original graph restored", file=sys.stderr)
+    # The restore preserves the file as found, so a corrupt graph stays corrupt
+    # and this warning repeats on every commit. Name the repair (issue #3370).
+    print(
+        "         If the graph file is corrupt, rebuild it from the episodes:\n"
+        f"           {_causal_repair_command(graph_path, repo_root)}",
+        file=sys.stderr,
+    )
     return 0
 
 
@@ -1292,7 +1330,7 @@ def _prune_deleted_episodes(
     result = _run_command(
         [
             sys.executable,
-            ".claude/skills/memory/scripts/update_causal_graph.py",
+            _CAUSAL_UPDATER,
             "--prune-episode-ids",
             ",".join(episode_ids),
             "--episode-path",
@@ -1305,6 +1343,7 @@ def _prune_deleted_episodes(
     if result.returncode != 0:
         _print_process_output(result)
     return result.returncode
+
 
 
 def _deleted_episode_id(relative_path: str, repo_root: Path) -> str:
@@ -1328,7 +1367,7 @@ def _run_causal_updater(
     result = _run_command(
         [
             sys.executable,
-            ".claude/skills/memory/scripts/update_causal_graph.py",
+            _CAUSAL_UPDATER,
             "--episode-path",
             str(episode_path),
             "--graph-path",
