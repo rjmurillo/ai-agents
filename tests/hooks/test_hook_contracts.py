@@ -902,7 +902,9 @@ class TestDispatcherExpansion:
             groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
         )
         (tmp_path / ".claude" / "hooks" / "A").mkdir(parents=True, exist_ok=True)
-        (tmp_path / ".claude" / "hooks" / "A" / "a.py").write_text('"""No contract."""\n')
+        (tmp_path / ".claude" / "hooks" / "A" / "a.py").write_text(
+            '"""No contract."""\n', encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert not report.is_valid
 
