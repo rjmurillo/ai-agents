@@ -1,0 +1,209 @@
+{
+  "id": "episode-2026-07-26-session-3351-causal-graph-generator-metadata",
+  "session": "2026-07-26-session-3351-causal-graph-generator-metadata",
+  "timestamp": "2026-07-26T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "chosen": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored graph metadata and added stable pattern ids in the canonical generator",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed production graph seed rows and aligned provenance documentation",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted and causal-graph validation",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the fixture guard's startswith checks with the shape the generator actually produces. 'Does not start with n' is both too broad and too narrow as a test for 'is not n001'; [0-9a-f]{12} is the real contract and rejects every hand-seeded shape. Control: reinserting n001 and p001 turns 3 red.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 29f35db5f4",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae4a112ebc",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 10
+  },
+  "lessons": [
+    "Stamp generated metadata only when serialized content changes. Compare the rendered graph with the file before restamping updated, then skip the write when the bytes match.",
+    "Avoid: Allocate sequential ids inside a content-merged artifact. Derive each pattern id from its existing name identity so independent branches produce stable values."
+  ]
+}

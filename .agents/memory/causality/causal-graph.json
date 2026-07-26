@@ -1,16 +1,7 @@
 {
   "version": "1.0",
-  "updated": "2026-02-10T17:55:46.0988089-08:00",
+  "updated": "2026-07-26T08:05:06.733919+00:00",
   "nodes": [
-    {
-      "episodes": [],
-      "label": "Status test node",
-      "success_rate": 1.0,
-      "frequency": 1,
-      "id": "n001",
-      "type": "decision",
-      "created": null
-    },
     {
       "id": "b1cc1534da48",
       "type": "outcome",
@@ -15446,50 +15437,371 @@
         "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
       ],
       "created": "2026-07-26T04:13:25.358593+00:00"
+    },
+    {
+      "id": "7bb14fff4ca0",
+      "type": "milestone",
+      "label": "milestone: Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464574+00:00"
+    },
+    {
+      "id": "f5c37a69128e",
+      "type": "milestone",
+      "label": "milestone: Corrected session 3351 evidence, regenerated its episode and graph contribution, and fixed the collision claim.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464639+00:00"
+    },
+    {
+      "id": "39d101931847",
+      "type": "milestone",
+      "label": "milestone: Stopped the first push when the remote SHA changed from 9f1e0b949a to e503aaff56.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464704+00:00"
+    },
+    {
+      "id": "139b300f7e75",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved all three current review threads.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464759+00:00"
+    },
+    {
+      "id": "ae62c47b43ea",
+      "type": "milestone",
+      "label": "milestone: Completed local and remote validation.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464813+00:00"
+    },
+    {
+      "id": "363cd404d155",
+      "type": "commit",
+      "label": "commit: Commit: 6610eb791f6ca5429d4a7266aba11d8fdb58f438",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464867+00:00"
+    },
+    {
+      "id": "b44e1d5e6450",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464922+00:00"
+    },
+    {
+      "id": "0e63b8a1817b",
+      "type": "commit",
+      "label": "commit: Commit: e503aaff56",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464976+00:00"
+    },
+    {
+      "id": "1cf1d6eaa0c2",
+      "type": "commit",
+      "label": "commit: Commit: 6610eb791f",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.465030+00:00"
+    },
+    {
+      "id": "01efe9abb501",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR 3358 review threads, validate changes, and merge",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.465087+00:00"
+    },
+    {
+      "id": "0e7df0e4f5ed",
+      "type": "milestone",
+      "label": "milestone: Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515382+00:00"
+    },
+    {
+      "id": "82e1a0850825",
+      "type": "milestone",
+      "label": "milestone: Restored graph metadata and added stable pattern ids in the canonical generator",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515455+00:00"
+    },
+    {
+      "id": "74dc1b2c83ee",
+      "type": "milestone",
+      "label": "milestone: Removed production graph seed rows and aligned provenance documentation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515518+00:00"
+    },
+    {
+      "id": "1306374f40b9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted and causal-graph validation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515580+00:00"
+    },
+    {
+      "id": "808e22f3e69e",
+      "type": "test",
+      "label": "test: Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515654+00:00"
+    },
+    {
+      "id": "a580ddfb2b28",
+      "type": "milestone",
+      "label": "milestone: Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515713+00:00"
+    },
+    {
+      "id": "010d700ae517",
+      "type": "milestone",
+      "label": "milestone: Replaced the fixture guard's startswith checks with the shape the generator actually produces. 'Does not start with n' is both too broad and too narrow as a test for 'is not n001'; [0-9a-f]{12} is the real contract and rejects every hand-seeded shape. Control: reinserting n001 and p001 turns 3 red.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515772+00:00"
+    },
+    {
+      "id": "1259e2ca5302",
+      "type": "milestone",
+      "label": "milestone: Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515831+00:00"
+    },
+    {
+      "id": "d6ad1ae05d0b",
+      "type": "milestone",
+      "label": "milestone: Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515892+00:00"
+    },
+    {
+      "id": "467d4df7b417",
+      "type": "commit",
+      "label": "commit: Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515952+00:00"
+    },
+    {
+      "id": "7f59a57f4574",
+      "type": "commit",
+      "label": "commit: Commit: 29f35db5f4",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516013+00:00"
+    },
+    {
+      "id": "a26f057873d9",
+      "type": "commit",
+      "label": "commit: Commit: ae4a112ebc",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516073+00:00"
+    },
+    {
+      "id": "25532ef523e0",
+      "type": "outcome",
+      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516142+00:00"
+    },
+    {
+      "id": "5240d96d507a",
+      "type": "milestone",
+      "label": "milestone: Stopped a second push when the remote SHA changed to 2781ce15e3.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T06:44:58.629576+00:00"
+    },
+    {
+      "id": "05db34ccb04b",
+      "type": "milestone",
+      "label": "milestone: Removed the duplicate nested ending commit and completed review round 3.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T06:44:58.629649+00:00"
+    },
+    {
+      "id": "065fb3a68a66",
+      "type": "commit",
+      "label": "commit: Commit: 48d32a4e47a668fed0dec221cd439d620c532745",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T06:44:58.629706+00:00"
+    },
+    {
+      "id": "b9a968a3c74f",
+      "type": "commit",
+      "label": "commit: Commit: 2781ce15e3",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T06:44:58.629762+00:00"
+    },
+    {
+      "id": "e367c788b585",
+      "type": "milestone",
+      "label": "milestone: Handled valid non-object graph JSON in review round 4.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T07:21:12.176150+00:00"
+    },
+    {
+      "id": "ff3822846d40",
+      "type": "commit",
+      "label": "commit: Commit: 5e1cc81eedff747d075c6fa9e48d3c4e02693700",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T07:21:12.176217+00:00"
+    },
+    {
+      "id": "ff78e9fe6fbe",
+      "type": "decision",
+      "label": "recovery: Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667105+00:00"
+    },
+    {
+      "id": "10d04bea30d2",
+      "type": "milestone",
+      "label": "milestone: Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667814+00:00"
+    },
+    {
+      "id": "c1b8c38add85",
+      "type": "milestone",
+      "label": "milestone: The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667871+00:00"
+    },
+    {
+      "id": "84e377e80d0f",
+      "type": "decision",
+      "label": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668110+00:00"
+    },
+    {
+      "id": "dffbb539a3bc",
+      "type": "milestone",
+      "label": "Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668165+00:00"
+    },
+    {
+      "id": "53283f8b601c",
+      "type": "milestone",
+      "label": "Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668285+00:00"
+    },
+    {
+      "id": "ff30ceee6974",
+      "type": "milestone",
+      "label": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668400+00:00"
+    },
+    {
+      "id": "cf742a3a992a",
+      "type": "milestone",
+      "label": "milestone: Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:50:31.400097+00:00"
+    },
+    {
+      "id": "78b90db33370",
+      "type": "milestone",
+      "label": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:50:31.400751+00:00"
+    },
+    {
+      "id": "dd6c0cc86d99",
+      "type": "milestone",
+      "label": "milestone: Closed malformed-JSON data loss and memory scope findings in review round 5.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T08:05:06.730301+00:00"
+    },
+    {
+      "id": "4537a096f6ee",
+      "type": "commit",
+      "label": "commit: Commit: 0c0298d127e14253ce9a83d0d75370cf7d819aae",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T08:05:06.730367+00:00"
     }
   ],
   "patterns": [
     {
-      "success_rate": 0.9,
-      "occurrences": 1,
-      "id": "p001",
-      "name": "Good pattern",
-      "last_used": "2026-02-10T17:55:45.9796943-08:00",
-      "description": "",
-      "action": "A1",
-      "trigger": "T1"
-    },
-    {
-      "success_rate": 0.2,
-      "occurrences": 2,
-      "id": "p002",
-      "name": "Bad pattern",
-      "last_used": "2026-02-10T17:55:45.9892911-08:00",
-      "description": "",
-      "action": "A2",
-      "trigger": "T2"
-    },
-    {
-      "success_rate": 0.1,
-      "occurrences": 2,
-      "id": "p003",
-      "name": "Worse pattern",
-      "last_used": "2026-02-10T17:55:46.0158342-08:00",
-      "description": "",
-      "action": "A3",
-      "trigger": "T3"
-    },
-    {
-      "success_rate": 1.0,
-      "occurrences": 1,
-      "id": "p004",
-      "name": "Status test pattern",
-      "last_used": "2026-02-10T17:55:46.0986929-08:00",
-      "description": "",
-      "action": "A",
-      "trigger": "T"
-    },
-    {
+      "id": "cd31b49ba963",
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Testing second",
@@ -15499,6 +15811,7 @@
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
+      "id": "44cf38dbd357",
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Designing first",
@@ -15508,6 +15821,7 @@
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
+      "id": "035cc531262d",
       "name": "unknown anti-pattern",
       "description": "Anti-pattern from episode-2026-01-05-session-318",
       "trigger": "When unknown decision needed",
@@ -15517,6 +15831,7 @@
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
+      "id": "5bbe1bcd6123",
       "name": "implementation pattern",
       "description": "Pattern from episode-2026-01-09-session-317",
       "trigger": "When implementation decision needed",
@@ -15530,15 +15845,40 @@
       ]
     },
     {
+      "id": "471934685dd8",
       "name": "recovery pattern",
       "description": "Pattern from episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 17,
-      "created": "2026-07-04T06:31:50.952133+00:00"
+      "occurrences": 18,
+      "created": "2026-07-04T06:31:50.952133+00:00",
+      "contributions": {
+        "\u0000legacy:0": 1.0,
+        "\u0000legacy:1": 1.0,
+        "\u0000legacy:2": 1.0,
+        "\u0000legacy:3": 1.0,
+        "\u0000legacy:4": 1.0,
+        "\u0000legacy:5": 1.0,
+        "\u0000legacy:6": 1.0,
+        "\u0000legacy:7": 1.0,
+        "\u0000legacy:8": 1.0,
+        "\u0000legacy:9": 1.0,
+        "\u0000legacy:10": 1.0,
+        "\u0000legacy:11": 1.0,
+        "\u0000legacy:12": 1.0,
+        "\u0000legacy:13": 1.0,
+        "\u0000legacy:14": 1.0,
+        "\u0000legacy:15": 1.0,
+        "\u0000legacy:16": 1.0,
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 1.0
+      },
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ]
     },
     {
+      "id": "e86a9c97156b",
       "name": "routing pattern",
       "description": "Pattern from episode-2026-07-07-session-2608",
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
@@ -15984,6 +16324,62 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "dffbb539a3bc",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668174+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "53283f8b601c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668290+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "ff30ceee6974",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668405+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "78b90db33370",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:50:31.400760+00:00"
     }
   ]
 }
