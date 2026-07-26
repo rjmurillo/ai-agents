@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "No markdown changed on this branch; scoped lint has nothing to run."
+        "evidence": "Ran markdownlint on .serena/memories/decision-calibrate-guards-on-the-whole-corpus.md (the only new markdown file on this branch); one MD040 finding fixed in-place."
       },
       "changesCommitted": {
         "complete": true,

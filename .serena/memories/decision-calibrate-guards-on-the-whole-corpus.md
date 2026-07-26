@@ -27,8 +27,7 @@ all genuine, wrote "0 false positives on inspection" in a commit message.
 Running the full 946-log corpus told a different story. Seven hits, and six were
 honest evidence describing a relationship:
 
-```
-"feat/1746-autonomous (renamed from feat/1774-autonomous ...)"
+```text
 "On chore/3196-branch-context-lefthook, stacked on origin/chore/lefthook-migration"
 "Branched from feat/1769-autonomous"
 "On branch fix/branch-cleanup, then created chore/recover-orphaned-artifacts"

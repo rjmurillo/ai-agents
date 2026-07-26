@@ -93,8 +93,9 @@ BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
 # Commit SHA pattern
 COMMIT_SHA_PATTERN = re.compile(r"^[a-f0-9]{7,40}$")
 
-# The shortest abbreviation git will hand out, and so the shortest prefix two
-# spellings of the same commit are guaranteed to share.
+# The common default abbreviation length git uses. Longer abbreviations are
+# possible when needed for uniqueness, but this is the heuristic threshold for
+# recognising commit references in evidence text.
 _SHORT_SHA = 7
 
 # A conventional feature branch name. Anchored on the type prefix so that bare
@@ -510,7 +511,7 @@ def _contradicted_branches(evidence: str, branch: str) -> list[str]:
         names this one anywhere in the string.
     """
     named = _FEATURE_BRANCH_RE.findall(evidence)
-    if any(name == branch or name in branch or branch in name for name in named):
+    if any(name == branch or branch.startswith(name) or name.startswith(branch) for name in named):
         return []
     return named
 

@@ -2088,7 +2088,9 @@ def _log_with_evidence(**items: str) -> dict:
 
     Args:
         items: Checklist item name to evidence text. Items are placed in
-            sessionStart, which is where every cross-checked item lives.
+            sessionStart for convenience, even when the protocol locates them
+            in sessionEnd (e.g. changesCommitted). The cross-field check reads
+            both sections, so placement does not affect test outcomes.
 
     Returns:
         A log that passes schema and protocol checks apart from whatever the
@@ -2111,7 +2113,7 @@ class TestEvidenceAgreesWithSession:
     """
 
     @pytest.mark.parametrize("item", ["branchVerified", "notOnMain", "verifyBranch"])
-    def test_a_second_feature_branch_in_branch_evidence_is_an_error(self, item: str) -> None:
+    def test_branch_not_matching_declared_is_an_error(self, item: str) -> None:
         log = _log_with_evidence(**{item: "Verified feat/999-some-other-thing"})
         errors = validate_session_log(log).errors
         assert any("names a different branch" in e for e in errors), errors
@@ -2136,7 +2138,8 @@ class TestEvidenceAgreesWithSession:
         ids=["no-branch-named", "origin-main", "bare-main", "empty"],
     )
     def test_evidence_naming_no_feature_branch_is_not_an_error(self, evidence: str) -> None:
-        """main and origin/main appear legitimately; only a *second* feature branch conflicts."""
+        """main and origin/main appear legitimately; the error fires only when evidence
+        names a feature branch and none of them is the declared branch."""
         log = _log_with_evidence(branchVerified=evidence)
         assert not any("names a different branch" in e for e in validate_session_log(log).errors)
 
@@ -2177,7 +2180,7 @@ class TestEvidenceAgreesWithSession:
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
     def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
-        """Ten committed logs contradict themselves and git cannot adjudicate which
+        """Four committed logs contradict themselves and git cannot adjudicate which
         side is true. On the record side they would be a permanent block that no
         honest edit could clear, so the check sits on the claim side. Issue #3385.
         """

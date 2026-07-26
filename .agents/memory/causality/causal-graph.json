@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T15:54:29.827462+00:00",
+  "updated": "2026-07-26T23:12:10.037336+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16634,6 +16634,114 @@
         "episode-2026-07-26-session-3388"
       ],
       "created": "2026-07-26T15:54:29.823811+00:00"
+    },
+    {
+      "id": "8ba5d705e5d8",
+      "type": "milestone",
+      "label": "milestone: Measure all four guards the issue proposes across every committed log before writing any",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.032994+00:00"
+    },
+    {
+      "id": "e292048bd1c2",
+      "type": "milestone",
+      "label": "milestone: Test guard 3, that startingCommit must resolve in the repo",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033063+00:00"
+    },
+    {
+      "id": "110b31f26714",
+      "type": "milestone",
+      "label": "milestone: Decide which tier the agreement checks belong to",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033123+00:00"
+    },
+    {
+      "id": "dd1d9c132c4e",
+      "type": "milestone",
+      "label": "milestone: Attempt to adjudicate the 10 contradictions with git so they could be corrected",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033182+00:00"
+    },
+    {
+      "id": "ca560d77b835",
+      "type": "milestone",
+      "label": "milestone: Implement the three shippable checks with one function owning cross-field agreement",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033240+00:00"
+    },
+    {
+      "id": "9ad7e65aad61",
+      "type": "milestone",
+      "label": "milestone: Fix the crash a robustness case surfaced next door",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033298+00:00"
+    },
+    {
+      "id": "0a76fa4a8e84",
+      "type": "milestone",
+      "label": "milestone: Calibrate the branch check against the corpus instead of trusting a four-row sample",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033356+00:00"
+    },
+    {
+      "id": "03a136a9f490",
+      "type": "milestone",
+      "label": "milestone: Prove the checks bite",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033414+00:00"
+    },
+    {
+      "id": "ec4392549e89",
+      "type": "milestone",
+      "label": "milestone: Reland after PR #3401 merged mid-flight",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033473+00:00"
+    },
+    {
+      "id": "854298940804",
+      "type": "commit",
+      "label": "commit: Commit: 740890409fd1e15f8e9aa63adb37d2d17b740ea2",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033531+00:00"
+    },
+    {
+      "id": "a065b1215496",
+      "type": "commit",
+      "label": "commit: Commit: 668afae6b9",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033589+00:00"
+    },
+    {
+      "id": "cba240542a59",
+      "type": "outcome",
+      "label": "Outcome: success - Catch session logs whose evidence describes a different session than the record does.",
+      "episodes": [
+        "episode-2026-07-26-session-3383-log-contamination"
+      ],
+      "created": "2026-07-26T23:12:10.033659+00:00"
     }
   ],
   "patterns": [
