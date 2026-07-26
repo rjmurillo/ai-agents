@@ -30,8 +30,28 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _normalize(document: str) -> str:
+    return re.sub(r"\s+", " ", document)
+
+
 def _normalized_text(path: Path) -> str:
-    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+    return _normalize(path.read_text(encoding="utf-8"))
+
+
+def _refute(document: str, *phrases: str, source: Path | None = None) -> None:
+    """Assert none of ``phrases`` appear, whatever the source wrapping is.
+
+    A negative substring check against raw markdown is defeated by a line
+    break inside the banned phrase, and prose is exactly what gets reflowed,
+    so the raw form goes quietly green on the reintroduction it exists to
+    catch. Measured: appending "The host merges structured\\ndecisions from
+    every observer." to the reference left the raw assertion passing and this
+    one failing. Every negative in this module goes through here so the
+    guarantee is one function rather than a convention at each call site.
+    """
+    normalized = _normalize(document)
+    for phrase in phrases:
+        assert phrase not in normalized, f"{source}: {phrase}" if source else phrase
 
 
 COPILOT_NATIVE_EVENTS = {
@@ -150,15 +170,6 @@ def _section_after(text: str, marker: str, path: Path) -> str:
     return remainder.split("\n##", 1)[0]
 
 
-def test_reference_lists_exact_copilot_event_set() -> None:
-    events = _text_code_block_after(
-        _reference_text(),
-        "The exact 14 native events are:",
-    )
-
-    assert events == COPILOT_NATIVE_EVENTS
-
-
 def test_official_sidecar_lists_both_exact_event_sets() -> None:
     text = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     copilot_events = _text_code_block_after(
@@ -175,14 +186,27 @@ def test_official_sidecar_lists_both_exact_event_sets() -> None:
 
 
 def test_reference_separates_stop_from_session_end() -> None:
-    text = _reference_text()
+    """Stop is per-turn, SessionEnd is process lifecycle, and they never alias.
 
+    The event-policy rows are a repository decision, so they stay in SKILL.md.
+    The Stop wire semantics are a vendor fact, so they live in the sidecar that
+    the skill's own Authority Order names as the owner of vendor contracts.
+    """
+    text = _reference_text()
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
+
+    # The table rows stay on raw text because their formatting is the assertion.
     assert "| Stop | None | Direct entries if added, one JSON decision per command |" in text
     assert "| SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |" in text
-    assert "host merges structured decisions" not in text
-    assert "Stop: SessionEnd" not in text
-    assert "Omitting `decision` permits completion." in text
-    assert "`allow` permits completion" not in text
+    assert "Omitting `decision` permits completion." in sidecar
+    assert "`block` forces another turn." in sidecar
+    for document in (text, sidecar):
+        _refute(
+            document,
+            "host merges structured decisions",
+            "Stop: SessionEnd",
+            "`allow` permits completion",
+        )
 
 
 def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
@@ -199,8 +223,11 @@ def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
     assert "`MAX_MATCHER_TOOL_CALLS`" in section
     assert "cap manifest-controlled diagnostic values at 512 characters" in section
     assert "immediately after required future imports" in section
-    assert "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1" not in section
-    assert "shall NOT emit the matcher" not in section
+    _refute(
+        section,
+        "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1",
+        "shall NOT emit the matcher",
+    )
     assert "manual `/compact` does not emit it" in section
 
 
@@ -224,16 +251,41 @@ def test_runtime_adr_tracks_observer_output_merge() -> None:
     assert "separates shim output with one blank line" in text
     assert "does not preserve per-shim attribution" in text
     assert "Stderr is not a documented model-context path" in text
-    assert "observe dispatcher passes stdout through" not in text
+    _refute(text, "observe dispatcher passes stdout through")
 
 
 def test_reference_versions_matcher_and_timeout_evidence() -> None:
+    """Timeouts fail open on every event, including the ones where exit 2 denies.
+
+    The exit and timeout table is a vendor fact and lives in the sidecar. What
+    stays in SKILL.md is the repository's response to it: keep script-side
+    self-filtering because two shipped releases had matcher bugs.
+    """
     text = _reference_text()
 
-    assert "Matchers are supported." in text
-    assert "Copilot CLI 1.0.57 and 1.0.58 had matcher bugs." in text
-    assert "| PreToolUse exit 2 | Denies |" in text
-    assert "| Any command-hook timeout | Fails open, including policy PreToolUse |" in text
+    normalized = _normalized_text(REFERENCE)
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+
+    # Pin the whole sentence. Bare version strings also appear in the probe
+    # paragraph and the ADR list, so asserting "1.0.57" alone stays green with
+    # the matcher-bug finding deleted, which is the regression that matters.
+    assert (
+        "Matchers do work, but 1.0.57 and 1.0.58 shipped matcher bugs, so a hook "
+        "that filters only through the host has one point of failure." in normalized
+    )
+    assert "Keep script-side self-filtering as defense in depth." in normalized
+    assert "it warns and continues by default, and denies only for PreToolUse" in normalized
+    assert "Timeouts fail open on every event" in normalized
+
+    # The dedicated exit-code table, not the PreToolUse-specific failure table.
+    # The narrow row says deny flatly; only this one carries the default.
+    assert (
+        "| 2 | Warning and continue by default; deny for PreToolUse and "
+        "PermissionRequest; PostToolUseFailure converts stdout to context |" in normalized_sidecar
+    )
+    assert (
+        "| Timeout | Fail open for every event, including policy PreToolUse |" in normalized_sidecar
+    )
     assert "PreCompact | None | Supported observe/discard policy" in text
     probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(encoding="utf-8")
     assert "Manual `/compact` is therefore a negative control" in probe
@@ -241,10 +293,16 @@ def test_reference_versions_matcher_and_timeout_evidence() -> None:
 
 
 def test_reference_labels_unstable_fields_and_cloud_limits() -> None:
+    """suppressOutput is SDK-only and cloud agent reads one path.
+
+    Both are vendor facts. The cross-harness delta table stays in SKILL.md
+    because it is the routing surface for a porting decision.
+    """
     text = _reference_text()
 
-    assert "implementation-only SDK types" in text
-    assert "Cloud agent loads `.github/hooks/*.json` only" in text
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "implementation-only SDK types" in normalized_sidecar
+    assert "loads only `.github/hooks/*.json`" in normalized_sidecar
     assert "Claude Code is a separate contract" in text
 
 
@@ -268,14 +326,18 @@ def test_serena_memory_routes_to_current_contract_sources() -> None:
 
 
 def test_reference_preserves_cross_harness_decision_shapes() -> None:
-    text = _reference_text()
+    """The three wire shapes are vendor facts; not confusing them is policy."""
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
 
-    assert '"permissionDecision": "allow"' in text
-    assert "Do not emit Claude's nested `hookSpecificOutput` envelope" in text
-    assert '"behavior": "allow"' in text
-    assert "`behavior` accepts only `allow` or `deny`." in text
-    assert "The adapter must emit no stdout" in text
-    assert '"decision": "block"' in text
+    assert '"permissionDecision": "allow"' in sidecar
+    assert '"behavior": "allow"' in sidecar
+    assert '"decision": "block"' in sidecar
+    assert "`behavior` accepts only `allow` or `deny`." in sidecar
+
+    normalized = _normalized_text(REFERENCE)
+    assert "never Claude's nested `hookSpecificOutput` envelope" in normalized
+    assert "never a top-level `decision`" in normalized
+    assert "A translated `ask` emits nothing" in normalized
 
 
 def test_no_stop_hook_is_registered_on_any_surface() -> None:
@@ -293,12 +355,10 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
     """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
-    generated_hooks = _read_json(
-        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
-    )["hooks"]
-    dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")[
-        "groups"
+    generated_hooks = _read_json(REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json")[
+        "hooks"
     ]
+    dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
 
     assert "Stop" not in local_hooks
     assert "Stop" not in vendored_hooks
@@ -311,21 +371,23 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
     ] == []
 
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
-    assert "Shared Stop producers can emit this shape on" in sidecar
-    assert "both harnesses." in sidecar
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
 
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
-    text = _reference_text()
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    sidecar = _normalized_text(OFFICIAL_SOURCES)
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
-    assert "at most one final JSON document from each command hook" in text
-    assert '`{"additionalContext":"..."}` object' in text
-    assert "Failed-observer partial output is discarded." in text
-    assert "when all observers are silent." in text
-    assert "no config-file output field for PreCompact" in text
+    assert "performs one `JSON.parse`" in sidecar
+    assert (
+        "Two final JSON objects concatenate into invalid JSON and are ignored."
+        in sidecar
+    )
+    normalized = _normalized_text(REFERENCE)
+    assert '`{"additionalContext":"..."}` object' in normalized
+    assert "Failed-observer partial output is discarded." in normalized
+    assert "It emits nothing when every observer is silent." in normalized
     assert "| PreCompact | DOCS SILENT:" in sidecar
     assert "| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT:" in sidecar
     assert "Preserve one valid structured output per command hook" in rule
@@ -333,12 +395,17 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
 
 
 def test_official_sidecar_pins_sources_and_refresh_procedure() -> None:
-    text = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+    text = _normalized_text(OFFICIAL_SOURCES)
 
     assert "https://docs.github.com/en/copilot/reference/hooks-reference" in text
     assert "github/docs/blob/0b02cd6336f4eebda1e409b45a89dab5c2193d9a" in text
     assert "raw.githubusercontent.com/github/copilot-cli/fd24cea5" in text
     assert "https://code.claude.com/docs/en/hooks" in text
+    assert (
+        "Sources: GitHub Copilot hook reference, agentStop / subagentStop "
+        "decision control; Claude Code hooks reference, Stop decision control."
+        in text
+    )
     assert "## Refresh procedure" in text
     assert "DOCS SILENT" in text
 
@@ -367,10 +434,10 @@ def test_generated_copilot_skill_mirrors_settled_contract() -> None:
     assert COPILOT_OFFICIAL_SOURCES.read_text(encoding="utf-8") == (
         OFFICIAL_SOURCES.read_text(encoding="utf-8")
     )
-    assert "The exact 14 native events are:" in reference
-    assert "The adapter must emit no stdout" in reference
+    assert reference == REFERENCE.read_text(encoding="utf-8")
     assert "| PreCompact | None | Supported observe/discard policy" in reference
     assert "| Stop | None | Direct entries if added" in reference
+    assert "A translated `ask` emits nothing" in _normalized_text(COPILOT_REFERENCE)
 
 
 def test_generated_instruction_mirrors_route_to_contract() -> None:
@@ -391,7 +458,7 @@ def test_requirement_and_historical_audit_do_not_reassert_old_contract() -> None
 
     assert "14 native events:" in requirement
     assert "SubagentStop, PermissionRequest, and PreCompact are supported" in requirement
-    assert "Does not exist" not in requirement
+    _refute(requirement, "Does not exist")
     assert "Historical implementation snapshot" in audit
     assert "not the current Copilot CLI contract" in audit
 
@@ -411,9 +478,7 @@ def test_operational_sources_exclude_superseded_claims() -> None:
     )
 
     for path in paths:
-        text = path.read_text(encoding="utf-8")
-        for stale_claim in stale_claims:
-            assert stale_claim not in text, (path, stale_claim)
+        _refute(path.read_text(encoding="utf-8"), *stale_claims, source=path)
 
 
 def test_operational_skills_read_plugin_versions_from_manifests() -> None:
@@ -464,9 +529,12 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
-    assert "registers 7 events" not in architecture
-    assert "expected 7 and 14" not in architecture
-    assert "8 events / 23 matcher groups" not in architecture
+    _refute(
+        architecture,
+        "registers 7 events",
+        "expected 7 and 14",
+        "8 events / 23 matcher groups",
+    )
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
@@ -538,9 +606,9 @@ def test_current_memories_record_skill_first_guard_retirement() -> None:
         REPO_ROOT / ".serena" / "memories" / "decision-adr-085-permission-surface-asymmetry.md"
     ).read_text(encoding="utf-8")
 
-    assert "The skill-first hook blocks gh pr create" not in pr_rules
-    assert "Raw `gh` may be blocked by `invoke_skill_first_guard.py`" not in observations
-    assert "This repo has a PreToolUse hook" not in script_reference
+    _refute(pr_rules, "The skill-first hook blocks gh pr create")
+    _refute(observations, "Raw `gh` may be blocked by `invoke_skill_first_guard.py`")
+    _refute(script_reference, "This repo has a PreToolUse hook")
     assert "PR #3293 implemented Retirement" in decision_memory
 
 
@@ -550,4 +618,4 @@ def test_generation_skill_requires_an_explicit_reason_for_hook_drops() -> None:
     ).read_text(encoding="utf-8")
 
     assert "an unexplained drop means contract drift" in generation
-    assert "Drops are unsupported Copilot events, by design" not in generation
+    _refute(generation, "Drops are unsupported Copilot events, by design")

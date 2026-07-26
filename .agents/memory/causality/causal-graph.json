@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T08:05:06.733919+00:00",
+  "updated": "2026-07-26T09:39:53.688422+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -14656,105 +14656,6 @@
       "created": "2026-07-25T14:05:27.596517+00:00"
     },
     {
-      "id": "5c02899361f5",
-      "type": "milestone",
-      "label": "milestone: Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485799+00:00"
-    },
-    {
-      "id": "6c6cfb1a5fcc",
-      "type": "milestone",
-      "label": "milestone: Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485863+00:00"
-    },
-    {
-      "id": "75d6d20c974a",
-      "type": "milestone",
-      "label": "milestone: 32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485917+00:00"
-    },
-    {
-      "id": "e92d08491d2e",
-      "type": "outcome",
-      "label": "Outcome: success - Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485970+00:00"
-    },
-    {
-      "id": "b1c4497668ca",
-      "type": "milestone",
-      "label": "milestone: Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T00:55:19.531741+00:00"
-    },
-    {
-      "id": "c3ab73ec0e5f",
-      "type": "commit",
-      "label": "commit: Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T00:55:19.531803+00:00"
-    },
-    {
-      "id": "c8abaa28b8e8",
-      "type": "milestone",
-      "label": "milestone: Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T01:11:32.565825+00:00"
-    },
-    {
-      "id": "b332bb47aeab",
-      "type": "commit",
-      "label": "commit: Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T01:11:32.565886+00:00"
-    },
-    {
-      "id": "d73e9bf018a5",
-      "type": "milestone",
-      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496316+00:00"
-    },
-    {
-      "id": "2334291fd648",
-      "type": "milestone",
-      "label": "milestone: Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496383+00:00"
-    },
-    {
-      "id": "e560e4474465",
-      "type": "commit",
-      "label": "commit: Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496436+00:00"
-    },
-    {
       "id": "041a4ffad23c",
       "type": "milestone",
       "label": "milestone: Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
@@ -15358,6 +15259,105 @@
       "created": "2026-07-26T02:02:26.671569+00:00"
     },
     {
+      "id": "5c02899361f5",
+      "type": "milestone",
+      "label": "milestone: Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485799+00:00"
+    },
+    {
+      "id": "6c6cfb1a5fcc",
+      "type": "milestone",
+      "label": "milestone: Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485863+00:00"
+    },
+    {
+      "id": "75d6d20c974a",
+      "type": "milestone",
+      "label": "milestone: 32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485917+00:00"
+    },
+    {
+      "id": "e92d08491d2e",
+      "type": "outcome",
+      "label": "Outcome: success - Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485970+00:00"
+    },
+    {
+      "id": "b1c4497668ca",
+      "type": "milestone",
+      "label": "milestone: Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T00:55:19.531741+00:00"
+    },
+    {
+      "id": "c3ab73ec0e5f",
+      "type": "commit",
+      "label": "commit: Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T00:55:19.531803+00:00"
+    },
+    {
+      "id": "c8abaa28b8e8",
+      "type": "milestone",
+      "label": "milestone: Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:11:32.565825+00:00"
+    },
+    {
+      "id": "b332bb47aeab",
+      "type": "commit",
+      "label": "commit: Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:11:32.565886+00:00"
+    },
+    {
+      "id": "d73e9bf018a5",
+      "type": "milestone",
+      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T02:05:18.496316+00:00"
+    },
+    {
+      "id": "2334291fd648",
+      "type": "milestone",
+      "label": "milestone: Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T02:05:18.496383+00:00"
+    },
+    {
+      "id": "e560e4474465",
+      "type": "commit",
+      "label": "commit: Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T02:05:18.496436+00:00"
+    },
+    {
       "id": "2e95507629ad",
       "type": "milestone",
       "label": "milestone: Created and claimed issue #3357 after confirming no existing PR.",
@@ -15437,6 +15437,78 @@
         "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
       ],
       "created": "2026-07-26T04:13:25.358593+00:00"
+    },
+    {
+      "id": "4f0a19284fad",
+      "type": "milestone",
+      "label": "milestone: Verify that #3362 was superseded before reworking it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219464+00:00"
+    },
+    {
+      "id": "0d66572d61c9",
+      "type": "milestone",
+      "label": "milestone: Measure the temporary-file leak before fixing it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219528+00:00"
+    },
+    {
+      "id": "e7bac2969db0",
+      "type": "milestone",
+      "label": "milestone: Harden the atomic write",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219584+00:00"
+    },
+    {
+      "id": "b01c5bf32f1a",
+      "type": "test",
+      "label": "test: 73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219639+00:00"
+    },
+    {
+      "id": "ea94677bc372",
+      "type": "commit",
+      "label": "commit: Commit: 2796f956e5",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219700+00:00"
+    },
+    {
+      "id": "d5f97ca01ecb",
+      "type": "outcome",
+      "label": "Outcome: success - Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219757+00:00"
+    },
+    {
+      "id": "f5fd153a5d6e",
+      "type": "milestone",
+      "label": "milestone: Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997902+00:00"
+    },
+    {
+      "id": "73d004958dc4",
+      "type": "milestone",
+      "label": "milestone: Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997966+00:00"
     },
     {
       "id": "7bb14fff4ca0",
@@ -15797,41 +15869,364 @@
         "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
       ],
       "created": "2026-07-26T08:05:06.730367+00:00"
+    },
+    {
+      "id": "3d2ca1906efc",
+      "type": "milestone",
+      "label": "milestone: Audit the duplication before cutting anything",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.609913+00:00"
+    },
+    {
+      "id": "bb34e74bff32",
+      "type": "milestone",
+      "label": "milestone: Replace the duplicate with a repository-policy section",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.609987+00:00"
+    },
+    {
+      "id": "bd8f970c1c78",
+      "type": "milestone",
+      "label": "milestone: Give the one orphaned vendor fact a home in the sidecar",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610057+00:00"
+    },
+    {
+      "id": "199856c8a72f",
+      "type": "milestone",
+      "label": "milestone: Repoint the content-pin tests at the owning file",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610120+00:00"
+    },
+    {
+      "id": "795b23624fd0",
+      "type": "test",
+      "label": "test: 30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610182+00:00"
+    },
+    {
+      "id": "353efba5263f",
+      "type": "milestone",
+      "label": "milestone: Negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610242+00:00"
+    },
+    {
+      "id": "b8c5f9bb2475",
+      "type": "test",
+      "label": "test: Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610303+00:00"
+    },
+    {
+      "id": "f4431adb3683",
+      "type": "milestone",
+      "label": "milestone: Take the autofix bot's corrections",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610366+00:00"
+    },
+    {
+      "id": "50e5f4dd99d1",
+      "type": "milestone",
+      "label": "milestone: Correct the session number the autofix bot moved the wrong way",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610428+00:00"
+    },
+    {
+      "id": "c91028991273",
+      "type": "milestone",
+      "label": "milestone: Address the PR #3354 review round",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610490+00:00"
+    },
+    {
+      "id": "ff531ab50669",
+      "type": "milestone",
+      "label": "milestone: Reword the SKILL.md pointer and re-extract the episode",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610556+00:00"
+    },
+    {
+      "id": "9fe69287ecc6",
+      "type": "milestone",
+      "label": "milestone: Reconcile the manifest version with the PR description",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610620+00:00"
+    },
+    {
+      "id": "c0b66f070299",
+      "type": "milestone",
+      "label": "milestone: Correct the false session.number claim in the PR-3354 retrospective",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610687+00:00"
+    },
+    {
+      "id": "0c13c4960ab5",
+      "type": "milestone",
+      "label": "milestone: Purge the disproven branch-name invariant from this log",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610749+00:00"
+    },
+    {
+      "id": "d3a693a1a80b",
+      "type": "milestone",
+      "label": "milestone: Attribute the shared Stop shape to both vendor references",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610811+00:00"
+    },
+    {
+      "id": "144d24ff4cf0",
+      "type": "milestone",
+      "label": "milestone: Reconcile every recorded manifest version with what the branch ships",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610873+00:00"
+    },
+    {
+      "id": "824a01990a02",
+      "type": "milestone",
+      "label": "milestone: Make the module's negative assertions survive a rewrap",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610934+00:00"
+    },
+    {
+      "id": "1c46c9bfba78",
+      "type": "milestone",
+      "label": "milestone: Regenerate memory artifacts after the final review fixes",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610995+00:00"
+    },
+    {
+      "id": "b88f9763ea9c",
+      "type": "milestone",
+      "label": "milestone: Merge current main and resolve plugin manifest versions",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611057+00:00"
+    },
+    {
+      "id": "db382cd47afe",
+      "type": "commit",
+      "label": "commit: Commit: 199a5c04c",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611118+00:00"
+    },
+    {
+      "id": "cde373ab57a8",
+      "type": "commit",
+      "label": "commit: Commit: b09c57cfe1",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611179+00:00"
+    },
+    {
+      "id": "5ea79dd737f0",
+      "type": "commit",
+      "label": "commit: Commit: da5401a16f",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611242+00:00"
+    },
+    {
+      "id": "7bde60220cd1",
+      "type": "commit",
+      "label": "commit: Commit: 618d8e1a70",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611304+00:00"
+    },
+    {
+      "id": "8986a66e4e1e",
+      "type": "commit",
+      "label": "commit: Commit: 663bbac488",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611367+00:00"
+    },
+    {
+      "id": "6dc514f1d663",
+      "type": "commit",
+      "label": "commit: Commit: a2487c4ac1",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611431+00:00"
+    },
+    {
+      "id": "5178d54cf13a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611499+00:00"
+    },
+    {
+      "id": "274401978212",
+      "type": "milestone",
+      "label": "milestone: Run the live-state and comment inventory gates",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683811+00:00"
+    },
+    {
+      "id": "2946c354e7ba",
+      "type": "milestone",
+      "label": "milestone: Address all five unresolved review threads",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683884+00:00"
+    },
+    {
+      "id": "0d723b81a814",
+      "type": "milestone",
+      "label": "milestone: Reconcile concurrent remote changes",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683959+00:00"
+    },
+    {
+      "id": "66a6d3bdd046",
+      "type": "milestone",
+      "label": "milestone: Run targeted and required validation",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684024+00:00"
+    },
+    {
+      "id": "caef27eecefb",
+      "type": "test",
+      "label": "test: 30 targeted tests; build_all check exit 0; plugin-version-bump OK; pre_pr 30 passed, 0 failed, 4 skipped; full pytest 13,869 passed, 23 skipped, 45 xfailed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684087+00:00"
+    },
+    {
+      "id": "c7d13b1c1550",
+      "type": "commit",
+      "label": "commit: Commit: 2e153a9eda",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684151+00:00"
+    },
+    {
+      "id": "95d00f87781a",
+      "type": "commit",
+      "label": "commit: Commit: 827a4c699c",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684214+00:00"
+    },
+    {
+      "id": "9fca38c495b8",
+      "type": "commit",
+      "label": "commit: Commit: f673788d4b",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684276+00:00"
+    },
+    {
+      "id": "f817552c11ae",
+      "type": "commit",
+      "label": "commit: Commit: 58bd9ce0dd",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684340+00:00"
+    },
+    {
+      "id": "1c35e8a9d313",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR #3354 review threads and prepare merge",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684404+00:00"
     }
   ],
   "patterns": [
     {
-      "id": "cd31b49ba963",
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
       "occurrences": 66,
-      "created": "2026-06-02T04:20:23.788442+00:00"
+      "created": "2026-06-02T04:20:23.788442+00:00",
+      "id": "cd31b49ba963"
     },
     {
-      "id": "44cf38dbd357",
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
       "occurrences": 165,
-      "created": "2026-06-02T04:20:23.788446+00:00"
+      "created": "2026-06-02T04:20:23.788446+00:00",
+      "id": "44cf38dbd357"
     },
     {
-      "id": "035cc531262d",
       "name": "unknown anti-pattern",
       "description": "Anti-pattern from episode-2026-01-05-session-318",
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
       "occurrences": 264,
-      "created": "2026-06-02T04:20:23.789116+00:00"
+      "created": "2026-06-02T04:20:23.789116+00:00",
+      "id": "035cc531262d"
     },
     {
-      "id": "5bbe1bcd6123",
       "name": "implementation pattern",
       "description": "Pattern from episode-2026-01-09-session-317",
       "trigger": "When implementation decision needed",
@@ -15842,10 +16237,10 @@
       "episodes": [
         "episode-2026-07-13-session-3041-frontier-model",
         "episode-2026-07-15-session-3042"
-      ]
+      ],
+      "id": "5bbe1bcd6123"
     },
     {
-      "id": "471934685dd8",
       "name": "recovery pattern",
       "description": "Pattern from episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
@@ -15853,6 +16248,7 @@
       "success_rate": 1.0,
       "occurrences": 18,
       "created": "2026-07-04T06:31:50.952133+00:00",
+      "id": "471934685dd8",
       "contributions": {
         "\u0000legacy:0": 1.0,
         "\u0000legacy:1": 1.0,
@@ -15878,14 +16274,14 @@
       ]
     },
     {
-      "id": "e86a9c97156b",
       "name": "routing pattern",
       "description": "Pattern from episode-2026-07-07-session-2608",
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "action": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "success_rate": 1.0,
       "occurrences": 10,
-      "created": "2026-07-07T18:50:46.157605+00:00"
+      "created": "2026-07-07T18:50:46.157605+00:00",
+      "id": "e86a9c97156b"
     }
   ],
   "edges": [
