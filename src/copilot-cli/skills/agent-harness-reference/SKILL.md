@@ -91,9 +91,11 @@ this repository decided on top of it.
 
 Two rows are worth repeating here because they are the ones most often guessed
 wrong. PreToolUse output is a top-level `permissionDecision`, never Claude's
-nested `hookSpecificOutput` envelope and never a top-level `decision`. Timeouts
-fail open on every event, including policy PreToolUse, which is the one exception
-to exit 2 denying.
+nested `hookSpecificOutput` envelope and never a top-level `decision`. Exit 2
+does not deny everywhere: it warns and continues by default, and denies only for
+PreToolUse and PermissionRequest. Where exit 2 does deny, a timeout still does
+not. Timeouts fail open on every event, including policy PreToolUse, so a gate
+that hangs is a gate that passes the call through.
 
 ### Shipped registrations
 

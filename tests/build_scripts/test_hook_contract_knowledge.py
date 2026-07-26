@@ -236,15 +236,30 @@ def test_reference_versions_matcher_and_timeout_evidence() -> None:
     self-filtering because two shipped releases had matcher bugs.
     """
     text = _reference_text()
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
 
-    assert "1.0.57" in text
-    assert "1.0.58" in text
-    assert "Keep script-side self-filtering as defense in depth." in text
-    assert "Timeouts fail open on every event" in _normalized_text(REFERENCE)
-    assert "| exit 2 | deny |" in sidecar
-    assert "| Timeout | Fail open for every event, including policy PreToolUse |" in sidecar
-    assert "compiled as" in sidecar
+    normalized = _normalized_text(REFERENCE)
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+
+    # Pin the whole sentence. Bare version strings also appear in the probe
+    # paragraph and the ADR list, so asserting "1.0.57" alone stays green with
+    # the matcher-bug finding deleted, which is the regression that matters.
+    assert (
+        "Matchers do work, but 1.0.57 and 1.0.58 shipped matcher bugs, so a hook "
+        "that filters only through the host has one point of failure." in normalized
+    )
+    assert "Keep script-side self-filtering as defense in depth." in normalized
+    assert "it warns and continues by default, and denies only for PreToolUse" in normalized
+    assert "Timeouts fail open on every event" in normalized
+
+    # The dedicated exit-code table, not the PreToolUse-specific failure table.
+    # The narrow row says deny flatly; only this one carries the default.
+    assert (
+        "| 2 | Warning and continue by default; deny for PreToolUse and "
+        "PermissionRequest; PostToolUseFailure converts stdout to context |" in normalized_sidecar
+    )
+    assert (
+        "| Timeout | Fail open for every event, including policy PreToolUse |" in normalized_sidecar
+    )
     assert "PreCompact | None | Supported observe/discard policy" in text
     probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(encoding="utf-8")
     assert "Manual `/compact` is therefore a negative control" in probe
@@ -258,7 +273,6 @@ def test_reference_labels_unstable_fields_and_cloud_limits() -> None:
     because it is the routing surface for a porting decision.
     """
     text = _reference_text()
-    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
 
     normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
     assert "implementation-only SDK types" in normalized_sidecar
@@ -287,7 +301,6 @@ def test_serena_memory_routes_to_current_contract_sources() -> None:
 
 def test_reference_preserves_cross_harness_decision_shapes() -> None:
     """The three wire shapes are vendor facts; not confusing them is policy."""
-    text = _reference_text()
     sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
 
     assert '"permissionDecision": "allow"' in sidecar
@@ -304,17 +317,11 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
 def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
-    generated_hooks = _read_json(
-        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
-    )["hooks"]
-    dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")[
-        "groups"
+    generated_hooks = _read_json(REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json")[
+        "hooks"
     ]
-    stop_commands = [
-        hook["command"]
-        for group in local_hooks["Stop"]
-        for hook in group["hooks"]
-    ]
+    dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
+    stop_commands = [hook["command"] for group in local_hooks["Stop"] for hook in group["hooks"]]
 
     assert len(local_hooks["Stop"]) == 1
     assert len(stop_commands) == 1
@@ -335,7 +342,6 @@ def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
 
 
 def test_reference_preserves_single_structured_output_boundary() -> None:
-    text = _reference_text()
     sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
