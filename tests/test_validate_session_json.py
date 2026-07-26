@@ -1121,8 +1121,8 @@ class TestSchemaIsActuallyEnforced:
         import scripts.validate_session_json as vsj
 
         class _FakeValidator:
-            def __init__(self, schema: object) -> None:
-                del schema
+            def __init__(self, schema: object, format_checker: object = None) -> None:
+                del schema, format_checker
 
             def iter_errors(self, data: object) -> list[ValidationError]:
                 del data
@@ -1143,6 +1143,32 @@ class TestSchemaIsActuallyEnforced:
 
         assert vsj.SCHEMA_PATH.is_file()
         assert isinstance(vsj._load_schema(), dict)
+
+    def test_malformed_history_timestamp_is_rejected(self) -> None:
+        """The schema declares `format: "date-time"` on
+        developmentPhase.history[].timestamp. jsonschema treats "format" as
+        annotation-only unless a FormatChecker covering it is supplied, so
+        this was previously accepted silently."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "not-a-date"}],
+        }
+        result = validate_session_log(log)
+        assert any(
+            "developmentPhase.history" in e and "not a" in e and e.startswith("Schema:")
+            for e in result.errors
+        )
+
+    def test_valid_history_timestamp_passes(self) -> None:
+        """A real RFC 3339 date-time must not be rejected by the new check."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "2026-07-26T01:12:11Z"}],
+        }
+        result = validate_session_log(log)
+        assert result.errors == []
 
 
 class TestProtocolChecksSurviveSchemaEnforcement:

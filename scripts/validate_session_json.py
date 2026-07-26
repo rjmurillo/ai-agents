@@ -32,10 +32,12 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import jsonschema
+from jsonschema import FormatChecker
 from jsonschema.exceptions import SchemaError
 from jsonschema.validators import validator_for
 
@@ -48,6 +50,33 @@ from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
 
 SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
+
+# jsonschema's built-in FormatChecker ships without a "date-time" checker
+# unless the "format" extra (rfc3339-validator) is installed; that extra is
+# not a project dependency. The committed schema declares `format:
+# "date-time"` (developmentPhase.history[].timestamp), and by default
+# jsonschema treats "format" as annotation-only, so that constraint was
+# silently unenforced. datetime.fromisoformat (Python 3.11+, this project
+# requires >=3.14) accepts RFC 3339's "Z" suffix, so a stdlib-only checker
+# covers the one format the schema uses without adding a dependency.
+_FORMAT_CHECKER = FormatChecker()
+
+
+@_FORMAT_CHECKER.checks("date-time")
+def _check_date_time(value: object) -> bool:
+    """Return whether ``value`` is an RFC 3339 date-time, per the schema's format.
+
+    Non-strings are not this keyword's concern: JSON Schema's "format" applies
+    only to the type it names, and "type": "string" elsewhere in the schema
+    already rejects a non-string value.
+    """
+    if not isinstance(value, str):
+        return True
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
@@ -485,6 +514,9 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
     The validator comes from ``validator_for``, which reads the schema's own
     ``$schema`` key. The committed schema declares draft-07, and pinning a
     different draft here would silently change what several keywords mean.
+
+    Passes ``_FORMAT_CHECKER`` so ``format`` keywords (currently just
+    ``date-time``) are actually enforced instead of treated as annotations.
     """
     try:
         schema = _load_schema()
@@ -493,7 +525,7 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
         return
 
     try:
-        validator = validator_for(schema)(schema)
+        validator = validator_for(schema)(schema, format_checker=_FORMAT_CHECKER)
         # Sort by the stringified path, not the raw one: absolute_path mixes
         # str (object keys) and int (array indices), and comparing across
         # errors whose paths share a prefix but diverge in element type
