@@ -659,10 +659,12 @@ def validate_filename_number(
     counter value that disagreed with the name it was written under (issue #3355).
 
     The related invariant proposed in that issue, that the number tracks the issue
-    in the branch name, is not the convention: 207 of 276 committed logs on an
-    issue branch disagree, because sessions routinely work a branch owned by a
+    in the branch name, is not the convention. Most committed logs on an issue
+    branch disagree, because sessions routinely work a branch owned by a
     different issue. Branch-to-log correspondence is enforced separately by the
-    branch-context policy at push time.
+    branch-context policy at push time. The measurement behind that finding is
+    in the issue and in the PR description, where it can age without turning
+    this docstring into a lie.
 
     Args:
         session_path: Path the log was loaded from.

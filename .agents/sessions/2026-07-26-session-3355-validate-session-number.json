@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Three commits: ccc84280fe, bec3366729, d655c5237b"
+        "Evidence": "Four commits on the branch, tip 22e203f0e8 through the corpus and review-response commits; SHAs verified with git log 263ce89d05..HEAD"
       },
       "validationPassed": {
         "level": "MUST",
@@ -153,9 +153,10 @@
       "files": []
     }
   ],
-  "endingCommit": "d655c5237b",
+  "endingCommit": "",
   "nextSteps": [
-    "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the 207/276 measurement.",
-    "Remaining unwired validators from issue 3360: traceability.py and consistency.py."
+    "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the branch-vs-number measurement.",
+    "Remaining unwired validators from issue 3360: traceability.py and consistency.py.",
+    "Issue #3385: a historical session log cannot be corrected without the changed-file gate retro-validating it against today schema."
   ]
 }
