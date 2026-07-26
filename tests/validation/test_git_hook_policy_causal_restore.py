@@ -100,7 +100,7 @@ class TestARestoreFailureBlocks:
         policy.update_causal_graph(repo)
         err = capsys.readouterr().err
         assert _GRAPH in err.replace("\\", "/")
-        assert "update_causal_graph" in err or "rebuild" in err.lower()
+        assert "--reset-graph" in err
 
     def test_it_does_not_raise(self, repo, monkeypatch):
         """The point of the change: an exit code, not a traceback."""
