@@ -179,69 +179,6 @@ def _split_glob_aware(pattern: str, split_char: str) -> list[str]:
     return segments
 
 
-def _split_brace_options(content: str) -> list[str]:
-    """Split brace-group content on top-level commas, keeping every option.
-
-    Distinct from ``_split_glob_aware``, which drops a trailing empty segment
-    (correct for path and scope splitting). A brace alternative list must
-    preserve empty options, because an empty alternative is a real "substitute
-    nothing" branch in VS Code's brace expansion: ``{}`` -> [''] (so ``p{}y``
-    folds to ``py``) and ``{x,}`` -> ['x', ''] (so ``py{x,}`` yields ``pyx`` and
-    the universal ``py``). Dropping either empty would erase a universal glob and
-    under-count the budget. A comma inside a nested ``{...}`` or ``[...]`` group
-    does not split.
-    """
-    options: list[str] = []
-    depth_brace = 0
-    depth_bracket = 0
-    current: list[str] = []
-    for char in content:
-        if char == "," and depth_brace == 0 and depth_bracket == 0:
-            options.append("".join(current))
-            current = []
-            continue
-        if char == "{":
-            depth_brace += 1
-        elif char == "}":
-            depth_brace -= 1
-        elif char == "[":
-            depth_bracket += 1
-        elif char == "]":
-            depth_bracket -= 1
-        current.append(char)
-    options.append("".join(current))
-    return options
-
-
-def expand_braces(pattern: str) -> list[str]:
-    """Expand a glob brace group into its alternatives.
-
-    ``**/*.{py,pyi}`` -> ``['**/*.py', '**/*.pyi']``. Handles multiple and
-    nested groups by recursion. An unbalanced brace is left untouched.
-    """
-    start = pattern.find("{")
-    if start == -1:
-        return [pattern]
-    depth = 0
-    end = -1
-    for i in range(start, len(pattern)):
-        if pattern[i] == "{":
-            depth += 1
-        elif pattern[i] == "}":
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    if end == -1:
-        return [pattern]
-    prefix, suffix = pattern[:start], pattern[end + 1 :]
-    options = _split_brace_options(pattern[start + 1 : end])
-    expanded: list[str] = []
-    for opt in options:
-        expanded.extend(expand_braces(prefix + opt.strip() + suffix))
-    return expanded
-
-
 def _vscode_effective_glob(pattern: str) -> str:
     """Fold an ``applyTo`` glob to the effective form the harness matches on.
 
@@ -272,8 +209,9 @@ def _vscode_effective_glob(pattern: str) -> str:
 # translation diverged from the harness at separator edges: the dropped
 # mandatory ``/`` before a non-terminal ``**`` let ``/*/**/*.py`` match a root
 # file ``/probe.py``. Porting VS Code's own segment walker ends that class of
-# drift. Braces are already expanded by ``expand_braces`` before a pattern
-# reaches this compiler, so only ``*``, ``?``, and ``**`` need translating.
+# drift. Braces are compiled inline as a regex alternation by
+# ``_segment_to_regex`` (each choice re-parsed as a full glob, faithful to VS
+# Code), so ``*``, ``?``, ``**``, and ``{...}`` are all translated here.
 # Character classes (``[...]``) are the one glob construct this compiler does
 # not model, and it fails closed on them. Dear future maintainer: an earlier
 # revision treated ``[`` as a literal, reasoning a class is "scoped by
@@ -312,30 +250,91 @@ def _stars_to_regexp(star_count: int, *, is_last_segment: bool) -> str:
 def _segment_to_regex(segment: str) -> str:
     """Translate one non-globstar path segment to a regex fragment.
 
-    Each ``*`` becomes a single-star run (``starsToRegExp(1)``), ``?`` matches
-    one non-separator character, and every other character is escaped literally.
+    Mirrors VS Code's per-character walk inside a segment (``parseRegExp``,
+    glob.ts): ``*`` becomes a single-star run (``starsToRegExp(1)``), ``?``
+    matches one non-separator character, a ``{...}`` group compiles *inline* to a
+    regex alternation whose choices are each parsed as a full glob
+    (``{a,b}`` -> ``(?:<a>|<b>)``), and every other character is escaped
+    literally. Compiling braces inline, rather than pre-expanding them into
+    concrete strings, is what keeps the model faithful for options that carry
+    path syntax (``{**/*}``), nest (``{a,{b,c}}``), or leave a trailing empty
+    (``{x,}`` matches only ``x`` because VS Code's ``splitGlobAware`` drops the
+    trailing empty, whereas ``{}`` is a real empty substitution). Bracket
+    classes never reach here: ``_glob_to_regex`` fails closed on any ``[``.
     """
     out: list[str] = []
+    in_braces = False
+    brace_val: list[str] = []
     for char in segment:
+        if char != "}" and in_braces:
+            brace_val.append(char)
+            continue
+        if char == "{":
+            in_braces = True
+            continue
+        if char == "}":
+            choices = _split_glob_aware("".join(brace_val), ",")
+            out.append("(?:" + "|".join(_parse_regexp(choice) for choice in choices) + ")")
+            in_braces = False
+            brace_val = []
+            continue
         if char == "*":
             out.append(_stars_to_regexp(1, is_last_segment=False))
-        elif char == "?":
+            continue
+        if char == "?":
             out.append(_NO_PATH_REGEX)
-        else:
-            out.append(re.escape(char))
+            continue
+        out.append(re.escape(char))
     return "".join(out)
+
+
+def _parse_regexp(pattern: str) -> str:
+    """Compile a single glob to a regex body, porting VS Code ``parseRegExp``.
+
+    Splits the glob into path segments (brace- and bracket-aware), translates a
+    whole-segment ``**`` to the globstar regex, and joins segments with the
+    harness "Tail" separator rule. Returns the regex *body* (no anchors) so a
+    brace choice can be spliced back into its parent segment; ``_glob_to_regex``
+    wraps the result in ``^...$``. Recurses through ``_segment_to_regex`` for
+    each brace alternative, so a choice may itself contain ``/`` and ``**``
+    exactly as VS Code allows.
+    """
+    if not pattern:
+        return ""
+    segments = _split_glob_aware(pattern, "/")
+    if segments and all(segment == _GLOB_STAR for segment in segments):
+        return ".*"
+    body: list[str] = []
+    last = len(segments) - 1
+    previous_was_globstar = False
+    for index, segment in enumerate(segments):
+        if segment == _GLOB_STAR:
+            if not previous_was_globstar:
+                body.append(_stars_to_regexp(2, is_last_segment=index == last))
+            previous_was_globstar = True
+            continue
+        body.append(_segment_to_regex(segment))
+        if index < last and (segments[index + 1] != _GLOB_STAR or index + 2 < len(segments)):
+            body.append(_PATH_REGEX)
+        previous_was_globstar = False
+    return "".join(body)
 
 
 @cache
 def _glob_to_regex(pattern: str) -> re.Pattern[str]:
     """Compile an ``applyTo`` glob to an anchored case-insensitive regex.
 
-    Faithful port of VS Code's ``parseRegExp`` segment walker (see the module
-    note above the constants). Path-segment semantics match the harness:
+    Faithful port of VS Code's ``parseRegExp`` (see the module note above the
+    constants). Fails closed on a character class before compiling: the compiler
+    models ``*``, ``?``, ``**``, and ``{...}`` inline, but not ``[...]`` (see the
+    note for why a literal ``[`` would under-count). Path-segment semantics match
+    the harness:
 
     - ``**`` as a whole segment matches zero or more complete path segments;
     - ``*`` matches zero or more non-separator characters within one segment;
     - ``?`` matches exactly one non-separator character;
+    - ``{a,b}`` compiles inline to ``(?:<a>|<b>)`` with each choice parsed as a
+      full glob;
     - a literal separator is emitted after a segment unless the following
       segment is a *terminal* ``**`` (VS Code's "Tail" rule), so ``some/**/*.js``
       keeps the ``/`` after ``some`` and a sibling folder ``something`` cannot
@@ -346,7 +345,6 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
     true``. ``is_language_universal`` uses this to decide universality by
     *matching* diverse probe paths instead of enumerating glob spellings.
     """
-    segments = _split_glob_aware(pattern, "/")
     if "[" in pattern:
         msg = (
             f"applyTo glob {pattern!r} uses a character class ('['); the budget "
@@ -355,23 +353,7 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
             "or brace alternatives (e.g. '*.[ch]' -> '*.c, *.h')."
         )
         raise UnsupportedApplyToError(msg)
-    if segments and all(segment == _GLOB_STAR for segment in segments):
-        return re.compile("^.*$", re.IGNORECASE)
-    body: list[str] = []
-    last = len(segments) - 1
-    previous_was_globstar = False
-    for index, segment in enumerate(segments):
-        if segment == _GLOB_STAR:
-            if previous_was_globstar:
-                continue
-            body.append(_stars_to_regexp(2, is_last_segment=index == last))
-            previous_was_globstar = True
-            continue
-        body.append(_segment_to_regex(segment))
-        if index < last and (segments[index + 1] != _GLOB_STAR or index + 2 < len(segments)):
-            body.append(_PATH_REGEX)
-        previous_was_globstar = False
-    return re.compile("^" + "".join(body) + "$", re.IGNORECASE)
+    return re.compile("^" + _parse_regexp(pattern) + "$", re.IGNORECASE)
 
 
 def _iter_applyto_globs(value: object) -> list[str]:
@@ -401,8 +383,11 @@ def parse_applyto(text: str) -> set[str]:
     block-style lists are handled by the parser rather than a line regex (a
     regex that grabbed everything after ``applyTo:`` would fold a trailing
     ``# comment`` into the glob and would miss a block-style list entirely).
-    Splits the comma-separated scope list without breaking brace groups, then
-    expands each brace group so ``**/*.{py,pyi}`` becomes two concrete globs.
+    Splits the comma-separated scope list without breaking brace groups. Each
+    glob keeps its brace group intact; ``is_language_universal`` compiles it with
+    VS Code's inline brace semantics, so ``**/*.{py,pyi}`` is matched as one
+    pattern rather than textually pre-expanded (which was unfaithful for nested
+    or path-bearing brace options).
 
     Fails closed: invalid YAML or a duplicate top-level key raises
     ``UnsupportedApplyToError`` rather than yielding an empty set, so a file the
@@ -424,7 +409,7 @@ def parse_applyto(text: str) -> set[str]:
     for glob in _iter_applyto_globs(data["applyTo"]):
         cleaned = glob.strip()
         if cleaned:
-            patterns.update(expand_braces(cleaned))
+            patterns.add(cleaned)
     return patterns
 
 
@@ -454,12 +439,10 @@ def is_language_universal(patterns: set[str], ext: str) -> bool:
     case-insensitive to mirror the harness (``ignoreCase: true``).
     """
     probes = _probe_paths(ext)
-    regexes: list[re.Pattern[str]] = []
-    for pattern in patterns:
-        effective = _vscode_effective_glob(pattern)
-        if effective in _ALL_FILES_FORMS:
-            return True
-        regexes.append(_glob_to_regex(effective))
+    effectives = [_vscode_effective_glob(pattern) for pattern in patterns]
+    if any(effective in _ALL_FILES_FORMS for effective in effectives):
+        return True
+    regexes = [_glob_to_regex(effective) for effective in effectives]
     if not regexes:
         return False
     return all(any(regex.match(path) for regex in regexes) for path in probes)

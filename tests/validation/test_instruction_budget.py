@@ -110,11 +110,13 @@ def test_parse_applyto_unhashable_key_raises() -> None:
         ib.parse_applyto(text)
 
 
-def test_parse_applyto_expands_brace_group() -> None:
+def test_parse_applyto_keeps_brace_group_intact() -> None:
     # A leading '**' forces quoting in YAML, so the realistic brace form is
     # quoted; an unquoted '**/*.{...}' is invalid YAML the harness would reject.
+    # parse_applyto no longer textually expands braces: the brace group is kept
+    # whole and compiled inline (VS Code semantics) by is_language_universal.
     text = "---\napplyTo: '**/*.{py,pyi},tests/**'\n---\nbody\n"
-    assert ib.parse_applyto(text) == {"**/*.py", "**/*.pyi", "tests/**"}
+    assert ib.parse_applyto(text) == {"**/*.{py,pyi}", "tests/**"}
 
 
 def test_parse_applyto_brace_form_is_language_universal() -> None:
@@ -123,46 +125,36 @@ def test_parse_applyto_brace_form_is_language_universal() -> None:
     assert ib.is_language_universal(patterns, ".py") is True
 
 
-def test_expand_braces_strips_whitespace_around_options() -> None:
-    # Whitespace after commas in brace groups must not bleed into the expanded
-    # glob. "**/*.{py, pyi}" must produce "**/*.pyi", not "**/*. pyi".
-    assert ib.expand_braces("**/*.{py, pyi}") == ["**/*.py", "**/*.pyi"]
-    assert ib.expand_braces("**/*.{ cs , fs }") == ["**/*.cs", "**/*.fs"]
+def test_brace_option_with_path_syntax_is_language_universal() -> None:
+    # ``{**/*}`` holds path syntax the old textual splitter could not expand
+    # faithfully; inline compilation makes each choice a full glob, so the rule
+    # is correctly seen as universal instead of being under-counted to 0 bytes.
+    patterns = ib.parse_applyto("---\napplyTo: '{**/*}'\n---\nbody\n")
+    assert ib.is_language_universal(patterns, ".py") is True
 
 
-def test_split_brace_options_keeps_empty_options() -> None:
-    # Unlike path splitting, brace options must preserve empty alternatives:
-    # an empty option is a real "substitute nothing" branch in VS Code.
-    assert ib._split_brace_options("") == [""]
-    assert ib._split_brace_options("x,") == ["x", ""]
-    assert ib._split_brace_options(",x") == ["", "x"]
-    # A comma inside a nested group does not split the outer option.
-    assert ib._split_brace_options("a,{b,c},d") == ["a", "{b,c}", "d"]
-
-
-def test_expand_braces_empty_group_folds_to_nothing() -> None:
-    # VS Code compiles ``{}`` as an empty substitution, so ``p{}y`` is ``py``.
-    # A splitter that dropped the empty option would erase the pattern entirely
-    # (scoring it 0 bytes) and under-count the budget.
-    assert ib.expand_braces("**/*.p{}y") == ["**/*.py"]
-
-
-def test_expand_braces_keeps_trailing_empty_option() -> None:
-    # ``py{x,}`` yields both ``pyx`` and the universal ``py``; dropping the
-    # trailing empty would hide the universal glob from the gate.
-    assert ib.expand_braces("**/*.py{x,}") == ["**/*.pyx", "**/*.py"]
+def test_nested_brace_group_is_language_universal() -> None:
+    # A nested alternative ``{py,{pyi,pyc}}`` recurses through the compiler; the
+    # ``py`` branch matches every ``.py`` path, so the rule is universal.
+    patterns = ib.parse_applyto("---\napplyTo: '**/*.{py,{pyi,pyc}}'\n---\nbody\n")
+    assert ib.is_language_universal(patterns, ".py") is True
 
 
 def test_empty_brace_group_is_language_universal() -> None:
     # A future rule spelled with an empty brace group must still be caught.
+    # VS Code compiles ``{}`` as an empty substitution, so ``p{}y`` is ``py``.
     patterns = ib.parse_applyto("---\napplyTo: '**/*.p{}y'\n---\nbody\n")
     assert ib.is_language_universal(patterns, ".py") is True
 
 
-def test_trailing_empty_brace_option_is_language_universal() -> None:
-    # The universal ``**/*.py`` branch hides behind the trailing empty option.
+def test_trailing_empty_brace_option_is_not_language_universal() -> None:
+    # Faithful to VS Code: ``splitGlobAware('x,', ',')`` DROPS the trailing empty,
+    # so ``**/*.py{x,}`` compiles to ``(?:x)`` and matches only ``.pyx`` -- it is
+    # genuinely NOT universal for ``.py``. The prior textual splitter kept the
+    # empty option and over-counted this as universal. Reporting it non-universal
+    # is not an under-count: no ``.py`` path matches ``**/*.pyx``.
     patterns = ib.parse_applyto("---\napplyTo: '**/*.py{x,}'\n---\nbody\n")
-    assert ib.is_language_universal(patterns, ".py") is True
+    assert ib.is_language_universal(patterns, ".py") is False
 
 
 def test_glob_to_regex_char_class_fails_closed() -> None:
@@ -179,6 +171,19 @@ def test_char_class_applyto_fails_closed() -> None:
     patterns = ib.parse_applyto("---\napplyTo: '**/*.[p]y'\n---\nbody\n")
     with pytest.raises(ib.UnsupportedApplyToError):
         ib.is_language_universal(patterns, ".py")
+
+
+def test_all_files_form_short_circuits_before_bracket_compile() -> None:
+    # Determinism guard (Finding 3): when a scope list mixes an all-files wildcard
+    # with a bracket pattern, universality must be decided by the all-files form
+    # BEFORE any pattern is compiled. Iterating the set and compiling per-pattern
+    # made the result depend on set order (PYTHONHASHSEED): sometimes True via the
+    # wildcard, sometimes UnsupportedApplyToError via the bracket. The two-pass
+    # check compiles no regex once an all-files form is present, so the union is
+    # deterministically universal regardless of iteration order.
+    union = {"**/*", "**/*.[p]y"}
+    for _ in range(50):
+        assert ib.is_language_universal(set(union), ".py") is True
 
 
 def test_parse_applyto_missing_frontmatter_returns_empty() -> None:
