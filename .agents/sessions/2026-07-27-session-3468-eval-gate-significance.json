@@ -470,9 +470,27 @@
         "Left the README unchanged after checking it. Its exit-codes section already promised that every path prints JSON so a caller can tell a reject from a broken input by reading decision rather than the code, which is the contract the crash broke. The document was right and the code was wrong, the second time in three rounds.",
         "Verified 1407 pass, 100 percent statement coverage held at 565 statements, ruff clean on all touched files, mypy clean, zero dashes byte-verified."
       ]
+    },
+    {
+      "phase": "Refusing the number before it can spend the budget",
+      "actions": [
+        "Asked round 29 for the general form of its own finding: enumerate every try block in all three eval modules and answer, per block, whether an operation that can raise a caught class sits outside the block, and whether the except tuple omits a sibling of a class it names. It returned all 26 blocks (24 in optimize-artifact.py, 1 in _optimizer_core.py, 1 in _optimizer_adapters.py) with a per-block verdict, and two failed. Demanding the general form is now the highest-yield follow-up in the series; it turned round 27 into round 28's real bug and round 29 into this one.",
+        "Verified the second finding and measured it worse than reported. Round 29 said the gate consumes a consultation and returns no verdict. Measured end to end with EVAL_LEDGER_DIR: one gate run with a cap of 10**400 exits 1 with a traceback and empty stdout, durably writes consultations 1 and a 401 digit max_consultations into the ledger, and then every subsequent legitimate run against that group is permanently refused for asking a different cap. The remedy that refusal offers is to re-split, which destroys the held-out group. One mistyped argument bricks the scarce resource the gate exists to protect.",
+        "Fuzzed the budget command's four integer arguments and found only --total and --max-edits crashed. Probed the other two a second time in pairs so the ordering checks would not fire first: --min-edits BIG --max-edits BIGGER crashes, and --step BIG --total BIGGER crashes. A single-variable fuzz under-reported the class by half. All five integer arguments that reach float arithmetic crash.",
+        "TDD'd the round-29b class, 3 red for the right reason and 3 controls green, then added an argparse type callable applied to all five arguments. Chose the boundary over the three division sites because cmd_gate charges the ledger before it reaches its second division, so a value caught later has already spent budget and written its own cap into the ledger. Parsing finishes before any command runs, so a value refused there has charged nothing.",
+        "Falsified with M14: removing the callable turns exactly the three crash tests red and leaves the three controls green. Kept a test pinning that 10**300 is accepted, because a semantic ceiling would be a policy decision wearing a bug fix's clothes; the bar is what the arithmetic can carry.",
+        "Verified the repair against the original damage: the typo'd cap now exits 2 with a plain argparse error and leaves the ledger directory empty, and the legitimate run that the poisoned ledger used to refuse forever now returns its verdict. Confirmed split --min-sel was already safe, its validation fires before any arithmetic.",
+        "Full suite 1413 pass, 100% statement coverage on all three eval modules. Ruff and mypy clean on every touched file; the one ruff error in tests/eval is the pre-existing UP037 from PR #2860. Wrote shape 40 and this phase."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "185fc7631",
+  "endingCommit": "136840822",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

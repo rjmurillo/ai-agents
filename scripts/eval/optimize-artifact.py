@@ -1543,6 +1543,40 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _arith_int(text: str) -> int:
+    """An integer this tool can still do arithmetic with.
+
+    `type=int` accepts any magnitude, because Python integers are unbounded,
+    but five of these arguments reach float arithmetic: the budget curve
+    multiplies a span by 0.5 and divides a step by a total, and the Bonferroni
+    correction divides `--max-p` by the consultation cap. Past the float range
+    each raises `OverflowError`, a sibling of `ValueError` rather than a
+    subclass, so it escaped every clause written to turn unusable numbers into
+    refusals.
+
+    Refused here rather than caught at the arithmetic, because `gate` charges
+    the consultation to the held-out ledger before it reaches its second
+    division. A value caught later has already spent budget and written its
+    own cap into the ledger, where it refuses every later run against that
+    group for asking a different cap. The remedy that refusal offers is to
+    re-split, which destroys the held-out group. Parsing finishes before any
+    command runs, so a value rejected here has charged nothing.
+
+    The bar is what the arithmetic can carry, not a policy ceiling. No rule
+    here says a budget of 10 ** 300 is wrong, only that a number the tool
+    cannot compute with is not a number it can accept.
+    """
+    value = int(text)
+    try:
+        float(value)
+    except OverflowError:
+        raise argparse.ArgumentTypeError(
+            f"{text} is too large to compute with; pass a value inside the "
+            "range this tool can convert to a float"
+        ) from None
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="optimize-artifact.py",
@@ -1578,10 +1612,10 @@ def build_parser() -> argparse.ArgumentParser:
     split.set_defaults(func=cmd_split)
 
     budget = sub.add_parser("budget", help="edits allowed at this step")
-    budget.add_argument("--step", type=int, required=True)
-    budget.add_argument("--total", type=int, required=True)
-    budget.add_argument("--max-edits", type=int, default=5)
-    budget.add_argument("--min-edits", type=int, default=1)
+    budget.add_argument("--step", type=_arith_int, required=True)
+    budget.add_argument("--total", type=_arith_int, required=True)
+    budget.add_argument("--max-edits", type=_arith_int, default=5)
+    budget.add_argument("--min-edits", type=_arith_int, default=1)
     budget.set_defaults(func=cmd_budget)
 
     score_cmd = sub.add_parser("score", help="fraction of one split group passing")
@@ -1610,7 +1644,7 @@ def build_parser() -> argparse.ArgumentParser:
     # No --ledger either: see _ledger_path for why the caller does not choose it.
     gate_cmd.add_argument(
         "--max-consultations",
-        type=int,
+        type=_arith_int,
         required=True,
         help="how many comparisons this split may ever answer; fixed at the first gate",
     )

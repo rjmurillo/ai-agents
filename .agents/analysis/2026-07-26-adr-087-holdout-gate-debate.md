@@ -1650,3 +1650,49 @@ check and turns three red. M13 removes `OverflowError` and turns one red. The
 two remaining tests are controls: an honest split still scores, and a
 fingerprint that is a usable string but simply wrong still reports drift rather
 than becoming a config error, which is the case the drift refusal exists for.
+
+## Shape 40: the guard runs after the money is spent
+
+Round twenty-nine was asked for the general form of its own finding: enumerate
+every `try` block in all three modules and answer, for each, whether an
+operation that can raise a caught class sits outside the block, and whether the
+except tuple omits a sibling of a class it names. It returned all twenty-six
+blocks with a per-block verdict, and two of them failed. Both failures were the
+same shape as shape 39, one argument surface further out.
+
+The important one is not that `gate` crashes on a cap too large to convert to a
+float. It is where the crash lands. `cmd_gate` charges the consultation to the
+held-out ledger before it reads the held-out group, and that ordering is
+deliberate: the comment above the write records that a crash between scoring
+and the write left the group read and the consultation unrecorded, so a retry
+got the comparison for free. The Bonferroni correction then divides `--max-p`
+by the cap, and that division sits outside the `try` that wraps the comparison.
+
+So the measured consequence of one mistyped argument is not a lost verdict. The
+run exits 1 with a traceback and an empty stdout, having durably written
+`consultations: 1` and a four-hundred-digit `max_consultations` into the
+ledger. Every later run against that group is then refused, because the cap
+recorded at the start no longer matches the cap being asked for, and the remedy
+that refusal offers is to re-split. Re-splitting destroys the held-out group.
+One typo permanently bricks the scarce resource the gate exists to protect.
+
+That is why the fix is at the argument boundary and not at the three division
+sites. Parsing finishes before any command runs, so a value refused during
+parsing has charged nothing. A value caught at the division has already been
+written to the ledger, and catching it there would have to unwind a durable
+atomic write, which is the guarantee the write exists to provide.
+
+The fix refuses what the arithmetic cannot carry, not what a policy dislikes.
+No rule here says a budget of 10 ** 300 is wrong, and a test pins that it is
+accepted, because inventing a smaller ceiling would be a policy decision
+wearing a bug fix's clothes.
+
+The method note is worth more than the fix. The first fuzz varied one argument
+at a time and reported that only two of the four budget integers crashed;
+`--step` exited 0 and `--min-edits` exited 2. Both escaped only because an
+ordering check fired first. Pairing them so the semantic check passes
+(`--min-edits BIG --max-edits BIGGER`, `--step BIG --total BIGGER`) crashes
+both. A single-variable fuzz under-reported the class by half. The enumeration
+was right where the sampling was wrong, which is the same lesson as shape 39
+from the opposite direction: there, running confirmed what reading found; here,
+reading corrected what running missed.

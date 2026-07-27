@@ -5239,3 +5239,110 @@ class TestTheDriftGuardCatchesWhatItsExceptClauseNames:
         code, out = _run(capsys, "score", "--results", results, "--split", path)
         assert code == EXIT_CONFIG
         assert "Re-split and re-baseline." in out["error"]
+
+
+class TestNumbersTooLargeToComputeWithNeverReachTheLedger:
+    """Round twenty-nine, follow-up: the crash that spends before it dies.
+
+    `--max-consultations` and the two budget bounds are `type=int`, and Python
+    integers have no ceiling, so `10 ** 400` is accepted as a cap. Three
+    arithmetic sites then convert one to a float: the budget curve multiplies
+    a span by 0.5, and the Bonferroni correction divides `--max-p` by the cap,
+    once inside the decision and once again when the verdict is built.
+
+    Each raises `OverflowError`, a sibling of `ValueError` rather than a
+    subclass, so it escaped every clause written to turn unusable numbers into
+    refusals. That is the same taxonomy gap as the `min_sel` fix in the
+    previous commit, one argument surface further out.
+
+    The gate makes it expensive. It charges the consultation before it reads
+    the held-out group, deliberately, so that a crash cannot hand back a free
+    comparison on retry. The second division sits after that charge. Measured
+    end to end, one typo cost a consultation, wrote `max_consultations` of
+    `10 ** 400` into the ledger, and printed no verdict; every later run
+    against that group was then refused for asking for a different cap, and
+    the remedy the refusal offers is to re-split, which destroys the held-out
+    group. One malformed argument bricks the resource the gate exists to
+    protect.
+
+    So the check is at the boundary rather than at the three use sites. A
+    value rejected by `argparse` has not charged anything, because parsing
+    finishes before any command runs. Catching `OverflowError` at the
+    divisions would leave the ledger already written.
+    """
+
+    _TOO_BIG = str(10**400)
+
+    def test_a_usable_cap_still_gates(self, tmp_path, capsys):
+        """Positive control: ordinary numbers are untouched."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, path = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split_path = tmp_path / "sp.json"
+        split_path.write_text(json.dumps(path), encoding="utf-8")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", split_path, "--max-p", "0.05",
+        )
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert "decision" in out
+
+    def test_an_unusable_cap_never_reaches_the_ledger(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: the whole point, so the assertion is about the ledger.
+
+        A refusal that still charged would be the bug wearing a better error
+        message. The ledger directory has to be untouched.
+        """
+        ledgers = tmp_path / "ledgers"
+        ledgers.mkdir()
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(ledgers))
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, drawn = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split_path = tmp_path / "sp.json"
+        split_path.write_text(json.dumps(drawn), encoding="utf-8")
+        with pytest.raises(SystemExit) as excinfo:
+            _run(
+                capsys, "gate", "--incumbent", results, "--candidate", results,
+                "--split", split_path, "--max-p", "0.05",
+                "--max-consultations", self._TOO_BIG,
+                "--incumbent-fingerprint", drawn["fingerprint"],
+            )
+        assert excinfo.value.code == EXIT_CONFIG
+        assert list(ledgers.iterdir()) == []
+
+    def test_budget_refuses_an_unusable_total(self, capsys):
+        """Negative: the second arithmetic site, in the budget curve."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(capsys, "budget", "--step", "1", "--total", self._TOO_BIG)
+        assert excinfo.value.code == EXIT_CONFIG
+
+    def test_budget_refuses_an_unusable_max_edits(self, capsys):
+        """Negative: the third site, the span the curve multiplies."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(
+                capsys, "budget", "--step", "1", "--total", "3",
+                "--max-edits", self._TOO_BIG,
+            )
+        assert excinfo.value.code == EXIT_CONFIG
+
+    def test_a_large_but_usable_number_is_accepted(self, capsys):
+        """Edge: the bar is what the arithmetic can carry, not a product cap.
+
+        `10 ** 300` is absurd as a budget and no business rule here forbids
+        it. The check refuses values the tool cannot compute with, and
+        inventing a smaller ceiling would be a policy decision wearing a bug
+        fix's clothes.
+        """
+        code, out = _run(
+            capsys, "budget", "--step", "1", "--total", "3",
+            "--max-edits", str(10**300),
+        )
+        assert code == EXIT_OK
+        assert out["budget"] >= 1
+
+    def test_a_non_numeric_cap_is_still_refused(self, capsys):
+        """Edge: the new callable must not swallow the old rejection."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(capsys, "budget", "--step", "1", "--total", "not-a-number")
+        assert excinfo.value.code == EXIT_CONFIG
