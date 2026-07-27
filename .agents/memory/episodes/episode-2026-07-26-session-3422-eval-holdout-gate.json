@@ -108,7 +108,7 @@
       "type": "test",
       "content": "356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01.",
       "caused_by": [
-        "e032"
+        "e034"
       ],
       "leads_to": [
         "e001"
@@ -372,7 +372,9 @@
       "caused_by": [
         "e029"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e033"
+      ]
     },
     {
       "id": "e032",
@@ -381,6 +383,28 @@
       "content": "Commit: 1ed89118d",
       "caused_by": [
         "e030"
+      ],
+      "leads_to": [
+        "e034"
+      ]
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an eleventh adversarial round (gpt-5.6-luna), fixed three of its four findings and declined the fourth with the reason recorded",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c66939a96",
+      "caused_by": [
+        "e032"
       ],
       "leads_to": [
         "e009"
@@ -392,7 +416,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 5
   },
   "lessons": []

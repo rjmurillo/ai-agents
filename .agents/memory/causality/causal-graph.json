@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:38:18.609291+00:00",
+  "updated": "2026-07-27T08:55:41.817982+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21148,6 +21148,24 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T08:38:18.603479+00:00"
+    },
+    {
+      "id": "0f08983b6bc5",
+      "type": "milestone",
+      "label": "milestone: Ran an eleventh adversarial round (gpt-5.6-luna), fixed three of its four findings and declined the fourth with the reason recorded",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:55:41.812054+00:00"
+    },
+    {
+      "id": "6470dce49f3f",
+      "type": "commit",
+      "label": "commit: Commit: c66939a96",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:55:41.812138+00:00"
     }
   ],
   "patterns": [

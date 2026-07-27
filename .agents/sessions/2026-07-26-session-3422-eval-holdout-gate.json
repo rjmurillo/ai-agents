@@ -228,9 +228,20 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T10:40:00Z",
+      "action": "Ran an eleventh adversarial round (gpt-5.6-luna), fixed three of its four findings and declined the fourth with the reason recorded",
+      "outcome": "The seam's first line had moved rather than vanished: round ten pulled the mkdir inside the scrub and left _ledger_root() above it, and Path.home() raises RuntimeError when HOME is unset and the uid has no passwd entry, which is an ordinary container and fires on the default configuration. main does not catch RuntimeError. Also fixed a lock descriptor that leaked when os.write failed, and case-sensitive redaction against a hex digest that has an uppercase spelling. Declined the double-root-resolution finding: it reproduces only by mutating EVAL_LEDGER_DIR mid-process, and no in-process environment mutation exists in any of the three modules. 458 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
     }
   ],
-  "endingCommit": "1ed89118d",
+  "endingCommit": "c66939a96",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",

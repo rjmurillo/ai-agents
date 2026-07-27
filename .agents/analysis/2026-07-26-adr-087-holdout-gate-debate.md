@@ -33,18 +33,20 @@ the first draft made.
 | 8 | Copilot (PR #3458) | REJECT |
 | 9 | gemini-3.1-pro-preview | REJECT |
 | 10 | gpt-5.6-terra | REJECT |
+| 11 | gpt-5.6-luna | REJECT |
 
 No round returned ACCEPT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
-The ADR is recorded with its defeats visible because ten consecutive
+The ADR is recorded with its defeats visible because eleven consecutive
 falsifications are evidence about the claim, not noise to be smoothed over.
 
-Rounds 8 through 10 are the cleanest illustration in this log of why the
-count kept climbing. Round 8 found a defect inside the round-7 fix. Round 9
-found one inside the round-8 fix. Round 10 found one inside the round-9 fix.
-Round 10 was also given explicit permission to return ACCEPT and told that a
-false finding costs more here than a missed one, so the streak is not an
-artifact of the prompt asking for a defect.
+Rounds 8 through 11 are the cleanest illustration in this log of why the
+count kept climbing. Each found its defect inside the previous round's fix.
+Rounds 10 and 11 were both given explicit permission to return ACCEPT and
+told that a false finding costs more here than a missed one, so the streak is
+not an artifact of the prompt asking for a defect. Round 11 is also the first
+round whose report was partly declined, which is the other half of taking
+reviews seriously.
 
 ## The finding that changed the decision
 
@@ -77,7 +79,7 @@ characterization now leads both the ADR and the README.
 
 ## The recurring defect
 
-Nine of the ten rounds found the same shape. Any part of a budget the caller
+Ten of the eleven rounds found the same shape. Any part of a budget the caller
 can restate, or move by renaming something else, is not part of the budget.
 The same holds for what the budget is meant to withhold: any path by which the
 withheld thing is readable is not withholding it.
@@ -108,6 +110,10 @@ withheld thing is readable is not withholding it.
 9. The line above the seam. `lock.parent.mkdir(...)` sat one line outside the
    scrub that covers everything below it, so the first thing the lock does was
    the one thing nothing protected.
+10. The new line above the seam. Moving the `mkdir` in left `_ledger_root()`
+    above it, and that call resolves the home directory, which can fail
+    outright. Fixing a boundary by moving one line inward leaves whatever was
+    above that line as the new boundary.
 
 ## Round 7 blocking findings
 
@@ -213,6 +219,44 @@ rounds finding a defect at a hand-written redaction site is the argument for
 having exactly one. A plain root is still named in the warning, under test,
 because redaction that redacts everything is silence rather than redaction.
 
+## Round 11: three findings taken, one declined
+
+Round 11 was given the same explicit permission to return ACCEPT. It returned
+four findings. Three were reproduced and fixed; one was reproduced and
+declined, which is recorded here because a review process that accepts
+everything is not reviewing.
+
+Taken, and the only one that matters on its own: `_ledger_root()` sat above
+the scrub after round 10 moved the `mkdir` inside it. `Path.home()` raises
+`RuntimeError` when `$HOME` is unset and the uid has no passwd entry. That is
+an ordinary container running as a numeric user, and it fires on the default
+configuration, because the root consults home only when neither
+`$EVAL_LEDGER_DIR` nor `$XDG_STATE_HOME` is set. `main` does not catch
+`RuntimeError`. Verified before the fix as `RuntimeError` with `main catches
+it: False`, and after as `ConfigError` with `True`. Realism was checked rather
+than argued: with `$HOME` unset and `pwd.getpwuid` raising, `Path.home()`
+raises "Could not determine home directory."
+
+Taken, small: `os.write` and `os.close` shared one `try`, so a write failing
+on a full disk jumped to the `finally`, which unlinks the lock and never
+closes the descriptor. The close now has its own `finally`, and is not
+retried, because POSIX frees the descriptor even when close reports EIO.
+
+Taken, smallest: `_scrub` matched case-sensitively and a hex digest has an
+uppercase spelling that `$EVAL_LEDGER_DIR` can carry. Only reachable by a
+caller who already knows the digest. Fixed for the stated property, not the
+threat, and because hex is the one alphabet where case folding has no
+surprises.
+
+Declined: the report that resolving the root twice lets the lock and the
+ledger disagree, letting concurrent gates double-spend. It reproduces only by
+mutating `$EVAL_LEDGER_DIR` between the two resolutions. No in-process
+environment mutation exists in any of the three modules, checked rather than
+assumed, so the CLI cannot reach it. Threading a derivable parameter through
+two signatures to defend an unreachable case is plumbing this codebase
+declines on purpose. Recorded rather than silently dropped, so that anyone who
+later adds environment mutation knows this was weighed.
+
 ## Corrections applied without dispute
 
 - The path root comes from `$EVAL_LEDGER_DIR`, `$XDG_STATE_HOME`, or home,
@@ -235,5 +279,5 @@ because redaction that redacts everything is silence rather than redaction.
 - \#3453: bound what each consultation discloses. There is no fixed
   multiplier to document, so the statable property is the output alphabet.
 - \#3437: widen the seam from `{task_id: bool}` to `{task_id: float}`. Every
-  reviewer across all ten rounds argued for it. Left to the user, since it
+  reviewer across all eleven rounds argued for it. Left to the user, since it
   is a redesign rather than a tweak.
