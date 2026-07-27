@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -122,13 +121,19 @@ class TestTheWriterAndTheSchemaAgree:
         )
 
 
+def _load_reflexion_memory():
+    """Load reflexion_memory by path to avoid sys.modules collisions."""
+    source = SKILL_ROOT / "memory_core" / "reflexion_memory.py"
+    spec = importlib.util.spec_from_file_location("_reflexion_contract", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestTheRetiredWriterBorrowsTheLiveIdentity:
     def test_it_can_still_reach_the_live_writer(self) -> None:
-        sys.path.insert(0, str(SKILL_ROOT))
-        try:
-            from memory_core import reflexion_memory
-        finally:
-            sys.path.pop(0)
+        reflexion_memory = _load_reflexion_memory()
 
         live = reflexion_memory._live_writer()
         assert live.generate_node_id(
@@ -137,11 +142,7 @@ class TestTheRetiredWriterBorrowsTheLiveIdentity:
 
     def test_it_no_longer_allocates_sequential_ids(self) -> None:
         """The retired writer derives ids via the live writer, not sequential."""
-        sys.path.insert(0, str(SKILL_ROOT))
-        try:
-            from memory_core import reflexion_memory
-        finally:
-            sys.path.pop(0)
+        reflexion_memory = _load_reflexion_memory()
 
         schema = _load(SCHEMA_FILE)
         node_id_pattern = schema["properties"]["nodes"]["items"]["properties"]["id"][

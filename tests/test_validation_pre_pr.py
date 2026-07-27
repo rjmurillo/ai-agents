@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import call, patch
 
+import pytest
+
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -1304,3 +1306,63 @@ class TestValidateReviewMarker:
         self._add_marker(repo)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is True
+
+
+class TestValidateCiDependencyPinsSkipsBeforeImporting:
+    """The skip path must survive a tree that cannot import the checker.
+
+    ``check_ci_dependency_pins`` imports ``packaging``. A downstream install
+    with no ``.github/`` tree is also the install least likely to carry dev
+    dependencies, so importing before the existence check would raise
+    ImportError on exactly the tree the function is written to skip. Issue #3377.
+    """
+
+    @staticmethod
+    def _block_import(monkeypatch: Any) -> None:  # noqa: ANN401
+        import sys
+
+        # A None entry makes ``import check_ci_dependency_pins`` raise
+        # ImportError, which is what a missing ``packaging`` looks like from
+        # the caller's side.
+        monkeypatch.setitem(sys.modules, "check_ci_dependency_pins", None)
+
+    def test_an_absent_github_tree_skips_without_importing(
+        self,
+        tmp_path: Path,
+        monkeypatch: Any,  # noqa: ANN401
+    ) -> None:
+        from checks_tooling import validate_ci_dependency_pins
+
+        from scripts.validation.pre_pr import MissingScriptSkip
+
+        (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n', encoding="utf-8")
+        self._block_import(monkeypatch)
+        with pytest.raises(MissingScriptSkip):
+            validate_ci_dependency_pins(tmp_path)
+
+    def test_an_absent_pyproject_skips_without_importing(
+        self,
+        tmp_path: Path,
+        monkeypatch: Any,  # noqa: ANN401
+    ) -> None:
+        from checks_tooling import validate_ci_dependency_pins
+
+        from scripts.validation.pre_pr import MissingScriptSkip
+
+        (tmp_path / ".github").mkdir()
+        self._block_import(monkeypatch)
+        with pytest.raises(MissingScriptSkip):
+            validate_ci_dependency_pins(tmp_path)
+
+    def test_a_present_tree_still_imports_and_runs(self, tmp_path: Path) -> None:
+        """Negative control: a bad pin returns False, proving the checker ran."""
+        from checks_tooling import validate_ci_dependency_pins
+
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "w.yml").write_text(
+            "run: pip install pytest==8.0.0\n", encoding="utf-8"
+        )
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname="x"\ndependencies=["pytest>=9.0.3"]\n', encoding="utf-8"
+        )
+        assert validate_ci_dependency_pins(tmp_path) is False

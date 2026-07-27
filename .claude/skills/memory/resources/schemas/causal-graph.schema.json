@@ -48,7 +48,7 @@
               "outcome",
               "test"
             ],
-            "description": "Mirrors NODE_TYPES in update_causal_graph.py. A test asserts the two are equal, so widening one alone fails the build."
+            "description": "Mirrors NODE_TYPES in .claude/skills/memory/scripts/update_causal_graph.py. A test asserts the two are equal, so widening one alone fails the build."
           },
           "label": {
             "type": "string"

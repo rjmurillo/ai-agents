@@ -134,16 +134,16 @@ def _validate_schema(
         raise ValueError(msg) from exc
 
     validator = jsonschema.Draft7Validator(schema)
-    errors = [
-        f"{'/'.join(str(part) for part in error.absolute_path) or '<root>'}: "
-        f"{error.message}"
-        for error in sorted(validator.iter_errors(parsed), key=str)
-    ]
-    if errors:
-        shown = errors[:_MAX_REPORTED_SCHEMA_ERRORS]
+    raw_errors = sorted(validator.iter_errors(parsed), key=str)
+    if raw_errors:
+        shown = [
+            f"{'/'.join(str(part) for part in e.absolute_path) or '<root>'}: "
+            f"{e.message}"
+            for e in raw_errors[:_MAX_REPORTED_SCHEMA_ERRORS]
+        ]
         suffix = (
-            f"; and {len(errors) - len(shown)} more"
-            if len(errors) > len(shown)
+            f"; and {len(raw_errors) - len(shown)} more"
+            if len(raw_errors) > len(shown)
             else ""
         )
         msg = (
