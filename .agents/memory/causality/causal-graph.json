@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:43:51.825917+00:00",
+  "updated": "2026-07-27T13:54:11.466829+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21699,6 +21699,51 @@
         "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
       "created": "2026-07-27T11:58:41.229748+00:00"
+    },
+    {
+      "id": "a54eb072d326",
+      "type": "milestone",
+      "label": "milestone: Confirmed the cause is that .gitattributes names a driver whose definition lives only in git config --local, which is never committed. 1 file changed the outcome.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T13:54:11.460388+00:00"
+    },
+    {
+      "id": "b2419596edbd",
+      "type": "milestone",
+      "label": "milestone: No git built-in resolves this file correctly, so the custom driver cannot be swapped for a config-free equivalent. 5 cases tested.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T13:54:11.460480+00:00"
+    },
+    {
+      "id": "1d9162eae211",
+      "type": "milestone",
+      "label": "milestone: The scheduled maintenance pipeline saw a phantom conflict on nearly every PR and spent model calls on a merge that has a deterministic driver. 2 files changed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T13:54:11.460560+00:00"
+    },
+    {
+      "id": "c51179ee1d2d",
+      "type": "milestone",
+      "label": "milestone: Runner-side merges now behave identically to a dev machine, proven by a negative control and a positive case on the same commit pair. 2 files changed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T13:54:11.460638+00:00"
+    },
+    {
+      "id": "2ec0a35781ce",
+      "type": "outcome",
+      "label": "Outcome: success - Structurally fix the merge ref problem: PRs report CONFLICTING while the same merge is clean locally, and a conflicting PR silently skips most CI while reporting green.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T13:54:11.460725+00:00"
     }
   ],
   "patterns": [

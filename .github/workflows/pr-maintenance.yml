@@ -138,6 +138,16 @@ jobs:
           git config user.name "rjmurillo-bot"
           git config user.email "rjmurillo-bot@users.noreply.github.com"
 
+      # The resolver and the conflict-context step below both run a real
+      # `git merge` on this runner. .gitattributes names custom merge drivers,
+      # but git resolves those names through git config, which is per clone and
+      # never committed, so without this step those merges fall back to the
+      # default text merge and report conflicts that a dev machine resolves
+      # deterministically. Stdlib only, so it needs no project environment.
+      - name: Register git merge drivers
+        shell: bash
+        run: python3 scripts/maintenance/install_merge_drivers.py
+
       - name: Auto-resolve conflicts for PR #${{ matrix.number }}
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)

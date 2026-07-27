@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3502,
+    "date": "2026-07-27",
+    "branch": "fix/register-merge-drivers-on-runners",
+    "startingCommit": "4850af73",
+    "objective": "Structurally fix the merge ref problem: PRs report CONFLICTING while the same merge is clean locally, and a conflicting PR silently skips most CI while reporting green."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/register-merge-drivers-on-runners, cut from origin/main at 4850af73"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read AGENTS.md boundaries and .claude/rules/universal.md before editing workflow YAML"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git fetch origin main then git checkout -b from origin/main at 4850af73; working tree held only the two intended workflow files"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md; treated as read-only per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch fix/register-merge-drivers-on-runners, not main"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP tools are not exposed in this Copilot CLI session; used the AGENTS.md documented fallback and read .serena/memories/ directly"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .serena/memories/validation/atomic-replace-preserve-metadata.md and atomic-write-cleanup-covers-interrupts.md, both covering the causal-graph merge driver, before changing how that driver is invoked"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the fix commit landed"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Located .claude/skills/github/scripts/pr/get_pr_checks.py and .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py while tracing the merge path"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Used gh issue create rather than raw API calls"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Runtime test, YAML validation, and actionlint all run before commit"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No edit to .agents/HANDOFF.md"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Serena write tools unavailable in this harness; findings recorded in issue #3502 and in this log's nextSteps"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown authored in this change; the diff is two YAML files"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "fix(ci): register git merge drivers on runners that merge; this log staged in the same commit"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "yaml.safe_load parsed both files; actionlint reported clean on pr-maintenance.yml"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Objective tracked in issue #3502"
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Residual work and the unfixable half captured as acceptance criteria on issue #3502"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Reproduce the conflict under GitHub's exact condition",
+      "actions": [
+        "Cloned the repo to a scratch path so it carried no git config --local, which is the state GitHub's backend and any CI runner are permanently in",
+        "Bound the pre-merge SHAs 2933376d (branch) and 2bad64bc (main at the time) and ran git merge-tree --write-tree",
+        "Without the driver: exit 1, CONFLICT (content) in .agents/memory/causality/causal-graph.json, the only conflicting path",
+        "With the driver supplied via git -c: exit 0, tree 1dd8e065"
+      ],
+      "outcome": "Confirmed the cause is that .gitattributes names a driver whose definition lives only in git config --local, which is never committed. 1 file changed the outcome."
+    },
+    {
+      "phase": "Rule out the git built-ins",
+      "actions": [
+        "Built a scratch repo and merged divergent edits under merge=ours, merge=union, merge=binary, text, and an unregistered driver name",
+        "merge=ours conflicted, so it is not a git built-in; .gitattributes declares it for .agents/HANDOFF.md and install_merge_drivers.py never registers it",
+        "merge=union resolved but concatenated both sides, which yields invalid JSON for a pretty-printed document",
+        "Confirmed causal-graph.json is 972992 bytes of pretty-printed JSON with a top-level updated timestamp, not JSONL"
+      ],
+      "outcome": "No git built-in resolves this file correctly, so the custom driver cannot be swapped for a config-free equivalent. 5 cases tested."
+    },
+    {
+      "phase": "Find where the missing driver actually costs something",
+      "actions": [
+        "Grepped the workflows for runner-side merges: .github/workflows/pr-maintenance.yml runs git merge at two points",
+        "Traced .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py and found _run_git(merge, origin/<target>) at line 345",
+        "Read the workflow: it checks out, configures git, then resolves, and escalates blocked files to a paid AI analysis step",
+        "Confirmed the job never registers merge drivers and does not use the setup-code-env action",
+        "Confirmed scripts/maintenance/install_merge_drivers.py imports only shutil, subprocess, sys and pathlib, computes its own project root, and is idempotent"
+      ],
+      "outcome": "The scheduled maintenance pipeline saw a phantom conflict on nearly every PR and spent model calls on a merge that has a deterministic driver. 2 files changed."
+    },
+    {
+      "phase": "Apply and verify the fix",
+      "actions": [
+        "Added a Register git merge drivers step to the process-prs job in .github/workflows/pr-maintenance.yml, after Configure git and before the resolver",
+        "Added the same step to .github/actions/setup-code-env/action.yml so any future workflow that merges inherits correct semantics",
+        "Re-ran the scratch clone end to end: no driver gave CONFLICT, running the new step verbatim registered the driver and the same merge resolved clean to tree 1dd8e065, byte-identical to the dev-machine result",
+        "yaml.safe_load parsed both files and actionlint reported clean"
+      ],
+      "outcome": "Runner-side merges now behave identically to a dev machine, proven by a negative control and a positive case on the same commit pair. 2 files changed."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "GitHub computes refs/pull/N/merge in its backend before any runner starts and will never run repository code, so no merge driver can make a PR report MERGEABLE. Closing that half needs option 3 (stop committing the graph) or option 4 (shard it) from issue #3345, both architectural and both requiring the user's decision.",
+    "scripts/validation/get_pr_checks equivalent at .claude/skills/github/scripts/pr/get_pr_checks.py has no mergeability awareness, so it reported AllPassing true with 12 checks on PR #3442 where 123 later ran. A conflicting PR should never be able to report all-passing.",
+    ".gitattributes declares merge=ours for .agents/HANDOFF.md and merge=handoff-aggregate for .agents/handoffs/*.md. Neither is a git built-in and neither is registered, so both silently fall back to the text merge everywhere."
+  ]
+}
