@@ -46,7 +46,7 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -320,18 +320,53 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
     """
     try:
         tasks = [str(t) for group in _GROUPS for t in split[group]]
+        seed = str(split["seed"])
+        raw_sel_ratio = split["sel_ratio"]
+        raw_test_ratio = split["test_ratio"]
+        sel_ratio = str(raw_sel_ratio)
+        test_ratio = str(raw_test_ratio)
         redrawn = split_tasks(
             tasks,
-            seed=str(split["seed"]),
-            sel_ratio=float(split["sel_ratio"]),
-            test_ratio=float(split["test_ratio"]),
+            seed=seed,
+            sel_ratio=sel_ratio,
+            test_ratio=test_ratio,
             min_sel=int(split.get("min_sel", 3)),
         )
+        compatible_fingerprints = {redrawn.fingerprint}
+        if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
+            compatible_fingerprints.add(
+                _legacy_numeric_split_fingerprint(
+                    tasks,
+                    seed=seed,
+                    sel_ratio=float(raw_sel_ratio),
+                    test_ratio=float(raw_test_ratio),
+                )
+            )
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
-    if redrawn.fingerprint != split["fingerprint"]:
+    if split["fingerprint"] not in compatible_fingerprints:
         return True
     return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
+
+
+def _is_json_number(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _legacy_numeric_split_fingerprint(
+    task_ids: list[str], *, seed: str, sel_ratio: float, test_ratio: float
+) -> str:
+    payload = json.dumps(
+        {
+            "seed": seed,
+            "tasks": sorted(task_ids),
+            "sel_ratio": sel_ratio,
+            "test_ratio": test_ratio,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +383,45 @@ def _rule_scenarios(payload: object) -> list[Any]:
     return typed
 
 
+def _rule_degraded_scenario_ids(
+    scenarios: Sequence[object], mechanism: str, *, prefix: str | None = None
+) -> list[str]:
+    degraded: list[str] = []
+    for index, scenario in enumerate(scenarios, 1):
+        if not isinstance(scenario, Mapping):
+            continue
+        raw_id = scenario.get("id") or f"S{index}"
+        sid = str(raw_id)
+        task_id = f"{prefix}::{sid}" if prefix is not None else sid
+        mechanisms = scenario.get("mechanisms")
+        if not isinstance(mechanisms, Mapping):
+            degraded.append(task_id)
+            continue
+        mech_data = mechanisms.get(mechanism)
+        if not isinstance(mech_data, Mapping) or "error" in mech_data:
+            degraded.append(task_id)
+            continue
+        scores = mech_data.get("scores")
+        if isinstance(scores, Mapping) and scores.get("judge_failed"):
+            degraded.append(task_id)
+        elif not isinstance(scores, Mapping) or not scores:
+            # Missing or empty scores: scoring never completed. Fail closed.
+            degraded.append(task_id)
+    return degraded
+
+
+def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
+    if not task_ids:
+        return
+    shown = ", ".join(sorted(task_ids)[:20])
+    suffix = "" if len(task_ids) <= 20 else f", and {len(task_ids) - 20} more"
+    raise ConfigError(
+        "refusing to extract degraded rule report: "
+        f"{len(task_ids)} scenario(s) have missing mechanism output, mechanism "
+        f"errors, missing scores, or judge failures: {shown}{suffix}"
+    )
+
+
 def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str, bool]:
     """Extract the multi-rule shape eval-rule-activation.py --output writes.
 
@@ -360,14 +434,24 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     if not isinstance(rules, Mapping) or not rules:
         raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
     out: dict[str, bool] = {}
+    degraded: list[str] = []
     for name, entry in rules.items():
         if not isinstance(entry, Mapping) or "scenarios" not in entry:
             raise ConfigError(f"rule {name!r} has no 'scenarios' list")
+        scenarios = _rule_scenarios(entry)
+        degraded.extend(
+            _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
+        )
+        summary = entry.get("summary")
+        if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
+            if not any(task_id.startswith(f"{name}::") for task_id in degraded):
+                degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
         scored: dict[str, bool] = rule_results(
-            _rule_scenarios(entry), args.mechanism, min_score=args.min_score
+            scenarios, args.mechanism, min_score=args.min_score
         )
         for sid, passed in scored.items():
             out[f"{name}::{sid}"] = passed
+    _refuse_degraded_rule_report(degraded)
     return out
 
 
@@ -381,8 +465,12 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     # path (this file is a hyphenated script), so mypy resolves them as Any
     # under ignore_missing_imports. The annotation restates the contract the
     # tests already enforce.
+    scenarios = _rule_scenarios(payload)
+    _refuse_degraded_rule_report(
+        _rule_degraded_scenario_ids(scenarios, args.mechanism)
+    )
     extracted: dict[str, bool] = rule_results(
-        _rule_scenarios(payload), args.mechanism, min_score=args.min_score
+        scenarios, args.mechanism, min_score=args.min_score
     )
     return extracted
 
@@ -1328,8 +1416,8 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="file the gate reads; holds the full split including held-out ids",
     )
-    split.add_argument("--sel-ratio", type=float, default=0.4)
-    split.add_argument("--test-ratio", type=float, default=0.0)
+    split.add_argument("--sel-ratio", default="0.4")
+    split.add_argument("--test-ratio", default="0.0")
     split.add_argument("--min-sel", type=int, default=3)
     split.set_defaults(func=cmd_split)
 

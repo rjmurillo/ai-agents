@@ -67,6 +67,7 @@ MECHANISMS = ("baseline", "description", "full")
 # AND that mechanism beats baseline by >= MIN_DELTA_VS_BASELINE.
 MIN_ACTIVATION_SCORE = 3.5
 MIN_DELTA_VS_BASELINE = 0.5
+DEFAULT_SEED = 0
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +127,7 @@ def score_response(
     scenario: dict[str, Any],
     response: str,
     model: str = DEFAULT_MODEL,
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """Use the API to score a response on rule activation."""
     expected_signals = scenario.get("expected_signals", [])
@@ -179,7 +181,14 @@ Score on these dimensions (1=absent, 5=clearly present):
 Respond in JSON only, no other text:
 {json_schema}"""
 
-    raw = _call_api(api_key, [{"role": "user", "content": judge_prompt}], model=model)
+    metadata: dict[str, object] = {}
+    raw = _call_api(
+        api_key,
+        [{"role": "user", "content": judge_prompt}],
+        model=model,
+        seed=seed,
+        metadata=metadata,
+    )
 
     text = raw.strip()
     if "```" in text:
@@ -205,13 +214,17 @@ Respond in JSON only, no other text:
             "reasoning": f"judge returned non-object JSON: {text[:200]}",
             "judge_failed": True,
         }
-    return {
+    result = {
         "activation_score": _clamp_score(parsed.get("activation_score")),
         "citation_score": _clamp_score(parsed.get("citation_score")),
         "behavior_score": _clamp_score(parsed.get("behavior_score")),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
     }
+    fingerprint = metadata.get("system_fingerprint")
+    if isinstance(fingerprint, str):
+        result["judge_system_fingerprint"] = fingerprint
+    return result
 
 
 def _clamp_score(value: object) -> int:
@@ -237,6 +250,7 @@ def eval_one_scenario(
     scenario: dict[str, Any],
     model: str,
     dry_run: bool,
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """Run all mechanisms on one scenario."""
     result: dict[str, Any] = {
@@ -257,12 +271,15 @@ def eval_one_scenario(
             continue
 
         try:
+            metadata: dict[str, object] = {}
             response = _call_api(
                 api_key,
                 [{"role": "user", "content": scenario["input"]}],
                 system=system,
                 model=model,
                 max_tokens=600,
+                seed=seed,
+                metadata=metadata,
             )
         except RuntimeError as e:
             result["mechanisms"][mechanism] = {
@@ -273,7 +290,7 @@ def eval_one_scenario(
 
         time.sleep(RATE_LIMIT_SLEEP_SEC)
         try:
-            scores = score_response(api_key, scenario, response, model=model)
+            scores = score_response(api_key, scenario, response, model=model, seed=seed)
         except RuntimeError as e:
             result["mechanisms"][mechanism] = {
                 "error": f"judge API failure: {e}",
@@ -282,11 +299,15 @@ def eval_one_scenario(
             }
             continue
         time.sleep(RATE_LIMIT_SLEEP_SEC)
-        result["mechanisms"][mechanism] = {
+        mechanism_result = {
             "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
             "scores": scores,
             "system_prompt_chars": len(system),
         }
+        fingerprint = metadata.get("system_fingerprint")
+        if isinstance(fingerprint, str):
+            mechanism_result["system_fingerprint"] = fingerprint
+        result["mechanisms"][mechanism] = mechanism_result
     return result
 
 
@@ -431,6 +452,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Model identifier.")
     parser.add_argument("--output", help="Write detailed JSON results to this path.")
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=(
+            "Optional seed forwarded to OpenAI-compatible providers "
+            f"(default: {DEFAULT_SEED})."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Skip API calls, print plan.",
@@ -570,7 +600,15 @@ def _process_one_rule(
     for sc in scenarios:
         preview = sc.get("desc", "")[:60]
         print(f"  scenario {sc['id']}: {preview}...", file=sys.stderr)
-        r = eval_one_scenario(api_key, rule, rule_id, sc, args.model, dry_run=False)
+        r = eval_one_scenario(
+            api_key,
+            rule,
+            rule_id,
+            sc,
+            args.model,
+            dry_run=False,
+            seed=args.seed,
+        )
         scenario_results.append(r)
 
     summary = aggregate(scenario_results)
