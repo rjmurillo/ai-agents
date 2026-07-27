@@ -208,6 +208,91 @@ class TestDotPrefixedUpstreamBoundary:
         assert cmp.count_upstream_refs(text + "\n") == 1
 
 
+class TestPathStartAnchor:
+    """The anchor that decides where a path may begin.
+
+    An earlier revision tested the character before the path with a negative
+    lookbehind, ``(?<![\\w.\\-/\\\\])``, applied ahead of an optional separator.
+    Any character outside that set therefore opened a match, so a home-relative
+    path, a Windows drive, a shell or batch variable expansion, a ``file://``
+    URL, a protocol-relative URL and a URL fragment all counted as
+    repository-root references. The anchor now names the characters that may
+    precede a path instead of naming the ones that may not.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "~/templates/agents/x.md",
+            "~/.agents/x.md",
+            "${ROOT}/templates/agents/x.md",
+            "${ROOT}/.agents/x.md",
+            "%ROOT%\\templates\\agents\\x.md",
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\x.md",
+            "file:///templates/agents/x.md",
+            "//templates/agents/x.md",
+            "[x](https://example.com/#/templates/agents/x.md)",
+            "[x](https://example.com/?next=/.agents/x.md)",
+        ],
+    )
+    def test_paths_rooted_somewhere_else_do_not_count(self, text: str) -> None:
+        """None of these resolve from the repository root.
+
+        A home directory, a drive letter, a variable expansion and a URL
+        authority each supply their own root, so the path that follows is not
+        the upstream directory even though the text after the separator matches.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "/templates/agents/x.md",
+            "[x](/templates/agents/x.md)",
+            "See /templates/platforms/x.yaml for the shape.",
+            "| /templates/agents/x.md | generated |",
+            '<img src="/templates/agents/x.md">',
+            "`templates/agents/x.md`",
+            "Prose line.\n/templates/agents/x.md",
+        ],
+    )
+    def test_paths_at_a_real_start_of_context_count(self, text: str) -> None:
+        """A path may open the document, follow whitespace, or follow a delimiter.
+
+        Markdown link parentheses, table pipes, HTML attribute quotes and inline
+        code backticks all introduce a path without changing where it resolves
+        from, so each one still counts.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+
+class TestBlockquotedFence:
+    """A fenced block inside a blockquote is still a code block.
+
+    GitHub admonitions put an example inside ``>``-prefixed lines. CommonMark
+    parses blockquote content as Markdown once the marker is removed, so the
+    fence has to be recognised there or the example counts as prose.
+    """
+
+    def test_fence_inside_a_blockquote_is_stripped(self) -> None:
+        text = "> [!NOTE]\n> ```bash\n> cp /templates/agents/x.md .\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_blockquoted_prose_still_counts(self) -> None:
+        """Only the fence is exempt; a quoted prose reference is a real one."""
+        assert cmp.count_upstream_refs("> Copy /templates/agents/x.md first.\n") == 1
+
+    def test_quoted_line_does_not_close_a_top_level_fence(self) -> None:
+        """A close must match the context its open was found in.
+
+        Otherwise a ``>``-prefixed backtick line inside a top-level fence would
+        end the block early and expose the rest of the example as prose.
+        """
+        text = "```\n> ```\n/templates/agents/x.md\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+
 class TestCodeBlockAndInlineHandling:
     def test_ignores_fenced_code_blocks(self) -> None:
         text = (

@@ -89,15 +89,28 @@ from scripts.validation.portability_common import (
 # file-relative asset directory bundled inside a skill, and a substring of
 # unrelated URLs (issue #3459).
 #
-# Every pattern shares one path-start boundary. A reference counts only when the
-# path begins at a token start, so ``src/templates/agents/`` and
-# ``https://example.com/.agents/`` resolve elsewhere and are not upstream
-# references. The optional group consumes a leading ``/``, ``\`` or ``./`` so a
-# repository-root-relative link such as ``/templates/agents/x.md`` still counts;
-# the lookbehind is then applied to whatever precedes that separator, which is
-# what distinguishes ``/templates/`` from ``src/templates/``. A ``../`` prefix
-# stays excluded because it resolves out of the repo root, not to it.
-_BOUNDARY = r"(?<![\w.\-/\\])(?:\.[\\/]+|[\\/]+)?"
+# Every pattern shares one path-start anchor. A reference counts only when the
+# path begins at a real start of context: the start of the document, whitespace
+# (which includes a line start), or a Markdown or quoting delimiter. An optional
+# single leading separator (``/``, ``\`` or ``./``) is consumed after the anchor
+# so a repository-root-relative link such as ``/templates/agents/x.md`` counts,
+# because GitHub resolves a leading slash from the repository root.
+#
+# The anchor is a positive test rather than a negative one. An earlier revision
+# used ``(?<![\w.\-/\\])`` and consumed the separator after it, which admitted
+# any character outside that set before the separator. That let ``~/templates/``,
+# ``C:\templates\``, ``${ROOT}/templates/``, ``%ROOT%\templates\``,
+# ``file:///templates/``, ``//templates/`` and a URL fragment ``#/templates/``
+# all count, none of which resolve to the repository root. Naming the characters
+# that may precede a path is the only way to keep those out while still
+# accepting ``[x](/templates/agents/x.md)``.
+#
+# Inline code is deliberately not stripped before counting (see
+# :func:`count_upstream_refs`), so a backtick is a valid anchor character.
+# ``../`` stays excluded: it is parent-relative and does not name the repository
+# root, so where it lands depends on the referring file's own location.
+_ANCHOR = r"(?:^|(?<=[\s(\[<\"'`|,;*]))"
+_BOUNDARY = _ANCHOR + r"(?:\.[\\/]|[\\/])?"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
@@ -127,6 +140,12 @@ _MARKER_PATTERN = re.compile(
 # Regex to detect a fenced code block opening line (CommonMark: 0-3 spaces indent allowed).
 _FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
+# A fence may also open inside a blockquote, which is how GitHub admonitions
+# (``> [!NOTE]`` followed by a fenced example) are written. CommonMark parses
+# blockquote content as Markdown after the marker is removed, so the marker has
+# to come off before the fence test runs.
+_BLOCKQUOTE_PREFIX_PATTERN = re.compile(r"^[ \t]{0,3}(?:>[ \t]?)+")
+
 _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
@@ -148,18 +167,31 @@ def _strip_code(text: str) -> str:
     (e.g., a code block that itself contains triple-backtick lines).
     A closing fence must use the same character and be at least as long
     as the opening fence, per CommonMark spec.
+
+    A fence that opens inside a blockquote is stripped too, and only such a
+    fence accepts a blockquoted closing line. Requiring the close to match the
+    open's context keeps a bare ``>``-prefixed line inside a top-level fence
+    from closing it early.
     """
     lines = text.split("\n")
     result_lines: list[str] = []
     fence_char: str | None = None
     fence_len = 0
+    fence_quoted = False
 
     for line in lines:
         if fence_char is None:
             match = _FENCE_OPEN_PATTERN.match(line)
+            quoted = False
+            if match is None:
+                unquoted = _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1)
+                if unquoted != line:
+                    match = _FENCE_OPEN_PATTERN.match(unquoted)
+                    quoted = match is not None
             if match:
                 fence_char = match.group(1)[0]
                 fence_len = len(match.group(1))
+                fence_quoted = quoted
                 result_lines.append("")
             else:
                 result_lines.append(line)
@@ -167,9 +199,13 @@ def _strip_code(text: str) -> str:
             close_pattern = re.compile(
                 r"^[ \t]{0,3}" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
             )
-            if close_pattern.match(line):
+            candidate = (
+                _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1) if fence_quoted else line
+            )
+            if close_pattern.match(candidate):
                 fence_char = None
                 fence_len = 0
+                fence_quoted = False
                 result_lines.append("")
             else:
                 result_lines.append("")
