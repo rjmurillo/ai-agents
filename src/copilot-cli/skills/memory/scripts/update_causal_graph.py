@@ -119,7 +119,7 @@ def generate_node_id(node_type: str, label: str) -> str:
 
 # The closed set of node types this writer may emit, and the authoritative
 # source for the ``type`` enum in
-# ``.claude/skills/memory/resources/schemas/causal-graph.schema.json``. A test
+# ``resources/schemas/causal-graph.schema.json`` (canonical: ``.claude/skills/memory/resources/schemas/causal-graph.schema.json``). A test
 # asserts the two stay equal, so widening one without the other fails the build
 # rather than drifting silently (#3356).
 #
