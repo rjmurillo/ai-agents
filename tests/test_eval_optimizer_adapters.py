@@ -12,6 +12,7 @@ shrinks the denominator and inflates the score.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -35,6 +36,82 @@ from _optimizer_adapters import (  # noqa: E402
 
 def _report(rates: dict) -> dict:
     return {"per_fixture_pass_rates": rates}
+
+
+class TestNonFiniteScores:
+    """NaN and infinity must not be read as outcomes.
+
+    Adversarial review found both slipping through: NaN made a scenario pass
+    because every comparison against it is False, and infinity made a fixture
+    pass unconditionally. Both arrive from real producers, since JSON's own
+    parser accepts the bare tokens, and either one silently rewrites a verdict
+    the gate is supposed to be measuring.
+    """
+
+    def test_nan_in_an_agent_rate_is_refused(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C001": {"agent": [float("nan")]}}), "agent")
+
+    def test_infinity_in_an_agent_rate_is_refused(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C001": {"agent": [float("inf")]}}), "agent")
+
+    def test_negative_infinity_is_refused(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C001": {"agent": [float("-inf")]}}), "agent")
+
+    def test_nan_parsed_from_real_json_is_refused(self):
+        """json.loads accepts the bare NaN token, so this is a live path."""
+        report = json.loads('{"per_fixture_pass_rates": {"C001": {"agent": [NaN]}}}')
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(report, "agent")
+
+    def test_infinity_does_not_pass_a_fixture(self):
+        """Before the fix, inf >= any threshold, so the fixture passed."""
+        with pytest.raises(AdapterError):
+            agent_results(_report({"C001": {"agent": [float("inf")]}}), "agent")
+
+    def test_nan_in_a_rule_score_is_refused(self):
+        scenarios = [
+            {
+                "id": "S1",
+                "mechanisms": {
+                    "m": {
+                        "scores": {
+                            "activation_score": float("nan"),
+                            "citation_score": 5,
+                            "behavior_score": 5,
+                        }
+                    }
+                },
+            }
+        ]
+        with pytest.raises(AdapterError, match="finite"):
+            rule_results(scenarios, "m")
+
+    def test_an_ordinary_finite_score_still_passes(self):
+        assert agent_results(_report({"C001": {"agent": [1.0]}}), "agent") == {"C001": True}
+
+
+class TestNullScoresBlock:
+    """An explicit JSON null is not a missing key.
+
+    dict.get returns the stored None rather than the default, so a scenario
+    carrying "scores": null crashed with an uncaught AttributeError instead of
+    a named adapter error.
+    """
+
+    def test_a_null_scores_block_is_refused(self):
+        with pytest.raises(AdapterError, match="scores"):
+            rule_results([{"id": "S1", "mechanisms": {"m": {"scores": None}}}], "m")
+
+    def test_a_non_mapping_scores_block_is_refused(self):
+        with pytest.raises(AdapterError, match="scores"):
+            rule_results([{"id": "S1", "mechanisms": {"m": {"scores": [1, 2, 3]}}}], "m")
+
+    def test_a_missing_scores_block_still_scores_zero(self):
+        """Absent is different from malformed and keeps its existing meaning."""
+        assert rule_results([{"id": "S1", "mechanisms": {"m": {}}}], "m") == {"S1": False}
 
 
 class TestAgentResults:
@@ -163,12 +240,20 @@ class TestRuleResults:
         assert rule_results(scenarios, "full") == {"S1": True}
 
     def test_negative_scenario_passes_when_the_rule_stays_quiet(self):
-        """A negative case is scored inverted: not activating is the win."""
-        scenarios = [_scenario("S1", "full", (1, 1, 1), negative=True)]
+        """The judge already normalizes a negative case, so do not invert.
+
+        eval-rule-activation.py builds the judge prompt with "(negative case: 5
+        means the response correctly did NOT activate the rule and gave generic
+        advice instead)". A high score therefore already means correct
+        behavior for both polarities. Inverting here would double-invert and
+        punish exactly the rules that behave.
+        """
+        scenarios = [_scenario("S1", "full", (5, 5, 5), negative=True)]
         assert rule_results(scenarios, "full") == {"S1": True}
 
     def test_negative_scenario_fails_when_the_rule_fires_anyway(self):
-        scenarios = [_scenario("S1", "full", (5, 5, 5), negative=True)]
+        """A low negative-case score means the rule fired when it should not."""
+        scenarios = [_scenario("S1", "full", (1, 1, 1), negative=True)]
         assert rule_results(scenarios, "full") == {"S1": False}
 
     def test_judge_failure_scores_as_failure(self):
@@ -176,9 +261,32 @@ class TestRuleResults:
         assert rule_results(scenarios, "full") == {"S1": False}
 
     def test_judge_failure_also_fails_a_negative_case(self):
-        """A broken judge proves nothing, so inversion must not rescue it."""
-        scenarios = [_scenario("S1", "full", (1, 1, 1), negative=True, judge_failed=True)]
+        """A broken judge proves nothing for either polarity."""
+        scenarios = [_scenario("S1", "full", (5, 5, 5), negative=True, judge_failed=True)]
         assert rule_results(scenarios, "full") == {"S1": False}
+
+    def test_negative_and_positive_use_the_same_threshold(self):
+        """Both polarities read the same normalized scale, so one floor fits."""
+        scenarios = [
+            _scenario("POS", "full", (3.5, 3.5, 3.5)),
+            _scenario("NEG", "full", (3.5, 3.5, 3.5), negative=True),
+        ]
+        assert rule_results(scenarios, "full") == {"POS": True, "NEG": True}
+
+    def test_judge_prompt_still_normalizes_negative_cases(self):
+        """Drift guard for the semantics this adapter depends on.
+
+        If eval-rule-activation.py ever stops telling the judge that 5 is the
+        correct-behavior end of the scale for negative cases, the no-inversion
+        policy above becomes wrong and this test must fail loudly.
+        """
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "scripts"
+            / "eval"
+            / "eval-rule-activation.py"
+        ).read_text(encoding="utf-8")
+        assert "negative case: 5 means the response correctly did NOT activate" in source
 
     def test_mechanism_error_scores_as_failure(self):
         scenarios = [_scenario("S1", "full", (5, 5, 5))]

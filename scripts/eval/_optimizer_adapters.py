@@ -25,6 +25,7 @@ it cheaply.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
@@ -60,14 +61,22 @@ class AdapterError(ValueError):
 
 
 def _as_float(value: object, context: str) -> float:
-    """Coerce a score to float, refusing bools and non-numbers.
+    """Coerce a score to float, refusing bools, non-numbers, and non-finite values.
 
     `isinstance(True, int)` is True in Python, so a bool would otherwise slip
     through as 1.0 or 0.0. A pass-rate list holding bools means the producer
     changed shape, and guessing at intent there hides the change.
+
+    NaN and infinity are refused for a sharper reason: they quietly invert
+    verdicts. Every comparison against NaN is False, so a NaN score makes a
+    negative-case scenario pass; infinity clears any threshold, so it makes a
+    fixture pass unconditionally. `json.loads` accepts the bare `NaN` and
+    `Infinity` tokens, so neither is hypothetical.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise AdapterError(f"{context} must be numeric, got {value!r}")
+    if not math.isfinite(value):
+        raise AdapterError(f"{context} must be finite, got {value!r}")
     return float(value)
 
 
@@ -138,11 +147,16 @@ def rule_results(
 ) -> dict[str, bool]:
     """Map rule-activation scenarios to per-scenario pass or fail.
 
-    Negative cases invert. A scenario tagged `negative_case` asserts the rule
-    should stay quiet, so a low judge score is the win. `eval-rule-activation.py`
-    aggregates negative cases into their own summary but its verdict never
-    reads them; scoring them here puts them back in the gate, where a rule that
-    over-fires is supposed to lose.
+    Both polarities read one normalized scale. `eval-rule-activation.py` builds
+    the judge prompt so that 5 always means correct behavior, including for a
+    negative case ("5 means the response correctly did NOT activate the rule").
+    So a high score is a pass whether the rule was meant to fire or stay quiet,
+    and this adapter must not invert.
+
+    What it does add is including negative cases at all. That evaluator's own
+    verdict averages positive scenarios only and reads negative ones solely to
+    count judge failures, so a rule that over-fires can pass there. Here it
+    loses.
 
     Args:
         scenarios: Scored scenario records, each with `id`, `negative_case`,
@@ -176,9 +190,16 @@ def rule_results(
             continue
 
         raw_scores = mech_data.get("scores", {})
+        if raw_scores is None or not isinstance(raw_scores, Mapping):
+            # An explicit null is not a missing key: dict.get returns the stored
+            # None rather than the default, so this used to crash on the next
+            # attribute access instead of naming the malformed input.
+            raise AdapterError(
+                f"scenario {sid!r} has a malformed scores block, "
+                f"expected an object, got {raw_scores!r}"
+            )
         if raw_scores.get("judge_failed"):
-            # A broken judge proves nothing. Inversion must not turn a
-            # missing measurement into a negative-case win.
+            # A broken judge proves nothing, for either polarity.
             out[sid] = False
             continue
 
@@ -186,8 +207,15 @@ def rule_results(
             _as_float(raw_scores.get(key, 0), f"scenario {sid!r} {key}")
             for key in _RULE_SCORE_KEYS
         ]
-        activated = statistics.fmean(triple) >= min_score
-        out[sid] = not activated if scenario.get("negative_case") else activated
+        # No inversion. eval-rule-activation.py tells the judge that 5 is the
+        # correct-behavior end of the scale for negative cases too ("5 means
+        # the response correctly did NOT activate the rule"), so the score
+        # arrives already normalized. Inverting here would double-invert and
+        # reward exactly the rules that fire when they should stay quiet. The
+        # value this adapter adds is including negative cases in the task set
+        # at all: eval-rule-activation.py's own verdict reads only positive
+        # scenarios, using negative ones solely to count judge failures.
+        out[sid] = statistics.fmean(triple) >= min_score
     return out
 
 
