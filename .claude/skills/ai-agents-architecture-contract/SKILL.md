@@ -136,7 +136,7 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each is in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 3 events and 4 groups, `.claude/hooks/hooks.json` has 2 events and 2 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **ruff is advisory in CI**: lint debt accumulates invisibly; only syntax parsing blocks.
