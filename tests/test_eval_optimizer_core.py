@@ -964,3 +964,18 @@ class TestGuardRefusalValidatesItsOwnCap:
 
     def test_no_cap_is_accepted(self):
         assert guard_refusal(sel_consultations=99, max_consultations=None) is None
+
+    @pytest.mark.parametrize("spent", [-1, -7])
+    def test_a_negative_spend_is_refused(self, spent):
+        """A negative count is a corrupt ledger, not an unspent budget.
+
+        Reading one as "less than the cap" would hand back consultations the
+        group already spent, which is the budget defect this whole mechanism
+        exists to prevent, arriving through arithmetic instead of through a
+        flag.
+        """
+        with pytest.raises(ValueError, match="must be non-negative"):
+            guard_refusal(sel_consultations=spent, max_consultations=3)
+
+    def test_a_zero_spend_is_accepted(self):
+        assert guard_refusal(sel_consultations=0, max_consultations=3) is None
