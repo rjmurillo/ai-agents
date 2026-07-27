@@ -267,8 +267,13 @@ def _survives(
     undo the purge, which is the bug. Measured over the file's whole history:
     of 85 commits that touched it, 3 removed rows, and all three were
     deliberate (663bbac48 the #3358 purge, c2264799b the PowerShell to Python
-    migration, bdacb6b19 a session protocol change). The generator itself only
-    ever adds.
+    migration, bdacb6b19 a session protocol change). The generator also removes
+    rows: _retract_stale drops nodes whose labels are no longer earned, and
+    _drop_orphaned_edges sweeps edges whose endpoints are gone. Delete beats
+    modify still holds for those removals because both are statements about the
+    tree as it stands and both are recomputed every run; the side that retracted
+    is the side that looked more recently, and a row still earned after the
+    merge comes back on the next generator run.
     """
     if key not in base_index:
         return True
