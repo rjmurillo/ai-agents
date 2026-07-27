@@ -166,6 +166,15 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: python3 build/scripts/validate_templates_schema.py
 
+      - name: Validate agent capability matrix references
+        if: steps.should-run.outputs.skip != 'true'
+        # Every agent named in a routing table must exist. A row naming a
+        # retired agent is worse than a missing row: the delegation resolves
+        # to nothing, the harness reports no error, and the work is silently
+        # skipped. The orchestrator matrix carried a `memory` row for months
+        # after cross-session memory became a skill rather than an agent.
+        run: python3 build/scripts/validate_agent_matrix_refs.py
+
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
         # Catches the class of drift the build-all generator cannot:
