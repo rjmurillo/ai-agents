@@ -60,6 +60,7 @@ jobs:
               - 'build/scripts/**'
               - 'scripts/validation/**'
               - '.claude/agents/**'
+              - '.claude/commands/**'
               - '.claude/skills/**'
               - '.claude/hooks/**'
               - '.claude/settings.json'
@@ -165,6 +166,15 @@ jobs:
       - name: Validate platform template schema (REQ-003-002)
         if: steps.should-run.outputs.skip != 'true'
         run: python3 build/scripts/validate_templates_schema.py
+
+      - name: Validate plugin frontmatter self-containment (issue #3565)
+        if: steps.should-run.outputs.skip != 'true'
+        # A shipped `description` loads into every consumer session, so a path
+        # into an upstream-only directory never resolves for them. The prose
+        # ratchet scans only .claude/skills and does not know `docs/`, which is
+        # how PR #3497 landed `docs/agent-metrics.md` two PRs after the rule
+        # shipped. See .claude/rules/plugin-self-containment.md.
+        run: python3 scripts/validation/check_plugin_frontmatter_self_containment.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
