@@ -44,7 +44,7 @@
       "checklistComplete": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Issue #3399 deliverables validated: prose scanner added, ADR prose corrected, tests and lint run."
+        "evidence": "Issue #3399 review follow-up validated: scanner strengthened for table rows, line suffixes, same-context retirement markers, and live registration claims; ADR prose corrected again."
       },
       "handoffPreserved": {
         "complete": true,
@@ -59,17 +59,17 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "npx markdownlint-cli2@0.23.1 ran on changed ADR files and reported 0 issues in 0 files due .agents exclusion."
+        "evidence": "markdownlint-cli2 and markdownlint-cli2 --no-globs ran on changed ADR files and reported 0 issues in 0 files due .agents exclusion."
       },
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed on fix/3399-adr-prose-hook-refs."
+        "evidence": "Review follow-up changes are being committed atomically on fix/3399-adr-prose-hook-refs."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "uv run --frozen python -m pytest tests/hooks/test_adr_hook_claims.py -q reported 193 passed; ruff reported all checks passed; dash byte count was 0."
+        "evidence": "Red proof on origin/main ADRs with strengthened scanner: 13 failed, 273 passed. Green after fixes: uv run --frozen python -m pytest tests/hooks/test_adr_hook_claims.py -q reported 286 passed; uv run --frozen python -m pytest tests/hooks/ -q reported 719 passed; ruff passed; mypy passed; dash byte count was 0."
       }
     }
   },
@@ -113,8 +113,31 @@
     {
       "action": "Committed ADR prose batch 4",
       "result": "ADR-085 test auto approval reference now carries historical context."
+    },
+    {
+      "action": "Strengthened ADR prose scanner after adversarial review",
+      "result": "The scanner now covers Markdown table rows, line-range hook references, same-sentence or same-row retirement markers, and live registration claims checked against dispatch_groups parity inventory.",
+      "files": [
+        "tests/hooks/test_adr_hook_claims.py"
+      ]
+    },
+    {
+      "action": "Corrected remaining stale ADR prose references after adversarial review",
+      "result": "Updated present-tense hook enforcement claims to current Lefthook jobs, new or restored enforcement points, or historical removed-hook wording without changing ADR decisions.",
+      "files": [
+        ".agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md",
+        ".agents/architecture/ADR-033-routing-level-enforcement-gates.md",
+        ".agents/architecture/ADR-047-plugin-mode-hook-behavior.md",
+        ".agents/architecture/ADR-057-prompt-behavioral-evaluation.md",
+        ".agents/architecture/ADR-061-hook-matcher-shims-delegate-pattern.md",
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-081-confidence-elicitation-experiment.md",
+        ".agents/architecture/ADR-082-claude-hook-group-dispatch.md",
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+      ]
     }
   ],
-  "endingCommit": "22c786aff6aa249b640309157526f4119afe1f74",
+  "endingCommit": "133534d99315",
   "nextSteps": []
 }

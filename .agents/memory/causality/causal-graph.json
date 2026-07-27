@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:45:59.506936+00:00",
+  "updated": "2026-07-27T13:30:49.711838+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21537,6 +21537,33 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "6a13e225b00e",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705338+00:00"
+    },
+    {
+      "id": "22c6c2d4f4fd",
+      "type": "milestone",
+      "label": "milestone: Corrected remaining stale ADR prose references after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705425+00:00"
+    },
+    {
+      "id": "5f651d3b4ac3",
+      "type": "commit",
+      "label": "commit: Commit: 133534d99315",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705505+00:00"
     }
   ],
   "patterns": [

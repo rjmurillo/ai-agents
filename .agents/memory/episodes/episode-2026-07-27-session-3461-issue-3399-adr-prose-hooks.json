@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Added ADR prose hook reference scanning",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -86,7 +86,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -94,6 +96,40 @@
       "type": "commit",
       "content": "Commit: 22c786aff6aa249b640309157526f4119afe1f74",
       "caused_by": [],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner after adversarial review",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected remaining stale ADR prose references after adversarial review",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 133534d99315",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -104,7 +140,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []
