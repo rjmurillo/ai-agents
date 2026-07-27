@@ -178,7 +178,7 @@ with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` 
 | File | Action | Description |
 |------|--------|-------------|
 | `.claude/hooks/PreToolUse/invoke_manifest_count_guard.py` | Create | Hook: import existing validator, translate exit code to block/allow |
-| `tests/hooks/test_manifest_count_guard.py` | Create | Tests: AC-4, AC-5, AC-8 partial, counts match, counts mismatch |
+| `tests/hooks/test_manifest_count_guard.py` | Create | Tests: AC-4, AC-5, AC-8 partial, counts match, counts mismatch <!-- orphan-ref-ignore --> |
 | `.claude/hooks/hooks.json` | Modify | Append manifest count hook entry to `Bash(git push*)` block |
 
 **Acceptance Criteria**
@@ -221,7 +221,7 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
 | File | Action | Description |
 |------|--------|-------------|
 | `.claude/hooks/PreToolUse/invoke_session_log_field_guard.py` | Create | Hook: JSON parse, three-field check, violation lines |
-| `tests/hooks/test_session_log_field_guard.py` | Create | Tests: AC-6, AC-7, AC-8 partial, malformed JSON, all fields valid |
+| `tests/hooks/test_session_log_field_guard.py` | Create | Tests: AC-6, AC-7, AC-8 partial, malformed JSON, all fields valid <!-- orphan-ref-ignore --> |
 | `.claude/hooks/hooks.json` | Modify | Append session log field hook entry to `Bash(git push*)` block |
 
 **Acceptance Criteria**
