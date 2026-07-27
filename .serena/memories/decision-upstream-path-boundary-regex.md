@@ -26,15 +26,33 @@ The correct shape optionally *consumes* the leading separator first, then applie
 lookbehind to whatever precedes it:
 
 ```python
-_BOUNDARY = r"(?<![\w.\-/\\])(?:\.[\\/]+|[\\/]+)?"
+_ANCHOR = r"(?:^|(?<=[\s(\[<\"'`|,;*]))"
+_BOUNDARY = _ANCHOR + r"(?:\.[\\/]|[\\/])?"
 ```
 
-`/templates/` passes because nothing precedes the consumed `/`. `src/templates/` fails
-because `src` precedes it. That single constant is now shared by all five patterns.
+A path counts only when it begins at a real start of context: the start of the text,
+whitespace (which includes a line start), or a Markdown or quoting delimiter. The
+optional group then consumes a single leading separator, so `/templates/` counts and
+`src/templates/` does not.
 
-`../templates/` stays excluded on purpose: it resolves outside the repo root, so it
-ships with whatever contains it. An existing test asserts this, and an earlier draft of
-`_BOUNDARY` that allowed `../` was caught by that test.
+The first revision of this fix got the direction wrong. It consumed the separator first
+and then applied a negative lookbehind, `(?<![\w.\-/\\])`. A negative test admits every
+character it does not name, so `~/templates/`, `C:\templates\`, `${ROOT}/templates/`,
+`%ROOT%\templates\`, `file:///templates/`, `//templates/` and a `#/templates/` URL
+fragment all counted as repository-root references. Each of those supplies its own root.
+Adversarial review caught it; the fix is to name the characters a path may follow rather
+than the ones it may not.
+
+Backtick is in the anchor set on purpose. `count_upstream_refs` deliberately does not
+strip inline code, because SKILL.md path dependencies are normally written in backticks.
+
+`../templates/` stays excluded on purpose, but not because it leaves the repository.
+`../templates/agents` from `.claude/skills/security-review/SKILL.md` normalizes to
+`.claude/skills/templates/agents`, which is still inside the repo. The real reason is
+that a parent-relative path does not unambiguously name the repository-root directory:
+where it lands depends on the referring file's own location, so it is not evidence of a
+dependency on the upstream tree. An existing test asserts this, and an earlier draft of
+the boundary that allowed `../` was caught by that test.
 
 ## Evidence
 
@@ -67,21 +85,29 @@ path or URL segment ending in `/` before a dot-directory matched.
 The three legacy patterns also gained `?#` in their terminator class so URL query and
 fragment forms terminate the match the same way the `templates` patterns already did.
 
-Coverage adds seventeen cases in `tests/validation/test_check_skill_md_portability.py`,
-split across two classes. Fourteen sit in the new `TestDotPrefixedUpstreamBoundary`,
-which covers `.agents`, `.claude/lib`, and `.claude/review-axes`. Three extend the
-pre-existing `TestCountUpstreamRefs.test_counts_paths_that_name_the_upstream_dir`
-parametrize with the `templates` shapes this fix repairs.
+Coverage grows the file from 55 tests on `main` to 93, across four classes. The new
+`TestDotPrefixedUpstreamBoundary` covers `.agents`, `.claude/lib` and
+`.claude/review-axes`. `TestCountUpstreamRefs.test_counts_paths_that_name_the_upstream_dir`
+gains the `templates` shapes this fix repairs. `TestPathStartAnchor` pins the shapes that
+supply their own root. `TestBlockquotedFence` pins fence handling inside a blockquote.
 
-Nine of the seventeen change verdict against the previous regex, so they are regression
-proof rather than decoration. The other eight pin behavior that already held, which is
-what makes the nine meaningful.
+Nineteen of the 93 fail against `main`'s module, so they are regression proof rather than
+decoration; the rest pin behavior that already held, which is what makes the nineteen
+meaningful. Reproduce by copying the test file into a worktree checked out at
+`origin/main` and running pytest on it.
 
 Filed as issue #3471. Landed after PR #3463 merged, because the fix was still local
 when that PR merged.
 
 ## Transferable lesson
 
-When a regex matches inside a longer path, do not reach for a bare lookbehind. Decide
-first whether a leading separator is meaningful in the domain. For repo-relative paths
-it is: consume it, then apply the boundary to what came before it.
+Prefer a positive assertion to a negative one when deciding where a match may start. A
+negative lookbehind is an open set: it admits every character the author did not think
+of, and the ones nobody thinks of are exactly the interesting ones (`~`, `:`, `}`, `%`,
+`#`). A positive anchor is a closed set, so its failure mode is a missed reference that a
+test can name rather than a false positive nobody predicted.
+
+Two review rounds on this change found real defects that local tests did not, and the
+defects were in the part that looked finished. Run a shape matrix that compares the old
+module against the new one directly, rather than trusting that a green suite means the
+boundary moved only where intended.

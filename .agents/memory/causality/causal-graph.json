@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:26:52.469460+00:00",
+  "updated": "2026-07-27T11:25:54.841602+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21420,6 +21420,51 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T10:26:52.463490+00:00"
+    },
+    {
+      "id": "6990eee806b1",
+      "type": "milestone",
+      "label": "milestone: Replaced all five ad hoc prefixes with one shared boundary constant. The first revision consumed an optional leading separator and then applied a negative lookbehind, which admitted any character outside that set: ~/, C:\\, ${ROOT}/, %ROOT%\\, file:///, // and a #/ URL fragment all counted as repository-root references. Adversarial review caught it. The boundary now uses a positive start-of-context anchor that names the characters a path may follow.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835484+00:00"
+    },
+    {
+      "id": "ace45f85d93a",
+      "type": "milestone",
+      "label": "milestone: Kept ../ excluded. An existing test asserts it. A parent-relative path does not unambiguously name the repository-root directory: where it lands depends on the referring file's own location, so it is not evidence of an upstream dependency. An earlier draft of the boundary allowed it and that test caught the regression.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835572+00:00"
+    },
+    {
+      "id": "0cbea555e251",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 19 of the 93 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835667+00:00"
+    },
+    {
+      "id": "806a3d68968c",
+      "type": "milestone",
+      "label": "milestone: Stripped fenced code that opens inside a blockquote. The anchor change made a GitHub admonition example count as prose. A close is only accepted in the context its open was found in, so a >-prefixed backtick line cannot end a top-level fence early.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835759+00:00"
+    },
+    {
+      "id": "56138010c902",
+      "type": "milestone",
+      "label": "milestone: Verified the reviewer's second finding before acting on it. Bare directory references that end at a word boundary are missed, but they return 0 at base commit 303f918ea as well, so the gap predates this branch. Filed as issue #3482 and left out of scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835838+00:00"
     }
   ],
   "patterns": [
