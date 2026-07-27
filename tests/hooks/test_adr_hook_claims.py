@@ -1,35 +1,10 @@
-"""An ADR may not mark a hook implemented when its file is absent (Issue #3373).
-
-ADR-008 marked five hooks implemented. Three had been deleted across two
-separate purges (#3184, #3349), and each purge left the ADR alone. ADR-008 is
-the document a reader reaches for when asking what the lifecycle-hook surface
-is, and it answered with files that are not on disk.
-
-Correcting the prose once buys one clean read. This is the part that survives
-the next purge: delete a hook without amending the ADR that claims it and this
-test names both the ADR and the missing file.
-
-Scope, and why it is not the existing ledger's job. ``AUTHORIZED_HOOKS`` in
-``test_dispatch_groups_parity.py`` is bidirectional over the *live dispatch
-surface*: every running hook needs an authorization and every authorization
-needs a running hook. It says nothing about ADR prose, and it cannot, because a
-hook can be authorized and documented in an ADR that spells its path
-differently. This test is the ADR-prose half and deliberately checks only one
-direction: a claim must have a file. The converse (every hook file is claimed
-by some ADR) is not asserted, because hooks legitimately arrive via issues
-rather than ADRs.
-
-An ADR records what was decided, so retiring a hook does not mean deleting its
-row. Mark the row retired and the row stops being a claim. That is the intended
-edit, and it is why the marker and not the path is what makes a row a claim.
-"""
+"""ADR hook claims must name real or explicitly retired hook files."""
 
 from __future__ import annotations
 
 import importlib.util
 import re
 from bisect import bisect_right
-from functools import cache
 from pathlib import Path
 from types import ModuleType
 
@@ -42,15 +17,53 @@ HOOK_SEARCH_ROOTS = (
     HOOKS_ROOT,
     PROJECT_ROOT / "src" / "copilot-cli" / "hooks",
 )
-
-# A backticked path naming an `invoke_*.py` file directly under an event
-# directory (`Stop/invoke_x.py`), optionally prefixed by the repo-relative
-# hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
-# so both have to resolve.
-_HOOK_PATH_RE = re.compile(
-    r"`([^`]*?(?:(?:hooks/)?[A-Za-z]\w*/)?invoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`"
+REFERENCE_FORM_CASES = (
+    ("backticked bare name", "`invoke_context_loader`"),
+    ("backticked bare py", "`invoke_context_loader.py`"),
+    ("backticked claude path", "`.claude/hooks/SessionStart/invoke_context_loader.py`"),
+    (
+        "backticked copilot path",
+        "`src/copilot-cli/hooks/SessionStart/invoke_context_loader.py`",
+    ),
+    ("backticked table cell", "| Hook | `invoke_context_loader.py` |"),
+    (
+        "line and range suffixes",
+        "`invoke_context_loader.py:12` and `invoke_context_loader.py:12-18`",
+    ),
+    ("plain bare name", "invoke_context_loader"),
+    ("plain bare py", "invoke_context_loader.py"),
+    ("plain claude path", ".claude/hooks/SessionStart/invoke_context_loader.py"),
+    ("plain copilot path", "src/copilot-cli/hooks/SessionStart/invoke_context_loader.py"),
+    ("backtick fenced yaml", "```yaml\nhook: invoke_context_loader.py\n```"),
+    ("tilde fenced yaml", "~~~yaml\nhook: invoke_context_loader.py\n~~~"),
+    ("plain table cell", "| Hook | invoke_context_loader.py |"),
+    ("markdown link target", "[hook](.claude/hooks/SessionStart/invoke_context_loader.py)"),
+    ("html comment", "<!-- invoke_context_loader.py -->"),
+    ("embedded yaml", "hooks:\n  - invoke_context_loader.py"),
+    ("embedded json", '{"hook": "invoke_context_loader.py"}'),
+    ("different case", "Invoke_Context_Loader.py"),
+    ("hyphen form", "invoke-context-loader.py"),
+    ("frontmatter", "---\nhook: invoke_context_loader.py\n---"),
+    (
+        "retired and live in one sentence",
+        "The retired `invoke_old_gate.py` is gone; `invoke_context_loader.py` remains active.",
+    ),
+    ("registration runs", "`invoke_context_loader.py` runs at session start."),
+    ("registration ships", "`invoke_context_loader.py` ships in the base."),
+    ("registration enforcing", "`invoke_context_loader.py` is enforcing the policy."),
+    ("registration guards", "`invoke_context_loader.py` guards the flow."),
+    ("registration active", "`invoke_context_loader.py` is active."),
+    ("registration remains", "`invoke_context_loader.py` remains registered."),
 )
-_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*\binvoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`")
+
+_HOOK_TOKEN_RE = re.compile(
+    r"(?<![\w-])"
+    r"((?:(?:(?:\.claude|src/copilot-cli)/hooks/(?:[A-Za-z]\w*/)?|[A-Za-z]\w*/))?"
+    r"(?:Invoke_[\w.]*[-_][\w.-]+|Invoke-[\w.]*[-_][\w.-]+)"
+    r"(?:\.py)?(?::\d+(?:-\d+)?)?)"
+    r"(?![\w-])",
+    re.IGNORECASE,
+)
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
 _RETIREMENT_WORDS = (
     r"deleted|deregistered|dropped|historical|no longer|previously|"
@@ -65,8 +78,11 @@ _NEGATED_RETIRED_RE = re.compile(
     re.IGNORECASE,
 )
 _LIVE_REGISTRATION_RE = re.compile(
-    r"\b(?:consumer-effective|enforce[sd]?|registered|registration|run(?:s|ning)?)\b"
-    r"|\bstill\s+(?:exists|registered|runs|enforces)\b",
+    r"\b(?:"
+    r"active|blocks?|consumer-effective|enforc(?:e[sd]?|ing)|fires?|guards?|"
+    r"invokes?|registered|registers?|registration|remains|run(?:s|ning)?|ships"
+    r")\b"
+    r"|\bstill\s+(?:active|exists|registered|runs|enforces|ships)\b",
     re.IGNORECASE,
 )
 
@@ -105,7 +121,7 @@ def _claims(text: str) -> list[tuple[int, str]]:
         if not any(_IMPLEMENTED_RE.match(c) for c in cells):
             continue
         for cell in cells:
-            for match in _HOOK_PATH_RE.finditer(cell):
+            for match in _HOOK_TOKEN_RE.finditer(cell):
                 found.append((number, match.group(1)))
     return found
 
@@ -116,6 +132,7 @@ def _prose_claims(text: str) -> list[tuple[int, str]]:
         (number, path)
         for number, path, context in _hook_references(text)
         if not _has_retirement_marker(context)
+        and path not in _documented_governance_gap_tokens(text)
     ]
 
 
@@ -124,15 +141,16 @@ def _hook_references(text: str) -> list[tuple[int, str, str]]:
     for match in re.finditer(r"\n", text):
         line_starts.append(match.end())
     found: list[tuple[int, str, str]] = []
-    for match in _BACKTICKED_INVOKE_RE.finditer(text):
+    for match in _HOOK_TOKEN_RE.finditer(text):
         line_number = bisect_right(line_starts, match.start())
         line_start = line_starts[line_number - 1]
         line_end = text.find("\n", match.start())
         if line_end == -1:
             line_end = len(text)
         line = text[line_start:line_end]
+        token = _normal_hook_token(match.group(1))
         context = line if line.lstrip().startswith("|") else _prose_context(text, match)
-        found.append((line_number, match.group(1), context))
+        found.append((line_number, token, context))
     return found
 
 
@@ -158,6 +176,24 @@ def _sentence_context(text: str, start_offset: int, end_offset: int) -> str:
     ]
     end_candidates = [end_offset + position for position in end_candidates]
     end = min(end_candidates) + 1 if end_candidates else len(text)
+    sentence = text[start + 1 : end]
+    return _clause_context(sentence, start_offset - start - 1, end_offset - start - 1)
+
+
+def _clause_context(text: str, start_offset: int, end_offset: int) -> str:
+    boundary_re = r"\||;|\band\b|\bbut\b|\bor\b|\bwhile\b|\bwhereas\b"
+    boundaries = [match for match in re.finditer(boundary_re, text, re.IGNORECASE)]
+    start = -1
+    for marker in boundaries:
+        if marker.start() < start_offset:
+            start = marker.end() - 1
+        else:
+            break
+    end = len(text)
+    for marker in boundaries:
+        if marker.start() >= end_offset:
+            end = marker.start()
+            break
     return text[start + 1 : end]
 
 
@@ -166,13 +202,18 @@ def _has_retirement_marker(context: str) -> bool:
     return _RETIRED_RE.search(affirmative_context) is not None
 
 
-@cache
-def _repo_basename_exists(basename: str) -> bool:
-    ignored_parts = {".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "node_modules"}
-    return any(
-        path.is_file() and not (set(path.relative_to(PROJECT_ROOT).parts) & ignored_parts)
-        for path in PROJECT_ROOT.rglob(basename)
-    )
+def _documented_governance_gap_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for context in text.split("\n\n"):
+        if (
+            "governance gap" in context.lower()
+            and re.search(r"\b(?:absent|absence|missing)\b", context, re.IGNORECASE)
+        ):
+            tokens.update(
+                _normal_hook_token(match.group(1))
+                for match in _HOOK_TOKEN_RE.finditer(context)
+            )
+    return tokens
 
 
 def _names_running_hook(hook_path: str) -> bool:
@@ -189,7 +230,7 @@ def _resolves(hook_path: str) -> bool:
     # eats the leading dot of ".claude/hooks/..." and the path stops resolving.
     candidates = _candidate_hook_paths(hook_path)
     for candidate in candidates:
-        if (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file():
+        if _repo_relative_hook_path_exists(candidate):
             return True
         if "/" in candidate and any((root / candidate).is_file() for root in HOOK_SEARCH_ROOTS):
             return True
@@ -200,17 +241,28 @@ def _resolves(hook_path: str) -> bool:
                 for root in HOOK_SEARCH_ROOTS
                 for path in root.glob(f"*/{candidate}")
             )
-            or _repo_basename_exists(candidate)
         ):
             return True
     return False
 
 
+def _repo_relative_hook_path_exists(candidate: str) -> bool:
+    path = Path(candidate)
+    allowed_roots = (Path(".claude") / "hooks", Path("src") / "copilot-cli" / "hooks")
+    return any(path.is_relative_to(root) for root in allowed_roots) and (
+        PROJECT_ROOT / path
+    ).is_file()
+
+
 def _candidate_hook_paths(hook_path: str) -> list[str]:
-    candidate = re.sub(r":\d+(?:-\d+)?$", "", hook_path.removeprefix("./"))
+    candidate = _normal_hook_token(hook_path.removeprefix("./"))
     if candidate.endswith(".py"):
         return [candidate]
     return [f"{candidate}.py", candidate]
+
+
+def _normal_hook_token(hook_path: str) -> str:
+    return re.sub(r":\d+(?:-\d+)?$", "", hook_path)
 
 
 @pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
@@ -245,9 +297,12 @@ def test_no_adr_prose_names_a_hook_that_is_absent_without_retirement_marker(adr:
 @pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
 def test_no_adr_prose_claims_an_unregistered_hook_is_live(adr: Path) -> None:
     missing = []
-    for number, path, context in _hook_references(adr.read_text(encoding="utf-8")):
+    text = adr.read_text(encoding="utf-8")
+    governance_gap_tokens = _documented_governance_gap_tokens(text)
+    for number, path, context in _hook_references(text):
         if (
             not _has_retirement_marker(context)
+            and path not in governance_gap_tokens
             and _claims_live_registration(context)
             and not _names_running_hook(path)
         ):
@@ -327,8 +382,21 @@ class TestPathResolution:
     def test_a_bare_live_hook_filename_resolves(self):
         assert _resolves("invoke_context_loader.py")
 
+    def test_a_decoy_outside_hook_roots_does_not_resolve(self):
+        assert (PROJECT_ROOT / "scripts" / "invoke_session_start_gate.py").is_file()
+        assert not _resolves("scripts/invoke_session_start_gate.py")
+
 
 class TestWhatCountsAsAProseClaim:
+    @pytest.mark.parametrize(
+        ("case_name", "text"),
+        REFERENCE_FORM_CASES,
+        ids=[case_name for case_name, _ in REFERENCE_FORM_CASES],
+    )
+    def test_reference_form_is_scanned(self, case_name: str, text: str):
+        references = [path for _, path, _ in _hook_references(text)]
+        assert references, f"{case_name} was not scanned"
+
     def test_a_resolvable_prose_token_is_a_claim(self):
         text = "The `invoke_context_loader.py` hook runs at session start.\n"
         assert _prose_claims(text) == [(1, "invoke_context_loader.py")]
@@ -365,6 +433,21 @@ class TestWhatCountsAsAProseClaim:
         text = "This hook was never removed: `invoke_deleted_gate.py` still enforces this policy.\n"
         assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
 
+    def test_a_retired_token_does_not_suppress_a_live_token_in_the_same_sentence(self):
+        text = (
+            "The retired `invoke_old_gate.py` is gone; "
+            "`invoke_deleted_gate.py` remains active.\n"
+        )
+        assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
+
+    def test_documented_governance_gap_does_not_read_as_unmarked_stale_prose(self):
+        text = (
+            "`invoke_deleted_gate.py` MUST remain in the base.\n\n"
+            "Observed state: `invoke_deleted_gate.py` is absent. "
+            "The absence is a governance gap, not a relaxed decision.\n"
+        )
+        assert _prose_claims(text) == []
+
     def test_a_table_row_reference_without_retirement_marker_is_a_claim(self):
         row = "| Gate | `invoke_deleted_gate.py:66-95` | Direct | Medium |\n"
         assert _prose_claims(row) == [(1, "invoke_deleted_gate.py")]
@@ -389,6 +472,24 @@ class TestWhatCountsAsAProseClaim:
         context = "The `invoke_context_loader` hook still runs."
         assert _claims_live_registration(context)
         assert _names_running_hook("invoke_context_loader")
+
+    @pytest.mark.parametrize(
+        "phrase",
+        (
+            "runs",
+            "ships",
+            "is enforcing",
+            "guards",
+            "is active",
+            "remains",
+            "registers",
+            "fires",
+            "invokes",
+            "blocks",
+        ),
+    )
+    def test_live_registration_claim_verbs_are_recognized(self, phrase: str):
+        assert _claims_live_registration(f"`invoke_context_loader.py` {phrase}.")
 
     def test_a_line_range_suffix_is_stripped_and_the_reference_is_still_captured(self):
         text = "See `invoke_serena_reassertion.py:38-41` for the guard.\n"

@@ -151,11 +151,36 @@
         ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
         ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md"
       ]
+    },
+    {
+      "action": "Strengthened ADR prose scanner for review r3",
+      "result": "Tokenizer now scans hook-like tokens independent of Markdown decoration, resolves only under hook roots, scopes retirement wording to clauses, and treats documented governance gaps as recorded violations rather than stale prose.",
+      "files": [
+        "tests/hooks/test_adr_hook_claims.py"
+      ]
+    },
+    {
+      "action": "Restored ADR-083 accepted security-control requirement",
+      "result": "The accepted Decision and Confirmation Criteria text are restored; a dated amendment records that invoke_security_gate and invoke_security_commit_gate are absent and no superseding ADR was found.",
+      "files": [
+        ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md"
+      ]
+    },
+    {
+      "action": "Corrected review r3 stale hook prose",
+      "result": "ADR-041, ADR-057, ADR-062, and ADR-082 now use historical wording or non-hook script names where the scanner found stale or non-hook invoke references.",
+      "files": [
+        ".agents/architecture/ADR-041-codeql-integration.md",
+        ".agents/architecture/ADR-057-prompt-behavioral-evaluation.md",
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-082-claude-hook-group-dispatch.md"
+      ]
     }
   ],
-  "endingCommit": "2c99107e1cd5",
+  "endingCommit": "",
   "nextSteps": [],
   "notes": [
-    "Regex widened to catch :line-range hook references per review feedback."
+    "Review r3 replaced regex widening with tokenization independent of Markdown decoration.",
+    "ADR-083 now records a governance gap instead of weakening the accepted security-control requirement."
   ]
 }

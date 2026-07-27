@@ -8,7 +8,9 @@ ADR Review Protocol evidence for ADR-008, ADR-033, ADR-047, ADR-057, ADR-061, AD
 
 The staged ADR edits are factual corrections only. They do not change any ADR decision, status, alternative, or consequence. They either point prose at the current enforcement surface, such as the lefthook `session-policy`, `adr-review-policy`, and `retrospective-policy` jobs, require a new or restored enforcement point where the old hook was removed, or mark deleted hook references as historical with same-context retirement wording.
 
-Review r2 added two factual corrections. ADR-062 now states the #1993 per-turn reassertion hook was removed and no longer ships. ADR-083 no longer claims the removed `invoke_security_gate` and removed `invoke_security_commit_gate` hooks are present in the shipped base.
+Review r2 added two factual corrections. ADR-062 now states the #1993 per-turn reassertion hook was removed and no longer ships.
+
+Review r3 found one alteration in ADR-083. The accepted Decision and Confirmation Criteria text are restored. A dated amendment records the observed absence of `invoke_security_gate` and `invoke_security_commit_gate` and states that no superseding ADR was found. This preserves the accepted requirement and records the current implementation gap instead of relaxing the decision.
 
 ## Review
 

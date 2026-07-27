@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T14:55:12.648363+00:00",
+  "updated": "2026-07-27T19:52:49.946355+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22294,6 +22294,33 @@
         "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
       "created": "2026-07-27T13:33:30.219770+00:00"
+    },
+    {
+      "id": "290f01c75f6e",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner for review r3",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.939851+00:00"
+    },
+    {
+      "id": "6a2eab95668b",
+      "type": "milestone",
+      "label": "milestone: Restored ADR-083 accepted security-control requirement",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.939950+00:00"
+    },
+    {
+      "id": "56156fcffa79",
+      "type": "milestone",
+      "label": "milestone: Corrected review r3 stale hook prose",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.940040+00:00"
     }
   ],
   "patterns": [

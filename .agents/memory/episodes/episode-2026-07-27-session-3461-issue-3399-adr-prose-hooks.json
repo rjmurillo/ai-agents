@@ -216,7 +216,9 @@
       "caused_by": [
         "e017"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e021"
+      ]
     },
     {
       "id": "e019",
@@ -241,6 +243,40 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner for review r3",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored ADR-083 accepted security-control requirement",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected review r3 stale hook prose",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
