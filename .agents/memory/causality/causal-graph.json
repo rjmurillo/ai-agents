@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:31:21.423498+00:00",
+  "updated": "2026-07-27T11:02:17.730623+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21402,6 +21402,24 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T10:31:21.418072+00:00"
+    },
+    {
+      "id": "874bf27c1790",
+      "type": "milestone",
+      "label": "milestone: Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T11:02:17.724761+00:00"
+    },
+    {
+      "id": "9f80a20fcf70",
+      "type": "commit",
+      "label": "commit: Commit: a5791784c",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T11:02:17.724848+00:00"
     }
   ],
   "patterns": [

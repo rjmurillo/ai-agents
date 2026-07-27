@@ -330,13 +330,28 @@ write to. That is named under Open Requirements rather than claimed here.
 
 ### What this does not require
 
-- It does not require a p-value threshold. Paired evidence (McNemar's exact
-  test on the discordant counts) is reported on every compared decision and
-  enforced on none. At the group sizes this repository actually has, three
-  discordant tasks cannot produce a p below 0.125, so a conventional 0.05 floor
-  would make the ordinary case unpassable rather than informative. Reporting it
-  keeps the reader honest about how thin the evidence is. Enforcing it would
-  only teach the loop to grow the eval set until the arithmetic cooperates.
+- It does not require a p-value threshold by default. Paired evidence
+  (McNemar's exact test on the discordant counts) is reported on every compared
+  decision and enforced only when the caller passes `--max-p`. At the group
+  sizes this repository actually has, three discordant tasks cannot produce a p
+  below 0.125, so a conventional 0.05 floor would make the ordinary case
+  unpassable rather than informative. Reporting it keeps the reader honest about
+  how thin the evidence is. Defaulting to enforcing it would only teach the loop
+  to grow the eval set until the arithmetic cooperates.
+
+  The flag exists because the 2026-07-27 live run produced an ACCEPT at p=0.25
+  that a null control then reproduced from noise. Where an operator has enough
+  held-out tasks to afford the power, the tail the gate already computes should
+  be able to refuse. `--max-p` is read as the family bar and divided by
+  `--max-consultations` (Bonferroni), because a per-comparison threshold does
+  not bound a family: five looks at 0.05 each is a family-wise 0.226. That
+  correction is conservative under any dependence between comparisons, which is
+  the right direction for a gate, and it means raising the budget buys more
+  looks at a stricter bar rather than a cheaper one. It also costs power: at ten
+  held-out tasks, clearing a corrected 0.01 needs seven one-directional
+  discordant pairs. The bar refuses genuine improvements at these sizes. That is
+  why it is opt-in rather than the default, and why the durable fix is more
+  tasks or repeated sampling (Open Requirement 6), not a tuned threshold.
 - It does not require a test group. At this repository's fixture counts, where
   the mode is 8, a three-way split can leave a selection group too small to
   decide anything. The default is optimize and selection only, and that default
@@ -462,11 +477,24 @@ that reason.
    call rather than the author's.
 4. **A governance document, per ADR-022's own matrix.** This ADR carries an
    enforcement obligation, and ADR-022 asks for both halves in that case.
-5. **A live rule-path validation run.** See Validation Status. Blocked on
-   account usage limits until 2026-08-01.
+5. **A live rule-path validation run.** Done 2026-07-27 via GitHub Models; see
+   Validation Status. It produced a false accept and the null control that
+   caught it, which is what promoted requirement 6 from a suspicion to a
+   measurement.
 6. **Multi-run reduction for the rule adapter** (#3445). The agent adapter
    already averages over runs; the rule adapter is single-shot against an LLM
    judge, which is the noisiest of the three and the only one with no defense.
+   Now measured rather than assumed: scoring identical rule text twice moved
+   13 of 24 tasks, 5 of them across the pass threshold, with mean absolute
+   movement of 0.49 points on the five-point judge scale. The two held-out
+   gains that produced the false accept were the two largest movements in the
+   benchmark, 0.75 to 3.75 and 1.75 to 3.75. That is larger than the effect any
+   single edit in this loop has produced, so until this lands, an accept on the
+   rule path carries no more information than a coin flip that happened to
+   avoid the no-regression clause. `--max-p` bounds the damage; it does not
+   supply the missing samples. These are magnitudes from one paired re-run, not
+   an estimated rate; a rate needs repeated replication, which is the work this
+   requirement names.
 7. **A one-time reveal path for the test group.** Requirement 1 says the group
    is read once at the end, but no command reads it: `score` accepts `--group
    opt` only, and `gate` always reads `sel`. Either implement the reveal with
@@ -584,14 +612,61 @@ Honest statement of what has and has not been exercised against real data.
   a real regression.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
   node ids extracted.
-- **Rule path**: validated against real error-path output only. The live judge
-  call returned HTTP 400, account usage limit reached until 2026-08-01. That run
-  still earned its cost: it exposed two integration defects that fixtures had
-  hidden, a real envelope shape the extractor rejected and a scenario-id
-  collision that would have silently dropped 20 of 24 tasks.
+- **Rule path**: validated end to end against live judge output on 2026-07-27.
+  Anthropic remained rate-capped, so the run routed through GitHub Models
+  (`EVAL_PROVIDER=github`, `openai/gpt-4o-mini`), which `scripts/eval/_providers.py`
+  already supported. `eval-rule-activation.py` scored all seven files in
+  `tests/evals/rule-scenarios/`, 24 scenarios, 12 passing. An earlier
+  error-path-only run had already earned its cost by exposing two integration
+  defects that fixtures had hidden: a real envelope shape the extractor
+  rejected, and a scenario-id collision that would have silently dropped 20 of
+  24 tasks.
 
-The rule path should be re-run against live judge output before this ADR moves
-from proposed to accepted.
+### What the live rule run falsified
+
+The run produced an ACCEPT and the ACCEPT was wrong. That is the finding.
+
+A real edit to `.claude/rules/working-with-legacy-code.md` moved the held-out
+group 0.6 to 0.8 with two discordant gains, no losses, p=0.25. Post-hoc, the
+edited rule's own four scenarios had not moved at all; every flip came from a
+rule the edit never touched. Restoring the rule byte-for-byte and re-running
+the identical scorer as a null control flipped 5 of 24 tasks with no input
+change, moved the held-out group 6/10 to 7/10 on its own, and reproduced both
+gains that had earned the ACCEPT. Gating the byte-identical no-op returned
+REJECT only because the noise happened to break one task, which the ADR-057
+no-regression clause caught.
+
+Two conclusions, both load-bearing for this ADR:
+
+1. **A strictly-greater rule over a single sample does not survive a
+   nondeterministic scorer.** The decision was made by which way the variance
+   fell. `--max-p` now lets the exact tail this gate already computed refuse;
+   replaying the run under `--max-p 0.05` turns the false accept into a reject
+   naming the 0.25 tail.
+2. **No threshold rescues a ten-task held-out group.** A one-sided exact
+   McNemar tail cannot reach 0.05 below five one-directional discordant pairs,
+   so at this size the bar refuses genuine improvements too. Power comes from
+   more tasks or repeated sampling per task, not from tuning the bar. That
+   remains unbuilt.
+
+This strengthens rather than weakens the case for the design: the gate refused
+to be talked into anything by the optimize group, and the failure it did have
+was visible in a number it was already printing. It also means no run of this
+loop should be cited as evidence of an improvement until a null control has
+been run alongside it.
+
+One property of these numbers is worth stating so nobody over-reads them. The
+"scorer variance" measured here is a compound of two nondeterministic stages,
+the response model and the judge, both `gpt-4o-mini` at temperature 0. The
+harness sets no per-stage seed and records no `system_fingerprint`, so nothing
+in these reports attributes the movement to one stage or the other. The
+0.49-point mean is the variance of the pipeline. Whether a judge held fixed
+would show less is untested here.
+
+The ADR stays proposed. The rule path is now live-validated, but requirement 6
+below is the reason it cannot yet move: a single-sample scorer at this
+benchmark size cannot distinguish an edit from noise, and that is a property of
+the benchmark rather than of the gate.
 
 ## References
 

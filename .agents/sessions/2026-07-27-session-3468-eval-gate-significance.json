@@ -137,12 +137,28 @@
         "Replayed both live runs under --max-p 0.05: the false ACCEPT became a REJECT naming the 0.25 tail, and the no-op stayed refused by the regression clause"
       ],
       "outcome": "489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean."
+    },
+    {
+      "phase": "Round fourteen adversarial review of the significance bar",
+      "actions": [
+        "Ran the ADR Review Protocol on ADR-087 and the --max-p change with two non-Claude reviewers in parallel, per the adr-review skill: gpt-5.6-terra on the code, gemini-3.1-pro-preview on the ADR claims. Both returned REJECT. Multi-agent consensus on ADR-087 was not reached; the findings were adjudicated against data rather than accepted or dismissed wholesale.",
+        "Accepted all four blocking code findings. The load-bearing one was statistical: a per-comparison p threshold does not bound a family, so five consultations at 0.05 each is a family-wise 0.226. --max-p is now the family bar, Bonferroni-divided by --max-consultations.",
+        "Pinned max_p in the ledger like the consultation cap, including pinning its absence, so a candidate refused at 0.05 cannot be re-gated at 0.1.",
+        "Moved --max-p range validation ahead of the ledger so a malformed flag no longer spends a consultation or hides behind an exhausted budget.",
+        "Made max_p without p_value or without max_consultations raise instead of accepting.",
+        "Falsified the ADR reviewer's headline finding empirically. It claimed the null-control flips were HTTP 429 errors scored as failures. Checked all three live reports: zero errored mechanism-runs out of 216 and no FAIL_JUDGE_ERRORS verdict. The mechanism is real but did not fire, so it was filed as #3474 rather than folded in or dismissed.",
+        "Filed #3475: providers never pass OpenAI's seed and never read back system_fingerprint, so paired re-runs cannot be made comparable.",
+        "Corrected three documentation contradictions the reviewers found: the README and ADR both still claimed p was reported and never enforced, and the debate log claimed a 21 percent per-task flip rate that one replication cannot support.",
+        "Added the confounded-variance disclosure to the ADR and debate log: the measured movement is the pipeline's, not the judge's, and this harness cannot separate them."
+      ],
+      "outcome": "Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "The honest ceiling on this benchmark is n=10 held out. A one-sided exact McNemar tail cannot reach 0.05 below 5 one-directional discordant pairs, so --max-p 0.05 here refuses nearly everything. More tasks or repeated sampling per task, not a different threshold, is what buys power",
-    "Repeated sampling would change the scorer contract rather than the gate, and interacts with #3437's proposal to widen the seam to {task_id: float}. Left as a decision for @rjmurillo rather than folded in",
-    "The eval-rule-activation.py judge is the variance source worth measuring next: this run cannot separate response nondeterminism from judge nondeterminism"
+    "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
+    "PR #3467 is green on 112 checks and blocked only on human approval.",
+    "#3437 (widen the seam to {task_id: float}) and #3445 (repeated sampling) are decisions for @rjmurillo, not fold-ins. Every reviewer across fourteen rounds pushed for #3437; it is a redesign of the scorer contract, not a tweak.",
+    "#3474 (errored scenarios scored as failures manufacture discordant pairs) and #3475 (no seed, no system_fingerprint) are both on the extract path, not the gate path."
   ]
 }

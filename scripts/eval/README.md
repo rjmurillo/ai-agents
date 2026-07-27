@@ -370,6 +370,10 @@ uv run --frozen python "$OA" gate --incumbent base.json --candidate cand.json \
     --split split.json --incumbent-fingerprint "$FP" --max-consultations 5
 ```
 
+Add `--max-p 0.05` when the held-out group is large enough for the tail to
+mean something. See "What a live run measured" below for why, and for the
+group size at which the bar starts refusing everything.
+
 On reject, revert the file and run `buffer-add` so the same edit is not
 re-proposed. On accept, the candidate becomes the incumbent.
 
@@ -538,12 +542,34 @@ Every compared verdict reports `discordant_gain`, `discordant_loss`, and
 pass-to-fail, and the one-sided exact McNemar tail on those counts. Tasks that
 did not move carry no evidence about the edit, so they are not in the test.
 
-The `p` is reported, never enforced. A held-out group with three discordant
-tasks cannot produce a `p` below 0.125 no matter how one-sided the result, so
-enforcing a conventional 0.05 floor would make the ordinary case unpassable
-rather than informative. Read it as a resolution limit: at these sizes a single
-task flip moves the verdict, so a one-step accept is weak evidence and a run of
-them is worth more than any single number.
+The `p` is reported always and enforced only when you ask, with `--max-p`. It
+is off by default for a reason that is arithmetic, not taste. A held-out group
+with three discordant tasks cannot produce a `p` below 0.125 no matter how
+one-sided the result, so a conventional 0.05 floor makes the ordinary case
+unpassable rather than informative. Read the default as a resolution limit: at
+these sizes a single task flip moves the verdict, so a one-step accept is weak
+evidence and a run of them is worth more than any single number.
+
+When you do pass `--max-p`, it is the **family** bar, not the per-comparison
+one. A budget of five consultations each judged at 0.05 has a family-wise false
+accept probability of `1 - 0.95**5`, about 0.226, which is not the number an
+operator asking for 0.05 believes they are getting. So the gate spends the bar
+across the declared budget by Bonferroni: each comparison is held to
+`--max-p / --max-consultations`. The verdict reports both as `max_p` and
+`max_p_per_comparison`. Two consequences worth stating plainly. Raising the
+budget buys more looks at a stricter bar, never a cheaper one, so there is no
+way to buy an accept by declaring more consultations. And the correction makes
+the power problem worse, not better: at ten held-out tasks a one-sided exact
+McNemar tail needs five one-directional discordant pairs to clear 0.05, and
+seven to clear the 0.01 that a budget of five implies. A bar this strict
+refuses genuine improvements too. That is the honest trade, and it is why the
+flag defaults to absent. Power comes from more tasks or repeated sampling, not
+from tuning the bar.
+
+The bar is pinned in the ledger like the consultation cap, and its absence is
+pinned as firmly as its presence. A candidate refused at 0.05 cannot be gated
+again at 0.1, or with the flag dropped, against the same held-out group. To
+change the bar, re-split.
 
 The seam is boolean, so an edit that lifts every held-out task from 0.50 to
 0.99 without crossing the threshold scores as no change and rejects as a tie.
@@ -570,6 +596,62 @@ stderr, exit 2, as with every other script here.
 This tool makes no API calls. It decides; the scorers it wraps do the spending.
 That is why `--dry-run` applies only to `apply`, and why the whole decision path
 is unit-tested without eval budget.
+
+### What a live run measured
+
+The loop above had never been driven by a real model until 2026-07-27. It was
+then run end to end against `eval-rule-activation.py` over the seven files in
+`tests/evals/rule-scenarios/`, 24 scenarios, scored by `openai/gpt-4o-mini`
+through `EVAL_PROVIDER=github`. Read the numbers before trusting an accept.
+
+**The run.** `extract` produced 24 tasks with 12 passing. `split --seed
+live-2026-07-27` drew 14 optimize and 10 held out. Acting as the optimizer,
+only the 14 optimize ids were read. The chosen edit went to
+`.claude/rules/working-with-legacy-code.md`, whose two visible failures both
+scored 2.33 with the judge saying the behavior was right but the answer
+"lacks the expected vocabulary", while the rule bound its vocabulary to "PR
+descriptions and review comments" alone. The edit widened that binding and
+added a two-gate summary.
+
+**The verdict.** `gate` returned ACCEPT: held-out 0.6 to 0.8, two discordant
+gains, no losses, p=0.25, one consultation of five.
+
+**Why that accept was wrong.** Post-hoc, the edited rule's own four scenarios
+had not moved: three still failing, one still passing. Every flip came from a
+rule the edit never touched. So the incumbent rule text was restored
+byte-for-byte and the identical scorer run again as a null control:
+
+- 13 of 24 tasks changed score at all; 5 crossed the 3.5 pass threshold.
+- Mean absolute movement was 0.49 points on the five-point judge scale, with a
+  maximum of 3.00.
+- The held-out group moved 6/10 to 7/10 on its own.
+- Both held-out gains that earned the ACCEPT also flipped under the null run,
+  and they were the two largest movements in the whole benchmark: 0.75 to 3.75
+  and 1.75 to 3.75.
+
+Gating that byte-identical no-op returned REJECT, but only because the noise
+happened to break one task and the no-regression clause caught it. The real
+edit and the no-op gained the same two held-out tasks. The verdict was decided
+by which way the variance fell, not by the edit.
+
+These are magnitudes observed in a single paired re-run, not an estimated
+error rate. One replication cannot put an interval on any of them. It is
+enough to establish that the noise is larger than the effect being measured,
+which is the only claim made here.
+
+**What changed as a result.** `--max-p` was added so the exact tail the gate
+already computed can refuse. Replaying both runs under `--max-p 0.05` turns
+the false accept into a reject that names the 0.25 tail. It defaults to absent
+because a small held-out group cannot reach a conventional floor, and a bar
+nothing can clear is not a gate.
+
+**What did not change, and is the real limit.** At ten held-out tasks a
+one-sided exact McNemar tail cannot reach 0.05 without five one-directional
+discordant pairs, so on this benchmark `--max-p 0.05` refuses nearly
+everything, genuine improvements included. More tasks, or repeated sampling
+per task with a majority vote, is what buys power. A different threshold does
+not. Until then, treat a single-sample accept on a nondeterministic scorer as
+a hypothesis, and run the null control before believing it.
 
 ## Scenario File Format
 

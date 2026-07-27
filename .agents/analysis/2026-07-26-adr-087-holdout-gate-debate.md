@@ -313,3 +313,154 @@ contradict it.
 - \#3437: widen the seam from `{task_id: bool}` to `{task_id: float}`. Every
   reviewer across all twelve rounds argued for it. Left to the user, since it
   is a redesign rather than a tweak.
+
+## What the live run found, after the reviews stopped
+
+Thirteen rounds of adversarial review argued about the gate's logic. None of
+them could argue about its inputs, because until 2026-07-27 the loop had never
+been driven by a real model. The live run found something no reviewer had:
+the gate's accept rule is sound and still produced a wrong answer, because the
+scorer underneath it is noisier than any edit it was asked to judge.
+
+Setup: `eval-rule-activation.py` over all seven files in
+`tests/evals/rule-scenarios/`, 24 scenarios, `openai/gpt-4o-mini` through
+`EVAL_PROVIDER=github`. 12 of 24 passing at baseline, so real headroom. Split
+seed `live-2026-07-27`, 14 optimize and 10 held out, fingerprint `06f74397`.
+
+| Run | Held-out | Gain | Loss | p | Verdict |
+|-----|----------|------|------|---|---------|
+| Real edit to a rule | 0.6 to 0.8 | 2 | 0 | 0.25 | ACCEPT |
+| Byte-identical no-op | 0.6 to 0.7 | 2 | 1 | 0.5 | REJECT |
+
+Both candidates gained the same two held-out tasks. The edited rule's own four
+scenarios did not move under either run. The null control flipped 5 of 24 tasks
+with no input change. The verdict difference was entirely which way the noise
+fell: the real edit drew no regression, the no-op drew one, and the
+no-regression clause did the rest.
+
+### The fourteenth defect shape
+
+Every earlier shape was a defect in the code. This one is not.
+
+Shapes 1 through 13 were all variations on the same theme: a property was
+stated in one place and enforced in another, and the two drifted. Shape 14 is
+different in kind. **The gate printed the number that would have caught it and
+had no way to act on it.** The source comment said so out loud: p was
+"reported rather than enforced" because a three-task held-out group cannot
+reach a conventional floor. That reasoning was correct and the conclusion was
+incomplete: the right answer was an opt-in bar, not no bar.
+
+The transferable form: *a diagnostic you compute and print but cannot act on
+will be read as reassurance.* Reporting p next to an ACCEPT reads as evidence
+supporting the accept, when in this case it was evidence against it. If a
+number is worth printing beside a verdict, there should be a way to make the
+verdict answer to it.
+
+### What this does not fix
+
+`--max-p 0.05` at ten held-out tasks refuses nearly everything, genuine
+improvements included: a one-sided exact McNemar tail needs five
+one-directional discordant pairs to clear 0.05, and seven once the family-wise
+correction from round fourteen divides that bar across a five-consultation
+budget. The bar bounds the damage from noise; it does not create the
+statistical power the benchmark lacks. That is requirement 6 in ADR-087
+(#3445, multi-run reduction), now backed by measurement instead of assumption:
+on one byte-identical re-run, 13 of 24 tasks changed score at all, mean
+absolute movement 0.49 on a 5-point scale, max 3.00, and 5 crossed the 3.5 pass
+line. Those are counts from a single replication, not a rate. Five flips out of
+24 has a 95% interval running roughly 7% to 42%, so the honest claim is that
+the noise floor is large enough to manufacture the accept we saw, not that it
+sits at any particular percentage.
+
+The sharpest number is not the flip count. The two held-out gains that earned
+the false ACCEPT, `philosophy-of-software-design::S2` at +3.00 and
+`refactoring::S3` at +2.00, were the two largest excursions in the entire
+benchmark. The accept rode the two biggest noise events out of 24 tasks.
+
+One more limit the numbers cannot separate. "Scorer variance" here is a
+compound of two nondeterministic stages: the response model that produces the
+answer and the judge that scores it. Both are `gpt-4o-mini` at temperature 0,
+and the harness records no per-stage seed, so nothing in these reports
+attributes the movement to one or the other. The 0.49 mean is the variance of
+the pipeline, not of the judge. `_providers.py` passes `temperature` but never
+passes OpenAI's `seed` parameter and never reads back `system_fingerprint`, so
+the harness is not currently making the attempt that would let it tell the
+difference.
+
+### Method worth reusing
+
+The null control is the cheap part and it is what caught this. Restore the
+artifact byte-for-byte, re-run the identical scorer, and gate the result. If a
+no-op earns an accept, or gains the same tasks the real edit gained, the loop
+is measuring its own variance. Two facts made the suspicion actionable before
+the control was run: the edited artifact's own tasks had not moved, and every
+flip landed in artifacts the edit could not have touched.
+
+## Round fourteen: reviewing the fix the live run demanded
+
+Two reviewers ran in parallel against the `--max-p` change, both non-Claude, per
+the ADR Review Protocol. `gpt-5.6-terra` took the code, `gemini-3.1-pro-preview`
+took the ADR claims. Both returned REJECT. Round fourteen is worth recording for
+two opposite reasons: the code review found a real statistical error I had
+argued myself into, and the ADR review's headline finding turned out to be
+false, which is itself a result about how to consume adversarial review.
+
+### Defect shape 15: a per-comparison bar does not bound a family
+
+The `--max-p` flag as first written applied the threshold to each comparison
+independently. The loop's own documented recipe permits five consultations
+against one held-out group. Five independent looks at 0.05 give a family-wise
+false accept probability of `1 - 0.95**5`, about 0.226. An operator who asks for
+0.05 and receives 0.226 has been told a number that is not true.
+
+This is the same shape as every earlier defect in this log: a control that
+appears to bind and does not. The ledger existed precisely because a budget you
+can re-declare is not a budget. A bar you can spend five times is not that bar.
+
+Fixed by reading `--max-p` as the family bar and dividing by
+`--max-consultations`. Bonferroni is conservative under any dependence between
+comparisons, which is the correct direction for a gate. The useful property is
+that the incentive runs the right way: raising the budget buys more looks at a
+stricter bar, never a cheaper one, so there is no way to buy an accept by
+declaring more consultations.
+
+Three smaller findings shared the shape. The bar was not pinned in the ledger,
+so a candidate refused at 0.05 could be re-gated at 0.1 until it passed; it is
+now pinned, and its absence pinned too, since omitting the flag is the loosest
+setting available. A bar supplied without a p-value accepted rather than raised.
+And an out-of-range bar spent a consultation before anything checked its range,
+which also meant an exhausted budget turned a malformed flag into an ordinary
+REJECT instead of a config error. Range is decidable without reading the
+held-out group, so it now runs first.
+
+### The headline finding that was not true
+
+The ADR reviewer's primary claim was that the five flips in the null control
+were not model nondeterminism at all but HTTP 429 rate-limit errors recorded as
+task failures. It reasoned from real code: `_providers.py` sets `max_retries=0`,
+the rule evaluator has no retry loop, and the adapter maps an errored scenario
+to `False`. Every link in that chain exists.
+
+The conclusion was still false. Checking the three live reports directly: zero
+errored mechanism-runs out of 216, and no `FAIL_JUDGE_ERRORS` verdict in any
+run. The reviewer had described a path that could produce the observed pattern
+and asserted that it did, without the reports being able to support it.
+
+Two things follow, and they point in opposite directions. First, a review this
+confident is worth the ten minutes it takes to check against data before acting
+on it; had I accepted it, the debate log would now carry a false explanation for
+its central finding, and the null control's actual lesson would have been
+buried. Second, the mechanism is real and unguarded even though it did not fire
+here, so it was filed as #3474 rather than dismissed. A finding can be wrong
+about what happened and right about what can happen. The reviewer's dependent
+finding, which claimed the ACCEPT was an artifact of the same errors, falls with
+the premise.
+
+### What round fourteen did not fix
+
+The README and ADR contradictions the reviewer found in its remaining three
+findings are fixed here. The confounded-variance disclosure is added above. The
+missing `seed` parameter in `_providers.py` is noted and unfixed: passing it is
+best-effort on OpenAI's side and would not make the harness deterministic, but
+not passing it means the harness is not attempting the one cheap thing that
+might reduce the noise floor it just measured. Filed as #3475.
