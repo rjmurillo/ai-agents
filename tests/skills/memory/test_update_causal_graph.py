@@ -947,6 +947,69 @@ def _episode_file(directory: Path, episode_id: str, chosen: str) -> Path:
     return path
 
 
+class TestReportedAddCounters:
+    """Issue #3410: counters report graph outcomes, not helper calls."""
+
+    def _run_stats(self, episode_path: Path, graph_path: Path, capsys, *extra: str):
+        rc = update_causal_graph.main(
+            ["--episode-path", str(episode_path), "--graph-path", str(graph_path), *extra]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0
+        return json.loads(captured.out), captured
+
+    def _counts(self, graph_path: Path) -> dict[str, int]:
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        return {
+            "nodes": len(graph["nodes"]),
+            "edges": len(graph["edges"]),
+            "patterns": len(graph["patterns"]),
+        }
+
+    def test_add_counters_match_graph_deltas_and_idempotent_rerun(self, tmp_path, capsys):
+        graph_path = tmp_path / "graph.json"
+        episode_dir = tmp_path / "ep"
+        _episode_file(episode_dir, "ep-1", "Use Python")
+
+        first_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        first_counts = self._counts(graph_path)
+        assert first_stats["nodes_added"] == first_counts["nodes"]
+        assert first_stats["edges_added"] == first_counts["edges"]
+        assert first_stats["patterns_added"] == first_counts["patterns"]
+
+        second_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        second_counts = self._counts(graph_path)
+        assert second_stats["nodes_added"] == second_counts["nodes"] - first_counts["nodes"] == 0
+        assert second_stats["edges_added"] == second_counts["edges"] - first_counts["edges"] == 0
+        assert second_stats["patterns_added"] == (
+            second_counts["patterns"] - first_counts["patterns"]
+        ) == 0
+
+        _episode_file(episode_dir, "ep-2", "Use Python")
+        third_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        third_counts = self._counts(graph_path)
+        assert third_stats["nodes_added"] == third_counts["nodes"] - second_counts["nodes"] == 0
+        assert third_stats["edges_added"] == third_counts["edges"] - second_counts["edges"] == 0
+        assert third_stats["patterns_added"] == (
+            third_counts["patterns"] - second_counts["patterns"]
+        ) == 0
+        assert third_stats["nodes_merged"] > 0
+        assert third_stats["edges_merged"] > 0
+        assert third_stats["patterns_merged"] > 0
+
+    def test_dry_run_add_counters_match_printed_add_lines(self, tmp_path, capsys):
+        graph_path = tmp_path / "graph.json"
+        episode_dir = tmp_path / "ep"
+        _episode_file(episode_dir, "ep-1", "Use Python")
+
+        stats, captured = self._run_stats(episode_dir, graph_path, capsys, "--dry-run")
+
+        assert stats["nodes_added"] == captured.err.count("[DRY] Would add node:")
+        assert stats["edges_added"] == captured.err.count("[DRY] Would add edge:")
+        assert stats["patterns_added"] == captured.err.count("[DRY] Would add pattern:")
+        assert not graph_path.exists()
+
+
 class TestResetGraphIsTheDocumentedRepairPath:
     """Issue #3370: a corrupt graph is preserved rather than overwritten, so the
     failure has to carry its own repair path. Without one the pre-commit hook

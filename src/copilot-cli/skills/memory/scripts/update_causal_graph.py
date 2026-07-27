@@ -25,6 +25,33 @@ from typing import Any
 GRAPH_VERSION = "1.0"
 
 
+class AddOutcome(dict[str, Any]):
+    """Mapping-compatible add result with the graph mutation outcome attached."""
+
+    def __init__(self, item: dict[str, Any], outcome: str) -> None:
+        super().__init__(item)
+        self.item = item
+        self.outcome = outcome
+
+
+def _record_add(
+    stats: dict[str, int], item_type: str, result: AddOutcome | None,
+) -> None:
+    if result is None:
+        return
+    if result.outcome == "created":
+        stats[f"{item_type}_added"] += 1
+    elif result.outcome == "merged":
+        stats[f"{item_type}_merged"] += 1
+
+
+def _dry_add_message(kind: str, description: str, result: AddOutcome | None) -> str | None:
+    if result is None or result.outcome == "noop":
+        return None
+    verb = "add" if result.outcome == "created" else "merge"
+    return f"  [DRY] Would {verb} {kind}: {description}"
+
+
 def _empty_graph() -> dict[str, Any]:
     """The graph this module writes when there is nothing on disk to read.
 
@@ -152,8 +179,8 @@ def add_causal_node(
     node_type: str,
     label: str,
     episode_id: str,
-) -> dict[str, Any] | None:
-    """Add a node to the causal graph. Returns the node, or None if refused or duplicate.
+) -> AddOutcome | None:
+    """Add a node to the causal graph and report created/merged/noop.
 
     A type outside ``NODE_TYPES`` is refused rather than written. The type
     reaching here comes from ``event.get("type")`` in an episode file, which is
@@ -177,8 +204,8 @@ def add_causal_node(
             # Update episode list
             if episode_id not in existing.get("episodes", []):
                 existing.setdefault("episodes", []).append(episode_id)
-            result: dict[str, Any] = existing
-            return result
+                return AddOutcome(existing, "merged")
+            return AddOutcome(existing, "noop")
 
     node = {
         "id": node_id,
@@ -188,7 +215,7 @@ def add_causal_node(
         "created": datetime.now(UTC).isoformat(),
     }
     graph["nodes"].append(node)
-    return node
+    return AddOutcome(node, "created")
 
 
 # Reserved prefix for anonymous legacy evidence. Edges/patterns created before
@@ -260,7 +287,7 @@ def add_causal_edge(
     edge_type: str,
     weight: float,
     episode_id: str,
-) -> dict[str, Any] | None:
+) -> AddOutcome | None:
     """Add an edge to the causal graph.
 
     Returns the edge when this episode contributes new or changed evidence, or
@@ -282,8 +309,7 @@ def add_causal_edge(
                 return None
             contributions[episode_id] = weight
             _recompute_edge(existing, contributions)
-            edge_result: dict[str, Any] = existing
-            return edge_result
+            return AddOutcome(existing, "merged")
 
     edge = {
         "source": source_id,
@@ -296,7 +322,7 @@ def add_causal_edge(
         "created": datetime.now(UTC).isoformat(),
     }
     graph["edges"].append(edge)
-    return edge
+    return AddOutcome(edge, "created")
 
 
 def add_pattern(
@@ -307,7 +333,7 @@ def add_pattern(
     action: str,
     success_rate: float,
     episode_id: str,
-) -> dict[str, Any] | None:
+) -> AddOutcome | None:
     """Add a pattern to the causal graph.
 
     Returns the pattern when this episode contributes a new occurrence, or None
@@ -333,8 +359,7 @@ def add_pattern(
                 return None
             contributions[episode_id] = success_rate
             _recompute_pattern(existing, contributions)
-            pattern_result: dict[str, Any] = existing
-            return pattern_result
+            return AddOutcome(existing, "merged")
 
     pattern = {
         "id": generate_pattern_id(name),
@@ -349,7 +374,7 @@ def add_pattern(
         "created": datetime.now(UTC).isoformat(),
     }
     graph["patterns"].append(pattern)
-    return pattern
+    return AddOutcome(pattern, "created")
 
 
 def _recompute_pattern(
@@ -801,8 +826,11 @@ def main(argv: list[str] | None = None) -> int:
     stats = {
         "episodes_processed": 0,
         "nodes_added": 0,
+        "nodes_merged": 0,
         "edges_added": 0,
+        "edges_merged": 0,
         "patterns_added": 0,
+        "patterns_merged": 0,
         "episodes_pruned": 0,
         "nodes_removed": 0,
         "edges_removed": 0,
@@ -873,12 +901,12 @@ def main(argv: list[str] | None = None) -> int:
             node_label = f"{decision.get('type', 'unknown')}: {decision.get('chosen', '')}"
             node_id = generate_node_id("decision", node_label)
             touched_nodes.add(node_id)
-            if not args.dry_run:
-                node = add_causal_node(graph, "decision", node_label, episode_id)
-                if node:
-                    stats["nodes_added"] += 1
-            else:
-                print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
+            node = add_causal_node(graph, "decision", node_label, episode_id)
+            _record_add(stats, "nodes", node)
+            if args.dry_run:
+                dry_msg = _dry_add_message("node", node_label, node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Add event nodes
         for event in episode.get("events", []):
@@ -886,21 +914,23 @@ def main(argv: list[str] | None = None) -> int:
             node_label = f"{node_type}: {event.get('content', '')}"
             node_id = generate_node_id(node_type, node_label)
             touched_nodes.add(node_id)
-            if not args.dry_run:
-                node = add_causal_node(graph, node_type, node_label, episode_id)
-                if node:
-                    stats["nodes_added"] += 1
-            else:
-                print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
+            node = add_causal_node(graph, node_type, node_label, episode_id)
+            _record_add(stats, "nodes", node)
+            if args.dry_run:
+                dry_msg = _dry_add_message("node", node_label, node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Add outcome node
         outcome_label = f"Outcome: {episode.get('outcome', 'unknown')} - {episode.get('task', '')}"
         outcome_id = generate_node_id("outcome", outcome_label)
         touched_nodes.add(outcome_id)
-        if not args.dry_run:
-            outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
-            if outcome_node:
-                stats["nodes_added"] += 1
+        outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
+        _record_add(stats, "nodes", outcome_node)
+        if args.dry_run:
+            dry_msg = _dry_add_message("node", outcome_label, outcome_node)
+            if dry_msg:
+                print(dry_msg, file=sys.stderr)
 
         # Build and add causal chains
         chains = build_causal_chains(episode)
@@ -910,44 +940,54 @@ def main(argv: list[str] | None = None) -> int:
             touched_nodes.add(from_id)
             touched_nodes.add(to_id)
             touched_edges.add((from_id, to_id))
-            if not args.dry_run:
-                from_node = add_causal_node(
-                    graph, chain["from_type"], chain["from_label"], episode_id,
+            from_node = add_causal_node(
+                graph, chain["from_type"], chain["from_label"], episode_id,
+            )
+            _record_add(stats, "nodes", from_node)
+            if args.dry_run:
+                dry_msg = _dry_add_message("node", chain["from_label"], from_node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
+
+            to_node = add_causal_node(
+                graph, chain["to_type"], chain["to_label"], episode_id,
+            )
+            _record_add(stats, "nodes", to_node)
+            if args.dry_run:
+                dry_msg = _dry_add_message("node", chain["to_label"], to_node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
+
+            if from_node is None or to_node is None:
+                continue
+            edge = add_causal_edge(
+                graph, from_node["id"], to_node["id"],
+                chain["edge_type"], chain["weight"], episode_id,
+            )
+            _record_add(stats, "edges", edge)
+            if args.dry_run:
+                edge_desc = (
+                    f"{chain['from_label']} --[{chain['edge_type']}]--> "
+                    f"{chain['to_label']}"
                 )
-                to_node = add_causal_node(
-                    graph, chain["to_type"], chain["to_label"], episode_id,
-                )
-                if from_node and to_node:
-                    edge = add_causal_edge(
-                        graph, from_node["id"], to_node["id"],
-                        chain["edge_type"], chain["weight"], episode_id,
-                    )
-                    if edge:
-                        stats["edges_added"] += 1
-            else:
-                print(
-                    f"  [DRY] Would add edge: {chain['from_label']} "
-                    f"--[{chain['edge_type']}]--> {chain['to_label']}",
-                    file=sys.stderr,
-                )
+                dry_msg = _dry_add_message("edge", edge_desc, edge)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Extract and add patterns
         patterns = get_decision_patterns(episode)
         for pat in patterns:
             success_rate = 1.0 if pat["success"] else 0.0
             touched_patterns.add(pat["name"])
-            if not args.dry_run:
-                p = add_pattern(
-                    graph, pat["name"], pat["description"],
-                    pat["trigger"], pat["action"], success_rate, episode_id,
-                )
-                if p:
-                    stats["patterns_added"] += 1
-            else:
-                print(
-                    f"  [DRY] Would add pattern: {pat['name']}",
-                    file=sys.stderr,
-                )
+            p = add_pattern(
+                graph, pat["name"], pat["description"],
+                pat["trigger"], pat["action"], success_rate, episode_id,
+            )
+            _record_add(stats, "patterns", p)
+            if args.dry_run:
+                dry_msg = _dry_add_message("pattern", pat["name"], p)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Retract contributions this episode no longer makes (edit-shrink).
         touched: dict[str, set[Any]] = {
@@ -989,8 +1029,11 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 50, file=sys.stderr)
     print(f"  Episodes processed: {stats['episodes_processed']}", file=sys.stderr)
     print(f"  Nodes added:        {stats['nodes_added']}", file=sys.stderr)
+    print(f"  Nodes merged:       {stats['nodes_merged']}", file=sys.stderr)
     print(f"  Edges added:        {stats['edges_added']}", file=sys.stderr)
+    print(f"  Edges merged:       {stats['edges_merged']}", file=sys.stderr)
     print(f"  Patterns added:     {stats['patterns_added']}", file=sys.stderr)
+    print(f"  Patterns merged:    {stats['patterns_merged']}", file=sys.stderr)
     if stats["episodes_pruned"]:
         print(f"  Episodes pruned:    {stats['episodes_pruned']}", file=sys.stderr)
         print(f"  Nodes removed:      {stats['nodes_removed']}", file=sys.stderr)
