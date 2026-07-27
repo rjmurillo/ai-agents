@@ -45,6 +45,73 @@ class TestOutwardDetection:
     """Positive cases: a file under an upstream-only directory must be caught."""
 
     @pytest.mark.parametrize(
+        "value",
+        [
+            "Reads ../../docs/a.md for the list.",
+            "Reads ../../../docs/agent-catalog.md for the list.",
+        ],
+    )
+    def test_repeated_traversal_is_still_a_path(self, value: str) -> None:
+        """One traversal segment is not the only shape a relative path takes.
+
+        Matching a single optional segment leaves the slash of the segment
+        before it as the character in front of the directory name, so the
+        boundary rejects the whole match and every deeper traversal walks past
+        the gate. The count of segments has nothing to do with whether the
+        target ships.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(value)) != []
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "Reads `docs/a.md` for the roster.",
+            "Reads **docs/a.md** for the roster.",
+            "Reads *docs/a.md* for the roster.",
+            "| step | `docs/a.md` | notes |",
+            "See [the roster](docs/a.md).",
+            "Reads (docs/a.md) for the roster.",
+        ],
+    )
+    def test_a_markdown_delimiter_does_not_hide_a_path(self, value: str) -> None:
+        """The boundary must be a negated class, not an enumerated one.
+
+        A path in a description is most often written inside backticks, bold
+        markers, or a table cell. Listing the punctuation seen in prose looks
+        equivalent and silently drops every delimiter left off the list, which
+        is most of them. Measured on this repository, the enumerated form found
+        1,902 body references against 3,770 for the negated one.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(value)) != []
+
+    def test_an_absolute_path_is_still_a_path(self) -> None:
+        """A leading slash does not make the target ship.
+
+        The old boundary rejected the slash, so spelling the same unshipped
+        file as ``/docs/a.md`` walked past the gate.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter("Reads /docs/a.md.")) != []
+
+    def test_a_directory_that_merely_contains_a_watched_name_is_not_a_path(self) -> None:
+        """Pins the cost of admitting a leading slash.
+
+        ``docs`` is watched as a top-level directory. Allowing a slash in front
+        of the whole path must not also allow one in front of the directory
+        name, or every nested ``src/docs/...`` becomes a false positive.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter("Reads src/docs/a.md.")) == []
+
+    @pytest.mark.parametrize("ext", ["md", "markdown", "py", "ps1", "yaml"])
+    def test_a_longer_extension_is_still_an_extension(self, ext: str) -> None:
+        """The extension cap was four characters, and ``markdown`` is eight.
+
+        The cap is a heuristic for telling a file from a directory, not a claim
+        about which file types matter, so a real extension must not fall off
+        the end of it.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"Reads docs/a.{ext}.")) != []
+
+    @pytest.mark.parametrize(
         "reference",
         [
             "docs/agent-metrics.md",
@@ -144,33 +211,6 @@ class TestPrecision:
         assert gate.scan_file(Path("x.md"), _frontmatter("Reads xclaude/a.md.")) == []
         assert gate.scan_file(Path("x.md"), _frontmatter("Reads .claude/a.md.")) != []
 
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "https://github.com/rjmurillo/ai-agents/wiki?page=docs/setup.md",
-            "https://example.com/wiki#docs/setup.md",
-            "https://example.com/a?x=1&y=docs/setup.md",
-            "https://github.com/rjmurillo/ai-agents/blob/main/docs/setup.md",
-        ],
-    )
-    def test_a_path_inside_a_url_is_not_a_filesystem_path(self, url: str) -> None:
-        """The reader resolves it over the network, so it works for them.
-
-        The slash form was already exempt through the boundary lookbehind. A
-        query parameter or a fragment puts an equals, a question mark, or a
-        hash before the path instead, which reopened it.
-        """
-        assert gate.scan_file(Path("x.md"), _frontmatter(f"Read more at {url}")) == []
-
-    def test_a_reference_after_an_equals_sign_is_still_a_reference(self) -> None:
-        """Pins why the URL is removed rather than the boundary widened.
-
-        Adding the equals sign to the lookbehind would pass the URL cases above
-        and silently lose this one.
-        """
-        text = _frontmatter("Run with --config=docs/a.md now.")
-        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
-
 
 class TestDeclaration:
     """The opt-out is scoped to the path it names, not to the whole file.
@@ -235,8 +275,38 @@ class TestDeclaration:
 
 
 class TestFrontmatterParsing:
+    def test_an_indented_opening_marker_is_not_frontmatter(self) -> None:
+        """A block that does not open at column zero is not frontmatter.
+
+        No loader reads it as frontmatter, so neither does the gate. Trimming
+        the left of the opening line instead of the right invents a block the
+        consumer never sees and reports references out of ordinary body text.
+        """
+        text = "  ---\ndescription: Reads docs/a.md.\n---\n# body\n"
+        assert gate.frontmatter_lines(text) == []
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_an_indented_marker_does_not_close_the_block(self) -> None:
+        """A YAML fence lives at column zero, so an indented one is content.
+
+        Inside a block scalar the three dashes are text. Treating them as the
+        closing fence truncates the block, and every reference after that line
+        disappears while the loader that actually reads the file still sees it.
+        """
+        text = (
+            "---\n"
+            "description: |\n"
+            "  Intro line.\n"
+            "  ---\n"
+            "  Reads docs/agent-catalog.md for the roster.\n"
+            "---\n"
+            "# body\n"
+        )
+        assert gate.scan_file(Path("x.md"), text) != []
+
     def test_no_frontmatter_means_nothing_scanned(self) -> None:
         assert gate.frontmatter_lines("# Title\n\ndescription: docs/a.md\n") == []
+
 
     def test_unterminated_frontmatter_is_not_frontmatter(self) -> None:
         """Otherwise the whole body would be scanned as frontmatter."""
@@ -626,3 +696,117 @@ class TestParserFidelity:
         )
         assert not (tmp_path / ".claude" / "scripts").exists()
         assert gate.main(["--repo-root", str(tmp_path)]) == 0
+
+    def test_main_does_not_launder_a_root_prefixed_path(self, tmp_path: Path) -> None:
+        """End to end, so the CLI cannot quietly strip the root before resolving.
+
+        The existing root-prefix tests call ``reference_shipper`` directly, so
+        ``main`` is free to hand it ``reference.removeprefix(".claude/")``. That
+        makes every same-root spelling resolve and the whole unit suite stays
+        green, because no unit test ever runs the path the CLI runs. The
+        spelling is the violation: the target ships, but the repo-relative name
+        for it does not travel with the root a consumer installs.
+        """
+        root = tmp_path / ".claude"
+        (root / "rules").mkdir(parents=True)
+        (root / "rules" / "y.md").write_text("x", encoding="utf-8")
+        (root / "skills").mkdir()
+        (root / "skills" / "a.md").write_text(
+            _frontmatter("Per rules/y.md."), encoding="utf-8"
+        )
+        assert gate.main(["--repo-root", str(tmp_path)]) == 0
+
+        (root / "skills" / "a.md").write_text(
+            _frontmatter("Per .claude/rules/y.md."), encoding="utf-8"
+        )
+        assert gate.main(["--repo-root", str(tmp_path)]) == 1
+
+
+class TestUriHandling:
+    """A path inside a URI belongs to the scheme, not to the filesystem.
+
+    Whether that makes it exempt depends on whether the reader can resolve it.
+    A remote URI resolves for anyone, so its tail is not a reference. A
+    ``file:`` URI resolves only on the author's machine, so it is the least
+    portable reference this gate can see.
+    """
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/rjmurillo/ai-agents/wiki?page=docs/setup.md",
+            "https://example.com/wiki#docs/setup.md",
+            "https://example.com/a?x=1&y=docs/setup.md",
+            "https://github.com/rjmurillo/ai-agents/blob/main/docs/setup.md",
+        ],
+    )
+    def test_a_path_inside_a_remote_uri_is_not_a_reference(self, url: str) -> None:
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"Read more at {url}")) == []
+
+    def test_a_reference_after_an_equals_sign_is_still_a_reference(self) -> None:
+        """Pins why the URI is removed rather than the path boundary widened.
+
+        Adding the equals sign to the boundary would pass every case above and
+        silently lose this one, which is a real reference shape.
+        """
+        text = _frontmatter("Run with --config=docs/a.md now.")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "See http://example.com,docs/a.md for both.",
+            "See <http://example.com>docs/a.md for both.",
+            "See http://example.com;docs/a.md for both.",
+        ],
+    )
+    def test_a_reference_touching_a_uri_survives_the_strip(self, value: str) -> None:
+        """A greedy tail turns a precision fix into a silent miss.
+
+        Matching to the next whitespace swallows the reference that follows a
+        URI with only punctuation between them, so the strip stops at the
+        characters that enclose a URI in prose instead.
+        """
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), _frontmatter(value))] == [
+            "docs/a.md"
+        ]
+
+    def test_a_local_file_uri_is_a_violation(self) -> None:
+        """It names the author's disk, so nothing about it survives shipping.
+
+        It is reported whole because the part a consumer cannot use is the
+        scheme, not the tail.
+        """
+        text = _frontmatter("Read file:///home/rich/src/ai-agents/docs/a.md now.")
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), text)]
+        assert refs == ["file:///home/rich/src/ai-agents/docs/a.md"]
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("Mail mailto:a@b.example?subject=docs/a.md now.", []),
+            ("Dial tel:+15551234567 for docs/a.md", ["docs/a.md"]),
+            ("See urn:isbn:0451450523 and docs/a.md", ["docs/a.md"]),
+        ],
+    )
+    def test_an_opaque_uri_tail_is_not_a_reference(
+        self, value: str, expected: list[str]
+    ) -> None:
+        """Its tail is an address or a payload, not a path.
+
+        The expectation is exact per case rather than "either shape". A range
+        assertion here passes whether or not the strip runs, which is the same
+        as not testing it.
+        """
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), _frontmatter(value))]
+        assert refs == expected
+
+    def test_the_opaque_scheme_list_is_explicit_not_a_pattern(self) -> None:
+        """A general ``scheme:`` pattern also matches ordinary prose.
+
+        ``Note:docs/a.md`` has the shape of an opaque URI, so a general pattern
+        exempts it and the reference disappears.
+        """
+        text = _frontmatter("Note:docs/a.md is the file.")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+

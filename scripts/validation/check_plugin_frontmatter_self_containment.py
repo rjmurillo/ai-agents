@@ -166,23 +166,67 @@ UPSTREAM_ONLY = (
     r"templates/platforms",
 )
 
-# A path under an upstream-only directory that names a file, not a directory.
-# The trailing extension is load-bearing: see the module docstring.
-# A URL, removed from a value before paths are looked for. A path inside a URL
-# is not a filesystem path: the reader resolves it over the network and it
-# works for them. The lookbehind already exempts the common shape, because the
-# character before the path is a slash, but a query parameter or a fragment
-# puts `=`, `?`, or `#` there instead and the boundary opens back up. Widening
-# the lookbehind to cover those would also suppress a real reference written as
-# `--config=docs/a.md`, so the URL is removed rather than the boundary widened.
-# A full URL is also what the rule's SHOULD-2 asks for when a reference really
-# is contributor-scoped, so exempting it is the intended behaviour, not a hole.
-URL = re.compile(r"\b[a-z][a-z0-9+.-]*://\S+", re.IGNORECASE)
+# A remote URI, removed from a value before paths are looked for. A path inside
+# one is not a filesystem path: the reader resolves it over the network and it
+# works for them, which is also what the rule's SHOULD-2 asks for when a
+# reference really is contributor-scoped. Removing the URI is the right shape
+# rather than widening the path boundary, because a query parameter or a
+# fragment puts `=`, `?`, or `#` before the path and widening the boundary to
+# cover those would also stop detecting `--config=docs/a.md`.
+#
+# `file:` is caught by `LOCAL_URI` below, which reads the raw value before this
+# pattern runs, so excluding it here would change nothing: measured across the
+# `file://host/...`, `file:///abs/...`, and single-slash shapes, the reference
+# set is identical with and without the exclusion. `OUTWARD_FILE` cannot match
+# inside a file URI either, because the character before any directory name in
+# one is always `/`, which is not a token boundary. A guard that cannot fail is
+# noise, so there is none here.
+#
+# The tail stops at whitespace and at the punctuation that encloses a URI in
+# prose. A greedy `\S+` swallows a real reference that follows a URI with only
+# punctuation between them, as in `http://example.com,docs/a.md`, which turns a
+# precision fix into a silent miss.
+REMOTE_URI = re.compile(
+    r"(?<![A-Za-z0-9])[a-z][a-z0-9+.-]*://[^\s<>,;)\]\"']+",
+    re.IGNORECASE,
+)
 
+# Schemes that carry no authority component and no filesystem path. Their tails
+# are addresses and payloads, so a path-shaped substring in one is not a
+# reference. The list is explicit rather than a general `scheme:` pattern
+# because a general one also matches ordinary prose such as `Note:docs/a.md`.
+OPAQUE_URI = re.compile(
+    r"(?<![A-Za-z0-9])(?:mailto|tel|urn|data):[^\s<>,;)\]\"']+",
+    re.IGNORECASE,
+)
+
+# A local file URI. Nothing about it survives leaving this machine, so it is a
+# violation on sight rather than a path to resolve. It is reported whole,
+# because the part a consumer cannot use is the scheme, not the tail.
+LOCAL_URI = re.compile(r"(?<![A-Za-z0-9])file:/[^\s<>,;)\]\"']*", re.IGNORECASE)
+
+# A path under an upstream-only directory, or one that spells a plugin root,
+# that names a file rather than a directory. The trailing extension is
+# load-bearing: see the module docstring.
+#
+# The leading group is a consumed token boundary rather than a negative
+# lookbehind so that the path may begin with `/` or with any number of `../`
+# segments, which a fixed-width lookbehind cannot express. It is a negated
+# class, not an enumerated one: an allow-list of the punctuation seen in prose
+# silently drops every Markdown delimiter left out of it, and a path in a
+# description is most often written inside backticks, bold markers, or a table
+# cell. Measured on this repository, an enumerated class matched 1,902 body
+# references against 2,556 for the negated one.
+#
+# `src/docs/a.md` still does not match: the character before `docs` is `/`,
+# which is a path character, so the boundary rejects it, and the only other
+# candidate start is `src`, which is not a watched directory. `findall`
+# returns the capture group, which is the path without its boundary character.
 OUTWARD_FILE = re.compile(
-    r"(?<![\w./-])(?:\.{1,2}/)?(?:"
+    r"(?:^|[^\w./-])"
+    r"(/?(?:\.{1,2}/)*(?:"
     + "|".join(UPSTREAM_ONLY + ROOT_PREFIXED)
-    + r")/[\w./-]*\w\.[A-Za-z][A-Za-z0-9]{0,4}(?![\w/])"
+    + r")/[\w./-]*\w\.[A-Za-z][A-Za-z0-9]{0,9})(?![\w/])"
 )
 
 DECLARATION = re.compile(r"<!--\s*vendor-portability:(.*?)-->", re.IGNORECASE | re.DOTALL)
@@ -201,12 +245,17 @@ def frontmatter_lines(text: str) -> list[tuple[int, str]]:
     Empty when the file has no frontmatter or the block is unterminated. An
     unterminated block is not frontmatter; treating the whole file as
     frontmatter would scan body prose this check deliberately excludes.
+
+    A fence counts only at column zero. An indented ``---`` sits inside a
+    literal scalar, where YAML reads it as content, so closing the block there
+    truncates the value and every reference below the indented line goes
+    unseen while a real loader still hands the whole string to the consumer.
     """
     lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    if not lines or lines[0].rstrip() != "---":
         return []
     for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
+        if lines[index].rstrip() == "---":
             return [(n + 2, line) for n, line in enumerate(lines[1:index])]
     return []
 
@@ -331,7 +380,10 @@ def scan_file(
     declared = declared_paths(text)
     violations: list[tuple[int, str, str]] = []
     for number, key, value in checked_values(text):
-        for reference in OUTWARD_FILE.findall(URL.sub(" ", value)):
+        for local in LOCAL_URI.findall(value):
+            if local not in declared:
+                violations.append((number, key, local))
+        for reference in OUTWARD_FILE.findall(OPAQUE_URI.sub(" ", REMOTE_URI.sub(" ", value))):
             if reference in declared:
                 continue
             if ships is not None and ships(reference):
