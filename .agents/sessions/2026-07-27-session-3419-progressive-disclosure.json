@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3419,
+    "date": "2026-07-27",
+    "branch": "fix/3419-progressive-disclosure",
+    "startingCommit": "ab8692df1",
+    "objective": "Issue #3419 Phase 2 progressive disclosure for book-derived rules."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions loaded; activate_project tool was unavailable in this Copilot session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions returned the Serena instructions manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This JSON session log."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3419-progressive-disclosure."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work ran in /home/richard/src/GitHub/rjmurillo/wt-3419-progdisc on fix/3419-progressive-disclosure."
+      },
+      "handoffIssueChecked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No .agents/sessions/handoffs/*3419*handoff.md files matched."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, context-engineering-principles, claude-code-skills-official-guidance, and passive-context-vs-skills-vercel-research."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required session-start and session-end checklist entries are present."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable memory needed; ADR-088 records the durable decision."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre-commit markdownlint ran on staged markdown during commits and reported 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed skill, rule-removal, and budget-ratchet slices; this commit records ADR, AGENTS, manifest, critique, and session artifacts."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "instruction_budget passed at .py 94764, .cs 94641, .ps1 94473, .md 81622 bytes. Targeted pytest passed 269 selected tests. SkillForge passed for software-engineering-library."
+      },
+      "adrReviewEvidence": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-review skill invoked. Debate log .agents/critique/ADR-088-debate-log.md records architect, critic, independent-thinker, security, analyst, and high-level-advisor review with accept verdicts."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Setup",
+      "summary": "Created the requested worktree from fresh origin/main and verified branch isolation."
+    },
+    {
+      "phase": "Skill",
+      "summary": "Added software-engineering-library and moved the eight book-derived rule bodies into references."
+    },
+    {
+      "phase": "Generation",
+      "summary": "Ran build_all.py. The generator pruned the 16 orphaned instruction mirrors for the moved book rules."
+    },
+    {
+      "phase": "Budget",
+      "summary": "Measured the new always-on instruction budget and lowered code-extension ceilings to 99 KB."
+    },
+    {
+      "phase": "ADR Review",
+      "summary": "Invoked adr-review skill and recorded the ADR-088 debate log."
+    },
+    {
+      "phase": "Validation",
+      "summary": "Ran targeted pytest, instruction budget, SkillForge, skill size, and pre-commit hooks on committed slices."
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "path": ".claude/skills/software-engineering-library/SKILL.md",
+        "description": "Progressive disclosure router for book-derived engineering references.",
+        "type": "skill"
+      },
+      {
+        "path": ".agents/architecture/ADR-088-progressive-disclosure-book-rules.md",
+        "description": "Decision record for moving situational book rules to the skill.",
+        "type": "architecture"
+      },
+      {
+        "path": "scripts/validation/instruction_budget_constants.py",
+        "description": "Ratcheted code-extension ceilings to 99 KB.",
+        "type": "validation"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Keep code-quality, pragmatic-programmer, and unified-software-engineering always-on while moving only the eight situational book rules.",
+        "rationale": "Everyday engineering rules need passive adherence, while book-depth material should load by task.",
+        "impact": "Code edits load about 95 KB of instructions instead of about 218 KB, while book-depth guidance remains available on task trigger."
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR with Refs #3419 and acceptance criteria notes."
+  ]
+}

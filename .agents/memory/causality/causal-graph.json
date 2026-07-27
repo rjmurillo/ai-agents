@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:43:51.825917+00:00",
+  "updated": "2026-07-27T13:11:04.500498+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21699,6 +21699,69 @@
         "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
       "created": "2026-07-27T11:58:41.229748+00:00"
+    },
+    {
+      "id": "b0caf9aef992",
+      "type": "milestone",
+      "label": "milestone: Created the requested worktree from fresh origin/main and verified branch isolation.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493215+00:00"
+    },
+    {
+      "id": "9c53a9e30cdb",
+      "type": "milestone",
+      "label": "milestone: Added software-engineering-library and moved the eight book-derived rule bodies into references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493309+00:00"
+    },
+    {
+      "id": "8cbcef449069",
+      "type": "milestone",
+      "label": "milestone: Ran build_all.py. The generator pruned the 16 orphaned instruction mirrors for the moved book rules.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493391+00:00"
+    },
+    {
+      "id": "368d7a8b512d",
+      "type": "milestone",
+      "label": "milestone: Measured the new always-on instruction budget and lowered code-extension ceilings to 99 KB.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493470+00:00"
+    },
+    {
+      "id": "8fda9c19831c",
+      "type": "milestone",
+      "label": "milestone: Invoked adr-review skill and recorded the ADR-088 debate log.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493548+00:00"
+    },
+    {
+      "id": "8cdaaf48f1a9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted pytest, instruction budget, SkillForge, skill size, and pre-commit hooks on committed slices.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493626+00:00"
+    },
+    {
+      "id": "a32f0774548a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3419 Phase 2 progressive disclosure for book-derived rules.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:11:04.493713+00:00"
     }
   ],
   "patterns": [
