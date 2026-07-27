@@ -210,30 +210,35 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         seed = str(split["seed"])
         raw_sel_ratio = split["sel_ratio"]
         raw_test_ratio = split["test_ratio"]
-        sel_ratio = str(raw_sel_ratio)
-        test_ratio = str(raw_test_ratio)
-        redrawn = split_tasks(
-            tasks,
-            seed=seed,
-            sel_ratio=sel_ratio,
-            test_ratio=test_ratio,
-            min_sel=int(split.get("min_sel", 3)),
-        )
-        compatible_fingerprints = {redrawn.fingerprint}
+        min_sel = int(split.get("min_sel", 3))
         if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
-            compatible_fingerprints.add(
-                _legacy_numeric_split_fingerprint(
-                tasks,
-                seed=seed,
-                sel_ratio=float(raw_sel_ratio),
-                test_ratio=float(raw_test_ratio),
+                redrawn_groups, redrawn_fingerprint = _legacy_numeric_split_groups(
+                    tasks,
+                    seed=seed,
+                    sel_ratio=float(raw_sel_ratio),
+                    test_ratio=float(raw_test_ratio),
+                    min_sel=min_sel,
                 )
-            )
+                compatible_fingerprints = {redrawn_fingerprint}
+        else:
+                redrawn = split_tasks(
+                    tasks,
+                    seed=seed,
+                    sel_ratio=str(raw_sel_ratio),
+                    test_ratio=str(raw_test_ratio),
+                    min_sel=min_sel,
+                )
+                redrawn_groups = {
+                    "opt": redrawn.opt,
+                    "sel": redrawn.sel,
+                    "test": redrawn.test,
+                }
+                compatible_fingerprints = {redrawn.fingerprint}
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
     if split["fingerprint"] not in compatible_fingerprints:
         return True
-    return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
+    return any(sorted(redrawn_groups[g]) != sorted(split[g]) for g in _GROUPS)
 
 
 def _is_json_number(value: object) -> bool:
@@ -254,6 +259,76 @@ def _legacy_numeric_split_fingerprint(
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _legacy_numeric_split_groups(
+    task_ids: Sequence[str],
+    *,
+    seed: str,
+    sel_ratio: float,
+    test_ratio: float,
+    min_sel: int,
+) -> tuple[dict[str, tuple[str, ...]], str]:
+    if not task_ids:
+        raise ValueError("split_tasks requires at least one task id")
+    if not seed or not seed.strip():
+        raise ValueError("split_tasks requires a non-empty seed")
+    if not 0.0 < sel_ratio < 1.0:
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+    if not 0.0 <= test_ratio < 1.0:
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+    if min_sel < 0:
+        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+    if sel_ratio + test_ratio >= 1.0:
+        raise ValueError(
+            f"sel_ratio + test_ratio must leave at least one opt task, "
+            f"got {sel_ratio} + {test_ratio}"
+        )
+
+    cleaned: list[str] = []
+    for raw in task_ids:
+        if raw != raw.strip():
+            raise ValueError(
+                f"task id {raw!r} carries leading or trailing whitespace; "
+                f"ids must match the keys the scorer emits exactly"
+            )
+        if not raw:
+            raise ValueError("split_tasks requires non-empty task ids")
+        cleaned.append(raw)
+    if len(set(cleaned)) != len(cleaned):
+        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
+        raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
+
+    total = len(cleaned)
+    n_sel = int(total * sel_ratio + 0.5)
+    n_test = int(total * test_ratio + 0.5)
+    if total - n_sel - n_test < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"leaves no opt tasks"
+        )
+    if n_sel < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"a gate needs at least one held-out task"
+        )
+    if n_sel < min_sel:
+        raise ValueError(
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"widen the eval set or lower min_sel to gate on it"
+        )
+
+    ranked = sorted(
+        cleaned,
+        key=lambda tid: hashlib.sha256(f"{seed}\x00{tid}".encode()).hexdigest(),
+    )
+    return {
+        "sel": tuple(ranked[:n_sel]),
+        "test": tuple(ranked[n_sel : n_sel + n_test]),
+        "opt": tuple(ranked[n_sel + n_test :]),
+    }, _legacy_numeric_split_fingerprint(
+        cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio
+    )
 
 
 # ---------------------------------------------------------------------------
