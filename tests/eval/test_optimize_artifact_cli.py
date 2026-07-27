@@ -43,7 +43,7 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
 
-def _run(capsys, *argv: str) -> tuple[int, dict]:
+def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
     """Invoke the CLI and return (exit code, parsed stdout JSON)."""
     code = oa.main([str(a) for a in argv])
     out = capsys.readouterr().out.strip()

@@ -147,7 +147,12 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     scenarios = payload.get("scenarios") if isinstance(payload, dict) else payload
     if not isinstance(scenarios, list):
         raise ConfigError("rule input must be a scenario array or an object with 'scenarios'")
-    return rule_results(scenarios, args.mechanism, min_score=args.min_score)
+    # Annotated locals here and below: the sibling modules are imported by
+    # path (this file is a hyphenated script), so mypy resolves them as Any
+    # under ignore_missing_imports. The annotation restates the contract the
+    # tests already enforce.
+    extracted: dict[str, bool] = rule_results(scenarios, args.mechanism, min_score=args.min_score)
+    return extracted
 
 
 def cmd_extract(args: argparse.Namespace) -> int:
@@ -216,9 +221,10 @@ def cmd_budget(args: argparse.Namespace) -> int:
 
 def _score_group(results: dict[str, bool], split: dict[str, Any], group: str) -> float:
     try:
-        return score(results, split[group])
+        fraction: float = score(results, split[group])
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+    return fraction
 
 
 def cmd_score(args: argparse.Namespace) -> int:
@@ -419,10 +425,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help(sys.stderr)
         return EXIT_CONFIG
     try:
-        return args.func(args)
+        # argparse.Namespace attributes are Any; every registered handler
+        # returns an exit code.
+        exit_code: int = args.func(args)
     except (ConfigError, AdapterError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+    return exit_code
 
 
 if __name__ == "__main__":  # pragma: no cover

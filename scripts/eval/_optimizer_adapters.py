@@ -26,7 +26,7 @@ it cheaply.
 from __future__ import annotations
 
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from xml.etree import ElementTree
 
@@ -43,7 +43,7 @@ __all__ = [
 # under a normal name; the value is asserted against the source in tests.
 DEFAULT_MIN_ACTIVATION_SCORE = 3.5
 
-_REDUCERS = {
+_REDUCERS: dict[str, Callable[[list[float]], float]] = {
     "mean": statistics.fmean,
     "min": min,
     "max": max,
