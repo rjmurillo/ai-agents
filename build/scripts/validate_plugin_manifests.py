@@ -315,7 +315,15 @@ def find_manifests(root: Path) -> list[Path]:
     """
     import os
 
-    excluded_dirs = {".worktrees", "worktrees", "node_modules", ".git", "cache", ".pytest_tmp"}
+    excluded_dirs = {
+        ".agent-tmp",
+        ".worktrees",
+        "worktrees",
+        "node_modules",
+        ".git",
+        "cache",
+        ".pytest_tmp",
+    }
     results: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune excluded directories in-place so os.walk does not descend.

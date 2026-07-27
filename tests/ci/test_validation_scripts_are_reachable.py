@@ -27,7 +27,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield four unreachable, each of which is a
+Under that model the same 89 scripts yield five unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -106,6 +106,12 @@ _NO_CALLER: dict[str, str] = {
         "consistency.py: the schema it implements "
         "(.agents/governance/traceability-schema.md) is live, so the fix is to "
         "resolve the findings and then wire it. Tracked in #3360."
+    ),
+    "scripts/validation/merge_causal_graph.py": (
+        "Git executes this as a merge driver from the `merge.causal-graph.driver` "
+        "config that scripts/maintenance/install_merge_drivers.py writes. The "
+        "hook entry point registers that config instead of invoking the driver "
+        "directly, so static script reachability cannot model the caller."
     ),
 }
 
