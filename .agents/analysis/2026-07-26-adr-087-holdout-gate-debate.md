@@ -1951,3 +1951,83 @@ nested key is not in the schema's `session` properties while `startingCommit`
 is. The symmetry was false, which is why nobody questioned it. The top-level
 value was also stale by five commits, which the reviewer did not notice and the
 verification did.
+
+## Shape 45: the fix that stopped at the calls the reviewer named
+
+Round 33 asked for the general form of each finding and then for an
+enumeration of that class across the codebase. It returned four findings, the
+best yield of the series, and the first of them was a residual of the fix from
+the round before.
+
+Round 32 reported that `_lock_held` could let an `OSError` escape, and named
+`os.open` and `os.write`. The fix converted those two calls. `os.close`, one
+stage further down the same function, kept escaping raw. The fix had been
+aimed at the calls a reviewer listed rather than at the class those calls
+belonged to, which is every syscall between acquiring the lock and returning
+it. A reviewer's list is a sample. Treating it as the denominator leaves the
+same defect one stage down, and the next round finds it there.
+
+The remedy was a restructure, not a patch. Three levels of nested `try`
+collapsed to two, and `os.close` sits deliberately outside any `finally`:
+when the write has already failed, the write is the cause an operator can act
+on, and a `finally` that raised would replace it with the consequence. The
+write-failure path releases the descriptor through a helper that suppresses
+`OSError`, because POSIX frees the descriptor even when close reports failure.
+M24 drops the conversion, 3 red. M25 drops the precedence guard, 1 red.
+
+The round's second finding is sharper than the round stated it. It reported
+that an unreadable buffer reads as an empty one and called the result "a
+successful unseen answer at exit 0". Measured, the same patch against the same
+buffer returns `seen: true` at exit 1 when the buffer is readable and
+`seen: false` at exit 0 when the buffer's directory is not. That is a verdict
+flip, not a wrong value. An unreadable buffer silently un-rejects every
+rejection recorded in it.
+
+`Path.exists()` swallows every `OSError`, so its False answers two different
+questions: the file is absent, and whether the file is there is unknowable
+because `stat` was refused. A helper now treats only `FileNotFoundError` as
+absence and converts every other `OSError` into a config error. Enumerating
+rather than sampling: all three modules were grepped for `.exists()`,
+`.is_file()` and `.is_dir()`, which found exactly two sites, both converted,
+zero remaining.
+
+Half of that finding is latent rather than live, and saying so was worth more
+than faking a reproduction. `cmd_gate` takes the ledger lock before it reads
+the ledger, in the same directory, so any barrier strong enough to refuse
+`stat` on the ledger refuses the lock's `mkdir` one stage earlier. The general
+form was fixed and the ledger was tested at unit level with the reachability
+written into the test docstring. The first attempt at those tests passed
+spuriously: a file whose own mode is `0o000` still stats fine, because only
+the parent directory's execute bit gates `stat`. A test that passes for the
+wrong reason is worse than one that fails.
+
+The third finding is that pytest emits `<skipped/>` and `<error/>` under one
+`<testcase>` when a fixture teardown raises behind a test that skipped, and
+the `exclude` skip policy dropped that testcase whole, taking the teardown
+error with it. The reviewer verified this from pytest's JUnit source. It was
+re-verified by running pytest and asserting on the XML it actually emitted,
+which is now the fixture the test uses. `exclude` now drops only a skip that
+stands alone. M28, 3 red. M29, 4 red, one of them written by an earlier round.
+
+The fourth finding arrived as "scores are unvalidated" and the mechanism
+underneath it is more specific: the documented domain is load-bearing for the
+fail-closed property. Inside `[0, 5]` fail-closed already held. A rule
+scenario missing its `behavior_score` gets 0 for it, and with the other two at
+the legal maximum the mean is 3.33 and fails the 3.5 bar. The same scenario
+with the other two at 6 means 4.0 and passes. Only leaving the domain breaks
+the property, so the domain is the thing doing the work.
+
+That reframing settled whether enforcement was a contract change. It is not.
+The producer documents the range in three places and clamps its own output to
+it; the adapter was the only reader that never checked, and a saved results
+file reaches the adapter without passing through the clamp. Every producer
+agreed on a domain the single reader did not enforce. The bounds are required
+keywords rather than defaults, because pass rates are fractions and rule
+scores run to 5, and a shared default would be wrong for one of them. M30
+removes the rule ceiling, 6 red. M31 removes the agent ceiling, 5 red.
+
+All four findings understated their own impact, in the same direction, while
+every finding was real. Rounds 31, 32 and 33 each stated impact wrongly and
+were right about the defect. The discipline that survives all six rounds is to
+judge the instance and the general form and to re-derive the impact, never to
+accept or reject a finding on the sentence describing what it costs.

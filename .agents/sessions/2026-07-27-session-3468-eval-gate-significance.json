@@ -563,9 +563,32 @@
         "Accepted the second thread and found it understated. The session log carried endingCommit twice, top-level 4710c7ee4 against a nested empty string, and the nested key is not in the schema's session properties while startingCommit is, so the symmetry was false. The top-level value was also stale: 4710c7ee4 is this branch's first commit and five commits had landed since. Dropped the nested key and refreshed the top-level."
       ],
       "evidence": "Before the fix: buffer-add into an unwritable directory raised PermissionError past main's handler list, traceback on stderr, exit 1. After: {\"error\": \"could not take the lock ...b.json.lock (Permission denied); the read-modify-write it serializes was not attempted.\", \"type\": \"ConfigError\"}, exit 2. Pre-extraction CLI at 468cae3fa on the same input: exit 2 with a JSON document, which is what makes this a regression rather than a standing gap. Gate against an unwritable ledger root after the fix still reports <held-out group>.lock. M21 3 red, M22 2 red, M23 4 red. 1449 eval tests pass with 100 percent statement coverage on optimize-artifact.py (594), _optimizer_core.py (283), _optimizer_adapters.py (89). ruff clean, ratchet passed for 3 changed files, mypy clean, zero em or en dashes."
+    },
+    {
+      "phase": "Round thirty-four: four findings, and the one my own last fix left behind",
+      "actions": [
+        "Verified all four of round thirty-three's findings by running them before acting on any. Three of my first probes were wrong in ways that would have produced false conclusions: a Path.stat monkeypatch that never took, pytest_results called with a Path when it takes XML text, and invented rule score key names. Uniform results across varied inputs is the tell that the probe is broken, not the code.",
+        "Finding four was a residual of my own round-thirty-three fix. That fix converted the os.open and os.write calls the reviewer named and left os.close, one stage down the same function, escaping raw. A reviewer's list is a sample, not a denominator.",
+        "Fixed it as a restructure rather than a patch. Three nested try levels collapsed to two, with os.close deliberately outside any finally so a write failure outranks the close failure that follows it, and a helper that suppresses OSError on the write-failure path because POSIX frees the descriptor even when close reports failure. Six tests. M24 drops the conversion, three red. M25 drops the precedence guard, one red.",
+        "Finding three was worse than reported. The reviewer called it a successful unseen answer at exit 0. Measured, the same patch against the same buffer returns seen true at exit 1 when readable and seen false at exit 0 when the buffer's directory is not. That is a verdict flip. An unreadable buffer silently un-rejects every rejection in it.",
+        "Path.exists() swallows every OSError, so its False answers two questions at once: absent, and unknowable because stat was refused. Added a helper that treats only FileNotFoundError as absence. Enumerated rather than sampled: grepped all three modules for .exists(), .is_file() and .is_dir(), found exactly two sites, converted both, zero remaining.",
+        "Reported that half of finding three is latent rather than faking a reproduction. cmd_gate takes the ledger lock before reading the ledger, in the same directory, so any barrier strong enough to refuse stat refuses the lock's mkdir one stage earlier. Fixed the general form and tested the ledger at unit level with the reachability written into the test docstring. The first attempt at those tests passed spuriously, because a file whose own mode is 000 still stats fine and only the parent's execute bit gates stat.",
+        "Finding two, verified by running pytest rather than by reading its source as the reviewer did. A fixture whose teardown raises behind a test that skips makes stock pytest emit skipped and error under one testcase, and the exclude policy dropped that testcase whole. The XML the real run emitted is now the test fixture. Nine tests. M28 three red, M29 four red.",
+        "Finding one arrived as scores are unvalidated and the mechanism underneath is more specific: the documented domain is load-bearing for the fail-closed property. Inside zero to five fail-closed already held, since a scenario missing behavior_score with the other two at the legal maximum means 3.33 and fails the 3.5 bar. The same scenario with the other two at 6 means 4.0 and passes.",
+        "That reframing settled whether enforcement was a contract change, reversing my earlier plan to defer it. It is not a contract change. The producer documents the range in three places and clamps its own output to it, and the adapter was the only reader that never checked. Bounds are required keywords rather than defaults, because pass rates are fractions and rule scores run to five. Twenty-two tests. M30 six red, M31 five red.",
+        "Confirmed the two OverflowError handlers still have live paths after domain enforcement. Both guard CLI argument parsing and split-record integers, independent of the adapter path, so nothing became dead."
+      ],
+      "evidence": [
+        "Eval suite 1472 to 1494 passed, all three optimizer modules at 100 percent statement coverage.",
+        "Full suite 15713 passed, 26 skipped, 262.82s.",
+        "Ruff ratchet passed for 5 changed Python files against origin/main. mypy clean. Zero dashes, zero lines over 100 columns.",
+        "Commits 8af188e16 finding four, 3b04293fb finding three, f187cb0bc finding two, 8583129b3 finding one.",
+        "Eight mutations M24 through M31, every one red, each multi-part fix falsified in halves.",
+        "Shape 45 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md."
+      ]
     }
   ],
-  "endingCommit": "29db6cf54",
+  "endingCommit": "8583129b3",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
