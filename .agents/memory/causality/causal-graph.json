@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T04:49:49.798423+00:00",
+  "updated": "2026-07-27T05:46:07.849181+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20752,6 +20752,15 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:49:49.793110+00:00"
+    },
+    {
+      "id": "e17a5f8f0260",
+      "type": "outcome",
+      "label": "Outcome: success - Merge main to resolve stale conflict and address two Copilot review findings on PR #3429",
+      "episodes": [
+        "episode-2026-07-27-session-3429-pr-autofix"
+      ],
+      "created": "2026-07-27T05:46:07.843201+00:00"
     }
   ],
   "patterns": [

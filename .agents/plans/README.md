@@ -10,7 +10,7 @@ Execution plans are first-class versioned artifacts for complex, multi-step work
 | `completed/` | Successfully finished plans |
 | `abandoned/` | Plans stopped with documented rationale |
 
-Retired plans predating this lifecycle live in `.agents/archive/plans/`. See
+Retired plans whose work has shipped live in `.agents/archive/plans/`. See
 that directory's `README.md` for the per-plan verdict and evidence.
 
 A plan left in `active/` after its work ships misdirects agents at closed

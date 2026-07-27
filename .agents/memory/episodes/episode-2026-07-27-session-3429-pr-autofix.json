@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-07-27-session-3429-pr-autofix",
+  "session": "2026-07-27-session-3429-pr-autofix",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Merge main to resolve stale conflict and address two Copilot review findings on PR #3429",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
