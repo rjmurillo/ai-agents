@@ -38,10 +38,11 @@ Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready),
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
 git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
@@ -129,10 +130,11 @@ Quote every variable expansion. The shell does not treat `:` specially in a refs
 
 ```bash
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
@@ -195,10 +197,11 @@ When invoking from autofix code:
 ```bash
 PR_NUMBER="123"
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
@@ -219,10 +222,11 @@ encoded "100 = merged"):
 ```bash
 PR_NUMBER="123"
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
@@ -246,10 +250,11 @@ Run after all threads resolved and CI passes:
 
 ```bash
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do

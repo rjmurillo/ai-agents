@@ -98,9 +98,16 @@ class TestARestoreFailureBlocks:
             Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
         )
         policy.update_causal_graph(repo)
-        err = capsys.readouterr().err
-        assert _GRAPH in err.replace("\\", "/")
-        assert "--reset-graph" in err
+        err = capsys.readouterr().err.replace("\\", "/")
+        assert _GRAPH in err
+        # The word "rebuild" is not the repair. An operator staring at a blocked
+        # commit needs the command, and a command missing any of these flags
+        # rebuilds the wrong file or from the wrong source (issue #3370).
+        assert "python3" in err, f"no runnable command in stderr: {err!r}"
+        repair = err[err.index("python3") :]
+        for flag in ("--reset-graph", "--episode-path", "--graph-path"):
+            assert flag in repair, f"repair command omits {flag}: {repair!r}"
+        assert _GRAPH in repair, f"repair command does not name the graph: {repair!r}"
 
     def test_it_does_not_raise(self, repo, monkeypatch):
         """The point of the change: an exit code, not a traceback."""

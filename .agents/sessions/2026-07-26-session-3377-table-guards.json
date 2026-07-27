@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3377,
+    "date": "2026-07-26",
+    "branch": "fix/3377-table-guards",
+    "startingCommit": "cc3a23ebc0baf4d1288bf5da8956174d4a5cbc36",
+    "objective": "Reland the one dependency-table hole PR #3396 left open, and pin the skip-before-import order it shipped untested."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3377-table-guards, branched from origin/main after PR #3396 merged."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .claude/rules/universal.md before touching scripts/validation/."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git rev-parse HEAD = acb78c20bbc2a893e1623f4199d6580468f96df0; merge-base with origin/main = cc3a23ebc0baf4d1288bf5da8956174d4a5cbc36 (origin/main head cc3a23ebc0)."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md; did not edit it (ADR-014)."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3377-table-guards, not main."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP is live in this harness; serena-initial_instructions and serena-list_memories both returned. Project already active."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Called serena-initial_instructions and read the returned Serena Instructions Manual before continuing."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, .agents/sessions/2026-07-26-session-3377-table-guards.json."
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Used scripts/validation/pre_pr.py and its checks_tooling module directly; no skill script needed for this change."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .serena/memories/usage-mandatory.md from disk."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item in this file carries evidence written for this session; none inherited from a prior log."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; git status shows no modification to it."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote decision-requirement-typeerror-not-invalidrequirement via serena-write_memory, recording that Requirement(non_string) raises TypeError and why the type guard has to precede the parse."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "One markdown file changed: .serena/memories/decision-requirement-typeerror-not-invalidrequirement.md. Ran scoped markdownlint-cli2 on it; the repo config excludes .serena/**, so it reported 'Linting: 0 files, 0 issues'. Nothing to fix, and the exclusion is why."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits on the branch, newest first: 2676ac5a37 docs(session): repoint endingCommit at a commit that is on the branch; 64d23ae67b docs(session): record the table-guard reland and the packaging finding; f22ebf0079 test(validation): pin the skip-before-import order in the pin gate; 687eb5b43e fix(validation): read every dependency table through one pair of guards. SHAs are post-rebase; the pre-rebase values recorded earlier named commits reachable only from the reflog."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "149 tests pass across tests/validation/test_check_ci_dependency_pins.py and tests/test_validation_pre_pr.py on the origin/main baseline; ruff and mypy clean on the changed files."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "PR #3396 merged before its two threads could be answered in place; this branch carries the answers and its PR description points back at them."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Carried forward in the session summary; the reusable finding (TypeError vs InvalidRequirement) is stated in the commit body."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Answer the two review threads on PR #3396 while it was open",
+      "outcome": "Both premises verified real. Fixes and tests were committed on fix/3377-ci-pin-drift, but PR #3396 merged mid-work and took the branch with it. Third time this session; recovery is a fresh branch off main."
+    },
+    {
+      "task": "Diff the merged result against the orphaned work rather than assume it",
+      "outcome": "The merged PR already carries isinstance guards on all three tables, written inline three times, and already carries the skip-before-import order. Only one hole survives: data.get('project') returning a non-dict makes project.get() raise AttributeError before any guard runs."
+    },
+    {
+      "task": "Close the surviving hole and delete the triplication",
+      "outcome": "Two named helpers, _requirement_strings and _requirement_groups, now own the coercion; all three tables route through them. Thirteen lines of repeated isinstance ceremony become three, and the [project] shape is guarded by construction."
+    },
+    {
+      "task": "Re-run the negative control against the merged baseline, not the pre-#3396 one",
+      "outcome": "Restoring the merged body verbatim turns exactly 1 of the 8 parametrized cases red (project-is-not-a-table). The earlier 6-of-8 figure was measured against the pre-#3396 body and does not describe what ships here. The other seven cases hold #3396's fixes against regression."
+    },
+    {
+      "task": "Pin the import ordering that #3396 shipped untested",
+      "outcome": "Two tests block the import via sys.modules and assert MissingScriptSkip; a third runs a tree that does exist so a guard which skipped everything would fail. Moving the import back above the check turns both skip tests red with ModuleNotFoundError."
+    }
+  ],
+  "endingCommit": "2676ac5a37",
+  "nextSteps": [
+    "Open the PR for fix/3377-table-guards and check it before any long push; three PRs merged mid-push this session.",
+    "Fix the _HOOK_PATH_RE comment wording on PR #3397.",
+    "endingCommit names the newest commit on the branch at the time this log was last corrected; a later review-fix commit may follow it."
+  ]
+}

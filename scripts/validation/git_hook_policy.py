@@ -24,6 +24,7 @@ from typing import TextIO, cast
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -502,6 +503,51 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     return probe.returncode == 0
 
 
+def _is_linked_worktree(repo_root: Path) -> bool:
+    """Return True when ``repo_root`` is a linked worktree, not the primary checkout.
+
+    A linked worktree has its own ``.git`` directory under the primary one's
+    ``worktrees/``, so the two paths differ. Comparing them is the only probe
+    git offers that does not depend on how the caller spelled the path.
+
+    Fails closed: any indeterminate answer reports False and the caller keeps
+    its normal behaviour.
+    """
+    own = _run_git(repo_root, ["rev-parse", "--absolute-git-dir"])
+    shared = _run_git(repo_root, ["rev-parse", "--git-common-dir"])
+    if own.returncode != 0 or shared.returncode != 0:
+        return False
+    own_text = own.stdout.strip()
+    shared_text = shared.stdout.strip()
+    if not own_text or not shared_text:
+        return False
+    try:
+        own_path = Path(own_text).resolve()
+        shared_path = (repo_root / shared_text).resolve()
+    except OSError:
+        return False
+    return own_path != shared_path
+
+
+def _is_committed_here(repo_root: Path, path: Path) -> bool:
+    """Return True when ``path`` exists in the current checkout's ``HEAD``.
+
+    In a linked worktree, presence in HEAD indicates the file arrived with
+    the checkout rather than being created in the working tree during this
+    session.  The proxy is imperfect: a log committed during the current
+    session would also satisfy this test.  The guard is acceptable because
+    the worktree exemption only fires in combination with
+    ``_is_linked_worktree``, and linked-worktree users do not typically
+    commit session logs to their feature branch mid-session.
+    """
+    try:
+        relative = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return False
+    probe = _run_git(repo_root, ["cat-file", "-e", f"HEAD:{relative}"])
+    return probe.returncode == 0
+
+
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
@@ -835,7 +881,7 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks. Two
+    Only a determinate ``current_branch != session_branch`` blocks. Three
     exemptions. A merge in progress is exempt: a merge legitimately imports
     another branch's newer session log into the tree, which would otherwise
     read as a mismatch. A committed merge is exempt on the same grounds but
@@ -846,6 +892,15 @@ def check_branch_context(repo_root: Path) -> int:
     history rather than a claim about current work (issue #3343). A log
     authored on another local branch is not upstream, so the co-mingling case
     from issue #682 still blocks.
+
+    A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
+    checkout of some branch's history, so a log present in ``HEAD`` names
+    whatever that branch last recorded and says nothing about the developer's
+    current work. Blocking on it forced ``--no-verify`` on every worktree
+    commit, which disabled every other hook to silence this one (issue #3408).
+    The exemption is limited to logs present in the worktree's own ``HEAD``
+    (the ``_is_committed_here`` probe): a log that exists only as an untracked
+    working-tree file is a live claim, so a real mismatch there still blocks.
     """
     try:
         if _merge_in_progress(repo_root):
@@ -867,6 +922,8 @@ def check_branch_context(repo_root: Path) -> int:
         if _session_log_for_branch(sessions_dir, current_branch) is not None and _is_merged_history(
             repo_root, session_log
         ):
+            return 0
+        if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return 0
         print(
             "ERROR: branch context mismatch: "
@@ -3011,11 +3068,12 @@ def run_cli_e2e(test_file: str, repo_root: Path) -> int:
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
-        result = _run_command(
-            [sys.executable, "scripts/validate_session_json.py", path],
-            repo_root,
-        )
+        command = [sys.executable, "scripts/validate_session_json.py", path]
+        if path not in new_logs:
+            command.append("--existing-log")
+        result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0
     return 1 if failed else 0

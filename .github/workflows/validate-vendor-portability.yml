@@ -59,6 +59,10 @@ jobs:
               - 'scripts/validation/portability_common.py'
               - 'scripts/validation/check_skill_md_exec_portability.py'
               - 'scripts/validation/skill_md_exec_portability_baseline.json'
+              - 'scripts/validation/check_skill_resolver_anchoring.py'
+              - 'scripts/validation/check_skill_contract_tests.py'
+              - 'scripts/validation/skill_contract_test_baseline.txt'
+              - 'tests/validation/test_skill_resolver_and_contract_guards.py'
               - '.github/workflows/validate-vendor-portability.yml'
 
   validate-portability:
@@ -82,6 +86,12 @@ jobs:
 
       - name: Check for new bare-exec skill-path offenders (issue #2838)
         run: python3 scripts/validation/check_skill_md_exec_portability.py
+
+      - name: Check skill resolver anchoring
+        run: python3 scripts/validation/check_skill_resolver_anchoring.py
+
+      - name: Check skill contract test binding
+        run: python3 scripts/validation/check_skill_contract_tests.py
 
       - name: Show remediation on failure
         if: failure()
