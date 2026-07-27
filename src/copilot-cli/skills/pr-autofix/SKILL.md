@@ -7,8 +7,9 @@ user-invocable: true
 
 # /pr-autofix
 
-Autonomous PR monitor and fixer. Implements the protocol from
-`docs/autonomous-pr-monitor.md`.
+Autonomous PR monitor and fixer. This file carries the whole protocol,
+including the Ready-to-Merge definition below. Nothing outside it is needed
+to run the command.
 
 ## Triggers
 
