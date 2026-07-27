@@ -52,7 +52,7 @@
       "skillScriptsListed": {
         "complete": true,
         "level": "SHOULD",
-        "evidence": "Read scan.py, patterns.py, and counts.py under .claude/skills/orphan-ref-validator/scripts/ before deciding how to handle the findings, which is what established that the scanner emits only skill_name, script_path, and scan_truncated"
+        "evidence": "Read scan.py under .claude/skills/orphan-ref-validator/scripts/ before deciding how to handle the findings, then patterns.py and counts.py during later verification rounds, which is what established that the scanner emits only skill_name, script_path, and scan_truncated"
       },
       "usageMandatoryRead": {
         "complete": true,
@@ -129,19 +129,19 @@
         "Counted base-tree precedent at d544eaa60a with git grep -oh -F on markdown files only: 25 line-scope and 22 file-scope directives already present. Dropping the markdown filter gives 31 and 23, but the extra 6 are the validator's own patterns.py, its mirror, a test, and a session log, which are the directive's implementation rather than documents using it",
         "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
       ],
-      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs no longer resolve"
+      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them"
     },
     {
       "phase": "Adversarial review caught that the directives alone were dishonest",
       "actions": [
         "Ran a review on a different model with the explicit question: is any silenced line an active instruction rather than historical narrative",
         "The reviewer flagged that the specs carry status draft, todo, and in-progress, and that many flagged lines are imperative: Create bundle_registry.py, MUST import from, shall replace the hard-coded PLUGIN_COUNTERS dict, THE SYSTEM SHALL invoke",
-        "Verified the reviewer rather than trusting it: tests/test_command_bundles.py and BUNDLE_REGISTRY no longer exist and PLUGIN_COUNTERS matches nothing in the tree, so those instructions are unimplementable as written",
+        "Verified the reviewer rather than trusting it: tests/test_command_bundles.py no longer exists, and git grep over *.py returns no definition or consumer of BUNDLE_REGISTRY or PLUGIN_COUNTERS, so those instructions are unimplementable as written. Both names still appear in spec and ADR prose, which is narrative rather than live code",
         "Also verified two false claims in the first draft of this log: the precedent counts were 25 and 22, not 39 and 29, and the 32 findings sit on 30 lines, not 32",
         "Annotated the design and task tiers: TASK-009 line 70 tells an implementer to mirror COUNT_PATTERN and LABEL_MAP byte-for-byte from the deleted script, and neither name exists in patterns.py today",
-        "Annotated SPEC-005 last: TASK-005 is status todo and says Create scripts/validation/bundle_registry.py and MUST import from it, but git shows that file created in 7310d0c9c4 then deleted in #3432 with tests/test_command_bundles.py, and BUNDLE_REGISTRY matches nothing in the tree today"
+        "Annotated SPEC-005 last: TASK-005 is status todo and says Create scripts/validation/bundle_registry.py and MUST import from it, but git shows that file created in 7310d0c9c4 then deleted in #3432 with tests/test_command_bundles.py, and git grep over *.py returns no definition or consumer of BUNDLE_REGISTRY today"
       ],
-      "outcome": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file"
+      "outcome": "Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file"
     },
     {
       "phase": "Second adversarial pass caught three defects in the fix itself",

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T07:36:24.004177+00:00",
+  "updated": "2026-07-27T07:59:30.219922+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21112,6 +21112,24 @@
         "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
       ],
       "created": "2026-07-27T07:36:23.998320+00:00"
+    },
+    {
+      "id": "93d01d0f3058",
+      "type": "milestone",
+      "label": "milestone: 30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:59:30.214276+00:00"
+    },
+    {
+      "id": "29e938496ef6",
+      "type": "milestone",
+      "label": "milestone: Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:59:30.214364+00:00"
     }
   ],
   "patterns": [

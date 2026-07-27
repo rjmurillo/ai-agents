@@ -180,7 +180,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e016",
@@ -193,6 +195,28 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

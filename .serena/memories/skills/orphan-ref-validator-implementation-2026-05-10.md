@@ -59,14 +59,14 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 The gate returned `CRITICAL_FAIL` on clean `main` with 32 findings across 12 files
 in `.agents/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
 contributor regardless of what their PR touched. All 32 pointed at entities that
-were deliberately deleted. Three had a successor; the rest had none:
+were deliberately deleted. Two had a successor; the rest had none:
 
 | Entity | Refs | Removed by |
 | --- | --- | --- |
 | `build/scripts/validate_marketplace_counts.py` | 24 | #2187, `2043c39863`, no successor |
 | `scripts/validation/bundle_registry.py` | 4 | #3432, `9b121ec6e8`, no successor |
 | `scripts/Validate-Traceability.ps1` | 1 | #1141, `efa406e9ab`, migrated to Python |
-| `scripts/Validate-SessionEnd.ps1` | 1 | #610, `a4c58192a5`, renamed |
+| `scripts/Validate-SessionEnd.ps1` | 1 | #610, `a4c58192a5`, renamed to `Validate-Session.ps1`, then expunged in #830 `bdacb6b19d` with no Python port |
 | skill `session-qa-eligibility` | 1 | folded into `session` |
 | skill `session-migration` | 1 | sunset, #2359, `59e6587c46` |
 
@@ -80,8 +80,10 @@ validator". Those are live contracts against deleted code. Silencing them hides 
 real defect permanently, and also blinds that line to any future orphan.
 
 Verify a suspected-dead instruction before deciding, and check the history rather
-than only the working tree. `tests/test_command_bundles.py` and `BUNDLE_REGISTRY`
-are gone and `PLUGIN_COUNTERS` matches nothing, so those are unimplementable. But
+than only the working tree. `tests/test_command_bundles.py` is gone, and
+`git grep -E 'BUNDLE_REGISTRY|PLUGIN_COUNTERS' -- '*.py'` returns nothing, so those
+are unimplementable. Both names still appear in spec and ADR prose; scope the
+search to `*.py` or the claim is false. But
 `COUNT_PATTERN` and `LABEL_MAP` were a different case: absent from `patterns.py`
 today, yet `git log -S COUNT_CLAIM_RE` shows they did land, as `COUNT_PATTERN`,
 `COUNT_CLAIM_RE`, `COUNT_LABEL_MAP`, and `extract_count_claims`, and were retired
