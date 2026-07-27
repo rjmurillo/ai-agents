@@ -83,11 +83,13 @@ class ConfigError(Exception):
 
 
 class LedgerMismatchError(Exception):
-    """The ledger belongs to a different split. A decision, not a crash."""
+    """The ledger describes a different run. A decision, not a crash.
 
-    def __init__(self, recorded: str) -> None:
-        super().__init__(recorded)
-        self.recorded = recorded
+    Raised when the recorded split fingerprint or the recorded cap disagrees
+    with the invocation. Both mean the run changed underneath the budget, and
+    the loop driving this CLI has to be able to branch on that, so the message
+    is built here and reported verbatim rather than reassembled by the caller.
+    """
 
 
 def _emit(payload: object) -> None:
@@ -341,7 +343,18 @@ def cmd_score(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
     results = _read_results(args.results)
     value = _score_group(results, split, args.group)
-    _emit({"score": value, "group": args.group, "n": len(split[args.group])})
+    # The fingerprint rides along because `gate` requires it and this is the
+    # only command that reads the split on the caller's behalf. Without it the
+    # caller has to open the split file to satisfy a required flag, which is
+    # how the check ended up optional in the first place.
+    _emit(
+        {
+            "score": value,
+            "group": args.group,
+            "n": len(split[args.group]),
+            "fingerprint": split["fingerprint"],
+        }
+    )
     return EXIT_OK
 
 
@@ -373,14 +386,32 @@ def cmd_apply(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _read_ledger(path: Path, fingerprint: str) -> int:
+def _ledger_path(split: Path) -> Path:
+    """Where the budget for this split lives.
+
+    Derived rather than supplied. A `--ledger` flag read as discipline but
+    handed the caller the reset: a missing ledger starts at zero, so pointing
+    the next invocation at a fresh path restored the whole budget without
+    editing anything. Deriving it means resetting the count is deleting a file
+    that sits beside the split it belongs to. The full split filename is used,
+    not its stem, so two splits in one directory cannot share a budget.
+    """
+    return split.with_name(split.name + ".ledger")
+
+
+def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
     """Return the consultations already spent against this split.
 
     The count lives here rather than on the command line because a budget the
     caller supplies is not a budget: passing zero every time yields an
-    unlimited one while still looking capped. The ledger is bound to the split
-    fingerprint so an old ledger cannot be paired with a fresh split, which
-    would reset the count by redrawing rather than by editing a number.
+    unlimited one while still looking capped. The cap is recorded for the same
+    reason. Pinning only the count left the limit re-suppliable, so a caller
+    that hit the budget could raise it and carry on, which is the defect the
+    ledger was written to close wearing a different hat.
+
+    The ledger is bound to the split fingerprint so an old ledger cannot be
+    paired with a fresh split, which would reset the count by redrawing rather
+    than by editing a number.
     """
     if not path.exists():
         return 0
@@ -390,14 +421,27 @@ def _read_ledger(path: Path, fingerprint: str) -> int:
     spent = data.get("consultations")
     if not isinstance(spent, int) or isinstance(spent, bool) or spent < 0:
         raise ConfigError(f"{path} consultations must be a non-negative integer")
+    recorded_cap = data.get("max_consultations")
+    if not isinstance(recorded_cap, int) or isinstance(recorded_cap, bool) or recorded_cap < 1:
+        raise ConfigError(f"{path} max_consultations must be a positive integer")
     recorded = data.get("fingerprint")
     if recorded != fingerprint:
-        raise LedgerMismatchError(str(recorded))
+        raise LedgerMismatchError(
+            f"ledger {path} records fingerprint {recorded} but this split is "
+            f"{fingerprint}; a ledger and a split that disagree mean the split "
+            f"was redrawn mid-run"
+        )
+    if recorded_cap != cap:
+        raise LedgerMismatchError(
+            f"ledger {path} was opened with a cap of {recorded_cap} and this "
+            f"invocation asks for {cap}; the budget for a held-out group is "
+            f"fixed when the run starts, so re-split to change it"
+        )
     return spent
 
 
-def _write_ledger(path: Path, fingerprint: str, spent: int) -> None:
-    payload = {"consultations": spent, "fingerprint": fingerprint}
+def _write_ledger(path: Path, fingerprint: str, spent: int, cap: int) -> None:
+    payload = {"consultations": spent, "fingerprint": fingerprint, "max_consultations": cap}
     _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
@@ -437,20 +481,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
         )
         return EXIT_OK
 
+    ledger = _ledger_path(args.split)
     try:
-        spent = _read_ledger(args.ledger, split["fingerprint"])
+        spent = _read_ledger(ledger, split["fingerprint"], args.max_consultations)
     except LedgerMismatchError as exc:
-        _emit(
-            {
-                "decision": "REJECT",
-                "reason": (
-                    f"ledger {args.ledger} records fingerprint {exc.recorded} but "
-                    f"this split is {split['fingerprint']}; a ledger and a split "
-                    f"that disagree mean the split was redrawn mid-run"
-                ),
-                "compared": False,
-            }
-        )
+        _emit({"decision": "REJECT", "reason": str(exc), "compared": False})
         return EXIT_LOGIC
 
     # Guards first, scoring second. Both refusals are decidable from
@@ -491,7 +526,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # the gate writes it rather than telling the caller what to pass next.
     spent_after = spent + (1 if result.compared else 0)
     if result.compared:
-        _write_ledger(args.ledger, split["fingerprint"], spent_after)
+        _write_ledger(ledger, split["fingerprint"], spent_after, args.max_consultations)
 
     _emit(
         {
@@ -655,14 +690,18 @@ def build_parser() -> argparse.ArgumentParser:
     gate_cmd.add_argument("--split", type=Path, required=True)
     # No --group. A gate reads the held-out group by definition, and offering
     # the choice let a caller gate on the group it had already optimized against.
+    # No --ledger either: see _ledger_path for why the caller does not choose it.
     gate_cmd.add_argument(
-        "--ledger",
-        type=Path,
+        "--max-consultations",
+        type=int,
         required=True,
-        help="file the gate keeps the consultation count in; created on first use",
+        help="how many comparisons this split may ever answer; fixed at the first gate",
     )
-    gate_cmd.add_argument("--max-consultations", type=int, default=None)
-    gate_cmd.add_argument("--incumbent-fingerprint", default=None)
+    gate_cmd.add_argument(
+        "--incumbent-fingerprint",
+        required=True,
+        help="split fingerprint the incumbent was scored against; `score` reports it",
+    )
     gate_cmd.set_defaults(func=cmd_gate)
 
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")

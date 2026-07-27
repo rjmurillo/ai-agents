@@ -63,23 +63,44 @@ def _split(capsys, tmp_path, *args, name="split.json"):
     return code, json.loads(path.read_text(encoding="utf-8"))
 
 
-def _run_gate(capsys, tmp_path, *args, spent=None):
-    """Run `gate`, supplying the ledger it now keeps its own count in.
+def _run_gate(capsys, tmp_path, *args, spent=None, cap=100):
+    """Run `gate`, supplying the two arguments it now requires.
 
     The consultation count used to arrive on the command line, which meant a
-    caller that passed zero every time had an unlimited budget. `spent`
-    pre-seeds the ledger for tests that need the gate to believe consultations
-    have already happened.
+    caller that passed zero every time had an unlimited budget. The cap and
+    the incumbent fingerprint went the same way: both defaulted to a value
+    that skipped the check. Tests that are not about those arguments get
+    working defaults here; `spent` pre-seeds the derived ledger for tests that
+    need the gate to believe consultations have already happened.
     """
-    ledger = tmp_path / "ledger.json"
-    if spent is not None:
-        split_path = args[list(args).index("--split") + 1]
-        split = json.loads(Path(split_path).read_text(encoding="utf-8"))
-        ledger.write_text(
-            json.dumps({"consultations": spent, "fingerprint": split["fingerprint"]}),
+    argv = list(args)
+    if "--max-consultations" not in argv:
+        argv += ["--max-consultations", str(cap)]
+    effective = int(argv[argv.index("--max-consultations") + 1])
+    split = _split_of(argv)
+    if "--incumbent-fingerprint" not in argv and isinstance(split, dict):
+        argv += ["--incumbent-fingerprint", str(split.get("fingerprint", "unknown"))]
+    if spent is not None and isinstance(split, dict):
+        oa._ledger_path(Path(argv[argv.index("--split") + 1])).write_text(
+            json.dumps({"consultations": spent, "fingerprint": split.get("fingerprint"),
+                        "max_consultations": effective}),
             encoding="utf-8",
         )
-    return _run(capsys, "gate", *args, "--ledger", ledger)
+    return _run(capsys, "gate", *argv)
+
+
+def _split_of(argv):
+    """The split record behind `--split`, or None when it is unreadable.
+
+    Config-error tests deliberately point `--split` at missing or malformed
+    files, and the helper still has to run them.
+    """
+    if "--split" not in argv:
+        return None
+    try:
+        return json.loads(Path(argv[argv.index("--split") + 1]).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def _boom(*_args, **_kwargs):
@@ -1321,14 +1342,16 @@ class TestConsultationLedgerIsHeldByTheGate:
         _run(capsys, "split", "--results", inc, "--seed", "s1",
              "--out", tmp_path / "split.json")
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
-        return inc, cand, tmp_path / "split.json", tmp_path / "ledger.json"
+        split = tmp_path / "split.json"
+        return inc, cand, split, oa._ledger_path(split)
 
-    def _gate(self, capsys, inc, cand, split, ledger, cap=None):
-        args = ["gate", "--incumbent", inc, "--candidate", cand,
-                "--split", split, "--ledger", ledger]
-        if cap is not None:
-            args += ["--max-consultations", str(cap)]
-        return _run(capsys, *args)
+    def _gate(self, capsys, inc, cand, split, _ledger, cap=100):
+        """The ledger path is derived, so tests receive it rather than choose it."""
+        fingerprint = _split_of(["--split", str(split)]) or {}
+        return _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                    "--split", split, "--max-consultations", str(cap),
+                    "--incumbent-fingerprint",
+                    str(fingerprint.get("fingerprint", "unknown")))
 
     def test_a_compared_decision_writes_the_count(self, tmp_path, capsys):
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
@@ -1355,7 +1378,8 @@ class TestConsultationLedgerIsHeldByTheGate:
     def test_a_ledger_from_a_different_split_is_refused(self, tmp_path, capsys):
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
         ledger.write_text(
-            json.dumps({"consultations": 0, "fingerprint": "not-this-split"}),
+            json.dumps({"consultations": 0, "fingerprint": "not-this-split",
+                        "max_consultations": 100}),
             encoding="utf-8",
         )
         code, out = self._gate(capsys, inc, cand, split, ledger)
@@ -1405,3 +1429,164 @@ class TestConsultationLedgerIsHeldByTheGate:
         assert code == EXIT_CONFIG
         assert dropped in out["error"]
         assert not ledger.exists()
+
+
+class TestTheBudgetCapIsPinnedByTheLedger:
+    """A cap the caller re-supplies every invocation is not a cap.
+
+    The ledger fixed the count but left the limit on the command line, where
+    `--max-consultations` defaulted to unlimited. A second adversarial review
+    (gpt-5.6-sol, 2026-07-26) named the two remaining ways out: never pass the
+    flag, or raise it once the budget bites. Both are the same defect the
+    ledger was written to close, so the limit is now pinned the same way the
+    count is.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        split = tmp_path / "split.json"
+        fingerprint = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
+        return inc, cand, split, fingerprint
+
+    def _gate(self, capsys, inc, cand, split, fingerprint, cap):
+        return _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                    "--split", split, "--max-consultations", str(cap),
+                    "--incumbent-fingerprint", fingerprint)
+
+    def test_a_missing_cap_is_a_usage_error(self, tmp_path, capsys):
+        """No default. An unlimited budget must be typed, not inherited."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        with pytest.raises(SystemExit) as exc:
+            _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                 "--split", split, "--incumbent-fingerprint", fingerprint)
+        assert exc.value.code == EXIT_CONFIG
+
+    def test_the_first_gate_records_the_cap(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        code, _ = self._gate(capsys, inc, cand, split, fingerprint, 3)
+        assert code == EXIT_OK
+        ledger = json.loads(oa._ledger_path(split).read_text(encoding="utf-8"))
+        assert ledger["max_consultations"] == 3
+
+    def test_raising_the_cap_mid_run_is_refused(self, tmp_path, capsys):
+        """The reproduced attack: gate under one, then ask for five."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        assert self._gate(capsys, inc, cand, split, fingerprint, 1)[0] == EXIT_OK
+        code, out = self._gate(capsys, inc, cand, split, fingerprint, 5)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+        assert "1" in out["reason"] and "5" in out["reason"]
+
+    def test_lowering_the_cap_mid_run_is_refused(self, tmp_path, capsys):
+        """Symmetric on purpose: any cap change means a different run."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        assert self._gate(capsys, inc, cand, split, fingerprint, 4)[0] == EXIT_OK
+        code, out = self._gate(capsys, inc, cand, split, fingerprint, 2)
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+
+    def test_the_same_cap_is_not_a_change(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        assert self._gate(capsys, inc, cand, split, fingerprint, 4)[0] == EXIT_OK
+        code, out = self._gate(capsys, inc, cand, split, fingerprint, 4)
+        assert code == EXIT_OK
+        assert out["sel_consultations"] == 2
+
+    @pytest.mark.parametrize("recorded", ["five", -1, None, True])
+    def test_a_malformed_recorded_cap_is_a_config_error(self, tmp_path, capsys, recorded):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        oa._ledger_path(split).write_text(
+            json.dumps({"consultations": 0, "fingerprint": fingerprint,
+                        "max_consultations": recorded}),
+            encoding="utf-8",
+        )
+        code, _ = self._gate(capsys, inc, cand, split, fingerprint, 3)
+        assert code == EXIT_CONFIG
+
+
+class TestTheLedgerLivesBesideTheSplit:
+    """A ledger path the caller chooses is a ledger the caller can replace.
+
+    `--ledger` was required, which read as discipline, but pointing the next
+    invocation at a fresh path reset the count to zero because a missing
+    ledger starts empty. Deriving the path from the split removes the choice:
+    resetting the budget now means deleting a file that sits next to the split
+    it belongs to, which is unambiguous tampering rather than an argument.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        split = tmp_path / "split.json"
+        fingerprint = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
+        return inc, cand, split, fingerprint
+
+    def test_the_ledger_is_written_beside_the_split(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        _run(capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split,
+             "--max-consultations", "3", "--incumbent-fingerprint", fingerprint)
+        assert (tmp_path / "split.json.ledger").exists()
+
+    def test_the_ledger_flag_is_gone(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        with pytest.raises(SystemExit) as exc:
+            _run(capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split,
+                 "--max-consultations", "3", "--incumbent-fingerprint", fingerprint,
+                 "--ledger", tmp_path / "elsewhere.json")
+        assert exc.value.code == EXIT_CONFIG
+
+    def test_the_derived_path_is_unique_per_split(self, tmp_path, capsys):
+        """Two splits in one directory must not share a budget."""
+        assert oa._ledger_path(tmp_path / "a.json") != oa._ledger_path(tmp_path / "b.json")
+        assert oa._ledger_path(tmp_path / "a.json") != oa._ledger_path(tmp_path / "a.yaml")
+
+    def test_a_split_with_no_suffix_still_derives_a_ledger(self, tmp_path):
+        """Total function: no path shape may raise on the way to a budget."""
+        assert oa._ledger_path(tmp_path / "split").name == "split.ledger"
+
+
+class TestTheIncumbentFingerprintIsRequired:
+    """An optional integrity check is an integrity check nobody runs.
+
+    `--incumbent-fingerprint` defaulted to None, and the guard compares only
+    when both sides are present, so omitting the flag silently skipped the
+    one check that catches a stale baseline: redraw the split, gate against
+    an incumbent scored on the old one, and the comparison is between two
+    different eval sets. `score` now reports the fingerprint so supplying it
+    costs the caller nothing.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        return inc, cand, tmp_path / "split.json"
+
+    def test_a_missing_incumbent_fingerprint_is_a_usage_error(self, tmp_path, capsys):
+        inc, cand, split = self._fixture(tmp_path, capsys)
+        with pytest.raises(SystemExit) as exc:
+            _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                 "--split", split, "--max-consultations", "3")
+        assert exc.value.code == EXIT_CONFIG
+
+    def test_score_reports_the_fingerprint_the_gate_will_demand(self, tmp_path, capsys):
+        inc, _cand, split = self._fixture(tmp_path, capsys)
+        _, out = _run(capsys, "score", "--results", inc, "--split", split)
+        recorded = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
+        assert out["fingerprint"] == recorded
+
+    def test_the_fingerprint_score_reports_is_the_one_the_gate_accepts(self, tmp_path, capsys):
+        """End to end: the value `score` prints must satisfy `gate`."""
+        inc, cand, split = self._fixture(tmp_path, capsys)
+        _, scored = _run(capsys, "score", "--results", inc, "--split", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", split, "--max-consultations", "3",
+                         "--incumbent-fingerprint", scored["fingerprint"])
+        assert code == EXIT_OK and out["compared"] is True

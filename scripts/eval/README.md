@@ -365,8 +365,7 @@ uv run --frozen python "$OA" apply --file target.md --patches p.json --budget 3
 
 # Rerun the real scorer here, then extract it to cand.json.
 uv run --frozen python "$OA" gate --incumbent base.json --candidate cand.json \
-    --split split.json --ledger ledger.json --incumbent-fingerprint "$FP" \
-    --max-consultations 5
+    --split split.json --incumbent-fingerprint "$FP" --max-consultations 5
 ```
 
 On reject, revert the file and run `buffer-add` so the same edit is not
@@ -411,26 +410,30 @@ Four further refusals close holes that open once a loop runs many steps:
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.
 - **Exhausted consultations.** Gating N times against one `sel` group selects
-  on it N times. `gate --ledger PATH` is required, and the count lives in that
-  file rather than on the command line. This matters: a count the caller passes
-  is not a cap. `--consultations` defaulted to zero and arrived on every
-  invocation, so a loop that passed zero each time had an unlimited budget while
-  looking capped. An adversarial review reproduced ACCEPT twice under
-  `--max-consultations 1` that way.
+  on it N times, so the gate keeps a budget in a ledger it writes beside the
+  split, at `<split>.ledger`. Nothing about that budget arrives on the command
+  line twice, and each piece was moved there after a review reproduced a way
+  around the previous version:
 
-  The ledger records the split fingerprint alongside the count, so redrawing the
-  split does not reset the budget: the gate refuses a ledger and a split that
-  disagree. The count advances only when scores were actually weighed, and a
-  refusal reports no scores at all, so a refused call cannot be used to read the
-  group for free.
+  | Held where | Why not on the command line |
+  | --- | --- |
+  | Count | `--consultations` defaulted to zero every invocation, so a loop that passed zero each time had an unlimited budget while looking capped. Review reproduced ACCEPT twice under a cap of one. |
+  | Cap | `--max-consultations` defaulted to unlimited, so the ordinary invocation had no budget at all, and a caller that did hit the cap could raise it and continue. It is now required, recorded at the first gate, and a later change is refused. |
+  | Ledger path | `--ledger PATH` looked like discipline but a missing ledger starts at zero, so naming a fresh path restored the whole budget. The path is derived from the split, so resetting the count means deleting a file, not passing an argument. |
+
+  The ledger records the split fingerprint too, so redrawing the split does not
+  reset the budget: the gate refuses a ledger and a split that disagree. The
+  count advances only when scores were actually weighed, and a refusal reports
+  no scores at all, so a refused call cannot be used to read the group for free.
 
   ```bash
   optimize-artifact.py gate --incumbent inc.json --candidate cand.json \
-      --split split.json --ledger ledger.json --max-consultations 5
+      --split split.json --max-consultations 5 --incumbent-fingerprint "$FP"
   ```
 
-  A first run needs no existing ledger; the gate creates it. Point one ledger at
-  one split for the life of a loop.
+  A first run needs no existing ledger; the gate creates it. `--incumbent-fingerprint`
+  is required and `score` reports the value to pass, which is the check that
+  catches a baseline scored against a split that has since been redrawn.
 - **Protected sections.** Text between `<!-- SLOW_UPDATE_START -->` and
   `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
   fence marker in their text are rejected too, since one could otherwise open a
