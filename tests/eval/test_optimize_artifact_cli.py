@@ -3056,7 +3056,7 @@ class TestTheReportedTailCanAlsoRefuse:
         assert spread["decision"] == "REJECT"
         assert spread["max_p_per_comparison"] == pytest.approx(0.01)
 
-    def test_without_the_flag_an_insignificant_win_still_accepts(self, tmp_path, capsys):
+    def test_without_the_flag_a_win_with_a_wide_tail_still_accepts(self, tmp_path, capsys):
         code, out = self._gate(tmp_path, capsys)
         assert out["p_value"] == pytest.approx(0.0625)
         assert out["decision"] == "ACCEPT"

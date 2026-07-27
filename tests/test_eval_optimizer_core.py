@@ -1063,7 +1063,7 @@ class TestSignificanceCanBeEnforcedNotJustReported:
     conventional floor, is still informative rather than unpassable.
     """
 
-    def test_an_insignificant_gain_is_refused_when_a_bar_is_set(self):
+    def test_a_gain_whose_tail_exceeds_the_bar_is_refused(self):
         result = gate(0.8, 0.6, p_value=0.25, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "0.25" in result.reason and "0.05" in result.reason
@@ -1071,7 +1071,7 @@ class TestSignificanceCanBeEnforcedNotJustReported:
     def test_the_same_gain_is_accepted_when_no_bar_is_set(self):
         assert gate(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
 
-    def test_a_significant_gain_passes_the_bar(self):
+    def test_a_gain_whose_tail_clears_the_bar_is_accepted(self):
         assert (
             gate(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
         )

@@ -17,7 +17,7 @@ The first cut compared the two files against each other and refused only when bo
 - `split` pins the corpus of the results it was drawn from, so the value lives in the baseline commitment and no results file can delete it.
 - One known corpus beside an unknown one is a conflict. Asymmetry is itself the evidence, and this covers splits drawn before the pin existed.
 
-Three details that are load-bearing and easy to undo by accident:
+Eight details that are load-bearing and easy to undo by accident:
 
 1. The corpus form is validated as 64 lowercase hex. An unchecked string reported a verified match on values identifying nothing; two reports both carrying `fixture_set_sha: ""` compared as verified.
 2. The pre-lock read is headers only and answers unknown to every content problem, so it cannot raise. Reading both files in full before the lock let a malformed verdict mapping answer in place of an exhausted budget. The full read sits in `_gate_decision`, after the ledger guards and before the charge.
