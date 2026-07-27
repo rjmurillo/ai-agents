@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Three commits of four files each, per the atomic-commit ceiling"
+        "evidence": "Nine commits, each holding four or fewer authored files plus the session log and hook-generated memory artifacts that the commit policy requires in the same staged set"
       },
       "validationPassed": {
         "complete": true,
@@ -108,10 +108,10 @@
       "phase": "Measure the gate failure and trace every orphan",
       "actions": [
         "Ran scan.py on default targets against clean main and got VERDICT: CRITICAL_FAIL with 32 findings across 12 spec files",
-        "Grouped findings by referenced entity: 24 point at one retired script, and the rest split across three more",
+        "Grouped findings by referenced entity: 24 point at one retired script and the remaining 8 split across five more",
         "Ran git log --diff-filter=D on each missing path to find the commit that removed it, rather than guessing whether a replacement exists"
       ],
-      "outcome": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and two skill names were folded into `session`"
+      "outcome": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)"
     },
     {
       "phase": "Check whether the repo had already decided this question",
@@ -126,7 +126,7 @@
       "phase": "Choose the narrower of the two escape hatches",
       "actions": [
         "Read the directive table in the skill: file scope skips the whole file, line scope skips one line",
-        "Counted base-tree precedent at d544eaa60a with git grep: 25 line-scope and 22 file-scope directives already present",
+        "Counted base-tree precedent at d544eaa60a with git grep -oh -F on markdown files only: 25 line-scope and 22 file-scope directives already present. Dropping the markdown filter gives 31 and 23, but the extra 6 are the validator's own patterns.py, its mirror, a test, and a session log, which are the directive's implementation rather than documents using it",
         "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
       ],
       "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7"
@@ -136,12 +136,24 @@
       "actions": [
         "Ran a review on a different model with the explicit question: is any silenced line an active instruction rather than historical narrative",
         "The reviewer flagged that the specs carry status draft, todo, and in-progress, and that many flagged lines are imperative: Create bundle_registry.py, MUST import from, shall replace the hard-coded PLUGIN_COUNTERS dict, THE SYSTEM SHALL invoke",
-        "Verified the reviewer rather than trusting it: COUNT_PATTERN and LABEL_MAP are absent from patterns.py, tests/test_command_bundles.py and BUNDLE_REGISTRY no longer exist, and PLUGIN_COUNTERS matches nothing in the tree, so all three instructions are unimplementable as written",
+        "Verified the reviewer rather than trusting it: tests/test_command_bundles.py and BUNDLE_REGISTRY no longer exist and PLUGIN_COUNTERS matches nothing in the tree, so those instructions are unimplementable as written",
         "Also verified two false claims in the first draft of this log: the precedent counts were 25 and 22, not 39 and 29, and the 32 findings sit on 30 lines, not 32",
-        "Annotated the design and task tiers: TASK-009 line 70 tells an implementer to mirror COUNT_PATTERN and LABEL_MAP byte-for-byte from the deleted script, and patterns.py confirms neither ever landed, so the instruction is unreachable rather than merely stale",
+        "Annotated the design and task tiers: TASK-009 line 70 tells an implementer to mirror COUNT_PATTERN and LABEL_MAP byte-for-byte from the deleted script, and neither name exists in patterns.py today",
         "Annotated SPEC-005 last: TASK-005 is status todo and says Create scripts/validation/bundle_registry.py and MUST import from it, but git shows that file created in 7310d0c9c4 then deleted in #3432 with tests/test_command_bundles.py, and BUNDLE_REGISTRY matches nothing in the tree today"
       ],
       "outcome": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file"
+    },
+    {
+      "phase": "Second adversarial pass caught three defects in the fix itself",
+      "actions": [
+        "Sent the annotated branch back to the same reviewer with the explicit question: is the banner sufficient, and is every SHA in it correct",
+        "Reviewer returned three blockers. Verified each with git rather than accepting them, and all three held",
+        "Blocker one: seven notes closed with the sentence Count claims are now scanned by the orphan-ref-validator skill, which is false. The scanner emits only skill_name, script_path, and scan_truncated. counts.py is catalog enumeration added in #3434, not count-claim scanning, and its name is a fossil of the retired subsystem",
+        "Blocker two: git log -S COUNT_CLAIM_RE shows COUNT_PATTERN, COUNT_CLAIM_RE, COUNT_LABEL_MAP, and extract_count_claims did land, then were retired in #2853 (commit 9c88990b77) to mirror the validator deleted in #2187. The earlier claim that they never landed was wrong; the instruction is retired, not unreachable",
+        "Blocker three: REQ-005 is status draft, its AC-14 requires pre_pr.py to run bundle coverage, and pre_pr.py has no bundle check. DESIGN-005 and TASK-005 carry banners while their parent requirement did not, so the fix left two of three tiers marked dead and the third reading as live",
+        "Also confirmed the notes carried no date despite this log calling them dated, and that session-migration was sunset in #2359 rather than folded into session"
+      ],
+      "outcome": "Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change"
     }
   ],
   "endingCommit": "e0d5390dd7938c308c9a26c2fec67619c582b651",

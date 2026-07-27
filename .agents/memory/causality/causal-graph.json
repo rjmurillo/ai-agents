@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T07:03:00.857190+00:00",
+  "updated": "2026-07-27T07:18:05.667001+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20941,6 +20941,24 @@
         "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
       ],
       "created": "2026-07-27T07:03:00.851375+00:00"
+    },
+    {
+      "id": "933fec69327e",
+      "type": "milestone",
+      "label": "milestone: 32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:18:05.661182+00:00"
+    },
+    {
+      "id": "f53bd8ad8060",
+      "type": "milestone",
+      "label": "milestone: Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:18:05.661269+00:00"
     }
   ],
   "patterns": [
