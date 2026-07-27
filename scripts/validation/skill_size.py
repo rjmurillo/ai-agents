@@ -7,14 +7,23 @@ the limit should use progressive disclosure (references/, modules/).
 
 Size limits:
     - SKILL.md: 500 lines (warning at 300)
+    - SKILL.md: 20,480 bytes target ceiling (warning at 12,288); enforced as a
+      ratchet seeded above today's largest body, lowered toward the target as
+      oversized skills decompose into references/ (see SKILL_BYTE_LIMIT)
     - Exception: documented in frontmatter with 'size-exception: true'
+
+The byte ceiling exists because the line ceiling misses table-heavy or
+long-line bodies: a skill can sit under 500 lines yet carry 24 KB, so invoking
+it to check one procedure pays for the whole document. Progressive disclosure
+(a lean SKILL.md that states triggers, the routing decision, and pointers, with
+procedures and tables in references/*.md) keeps the always-loaded body small.
 
 Exit codes follow ADR-035:
     0 - Success: All skill files within size limits
     1 - Error: One or more files exceed limit (CI mode only)
     2 - Config error (path not found)
 
-Related: Issue #676 (Skill Prompt Size Limits)
+Related: Issue #676 (Skill Prompt Size Limits), Issue #3421 (byte ceiling)
 """
 
 from __future__ import annotations
@@ -50,6 +59,16 @@ except (FileNotFoundError, TypeError, AttributeError) as _exc:
 SKILL_SIZE_LIMIT: int = 500
 SKILL_SIZE_WARNING: int = 300
 
+# Size thresholds (bytes). The hard limit is a ratchet: it is seeded just above
+# the largest SKILL.md body in the corpus so it blocks further growth and any
+# new oversized skill without redding an already-green main. Lower it toward
+# SKILL_BYTE_TARGET (20 KiB, Issue #3421 AC-3) as the over-limit skills
+# decompose their bodies into references/. The warning marks the 12 KiB soft
+# ceiling that signals a skill should adopt progressive disclosure.
+SKILL_BYTE_TARGET: int = 20_480  # 20 KiB, the documented goal (Issue #3421)
+SKILL_BYTE_LIMIT: int = 24_576  # 24 KiB, current ratchet (max body is 24,210 B)
+SKILL_BYTE_WARNING: int = 12_288  # 12 KiB, progressive-disclosure trigger
+
 # Pattern matching staged/changed SKILL.md files
 _SKILL_MD_PATTERN: str = r"^\.claude/skills/.*/SKILL\.md$"
 
@@ -60,6 +79,7 @@ class SizeCheckResult:
 
     file_path: str
     line_count: int
+    byte_count: int = 0
     has_exception: bool = False
     passed: bool = True
     warning: bool = False
@@ -70,15 +90,23 @@ def check_skill_size(
     file_path: Path,
     limit: int = SKILL_SIZE_LIMIT,
     warn: int = SKILL_SIZE_WARNING,
+    byte_limit: int = SKILL_BYTE_LIMIT,
+    byte_warn: int = SKILL_BYTE_WARNING,
 ) -> SizeCheckResult:
-    """Check a single SKILL.md file against size limits."""
+    """Check a single SKILL.md file against line and byte size limits.
+
+    Lines and bytes are independent dimensions: a body can pass one and fail the
+    other (a table-heavy skill stays under 500 lines yet exceeds the byte
+    ceiling). Both honor the same ``size-exception: true`` frontmatter escape,
+    which downgrades a hard failure to a warning.
+    """
     try:
         relative = file_path.relative_to(Path.cwd())
     except ValueError:
         relative = file_path
 
     try:
-        content = file_path.read_text(encoding="utf-8")
+        raw = file_path.read_bytes()
     except OSError:
         return SizeCheckResult(
             file_path=str(relative),
@@ -87,12 +115,15 @@ def check_skill_size(
             errors=["File is unreadable"],
         )
 
+    content = raw.decode("utf-8", errors="replace")
     line_count = len(content.splitlines())
+    byte_count = len(raw)
     exception = has_size_exception(content)
 
     result = SizeCheckResult(
         file_path=str(relative),
         line_count=line_count,
+        byte_count=byte_count,
         has_exception=exception,
     )
 
@@ -108,6 +139,20 @@ def check_skill_size(
                 f"if overage is justified."
             )
     elif line_count > warn:
+        result.warning = True
+
+    if byte_count > byte_limit:
+        if exception:
+            result.warning = True
+        else:
+            result.passed = False
+            result.errors.append(
+                f"SKILL.md exceeds {byte_limit} bytes ({byte_count} bytes). "
+                f"Refactor using progressive disclosure: move procedures, tables, and "
+                f"examples to references/ so the always-loaded body stays lean. Add "
+                f"'size-exception: true' to frontmatter if overage is justified."
+            )
+    elif byte_count > byte_warn:
         result.warning = True
 
     return result
@@ -202,6 +247,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=SKILL_SIZE_WARNING,
         help=f"Warning threshold in lines (default: {SKILL_SIZE_WARNING})",
     )
+    parser.add_argument(
+        "--byte-limit",
+        type=int,
+        default=SKILL_BYTE_LIMIT,
+        help=f"Maximum bytes allowed (default: {SKILL_BYTE_LIMIT})",
+    )
+    parser.add_argument(
+        "--byte-warn",
+        type=int,
+        default=SKILL_BYTE_WARNING,
+        help=f"Warning threshold in bytes (default: {SKILL_BYTE_WARNING})",
+    )
     return parser
 
 
@@ -213,6 +270,8 @@ def main(argv: list[str] | None = None) -> int:
     # Use local variables instead of modifying globals
     limit = args.limit
     warn = args.warn
+    byte_limit = args.byte_limit
+    byte_warn = args.byte_warn
 
     print("Validating skill prompt sizes...")
 
@@ -233,11 +292,14 @@ def main(argv: list[str] | None = None) -> int:
     fail_count = 0
 
     for file_path in files:
-        result = check_skill_size(file_path, limit=limit, warn=warn)
+        result = check_skill_size(
+            file_path, limit=limit, warn=warn, byte_limit=byte_limit, byte_warn=byte_warn
+        )
+        size = f"{result.line_count} lines, {result.byte_count} bytes"
 
         if not result.passed:
             fail_count += 1
-            print(f"  [FAIL] {result.file_path} ({result.line_count} lines)")
+            print(f"  [FAIL] {result.file_path} ({size})")
             for error in result.errors:
                 print(f"    {error}")
             continue
@@ -247,11 +309,11 @@ def main(argv: list[str] | None = None) -> int:
             warn_count += 1
             if result.has_exception:
                 print(
-                    f"  [EXCEPTION] {result.file_path} ({result.line_count} lines)"
+                    f"  [EXCEPTION] {result.file_path} ({size})"
                     " - size-exception declared"
                 )
             else:
-                print(f"  [WARN] {result.file_path} ({result.line_count} lines)")
+                print(f"  [WARN] {result.file_path} ({size})")
 
     print()
     print("=" * 40)
@@ -261,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Passed:   {pass_count}")
     print(f"  Warnings: {warn_count}")
     print(f"  Failed:   {fail_count}")
-    print(f"  Limit:    {limit} lines")
+    print(f"  Limit:    {limit} lines / {byte_limit} bytes")
     print()
 
     if fail_count > 0:
