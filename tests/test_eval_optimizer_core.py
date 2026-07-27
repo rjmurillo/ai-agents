@@ -1073,9 +1073,13 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
 
     An adversarial review pointed out that the loop's own documented recipe
     permits five consultations, and that applying 0.05 independently to each
-    leaves a family-wise false accept probability of 1 - 0.95**5, about 0.226.
-    The bar an operator asks for is the one they believe governs the run, so
-    it is read as the family bar and divided across the declared budget.
+    does not leave the family at 0.05. Round eighteen sharpened the figure: the
+    dependence-agnostic union bound is 5 * 0.05 = 0.25, while the exact
+    1 - 0.95**5, about 0.226, assumes the five comparisons are independent,
+    which five looks at one selection group are not. The bar an operator asks
+    for is the one they believe governs the run, so it is read as the family
+    bar and divided across the declared budget by Bonferroni, which holds under
+    any dependence.
     """
 
     def test_the_bar_is_divided_across_the_declared_budget(self):

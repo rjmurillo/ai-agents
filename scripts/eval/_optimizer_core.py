@@ -629,14 +629,16 @@ def gate(
     strictly-greater rule alone accepts variance.
 
     The budget is what makes the correction necessary. A loop permitted five
-    consultations that applies 0.05 to each one independently carries a
-    family-wise false accept probability of 1 - 0.95**5, about 0.226, which is
-    not the number the operator asked for. So ``max_p`` is read as the family
-    bar and spent across ``max_consultations`` by Bonferroni: each comparison
-    is held to ``max_p / max_consultations``. That correction is conservative
-    under any dependence between the comparisons, which is the right direction
-    for a gate. Raising the budget therefore buys more looks at a stricter
-    bar, never a cheaper one.
+    consultations that applies 0.05 to each one independently does not deliver
+    the 0.05 the operator asked for. Bounding the family without assuming
+    anything about dependence gives 5 * 0.05 = 0.25 by the union bound; the
+    exact 1 - 0.95**5, about 0.226, holds only if the five comparisons are
+    independent, and five looks at one selection group are not. So ``max_p``
+    is read as the family bar and spent across ``max_consultations`` by
+    Bonferroni: each comparison is held to ``max_p / max_consultations``. That
+    correction controls the family bar under any dependence, which is why it
+    is used here rather than a sharper independence-dependent one. Raising the
+    budget therefore buys more looks at a stricter bar, never a cheaper one.
 
     Both companions are required rather than optional, because a bar that
     silently does not apply is worse than no bar. ``max_p`` without

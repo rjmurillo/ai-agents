@@ -572,11 +572,16 @@ these sizes a single task flip moves the verdict, so a one-step accept is weak
 evidence and a run of them is worth more than any single number.
 
 When you do pass `--max-p`, it is the **family** bar, not the per-comparison
-one. A budget of five consultations each judged at 0.05 has a family-wise false
-accept probability of `1 - 0.95**5`, about 0.226, which is not the number an
+one. A budget of five consultations each judged at 0.05 does not deliver 0.05.
+Bounding the family without assuming anything about dependence gives
+`5 * 0.05 = 0.25` by the union bound; the exact `1 - 0.95**5`, about 0.226,
+holds only if the five comparisons are independent, and five looks at one
+selection group are not. Either way it is roughly five times the number an
 operator asking for 0.05 believes they are getting. So the gate spends the bar
 across the declared budget by Bonferroni: each comparison is held to
-`--max-p / --max-consultations`. The verdict reports both as `max_p` and
+`--max-p / --max-consultations`. Bonferroni is used rather than a sharper
+independence-dependent correction precisely because it controls the family bar
+under any dependence. The verdict reports both as `max_p` and
 `max_p_per_comparison`. Two consequences worth stating plainly. Raising the
 budget buys more looks at a stricter bar, never a cheaper one, so there is no
 way to buy an accept by declaring more consultations. And the correction makes
