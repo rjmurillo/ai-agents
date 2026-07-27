@@ -67,7 +67,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
 | Any canonical-source edit | Drift gates: `python3 build/generate_agents.py --validate` and `python3 build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
-Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 pattern (Phase 5) and will be challenged in review.
+Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`) and will be challenged in review.
 
 ### Phase 3: Run the gates, local to CI
 
@@ -84,7 +84,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 | No new bash scripts; Python for all new scripts | Review + `.claude/rules/universal.md` SHOULD 3 ("MUST NOT create new bash scripts") | ADR-042 (Accepted) |
 | No logic in YAML workflows | ADR-006 + `.claude/rules/universal.md` MUST NOT 4 | Workflow YAML cannot be tested locally. Amendment 2026-04-28 allows pure config-data YAML under 7 conditions in `templates/platforms/` and `build/` only; `run:` block logic stays banned |
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
-| SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable; SHA pinning blocks supply-chain tag-moving; documented tension in the incident history |
+| SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable, so pinning blocks supply-chain tag-moving. Operative rule: pin everything unless a human explicitly approves the GP-006 first-party `actions/*` tag allowance, and disclose the tension in your PR description when you hit it. Fuller writeup in `references/incident-history.md` |
 | Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Scoped, not blanket: push guards fail open on infrastructure errors by design (`.claude/hooks/PreToolUse/push_guard_base.py` docstring); repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
 | Plugin content change requires a strictly greater plugin.json semver | `pre_pr.py` + `validate-plugin-version-bump.yml` | PR #1942 stale-cache; incident history |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:224` ("Exceptions: None") | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
@@ -97,7 +97,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 
 Escape hatches (env vars, commit markers, skip semantics) exist for several gates. They are deliberately narrow after session 1187, and each is cataloged with its abuse story in `ai-agents-config-catalog`. Do not invent a new one inline; a new flag is itself a governance change.
 
-Each incident named in the table's rationale column is told in full in `references/incident-history.md`: the #2205 fail-closed reversal, the PR #1942 stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 and PR #1887 verbatim quoting, FM-10 and PR #1965 silent defaults, and the SHA-pinning tension. Read the incident before you argue with its rule.
+Six of the table's incidents compress a multi-round failure and are told in full in `references/incident-history.md`: the #2205 fail-closed reversal, the PR #1942 stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 and PR #1887 verbatim quoting, FM-10 and PR #1965 silent defaults, and the SHA-pinning tension. The remaining rationale cells are single-line ADR or issue citations; deeper history for any of them lives in `ai-agents-failure-archaeology`. Read the incident before you argue with its rule.
 
 ## Anti-Patterns
 
@@ -109,7 +109,7 @@ Each incident named in the table's rationale column is told in full in `referenc
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
 | Fixing a bot-flagged dash or style claim without byte-level verification | Bots false-positive; count the actual bytes before editing (PR #1873 observation: an em-dash flag on a line with zero em-dashes) |
-| Citing ADR-008/033/035/062 fail-open language for a new hook | Stale; the operative policy is fail-closed and loud (Phase 6, #2205 reversal) |
+| Citing ADR-008/033/035/062 fail-open language for a new hook | Stale; the operative policy is fail-closed and loud (the #2205 reversal, told in `references/incident-history.md`) |
 | Re-arguing a settled non-negotiable in a PR thread | The incident column is the answer; new evidence goes in an ADR, which fires `adr-review` |
 
 ## Verification
@@ -127,6 +127,6 @@ Before you push, confirm:
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. The full volatile-fact index, every cited source line paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
+Verified against the working tree on 2026-07-03. A selected index of the drift-prone cited source lines, each paired with its re-verify command, is in `references/provenance.md`. Consult and update it when you edit this skill or any reference it points to.
 
 Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires a `.claude/.claude-plugin/plugin.json` bump.

@@ -1,6 +1,6 @@
 # Incident History: The Stories the Non-Negotiables Compress
 
-Each rule in the SKILL.md Phase 4 non-negotiables table names an incident in its rationale column. This file tells those incidents in full. Read the incident before arguing with its rule; deep history lives in `ai-agents-failure-archaeology`.
+The SKILL.md Phase 4 non-negotiables table names an incident in each rationale column. This file tells the six that compress a multi-round failure in full; the remaining cells are single-line ADR or issue citations. Read the incident before arguing with its rule; deep history lives in `ai-agents-failure-archaeology`.
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
