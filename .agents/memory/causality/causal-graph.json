@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T09:34:27.618870+00:00",
+  "updated": "2026-07-27T10:26:31.002178+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21348,6 +21348,24 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T09:04:44.443947+00:00"
+    },
+    {
+      "id": "10fe1640de52",
+      "type": "commit",
+      "label": "commit: Commit: 192a71cfbe",
+      "episodes": [
+        "episode-2026-07-27-session-3460-decompose-change-control"
+      ],
+      "created": "2026-07-27T10:26:30.994075+00:00"
+    },
+    {
+      "id": "a86d06e195d8",
+      "type": "outcome",
+      "label": "Outcome: success - Fix CI (version bump), resolve Copilot review threads, merge main to unblock PR #3460",
+      "episodes": [
+        "episode-2026-07-27-session-3460-decompose-change-control"
+      ],
+      "created": "2026-07-27T10:26:30.994200+00:00"
     }
   ],
   "patterns": [
