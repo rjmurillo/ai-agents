@@ -631,7 +631,7 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 )
 
 
-def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
+def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) -> int:
     """Return the consultations already spent against this split.
 
     The count lives here rather than on the command line because a budget the
@@ -640,6 +640,13 @@ def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
     reason. Pinning only the count left the limit re-suppliable, so a caller
     that hit the budget could raise it and carry on, which is the defect the
     ledger was written to close wearing a different hat.
+
+    The significance bar is pinned for exactly that reason too. A candidate
+    refused at 0.05 could otherwise be gated again at 0.1 against the same
+    held-out group until it passed. Its absence is pinned as firmly as its
+    presence, because omitting the flag is the loosest setting there is. An
+    older ledger written before the bar existed records no key, which reads as
+    the absent policy it was in fact opened under.
 
     The ledger records the held-out key it was opened under. That is the same
     value its filename carries, so the check catches a ledger moved or renamed
@@ -677,12 +684,38 @@ def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
             f"this invocation asks for {cap}; the budget for a held-out group "
             f"is fixed when the run starts, so re-split to change it"
         )
+    recorded_bar = data.get("max_p")
+    if recorded_bar is not None and (
+        isinstance(recorded_bar, bool) or not isinstance(recorded_bar, (int, float))
+    ):
+        raise ConfigError(
+            f"the ledger under {path.parent} needs max_p to be a number or absent"
+        )
+    if recorded_bar != max_p:
+        raise LedgerMismatchError(
+            f"this held-out group was opened under a significance bar of "
+            f"{_bar_name(recorded_bar)} and this invocation asks for "
+            f"{_bar_name(max_p)}; the bar is fixed when the run starts, so "
+            f"re-split to change it. A bar you can loosen after seeing a "
+            f"refusal is not a bar"
+        )
     return spent
 
 
-def _write_ledger(path: Path, holdout_key: str, spent: int, cap: int) -> None:
+def _bar_name(bar: float | None) -> str:
+    return "none" if bar is None else f"{bar:g}"
+
+
+def _write_ledger(
+    path: Path, holdout_key: str, spent: int, cap: int, max_p: float | None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"consultations": spent, "holdout": holdout_key, "max_consultations": cap}
+    payload = {
+        "consultations": spent,
+        "holdout": holdout_key,
+        "max_consultations": cap,
+        "max_p": max_p,
+    }
     _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
@@ -707,6 +740,12 @@ def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> st
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
+    # Before anything reads the split or the ledger. A bar outside [0, 1] is
+    # decidable without the held-out group, so it must not cost a consultation
+    # and must not be masked by an exhausted budget refusing first.
+    if args.max_p is not None and not 0.0 <= args.max_p <= 1.0:
+        raise ConfigError(f"--max-p must be in [0, 1], got {args.max_p}")
+
     split = _read_split(args.split)
     if _split_drifted(split):
         _emit(
@@ -735,7 +774,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     ledger = _ledger_path(holdout_key)
     try:
         with _digest_scrubbed(holdout_key):
-            spent = _read_ledger(ledger, holdout_key, args.max_consultations)
+            spent = _read_ledger(ledger, holdout_key, args.max_consultations, args.max_p)
     except LedgerMismatchError as exc:
         _emit({
             "decision": "REJECT",
@@ -775,7 +814,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # free, which is what made the reveal below worth buying.
     spent_after = spent + 1
     with _digest_scrubbed(holdout_key):
-        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
+        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations, args.max_p)
 
     if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
         candidate_results, sel_ids
@@ -814,9 +853,9 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             max_p=args.max_p,
         )
     except ValueError as exc:
-        # The consultation is already spent above, deliberately. A bad --max-p
-        # is caught here rather than at parse time because the unit-interval
-        # rule lives with the decision, not with the flag.
+        # Defense in depth. cmd_gate rejects an out-of-range bar before the
+        # ledger is touched, so reaching this is a caller contract violation
+        # rather than operator error, and the consultation is already spent.
         raise ConfigError(str(exc)) from exc
 
     _emit(
@@ -834,6 +873,13 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             "discordant_gain": gain,
             "discordant_loss": loss,
             "p_value": p_value,
+            # Both bars travel with the verdict so a reader can tell an accept
+            # under no bar from an accept that cleared one, and so the
+            # Bonferroni correction is visible rather than implied.
+            "max_p": args.max_p,
+            "max_p_per_comparison": (
+                None if args.max_p is None else args.max_p / args.max_consultations
+            ),
             "sel_consultations": spent_after,
             "compared": result.compared,
             "group": _GATE_GROUP,

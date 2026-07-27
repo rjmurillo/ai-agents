@@ -995,7 +995,7 @@ class TestSignificanceCanBeEnforcedNotJustReported:
     """
 
     def test_an_insignificant_gain_is_refused_when_a_bar_is_set(self):
-        result = gate(0.8, 0.6, p_value=0.25, max_p=0.05)
+        result = gate(0.8, 0.6, p_value=0.25, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "0.25" in result.reason and "0.05" in result.reason
 
@@ -1003,46 +1003,55 @@ class TestSignificanceCanBeEnforcedNotJustReported:
         assert gate(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
 
     def test_a_significant_gain_passes_the_bar(self):
-        assert gate(0.8, 0.6, p_value=0.01, max_p=0.05).decision == "ACCEPT"
+        assert (
+            gate(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
+        )
 
-    def test_p_equal_to_the_bar_passes(self):
+    def test_p_equal_to_the_corrected_bar_passes(self):
         """The bar is a maximum, so equality is inside it, not outside."""
-        assert gate(0.8, 0.6, p_value=0.05, max_p=0.05).decision == "ACCEPT"
+        assert gate(0.8, 0.6, p_value=0.01, max_p=0.05, max_consultations=5).decision == "ACCEPT"
 
-    def test_a_bar_with_no_p_value_cannot_refuse(self):
-        """An unknown tail is not evidence of an insignificant one."""
-        assert gate(0.8, 0.6, max_p=0.05).decision == "ACCEPT"
+    def test_a_bar_with_no_p_value_refuses_to_run(self):
+        """Fail closed. An unknown tail is not evidence that it clears the bar."""
+        with pytest.raises(ValueError, match="p_value"):
+            gate(0.8, 0.6, max_p=0.05, max_consultations=5)
 
     def test_a_regression_still_outranks_the_significance_bar(self):
         """Both refuse; the broken task is the one worth naming first."""
-        result = gate(0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05)
+        result = gate(
+            0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05, max_consultations=1
+        )
         assert result.decision == "REJECT"
         assert "regressed" in result.reason
 
     def test_a_tie_is_still_a_tie_under_a_bar(self):
-        result = gate(0.6, 0.6, p_value=0.001, max_p=0.05)
+        result = gate(0.6, 0.6, p_value=0.001, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "tie" in result.reason
 
     @pytest.mark.parametrize("bad", [-0.1, 1.1, 2.0])
     def test_a_bar_outside_the_unit_interval_is_refused(self, bad):
         with pytest.raises(ValueError, match="max_p must be in"):
-            gate(0.8, 0.6, p_value=0.25, max_p=bad)
+            gate(0.8, 0.6, p_value=0.25, max_p=bad, max_consultations=1)
 
     @pytest.mark.parametrize("bad", [-0.1, 1.1])
     def test_a_p_value_outside_the_unit_interval_is_refused(self, bad):
         with pytest.raises(ValueError, match="p_value must be in"):
-            gate(0.8, 0.6, p_value=bad, max_p=0.05)
+            gate(0.8, 0.6, p_value=bad, max_p=0.05, max_consultations=1)
 
     @pytest.mark.parametrize("edge", [0.0, 1.0])
     def test_the_unit_interval_endpoints_are_legal(self, edge):
-        gate(0.8, 0.6, p_value=edge, max_p=1.0)
-        gate(0.8, 0.6, p_value=0.0, max_p=edge)
+        gate(0.8, 0.6, p_value=edge, max_p=1.0, max_consultations=1)
+        gate(0.8, 0.6, p_value=0.0, max_p=edge, max_consultations=1)
 
     def test_a_bar_of_zero_refuses_every_nonzero_tail(self):
         """0.0 is a legal bar and means only a certain result passes."""
-        assert gate(0.8, 0.6, p_value=0.001, max_p=0.0).decision == "REJECT"
-        assert gate(0.8, 0.6, p_value=0.0, max_p=0.0).decision == "ACCEPT"
+        assert (
+            gate(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
+        )
+        assert (
+            gate(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
+        )
 
     def test_the_bar_never_rescues_a_guard_refusal(self):
         """A moved fingerprint is not comparable, significant or not."""
@@ -1053,6 +1062,51 @@ class TestSignificanceCanBeEnforcedNotJustReported:
             incumbent_fingerprint="b",
             p_value=0.0,
             max_p=0.05,
+            max_consultations=1,
         )
         assert result.decision == "REJECT"
         assert result.compared is False
+
+
+class TestOneBarSpentFiveTimesIsNotThatBar:
+    """Round fourteen: a per-comparison threshold does not bound a family.
+
+    An adversarial review pointed out that the loop's own documented recipe
+    permits five consultations, and that applying 0.05 independently to each
+    leaves a family-wise false accept probability of 1 - 0.95**5, about 0.226.
+    The bar an operator asks for is the one they believe governs the run, so
+    it is read as the family bar and divided across the declared budget.
+    """
+
+    def test_the_bar_is_divided_across_the_declared_budget(self):
+        """0.05 over five consultations is 0.01 per comparison."""
+        assert (
+            gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
+        )
+        assert gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=2).decision == "ACCEPT"
+
+    def test_the_refusal_names_both_the_family_bar_and_the_corrected_one(self):
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "0.05" in result.reason
+        assert "0.01" in result.reason
+
+    def test_a_single_consultation_budget_leaves_the_bar_alone(self):
+        """With a family of one there is nothing to correct."""
+        assert gate(0.8, 0.6, p_value=0.05, max_p=0.05, max_consultations=1).decision == "ACCEPT"
+        assert (
+            gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
+        )
+
+    def test_a_bar_without_a_declared_budget_refuses_to_run(self):
+        """An undeclared family size cannot be corrected for, so fail closed."""
+        with pytest.raises(ValueError, match="max_consultations"):
+            gate(0.8, 0.6, p_value=0.01, max_p=0.05)
+
+    def test_no_bar_still_needs_no_budget(self):
+        """The correction is only owed when a bar was asked for."""
+        assert gate(0.8, 0.6, p_value=0.9).decision == "ACCEPT"
+
+    def test_the_correction_cannot_be_escaped_by_raising_the_budget(self):
+        """A larger budget buys more looks, each held to a stricter bar."""
+        strict = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=100)
+        assert strict.decision == "REJECT"

@@ -2710,15 +2710,29 @@ class TestTheReportedTailCanAlsoRefuse:
     conventional floor, and a bar nothing can clear is not a gate.
     """
 
-    def _gate(self, tmp_path, capsys, *extra):
+    def _gate(self, tmp_path, capsys, *extra, cap=1, seed="s1"):
+        """Budget of one by default: the bar is family-wise, so a larger
+        budget divides it and these cases are about the bar itself. `seed`
+        draws a different held-out group, and so a different ledger, for
+        cases that gate twice under different settings."""
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
-        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
         split_path = _write(tmp_path, "split.json", split)
         return _run_gate(
             capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
-            "--split", split_path, *extra,
+            "--split", split_path, *extra, cap=cap,
         )
+
+    def test_the_bar_is_divided_across_the_budget_it_was_declared_with(
+        self, tmp_path, capsys
+    ):
+        """A tail that clears the bar at a budget of one misses it at ten."""
+        _, tight = self._gate(tmp_path, capsys, "--max-p", "0.1", cap=1)
+        assert tight["decision"] == "ACCEPT"
+        _, spread = self._gate(tmp_path, capsys, "--max-p", "0.1", cap=10, seed="s2")
+        assert spread["decision"] == "REJECT"
+        assert spread["max_p_per_comparison"] == pytest.approx(0.01)
 
     def test_without_the_flag_an_insignificant_win_still_accepts(self, tmp_path, capsys):
         code, out = self._gate(tmp_path, capsys)
@@ -2754,3 +2768,145 @@ class TestTheReportedTailCanAlsoRefuse:
     def test_a_non_numeric_bar_is_refused_by_the_parser(self, tmp_path, capsys):
         with pytest.raises(SystemExit):
             self._gate(tmp_path, capsys, "--max-p", "nope")
+
+
+class TestTheBarIsPinnedLikeTheBudget:
+    """Round fourteen: a re-suppliable bar is not a bar.
+
+    An adversarial reviewer (gpt-5.6-terra, 2026-07-27) pointed out that the
+    ledger pins the consultation cap precisely so a caller who hits the budget
+    cannot raise it and carry on, but left `--max-p` re-suppliable. A candidate
+    refused at 0.05 could be gated again at 0.1 against the same held-out group
+    and accepted. That is the mutable-cap defect wearing a different hat, so it
+    gets the same treatment: the bar is fixed when the group is opened, and its
+    absence is pinned just as firmly as its presence.
+
+    Validating the flag before the ledger write matters for the same reason the
+    write happens early. A nonsense bar is decidable without reading the group,
+    so it must not cost a consultation.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 2 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, record = _split(capsys, tmp_path, "--results", inc, "--seed", "pin")
+        return inc, cand, _write(tmp_path, "split.json", record), record
+
+    def _gate(self, capsys, inc, cand, split, record, *extra, cap="4"):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", cap,
+            "--incumbent-fingerprint", str(record["fingerprint"]), *extra,
+        )
+
+    def test_a_bar_cannot_be_loosened_after_the_group_was_opened(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+        assert "0.05" in out["reason"]
+
+    def test_a_bar_cannot_be_dropped_after_the_group_was_opened(self, tmp_path, capsys):
+        """Omitting the flag is the loosest setting of all, so it is pinned too."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+
+    def test_a_bar_cannot_be_added_after_the_group_was_opened_without_one(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record)
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+
+    def test_the_same_bar_twice_is_not_a_mismatch(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert out.get("reason", "") == "" or "opened under" not in out["reason"]
+        assert code in (EXIT_OK, EXIT_LOGIC)
+
+    def test_a_pinned_bar_mismatch_does_not_publish_the_key(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        _, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert key not in json.dumps(out)
+
+    def test_a_nonsense_bar_costs_no_consultation(self, tmp_path, capsys):
+        """Decidable without reading the group, so it must not charge for one."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        code, _ = self._gate(capsys, inc, cand, split, record, "--max-p", "1.5")
+        assert code == EXIT_CONFIG
+        assert not oa._ledger_path(oa._holdout_key(record)).exists()
+
+    def test_a_nonsense_bar_is_config_error_even_on_an_exhausted_budget(self, tmp_path, capsys):
+        """The flag is wrong whether or not the budget would have refused."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        for _ in range(2):
+            self._gate(capsys, inc, cand, split, record, "--max-p", "0.5", cap="2")
+        code, _ = self._gate(capsys, inc, cand, split, record, "--max-p", "-1", cap="2")
+        assert code == EXIT_CONFIG
+
+    def test_the_verdict_reports_the_bar_it_applied(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert out["max_p"] == 0.5
+        assert out["max_p_per_comparison"] == 0.125
+
+    def test_the_verdict_reports_an_absent_bar_as_absent(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, cand, split, record)
+        assert out["max_p"] is None and out["max_p_per_comparison"] is None
+
+    def test_a_malformed_bar_in_the_ledger_is_named(self, tmp_path, capsys):
+        """A hand-edited ledger says so rather than comparing a string to a float."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps(
+                {
+                    "consultations": 0,
+                    "holdout": key,
+                    "max_consultations": 4,
+                    "max_p": "loose",
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert code == EXIT_CONFIG
+        assert "max_p" in out["error"] and key not in json.dumps(out)
+
+    def test_a_ledger_written_before_the_bar_existed_reads_as_no_bar(
+        self, tmp_path, capsys
+    ):
+        """An absent key is the absent policy, so old ledgers keep working."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({"consultations": 0, "holdout": key, "max_consultations": 4}),
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert out["max_p"] is None
+
+    def test_a_contract_violation_inside_the_gate_exits_as_config(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Defense in depth: cmd_gate screens the flag, but the library still
+        refuses an incoherent call rather than escaping as a traceback."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+
+        def _explode(*_args, **_kwargs):
+            raise ValueError("max_p needs a p_value to judge")
+
+        monkeypatch.setattr(oa, "gate", _explode)
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert code == EXIT_CONFIG
+        assert "p_value" in out["error"]
