@@ -251,6 +251,55 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailingChecks"] == 0
 
+    def test_pipeline_mode_merge_ref_unusable_returns_1(self, capsys):
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 42,
+                "MergeRefUsable": False,
+                "MergeStateWarning": "merge ref is conflicting",
+                "Checks": [
+                    {"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""},
+                ],
+            },
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert output["Error"]["Message"] == "merge ref is conflicting"
+
+    def test_standalone_merge_ref_unusable_returns_1(self, capsys):
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 42,
+                "MergeRefUsable": False,
+                "MergeStateWarning": "merge ref is conflicting",
+                "Checks": [
+                    {"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""},
+                ],
+            },
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_check_logs.subprocess.run",
+            return_value=_completed(stdout=checks_json, rc=1),
+        ) as run_mock:
+            rc = main(["--pull-request", "42"])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert output["Error"]["Message"] == "merge ref is conflicting"
+        assert run_mock.call_args.kwargs["encoding"] == "utf-8"
+        assert run_mock.call_args.kwargs["errors"] == "replace"
+
     def test_pipeline_mode_enveloped_payload_finds_failures(self, capsys):
         """Regression for #2256: pipeline mode must unwrap the Data envelope."""
         checks_json = json.dumps({
