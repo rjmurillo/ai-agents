@@ -2,9 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "causal-graph.schema.json",
   "title": "Causal Graph Schema",
-  "description": "Schema for causal reasoning graphs tracking cause-effect relationships (ADR-038)",
+  "description": "Schema for the causal reasoning graph written by .claude/skills/memory/scripts/update_causal_graph.py. That writer is authoritative for this file; ADR-038's sequential-id contract described a writer that no longer runs (#3356).",
   "type": "object",
-  "required": ["version", "updated", "nodes", "edges", "patterns"],
+  "required": [
+    "version",
+    "updated",
+    "nodes",
+    "edges",
+    "patterns"
+  ],
   "properties": {
     "version": {
       "type": "string",
@@ -20,22 +26,38 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "type", "label"],
+        "required": [
+          "id",
+          "type",
+          "label"
+        ],
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^n\\d{3,}$"
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "sha256('<type>:<label>')[:12]. Content derived rather than sequential because this file is merged by a union-aware driver: two branches that each allocate the next number both produce the same id for different content, and no merge can tell them apart."
           },
           "type": {
             "type": "string",
-            "enum": ["decision", "event", "outcome", "pattern", "error"]
+            "enum": [
+              "artifact",
+              "commit",
+              "decision",
+              "error",
+              "milestone",
+              "outcome",
+              "test"
+            ],
+            "description": "Mirrors NODE_TYPES in update_causal_graph.py. A test asserts the two are equal, so widening one alone fails the build."
           },
           "label": {
             "type": "string"
           },
           "episodes": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Episode IDs where this node appears"
           },
           "frequency": {
@@ -48,6 +70,15 @@
             "minimum": 0,
             "maximum": 1,
             "description": "Success rate when this node is involved"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this node first entered the graph."
+          },
+          "contributions": {
+            "type": "object",
+            "description": "Per-episode evidence, keyed by episode id."
           }
         }
       }
@@ -56,19 +87,30 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["source", "target", "type"],
+        "required": [
+          "source",
+          "target",
+          "type"
+        ],
         "properties": {
           "source": {
             "type": "string",
-            "description": "Source node ID"
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "Source node id. Same derivation as node.id."
           },
           "target": {
             "type": "string",
-            "description": "Target node ID"
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "Target node id. Same derivation as node.id."
           },
           "type": {
             "type": "string",
-            "enum": ["causes", "enables", "prevents", "correlates"],
+            "enum": [
+              "causes",
+              "enables",
+              "prevents",
+              "correlates"
+            ],
             "description": "Relationship type"
           },
           "weight": {
@@ -81,6 +123,22 @@
             "type": "integer",
             "minimum": 1,
             "description": "Number of episodes supporting this edge"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this edge first entered the graph."
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Episode IDs supporting this edge."
+          },
+          "contributions": {
+            "type": "object",
+            "description": "Per-episode evidence, keyed by episode id."
           }
         }
       }
@@ -89,11 +147,17 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "trigger", "action"],
+        "required": [
+          "id",
+          "name",
+          "trigger",
+          "action"
+        ],
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^p\\d{3,}$"
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "sha256('pattern:<name>')[:12]. Content derived, as for nodes."
           },
           "name": {
             "type": "string"
@@ -121,6 +185,22 @@
           "last_used": {
             "type": "string",
             "format": "date-time"
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Episode IDs where this pattern appears."
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this pattern first entered the graph."
+          },
+          "contributions": {
+            "type": "object",
+            "description": "Per-episode evidence, keyed by episode id."
           }
         }
       }
