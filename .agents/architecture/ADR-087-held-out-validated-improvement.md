@@ -275,12 +275,22 @@ as something a human would pass. It was not human-only, nothing distinguished a
 human caller from the agent driving the loop, and it would have been a weaker
 rule than the ADR it claimed to source from. It has been removed.
 
-### 5. A comparison whose corpus is not pinned and agreed is refused
+### 5. A comparison whose declared corpora disagree is refused
 
 `split` records the corpus of the results it was drawn from, and both results
-files declare the corpus they were scored against. When the three do not name
-one corpus, the comparison is refused before the ledger is touched: it would
-measure the corpus change alongside the edit.
+files declare the corpus they were scored against. When those three name more
+than one corpus between them, the comparison is refused before the ledger is
+touched: it would measure the corpus change alongside the edit. A known corpus
+beside an unknown one counts as a disagreement, which is what closes the strip
+bypass described below.
+
+Unknown everywhere does not. The rule and hook paths publish no corpus identity
+at all, so refusing there would disable the gate for two of the three artifact
+classes in order to guard a case it cannot detect on them anyway. That case is
+reported as `corpus_verified: false` rather than refused, which is the
+difference between a check that passed and a check that never ran. An earlier
+draft of this section said the three must name one corpus, which reads as
+refusing the all-unknown case and is stronger than what the code does.
 
 This requirement exists because the omission had already cost something. On
 2026-07-27 two runs of the same agent were gated against each other and read as
