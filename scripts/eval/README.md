@@ -450,6 +450,15 @@ optimizer cooperates:
   the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
+- A recorded charge survives a crash. The ledger is written to a temp file,
+  fsynced, renamed, and then the *parent directory* is fsynced too. Without
+  that last step the bytes were durable but the directory entry pointing at
+  them was not, so a host losing power after a reported charge could come back
+  with the rename undone and hand the consultation back for free. That is the
+  one outcome charging before scoring exists to prevent, so a charge a crash
+  can erase defeats the ordering it was written to protect. Windows cannot open
+  a directory as a descriptor and `os.replace` is atomic there regardless, so
+  the step is skipped on that platform rather than failed.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task
@@ -581,8 +590,18 @@ operator asking for 0.05 believes they are getting. So the gate spends the bar
 across the declared budget by Bonferroni: each comparison is held to
 `--max-p / --max-consultations`. Bonferroni is used rather than a sharper
 independence-dependent correction precisely because it controls the family bar
-under any dependence. The verdict reports both as `max_p` and
-`max_p_per_comparison`. Two consequences worth stating plainly. Raising the
+under arbitrary dependence between the comparisons. The verdict reports both as
+`max_p` and `max_p_per_comparison`. That control is conditional, and the
+condition is worth naming: Bonferroni tolerates any dependence between the
+comparisons, but it still assumes each per-comparison p-value is valid on its
+own. The exact McNemar tail earns that only if the discordant pairs behave as
+independent fair coin flips under the null, and correlated scorer noise breaks
+it. That is not hypothetical here. The rule-path null control described above
+restored the artifact byte for byte and reproduced both gains, which is direct
+evidence that outcomes on this harness move together. Read the family bar as
+holding under any dependence between the comparisons **given** per-comparison
+validity, and treat the second half as something this harness does not
+guarantee. Two further consequences worth stating plainly. Raising the
 budget buys more looks at a stricter bar, never a cheaper one, so there is no
 way to buy an accept by declaring more consultations. And the correction makes
 the power problem worse, not better: at ten held-out tasks a one-sided exact
@@ -611,15 +630,32 @@ a reject from a broken input reads `decision` rather than inferring from the
 code. Argument errors from `argparse` are the exception and print plain text to
 stderr, exit 2, as with every other script here.
 
-That promise has been broken twice by exceptions that reached the top level
-under a class the handler did not name, and both cost a traceback where a caller
-was parsing stdout. `_write_atomic` created its temp file before the block that
+Two accounting keys appear in those documents and answer different questions.
+`consultations` is what **this run** charged: zero on every refusal that
+declines before charging, one on the paths that charged and went on to score.
+It is present at every emit site, so the key answering "what did this cost me"
+is never missing exactly where the answer is nonzero. `sel_consultations` is
+the **running total** for the selection group, the charge included, and appears
+only where that total is both known and this group's. On a ledger key mismatch
+the recorded count belongs to a different group, so it is withheld rather than
+reported as a zero that was never true; absence is the honest answer when the
+number on disk is not yours to quote.
+
+That promise has been broken three times by exceptions that reached the top
+level under a class the handler did not name, and each cost a traceback where a
+caller was parsing stdout. `_write_atomic` created its temp file before the
+block that
 turns a write failure into a `ConfigError`, so `split --out` into a directory
 that does not exist raised `FileNotFoundError` uncaught. `_read_json` did not
 name `UnicodeDecodeError`, which subclasses `ValueError` rather than `OSError`,
 so a binary input was reported under the decoder's own class while `_read_text`
-reported the same bytes as a config problem. Both now answer exit 2 with a
-`ConfigError` document.
+reported the same bytes as a config problem. The third was the cleanup itself:
+`_write_atomic` unlinked its temp file inside the handler without guarding the
+unlink, so a parent whose permissions were revoked after `mkstemp` failed both
+calls and the caller got a traceback naming the cleanup instead of a document
+naming the write. Cleanup cannot stand in for the failure it cleans up after,
+so the unlink is now suppressed on `OSError` while every other class still
+escapes. All three now answer exit 2 with a `ConfigError` document.
 
 | Code | Meaning |
 |------|---------|

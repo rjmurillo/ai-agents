@@ -444,10 +444,18 @@ write to. That is named under Open Requirements rather than claimed here.
   not bound a family: five looks at 0.05 each bound the family at 5 * 0.05 =
   0.25 without assuming anything about dependence, and at about 0.226 only if
   the five comparisons are independent, which looks at one selection group are
-  not. Bonferroni controls the family bar under any dependence, which is why it
-  is used rather than a sharper independence-dependent correction, and it means
-  raising the budget buys more
-  looks at a stricter bar rather than a cheaper one. It also costs power: at ten
+  not. Bonferroni controls the family bar under arbitrary dependence between
+  the comparisons, which is why it is used rather than a sharper
+  independence-dependent correction, and it means raising the budget buys more
+  looks at a stricter bar rather than a cheaper one. That control is
+  conditional: Bonferroni tolerates any dependence between the comparisons but
+  still assumes each per-comparison p-value is valid on its own, and the exact
+  McNemar tail earns that only if the discordant pairs behave as independent
+  fair coin flips under the null. The rule-path null control recorded in this
+  ADR reproduced both gains under a byte-identical no-op, so outcomes on this
+  harness are correlated and that assumption is not free. Read the guarantee
+  as holding under any dependence between the comparisons given per-comparison
+  validity, with the second half unguaranteed here. It also costs power: at ten
   held-out tasks, clearing a corrected 0.01 needs seven one-directional
   discordant pairs. The bar refuses genuine improvements at these sizes. That is
   why it is opt-in rather than the default, and why the durable fix is more

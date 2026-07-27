@@ -908,3 +908,110 @@ copying is corrected in five places or in none, and the one most likely to be
 missed is the test docstring, because nobody greps rationale prose when they
 change a claim. That is the same tier problem as defect shape 21, one level up:
 derived prose drifts from a corrected source exactly like derived artifacts do.
+
+## Round nineteen: a reviewer with no access to the docs
+
+Round nineteen ran on `gpt-5.6-terra`, a model family used in no previous round,
+read-only, at extended reasoning. It returned six findings. Two were marked
+Critical and both were false positives against the stated threat model. Four
+were real and are fixed below.
+
+The two Criticals are the interesting result. The first said the optimizer can
+read held-out outcomes directly from `extract` output. The second said
+`EVAL_LEDGER_DIR` lets a caller reset the budget. Both are true. Both are also
+already written down: the first is ADR-087 Open Requirement 1 and is stated in
+`scripts/eval/README.md` under "What the seam does and does not protect", which
+ends with the sentence "do not cite a run of this loop as evidence against an
+adversarial optimizer". The second is Open Requirement 10, "A ledger root the
+loop cannot relocate", and is documented in `_ledger_root`'s own docstring.
+
+That is the disclosure working. A reviewer reading only code will re-report
+every deliberately deferred limit as a Critical vulnerability, because from
+inside the code there is nothing to distinguish a hole nobody noticed from a
+hole somebody measured, wrote down, and left open on purpose. The distinction
+lives in the prose. The correct response is not to fix them, since they are the
+user's deferred decisions, and not to argue with the reviewer, since the
+reviewer is right about the mechanism. It is to check that the disclosure
+actually says what it needs to say, which it did, verbatim, in three places.
+
+### Defect shape 22: the count that answers the operator's question was missing where the answer was nonzero
+
+Round nineteen said the verdict's `sel_consultations` was wrong. It was not,
+and the way it was wrong is instructive. The reviewer believed the key should
+hold the *prior* total; the code's own contract, in the `_corpus_refusal`
+docstring, defines `consultations` as this run's charge and `sel_consultations`
+as the running total including it. Under that contract the value the reviewer
+flagged is correct.
+
+The real defect was next to it. `consultations` was absent from both charged
+sites, so the one key answering "what did this run cost me" was missing from
+exactly the two verdicts where the answer is not zero. And the ledger-mismatch
+refusal emitted `sel_consultations: 0`, a number that is never true: the ledger
+was parsed and its count is known by the time the mismatch raises, so zero is
+not ignorance, it is a false claim. On a key mismatch that count belongs to a
+different selection group, which the refusal deliberately withholds, so absence
+is the honest report and zero is not.
+
+`consultations` now appears at every emit site. `sel_consultations` appears only
+where the total is both known and this group's. The charged value is derived as
+`spent_after - spent` rather than written as a literal `1` in two places,
+because this session has already shipped one defect caused by copying a number
+into several documents and correcting it in some of them.
+
+### Defect shape 23: cleanup that replaces the failure it cleans up after
+
+`_write_atomic` unlinked its temp file inside a bare `except BaseException`,
+with the unlink itself unguarded. `main` catches only `ConfigError`,
+`AdapterError`, and `ValueError`, so an `OSError` raised by that unlink escaped
+as a traceback, and the traceback named the cleanup rather than the write. A
+parent directory whose permissions are revoked after `mkstemp` succeeds fails
+both calls, which is exactly the pair that produces it. The unlink is now
+suppressed on `OSError` while every other class still escapes, so a real bug in
+cleanup is still visible and a cleanup failure can no longer stand in for the
+failure it was cleaning up after.
+
+The same handler carried a comment claiming it closed the descriptor when
+`os.fdopen` failed. Nothing called `os.close`. The comment described an
+intention that was never implemented, and the path leaked a descriptor while
+the code above it said otherwise. The reviewer did not report this; it surfaced
+while writing the test for the reported half, which is the argument for writing
+the test rather than applying the patch.
+
+### Defect shape 24: durable bytes behind a rename that is not
+
+`_write_atomic` fsynced the temp file and then renamed it, and never fsynced the
+parent directory. The bytes reached the disk; the directory entry pointing at
+them did not have to. A host that loses power after the gate reports a charge
+can come back with the rename undone and the consultation available again, for
+free.
+
+That is precisely the outcome the charge-before-scoring ordering exists to
+prevent. The ordering was chosen so a crash between charging and answering
+costs the caller a consultation rather than granting one, and a charge a crash
+can erase inverts it. The rename is now followed by a directory fsync, inside
+the guarded block so a failure becomes a `ConfigError` document rather than a
+traceback. Windows cannot open a directory as a descriptor and `os.replace` is
+atomic there regardless, so that platform skips the step; a directory that
+opens and then refuses to sync is a different case and is reported, because
+claiming a durability guarantee that did not hold is the shape this file keeps
+correcting.
+
+### Defect shape 25: a correction stated more strongly than it holds
+
+The fix shipped two rounds earlier said Bonferroni "holds under any
+dependence", which is why it was preferred to the sharper
+independence-dependent bound. That is half a sentence. Bonferroni controls the
+family-wise error rate under arbitrary dependence *among the p-values*, but
+only given that each per-comparison p-value is valid on its own. The exact
+McNemar tail earns that validity only if the discordant pairs behave as
+independent fair coin flips under the null, and correlated scorer noise breaks
+it.
+
+This harness has direct evidence that its outcomes are correlated. The
+rule-path null control restored the artifact byte for byte and reproduced both
+of the gains the real edit had produced. So the unqualified claim overstated a
+guarantee in the same document that had just finished correcting an overstated
+guarantee, which is the whole shape: a correction is a claim, and it inherits
+every obligation the claim it replaced had. All four sites now state the
+condition and name the null control as the evidence that the condition is not
+free here.
