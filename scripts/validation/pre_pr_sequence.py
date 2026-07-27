@@ -52,6 +52,7 @@ from checks_tooling import (  # noqa: E402
     validate_agent_drift,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
+    validate_instruction_budget,
     validate_markdown_lint,
     validate_path_normalization,
     validate_pester_tests,
@@ -383,4 +384,13 @@ def run_all_validations(
         "Review Marker (SHA-bound /review)",
         state,
         lambda: validate_review_marker(repo_root),
+    )
+
+    # 7c. Instruction Budget (always-on, Issue #3419). Non-regression ratchet on
+    # the summed bytes of language-universal .github/instructions/*.instructions.md files, so
+    # the always-on corpus cannot grow silently on a new all-language rule.
+    run_validation(
+        "Instruction Budget (always-on)",
+        state,
+        lambda: validate_instruction_budget(repo_root),
     )
