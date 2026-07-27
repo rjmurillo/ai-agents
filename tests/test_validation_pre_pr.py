@@ -1355,14 +1355,14 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
             validate_ci_dependency_pins(tmp_path)
 
     def test_a_present_tree_still_imports_and_runs(self, tmp_path: Path) -> None:
-        """Negative control. A guard that skips everything is not a guard."""
+        """Negative control: a bad pin returns False, proving the checker ran."""
         from checks_tooling import validate_ci_dependency_pins
 
         (tmp_path / ".github").mkdir()
         (tmp_path / ".github" / "w.yml").write_text(
-            "run: pip install pytest==9.0.3\n", encoding="utf-8"
+            "run: pip install pytest==8.0.0\n", encoding="utf-8"
         )
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname="x"\ndependencies=["pytest>=9.0.3"]\n', encoding="utf-8"
         )
-        assert validate_ci_dependency_pins(tmp_path) is True
+        assert validate_ci_dependency_pins(tmp_path) is False
