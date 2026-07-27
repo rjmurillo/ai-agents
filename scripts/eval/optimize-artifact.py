@@ -145,12 +145,13 @@ def _read_split(path: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _rule_scenarios(payload: object) -> list:
+def _rule_scenarios(payload: object) -> list[Any]:
     """Pull scenarios from a bare array or a 'scenarios' wrapper."""
     scenarios = payload.get("scenarios") if isinstance(payload, dict) else payload
     if not isinstance(scenarios, list):
         raise ConfigError("rule input must be a scenario array or an object with 'scenarios'")
-    return scenarios
+    typed: list[Any] = scenarios
+    return typed
 
 
 def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str, bool]:
