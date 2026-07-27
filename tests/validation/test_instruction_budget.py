@@ -275,6 +275,53 @@ def test_glob_to_regex_segment_semantics() -> None:
     assert trailing.match("/a/b/c")
 
 
+def test_glob_to_regex_separator_before_nonterminal_globstar() -> None:
+    # Regression (issue #3419 round-9 finding 2): the separator before a
+    # non-terminal '**' is mandatory. VS Code's parseRegExp "Tail" rule emits the
+    # '/' after '/*/' so a globstar cannot swallow the first directory. The old
+    # hand-rolled joiner dropped it, letting '/*/**/*.py' match a root file.
+    depth_scoped = ib._glob_to_regex("/*/**/*.py")
+    assert depth_scoped.match("/a/probe.py")  # exactly one directory
+    assert depth_scoped.match("/a/b/c/probe.py")  # many directories
+    assert not depth_scoped.match("/probe.py")  # root file has no first directory
+    # A sibling folder must not match on a shared prefix: 'some/**/*.js' keeps
+    # the '/' after 'some' so 'something/x.js' cannot match.
+    sibling = ib._glob_to_regex("**/some/**/*.js")
+    assert sibling.match("/pkg/some/x.js")
+    assert not sibling.match("/pkg/something/x.js")
+
+
+def test_is_language_universal_is_or_union_over_patterns() -> None:
+    # Regression (issue #3419 round-9 finding 1): universality is a property of
+    # the UNION of the comma-split patterns, not any single pattern. VS Code
+    # attaches a rule to a file if ANY comma-split pattern matches it
+    # (computeAutomaticInstructions.ts _matches). Three disjoint per-depth globs
+    # whose union covers every depth make the rule load for every .py file, so
+    # it must be scored universal even though no single member is.
+    union = {"/*.py", "/*/*.py", "/*/*/**/*.py"}
+    assert ib.is_language_universal(union, ".py") is True
+    # No single member is universal on its own; scoring per-pattern (the old
+    # behavior) would under-count this rule and let it dodge the budget.
+    assert ib.is_language_universal({"/*.py"}, ".py") is False
+    assert ib.is_language_universal({"/*/*.py"}, ".py") is False
+    assert ib.is_language_universal({"/*/*/**/*.py"}, ".py") is False
+    # The same OR-union holds through the frontmatter parser for a comma-joined
+    # applyTo, the shape a real rule file would carry.
+    text = "---\napplyTo: '/*.py, /*/*.py, /*/*/**/*.py'\n---\nbody\n"
+    assert ib.is_language_universal(ib.parse_applyto(text), ".py") is True
+    # A union that leaves a depth uncovered stays scoped: dropping the globstar
+    # member leaves depth >=2 (e.g. '/a/b/x.py') unmatched, so not universal.
+    bounded = {"/*.py", "/*/*.py"}
+    assert ib.is_language_universal(bounded, ".py") is False
+
+
+def test_is_language_universal_single_scoped_pattern_not_universal() -> None:
+    # The OR-union change must not regress the common single-pattern case: a lone
+    # '/*/**/*.py' does not match a root file, so a depth-0 .py file is uncovered
+    # and the rule is not universal (finding 2 and finding 1 interact here).
+    assert ib.is_language_universal({"/*/**/*.py"}, ".py") is False
+
+
 # --------------------------------------------------------------------------
 # measure_extension / evaluate (positive)
 # --------------------------------------------------------------------------

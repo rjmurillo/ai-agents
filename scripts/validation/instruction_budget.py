@@ -143,23 +143,40 @@ def _probe_paths(ext: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(paths))
 
 
-def _split_top_level_commas(raw: str) -> list[str]:
-    """Split on commas that are not inside a ``{...}`` brace group."""
-    parts: list[str] = []
+def _split_glob_aware(pattern: str, split_char: str) -> list[str]:
+    """Split ``pattern`` on ``split_char`` outside ``{...}`` and ``[...]``.
+
+    Port of VS Code ``splitGlobAware`` (glob.ts, pinned SHA
+    018354116a88cb1264790f93663de42198a44594): a leading separator yields an
+    empty leading segment (kept, so a slash-anchored regex starts with a
+    separator), a trailing separator yields an empty trailing segment (dropped),
+    and a separator inside a brace or bracket group does not split. Used for both
+    the comma split of an ``applyTo`` scope list and the ``/`` split of a single
+    glob into path segments.
+    """
+    if not pattern:
+        return []
+    segments: list[str] = []
+    in_braces = False
+    in_brackets = False
     current: list[str] = []
-    depth = 0
-    for ch in raw:
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth = max(0, depth - 1)
-        if ch == "," and depth == 0:
-            parts.append("".join(current))
+    for char in pattern:
+        if char == split_char and not in_braces and not in_brackets:
+            segments.append("".join(current))
             current = []
-        else:
-            current.append(ch)
-    parts.append("".join(current))
-    return parts
+            continue
+        if char == "{":
+            in_braces = True
+        elif char == "}":
+            in_braces = False
+        elif char == "[":
+            in_brackets = True
+        elif char == "]":
+            in_brackets = False
+        current.append(char)
+    if current:
+        segments.append("".join(current))
+    return segments
 
 
 def expand_braces(pattern: str) -> list[str]:
@@ -184,7 +201,7 @@ def expand_braces(pattern: str) -> list[str]:
     if end == -1:
         return [pattern]
     prefix, suffix = pattern[:start], pattern[end + 1 :]
-    options = _split_top_level_commas(pattern[start + 1 : end])
+    options = _split_glob_aware(pattern[start + 1 : end], ",")
     expanded: list[str] = []
     for opt in options:
         expanded.extend(expand_braces(prefix + opt + suffix))
@@ -214,70 +231,96 @@ def _vscode_effective_glob(pattern: str) -> str:
     return p
 
 
-_GLOBSTAR = object()
+# Faithful port of VS Code's glob-to-regex separator semantics (glob.ts
+# ``parseRegExp``/``starsToRegExp``), pinned at SHA
+# 018354116a88cb1264790f93663de42198a44594
+# (src/vs/base/common/glob.ts L44-L253). Hand-rolling the minimatch->regex
+# translation diverged from the harness at separator edges: the dropped
+# mandatory ``/`` before a non-terminal ``**`` let ``/*/**/*.py`` match a root
+# file ``/probe.py``. Porting VS Code's own segment walker ends that class of
+# drift. Two simplifications are safe here: braces are already expanded by
+# ``expand_braces`` before a pattern reaches this compiler, and ``[...]``
+# character classes are treated as literal text rather than parsed. A char
+# class is scoped by construction (it constrains a character), so it can never
+# match the diverse probe set and is correctly classified non-universal for the
+# upper-bound budget without bracket parsing; treating ``[`` literally only ever
+# makes the regex more restrictive, never falsely universal.
+_GLOB_STAR = "**"
+_PATH_REGEX = r"[/\\]"  # any path separator (slash or backslash)
+_NO_PATH_REGEX = r"[^/\\]"  # any non-separator character
 
 
-def _compile_glob_regex(tokens: list[object]) -> str:
-    """Join translated glob ``tokens`` into a regex body with globstar semantics.
+def _stars_to_regexp(star_count: int, *, is_last_segment: bool) -> str:
+    """Translate a run of ``*`` to regex, mirroring VS Code ``starsToRegExp``.
 
-    A ``_GLOBSTAR`` token matches zero or more whole path segments and supplies
-    its own surrounding separators, so a leading ``**/`` spans any prefix, a
-    trailing ``/**`` covers the prefix path itself, and a bare ``**`` matches
-    everything. Literal tokens are joined with ``/``.
+    ``star_count == 1`` is a single ``*`` (any run of non-separator characters,
+    non-greedy). ``star_count == 2`` is a whole ``**`` segment (zero or more
+    complete path segments); as the last segment it additionally matches a
+    trailing ``separator + segment`` so ``a/**`` covers ``a/b``.
     """
-    last = len(tokens) - 1
+    if star_count == 0:
+        return ""
+    if star_count == 1:
+        return _NO_PATH_REGEX + "*?"
+    tail = f"|{_PATH_REGEX}{_NO_PATH_REGEX}+" if is_last_segment else ""
+    return f"(?:{_PATH_REGEX}|{_NO_PATH_REGEX}+{_PATH_REGEX}{tail})*?"
+
+
+def _segment_to_regex(segment: str) -> str:
+    """Translate one non-globstar path segment to a regex fragment.
+
+    Each ``*`` becomes a single-star run (``starsToRegExp(1)``), ``?`` matches
+    one non-separator character, and every other character is escaped literally.
+    """
     out: list[str] = []
-    for index, token in enumerate(tokens):
-        if token is _GLOBSTAR:
-            if index == 0 and last == 0:
-                out.append(".*")
-            elif index == last:
-                out.append("(?:.*)?")
-            else:
-                out.append("(?:.*/)?")
-            continue
-        out.append(str(token))
-        if index != last:
-            following = tokens[index + 1]
-            if following is _GLOBSTAR and index + 1 == last:
-                out.append("(?:/)?")
-            elif following is not _GLOBSTAR:
-                out.append("/")
+    for char in segment:
+        if char == "*":
+            out.append(_stars_to_regexp(1, is_last_segment=False))
+        elif char == "?":
+            out.append(_NO_PATH_REGEX)
+        else:
+            out.append(re.escape(char))
     return "".join(out)
 
 
 @cache
 def _glob_to_regex(pattern: str) -> re.Pattern[str]:
-    """Compile a ``minimatch``-style glob to an anchored case-insensitive regex.
+    """Compile an ``applyTo`` glob to an anchored case-insensitive regex.
 
-    Path-segment semantics, matching the harness glob engine:
+    Faithful port of VS Code's ``parseRegExp`` segment walker (see the module
+    note above the constants). Path-segment semantics match the harness:
 
-    - ``**`` as a whole segment matches zero or more path segments;
+    - ``**`` as a whole segment matches zero or more complete path segments;
     - ``*`` matches zero or more non-separator characters within one segment;
     - ``?`` matches exactly one non-separator character;
-    - every other character is literal.
+    - a literal separator is emitted after a segment unless the following
+      segment is a *terminal* ``**`` (VS Code's "Tail" rule), so ``some/**/*.js``
+      keeps the ``/`` after ``some`` and a sibling folder ``something`` cannot
+      match, while ``/*/**/*.py`` requires a real first directory and does not
+      match a root file.
 
-    Case-insensitive because VS Code matches ``applyTo`` with ``ignoreCase: true``
-    (same pinned source, line 316). ``is_language_universal`` uses this to decide
-    universality by *matching* diverse probe paths instead of enumerating glob
-    spellings, which closes bypasses such as ``**/*.p?`` and ``/*/**`` that no
-    finite spelling table can cover.
+    Case-insensitive because VS Code matches ``applyTo`` with ``ignoreCase:
+    true``. ``is_language_universal`` uses this to decide universality by
+    *matching* diverse probe paths instead of enumerating glob spellings.
     """
-    tokens: list[object] = []
-    for segment in pattern.split("/"):
-        if segment == "**":
-            tokens.append(_GLOBSTAR)
+    segments = _split_glob_aware(pattern, "/")
+    if segments and all(segment == _GLOB_STAR for segment in segments):
+        return re.compile("^.*$", re.IGNORECASE)
+    body: list[str] = []
+    last = len(segments) - 1
+    previous_was_globstar = False
+    for index, segment in enumerate(segments):
+        if segment == _GLOB_STAR:
+            if previous_was_globstar:
+                continue
+            body.append(_stars_to_regexp(2, is_last_segment=index == last))
+            previous_was_globstar = True
             continue
-        piece: list[str] = []
-        for char in segment:
-            if char == "*":
-                piece.append("[^/]*")
-            elif char == "?":
-                piece.append("[^/]")
-            else:
-                piece.append(re.escape(char))
-        tokens.append("".join(piece))
-    return re.compile("^" + _compile_glob_regex(tokens) + "$", re.IGNORECASE)
+        body.append(_segment_to_regex(segment))
+        if index < last and (segments[index + 1] != _GLOB_STAR or index + 2 < len(segments)):
+            body.append(_PATH_REGEX)
+        previous_was_globstar = False
+    return re.compile("^" + "".join(body) + "$", re.IGNORECASE)
 
 
 def _iter_applyto_globs(value: object) -> list[str]:
@@ -287,14 +330,14 @@ def _iter_applyto_globs(value: object) -> list[str]:
     or a YAML list of such strings. Any other shape is a configuration error.
     """
     if isinstance(value, str):
-        return _split_top_level_commas(value)
+        return _split_glob_aware(value, ",")
     if isinstance(value, list):
         globs: list[str] = []
         for item in value:
             if not isinstance(item, str):
                 msg = f"applyTo list entries must be strings, got {type(item).__name__}"
                 raise UnsupportedApplyToError(msg)
-            globs.extend(_split_top_level_commas(item))
+            globs.extend(_split_glob_aware(item, ","))
         return globs
     msg = f"applyTo must be a string or list of strings, got {type(value).__name__}"
     raise UnsupportedApplyToError(msg)
@@ -335,32 +378,40 @@ def parse_applyto(text: str) -> set[str]:
 
 
 def is_language_universal(patterns: set[str], ext: str) -> bool:
-    """True when any pattern scopes the rule to every file of ``ext``.
+    """True when the rule's ``applyTo`` scopes it to every file of ``ext``.
 
-    Decides universality by *matching*, not by enumerating spellings: each
-    pattern is reduced to its harness-effective form (``_vscode_effective_glob``)
-    and then, unless it is an all-files wildcard, compiled to a faithful
-    ``minimatch`` regex (``_glob_to_regex``) and tested against every probe path
-    for the language (``_probe_paths``). A glob that matches all probes loads for
-    every file of the language regardless of location, so its bytes belong in the
-    always-on baseline.
+    Universality is a property of the *union* of the comma-split patterns, not
+    of any single pattern. VS Code's instruction matcher (``_matches`` in
+    computeAutomaticInstructions.ts, pinned line 293-327) splits ``applyTo`` on
+    commas and attaches the rule to a file if *any* one pattern matches it. So
+    the rule loads for every file of the language exactly when *every* probe
+    path is matched by *at least one* pattern:
+    ``all(any(pattern matches probe) for probe in probes)``. Checking each
+    pattern in isolation would under-count a rule whose depths are split across
+    disjoint globs (``/*.py, /*/*.py, /*/**/*.py``), letting a large rule dodge
+    the always-on budget. Under-count is the dangerous direction for an upper
+    bound, so the union model is required, not merely more precise.
 
-    This containment test closes the whole class of broad forms an exact-form
-    table missed, including ``?`` wildcards (``**/*.p?``), zero-segment trailing
-    globstars (``**/*.py/**``), absolute anchors (``/**/*.py``, ``/*/**``), and
-    any-dotted-basename (``**/*.*``), while keeping scoped globs such as
-    ``**/src/*.py`` and ``/src/*.py`` out of the baseline. Matching is
+    Each pattern is first reduced to its harness-effective form
+    (``_vscode_effective_glob`` prepends ``**/`` to a relative pattern) and then,
+    unless it is an all-files wildcard, compiled to a faithful VS Code regex
+    (``_glob_to_regex``) and tested against every probe (``_probe_paths``).
+    Deciding by *matching* rather than enumerating spellings closes the whole
+    class of broad forms an exact-form table missed (``?`` wildcards,
+    zero-segment globstars, absolute anchors, any-dotted-basename) while keeping
+    scoped globs such as ``**/src/*.py`` out of the baseline. Matching is
     case-insensitive to mirror the harness (``ignoreCase: true``).
     """
     probes = _probe_paths(ext)
+    regexes: list[re.Pattern[str]] = []
     for pattern in patterns:
         effective = _vscode_effective_glob(pattern)
         if effective in _ALL_FILES_FORMS:
             return True
-        regex = _glob_to_regex(effective)
-        if all(regex.match(path) for path in probes):
-            return True
-    return False
+        regexes.append(_glob_to_regex(effective))
+    if not regexes:
+        return False
+    return all(any(regex.match(path) for regex in regexes) for path in probes)
 
 
 @dataclass(frozen=True)
