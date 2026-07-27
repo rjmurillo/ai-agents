@@ -150,10 +150,11 @@
       "outcome": "Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files."
     }
   ],
-  "endingCommit": "113c59808e",
+  "endingCommit": "ac9a29da8",
   "nextSteps": [
     "If a future skill takes a real runtime dependency on templates/, the marker is the wrong answer: the content has to move into the plugin root instead, per .claude/rules/plugin-self-containment.md",
     "check_skill_portability.py is the script-file companion to this validator and was not examined for the same gap",
-    "endingCommit is the last content commit, 113c59808e, not the commit that records it. session-end/SKILL.md specifies git rev-parse --short HEAD, which no commit can satisfy for the commit writing the field"
+    "endingCommit names ac9a29da8, the last content commit, not 3c03f0d86 which records this field. session-end/SKILL.md specifies git rev-parse --short HEAD, which no commit can satisfy for the commit that writes the field. The earlier value 113c59808e named the superseded 0.6.133 bump.",
+    "The episode for this session reports one commit because _collect_shas in extract_session_episode.py runs _SHA_RE.findall over endingCommit first and returns on the first non-empty result, so the workLog fallback never executes. The figure reflects the extractor, not the branch."
   ]
 }
