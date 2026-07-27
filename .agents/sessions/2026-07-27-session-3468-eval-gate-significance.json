@@ -379,7 +379,7 @@
       ]
     }
   ],
-  "endingCommit": "bac4cf0e7",
+  "endingCommit": "1cbb87c52",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
