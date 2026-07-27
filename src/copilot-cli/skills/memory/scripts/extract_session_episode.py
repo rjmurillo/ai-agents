@@ -1415,12 +1415,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Lifecycle precedence for the causal chain. Every extractor event shares one
-# session timestamp, so this rank, not the timestamp, is the real tie-breaker.
-# It enforces the invariant that a commit is never linked as ``caused_by`` a
-# later review milestone (issue #3260): a commit is created and pushed before
-# the tests, errors, and review or CI milestones that report on it, so it must
-# sort ahead of them. Types absent here sort at ``_CAUSAL_DEFAULT_RANK``.
+# Lifecycle precedence for the causal chain. Every JSON extractor event shares
+# one session timestamp, so rank-only edges are intentionally sparse. The rank
+# still protects issue #3260 from linking a commit as ``caused_by`` a later
+# review milestone, but it is no longer enough evidence to assert causality for
+# a pre-code milestone such as issue filing or reproduction.
 _CAUSAL_TYPE_RANK: dict[str, int] = {
     "implementation": 0,
     "commit": 1,
@@ -1431,6 +1430,18 @@ _CAUSAL_TYPE_RANK: dict[str, int] = {
 _CAUSAL_DEFAULT_RANK = 2
 
 
+def _causal_rank(evt: dict[str, Any]) -> int:
+    return _CAUSAL_TYPE_RANK.get(evt.get("type", ""), _CAUSAL_DEFAULT_RANK)
+
+
+def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]) -> bool:
+    previous_timestamp = previous.get("timestamp") or ""
+    current_timestamp = current.get("timestamp") or ""
+    if previous_timestamp != current_timestamp:
+        return True
+    return _causal_rank(previous) == _causal_rank(current)
+
+
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` as a lifecycle-ordered chain.
 
@@ -1439,15 +1450,22 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     event-construction site emits them empty, leaving the graph flat
     (issue #3245).
 
-    The chain follows the session lifecycle, not raw append order.
-    ``json_events`` appends every commit after the work-log milestones, so a
-    purely positional chain linked the commit as ``caused_by`` the final
-    PR-review milestone, inverting cause and effect: a commit is created and
-    pushed before any review happens (issue #3260). Events are ordered by
-    ``(timestamp, lifecycle rank, original position)`` so commits (causes)
-    precede the tests, errors, and review milestones (effects) that follow them,
-    while events of the same rank keep their original order. The physical
-    ``events`` list is left untouched; only the link fields change.
+    The chain follows observed evidence first. ``json_events`` appends every
+    commit after the work-log milestones, so a purely positional chain linked
+    the commit as ``caused_by`` the final PR-review milestone, inverting cause
+    and effect: a commit is created and pushed before any review happens
+    (issue #3260). Events are ordered by ``(timestamp, lifecycle rank, original
+    position)`` so commits precede the tests, errors, and review milestones
+    that follow them, while events of the same rank keep their original order.
+    The physical ``events`` list is left untouched; only the link fields change.
+
+    A rank-only order is not enough evidence for an edge. JSON events often all
+    share one session timestamp, and the schema leaves ``workLog.phase`` as free
+    text instead of a stable pre-code or post-code marker. When adjacent events
+    differ only by type rank at the same timestamp, the graph stays sparse
+    rather than asserting a false cause. This preserves the #3260 invariant that
+    a commit is not caused by a review milestone, and fixes #3464's pre-code
+    milestone inversion.
 
     Mutates in place. Must run on final ids, i.e. after any id reassignment by
     ``_dedupe_events``, so the references never dangle.
@@ -1462,15 +1480,19 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
         range(len(linkable)),
         key=lambda i: (
             linkable[i].get("timestamp") or "",
-            _CAUSAL_TYPE_RANK.get(linkable[i].get("type", ""), _CAUSAL_DEFAULT_RANK),
+            _causal_rank(linkable[i]),
             i,
         ),
     )
     chain = [linkable[i] for i in chain_order]
-    last = len(chain) - 1
-    for pos, evt in enumerate(chain):
-        evt["caused_by"] = [chain[pos - 1]["id"]] if pos > 0 else []
-        evt["leads_to"] = [chain[pos + 1]["id"]] if pos < last else []
+    for evt in chain:
+        evt["caused_by"] = []
+        evt["leads_to"] = []
+    for previous, current in zip(chain, chain[1:], strict=False):
+        if not _has_causal_order_evidence(previous, current):
+            continue
+        previous["leads_to"] = [current["id"]]
+        current["caused_by"] = [previous["id"]]
 
 
 def main(argv: list[str] | None = None) -> int:

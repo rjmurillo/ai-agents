@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from ..scripts.extract_session_episode import (
+    _link_sequential_events,
     extract_from_json,
     get_decision_type,
     get_session_id_from_path,
@@ -482,33 +483,154 @@ class TestJsonOutcome:
 
 class TestJsonEvents:
     def test_milestone_from_task(self):
-        events = json_events(_json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "Build X", "outcome": "done"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and e["content"] == "Build X" for e in events)
 
     def test_milestone_from_action_legacy_schema(self):
-        events = json_events(_json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"action": "Refactor Y", "outcome": "done"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and e["content"] == "Refactor Y" for e in events)
 
     def test_test_event_from_passed_count(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "ok", "evidence": "24 passed"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "ok", "evidence": "24 passed"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "test" for e in events)
 
     def test_no_error_event_from_prose_fail(self):
-        events = json_events(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert not any(e["type"] == "error" for e in events)
 
     def test_error_event_from_counted_failure(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "2 failed"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "error" for e in events)
 
     def test_commit_event_from_ending_commit(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "o"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "o"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "commit" for e in events)
 
     def test_milestone_from_string_entry(self):
         # Some logs store workLog as a list of bare strings (e.g. session 1766).
-        events = json_events(_json_log(["Reviewed PR 1766: 5 unresolved threads"]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log(["Reviewed PR 1766: 5 unresolved threads"]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in events)
+
+
+class TestCausalEventLinks:
+    def test_real_3459_pre_code_milestone_is_not_caused_by_final_commit(self):
+        session_log = Path(".agents/sessions/2026-07-27-session-3459-templates-portability.json")
+        data = json.loads(session_log.read_text(encoding="utf-8"))
+        bundle = extract_from_json(data)
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        pre_code = next(e for e in bundle["events"] if "Filed issue #3459" in e["content"])
+        assert commit["content"] == "Commit: ac9a29da8"
+        assert pre_code["caused_by"] == []
+        assert commit["leads_to"] != [pre_code["id"]]
+
+    def test_commit_is_not_caused_by_later_review_milestone(self):
+        bundle = extract_from_json(_json_log([
+            {
+                "phase": "Review",
+                "actions": ["Addressed PR review feedback"],
+                "outcome": "PR review round complete",
+            }
+        ]))
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        review = next(e for e in bundle["events"] if e["type"] == "milestone")
+        assert commit["caused_by"] == []
+        assert review["leads_to"] != [commit["id"]]
+
+    def test_pre_and_post_code_milestones_in_same_log_use_observed_order(self):
+        bundle = extract_from_json(_json_log([
+            {
+                "phase": "Reproduce",
+                "actions": ["Filed the issue before code changed"],
+                "outcome": "Filed issue #3464 before writing code",
+            },
+            {
+                "phase": "Review",
+                "actions": ["Reviewed the completed branch"],
+                "outcome": "PR review round complete",
+            },
+        ]))
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        pre_code = next(e for e in bundle["events"] if "before writing code" in e["content"])
+        post_code = next(e for e in bundle["events"] if "review round" in e["content"])
+        assert commit["caused_by"] == []
+        assert pre_code["caused_by"] == []
+        assert pre_code["leads_to"] == [post_code["id"]]
+        assert post_code["caused_by"] == [pre_code["id"]]
+
+    def test_rank_only_timestamp_ties_do_not_emit_causal_edges(self):
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "milestone",
+                "content": "Reported the result",
+                "caused_by": [],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: abc1234",
+                "caused_by": [],
+                "leads_to": [],
+            },
+            {
+                "id": "e003",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "test",
+                "content": "10 passed",
+                "caused_by": [],
+                "leads_to": [],
+            },
+        ]
+
+        _link_sequential_events(events)
+
+        assert all(e["caused_by"] == [] for e in events)
+        assert all(e["leads_to"] == [] for e in events)
+
+    def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ):
+        session_log = Path(".agents/sessions/2026-07-27-session-3459-templates-portability.json")
+        output_dir = tmp_path / "episodes"
+
+        rc = main([str(session_log), "--output-path", str(output_dir)])
+
+        assert rc == 0
+        episode = json.loads(capsys.readouterr().out)
+        commit = next(e for e in episode["events"] if e["type"] == "commit")
+        pre_code = next(e for e in episode["events"] if "Filed issue #3459" in e["content"])
+        assert pre_code["caused_by"] == []
+        assert commit["leads_to"] != [pre_code["id"]]
 
 
 class TestStringWorkLog:
@@ -541,7 +663,9 @@ class TestJsonMetrics:
 
 class TestExtractFromJsonEndToEnd:
     def test_bundle_shape(self):
-        bundle = extract_from_json(_json_log([{"task": "Ship it", "outcome": "done", "evidence": "20 passed"}]))
+        bundle = extract_from_json(
+            _json_log([{"task": "Ship it", "outcome": "done", "evidence": "20 passed"}])
+        )
         assert bundle["outcome"] == "success"
         assert bundle["task"] == "Do the thing"
         assert bundle["timestamp"].startswith("2026-05-31")
@@ -549,7 +673,10 @@ class TestExtractFromJsonEndToEnd:
 
     def test_main_on_json_log(self, tmp_path, capsys):
         log = tmp_path / "2026-05-31-session-9001.json"
-        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])), encoding="utf-8")
+        log.write_text(
+            json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])),
+            encoding="utf-8",
+        )
         rc = main([str(log), "--output-path", str(tmp_path / "ep")])
         assert rc == 0
         episode = json.loads(capsys.readouterr().out)
