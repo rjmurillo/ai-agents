@@ -101,6 +101,10 @@
     {
       "action": "Committed ADR prose batch 1",
       "result": "ADR-033 and ADR-061 references now identify historical or current enforcement surfaces."
+    },
+    {
+      "action": "Committed ADR prose batch 2",
+      "result": "ADR-062 and ADR-081 stale hook names now carry retirement context."
     }
   ],
   "endingCommit": "",

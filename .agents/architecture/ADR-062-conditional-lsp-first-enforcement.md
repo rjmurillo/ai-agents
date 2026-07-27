@@ -19,10 +19,10 @@ is filed as issue #3214 and unblocks the hook removal in issue #3216, part of
 the #3197 vendored-hook ROI review. It records the decision only. It does not
 delete any hook. The deletion is the implementation issue this unblocks.
 
-Change: retire the LSP-first runtime enforcement hooks. That is the five
+Change: mark the LSP-first runtime enforcement hooks retired. That is the five
 PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
 `invoke_lsp_bash_grep_guard.py`, `invoke_lsp_glob_guard.py`,
-`invoke_lsp_pre_delegation_guard.py`), the two PostToolUse trackers
+`invoke_lsp_pre_delegation_guard.py`), the two retired PostToolUse trackers
 (`invoke_lsp_read_tracker.py`, `invoke_lsp_usage_tracker.py`), the SessionStart
 reset (`invoke_lsp_session_reset.py`), and the shared state and detection
 modules under `.claude/lib/hook_utilities/` that only those hooks consume
@@ -46,7 +46,7 @@ Copilot logs). It found:
   Against it stand documented false positives #3091 (a cargo-cult "LSP CONTEXT"
   incantation agents emit to satisfy the gate), #2200, #2454 (merge-conflict
   reads), and #2622 (LSP-down hard blocks), plus multiple blocks this week.
-- The Read gate fires on the hottest tool. `invoke_lsp_read_guard.py` runs on
+- The retired Read gate fired on the hottest tool. `invoke_lsp_read_guard.py` ran on
   every Read to enforce a preference, not a safety property, and pays the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
 - The preference already has three enforcement-free carriers.
@@ -102,7 +102,7 @@ This repository already mandates Serena (an MCP symbol server) first, but only
 through steering, never enforcement:
 
 - AGENTS.md makes Serena Init BLOCKING at session start.
-- A per-turn UserPromptSubmit re-assertion hook
+- A previously registered per-turn UserPromptSubmit re-assertion hook
   (`invoke_serena_reassertion.py`, issue #1993, commit `e6fa83a9`, merged
   2026-05-30) re-injects a Serena reminder every prompt.
 - `.claude/rules/claude-model-patches.md` steers to dedicated tools over shell.
@@ -381,8 +381,10 @@ here.
 
 ## Implementation Notes
 
-Exit codes: 0 = allow (including fail-open and warn mode), 2 = block. ADR-035
-Claude-hook-semantics exemption, precedent `invoke_skill_first_guard.py`,
+This section describes the retired enforcement layer and its deleted hook files.
+
+Retired exit codes: 0 = allow (including fail-open and warn mode), 2 = block.
+ADR-035 Claude-hook-semantics exemption, precedent `invoke_skill_first_guard.py`,
 `invoke_security_gate.py`, `invoke_serena_reassertion.py:38-41`. Copilot uses
 `permissionDecision`; the generator translates and preserves the shim crash
 policy.

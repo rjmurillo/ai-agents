@@ -26,7 +26,7 @@ the gap) proposes a metacognitive confidence-elicitation signal: before a
 completion claim clears, the agent surfaces "what am I least confident about
 right now?" and each item is resolved or logged as accepted-risk. The elicited
 list is meant to be a routing signal into existing verification, never a
-verdict, wired first into the false-completion gate
+verdict, originally wired first into the since-retired false-completion gate
 (`.claude/hooks/PreToolUse/invoke_false_completion_gate.py`), with a mandatory
 calibration gate: an A/B that measures whether surfaced items actually predict
 defects the critic or tests caught, and removal of the feature if they do not.
@@ -91,7 +91,7 @@ Whichever track the owner picks, three rules bind any future implementation:
 
 ### What Currently Exists
 
-- **The false-completion gate**: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
+- **The retired false-completion gate**: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
   (771 lines, blocking, 5-second timeout in `.claude/settings.json`). Clears
   completion claims in commit/PR operations on external test/build evidence in
   the session log. Addresses 44 false-completion mentions across 80-plus retros
@@ -187,7 +187,7 @@ Python within the existing timeout.
 
 ## References
 
-- `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
+- Retired reference: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
 - `scripts/eval/_scoring_engine.py`, `scripts/eval/_eval_agent_types.py`
 - `.claude/agents/silent-failure-hunter.md`
 - `.agents/analysis/ADR-081-confidence-elicitation-debate.md` (the review this
