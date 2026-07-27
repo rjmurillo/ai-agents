@@ -36,7 +36,7 @@ The reflex to resist: "the loop cannot edit toward a group it cannot name" is ba
 ## Gotchas
 
 - Coverage must be `--cov=scripts/eval` (the directory). `--cov=scripts/eval/_optimizer_core` collects nothing because the CLI module name is hyphenated.
-- `mcnemar_exact` is reported, never enforced. A single discordant gain yields `p_value: 0.5` and still ACCEPTs, because a three-task held-out group cannot reach 0.05 and enforcing a conventional floor would make the common case unpassable.
+- `mcnemar_exact` is reported always and enforced only with `--max-p`, which defaults to absent. A single discordant gain yields `p_value: 0.5` and still ACCEPTs by default, because a three-task held-out group cannot reach 0.05 and enforcing a conventional floor would make the common case unpassable. When supplied, `--max-p` is the FAMILY bar and is Bonferroni-divided by `--max-consultations`: five looks at 0.05 each is a family-wise 0.226, not 0.05. So raising the budget buys more looks at a stricter bar, never a cheaper one. The bar is pinned in the ledger like the cap, absence included, so a candidate refused at 0.05 cannot be re-gated at 0.1.
 - Only `rule_results` is single-shot against an LLM judge; `agent_results` reduces over runs and `pytest_results` is deterministic. Noise arithmetic that treats all three as single-shot overstates spurious rejection (#3445).
 
 ## The rule that generalizes past this file
@@ -54,3 +54,25 @@ Round 11 is also the first round partly declined: its double-resolution finding 
 Four operational lessons worth more than the defect list. First, a workaround that stops a symptom appearing in tests is not a finding closed: the round-9 double-document bug had already been seen while writing round-7 tests and recorded as a test-harness quirk. Second, hand-written redaction sites are where rounds 9 and 10 both found defects, which is why redaction now has one definition, `_scrub`, rather than a `.replace` per site. Third, when a review is asked to find a defect, give it explicit permission to return ACCEPT and tell it a false finding costs more than a missed one; rounds 10, 11, and 12 all got that instruction and all still returned real findings, which is what makes the streak evidence rather than an artifact of the prompt. Fourth, and this is the one that generalizes furthest: test the property through the seam, not the unit you edited. Round 11 added four passing tests for case folding and every one called `_scrub` directly, so they confirmed the edit while the CLI still printed the digest. A test aimed at the function you just changed will agree with you. Only a test aimed at the property can disagree.
 
 Evidence: issue #3422, PR #3430, PR #3458, branch `fix/eval-holdout-gate-digest-leak`, ADR-087, debate log `.agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md`, session log `.agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.
+
+## The live run, and the lesson that outranks the defect list
+
+2026-07-27, first end-to-end live run against a real scorer (24 rule-activation tasks, `gpt-4o-mini` via GitHub Models). The gate returned ACCEPT: held-out 0.6 to 0.8, two gains, zero losses, p=0.25.
+
+It was wrong. A null control, restoring the artifact byte-for-byte and re-running the identical scorer, reproduced both gains from a no-op. The ACCEPT was rejected only because noise also broke a third task and the pre-existing no-regression clause caught it. On a different roll the loop would have accepted a change that did nothing.
+
+Measured on that one paired re-run: 13 of 24 tasks changed score at all on byte-identical input; mean absolute movement 0.49 on a 5-point scale, max 3.00; 5 crossed the 3.5 pass line. The sharpest fact is not the count. The two held-out gains that earned the ACCEPT were the two largest excursions in the whole benchmark, +3.00 and +2.00. The accept rode the two biggest noise events out of 24 tasks. These are counts from one replication, not a rate: 5 of 24 carries a 95% interval of roughly 7% to 42%, so do not quote a percentage.
+
+**Run a null control before believing any ACCEPT from a nondeterministic scorer.** It costs one extra scorer run and it is the only thing that caught this. Two signals made the suspicion actionable before the control finished: the edited artifact's own tasks had not moved, and every flip landed in artifacts the edit could not have touched. If the tasks that move are not the tasks you touched, you are measuring variance.
+
+Two follow-on cautions. The measured variance is the pipeline's, compounding the response model and the judge, both `gpt-4o-mini` at temperature 0; the harness sets no seed and records no `system_fingerprint`, so it cannot separate them (#3475). And `rule_results` maps an errored or judge-failed scenario to `False`, which is right for one run and wrong for a paired one: an error on the incumbent side and a success on the candidate side reads as a discordant gain that is pure infrastructure artifact (#3474).
+
+## Round fourteen, and how to consume an adversarial review
+
+Two non-Claude reviewers in parallel on the `--max-p` change, both REJECT. All four code findings were real, and the load-bearing one was a statistical error I had argued myself into: a per-comparison threshold does not bound a family. Same shape as the eleven rounds above. A bar you can spend five times is not that bar, exactly as a budget you can restate is not a budget.
+
+The ADR reviewer's headline finding was false. It claimed the null-control flips were HTTP 429s recorded as task failures, reasoning from a code path that genuinely exists (`max_retries=0`, no retry loop, errors mapped to `False`). Checking the three live reports directly: zero errored mechanism-runs out of 216, no `FAIL_JUDGE_ERRORS` verdict anywhere. Had it been accepted, the debate log would now carry a false explanation for its central finding and the null control's real lesson would have been buried.
+
+**A finding can be wrong about what happened and right about what can happen.** Verify a confident review against data before acting on it, and when the mechanism is real but did not fire, file it (#3474) rather than folding it in or dismissing it. Accepting every finding is not reviewing, and neither is dismissing the ones that turn out to be misattributed.
+
+Evidence: PR #3478, branch `feat/eval-gate-significance-bar`, commits `684060149` and `a5791784c`, session log `.agents/sessions/2026-07-27-session-3468-eval-gate-significance.json`.
