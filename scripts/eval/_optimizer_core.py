@@ -636,9 +636,23 @@ def gate(
     independent, and five looks at one selection group are not. So ``max_p``
     is read as the family bar and spent across ``max_consultations`` by
     Bonferroni: each comparison is held to ``max_p / max_consultations``. That
-    correction controls the family bar under any dependence, which is why it
-    is used here rather than a sharper independence-dependent one. Raising the
-    budget therefore buys more looks at a stricter bar, never a cheaper one.
+    correction controls the family bar under arbitrary dependence among the
+    p-values, which is why it is used here rather than a sharper
+    independence-dependent one. Raising the budget therefore buys more looks
+    at a stricter bar, never a cheaper one.
+
+    That guarantee is conditional, and the condition is not free. Bonferroni
+    tolerates any dependence between the comparisons, but it still requires
+    each per-comparison p-value to be valid on its own: under the null a valid
+    p must satisfy P(p <= a) <= a. ``mcnemar_exact`` earns that only if the
+    discordant pairs behave as independent fair coin flips under the null, and
+    correlated scorer noise breaks it. This is not hypothetical here. A
+    rule-path null control in this repo restored the artifact byte for byte
+    and reproduced both of the gains the real edit had produced, which is
+    direct evidence that outcomes on this harness move together. So the
+    honest statement is that the family bar holds under any dependence
+    between the comparisons, given per-comparison validity, and that the
+    second half is the part this harness does not guarantee.
 
     Both companions are required rather than optional, because a bar that
     silently does not apply is worse than no bar. ``max_p`` without

@@ -1079,7 +1079,11 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
     which five looks at one selection group are not. The bar an operator asks
     for is the one they believe governs the run, so it is read as the family
     bar and divided across the declared budget by Bonferroni, which holds under
-    any dependence.
+    arbitrary dependence between the comparisons. Round nineteen added the
+    missing half: that guarantee still assumes each per-comparison p-value is
+    valid on its own, and this harness's rule-path null control reproduced two
+    gains under a byte-identical no-op, so its outcomes are correlated and that
+    assumption is not free.
     """
 
     def test_the_bar_is_divided_across_the_declared_budget(self):
