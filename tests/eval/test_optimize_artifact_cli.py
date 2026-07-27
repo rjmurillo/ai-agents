@@ -1954,3 +1954,89 @@ class TestTheGateNeverPublishesTheHoldoutKey:
 
     def test_the_key_still_separates_different_members(self):
         assert oa._holdout_key({"sel": ["a", "b"]}) != oa._holdout_key({"sel": ["a", "c"]})
+
+
+class TestNoLedgerFailureLeaksTheDigest:
+    """The explicit messages were redacted; the generic ones still carried it.
+
+    A sixth adversarial review (gpt-5.6-sol, 2026-07-26) found that redacting
+    the three hand-written errors left every other way of failing on a ledger
+    path intact: `_read_json` interpolates the file it could not parse, the
+    atomic write interpolates the file it could not replace, and `os.open`
+    raises with the lock's name for any errno but EEXIST. All three names end
+    in the digest. The fix is one scrub at the exception seam rather than
+    three sanitized wrappers, because a wrapper covers the paths someone
+    remembered and a seam covers the ones added later.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, capsys, inc, split, record):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", inc,
+            "--split", split, "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        )
+
+    def test_an_unparseable_ledger_does_not_leak_the_digest(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text("{not json")
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_an_unparseable_ledger_still_says_it_could_not_be_read(self, tmp_path, capsys):
+        """Scrubbing that erases the diagnosis is worse than the leak."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        ledger = oa._ledger_path(oa._holdout_key(record))
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text("{not json")
+        _, out = self._gate(capsys, inc, split, record)
+        assert "not valid JSON" in out["error"] and "ledger" in out["error"]
+
+    def test_an_unwritable_ledger_does_not_leak_the_digest(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+
+        def _deny(path, _text):
+            raise OSError(28, "No space left on device", str(path))
+
+        monkeypatch.setattr(oa, "_write_atomic", _deny)
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_a_lock_that_fails_for_any_other_reason_does_not_leak(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """os.open raises for more than EEXIST, and the name is the digest."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+
+        def _deny(path, *args, **kwargs):
+            raise PermissionError(13, "Permission denied", str(path))
+
+        monkeypatch.setattr(oa.os, "open", _deny)
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_the_scrub_leaves_messages_without_the_digest_alone(self):
+        with pytest.raises(oa.ConfigError, match="plain trouble"):
+            with oa._digest_scrubbed("a" * 64):
+                raise oa.ConfigError("plain trouble")
+
+    def test_the_scrub_replaces_the_digest_wherever_it_appears(self):
+        key = "a" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise oa.ConfigError(f"could not read /x/{key}.ledger")
+        assert key not in str(caught.value) and "/x/" in str(caught.value)
+
+    def test_the_scrub_passes_a_clean_block_through(self):
+        with oa._digest_scrubbed("a" * 64):
+            pass

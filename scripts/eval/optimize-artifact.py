@@ -458,8 +458,10 @@ def _holdout_key(split: dict[str, Any]) -> str:
     principle: two unrelated eval sets whose task ids and held-out membership
     both coincide would share a budget. A namespace would have to come from the
     caller, and a caller-supplied key is the exact defect this function exists
-    to close. Sharing is the conservative direction, so the collision is
-    accepted rather than reopened.
+    to close. A namespace derived from task contents or from trusted corpus
+    provenance would work and needs a seam that carries one; the seam here
+    carries task ids and pass booleans. Sharing is the conservative direction,
+    so the collision is accepted rather than reopened.
     """
     sel = sorted(str(task_id) for task_id in _group_ids(split, _GATE_GROUP))
     # JSON rather than a NUL join: joining is not injective when an id may
@@ -467,6 +469,30 @@ def _holdout_key(split: dict[str, Any]) -> str:
     # budget as ["a\0b", "c"].
     canonical = json.dumps(sel, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@contextmanager
+def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
+    """Keep the held-out digest out of whatever goes wrong under the ledger.
+
+    Every ledger and lock filename ends in the digest, and the digest is an
+    unsalted hash of a set the caller can enumerate. The three hand-written
+    errors were redacted one at a time and that left every other way to fail
+    intact: a ledger that is not JSON, a write that cannot land, an os.open
+    that fails for any errno but EEXIST. Each raises with the full path.
+
+    Scrubbing at the seam rather than sanitizing each call site is the point.
+    A wrapper covers the paths someone remembered; a seam covers the one
+    added next year. The message survives with the name replaced, because an
+    error that says nothing about what failed is a worse trade than the leak.
+    """
+    try:
+        yield
+    except (ConfigError, OSError) as exc:
+        text = str(exc)
+        if holdout_key not in text:
+            raise
+        raise ConfigError(text.replace(holdout_key, "<held-out group>")) from exc
 
 
 def _ledger_path(holdout_key: str) -> Path:
@@ -489,17 +515,21 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError as exc:
-        raise ConfigError(
-            f"another gate holds a lock under {lock.parent}; consultations "
-            f"against one held-out group are serialized so a concurrent pair "
-            f"cannot spend one budget twice. Remove the lock file there if no "
-            f"gate is running. Its name is withheld: the name digests the "
-            f"held-out membership, and an unsalted digest of a set the caller "
-            f"can enumerate is that set."
-        ) from exc
+    # The scrub sits outside so any errno but EEXIST loses the digest in the
+    # lock's name, and the contention branch sits inside so its own message,
+    # which carries no digest, reaches the caller intact.
+    with _digest_scrubbed(holdout_key):
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError as exc:
+            raise ConfigError(
+                f"another gate holds a lock under {lock.parent}; consultations "
+                f"against one held-out group are serialized so a concurrent "
+                f"pair cannot spend one budget twice. Remove the lock file "
+                f"there if no gate is running. Its name is withheld: the name "
+                f"digests the held-out membership, and an unsalted digest of a "
+                f"set the caller can enumerate is that set."
+            ) from exc
     try:
         os.write(handle, str(os.getpid()).encode("utf-8"))
         os.close(handle)
@@ -611,7 +641,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     holdout_key = _holdout_key(split)
     ledger = _ledger_path(holdout_key)
     try:
-        spent = _read_ledger(ledger, holdout_key, args.max_consultations)
+        with _digest_scrubbed(holdout_key):
+            spent = _read_ledger(ledger, holdout_key, args.max_consultations)
     except LedgerMismatchError as exc:
         _emit({
             "decision": "REJECT",
@@ -650,7 +681,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # comparison for free. And any refusal decided after scoring was equally
     # free, which is what made the reveal below worth buying.
     spent_after = spent + 1
-    _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
+    with _digest_scrubbed(holdout_key):
+        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
 
     if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
         candidate_results, sel_ids
@@ -661,8 +693,9 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
                 "reason": (
                     "the results do not cover the held-out group; score both "
                     "artifacts over the whole task set and gate again. Which "
-                    "tasks are missing is withheld: naming them would publish "
-                    "the membership the group exists to withhold."
+                    "tasks are missing is withheld: with a test group drawn, "
+                    "naming them would say which of the two withheld groups "
+                    "each one belongs to."
                 ),
                 "sel_consultations": spent_after,
                 "compared": False,
