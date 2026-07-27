@@ -820,3 +820,68 @@ makes drift visible as an argument at the call site. The `| {...}` was three
 tokens and it defeated the entire purpose of the function it decorated. If a
 shared builder is load-bearing, a test has to assert that the call sites produce
 equal output, because the language will not.
+
+## Defect shape 21: a retraction that stops at the source document
+
+Round eighteen was not a code review. It was five unresolved threads on the
+pull request, and the two that mattered were the same defect wearing two file
+names: the agent-path claim this session had already retracted was still being
+asserted, in full, by `.agents/memory/episodes/` and
+`.agents/memory/causality/causal-graph.json`.
+
+The retraction itself was sound and had been made the same day the claim was
+published. The session log carried it. The README carried it. ADR-087 carried
+it, in both the finding section and Validation Status. What none of those
+reached was the generated tier below them, which had captured the claim before
+the retraction and then never ran again.
+
+The reason it never ran again is the interesting part. Every commit in this
+session used `SKIP_AUTOFIX=1`, adopted because `stage_fixed: true` drags
+working-tree modifications into the staged set and breaks atomic commits. That
+flag skips `extract-session-episodes` and `update-causal-graph`. So the
+workaround for one hook's staging behavior silently disabled the two hooks whose
+whole job is keeping derived memory consistent with the session log. The cost
+did not show up as a failure. It showed up as a stale assertion surviving in a
+committed artifact for eleven phases, and it took an external reviewer to find
+it.
+
+Regeneration was tried first and could not fix it. The hook invokes the
+extractor with `--preserve`, which merges a fresh extraction over the existing
+file rather than replacing it, so an event whose text is no longer derivable
+from the session log is never dropped. Re-running the hook confirmed the stale
+event survived untouched. The `--force` path does rebuild purely from the
+session log and does remove the claim, but it drops four events recording the
+round-sixteen and round-seventeen work and renumbers the rest. Regenerating
+would have destroyed more truth than it restored, so the stale event was
+corrected in place and the extractor re-run to prove `--preserve` carries the
+correction forward instead of reverting it.
+
+Three things generalize.
+
+First, a retraction is complete when every artifact that repeats the claim
+repeats the retraction, not when the source document does. Derived tiers are
+where a withdrawn claim goes to keep living, because nobody re-reads them and
+the generator that would fix them only runs on a commit path somebody may have
+opted out of.
+
+Second, a convenience flag that skips a class of hooks deserves an inventory of
+what it skips. `SKIP_AUTOFIX=1` reads like formatting. It is also memory
+consistency. The name describes the mechanism, not the blast radius.
+
+Third, an append-only generator is a design choice with a failure mode, and the
+failure mode is unreachable stale content. `--preserve` exists to protect
+accumulated detail that the source no longer carries, which is a real need, and
+the price is that nothing derived can ever be retracted by regeneration alone.
+Where that price is paid, the artifact needs a correction path that is not
+"run the generator again."
+
+A fourth, smaller finding from the same round is worth recording next to the
+round-fourteen entry it corrects. Defect shape 15 produced a refusal naming both
+the family bar and the corrected per-comparison bar, and a test asserting both
+numbers appear in the reason. Both numbers did appear. Neither was labeled, and
+the sentence read as though a word were missing, so a reader could not tell
+which number they had asked for and which one the Bonferroni correction had
+produced. Asserting that a value appears in a message is not the same as
+asserting the message is legible. The test now pins the labels and the
+arithmetic, including the family-of-one edge where the two numbers are equal and
+the division has to stay visible anyway.

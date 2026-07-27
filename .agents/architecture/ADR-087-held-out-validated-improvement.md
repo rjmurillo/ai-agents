@@ -142,7 +142,10 @@ Consequences. Withholding is the goal; a counted budget is what the current
 mechanism delivers, and it is what the requirements below can honestly
 demand.
 
-Five requirements follow.
+Five requirements follow. They are numbered 1 through 5 and are referred to
+elsewhere in this document as Decision Requirement 1 through Decision
+Requirement 5, to keep them distinct from the separately numbered list under
+Open Requirements.
 
 ### 1. The decision group is fixed before the first edit
 
@@ -207,7 +210,7 @@ derived from task contents or from trusted corpus provenance would work; it
 needs a seam that carries one. Sharing is the conservative direction, so the
 collision is accepted until that seam exists.
 
-Requirement 5 put a corpus identity into the seam, and the ledger key
+Decision Requirement 5 put a corpus identity into the seam, and the ledger key
 deliberately does not use it. Adding it would split budgets rather than merge
 them, and a caller who strips the envelope back to a bare mapping would land on
 a different key with the same held-out tasks. That is a budget reset reachable
@@ -537,11 +540,13 @@ write to. That is named under Open Requirements rather than claimed here.
 
 These block a move from `proposed` to `accepted`. They are listed as
 requirements rather than nice-to-haves because each one is a place where the
-document currently claims less than a reader might assume.
+document currently claims less than a reader might assume. The numbered items
+in this section are referred to as Open Requirement 1 through Open Requirement
+12, to keep them distinct from the Decision Requirements above.
 
-Requirement 1 is not in that category. It is a **prerequisite for the Decision
-statement's stronger form**, not future hardening, and it is listed first for
-that reason.
+Open Requirement 1 is not in that category. It is a **prerequisite for the
+Decision statement's stronger form**, not future hardening, and it is listed
+first for that reason.
 
 1. **A trusted controller that owns task definitions, scoring, and result
    files, and hands the optimizer only the optimize group.** Three separate
@@ -589,10 +594,11 @@ that reason.
    supply the missing samples. These are magnitudes from one paired re-run, not
    an estimated rate; a rate needs repeated replication, which is the work this
    requirement names.
-7. **A one-time reveal path for the test group.** Requirement 1 says the group
-   is read once at the end, but no command reads it: `score` accepts `--group
-   opt` only, and `gate` always reads `sel`. Either implement the reveal with
-   its own once-ever record, or drop the third group from the design.
+7. **A one-time reveal path for the test group.** Decision Requirement 1 says
+   the group is read once at the end, but no command reads it: `score` accepts
+   `--group opt` only, and `gate` always reads `sel`. Either implement the
+   reveal with its own once-ever record, or drop the third group from the
+   design.
 8. **A noise-parameter study before any reusable-holdout work.** See
    Alternatives Considered. `Thresholdout` is not rejected on merit; it is
    unadopted because nobody has chosen its parameters for the held-out sizes
@@ -616,7 +622,8 @@ that reason.
     can wake after its lease lapsed and another process took the lock, and both
     then write. It needs renewal plus a fencing token checked at the ledger
     write, which is enough machinery to want its own decision.
-12. **A corpus namespace with a trusted source.** Requirement 3 accepts that two
+12. **A corpus namespace with a trusted source.** Decision Requirement 3
+    accepts that two
     unrelated corpora with identical task ids and identical held-out membership
     share a budget, because the seam offers no corpus identity the caller did
     not supply. A namespace derived from task contents would fix it and needs a
@@ -626,13 +633,15 @@ that reason.
     claim was published before the mismatch was found. The same missing identity
     that lets two corpora share a budget lets two corpora be compared, and the
     comparison failure is the more expensive of the two because it produces a
-    verdict that looks valid. Requirement 5 closed the comparison half for the
+    verdict that looks valid. Decision Requirement 5 closed the comparison half
+    for the
     agent path, whose scorer publishes `fixture_set_sha`. What stays open is the
     budget half, and both halves for the rule and hook paths, which publish no
     corpus identity for the seam to carry.
 
 The default `--test-ratio` is 0.0, so the ordinary invocation produces optimize
-and selection groups only. Requirement 1's "test group, when present" describes
+and selection groups only. Decision Requirement 1's "test group, when present"
+describes
 an option that the default does not exercise. A reader should not assume a
 final untouched group exists unless the split was drawn with one.
 
@@ -817,7 +826,8 @@ already named the missing piece, that the seam carries no corpus identity. This
 is the first evidence of what that costs, and it raised the requirement from a
 budget-accounting nicety to a correctness gap: the same absence that lets two
 unrelated corpora share a ledger also lets two unrelated corpora be compared to
-each other. Requirement 5 closes the comparison half on the one path whose
+each other. Decision Requirement 5 closes the comparison half on the one path
+whose
 scorer publishes an identity.
 
 ### What follows for anyone running this loop
