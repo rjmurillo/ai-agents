@@ -11,11 +11,15 @@ with ``ls-remote``.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import NoReturn, cast
 
 EXIT_OK = 0
 EXIT_VERIFICATION = 1
@@ -24,6 +28,43 @@ EXIT_TRANSPORT = 3
 
 _OK_FLAGS = frozenset({" ", "+", "*", "="})
 _REJECT_FLAGS = frozenset({"!"})
+
+
+def _load_object_id_validator() -> Callable[[str], bool]:
+    module_path = (
+        Path(__file__).resolve().parents[2]
+        / "scripts"
+        / "validation"
+        / "object_id.py"
+    )
+    spec = importlib.util.spec_from_file_location("safe_push_object_id", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load object id validator from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    validator = vars(module)["is_full_object_id"]
+    if not callable(validator):
+        raise RuntimeError("object id validator is not callable")
+    return cast(Callable[[str], bool], validator)
+
+
+is_full_object_id = _load_object_id_validator()
+
+
+class SafePushArgumentParser(argparse.ArgumentParser):
+    """Argument parser that returns repository exit codes instead of exiting."""
+
+    def error(self, message: str) -> NoReturn:
+        raise SafePushError(message, EXIT_USAGE)
+
+
+def _expected_remote_sha_arg(value: str) -> str:
+    if not is_full_object_id(value):
+        raise argparse.ArgumentTypeError(
+            "--expected-remote-sha must be a full 40 or 64 character hexadecimal object id"
+        )
+    return value
+
 
 class SafePushError(Exception):
     """Raised when the push cannot be issued or cannot be verified."""
@@ -229,8 +270,14 @@ def safe_push(
 
     push_args = ["push", "--porcelain", remote, refspec]
     if force_with_lease:
-        if not expected_remote_sha:
+        if expected_remote_sha is None:
             audit.error = "--force-with-lease requires --expected-remote-sha"
+            raise SafePushError(audit.error, EXIT_USAGE, audit)
+        if not is_full_object_id(expected_remote_sha):
+            audit.error = (
+                "--expected-remote-sha must be a full 40 or 64 character "
+                "hexadecimal object id"
+            )
             raise SafePushError(audit.error, EXIT_USAGE, audit)
         push_args.insert(2, f"--force-with-lease={dest_ref}:{expected_remote_sha}")
 
@@ -275,7 +322,7 @@ def _emit_audit(audit: PushAudit) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = SafePushArgumentParser(
         description=(
             "Push HEAD to a named branch with explicit refspec and remote "
             "verification (issue #3412)."
@@ -294,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--expected-remote-sha",
+        type=_expected_remote_sha_arg,
         help="Remote SHA required by --force-with-lease=<dest>:<sha>.",
     )
     parser.add_argument(
@@ -301,7 +349,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Use --force-with-lease for intentional non-fast-forward updates.",
     )
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SafePushError as exc:
+        print(f"::error::safe push failed: {exc}", file=sys.stderr)
+        return exc.exit_code
 
     try:
         audit = safe_push(

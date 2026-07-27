@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from scripts.validation import git_hook_policy
+
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / ".github"
@@ -32,6 +34,8 @@ EXIT_OK = safe_push_pr_branch.EXIT_OK
 EXIT_VERIFICATION = safe_push_pr_branch.EXIT_VERIFICATION
 EXIT_TRANSPORT = safe_push_pr_branch.EXIT_TRANSPORT
 EXIT_USAGE = safe_push_pr_branch.EXIT_USAGE
+FULL_SHA1 = "a" * 40
+FULL_SHA256 = "b" * 64
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> str:
@@ -546,6 +550,118 @@ def test_main_rejects_flag_shaped_branch(capsys: pytest.CaptureFixture[str]) -> 
     assert main(["--branch=--force", "--repo-root", "."]) == EXIT_USAGE
 
 
+def _successful_audit(branch: str, remote: str, repo_root: str, **kwargs: Any) -> Any:
+    return safe_push_pr_branch.PushAudit(
+        branch=branch,
+        remote=remote,
+        requested_refspec=f"{FULL_SHA1}:refs/heads/{branch}",
+        local_sha=FULL_SHA1,
+        process_id=1,
+        verified=True,
+        expected_remote_sha=kwargs.get("expected_remote_sha"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("sha", "expected_code"),
+    [
+        (FULL_SHA1, EXIT_OK),
+        (FULL_SHA256, EXIT_OK),
+        ("abcdef12", EXIT_USAGE),
+        ("origin/main", EXIT_USAGE),
+        ("HEAD", EXIT_USAGE),
+        ("", EXIT_USAGE),
+        ("g" * 40, EXIT_USAGE),
+    ],
+)
+def test_main_validates_expected_remote_sha_at_parse_time(
+    sha: str,
+    expected_code: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_safe_push(
+        branch: str,
+        remote: str,
+        repo_root: str,
+        expected_remote_sha: str | None = None,
+        force_with_lease: bool = False,
+    ) -> Any:
+        calls.append(
+            {
+                "branch": branch,
+                "remote": remote,
+                "repo_root": repo_root,
+                "expected_remote_sha": expected_remote_sha,
+                "force_with_lease": force_with_lease,
+            }
+        )
+        return _successful_audit(
+            branch,
+            remote,
+            repo_root,
+            expected_remote_sha=expected_remote_sha,
+        )
+
+    monkeypatch.setattr(safe_push_pr_branch, "safe_push", fake_safe_push)
+
+    code = main(
+        [
+            "--branch",
+            "feature-x",
+            "--repo-root",
+            ".",
+            "--force-with-lease",
+            "--expected-remote-sha",
+            sha,
+        ]
+    )
+
+    assert code == expected_code
+    if expected_code == EXIT_OK:
+        assert calls == [
+            {
+                "branch": "feature-x",
+                "remote": "origin",
+                "repo_root": ".",
+                "expected_remote_sha": sha,
+                "force_with_lease": True,
+            }
+        ]
+    else:
+        assert calls == []
+        assert "full 40 or 64 character hexadecimal object id" in capsys.readouterr().err
+
+
+def test_safe_push_rejects_invalid_expected_remote_sha_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    calls: list[list[str]] = []
+    real_run_git = safe_push_pr_branch._run_git
+
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return real_run_git(args, repo_root)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", fake_run_git)
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push(
+            "feature-x",
+            "origin",
+            str(repo),
+            expected_remote_sha="origin/main",
+            force_with_lease=True,
+        )
+
+    assert excinfo.value.exit_code == EXIT_USAGE
+    assert [args for args in calls if args and args[0] == "push"] == []
+
+
 @pytest.mark.integration
 def test_main_success_emits_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     bare = _bare_remote(tmp_path)
@@ -599,14 +715,27 @@ def test_main_failure_emits_populated_audit(
 # ---------------------------------------------------------------------------
 
 
-def test_pre_push_pytest_entrypoint_excludes_integration_tests() -> None:
-    policy = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "validation"
-        / "git_hook_policy.py"
-    )
-    source = policy.read_text(encoding="utf-8")
+def test_pre_push_pytest_commands_include_safe_push_module() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
 
-    assert '"-m"' in source
-    assert '"not integration"' in source
+    assert git_hook_policy._pytest_commands(repo_root) == [
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(repo_root / "tests"),
+            "--ignore",
+            str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not safe_push_transport",
+            str(safe_push_tests),
+        ],
+    ]
