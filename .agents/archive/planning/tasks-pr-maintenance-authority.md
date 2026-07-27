@@ -1,6 +1,6 @@
 # Task List: PR Maintenance Authority Enhancement
 
-**Source**: `.agents/planning/PRD-pr-maintenance-authority.md`
+**Source**: `.agents/archive/planning/PRD-pr-maintenance-authority.md`
 **Generated**: 2025-12-26
 **Target Release**: Next
 
@@ -1089,7 +1089,7 @@ VERIFY: Run `cat .agents/memories/pr-changes-requested-semantics.md` to confirm 
 
 ## Handoff Validation Checklist
 
-- [x] Tasks document saved to `.agents/planning/tasks-pr-maintenance-authority.md`
+- [x] Tasks document saved to `.agents/archive/planning/tasks-pr-maintenance-authority.md`
 - [x] All tasks have unique IDs (Phase.Task format)
 - [x] All tasks have acceptance criteria
 - [x] All tasks have complexity estimates (XS/S/M/L/XL)

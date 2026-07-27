@@ -3,7 +3,7 @@
 **Date**: 2026-01-23 (Revised)
 **Milestone**: v0.3.0 - Memory Enhancement and Quality
 **Total Issues**: 23 (revised from 29 after MCP deferral)
-**Master Plan**: `.agents/planning/v0.3.0/PLAN.md`
+**Master Plan**: `.agents/archive/planning/v0.3.0/PLAN.md`
 **Analysis Session**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 > **⚠️ SCOPE REVISION (2026-01-23)**: 17 issues deferred to Future milestone:
@@ -35,7 +35,7 @@ Items ranked by:
 
 #### 2. ~~#739 - Workflow Orchestration Enhancement~~ **DEFERRED**
 - **Type**: Epic (P1)
-- **PRD**: `.agents/planning/prd-workflow-orchestration-enhancement.md`
+- **PRD**: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
 - **Impact**: Numbered workflow commands, tiered agent hierarchy
 - **Scope**: 13+ agents, automation workflows
 - **Dependencies**: MCP infrastructure (#582-592) - **ALSO DEFERRED**
@@ -63,7 +63,7 @@ Items ranked by:
 
 #### 5. #747 - Serena-Forgetful Memory Synchronization (Phase 2B)
 - **Type**: Feature (P1)
-- **Plan**: `.agents/planning/phase2b-memory-sync-strategy.md`
+- **Plan**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 - **Impact**: Automated memory sync, prevents stale results
 - **Dependencies**: #751 (memory fragmentation resolved)
 - **Scope**: 5 milestones, 3 weeks
@@ -147,7 +147,7 @@ All 10 items have:
 - **Planning**: `.agents/planning/INDEX.md`
 - **PRDs**: 
   - Memory Enhancement: `.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
-  - Workflow Orchestration: `.agents/planning/prd-workflow-orchestration-enhancement.md`
+  - Workflow Orchestration: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
 - **Session Log**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 ## Success Criteria for v0.3.0 (REVISED)
@@ -160,4 +160,4 @@ All 10 items have:
 | ~~Workflow~~ | ~~<1min discovery, <5% errors, 95% doc complete~~ | ~~User experience transformation~~ | ❌ Deferred |
 | ~~MCP Infrastructure~~ | ~~3 servers operational~~ | ~~Foundation for future work~~ | ❌ Deferred |
 
-**Authoritative Plan**: See `.agents/planning/v0.3.0/PLAN.md` for complete scope and success metrics.
+**Authoritative Plan**: See `.agents/archive/planning/v0.3.0/PLAN.md` for complete scope and success metrics.

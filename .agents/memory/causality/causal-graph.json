@@ -20119,7 +20119,8 @@
       "type": "commit",
       "label": "commit: Commit: 19d4a761",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:09:55.160095+00:00"
     },
@@ -20128,7 +20129,8 @@
       "type": "commit",
       "label": "commit: Commit: ae8be1c0",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:09:55.160168+00:00"
     },
@@ -20146,7 +20148,8 @@
       "type": "commit",
       "label": "commit: Commit: 9f1df6b3",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154595+00:00"
     },
@@ -20155,7 +20158,8 @@
       "type": "commit",
       "label": "commit: Commit: f2094108",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154685+00:00"
     },
@@ -20164,7 +20168,8 @@
       "type": "commit",
       "label": "commit: Commit: c74c8b07",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154761+00:00"
     },
@@ -20173,7 +20178,8 @@
       "type": "commit",
       "label": "commit: Commit: 0809412c",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154833+00:00"
     },
@@ -20182,7 +20188,8 @@
       "type": "commit",
       "label": "commit: Commit: 50860bf0",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154905+00:00"
     },
@@ -20191,7 +20198,8 @@
       "type": "commit",
       "label": "commit: Commit: 53f220e9",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.154976+00:00"
     },
@@ -20200,7 +20208,8 @@
       "type": "commit",
       "label": "commit: Commit: 48c2b938",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155048+00:00"
     },
@@ -20209,7 +20218,8 @@
       "type": "commit",
       "label": "commit: Commit: 3f40fac7",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155119+00:00"
     },
@@ -20218,7 +20228,8 @@
       "type": "commit",
       "label": "commit: Commit: 1bf125d7",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155191+00:00"
     },
@@ -20644,6 +20655,87 @@
         "episode-2026-04-27-session-1761"
       ],
       "created": "2026-07-27T08:26:30.325159+00:00"
+    },
+    {
+      "id": "fcb6f96ff092",
+      "type": "milestone",
+      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317091+00:00"
+    },
+    {
+      "id": "d9a52f8e4422",
+      "type": "milestone",
+      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317207+00:00"
+    },
+    {
+      "id": "99e8b9814264",
+      "type": "milestone",
+      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317283+00:00"
+    },
+    {
+      "id": "f45b7eb16607",
+      "type": "milestone",
+      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317373+00:00"
+    },
+    {
+      "id": "e0f161010107",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.318386+00:00"
+    },
+    {
+      "id": "2d5d7edffe7e",
+      "type": "milestone",
+      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294867+00:00"
+    },
+    {
+      "id": "8a2cea8f7bc4",
+      "type": "milestone",
+      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294953+00:00"
+    },
+    {
+      "id": "59384feeea81",
+      "type": "commit",
+      "label": "commit: Commit: c40fc2b3",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:14:10.574057+00:00"
+    },
+    {
+      "id": "3be75c7c8f0d",
+      "type": "milestone",
+      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:34:46.577440+00:00"
     }
   ],
   "patterns": [

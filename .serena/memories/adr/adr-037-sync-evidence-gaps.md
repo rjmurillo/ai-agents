@@ -83,7 +83,7 @@
 
 - **ADR-037**: Lines 286-437 (Synchronization Strategy)
 - **Analysis**: `.agents/analysis/130-adr037-sync-evidence-review.md`
-- **Planning**: `.agents/planning/phase2b-memory-sync-strategy.md`
+- **Planning**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 - **Issue**: #747
 - **PR**: #746
 

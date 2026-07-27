@@ -6,7 +6,7 @@
 
 ## Plan Location
 
-`.agents/planning/v0.3.1/PLAN.md` - Comprehensive 12-month migration plan
+`.agents/archive/planning/v0.3.1/PLAN.md` - Comprehensive 12-month migration plan
 
 ## Structure
 
@@ -66,7 +66,7 @@
 ## Agent Readiness
 
 **Immediate actions for agents**:
-1. Read `.agents/planning/v0.3.1/PLAN.md`
+1. Read `.agents/archive/planning/v0.3.1/PLAN.md`
 2. Check Track Status Tracker for available work
 3. Use worktree setup commands for parallel execution
 4. Start with Track A (#1050) if no other work in progress
