@@ -19,8 +19,8 @@ is filed as issue #3214 and unblocks the hook removal in issue #3216, part of
 the #3197 vendored-hook ROI review. It records the decision only. It does not
 delete any hook. The deletion is the implementation issue this unblocks.
 
-Change: mark the LSP-first runtime enforcement hooks retired. That is the five
-PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
+Change: mark the LSP-first runtime enforcement hooks retired. The retired set is
+the five PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
 `invoke_lsp_bash_grep_guard.py`, `invoke_lsp_glob_guard.py`,
 `invoke_lsp_pre_delegation_guard.py`), the two retired PostToolUse trackers
 (`invoke_lsp_read_tracker.py`, `invoke_lsp_usage_tracker.py`), the SessionStart
@@ -46,7 +46,7 @@ Copilot logs). It found:
   incantation agents emit to satisfy the gate), #2200, #2454 (merge-conflict
   reads), and #2622 (LSP-down hard blocks), plus multiple blocks this week.
 - The retired Read gate fired on the hottest tool. The deleted `invoke_lsp_read_guard.py` ran on
-  every Read to enforce a preference, not a safety property, and pays the 250 ms
+  every Read to enforce a preference, not a safety property, and paid the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
 - The preference now has two enforcement-free carriers.
   `.claude/rules/lsp-first.md` ships as context every session, Serena Init is
@@ -73,12 +73,10 @@ What this amendment does NOT change:
   documents (the env-var escape hatches, the hook-tier description) are cleaned
   up by the #3216 removal when the hooks they describe are deleted; the
   three-tier navigation preference the file carries is what stays.
-- Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay while the
-  hook remains present. Lefthook handles Git events and has no user-prompt
-  lifecycle event. Issue #3216 classified the advisory nudge for removal because
-  static steering and Serena Init already carry the behavior. The hook has not
-  yet been removed. If removed from the vendored surface, it needs no Lefthook
-  replacement.
+- Serena Init (AGENTS.md BLOCKING) stays. The #1993 re-assertion hook has been
+  removed. Lefthook handles Git events and has no user-prompt lifecycle event.
+  Issue #3216 classified the advisory nudge for removal because static steering
+  and Serena Init already carry the behavior. It needs no Lefthook replacement.
 - No security property changes. Section 4 already states the gate-state is not a
   security boundary and Section 7 shows the detection modules are CWE-78 and
   CWE-22 safe by construction; the modules are removed with the hooks, not
@@ -101,9 +99,9 @@ This repository already mandates Serena (an MCP symbol server) first, but only
 through steering, never enforcement:
 
 - AGENTS.md makes Serena Init BLOCKING at session start.
-- A previously registered per-turn UserPromptSubmit re-assertion hook
+- A removed per-turn UserPromptSubmit re-assertion hook
   (`invoke_serena_reassertion.py`, issue #1993, commit `e6fa83a9`, merged
-  2026-05-30) re-injects a Serena reminder every prompt.
+  2026-05-30) previously re-injected a Serena reminder every prompt.
 - `.claude/rules/claude-model-patches.md` steers to dedicated tools over shell.
 
 Measured drift evidence: 2026-05-10 session 16 logged 10+ native Read calls on
@@ -369,7 +367,7 @@ here.
   that activation surface: a PostToolUse usage tracker that observes LSP tool
   calls and owns the state (single system-of-record, not inter-component
   inference), so the leakage concern does not apply. The #1993 stateless steering
-  remains; this enforcement sits above it.
+  was later removed; this enforcement originally sat above it.
 - **ADR-033 (routing gates)**: sits beside the routing gates; agent-delegation
   gating has a single owner (the pre-delegation guard) to avoid double-gating.
 - **ADR-061 (hook-matcher-shims-delegate-pattern, Withdrawn 2026-05-27)**: the
