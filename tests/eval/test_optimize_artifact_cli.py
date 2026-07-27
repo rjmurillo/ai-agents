@@ -6011,3 +6011,153 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
         )
         assert code == EXIT_OK
         assert out["added"] is True
+
+
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+
+
+@pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
+)
+class TestAnUnreadableRecordIsNotAnEmptyOne:
+    """`Path.exists()` answers False to two different questions.
+
+    It is False when the file is absent, and False when whether it is absent
+    cannot be determined because `stat` was refused. Both readers here treated
+    that False as "nothing recorded yet", which is right for the first and
+    the worst available answer for the second.
+
+    On the buffer the cost is a verdict flip, not a crash. Measured against
+    the same patch and the same buffer: readable, `buffer-check` reports
+    `seen: true` and exits 1, the code the loop reads as "already rejected,
+    do not retry". With the buffer's directory unreadable it reports
+    `seen: false` and exits 0. An unreadable buffer silently un-rejects every
+    rejection in it, and nothing in the output says so.
+
+    On the ledger the cost is the budget. An unreadable ledger reads as zero
+    consultations spent, which is the one answer that lets a caller keep
+    spending. The ledger exists because a budget the caller supplies is not a
+    budget; a budget the caller can erase by making the file unreadable is
+    not one either.
+
+    The fix is to ask the question that was meant: only `FileNotFoundError`
+    means absent, and every other `OSError` is a config error, which is what
+    `_read_json` already does one call further in.
+    """
+
+    def _sealed(self, tmp_path, name):
+        holder = tmp_path / name
+        holder.mkdir()
+        return holder
+
+    def _buffer_with_a_rejection(self, tmp_path, capsys):
+        holder = self._sealed(tmp_path, "held")
+        buffer = holder / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        return holder, buffer, patches
+
+    def test_a_readable_buffer_still_reports_the_rejection(self, tmp_path, capsys):
+        _, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert (code, out["seen"]) == (EXIT_LOGIC, True)
+
+    def test_an_unreadable_buffer_does_not_report_the_rejection_as_unseen(
+        self, tmp_path, capsys
+    ):
+        holder, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
+        holder.chmod(0o000)
+        try:
+            code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        finally:
+            holder.chmod(0o755)
+        assert (code, out.get("seen")) != (EXIT_OK, False)
+
+    def test_an_unreadable_buffer_is_reported_as_a_config_error(self, tmp_path, capsys):
+        holder, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
+        holder.chmod(0o000)
+        try:
+            code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        finally:
+            holder.chmod(0o755)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_an_absent_buffer_still_reads_as_nothing_rejected_yet(self, tmp_path, capsys):
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(
+            capsys, "buffer-check", "--buffer", tmp_path / "missing.json", "--patches", patches
+        )
+        assert (code, out["seen"]) == (EXIT_OK, False)
+
+    def _gate_fixture(self, tmp_path, capsys, monkeypatch):
+        root = tmp_path / "ledger"
+        root.mkdir()
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(root))
+        tasks = tmp_path / "tasks.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(12)), encoding="utf-8")
+        _, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "unread34")
+        inc = _write(tmp_path, "i.json", {t: False for t in split["sel"]})
+        cand = _write(tmp_path, "c.json", {t: True for t in split["sel"]})
+        return root, split, inc, cand
+
+    def _run_the_gate(self, capsys, tmp_path, split, inc, cand):
+        return _run(
+            capsys, "gate", "--split", tmp_path / "split.json",
+            "--incumbent", inc, "--candidate", cand,
+            "--max-consultations", "5",
+            "--incumbent-fingerprint", split["fingerprint"],
+        )
+
+    def test_an_unreadable_ledger_does_not_read_as_an_unspent_budget(self, tmp_path):
+        """Unit level on purpose: through the CLI this site is latent.
+
+        `cmd_gate` takes the ledger lock before it reads the ledger, and the
+        lock is created in the same directory, so any barrier strong enough to
+        refuse `stat` on the ledger also refuses the lock's `mkdir` and fails
+        one stage earlier. That ordering is a fact about today's call site, not
+        a property anyone stated, and it is the only thing standing between
+        this guard and a budget that reads as unspent because it could not be
+        read. Fixed as the general form rather than left to the ordering.
+        """
+        holder = tmp_path / "sealed"
+        holder.mkdir()
+        ledger = holder / "k.ledger"
+        ledger.write_text('{"consultations": 4}', encoding="utf-8")
+        holder.chmod(0o000)
+        try:
+            with pytest.raises(oa.ConfigError):
+                oa._read_ledger(ledger, "k", 5, None)
+        finally:
+            holder.chmod(0o755)
+
+    def test_an_absent_ledger_still_reads_as_an_unspent_budget(self, tmp_path):
+        assert oa._read_ledger(tmp_path / "gone.ledger", "k", 5, None) == 0
+
+    def test_a_ledger_whose_own_mode_refuses_reading_was_already_refused(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The reachable half, kept as a regression guard.
+
+        A file whose own mode is 000 still answers `stat`, because only the
+        parent's execute bit gates that. So `exists()` was right here and
+        `_read_json` reported the failure. This is the case the guard handled
+        correctly, and it must keep working after the guard changes.
+        """
+        root, split, inc, cand = self._gate_fixture(tmp_path, capsys, monkeypatch)
+        self._run_the_gate(capsys, tmp_path, split, inc, cand)
+        ledger = next(root.glob("*.ledger"))
+        ledger.chmod(0o000)
+        try:
+            code, out = self._run_the_gate(capsys, tmp_path, split, inc, cand)
+        finally:
+            ledger.chmod(0o644)
+        assert code == EXIT_CONFIG
+        assert oa._holdout_key(split) not in out["error"]
+
+    def test_a_working_gate_still_spends_from_an_absent_ledger(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        _, split, inc, cand = self._gate_fixture(tmp_path, capsys, monkeypatch)
+        code, _ = self._run_the_gate(capsys, tmp_path, split, inc, cand)
+        assert code in (EXIT_OK, EXIT_LOGIC)

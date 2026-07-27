@@ -124,6 +124,30 @@ def _read_json(path: Path) -> object:
         raise ConfigError(f"could not read {path}: {exc}") from exc
 
 
+def _absent(path: Path) -> bool:
+    """Whether `path` genuinely does not exist.
+
+    `Path.exists()` cannot answer this. It returns False when the file is
+    absent and also when whether it is absent is unknowable, because it
+    swallows every `OSError` from `stat` and reports the same False. Callers
+    that read that False as "nothing recorded yet" are right for the first
+    case and quietly wrong for the second: an unreadable rejection buffer
+    reads as an empty one, which un-rejects every patch in it, and an
+    unreadable ledger reads as an unspent budget.
+
+    Only `FileNotFoundError` means absent. Everything else is a config error,
+    which is what `_read_json` already does one call further in, so the pair
+    now reports one failure one way.
+    """
+    try:
+        path.stat()
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        raise ConfigError(f"could not read {path}: {exc}") from exc
+    return False
+
+
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -1128,7 +1152,7 @@ def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) ->
     into another group's place rather than an honest redraw: a genuinely new
     held-out group has a different key and therefore its own file.
     """
-    if not path.exists():
+    if _absent(path):
         return 0
     data = _read_json(path)
     if not isinstance(data, Mapping):
@@ -1595,9 +1619,10 @@ def _write_atomic(path: Path, text: str) -> None:
 
 
 def _read_buffer(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
+    if _absent(path):
         # A first run has no ledger yet. Treating that as empty keeps the loop
-        # from needing a separate init step.
+        # from needing a separate init step. `_absent` rather than `exists`,
+        # because a buffer that cannot be read is not one with nothing in it.
         return []
     data = _read_json(path)
     if not isinstance(data, list):
