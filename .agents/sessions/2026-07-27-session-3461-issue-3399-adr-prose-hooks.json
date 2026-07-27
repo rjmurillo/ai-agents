@@ -97,6 +97,10 @@
     {
       "action": "ADR Review Protocol",
       "result": "adr-review skill requirement documented for factual ADR prose corrections. No decision changed; evidence lives in .agents/analysis/2026-07-27-issue-3399-adr-prose-hook-reference-debate.md."
+    },
+    {
+      "action": "Committed ADR prose batch 1",
+      "result": "ADR-033 and ADR-061 references now identify historical or current enforcement surfaces."
     }
   ],
   "endingCommit": "",

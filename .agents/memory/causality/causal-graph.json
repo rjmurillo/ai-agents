@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:07:20.371597+00:00",
+  "updated": "2026-07-27T12:08:31.076273+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21294,6 +21294,15 @@
         "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
       ],
       "created": "2026-07-27T12:07:20.365545+00:00"
+    },
+    {
+      "id": "9ef31c494e3d",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:08:31.070239+00:00"
     }
   ],
   "patterns": [

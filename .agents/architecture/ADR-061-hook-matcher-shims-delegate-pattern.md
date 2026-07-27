@@ -14,7 +14,7 @@ This ADR was withdrawn before acceptance after a 6-agent debate (architect, crit
 
 1. **Zero drift on `main` today.** Direct `diff` between multi-matcher shims of the same canonical hook produces no output. The drift evidence cited in the Context section is entirely from the unmerged PR 1763 branch, where partial regeneration during PR development produced divergent matcher shims. That is a workflow failure, not a structural defect of the inline-body design.
 2. **Alternative B is a 2-hour fix.** Deterministic full-tree regeneration (`generate_hooks.py` always regenerates every matcher shim from canonical on every run) plus a CI step (`git diff --exit-code src/copilot-cli/hooks/` after generation) eliminates the drift root cause at one-tenth the cost. No spec amendment. No `_impl/` import surface. No additional attack surface.
-3. **Delegate-shim reintroduces drift one layer deeper.** The analyst surfaced that after the refactor, a direct edit to `_impl/invoke_X.py` would pass all three parity rules proposed in this ADR while drifting from the canonical `.claude/hooks/<Event>/<hook>.py`. A fourth rule would be required, which is itself the same shape of drift the ADR claims to eliminate, just one layer down.
+3. **Delegate-shim reintroduces drift one layer deeper.** The analyst surfaced that after the withdrawn refactor, a direct edit to the superseded `_impl/invoke_X.py` layout would pass all three parity rules proposed in this ADR while drifting from the canonical `.claude/hooks/<Event>/<hook>.py`. A fourth rule would be required, which is itself the same shape of drift the ADR claims to eliminate, just one layer down.
 4. **Premature abstraction.** On `main`, only three hooks have two matchers each. The ADR projected toward "all hooks multi-matcher" without growth evidence. Per `.claude/rules/philosophy-of-software-design.md`, this is a speculative-generality smell.
 5. **Opportunity cost.** Holding PR 1763 for a multi-day structural refactor while alternative B unblocks it in 2 hours has negative ROI against the projected (not observed) failure rate.
 
@@ -55,7 +55,7 @@ PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) registers `invoke_false_c
 | Same pair | One has midnight-spanning session-log fallback; the other does not |
 | Same pair | One imports `from datetime import UTC, datetime`; the other adds `timedelta` |
 
-Same hook, four files, divergent gate logic. Runtime behavior depends on which matcher fires. The canonical `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` was edited; some shims got regenerated, some did not.
+Same hook, four files, divergent gate logic. Runtime behavior depends on which matcher fires. The previously canonical `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` was edited; some shims got regenerated, some did not.
 
 ### Cost evidence (current main, multi-matcher hooks)
 
@@ -100,7 +100,7 @@ invoke_<hook>__<MatcherTokens>_<hash>.py   # thin delegate shim (one per matcher
 
 Single source of truth per concern: hook body in `_impl/invoke_<hook>.py`, dispatch logic in `_impl/_shim_runtime.py`, matcher metadata in the thin shim.
 
-A source edit to `.claude/hooks/<Event>/invoke_X.py` regenerates exactly one file (`_impl/invoke_X.py`). All matcher shims for that hook continue to delegate to it. Drift between matchers of the same hook becomes structurally impossible.
+The superseded proposal expected a source edit to `.claude/hooks/<Event>/invoke_X.py` to regenerate exactly one file (`_impl/invoke_X.py`). All matcher shims for that hook would continue to delegate to it. Drift between matchers of the same hook would become structurally impossible.
 
 ## Prior Art Investigation
 
@@ -199,7 +199,7 @@ Exit codes per ADR-035: 0 success, 1 logic, 2 config.
 
 Compliance verified by the extended `validate_install_parity.py`:
 
-- **Rule 1**: every thin shim (`invoke_X__*.py` at the event-dir root) has a sibling `_impl/invoke_X.py`.
+- **Superseded Rule 1**: every thin shim (`invoke_X__*.py` at the event-dir root) has a sibling `_impl/invoke_X.py`.
 - **Rule 2**: no two thin shims for the same source hook contain divergent body bytes (the body lives in `_impl/`; thin shims only differ in matcher metadata).
 - **Rule 3**: `_shim_runtime.py` exists exactly once per event directory under `_impl/`.
 

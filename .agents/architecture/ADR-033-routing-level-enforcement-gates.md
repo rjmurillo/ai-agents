@@ -383,7 +383,7 @@ SkillCreator enforces:
 
 ### Phase 3.5: Retrospective Gate (Issue #618)
 
-Implemented `invoke_retrospective_gate.py` to enforce retrospective before push:
+The previously implemented `invoke_retrospective_gate.py` enforced retrospective before push:
 
 1. **Trigger**: `git push` commands
 2. **Evidence Requirements** (any satisfies):
@@ -461,13 +461,13 @@ PR #3246 (Refs #3194) deleted `invoke_routing_gates.py`, the PreToolUse hook tha
 
 The hook was structurally dead, enforcing nothing while costing startup and dispatch overhead:
 
-- Its matcher fired only on raw `gh pr create` and `gh pr merge`. In the same PreToolUse event, `invoke_skill_first_guard.py` already denies those raw commands and steers callers to the GitHub skill scripts, so the routing_gates matcher never reached a live command.
+- Its matcher fired only on raw `gh pr create` and `gh pr merge`. In the same PreToolUse event, the previously registered `invoke_skill_first_guard.py` already denied those raw commands and steered callers to the GitHub skill scripts, so the routing_gates matcher never reached a live command.
 - Its deny path used the legacy exit-0 JSON payload, which the current harness ignores, so even on a match it could not block.
 
 ### What still enforces
 
 - Gate 1 (Session Protocol) remains, enforced by the session-log guard on `git commit` and `gh pr create` (it has no `gh pr merge` matcher).
-- The Retrospective gate (Phase 3.5) remains on `git push`.
+- The Retrospective gate (Phase 3.5) remains on `git push`, enforced by the lefthook `retrospective-policy` job.
 - Architecture-change governance is enforced by the adr-review guard, which is a separate hook from the retired routing_gates hook.
 
 ### Where the advisory intent went
