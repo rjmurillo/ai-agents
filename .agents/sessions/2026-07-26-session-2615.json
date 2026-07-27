@@ -125,7 +125,7 @@
       "outcome": "Corrupting .github/instructions/ci-scripts.instructions.md leaves tests/build_scripts/test_generate_rules.py green at 43 passed. build_all.py --check catches it with exit 2 and STALENESS DETECTED, and that is what lefthook and two workflows run. The generator's own tests are not the drift gate."
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "0fd7210a81",
   "nextSteps": [
     "Report to the user that the open issue count is 17, not the 31 the objective assumed.",
     "Skill-local _get_repo_root copies each say 'Canonical reference: scripts/github_core/repo.py::get_repo_root' while duplicating its body; that duplication is worth its own issue.",
