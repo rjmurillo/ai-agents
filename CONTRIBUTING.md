@@ -42,8 +42,9 @@ Thank you for your interest in contributing to this project. This guide explains
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
 6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-7. Make your changes following the guidelines below
-8. Submit a pull request
+7. Register git merge drivers: `uv run --frozen python scripts/maintenance/install_merge_drivers.py`
+8. Make your changes following the guidelines below
+9. Submit a pull request
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 

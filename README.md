@@ -498,14 +498,15 @@ If you're contributing code or running tests locally:
 
 3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
 4. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-5. Run tests to verify setup:
+5. Register git merge drivers: `uv run --frozen python scripts/maintenance/install_merge_drivers.py`
+6. Run tests to verify setup:
 
    ```bash
    python -m pytest tests/ -v
    ```
 
-6. Make changes following the guidelines
-7. Submit a pull request
+7. Make changes following the guidelines
+8. Submit a pull request
 
 ### Agent Development
 

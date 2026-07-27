@@ -538,4 +538,15 @@
 # already produces today: the unregistered state degrades to the status quo, it
 # does not corrupt the graph.
 #
+# WHAT THIS CANNOT DO
+#
+# GitHub builds refs/pull/N/merge in its backend before any runner starts. That
+# backend reads this attributes entry, but it cannot read this clone's local git
+# config and cannot run repository setup code. So this driver cannot make
+# GitHub's merge ref clean when both sides touched the graph. The honest
+# mitigations are architectural: stop committing the generated graph, shard it so
+# branches rarely edit the same blob, regenerate it after merge, or let the merge
+# queue surface the conflict. Check readers must treat UNKNOWN or CONFLICTING
+# mergeability as not green because missing merge refs skip most workflows.
+#
 .agents/memory/causality/causal-graph.json merge=causal-graph
