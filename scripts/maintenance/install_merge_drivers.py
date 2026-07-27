@@ -14,6 +14,7 @@ if the driver is already registered with the value we want, nothing is written.
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -54,36 +55,49 @@ def _interpreter() -> str:
 
 
 # driver name -> (config key suffix, value)
-_DRIVERS: dict[str, dict[str, str]] = {
-    "causal-graph": {
-        "name": "Union merge for the generated causal graph",
-        # Git runs a merge driver from the top of the working tree even when
-        # `git merge` was invoked in a subdirectory, so the relative script path
-        # resolves. Verified by probe; see PR #3348.
-        #
-        # %O %A %B are quoted as a matter of shell hygiene. Git substitutes them
-        # into this string before sh parses it, and today it substitutes bare
-        # temp names like .merge_file_yvRBP2 that cannot contain a space.
-        #
-        # A bare, PATH-resolved interpreter name rather than `uv run --frozen
-        # python` or an absolute venv path. The driver imports only argparse,
-        # json, sys, pathlib and typing, so it needs no project environment
-        # (any Python >=3.10 on PATH runs it), and routing it through uv would
-        # let a merge fail wherever uv cannot run: offline, before the first
-        # sync, or in a clone that never installed it. A failed driver is not a
-        # loud error, it is a silent fall back to the text merge and the
-        # conflict this driver exists to eliminate.
-        #
-        # The name (not an absolute path) is what keeps this correct across git
-        # worktrees. Linked worktrees share one `.git/config`, so an absolute
-        # venv path baked by one worktree breaks every other worktree the moment
-        # that venv is relocated or deleted (issue #3418). A bare name resolves
-        # against PATH at merge time and cannot dangle. It is written to
-        # `git config --local`, never committed, and re-registered from
-        # pre-commit whenever the computed value differs.
-        "driver": (f'"{_interpreter()}" scripts/validation/merge_causal_graph.py "%O" "%A" "%B"'),
-    },
-}
+_CAUSAL_GRAPH_DRIVER = Path("scripts/validation/merge_causal_graph.py")
+_TRUSTED_COPY_DIR = Path("ai-agents-merge-drivers")
+
+
+def _driver_command(script_path: Path = _CAUSAL_GRAPH_DRIVER) -> str:
+    return f'"{_interpreter()}" "{script_path.as_posix()}" "%O" "%A" "%B"'
+
+
+def _drivers(script_path: Path = _CAUSAL_GRAPH_DRIVER) -> dict[str, dict[str, str]]:
+    return {
+        "causal-graph": {
+            "name": "Union merge for the generated causal graph",
+            # Git runs a merge driver from the top of the working tree even when
+            # `git merge` was invoked in a subdirectory, so the relative script
+            # path resolves. Verified by probe; see PR #3348.
+            #
+            # %O %A %B are quoted as a matter of shell hygiene. Git substitutes
+            # them into this string before sh parses it, and today it
+            # substitutes bare temp names like .merge_file_yvRBP2 that cannot
+            # contain a space.
+            #
+            # A bare, PATH-resolved interpreter name rather than `uv run
+            # --frozen python` or an absolute venv path. The driver imports
+            # only argparse, json, sys, pathlib and typing, so it needs no
+            # project environment (any Python >=3.10 on PATH runs it), and
+            # routing it through uv would let a merge fail wherever uv cannot
+            # run: offline, before the first sync, or in a clone that never
+            # installed it. A failed driver is not a loud error, it is a silent
+            # fall back to the text merge and the conflict this driver exists
+            # to eliminate.
+            #
+            # The default relative script path keeps local worktrees correct.
+            # Linked worktrees share one `.git/config`, so an absolute venv path
+            # baked by one worktree breaks every other worktree the moment that
+            # venv is relocated or deleted (issue #3418). CI callers that hold
+            # secrets use install_trusted_copy() instead, which registers a copy
+            # under the git common dir before checking out PR-controlled code.
+            "driver": _driver_command(script_path),
+        },
+    }
+
+
+_DRIVERS: dict[str, dict[str, str]] = _drivers()
 
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -103,9 +117,9 @@ def _current(key: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def install() -> int:
-    """Return 0 when every driver is registered, 1 when git rejected a write."""
-    for driver, settings in _DRIVERS.items():
+def install(script_path: Path = _CAUSAL_GRAPH_DRIVER) -> int:
+    """Return 0 when every driver is registered, 2 when git rejected a write."""
+    for driver, settings in _drivers(script_path).items():
         for setting, value in settings.items():
             key = f"merge.{driver}.{setting}"
             if _current(key) == value:
@@ -123,5 +137,45 @@ def install() -> int:
     return 0
 
 
+def _git_common_dir() -> Path:
+    result = _git(["rev-parse", "--git-common-dir"])
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "could not resolve git common dir")
+    common_dir = Path(result.stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = (_PROJECT_ROOT / common_dir).resolve()
+    return common_dir
+
+
+def install_trusted_copy() -> int:
+    """Register a driver copy outside the working tree for secret-bearing CI."""
+    try:
+        trusted_dir = _git_common_dir() / _TRUSTED_COPY_DIR
+        trusted_dir.mkdir(parents=True, exist_ok=True)
+        source = _PROJECT_ROOT / _CAUSAL_GRAPH_DRIVER
+        target = trusted_dir / _CAUSAL_GRAPH_DRIVER.name
+        shutil.copy2(source, target)
+    except OSError as exc:
+        print(f"ERROR: could not prepare trusted merge driver copy: {exc}", file=sys.stderr)
+        return 2
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    return install(target)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--trusted-copy",
+        action="store_true",
+        help="Copy drivers under the git common dir before registering them.",
+    )
+    args = parser.parse_args(argv)
+    if args.trusted_copy:
+        return install_trusted_copy()
+    return install()
+
+
 if __name__ == "__main__":
-    sys.exit(install())
+    sys.exit(main())

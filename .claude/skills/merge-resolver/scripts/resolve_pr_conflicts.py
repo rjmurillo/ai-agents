@@ -299,6 +299,29 @@ def _run_git(
         )
 
 
+def _register_merge_drivers(*, trusted_copy: bool = False) -> bool:
+    """Register repository merge drivers before running a local git merge."""
+    command = [
+        sys.executable,
+        "scripts/maintenance/install_merge_drivers.py",
+    ]
+    if trusted_copy:
+        command.append("--trusted-copy")
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def resolve_conflicts_runner(
     branch_name: str,
     target_branch: str,
@@ -322,6 +345,10 @@ def resolve_conflicts_runner(
             f"[DryRun] Would resolve conflicts for branch {branch_name} in GitHub runner mode"
         )
         result["success"] = True
+        return result
+
+    if not _register_merge_drivers(trusted_copy=True):
+        result["message"] = "Failed to register trusted merge drivers before merge"
         return result
 
     # Fetch PR branch and target branch
@@ -420,6 +447,10 @@ def resolve_conflicts_worktree(
             f"and resolve conflicts for PR #{pr_number}"
         )
         result["success"] = True
+        return result
+
+    if not _register_merge_drivers():
+        result["message"] = "Failed to register merge drivers before merge"
         return result
 
     try:

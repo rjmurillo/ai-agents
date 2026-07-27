@@ -157,6 +157,33 @@ class TestResolvePrConflicts:
         assert "files_blocked" in result
 
 
+
+    def test_runner_registers_trusted_merge_drivers_before_checkout(self) -> None:
+        calls: list[tuple[str, ...]] = []
+
+        def fake_run_git(*args: str, cwd: str | None = None, timeout: int = 60):
+            calls.append(args)
+            return subprocess.CompletedProcess(["git", *args], 0, "", "")
+
+        with patch.object(mod, "_run_git", side_effect=fake_run_git), patch.object(
+            mod, "_register_merge_drivers", return_value=True
+        ) as register:
+            result = mod.resolve_conflicts_runner("feature/test", "main")
+
+        assert result["success"] is True
+        register.assert_called_once_with(trusted_copy=True)
+        assert calls[0][:2] == ("fetch", "origin")
+
+    def test_runner_aborts_when_driver_registration_fails(self) -> None:
+        with patch.object(mod, "_run_git") as run_git, patch.object(
+            mod, "_register_merge_drivers", return_value=False
+        ):
+            result = mod.resolve_conflicts_runner("feature/test", "main")
+
+        assert result["success"] is False
+        assert "merge driver" in result["message"]
+        run_git.assert_not_called()
+
 class TestGetRepoInfo:
     """Tests for get_repo_info function."""
 

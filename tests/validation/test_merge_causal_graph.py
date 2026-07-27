@@ -822,10 +822,30 @@ class TestRegistrationIsWiredAndIdempotent:
         attributes = (_ROOT / ".gitattributes").read_text(encoding="utf-8")
         assert ".agents/memory/causality/causal-graph.json merge=causal-graph" in attributes
 
+
+
+    def test_pr_maintenance_registers_trusted_copy_before_inline_merges(self) -> None:
+        workflow = (_ROOT / ".github" / "workflows" / "pr-maintenance.yml").read_text(
+            encoding="utf-8"
+        )
+        registration = workflow.index("install_merge_drivers.py --trusted-copy")
+        first_inline_merge = workflow.index('git merge "origin/$env:BASE_REF"')
+        assert registration < first_inline_merge
+
+    def test_developer_setup_runs_installer_during_bootstrap(self) -> None:
+        bootstrap = (_ROOT / "scripts" / "bootstrap-vm.sh").read_text(encoding="utf-8")
+        assert "scripts/maintenance/install_merge_drivers.py" in bootstrap
+
+    def test_contributing_setup_names_installer(self) -> None:
+        contributing = (_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        assert "scripts/maintenance/install_merge_drivers.py" in contributing
+
     def test_the_installer_runs_from_a_hook(self) -> None:
         """Registration must not depend on a setup step someone can skip."""
         lefthook = (_ROOT / "lefthook.yml").read_text(encoding="utf-8")
         assert "scripts/maintenance/install_merge_drivers.py" in lefthook
+        pre_push = lefthook.split("pre-push:", 1)[1]
+        assert "scripts/maintenance/install_merge_drivers.py" in pre_push
 
     def test_the_registered_command_points_at_the_driver(self) -> None:
         from scripts.maintenance.install_merge_drivers import _DRIVERS
@@ -965,6 +985,43 @@ class TestRegistrationIsWiredAndIdempotent:
 
         assert install_merge_drivers.install() == 2
         assert "could not set" in capsys.readouterr().err
+
+
+    def test_trusted_copy_registers_driver_outside_worktree(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.maintenance import install_merge_drivers
+
+        project = tmp_path / "repo"
+        source = project / "scripts" / "validation" / "merge_causal_graph.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("print('trusted')\n", encoding="utf-8")
+        common = project / ".git"
+        common.mkdir()
+        values: dict[str, str] = {}
+
+        def fake_git(args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args == ["rev-parse", "--git-common-dir"]:
+                return subprocess.CompletedProcess(args, 0, str(common), "")
+            if args[:3] == ["config", "--local", "--get"]:
+                value = values.get(args[3])
+                return subprocess.CompletedProcess(
+                    args, 0 if value is not None else 1, value or "", ""
+                )
+            if args[:2] == ["config", "--local"]:
+                values[args[2]] = args[3]
+                return subprocess.CompletedProcess(args, 0, "", "")
+            raise AssertionError(args)
+
+        monkeypatch.setattr(install_merge_drivers, "_PROJECT_ROOT", project)
+        monkeypatch.setattr(install_merge_drivers, "_git", fake_git)
+
+        assert install_merge_drivers.install_trusted_copy() == 0
+
+        copied = common / "ai-agents-merge-drivers" / "merge_causal_graph.py"
+        assert copied.read_text(encoding="utf-8") == "print('trusted')\n"
+        assert str(copied) in values["merge.causal-graph.driver"]
+        assert "scripts/validation/merge_causal_graph.py" not in values["merge.causal-graph.driver"]
 
     def test_installing_twice_writes_once(self, capsys: pytest.CaptureFixture[str]) -> None:
         from scripts.maintenance import install_merge_drivers
