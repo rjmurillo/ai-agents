@@ -34,10 +34,10 @@ import argparse
 import json
 import math
 import re
-import statistics
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -293,11 +293,10 @@ def mann_whitney_u(x: list[float], y: list[float]) -> tuple[float, float, float]
         for _ in range(j - i + 1):
             ranks.append(avg_rank)
         i = j + 1
-    rank_y = sum(r for r, (_, lbl) in zip(ranks, combined) if lbl == "y")
+    rank_y = sum(r for r, (_, lbl) in zip(ranks, combined, strict=True) if lbl == "y")
     u_y = rank_y - n2 * (n2 + 1) / 2
     n = n1 + n2
-    from collections import Counter as _C
-    counts = _C(combined[i][0] for i in range(n))
+    counts = Counter(combined[i][0] for i in range(n))
     tie_sum = sum(t * (t * t - 1) for t in counts.values() if t > 1)
     mean_u = n1 * n2 / 2
     var_u = (n1 * n2 / 12) * ((n + 1) - tie_sum / (n * (n - 1))) if n > 1 else 0.0
