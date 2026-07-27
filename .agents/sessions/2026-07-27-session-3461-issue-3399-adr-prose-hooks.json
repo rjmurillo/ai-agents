@@ -115,6 +115,6 @@
       "result": "ADR-085 test auto approval reference now carries historical context."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "22c786aff6aa249b640309157526f4119afe1f74",
   "nextSteps": []
 }
