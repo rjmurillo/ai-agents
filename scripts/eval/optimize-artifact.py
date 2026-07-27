@@ -749,8 +749,12 @@ def _warn(message: str) -> None:
     front of them and each left the next one open, so they are named here
     together rather than discovered in sequence a fourth time.
 
-    Only the stream check sits outside the guard. Everything else is inside
-    it, including the redaction. Writing the opposite down is what exposed it:
+    Only the stream check sits outside the guard, and it is read totally so
+    that the sentence stays true: `sys.stderr` is an attribute lookup, and a
+    harness that deletes it rather than blanking it turns the read itself into
+    the abort. `getattr` routes that case into the `None` branch already here
+    instead of adding a second one. Everything else is inside the guard,
+    including the redaction. Writing the opposite down is what exposed it:
     a redaction that raises would leave the message unprinted either way, so
     suppressing costs a diagnostic and excluding it costs the caller the abort
     that rounds twenty through twenty-two were all spent removing. Nothing
@@ -788,7 +792,7 @@ def _warn(message: str) -> None:
     than one that is lost, so a missing stream drops the message.
     """
     key = _ACTIVE_HOLDOUT_KEY.get()
-    stream = sys.stderr
+    stream = getattr(sys, "stderr", None)
     if stream is None:
         return
     with suppress(Exception):

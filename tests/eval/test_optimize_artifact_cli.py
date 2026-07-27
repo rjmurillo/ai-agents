@@ -4730,6 +4730,25 @@ class TestADiagnosticNeitherLeaksNorFails:
         assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
 
     @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_stderr_that_is_absent_is_treated_like_one_that_is_none(
+        self, tmp_path, monkeypatch
+    ):
+        """Edge: `sys.stderr` can be missing, not only `None` or broken.
+
+        The docstring claims only the stream check sits outside the guard. The
+        stream read sat outside it too, and `sys.stderr` is an attribute lookup
+        that raises `AttributeError` when an embedding harness deletes it. That
+        raise is the abort rounds twenty through twenty-three were each spent
+        removing, arriving through the one expression none of them guarded.
+        Reading it totally routes the missing case into the `None` branch that
+        already existed, so the rule is enforced without a second one.
+        """
+        monkeypatch.delattr(sys, "stderr")
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
     def test_a_warning_never_lands_on_the_stream_carrying_the_verdict(
         self, tmp_path, capsys, monkeypatch
     ):
