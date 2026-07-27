@@ -608,7 +608,7 @@ def guard_refusal(
     if max_consultations is not None and sel_consultations >= max_consultations:
         return (
             f"held-out split exhausted after {sel_consultations} consultations "
-            f"(limit {max_consultations}); refresh the split or report on the test group"
+            f"(limit {max_consultations}); re-split to gate against a fresh group"
         )
 
     return None
@@ -623,6 +623,8 @@ def gate(
     split_fingerprint: str | None = None,
     incumbent_fingerprint: str | None = None,
     discordant_loss: int = 0,
+    p_value: float | None = None,
+    max_p: float | None = None,
 ) -> GateResult:
     """Decide whether a candidate replaces the incumbent.
 
@@ -645,9 +647,54 @@ def gate(
     weaker rule wearing the same name, and an agent driving this loop could
     set it without a human ever seeing the broken task.
 
+    ``max_p`` is the largest one-sided exact McNemar tail this gate will
+    accept **across the whole consultation budget**, not per comparison. It
+    defaults to None because a small held-out group cannot reach a
+    conventional floor; enforcing one by default would make the common case
+    unpassable rather than informative. Set it when the group is large enough
+    that the tail carries information. A live run over 24 rule scenarios
+    scored the identical artifact twice and moved the held-out group 6/10 to
+    7/10 with no input change, so on a nondeterministic scorer a
+    strictly-greater rule alone accepts variance.
+
+    The budget is what makes the correction necessary. A loop permitted five
+    consultations that applies 0.05 to each one independently does not deliver
+    the 0.05 the operator asked for. Bounding the family without assuming
+    anything about dependence gives 5 * 0.05 = 0.25 by the union bound; the
+    exact 1 - 0.95**5, about 0.226, holds only if the five comparisons are
+    independent, and five looks at one selection group are not. So ``max_p``
+    is read as the family bar and spent across ``max_consultations`` by
+    Bonferroni: each comparison is held to ``max_p / max_consultations``. That
+    correction controls the family bar under arbitrary dependence among the
+    p-values, which is why it is used here rather than a sharper
+    independence-dependent one. Raising the budget therefore buys more looks
+    at a stricter bar, never a cheaper one.
+
+    That guarantee is conditional, and the condition is not free. Bonferroni
+    tolerates any dependence between the comparisons, but it still requires
+    each per-comparison p-value to be valid on its own: under the null a valid
+    p must satisfy P(p <= a) <= a. ``mcnemar_exact`` earns that only if the
+    discordant pairs behave as independent fair coin flips under the null, and
+    correlated scorer noise breaks it. This is not hypothetical here. A
+    rule-path null control in this repo restored the artifact byte for byte
+    and reproduced both of the gains the real edit had produced, which is
+    direct evidence that outcomes on this harness move together. So the
+    honest statement is that the family bar holds under any dependence
+    between the comparisons, given per-comparison validity, and that the
+    second half is the part this harness does not guarantee.
+
+    Both companions are required rather than optional, because a bar that
+    silently does not apply is worse than no bar. ``max_p`` without
+    ``p_value`` raises: an unknown tail is not evidence that it clears the
+    bar. ``max_p`` without ``max_consultations`` raises: an undeclared family
+    size cannot be corrected for. ``p_value`` without ``max_p`` changes
+    nothing, since reporting the tail was always allowed.
+
     Raises:
         ValueError: on scores outside ``[0, 1]``, negative consultations, a
-            non-positive consultation cap, or a negative discordant count.
+            non-positive consultation cap, a negative discordant count, a
+            ``p_value`` or ``max_p`` outside ``[0, 1]``, or ``max_p`` given
+            without both ``p_value`` and ``max_consultations``.
     """
     if not 0.0 <= candidate <= 1.0:
         raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
@@ -659,6 +706,20 @@ def gate(
         raise ValueError(f"max_consultations must be positive, got {max_consultations}")
     if discordant_loss < 0:
         raise ValueError(f"discordant_loss must be non-negative, got {discordant_loss}")
+    if p_value is not None and not 0.0 <= p_value <= 1.0:
+        raise ValueError(f"p_value must be in [0, 1], got {p_value}")
+    if max_p is not None and not 0.0 <= max_p <= 1.0:
+        raise ValueError(f"max_p must be in [0, 1], got {max_p}")
+    if max_p is not None and p_value is None:
+        raise ValueError(
+            "max_p needs a p_value to judge; an unknown tail is not evidence "
+            "that it clears the bar"
+        )
+    if max_p is not None and max_consultations is None:
+        raise ValueError(
+            "max_p needs max_consultations; the bar is spent across the "
+            "budget, so an undeclared family size cannot be corrected for"
+        )
 
     def _result(decision: str, reason: str, *, compared: bool = True) -> GateResult:
         return GateResult(
@@ -687,6 +748,21 @@ def gate(
                 f"regressed {discordant_loss} held-out task(s) from pass to fail; "
                 f"a net gain does not buy back a broken task",
             )
+        # Last, because a broken task is the finding worth naming first even
+        # when both refusals apply. The bar is family-wise, so it is spent
+        # across the declared budget rather than applied whole to each look.
+        if max_p is not None and p_value is not None and max_consultations is not None:
+            corrected = max_p / max_consultations
+            if p_value > corrected:
+                return _result(
+                    "REJECT",
+                    f"candidate {candidate:.4f} beats {incumbent:.4f} but the "
+                    f"one-sided exact McNemar tail is {p_value:g}, above the "
+                    f"per-comparison bar of {corrected:g}, which is the "
+                    f"{max_p:g} family bar divided across {max_consultations} "
+                    f"consultation(s). The gain is not distinguishable from "
+                    f"scorer variance at this held-out size",
+                )
         return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
     if candidate == incumbent:
         return _result("REJECT", f"tie at {candidate:.4f}; a tie does not earn an edit")
