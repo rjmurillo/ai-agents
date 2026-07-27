@@ -27,7 +27,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield four unreachable, each of which is a
+Under that model the same 89 scripts yield three unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -93,16 +93,9 @@ _NO_CALLER: dict[str, str] = {
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
     ),
-    "scripts/validation/consistency.py": (
-        "Fails against the current tree: `--all --ci` exits 1 with 4 of 7 "
-        "feature checks failing. Wiring it as-is would red main. The protocol "
-        "it implements (.agents/governance/consistency-protocol.md) is live and "
-        "there are 23 requirement and 19 design artifacts to check, so the fix "
-        "is to resolve the findings and then wire it. Tracked in #3360."
-    ),
     "scripts/validation/traceability.py": (
-        "Fails against the current tree: `--ci` exits 1, reporting TASK-011 "
-        "complete while its DESIGN reference is not. Same shape as "
+        "Fails against the current tree: `--ci` exits 1, reporting TASK-009, "
+        "TASK-a02, and TASK-014 as untraced tasks. Same shape as the retired "
         "consistency.py: the schema it implements "
         "(.agents/governance/traceability-schema.md) is live, so the fix is to "
         "resolve the findings and then wire it. Tracked in #3360."

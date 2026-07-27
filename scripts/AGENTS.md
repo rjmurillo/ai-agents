@@ -157,7 +157,6 @@ flowchart TD
     subgraph Scripts["Script Agents"]
         SYN[sync_mcp_config.py]
         CHK[check_skill_exists.py]
-        VCS[consistency.py]
         VSP[validate_session_json.py]
     end
 
@@ -235,35 +234,6 @@ python3 scripts/check_skill_exists.py --list-available
 | `--operation` | `pr`, `issue`, `reactions`, `label`, `milestone` | Skill category |
 | `--action` | String | Substring match against script names |
 | `--list-available` | Switch | List all skills organized by type |
-
----
-
-### consistency.py
-
-**Role**: Cross-document consistency validator
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | `.agents/` directory artifacts |
-| **Output** | Consistency report |
-| **Trigger** | Manual, CI |
-| **Dependencies** | Python 3.12+ |
-
-**Validations**:
-
-- Naming convention compliance
-- Cross-reference integrity
-- Requirement coverage
-
-**Invocation**:
-
-```bash
-# Validate all features
-python3 scripts/validation/consistency.py --all
-
-# Specific feature, CI mode (exit 1 on failures)
-python3 scripts/validation/consistency.py --feature <name> --ci
-```
 
 ---
 
