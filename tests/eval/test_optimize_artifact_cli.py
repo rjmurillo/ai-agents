@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -2463,3 +2464,135 @@ class TestOneDefinitionOfHowWeRedact:
 
     def test_empty_text_is_not_a_special_case(self):
         assert oa._scrub("", "abc123") == ""
+
+
+class TestTheRootResolvesInsideTheContract:
+    """An eleventh review found the seam's first line had moved, not vanished.
+
+    Round 10 pulled `lock.parent.mkdir(...)` inside `_digest_scrubbed` and left
+    `_ledger_root()` on the line above it. `Path.home()` raises `RuntimeError`
+    when `$HOME` is unset and the uid has no passwd entry, which is an ordinary
+    container running as a numeric user, and it happens on the DEFAULT
+    configuration: `_ledger_root` consults home only when neither
+    `$EVAL_LEDGER_DIR` nor `$XDG_STATE_HOME` is set.
+
+    `main` catches `(ConfigError, AdapterError, ValueError)`, so that escaped as
+    a traceback where the module docstring promises a JSON error document. The
+    conversion belongs in `_ledger_root` rather than at either call site,
+    because the failure is there and both callers need it.
+    """
+
+    @staticmethod
+    def _no_home(monkeypatch):
+        monkeypatch.delenv("EVAL_LEDGER_DIR", raising=False)
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.setattr(
+            Path, "home",
+            staticmethod(lambda: (_ for _ in ()).throw(RuntimeError("no home"))),
+        )
+
+    def test_an_unresolvable_home_is_a_config_error_not_a_runtime_error(self, monkeypatch):
+        self._no_home(monkeypatch)
+        with pytest.raises(oa.ConfigError) as caught:
+            oa._ledger_root()
+        assert "EVAL_LEDGER_DIR" in str(caught.value)
+
+    def test_the_gate_still_emits_one_json_document(self, tmp_path, capsys, monkeypatch):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        record = json.loads(split.read_text())
+        self._no_home(monkeypatch)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        assert code == EXIT_CONFIG
+        assert json.loads(capsys.readouterr().out)["type"] == "ConfigError"
+
+    def test_an_explicit_root_never_consults_home(self, tmp_path, monkeypatch):
+        self._no_home(monkeypatch)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "explicit"))
+        assert oa._ledger_root() == tmp_path / "explicit"
+
+    def test_xdg_state_home_also_never_consults_home(self, tmp_path, monkeypatch):
+        self._no_home(monkeypatch)
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg"))
+        assert oa._ledger_root().is_relative_to(tmp_path / "xdg")
+
+
+class TestTheLockDescriptorIsAlwaysReleased:
+    """The write and the close were in one try, so a failed write skipped the close.
+
+    `os.write` on a full disk jumped straight to the `finally`, which unlinks
+    the lock and never closes the descriptor. A one-shot CLI exits and the
+    kernel reclaims it, so the practical cost is small; the reason to fix it is
+    that `main` is importable and the module is used from tests, where the leak
+    accumulates across a session.
+    """
+
+    def _fd_state(self, monkeypatch, tmp_path, fail_write):
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "root"))
+        seen = {}
+        real_open = oa.os.open
+
+        def spy(*args, **kwargs):
+            seen["fd"] = real_open(*args, **kwargs)
+            return seen["fd"]
+
+        monkeypatch.setattr(oa.os, "open", spy)
+        if fail_write:
+            monkeypatch.setattr(
+                oa.os, "write",
+                lambda *a, **k: (_ for _ in ()).throw(OSError(28, "No space left")),
+            )
+        return seen
+
+    @staticmethod
+    def _is_open(fd):
+        try:
+            os.fstat(fd)
+        except OSError:
+            return False
+        return True
+
+    def test_a_failed_write_still_closes_the_descriptor(self, tmp_path, monkeypatch):
+        seen = self._fd_state(monkeypatch, tmp_path, fail_write=True)
+        with pytest.raises(oa.ConfigError):
+            with oa._ledger_held("d" * 64):
+                pass
+        assert self._is_open(seen["fd"]) is False
+
+    def test_the_normal_path_closes_it_exactly_once(self, tmp_path, monkeypatch):
+        seen = self._fd_state(monkeypatch, tmp_path, fail_write=False)
+        with oa._ledger_held("e" * 64):
+            pass
+        assert self._is_open(seen["fd"]) is False
+
+
+class TestRedactionIsNotCaseSensitive:
+    """A hex digest has an uppercase spelling, and a path can carry either.
+
+    Only reachable when the caller put the digest in `$EVAL_LEDGER_DIR`, which
+    means the caller already knows it, so this is not a confidentiality bypass.
+    It is fixed because the stated property is that the key is never printed,
+    and hex is the one alphabet where case-insensitive matching carries no
+    folding surprises.
+    """
+
+    def test_an_uppercase_digest_is_replaced(self):
+        key = "f" * 60 + "abcd"
+        assert key.upper() not in oa._scrub(f"/root-{key.upper()}/x", key)
+
+    def test_a_mixed_case_digest_is_replaced(self):
+        key = "abcdef" + "0" * 58
+        mixed = "AbCdEf" + "0" * 58
+        assert mixed not in oa._scrub(f"/root-{mixed}/x", key)
+
+    def test_the_lowercase_case_still_works(self):
+        key = "a" * 64
+        assert oa._scrub(f"/root-{key}/x", key) == "/root-<held-out group>/x"
+
+    def test_unrelated_text_is_untouched(self):
+        assert oa._scrub("/root/ABCDEF/x", "a" * 64) == "/root/ABCDEF/x"

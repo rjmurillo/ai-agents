@@ -43,6 +43,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 from collections.abc import Iterator, Mapping
@@ -430,7 +431,24 @@ def _ledger_root() -> Path:
     override = os.environ.get(_LEDGER_DIR_ENV)
     if override:
         return Path(override)
-    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    state = os.environ.get("XDG_STATE_HOME")
+    if not state:
+        try:
+            state = str(Path.home() / ".local" / "state")
+        except RuntimeError as exc:
+            # An eleventh review found this escaping as RuntimeError, which main
+            # does not catch, so the caller got a traceback where the module
+            # docstring promises a JSON error document. Reached on the default
+            # configuration by any container running as a uid with no passwd
+            # entry: Path.home() consults $HOME first and the passwd database
+            # second, and gives up when both are absent.
+            raise ConfigError(
+                f"cannot resolve a ledger directory ({exc}). Neither "
+                f"${_LEDGER_DIR_ENV} nor $XDG_STATE_HOME is set and the home "
+                f"directory is undeterminable, which is what a container running "
+                f"as a numeric uid with no passwd entry looks like. Set "
+                f"${_LEDGER_DIR_ENV} to a writable path."
+            ) from exc
     return Path(state) / "ai-agents-eval" / "ledgers"
 
 
@@ -480,8 +498,13 @@ def _scrub(text: str, holdout_key: str) -> str:
     a ninth review found the same at the cause chain. Two consecutive rounds
     finding a defect at a hand-written redaction site is the argument for
     having exactly one.
+
+    Case-insensitive because a hex digest has an uppercase spelling and
+    `$EVAL_LEDGER_DIR` can carry it. Hex is the one alphabet where folding has
+    no surprises. That path only fires for a caller who already knows the
+    digest, so the reason to close it is the stated property, not the threat.
     """
-    return text.replace(holdout_key, _HELD_OUT_PLACEHOLDER)
+    return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
 
 
 @contextmanager
@@ -566,8 +589,13 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 f"set the caller can enumerate is that set."
             ) from None
         try:
-            os.write(handle, str(os.getpid()).encode("utf-8"))
-            os.close(handle)
+            try:
+                os.write(handle, str(os.getpid()).encode("utf-8"))
+            finally:
+                # Its own finally, so a write that fails on a full disk still
+                # releases the descriptor. POSIX frees the descriptor even when
+                # close reports EIO, so this must never be retried.
+                os.close(handle)
             yield
         finally:
             try:
