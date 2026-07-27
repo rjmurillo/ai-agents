@@ -6567,3 +6567,214 @@ class TestCleanupCannotSpeakOverTheFailureItCleansUpAfter:
         oa._write_atomic(target, '{"a": 1}')
         assert target.read_text(encoding="utf-8") == '{"a": 1}'
         assert capsys.readouterr().err == ""
+
+
+class TestABarOutsideItsScaleIsRefusedLikeAScoreOutsideIts:
+    """The measurements are bounded now. The bars they are compared against were not.
+
+    `_as_float` refuses a score outside its scale, on the argument that a value
+    outside the range does what infinity does, only quietly: it decides a
+    verdict without measuring anything. The bar sits on the other side of the
+    same comparison and had no check at all, so the same defect was reachable
+    from the command line instead of from a scorer file. Measured before the
+    fix, against a fixture whose pass rate is 0.0:
+
+        --pass-threshold -0.1  ->  {"C1": true}   exit 0
+        --pass-threshold nan   ->  {"C1": false}  exit 0
+        --pass-threshold inf   ->  {"C1": false}  exit 0
+        --pass-threshold 2.0   ->  {"C1": false}  exit 0
+
+    The first is the fail-closed property inverted: a fixture that satisfied
+    none of its assertions was reported as passing, because a negative floor
+    admits every rate there is. The rest mark every measured task false, and
+    an all-false side reads as a real regression rather than as a bad flag.
+    None of them says anything on the way past.
+
+    One range check covers all four, because every comparison against NaN is
+    False and infinity leaves any bounded interval, so both fall out of the
+    same test that catches -0.1 and 2.0. That is also what `--max-p` has done
+    since it was added, so this reuses a rule the module already applies
+    rather than inventing a second one.
+    """
+
+    def _report(self, tmp_path, rate=0.0):
+        return _write(
+            tmp_path, "r.json", {"per_fixture_pass_rates": {"C1": {"agent": [rate]}}}
+        )
+
+    def _scen(self, tmp_path, score=3.0):
+        return _write(
+            tmp_path,
+            "s.json",
+            [
+                {
+                    "id": "S1",
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": score,
+                                "behavior_score": score,
+                                "citation_score": score,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+
+    @pytest.mark.parametrize("bad", ["-0.1", "nan", "inf", "-inf", "2.0", "1.0001"])
+    def test_a_pass_threshold_off_its_scale_is_refused(self, capsys, tmp_path, bad):
+        # Joined with `=` because argparse reads a leading `-` as an option
+        # unless the token parses as a number, so `--pass-threshold -inf` is
+        # rejected as a missing argument before any of this code runs.
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path),
+            f"--pass-threshold={bad}",
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "--pass-threshold" in out["error"]
+
+    @pytest.mark.parametrize("bad", ["-0.1", "nan", "inf", "-inf", "5.1", "6"])
+    def test_a_min_score_off_its_scale_is_refused(self, capsys, tmp_path, bad):
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            f"--min-score={bad}",
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "--min-score" in out["error"]
+
+    def test_the_refusal_names_the_scale_so_the_caller_can_correct_it(
+        self, capsys, tmp_path
+    ):
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            "--min-score",
+            "6",
+        )
+        assert "[0, 5]" in out["error"]
+        assert "6" in out["error"]
+
+    def test_a_negative_floor_no_longer_passes_a_fixture_that_measured_nothing(
+        self, capsys, tmp_path
+    ):
+        """The specific inversion, asserted as itself.
+
+        A range check is the mechanism; this is the behavior it protects.
+        """
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path, rate=0.0),
+            "--pass-threshold",
+            "-0.1",
+        )
+        assert code == EXIT_CONFIG
+        assert "results" not in out
+
+    # --- the ends of each scale are legal ---------------------------------
+
+    @pytest.mark.parametrize("good", ["0", "0.0", "1", "1.0", "0.5"])
+    def test_every_point_on_the_pass_rate_scale_is_accepted(
+        self, capsys, tmp_path, good
+    ):
+        code, _ = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path),
+            "--pass-threshold",
+            good,
+        )
+        assert code == EXIT_OK
+
+    @pytest.mark.parametrize("good", ["0", "3.5", "5", "5.0"])
+    def test_every_point_on_the_rule_scale_is_accepted(self, capsys, tmp_path, good):
+        code, _ = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            "--min-score",
+            good,
+        )
+        assert code == EXIT_OK
+
+    def test_a_floor_of_zero_still_passes_a_fixture_that_measured_nothing(
+        self, capsys, tmp_path
+    ):
+        """Zero is inside the scale, so it stays legal and keeps its meaning.
+
+        The fix refuses bars off the scale, not permissive ones on it.
+        """
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path, rate=0.0),
+            "--pass-threshold",
+            "0",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"C1": True}
+
+    def test_the_defaults_are_inside_their_own_scales(self, capsys, tmp_path):
+        """Control: neither default may be refused by the check guarding it."""
+        for kind, path in (
+            ("agent", self._report(tmp_path)),
+            ("rule", self._scen(tmp_path)),
+        ):
+            code, _ = _run(capsys, "extract", "--kind", kind, "--input", path)
+            assert code == EXIT_OK
+
+    def test_max_p_still_reports_its_own_scale_unchanged(self, capsys, tmp_path):
+        """Control: the flag whose rule this reuses must keep its message."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _write(tmp_path, "tasks.txt", "")
+        (tmp_path / "tasks.txt").write_text(
+            "\n".join(f"t{i}" for i in range(10)), encoding="utf-8"
+        )
+        split = _split(capsys, tmp_path, "--tasks", tmp_path / "tasks.txt", "--seed", "s1")[1]
+        split_path = tmp_path / "split.json"
+        code, out = _run_gate(
+            capsys,
+            tmp_path,
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--incumbent-fingerprint",
+            str(split.get("fingerprint", "unknown")),
+            "--max-p",
+            "1.5",
+        )
+        assert code == EXIT_CONFIG
+        assert "--max-p must be in [0, 1], got 1.5" in out["error"]

@@ -55,6 +55,8 @@ from typing import Any, NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _optimizer_adapters import (  # noqa: E402
+    _MAX_PASS_RATE,
+    _MAX_RULE_SCORE,
     AdapterError,
     agent_results,
     pytest_results,
@@ -515,7 +517,36 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
+    """Refuse a bar that sits off the scale it is compared against.
+
+    `_as_float` already refuses a score outside its scale, because a value
+    outside the range decides a verdict without measuring anything. A bar is
+    the other side of that same comparison and had no check on the two extract
+    flags, so the identical defect was reachable from the command line.
+    Measured against a fixture whose pass rate is 0.0, `--pass-threshold -0.1`
+    reported it as passing: a fixture that satisfied none of its assertions,
+    admitted by a floor below the bottom of the scale.
+
+    One range test is enough for every bad value. Infinity leaves any bounded
+    interval, and every comparison against NaN is False, so both fail the same
+    check that catches -0.1 and 2.0 without a separate finiteness question.
+    That differs from `_as_float`, which keeps the two apart because a NaN in
+    a scorer's output says something specific about the producer. A flag has
+    no producer to diagnose; the caller typed it.
+
+    Bounds format with `g` so a whole number prints without its decimal tail,
+    which is what `--max-p` has said since it was added.
+    """
+    if not lo <= value <= hi:
+        raise ConfigError(f"{flag} must be in [{lo:g}, {hi:g}], got {value}")
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
+    # Before the input is read. A bar off its scale is decidable on its own,
+    # and refusing it here means an unreadable file cannot mask a bad flag.
+    _on_scale("--pass-threshold", args.pass_threshold, 0.0, _MAX_PASS_RATE)
+    _on_scale("--min-score", args.min_score, 0.0, _MAX_RULE_SCORE)
     corpus: str | None = None
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
@@ -1262,8 +1293,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # Before anything reads the split or the ledger. A bar outside [0, 1] is
     # decidable without the held-out group, so it must not cost a consultation
     # and must not be masked by an exhausted budget refusing first.
-    if args.max_p is not None and not 0.0 <= args.max_p <= 1.0:
-        raise ConfigError(f"--max-p must be in [0, 1], got {args.max_p}")
+    if args.max_p is not None:
+        _on_scale("--max-p", args.max_p, 0.0, 1.0)
 
     split = _read_split(args.split)
     if _split_drifted(split):
