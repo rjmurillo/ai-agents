@@ -9,35 +9,49 @@ Why this exists separately from ``check_skill_md_portability.py``:
   ``src/copilot-cli``), and its pattern set does not include ``docs/``. A
   ``docs/`` reference in a shipped frontmatter description therefore passes
   every gate in this repository, wherever it sits. Two were sitting in the
-  tree, both far older than the rule that forbids them. ``docs/agent-metrics.md``
-  arrived with the first commit of ``.claude/skills/metrics/SKILL.md``
-  (``625e224ab3``, #255, 2025-12-27) and ``docs/autonomous-pr-monitor.md`` with
-  the ``pr-autofix`` rename (``c70fb06eb5``, #2138, 2026-05-30). The rule
-  forbidding both shipped on 2026-07-26 in #3443 with no validator, so neither
-  moved. Check provenance against the source file, never the generated mirror:
-  the mirror's history begins when the generator first wrote it, which dates
-  the copy rather than the claim.
+  tree, both older than the rule that forbids them.
+  ``docs/agent-metrics.md`` entered the ``metrics`` description in
+  ``817e466f82`` (#2136, 2026-05-30) and ``docs/autonomous-pr-monitor.md``
+  entered the ``pr-autofix`` description in ``79867ca6ed`` (#2049, 2026-05-25),
+  under that command's pre-rename name ``autofix-pr.md``. The rule forbidding
+  both shipped on 2026-07-26 in #3443 with no validator, so neither moved.
+
+  Two traps sit in that paragraph, both of which produced a wrong claim in an
+  earlier draft. Check provenance against the source file, never the generated
+  mirror: the mirror's history begins when the generator first wrote it, which
+  dates the copy rather than the claim. And check it against the *field* named
+  in the claim: ``git log -S`` finds the string anywhere in the file, so a
+  reference that lived in body prose for months reads as frontmatter
+  provenance unless the historical file is opened and the block inspected.
+  Follow renames, or the date belongs to the rename.
 
 Measured precision, and the cost of being wrong:
 
   The gate has no baseline, so a false positive hard-blocks a legitimate
-  change. That claim was tested rather than asserted. Replaying this check
-  over every historical version of every Markdown file in all three plugin
-  roots, 3,687 blobs reachable from ``git rev-list --objects --all``, produces
-  four distinct references and no others: ``docs/autonomous-pr-monitor.md``,
+  change. That claim was tested rather than asserted. Replaying this check over
+  the retained reachable history of Markdown under all three plugin roots,
+  3,687 blobs from ``git rev-list --objects --all``, produces four distinct
+  references and no others: ``docs/autonomous-pr-monitor.md``,
   ``docs/agent-metrics.md``, ``.agents/governance/golden-principles.md``
   (declared), and ``scripts/incoherence.py`` in a deprecated skill. All four
-  are real. None resolves for a consumer. Across the 3,909 Markdown files in
-  the current tree the gate reports nothing at all.
+  are real. None resolves for a consumer. Across every Markdown file in the
+  current tree the gate reports nothing at all.
 
-  The known theoretical false positive is a description that names a consumer
-  artifact the skill writes rather than reads, such as
-  ``.github/workflows/ci.yml``. The extension test cannot tell those apart
-  from an upstream dependency. That shape has never appeared in a shipped
-  frontmatter in this repository's history, which is why the check is absolute
-  instead of baselined. If one lands, the remedy is a ``vendor-portability``
-  marker naming that path, and a second marker vocabulary is worth adding only
-  once the case is real rather than imagined.
+  State that as reachable history, not as all of it, and not as a rate. Blobs
+  from squashed-away branch tips are unreachable once the branch is deleted, so
+  a shape that a contributor wrote and fixed before merge is invisible here,
+  and that is exactly where a false positive would bite. ``--all`` also spans
+  local heads and stashes rather than merged history alone. A blob replay
+  carries no tree, so it cannot answer root-relative questions on its own.
+  The measurement bounds what has shipped; it does not bound what could.
+
+  The known false positive is a description that names a consumer artifact the
+  skill writes rather than reads, such as ``.github/workflows/ci.yml``. The
+  extension test cannot tell those apart from an upstream dependency. That
+  shape has never appeared in a shipped frontmatter here, which is why the
+  check is absolute instead of baselined. If one lands, the remedy is a
+  ``vendor-portability`` marker naming that path, and a second marker
+  vocabulary is worth adding only once the case is real rather than imagined.
 
 Why frontmatter, and only frontmatter:
 
@@ -45,8 +59,8 @@ Why frontmatter, and only frontmatter:
   whether or not the skill is ever invoked. Body prose is read only on
   invocation. A dangling path in a description is therefore the most-read and
   least-useful kind: the consumer sees it constantly and can never resolve it.
-  Body prose is a far larger surface (2,554 references across 347 files by
-  time of writing) that needs per-file classification against the rule's
+  Body prose is a far larger surface (2,556 references across 347 files at
+  ``30eaa85dde``) that needs per-file classification against the rule's
   three-kind table, so it stays with the existing ratchet and with review.
 
 What counts as a violation:
@@ -98,6 +112,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import yaml
+
 PLUGIN_ROOTS = (".claude", "src/claude", "src/copilot-cli")
 
 # Directories that exist only in this repository. A consumer who installs a
@@ -148,15 +164,16 @@ def frontmatter_lines(text: str) -> list[tuple[int, str]]:
     return []
 
 
-def checked_values(text: str) -> list[tuple[int, str, str]]:
-    """Return ``(line_number, key, value)`` for each checked frontmatter key.
+def _line_scan(lines: list[tuple[int, str]]) -> list[tuple[int, str, str]]:
+    """Attribute each frontmatter line to the checked key that owns it.
 
-    Continuation lines of a folded or literal YAML scalar belong to the key
-    that opened them, so they are attributed to it rather than skipped.
+    The fallback for frontmatter that is not valid YAML. Continuation lines of
+    a folded or literal scalar belong to the key that opened them, so they are
+    attributed to it rather than skipped.
     """
     found: list[tuple[int, str, str]] = []
     active: str | None = None
-    for number, line in frontmatter_lines(text):
+    for number, line in lines:
         match = re.match(r"([A-Za-z0-9_-]+)\s*:\s*(.*)$", line)
         if match:
             key = match.group(1)
@@ -166,6 +183,47 @@ def checked_values(text: str) -> list[tuple[int, str, str]]:
             continue
         if active and line.startswith((" ", "\t")):
             found.append((number, active, line.strip()))
+    return found
+
+
+def _key_line(lines: list[tuple[int, str]], key: str) -> int:
+    """The frontmatter line that opens ``key``, or the block's first line."""
+    pattern = re.compile(r"""["']?\b""" + re.escape(key) + r"""["']?\s*:""")
+    for number, line in lines:
+        if pattern.search(line):
+            return number
+    return lines[0][0] if lines else 1
+
+
+def checked_values(text: str) -> list[tuple[int, str, str]]:
+    """Return ``(line_number, key, value)`` for each checked frontmatter key.
+
+    Frontmatter is YAML, so it is parsed as YAML. A line-oriented reader sees
+    ``description:`` and misses every other spelling the format allows: a
+    quoted key, a flow mapping, an escape that encodes the separator. Each of
+    those is valid YAML that a consumer's loader resolves to a path, and each
+    one would walk past a reader that only matches a bare key at line start.
+
+    The line scan remains as the fallback for frontmatter that is not valid
+    YAML. This repository ships two such files on purpose: the SkillForge
+    templates carry placeholder syntax that a real loader rejects. Parsing
+    strictly and failing closed would break them; parsing strictly and falling
+    back reads every valid file correctly and still reads the invalid ones.
+    """
+    lines = frontmatter_lines(text)
+    if not lines:
+        return []
+    try:
+        data = yaml.safe_load("\n".join(line for _, line in lines))
+    except yaml.YAMLError:
+        data = None
+    if not isinstance(data, dict):
+        return _line_scan(lines)
+    found: list[tuple[int, str, str]] = []
+    for key in CHECKED_KEYS:
+        value = data.get(key)
+        if value is not None:
+            found.append((_key_line(lines, key), key, str(value)))
     return found
 
 
@@ -182,23 +240,31 @@ def declared_paths(text: str) -> set[str]:
     return declared
 
 
-def root_shipper(repo_root: Path, root: str) -> Callable[[str], bool]:
-    """True for references that resolve inside the plugin root that ships them.
+def reference_shipper(repo_root: Path, root: str, file_dir: Path) -> Callable[[str], bool]:
+    """True for references that resolve inside the content a consumer installs.
 
-    Self-containment is a property of a path relative to its own plugin root,
-    not of the directory name. ``src/copilot-cli`` ships its own ``docs/``
-    directory, so ``docs/copilot-instructions.md`` resolves for that plugin's
-    consumer and must not be flagged, while the same string under ``.claude``
-    points at nothing the consumer installed.
+    A path is resolved two ways, because both are things a consumer can act on.
+    Against the directory of the file that names it: a skill that bundles its
+    own ``scripts/`` is the skill-bundle convention, and 90 skills in this
+    repository ship one. Against the plugin root that ships that file:
+    ``src/copilot-cli`` ships its own ``docs/``, so
+    ``docs/copilot-instructions.md`` resolves for that plugin's consumer while
+    the same string under ``.claude`` points at nothing they installed.
+
+    A ``..`` segment never resolves, even when the file exists one level up.
+    Escaping the plugin root is the thing this check exists to catch, so the
+    test is for the segment rather than the substring: a filename may contain
+    consecutive dots (``docs/a..b.md``) without being a traversal, and the
+    traversal may sit anywhere in the path rather than only at the front.
     """
 
-    base = repo_root / root
+    bases = (file_dir, repo_root / root)
 
     def ships(reference: str) -> bool:
         candidate = reference[2:] if reference.startswith("./") else reference
         if ".." in candidate.split("/"):
             return False
-        return (base / candidate).exists()
+        return any((base / candidate).exists() for base in bases)
 
     return ships
 
@@ -275,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Could not read {path}: {error}", file=sys.stderr)
             return EXIT_CONFIG
         root_name = owning_root(path, root)
-        ships = root_shipper(root, root_name) if root_name else None
+        ships = reference_shipper(root, root_name, path.parent) if root_name else None
         for number, key, reference in scan_file(path, text, ships):
             violations.append((path, number, key, reference))
 

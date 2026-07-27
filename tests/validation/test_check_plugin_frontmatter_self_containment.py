@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 _MODULE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -284,13 +285,13 @@ class TestRootAwareness:
     def test_a_reference_that_ships_in_its_own_root_is_clean(self) -> None:
         root = Path(__file__).resolve().parents[2]
         text = _frontmatter("Per docs/copilot-instructions.md.")
-        ships = gate.root_shipper(root, "src/copilot-cli")
+        ships = gate.reference_shipper(root, "src/copilot-cli", root / "src/copilot-cli/skills/x")
         assert gate.scan_file(Path("x.md"), text, ships) == []
 
     def test_the_same_reference_under_a_root_without_it_is_flagged(self) -> None:
         root = Path(__file__).resolve().parents[2]
         text = _frontmatter("Per docs/copilot-instructions.md.")
-        ships = gate.root_shipper(root, ".claude")
+        ships = gate.reference_shipper(root, ".claude", root / ".claude/skills/x")
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text, ships)] == [
             "docs/copilot-instructions.md"
         ]
@@ -300,13 +301,62 @@ class TestRootAwareness:
         (tmp_path / "docs").mkdir()
         (tmp_path / "docs" / "a.md").write_text("x", encoding="utf-8")
         (tmp_path / ".claude").mkdir()
-        ships = gate.root_shipper(tmp_path, ".claude")
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
         assert ships("../docs/a.md") is False
+
+    def test_a_traversal_in_the_middle_never_counts_as_shipped(self, tmp_path: Path) -> None:
+        """A traversal need not lead the path to escape the root.
+
+        Kills the mutant that tests `candidate.startswith("../")`. The escaping
+        form resolves on disk, so a leading-prefix test suppresses a real
+        outward reference.
+        """
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "a.md").write_text("x", encoding="utf-8")
+        (tmp_path / ".claude" / "docs").mkdir(parents=True)
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
+        escaping = "docs/../../docs/a.md"
+        assert (tmp_path / ".claude" / escaping).exists()
+        assert ships(escaping) is False
+
+    def test_consecutive_dots_in_a_filename_are_not_a_traversal(self, tmp_path: Path) -> None:
+        """Kills the mutant that tests `".." in candidate` as a substring.
+
+        A filename may contain two dots without escaping anything, and the
+        substring form would refuse to resolve a file the consumer really has.
+        """
+        (tmp_path / ".claude" / "docs").mkdir(parents=True)
+        (tmp_path / ".claude" / "docs" / "a..b.md").write_text("x", encoding="utf-8")
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
+        assert ships("docs/a..b.md") is True
+
+    def test_a_skill_that_bundles_its_own_directory_is_clean(self, tmp_path: Path) -> None:
+        """The skill-bundle convention: 90 skills here ship their own scripts/.
+
+        Resolving only against the plugin root would look for
+        `.claude/scripts/collect.py` and flag a file the consumer actually
+        installed one directory down.
+        """
+        skill = tmp_path / ".claude" / "skills" / "demo"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "scripts" / "collect.py").write_text("x", encoding="utf-8")
+        ships = gate.reference_shipper(tmp_path, ".claude", skill)
+        assert ships("scripts/collect.py") is True
+
+    def test_a_sibling_skills_bundle_does_not_launder_a_reference(self, tmp_path: Path) -> None:
+        """File-relative resolution is relative to *this* file, not any skill."""
+        other = tmp_path / ".claude" / "skills" / "other"
+        (other / "scripts").mkdir(parents=True)
+        (other / "scripts" / "collect.py").write_text("x", encoding="utf-8")
+        mine = tmp_path / ".claude" / "skills" / "mine"
+        mine.mkdir(parents=True)
+        ships = gate.reference_shipper(tmp_path, ".claude", mine)
+        assert ships("scripts/collect.py") is False
 
     def test_a_dot_slash_prefix_still_resolves(self, tmp_path: Path) -> None:
         (tmp_path / ".claude" / "docs").mkdir(parents=True)
         (tmp_path / ".claude" / "docs" / "a.md").write_text("x", encoding="utf-8")
-        ships = gate.root_shipper(tmp_path, ".claude")
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
         assert ships("./docs/a.md") is True
         assert ships("docs/b.md") is False
 
@@ -343,44 +393,70 @@ class TestReferenceShapes:
 
 
 class TestParserFidelity:
-    """The line parser must agree with a real YAML load on the whole corpus.
+    """Frontmatter is YAML, so every valid spelling must be read.
 
-    The parser is hand-rolled on purpose: two shipped SkillForge templates
-    carry placeholder syntax that ``yaml.safe_load`` rejects outright, so a
-    strict loader would fail on files the line parser reads fine. The risk of
-    hand-rolling is a YAML shape the line parser misreads, such as a quoted key
-    or a flow mapping. This test is that guard: it fails the day such a shape
-    lands, without importing the loader's fragility into the gate.
+    A line-oriented reader matches ``description:`` at line start and walks
+    past a quoted key, a flow mapping, or an escape that encodes the path
+    separator. All three are valid YAML that a consumer's loader resolves to
+    the same string, so all three must be caught. The line scan survives only
+    as the fallback for frontmatter a real loader rejects.
     """
 
-    def test_line_parser_agrees_with_yaml_across_the_tree(self) -> None:
-        import yaml
+    @pytest.mark.parametrize(
+        "block",
+        [
+            pytest.param('"description": "Per docs/a.md."', id="quoted-key"),
+            pytest.param('{"description": "Per docs/a.md"}', id="flow-mapping"),
+            pytest.param('description: "Per docs\\u002fa.md."', id="escaped-separator"),
+            pytest.param("description: >-\n  Per docs/a.md.", id="folded-scalar"),
+            pytest.param("'description': Per docs/a.md.", id="single-quoted-key"),
+        ],
+    )
+    def test_every_valid_yaml_spelling_is_caught(self, block: str) -> None:
+        text = f"---\n{block}\n---\n"
+        found = [ref for _, _, ref in gate.scan_file(Path("x.md"), text)]
+        assert found == ["docs/a.md"], f"bypassed by {block!r}"
 
+    def test_invalid_yaml_falls_back_to_the_line_scan(self) -> None:
+        """The SkillForge templates are real files that a loader rejects.
+
+        Failing closed on unparseable frontmatter would block them; failing
+        open to the line scan reads them the way it always did.
+        """
+        text = "---\nname: {{PLACEHOLDER}\ndescription: Per docs/a.md.\n---\n"
+        with pytest.raises(yaml.YAMLError):
+            yaml.safe_load(text.split("---")[1])
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+
+    def test_the_fallback_still_reads_continuation_lines(self) -> None:
+        """A wrapped description is the common shape, and the fallback owns it.
+
+        Once YAML handles the valid files, the line scan's continuation branch
+        is reachable only through unparseable frontmatter, so that is where it
+        has to be tested. Without this the branch can be deleted outright and
+        every other test stays green.
+        """
+        text = (
+            "---\n"
+            "name: {{PLACEHOLDER}\n"
+            "description: A description long enough to wrap\n"
+            "  onto a second line that carries docs/a.md with it.\n"
+            "---\n"
+        )
+        with pytest.raises(yaml.YAMLError):
+            yaml.safe_load(text.split("---")[1])
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+
+    def test_the_rejected_templates_still_exist_and_still_scan(self) -> None:
+        """Pins the premise for the fallback. If these parse, simplify this."""
         root = Path(__file__).resolve().parents[2]
-        disagreements: list[tuple[str, str]] = []
-        for path in gate.iter_markdown(root):
-            text = path.read_text(encoding="utf-8", errors="replace")
-            lines = gate.frontmatter_lines(text)
-            if not lines:
-                continue
-            try:
-                loaded = yaml.safe_load("\n".join(line for _, line in lines))
-            except yaml.YAMLError:
-                continue
-            if not isinstance(loaded, dict):
-                continue
-            mine: dict[str, str] = {}
-            for _, key, value in gate.checked_values(text):
-                mine[key] = f"{mine.get(key, '')} {value}".strip()
-            for key in gate.CHECKED_KEYS:
-                real = loaded.get(key)
-                if not isinstance(real, str):
-                    continue
-                if set(gate.OUTWARD_FILE.findall(real)) != set(
-                    gate.OUTWARD_FILE.findall(mine.get(key, ""))
-                ):
-                    disagreements.append((str(path.relative_to(root)), key))
-        assert disagreements == []
+        template = root / ".claude/skills/SkillForge/assets/templates/skill-md-template.md"
+        assert template.is_file()
+        text = template.read_text(encoding="utf-8", errors="replace")
+        lines = gate.frontmatter_lines(text)
+        with pytest.raises(yaml.YAMLError):
+            yaml.safe_load("\n".join(line for _, line in lines))
+        gate.checked_values(text)
 
     def test_main_resolves_references_against_the_owning_root(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -407,3 +483,22 @@ class TestParserFidelity:
         )
         assert gate.main(["--repo-root", str(tmp_path)]) == 1
         assert "docs/guide.md" in capsys.readouterr().err
+
+    def test_main_resolves_references_against_the_files_own_directory(
+        self, tmp_path: Path
+    ) -> None:
+        """End to end, so the CLI cannot quietly stop passing the file's directory.
+
+        Every unit test builds the shipper itself, which leaves ``main`` free to
+        pass the plugin root instead of the directory holding the file. That
+        swap reintroduces the false positive against the skill-bundle
+        convention while the whole unit suite stays green.
+        """
+        skill = tmp_path / ".claude" / "skills" / "demo"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "scripts" / "collect.py").write_text("x", encoding="utf-8")
+        (skill / "SKILL.md").write_text(
+            _frontmatter("Run scripts/collect.py to gather the data."), encoding="utf-8"
+        )
+        assert not (tmp_path / ".claude" / "scripts").exists()
+        assert gate.main(["--repo-root", str(tmp_path)]) == 0
