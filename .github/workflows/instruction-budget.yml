@@ -48,7 +48,7 @@ jobs:
               - '.claude/rules/**'
               - '.github/instructions/**'
             validator:
-              - 'scripts/validation/instruction_budget.py'
+              - 'scripts/validation/instruction_budget*.py'
               - 'scripts/validation/token_budget.py'
               - 'tests/validation/test_instruction_budget.py'
               - '.github/workflows/instruction-budget.yml'
