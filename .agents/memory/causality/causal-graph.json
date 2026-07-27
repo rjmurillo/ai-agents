@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T01:45:53.055333+00:00",
+  "updated": "2026-07-27T04:09:55.165727+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20140,6 +20140,69 @@
         "episode-2026-07-26-session-2612"
       ],
       "created": "2026-07-27T01:45:53.050088+00:00"
+    },
+    {
+      "id": "67ded865ef9c",
+      "type": "milestone",
+      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159793+00:00"
+    },
+    {
+      "id": "f2d7d47e373c",
+      "type": "milestone",
+      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159876+00:00"
+    },
+    {
+      "id": "8483b7aa02d2",
+      "type": "milestone",
+      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159951+00:00"
+    },
+    {
+      "id": "c2dd9c2d885d",
+      "type": "milestone",
+      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160023+00:00"
+    },
+    {
+      "id": "6e5bea63d2be",
+      "type": "commit",
+      "label": "commit: Commit: 19d4a761",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160095+00:00"
+    },
+    {
+      "id": "740e7f0c9204",
+      "type": "commit",
+      "label": "commit: Commit: ae8be1c0",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160168+00:00"
+    },
+    {
+      "id": "d39c4dcdb31a",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160242+00:00"
     }
   ],
   "patterns": [
