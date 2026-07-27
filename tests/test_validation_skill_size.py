@@ -730,6 +730,17 @@ class TestStagedBlobValidation:
         # decoy's small bytes -> under-count (exit 0). ``ls-files`` must also run
         # with --no-replace-objects. Reproduced on git 2.43.
         self._init_repo(tmp_path)
+        # Harden the environment so an inherited replace-disabling setting
+        # (GIT_NO_REPLACE_OBJECTS in env, or a global core.useReplaceRefs=false)
+        # cannot make the setup guard below skip on a capable git build and
+        # silently mask a regression. Repo-local config wins over global.
+        monkeypatch.delenv("GIT_NO_REPLACE_OBJECTS", raising=False)
+        subprocess.run(
+            ["git", "config", "core.useReplaceRefs", "true"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
         (tmp_path / "keep").mkdir()
         (tmp_path / "keep" / "a.txt").write_bytes(b"keep\n")
         self._write_skill(tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
@@ -759,11 +770,20 @@ class TestStagedBlobValidation:
         _git("replace", orig_subtree, new_subtree)
         _git("sparse-checkout", "init", "--cone", "--sparse-index")
         _git("sparse-checkout", "set", "keep")
+        # Prove the sparse-index setup actually produced a sparse-directory
+        # entry (mode 040000): the .claude tree is outside the "keep" cone, so
+        # it must collapse to a tree entry the gate has to expand. A git build
+        # that does not produce one cannot stage this attack; skip there.
+        staged = _git("ls-files", "--sparse", "--stage")
+        if not any(line.startswith("040000") for line in staged.splitlines()):
+            pytest.skip("git build did not produce a sparse-directory index entry")
 
         monkeypatch.chdir(tmp_path)
-        # Setup proof: a default ls-files expands the sparse tree through the
-        # replacement, resolving the path to the decoy oid. Git builds that do
-        # not exhibit this expansion cannot stage the attack, so skip there.
+        # Setup proof (replace refs forced on above): a replace-honoring
+        # ls-files expands the sparse tree through the replacement, resolving
+        # the path to the decoy oid. With the environment sanitized, reaching
+        # the skip below means a genuine git-build limitation, not inherited
+        # configuration.
         default_listed = subprocess.run(
             ["git", "ls-files", "-s", "-z", "--", f":(literal){skill_rel}"],
             cwd=tmp_path,
