@@ -1412,3 +1412,43 @@ record of what was true at a moment, and the docstring kept the claims that a
 reader of the function can check against the function. That is a smaller
 docstring making fewer promises, which is the opposite of the instinct each of
 the previous four rounds followed.
+
+## Shape 36: advice that names a value the refusing input may not carry
+
+A bot reviewer read the corpus refusal and objected to its second sentence:
+"Re-score both artifacts against the corpus the split was drawn from and gate
+again." Its argument was that a split can be created without a corpus pin, a
+`--tasks` split for example, so that advice names something the operator does
+not have.
+
+The predicate agrees. `_corpus_conflict` refuses when more than one corpus is
+declared across the split, the incumbent, and the candidate, and the split's
+missing key is dropped before counting rather than treated as a value. So
+`(_UNPINNED, SHA_A, SHA_B)` refuses, and that row is a pinless split beside two
+results that disagree. Both the parametrised truth table and an end to end test
+named `test_one_known_corpus_beside_an_unknown_one_conflicts_without_a_pin`
+already covered the path. Neither covered what the refusal told that caller to
+do next.
+
+The interesting part is what the correct wording is not. The obvious repair is
+"re-score both artifacts against one corpus", and that is wrong in the other
+direction: when the split does pin a digest, re-scoring both files against some
+other single corpus still leaves two declared values and still refuses. A
+procedure phrased for one input shape is wrong for the other, and this refusal
+serves both.
+
+So the advice stopped being a procedure and became the rule: "Re-score both
+artifacts so that only one corpus is named across all three, and gate again."
+That sentence is the negation of the predicate directly above it. It names no
+file to copy a value from, so there is no value for an input to be missing, and
+it can only be falsified by editing `_corpus_conflict`, which is the one edit
+that puts a reader in front of this function anyway.
+
+That last property is the coda to shape thirty-five applied to a runtime string
+rather than a docstring. The claims that rot are the ones a reader checks
+against something other than the code beside them.
+
+The README quotes this reason in a transcript and stops after the first
+sentence, so it carried no stale copy. The only other match in the trees is a
+dated entry in this log paraphrasing the advice as it stood, which is what a
+dated log is for.

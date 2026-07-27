@@ -1163,14 +1163,21 @@ def _corpus_refusal() -> dict[str, object]:
     refused by then, and prior ledger spend cannot change what the caller must
     do next. Both sites report `consultations: 0` instead, which is the one
     claim each can make honestly: this run charged nothing.
+
+    The advice restates `_corpus_conflict`'s rule rather than naming a file to
+    copy a value from. `(_UNPINNED, SHA_A, SHA_B)` is a refusing row, so a
+    split that names no corpus can reach here, and advice to re-score against
+    the corpus the split names sends that caller to a key their split does not
+    have. The rule is the one instruction true for every refusing row, and it
+    is falsified only by editing the predicate above.
     """
     return {
         "decision": "REJECT",
         "reason": (
             "the split and the two results files do not agree on one corpus, "
             "so a comparison between them measures the corpus change as well "
-            "as the edit. Re-score both artifacts against the corpus the split "
-            "was drawn from and gate again."
+            "as the edit. Re-score both artifacts so that only one corpus is "
+            "named across all three, and gate again."
         ),
         "compared": False,
         "consultations": 0,

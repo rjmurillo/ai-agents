@@ -408,9 +408,20 @@
         "Removed the quantities rather than re-verifying them. They now live in the dated review log. The docstring keeps only claims a reader of the function can check against the function.",
         "1390 pass, 100% on the CLI module held, ruff clean, zero dashes. Committed de1e96c31."
       ]
+    },
+    {
+      "phase": "Making the corpus refusal name only what every refusing input carries",
+      "actions": [
+        "A bot reviewer objected that the refusal advises re-scoring against the corpus the split was drawn from, while a --tasks split pins no corpus. Reproduced the refusing row directly: _corpus_conflict(_UNPINNED, SHA_A, SHA_B) is True, so a pinless split does reach that message.",
+        "Confirmed the path was already covered end to end by test_one_known_corpus_beside_an_unknown_one_conflicts_without_a_pin and by the parametrised truth table. Neither covered the advice the caller reads on that path.",
+        "Rejected the obvious repair. 'Re-score both artifacts against one corpus' is wrong when the split does pin a digest, because re-scoring against some other single corpus still leaves two declared values and still refuses. A procedure phrased for one input shape is wrong for the other.",
+        "Wrote the failing test first, then replaced the advice with the negation of the predicate: 'Re-score both artifacts so that only one corpus is named across all three.' It names no file to copy a value from, so no input can be missing what it names.",
+        "Grepped every tree for other copies. The README transcript stops after the first sentence and carried nothing stale; the only other match is a dated paraphrase in the review log.",
+        "1391 pass, ruff clean, mypy clean, zero dashes. Documented as shape 36."
+      ]
     }
   ],
-  "endingCommit": "1a646fe9c",
+  "endingCommit": "feb236208",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

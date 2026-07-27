@@ -3827,6 +3827,24 @@ class TestTheCorpusPinCannotBeStrippedAway:
         assert oa._corpus_conflict(None, _SHA_A, _SHA_A) is True
         assert json.loads(json.dumps({"corpus": None}))["corpus"] is None
 
+    def test_the_refusal_advises_nothing_the_split_may_not_carry(self):
+        """The rule refuses splits that name no corpus, so the advice cannot name one.
+
+        `(_UNPINNED, SHA_A, SHA_B)` is a refusing row, and it is what a
+        `--tasks` split looks like beside two results that disagree. Advice to
+        re-score against the corpus the split names sends that operator to a
+        key their split does not have.
+
+        The advice restates the guard's own rule instead. That is the one
+        claim true for every refusing row, and the only wording here that a
+        reader can check against `_corpus_conflict` rather than against a
+        particular caller's files.
+        """
+        assert oa._corpus_conflict(oa._UNPINNED, _SHA_A, _SHA_B) is True
+        reason = str(oa._corpus_refusal()["reason"])
+        assert "the corpus the split" not in reason
+        assert "only one corpus" in reason
+
 
 class TestWhatTheVerdictClaimsWasChecked:
     """Round sixteen: the pin is caller-supplied, so say when it was absent.
