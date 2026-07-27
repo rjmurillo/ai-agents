@@ -40,6 +40,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from scripts.validation.token_budget import estimate_token_count
 
 INSTRUCTIONS_SUBDIR = ".github/instructions"
@@ -58,7 +60,15 @@ DEFAULT_CEILINGS_BYTES: dict[str, int] = {
 }
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-_APPLYTO_RE = re.compile(r"^applyTo:\s*(.*)$", re.MULTILINE)
+
+
+class UnsupportedApplyToError(ValueError):
+    """A frontmatter ``applyTo`` is present but is neither a string nor a list of strings.
+
+    Silently excluding such a file would under-count the always-on budget and
+    let a malformed rule bypass the ceiling, so this is surfaced as a
+    configuration error (ADR-035 exit code 2) rather than swallowed.
+    """
 
 
 def language_universal_forms(ext: str) -> frozenset[str]:
@@ -122,36 +132,73 @@ def expand_braces(pattern: str) -> list[str]:
     return expanded
 
 
+def _collapse_globstars(pattern: str) -> str:
+    """Collapse redundant consecutive ``**`` segments to their minimal form.
+
+    ``**/**/*.py`` matches exactly the files ``**/*.py`` matches, because each
+    ``**`` can match zero directories. Folding any run of globstars makes the
+    universality check depend on glob semantics, not on the exact spelling, so
+    a rule cannot dodge the always-on budget by padding its ``applyTo`` with
+    equivalent ``**/`` segments.
+    """
+    previous = ""
+    while previous != pattern:
+        previous = pattern
+        pattern = pattern.replace("**/**", "**")
+    return pattern
+
+
+def _iter_applyto_globs(value: object) -> list[str]:
+    """Flatten a parsed YAML ``applyTo`` value into raw comma-split globs.
+
+    Accepts a single glob string (the repo convention, possibly comma joined)
+    or a YAML list of such strings. Any other shape is a configuration error.
+    """
+    if isinstance(value, str):
+        return _split_top_level_commas(value)
+    if isinstance(value, list):
+        globs: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                msg = f"applyTo list entries must be strings, got {type(item).__name__}"
+                raise UnsupportedApplyToError(msg)
+            globs.extend(_split_top_level_commas(item))
+        return globs
+    msg = f"applyTo must be a string or list of strings, got {type(value).__name__}"
+    raise UnsupportedApplyToError(msg)
+
+
 def parse_applyto(text: str) -> set[str]:
     """Extract the ``applyTo`` glob set from a rule file's frontmatter.
 
+    Parses the frontmatter as YAML so quoting, inline comments, flow lists, and
+    block-style lists are handled by the parser rather than a line regex (a
+    regex that grabbed everything after ``applyTo:`` would fold a trailing
+    ``# comment`` into the glob and would miss a block-style list entirely).
     Splits the comma-separated scope list without breaking brace groups, then
     expands each brace group so ``**/*.{py,pyi}`` becomes two concrete globs.
     """
     fm_match = _FRONTMATTER_RE.match(text)
     if fm_match is None:
         return set()
-    apply_match = _APPLYTO_RE.search(fm_match.group(1))
-    if apply_match is None:
+    try:
+        data = yaml.safe_load(fm_match.group(1))
+    except yaml.YAMLError:
         return set()
-    raw = apply_match.group(1).strip()
-    if len(raw) >= 2 and raw[0] in "'\"" and raw[-1] == raw[0]:
-        raw = raw[1:-1]
-    raw = raw.strip()
-    if raw.startswith("[") and raw.endswith("]"):
-        raw = raw[1:-1]
+    if not isinstance(data, dict) or "applyTo" not in data:
+        return set()
     patterns: set[str] = set()
-    for part in _split_top_level_commas(raw):
-        cleaned = part.strip().strip("'\"").strip()
-        if not cleaned:
-            continue
-        patterns.update(expand_braces(cleaned))
+    for glob in _iter_applyto_globs(data["applyTo"]):
+        cleaned = glob.strip()
+        if cleaned:
+            patterns.update(expand_braces(cleaned))
     return patterns
 
 
 def is_language_universal(patterns: set[str], ext: str) -> bool:
     """True when any pattern scopes the rule to every file of ``ext``."""
-    return bool(patterns & language_universal_forms(ext))
+    forms = language_universal_forms(ext)
+    return any(_collapse_globstars(pattern) in forms for pattern in patterns)
 
 
 @dataclass(frozen=True)
@@ -346,7 +393,11 @@ def main(argv: list[str] | None = None) -> int:
     for ext, ceiling in args.ceiling:
         ceilings[ext] = ceiling
 
-    results = evaluate(repo_path, ceilings)
+    try:
+        results = evaluate(repo_path, ceilings)
+    except UnsupportedApplyToError as exc:
+        print(f"Error: unsupported applyTo in an instruction file: {exc}", file=sys.stderr)
+        return 2
     any_over = any(r.over_budget for r in results)
 
     if args.output_format == "json":

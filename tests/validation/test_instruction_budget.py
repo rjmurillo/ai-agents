@@ -60,8 +60,33 @@ def test_parse_applyto_flow_list_form() -> None:
     assert ib.parse_applyto(text) == {"**", "**/*.ts"}
 
 
+def test_parse_applyto_block_list_form() -> None:
+    # A YAML block-style list must be read as list entries, not missed by a
+    # single-line regex that only sees the empty value after 'applyTo:'.
+    text = "---\napplyTo:\n  - '**/*.py'\n  - 'tests/**'\n---\nbody\n"
+    assert ib.parse_applyto(text) == {"**/*.py", "tests/**"}
+
+
+def test_parse_applyto_ignores_inline_comment() -> None:
+    # A trailing '# comment' belongs to YAML, not to the glob. A line regex
+    # would fold it into the pattern and never match a universal form.
+    text = "---\napplyTo: '**/*.py' # only python\n---\nbody\n"
+    assert ib.parse_applyto(text) == {"**/*.py"}
+    assert ib.is_language_universal(ib.parse_applyto(text), ".py") is True
+
+
+def test_parse_applyto_unsupported_scalar_raises() -> None:
+    # A present-but-non-string/list applyTo (here an int) is a config error,
+    # not a file to silently drop from the always-on budget.
+    text = "---\napplyTo: 42\n---\nbody\n"
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib.parse_applyto(text)
+
+
 def test_parse_applyto_expands_brace_group() -> None:
-    text = "---\napplyTo: **/*.{py,pyi},tests/**\n---\nbody\n"
+    # A leading '**' forces quoting in YAML, so the realistic brace form is
+    # quoted; an unquoted '**/*.{...}' is invalid YAML the harness would reject.
+    text = "---\napplyTo: '**/*.{py,pyi},tests/**'\n---\nbody\n"
     assert ib.parse_applyto(text) == {"**/*.py", "**/*.pyi", "tests/**"}
 
 
@@ -91,6 +116,9 @@ def test_parse_applyto_missing_key_returns_empty() -> None:
         ({"**"}, ".py", True),
         ({"**/*"}, ".py", True),
         ({"**/*.py"}, ".py", True),
+        ({"**/**/*.py"}, ".py", True),
+        ({"**/**/*"}, ".py", True),
+        ({"**/**"}, ".py", True),
         ({"*.py"}, ".py", False),
         ({"**/*.py", "**/*.pyi"}, ".py", True),
         ({"**/*.cs"}, ".py", False),
@@ -110,6 +138,16 @@ def test_is_language_universal_is_precise_not_endswith() -> None:
     # root-only '*.py' form is situational, not an always-on baseline.
     assert ib.is_language_universal({"src/foo*.py"}, ".py") is False
     assert ib.is_language_universal({"*.py"}, ".py") is False
+
+
+def test_is_language_universal_collapses_redundant_globstars() -> None:
+    # Padding an applyTo with equivalent '**/' segments matches the same files
+    # as the minimal form, so it must not dodge the always-on budget.
+    assert ib.is_language_universal({"**/**/*.py"}, ".py") is True
+    assert ib.is_language_universal({"**/**/**/*.py"}, ".py") is True
+    assert ib.is_language_universal({"**/**/*.cs"}, ".py") is False
+    assert ib._collapse_globstars("**/**/*.py") == "**/*.py"
+    assert ib._collapse_globstars("**/**") == "**"
 
 
 # --------------------------------------------------------------------------
