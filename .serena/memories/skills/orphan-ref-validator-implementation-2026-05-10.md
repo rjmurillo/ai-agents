@@ -59,7 +59,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 The gate returned `CRITICAL_FAIL` on clean `main` with 32 findings across 12 files
 in `.agents/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
 contributor regardless of what their PR touched. All 32 pointed at entities that
-were deliberately deleted. Most had no successor; two did:
+were deliberately deleted. Three had a successor; the rest had none:
 
 | Entity | Refs | Removed by |
 | --- | --- | --- |
@@ -90,14 +90,17 @@ called them "never landed" on the strength of a `grep` over the working tree, an
 a second review corrected it. Grep proves absence now; only `git log -S` proves an
 entity never existed.
 
-Nothing validates embedded count claims today. `counts.py` in the skill is
-*catalog enumeration* added in #3434, not count-claim scanning; the filename is a
-fossil of the retired subsystem. The scanner emits exactly three kinds:
-`skill_name`, `script_path`, `scan_truncated`.
+Nothing validates embedded count claims today. `counts.py` in the skill does
+*catalog enumeration*, not count-claim scanning. The file is the original count
+subsystem from #1979, gutted in #2853; #3434 later added sibling-namespace
+enumeration to the same file. The filename is a fossil. The scanner emits
+exactly three kinds: `skill_name`, `script_path`, `scan_truncated`.
 
-**What was done instead.** Each affected spec got a dated `> [!IMPORTANT]`
-retirement note after its H1 naming the removed dependency, the PR, and the
-commit, and stating the instructions below are no longer actionable. The line
+**What was done instead.** Ten of the thirteen affected specs got a dated
+`> [!IMPORTANT]` retirement note after the H1 naming the removed dependency, the
+PR, and the commit, and stating the instructions below are no longer actionable.
+The other three already declared themselves historical, consolidated, or done in
+their own frontmatter, so a banner would have added nothing. The line
 directives stay, but they now sit under a banner that tells the reader the truth.
 That satisfies `.agents/critique/001-fix-validate-sessionend-references-critique.md`
 (do not rewrite historical records into anachronism) without leaving a live

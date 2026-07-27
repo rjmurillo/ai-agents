@@ -132,7 +132,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e015"
+      ]
     },
     {
       "id": "e012",
@@ -169,6 +171,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs no longer resolve",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

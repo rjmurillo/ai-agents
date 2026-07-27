@@ -52,7 +52,7 @@
       "skillScriptsListed": {
         "complete": true,
         "level": "SHOULD",
-        "evidence": "Enumerated the portability validators under scripts/validation/ before writing the rule, which changed the deliverable"
+        "evidence": "Read scan.py, patterns.py, and counts.py under .claude/skills/orphan-ref-validator/scripts/ before deciding how to handle the findings, which is what established that the scanner emits only skill_name, script_path, and scan_truncated"
       },
       "usageMandatoryRead": {
         "complete": true,
@@ -74,7 +74,7 @@
       "serenaMemoryUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Augmented .serena/memories/skills/orphan-ref-validator-implementation-2026-05-10.md with the stale-spec decision, the five entity fates, and the imperative-versus-narrative trap, rather than creating a duplicate memory"
+        "evidence": "Augmented .serena/memories/skills/orphan-ref-validator-implementation-2026-05-10.md with the stale-spec decision, the six entity fates, and the imperative-versus-narrative trap, rather than creating a duplicate memory"
       },
       "markdownLintRun": {
         "complete": true,
@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Nine commits, each holding four or fewer authored files plus the session log and hook-generated memory artifacts that the commit policy requires in the same staged set"
+        "evidence": "Eleven commits. Nine hold four or fewer authored files plus the session log and hook-generated memory artifacts that the commit policy requires in the same staged set; one holds six, over the five-file ceiling, because the Serena memory was staged alongside five spec files. The PR squash-merges, so main takes a single commit"
       },
       "validationPassed": {
         "complete": true,
@@ -129,7 +129,7 @@
         "Counted base-tree precedent at d544eaa60a with git grep -oh -F on markdown files only: 25 line-scope and 22 file-scope directives already present. Dropping the markdown filter gives 31 and 23, but the extra 6 are the validator's own patterns.py, its mirror, a test, and a session log, which are the directive's implementation rather than documents using it",
         "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
       ],
-      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7"
+      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs no longer resolve"
     },
     {
       "phase": "Adversarial review caught that the directives alone were dishonest",
@@ -148,7 +148,7 @@
       "actions": [
         "Sent the annotated branch back to the same reviewer with the explicit question: is the banner sufficient, and is every SHA in it correct",
         "Reviewer returned three blockers. Verified each with git rather than accepting them, and all three held",
-        "Blocker one: seven notes closed with the sentence Count claims are now scanned by the orphan-ref-validator skill, which is false. The scanner emits only skill_name, script_path, and scan_truncated. counts.py is catalog enumeration added in #3434, not count-claim scanning, and its name is a fossil of the retired subsystem",
+        "Blocker one: seven notes closed with the sentence Count claims are now scanned by the orphan-ref-validator skill, which is false. The scanner emits only skill_name, script_path, and scan_truncated. counts.py does catalog enumeration, not count-claim scanning. The file is the original count subsystem from #1979, gutted in #2853; #3434 added sibling-namespace enumeration to the same file. The name is a fossil",
         "Blocker two: git log -S COUNT_CLAIM_RE shows COUNT_PATTERN, COUNT_CLAIM_RE, COUNT_LABEL_MAP, and extract_count_claims did land, then were retired in #2853 (commit 9c88990b77) to mirror the validator deleted in #2187. The earlier claim that they never landed was wrong; the instruction is retired, not unreachable",
         "Blocker three: REQ-005 is status draft, its AC-14 requires pre_pr.py to run bundle coverage, and pre_pr.py has no bundle check. DESIGN-005 and TASK-005 carry banners while their parent requirement did not, so the fix left two of three tiers marked dead and the third reading as live",
         "Also confirmed the notes carried no date despite this log calling them dated, and that session-migration was sunset in #2359 rather than folded into session"
