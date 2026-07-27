@@ -481,6 +481,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
+SKILLS_DIR = (REPO_ROOT / ".claude" / "skills").resolve()
 
 
 def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
@@ -552,12 +553,42 @@ def _resolve_rule_path(rule_path_str: str) -> Path | int:
     return rule_path
 
 
-def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
-    """Return (scenarios_data, resolved rule_path) on success, exit code on error.
+def _resolve_skill_path(skill_path_str: str) -> Path | int:
+    """Resolve and validate skill_path stays under .claude/skills/ as SKILL.md.
 
-    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. A crafted
-    scenario file cannot point at config, secrets, or any other repository
-    file: the `full` mechanism would otherwise send that content to the LLM API.
+    The name check runs before the is_file() check so a crafted path targeting
+    another file in the skills tree is rejected on name alone. This keeps the
+    `full` mechanism from sending arbitrary skill-tree content to the API.
+    """
+    skill_path = (REPO_ROOT / skill_path_str).resolve()
+    try:
+        skill_path.relative_to(SKILLS_DIR)
+    except ValueError:
+        print(
+            f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if skill_path.name != "SKILL.md":
+        print(
+            f"ERROR: skill_path must be a SKILL.md file: {skill_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if not skill_path.is_file():
+        print(f"ERROR: skill not found: {skill_path}", file=sys.stderr)
+        return 2
+    return skill_path
+
+
+def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
+    """Return (scenarios_data, resolved target path) on success, exit code on error.
+
+    A scenario file MUST set exactly one of `rule_path` or `skill_path`.
+    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`; `skill_path`
+    MUST resolve to a `SKILL.md` file under `.claude/skills/`. A crafted scenario
+    file cannot point at config, secrets, or any other repository file: the
+    `full` mechanism would otherwise send that content to the LLM API.
     """
     spath = Path(scenario_file)
     if not spath.is_file():
@@ -570,9 +601,13 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
     scenarios_data = parsed
 
     rule_path_str = scenarios_data.get("rule_path")
-    if not isinstance(rule_path_str, str) or not rule_path_str.strip():
+    skill_path_str = scenarios_data.get("skill_path")
+    has_rule = isinstance(rule_path_str, str) and bool(rule_path_str.strip())
+    has_skill = isinstance(skill_path_str, str) and bool(skill_path_str.strip())
+    if has_rule == has_skill:
         print(
-            f"ERROR: rule_path must be a non-empty string in {spath}",
+            "ERROR: scenario file must set exactly one of rule_path or "
+            f"skill_path in {spath}",
             file=sys.stderr,
         )
         return 2
@@ -581,7 +616,10 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
     if shape_err is not None:
         return shape_err
 
-    resolved = _resolve_rule_path(rule_path_str.strip())
+    if has_rule:
+        resolved = _resolve_rule_path(rule_path_str.strip())
+    else:
+        resolved = _resolve_skill_path(skill_path_str.strip())
     if isinstance(resolved, int):
         return resolved
     return scenarios_data, resolved
@@ -593,8 +631,15 @@ def _process_one_rule(
     rule_path: Path,
     args: argparse.Namespace,
 ) -> tuple[str, dict[str, Any] | None, int]:
-    """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
-    rule_id = scenarios_data.get("rule_id", rule_path.stem)
+    """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
+    default_id = (
+        rule_path.parent.name if rule_path.name == "SKILL.md" else rule_path.stem
+    )
+    rule_id = (
+        scenarios_data.get("rule_id")
+        or scenarios_data.get("skill_id")
+        or default_id
+    )
     rule = parse_rule(rule_path)
     scenarios = scenarios_data.get("scenarios", [])
     n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
