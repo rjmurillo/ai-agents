@@ -6,6 +6,29 @@
 
 Adapters converge three unlike scorers onto `{task_id: bool}`: `agent_results` from an agent-vs-baseline report, `rule_results` from rule scenario scores, `pytest_results` from JUnit XML. That boolean mapping is what generalizes the discipline past skills. A fixture id, a scenario id, and a pytest node id are the same kind of thing to the decider, so agents, rules, and hooks all reach the same gate. Whether to widen the seam to `{task_id: float}` is open (#3437); both code reviewers and both ADR reviewers argued for it, and it is a redesign rather than a tweak.
 
+`extract` writes an envelope, not a bare mapping: `{"schema": "optimizer-results/1", "corpus": <64-hex or null>, "results": {task_id: bool}}`. `corpus` is the identity of the task set the score was taken against, `fixture_set_sha` on the agent path and `null` on the rule and hook paths, which publish no equivalent. The reader still accepts a bare mapping; the discriminator is a string-valued `schema` key rather than the key alone, because bare mappings are all-boolean by construction and a legacy file with a task literally named `schema` must still parse as legacy.
+
+## The corpus guard, and why it needed two attempts
+
+`gate` refuses unless the split's pin and both results files name one corpus. This exists because the omission had already cost something: on 2026-07-27 two architect-spike runs were gated as a null control, published across four files, and then found to disagree on `fixture_set_sha` with all eight fixture files changed. The report format carried the falsifier the whole time. `_fixture_set_sha`'s own docstring says the field exists so a consumer can verify two runs hit the same set; `extract` never read it.
+
+The first cut compared the two files against each other and refused only when both declared a corpus and the two disagreed. That was defeated by `jq '.results'`: stripping the envelope left two unknowns, and two unknowns have nothing to disagree about. The bypass needed no intent, since a bare mapping is what every pre-envelope consumer emits. What closes it is a pair of changes, neither sufficient alone:
+
+- `split` pins the corpus of the results it was drawn from, so the value lives in the baseline commitment and no results file can delete it.
+- One known corpus beside an unknown one is a conflict. Asymmetry is itself the evidence, and this covers splits drawn before the pin existed.
+
+Three details that are load-bearing and easy to undo by accident:
+
+1. The corpus form is validated as 64 lowercase hex. An unchecked string reported a verified match on values identifying nothing; two reports both carrying `fixture_set_sha: ""` compared as verified.
+2. The pre-lock read is headers only and answers unknown to every content problem, so it cannot raise. Reading both files in full before the lock let a malformed verdict mapping answer in place of an exhausted budget. The full read sits in `_gate_decision`, after the ledger guards and before the charge.
+3. The refusal stays ahead of the ledger, matching the out-of-range `--max-p` check and the split-drift refusal. An incomparable pair is unusable at any budget, so telling the operator to buy budget is worse advice than telling them the pair is wrong.
+4. The verdict reports two facts, not one. `corpus_verified` says the two results agree on a known corpus. `corpus_pinned` says the split named the corpus they carry. A sixteenth review found the docs claiming the pin "cannot be deleted", which is true of the results envelope and false of the split: deleting the split's `corpus` key leaves two agreeing files and nothing to contradict them. Requiring a pin before any ACCEPT was the reviewer's fix and was declined, because a `--tasks` split pins nothing by construction and neither the rule nor the hook path publishes a corpus identity, so the rule would disable the gate for two of three artifact classes to close a hole that needs the caller to edit a file they supplied.
+5. The conflict rule runs twice: once on headers before the lock, once on the loaded `ResultsFile` values before the charge. Only the second pair is what the comparison is scored from. Both call sites emit one shared refusal payload so the two cannot drift.
+6. Every "cannot raise" docstring is a claim that needs a test. `_corpus_header` caught only `ValueError` while a 200k-deep JSON array raises `RecursionError`, which escaped ahead of the ledger guard, in a function whose docstring said that was impossible. Normalize in `_read_json` too.
+7. The ledger key deliberately excludes corpus. Including it would split budgets, and a caller stripping the envelope would land on a different key with the same held-out tasks: a budget reset reachable by editing an input. Over-sharing a budget is safe; resetting one is not.
+
+The bound, which belongs in any restatement of this: the split is caller-supplied and its pin sits outside the fingerprint, so a caller who edits two files together can still push an incomparable pair through. This defends against omission, not against an adversary.
+
 ## The lesson worth carrying elsewhere
 
 Any part of a budget the caller restates on every invocation is not part of the budget. Three adversarial rounds each fixed the piece under review and left the rest on the command line, where the identical defect reappeared:
@@ -37,6 +60,7 @@ The reflex to resist: "the loop cannot edit toward a group it cannot name" is ba
 
 - Coverage must be `--cov=scripts/eval` (the directory). `--cov=scripts/eval/_optimizer_core` collects nothing because the CLI module name is hyphenated.
 - `mcnemar_exact` is reported always and enforced only with `--max-p`, which defaults to absent. A single discordant gain yields `p_value: 0.5` and still ACCEPTs by default, because a three-task held-out group cannot reach 0.05 and enforcing a conventional floor would make the common case unpassable. When supplied, `--max-p` is the FAMILY bar and is Bonferroni-divided by `--max-consultations`: five looks at 0.05 each is a family-wise 0.226, not 0.05. So raising the budget buys more looks at a stricter bar, never a cheaper one. The bar is pinned in the ledger like the cap, absence included, so a candidate refused at 0.05 cannot be re-gated at 0.1.
+- There is no valid agent-path null control anywhere in this repo. All six tracked spikes are confounded: architect by changed fixtures, critic and high-level-advisor by changed `agent_prompt_sha`. Any claim citing one is wrong. The rule path has a genuine control, run 2026-07-27, and it falsified its own ACCEPT: both gains reproduced under a byte-for-byte no-op.
 - Only `rule_results` is single-shot against an LLM judge; `agent_results` reduces over runs and `pytest_results` is deterministic. Noise arithmetic that treats all three as single-shot overstates spurious rejection (#3445).
 
 ## The rule that generalizes past this file

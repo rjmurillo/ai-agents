@@ -594,3 +594,118 @@ was one `grep` for a field name. The asymmetry is the argument for the guard.
 
 Worth generalizing: before spending on a new run to test a claim, check whether
 some existing artifact already disagrees with it.
+
+## Defect shape 18: a refusal reachable by deletion is not a refusal
+
+Round fifteen, `gpt-5.6-terra`, REJECT.
+
+The corpus guard from defect shape 17 shipped its first cut comparing the two
+results files against each other, refusing only when both declared a corpus and
+the two disagreed. The reviewer opened it in one line: strip the envelope off
+either side and the pair becomes two unknowns, and two unknowns have nothing to
+disagree about. The guard was defeated by `jq '.results'`.
+
+What makes this worth writing down rather than filing as a bug is that the
+bypass needs no intent. Every consumer written before the envelope existed emits
+a bare mapping, and the reader accepts bare mappings on purpose for backward
+compatibility. So the "attack" is what an ordinary pipeline does by default.
+That is the same shape as the incident the guard was built for, where nobody
+edited anything and a field simply went unread. A guard whose failure mode is
+identical to the failure it guards against has not moved the needle.
+
+Two changes close it, and the pair is the point:
+
+- `split` pins the corpus of the results it was drawn from. The value now lives
+  in the baseline commitment rather than being inferred from the pair, so no
+  results file can delete it. Stripping both envelopes still leaves the pin.
+- One known corpus beside an unknown one counts as a conflict. Asymmetry is
+  itself the evidence: a pair scored on one corpus does not have one side that
+  forgot. This also covers splits drawn before the pin existed.
+
+Neither alone is enough. The pin without the asymmetry rule does nothing for a
+legacy split; the asymmetry rule without the pin still falls to stripping both
+sides.
+
+Two smaller findings from the same round, both real:
+
+- An unvalidated corpus string reported a verified match on values that identify
+  nothing. Two reports both carrying `fixture_set_sha: ""` compared as verified.
+  The form is now checked: 64 lowercase hex, which is what `hexdigest()` emits.
+- Reading both results files in full before the ledger lock let a malformed
+  verdict mapping answer in place of an exhausted budget, which tells the caller
+  to fix the wrong thing. The pre-lock work is now a header read that answers
+  unknown to every content problem and cannot raise. The full read moved behind
+  the guards.
+
+One finding was argued down rather than absorbed. The reviewer wanted the whole
+corpus check moved behind the ledger lock to preserve refusal ordering. The
+check stayed ahead of it: the file's established convention, visible in the
+out-of-range `--max-p` check and the split-drift refusal, is that
+structural-validity refusals precede ledger refusals, and an incomparable pair
+is unusable at any budget. Telling an operator to buy budget for a comparison
+that can never be valid is worse advice than telling them the pair is wrong. The
+reviewer's underlying concern was satisfied by the header-only read, which is
+what actually caused the ordering problem.
+
+The limit is now stated in both the README and the ADR rather than left to be
+discovered: the split is caller-supplied and its pin sits outside the
+fingerprint, so a caller who edits two files together can still get an
+incomparable pair through. This defends against omission, not against an
+adversary. Naming the bound is the difference between a claim and a measured
+one.
+
+Worth generalizing: when a guard has a "cannot determine" state, check what it
+costs to reach that state deliberately. If the answer is one obvious command,
+the guard is advisory.
+
+## Defect shape 19: a guard that documented a property it did not have
+
+A sixteenth adversarial review, run against `gpt-5.6-terra` after the corpus
+guard was hardened, returned REJECT with five findings. All five were real and
+all five were confirmed by running the code rather than by reading it.
+
+The one worth generalizing is the first. The README and the ADR both claimed
+the corpus refusal "cannot be deleted". The claim was written about the results
+envelope, where it holds: stripping the envelope off either side turns a known
+digest into an unknown, and an unknown beside a known one is a conflict. But the
+sentence as written covered the split's pin too, and there the claim is false.
+Deleting the split's `corpus` key leaves two agreeing results files and nothing
+to contradict them, so the conflict rule finds no disagreement to refuse.
+
+The tempting fix, and the one the reviewer proposed, was to require a pin before
+any ACCEPT. It was not taken. A `--tasks` split pins nothing by construction,
+and neither the rule path nor the hook path publishes a corpus identity at all,
+so that rule would disable the gate for two of the three artifact classes the
+project exists to serve in order to close a hole that needs the caller to edit a
+file they supplied. The fix taken instead splits the claim into two facts the
+verdict reports separately: `corpus_verified` for "the two results agree on a
+known corpus", `corpus_pinned` for "the split named the corpus they carry". Two
+booleans, two guarantees, neither read as the other.
+
+The four others were ordinary and cheap, and each one falsified a sentence in a
+docstring:
+
+- The preflight read file headers and the comparison was scored from a second,
+  full read, and the two were never reconciled. The conflict rule now runs again
+  against the loaded values, before the charge.
+- `_read_split` accepted the pin unvalidated, so a split carrying
+  `"corpus": []` raised `TypeError` out of a set comprehension. It is now
+  validated with the same digest check the results files get.
+- `_corpus_header` promised it could not raise on content and caught only
+  `ValueError`. A JSON array nested 200,000 deep raises `RecursionError`, which
+  escaped as an uncaught traceback ahead of the ledger guard: the exact defect
+  shape rounds one through five closed five times, in a function whose docstring
+  said it was closed.
+- The test asserting the preflight scrubs the digest read `capsys` after
+  `_run_gate` had already drained it, then checked stderr while the error is
+  emitted as JSON on stdout. It asserted a digest was absent from an empty
+  string and could not have failed. It now reads the returned payload and has a
+  negative control that fails when the scrubber is removed.
+
+Worth generalizing, twice over. First: a docstring that states a safety property
+is a claim, and a claim in a comment is untested unless a test names it. Three of
+these five findings were sentences that had been true when written and were
+falsified by a later edit, in a file where every such sentence was added by a
+previous review round. Second: when a guard covers two mechanisms, write the
+property for each mechanism separately. One sentence covering both is how the
+weaker guarantee inherits the stronger one's language.

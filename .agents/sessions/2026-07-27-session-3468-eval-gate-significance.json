@@ -229,7 +229,7 @@
       "outcome": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file."
     }
   ],
-  "endingCommit": "bb98bf24a",
+  "endingCommit": "d30417c7d4b29385e44785be2089a05a305e74bd",
   "nextSteps": [
     "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
     "PR #3467 is green on 112 checks and blocked only on human approval.",
