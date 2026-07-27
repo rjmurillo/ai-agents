@@ -4,7 +4,7 @@
 **Date**: 2025-12-18
 **Deciders**: User, High-Level-Advisor Agent
 **Context**: [PR #60](https://github.com/rjmurillo/ai-agents/pull/60) AI workflow implementation
-**Related**: [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-Only Scripting), [PR #60 Remediation Plan](../planning/PR-60/002-pr-60-remediation-plan.md)
+**Related**: [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-Only Scripting), [PR #60 Remediation Plan](../archive/planning/PR-60/002-pr-60-remediation-plan.md)
 
 ---
 

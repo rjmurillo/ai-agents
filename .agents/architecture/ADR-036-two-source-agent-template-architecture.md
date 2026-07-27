@@ -233,9 +233,9 @@ This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
 
 ### Planning & Design Documents
 
-- `.agents/planning/prd-agent-consolidation.md`: Original PRD defining consolidation approach
-- `.agents/planning/implementation-plan-agent-consolidation.md`: Implementation plan details
-- `.agents/planning/tasks-agent-consolidation.md`: Task breakdown for consolidation work
+- `.agents/archive/planning/prd-agent-consolidation.md`: Original PRD defining consolidation approach
+- `.agents/archive/planning/implementation-plan-agent-consolidation.md`: Implementation plan details
+- `.agents/archive/planning/tasks-agent-consolidation.md`: Task breakdown for consolidation work
 - `.agents/architecture/2-variant-consolidation-review.md`: Architecture review of 2-variant approach
 - `.agents/roadmap/epic-agent-consolidation.md`: Epic definition for agent consolidation
 

@@ -2,8 +2,8 @@
 
 ## Source
 
-- Task List: `.agents/planning/tasks-acknowledged-vs-resolved.md`
-- PRD: `.agents/planning/PRD-acknowledged-vs-resolved.md`
+- Task List: `.agents/archive/planning/tasks-acknowledged-vs-resolved.md`
+- PRD: `.agents/archive/planning/PRD-acknowledged-vs-resolved.md`
 
 ---
 
