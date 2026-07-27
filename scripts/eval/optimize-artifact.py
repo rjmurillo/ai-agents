@@ -749,17 +749,24 @@ def _warn(message: str) -> None:
     front of them and each left the next one open, so they are named here
     together rather than discovered in sequence a fourth time.
 
-    Two reads sit outside the guard and both are total. `sys.stderr` is an
-    attribute lookup, and a harness that deletes it rather than blanking it
-    turns the read itself into the abort, so `getattr` routes that case into
-    the `None` branch already here instead of adding a second one. The key
-    read is total for a reason recorded fifty lines up rather than here, which
-    is why it is named: `_ACTIVE_HOLDOUT_KEY` is declared with `default=None`,
-    and a `ContextVar` without a default raises `LookupError` from `get()`
-    outside a set scope. Dropping that argument would put the abort back, and
-    a twenty-fifth review measured the cost of writing that down as thirteen
-    red tests, so the invariant is pinned as well as stated. Everything that
-    can do work is inside the guard, including the redaction. Writing the
+    The stream is the only state this reads outside the guard, and it is read
+    totally. It has to be outside, because it decides the early return that
+    keeps the message off stdout, and `sys.stderr` is an attribute lookup, so
+    a harness that deletes it rather than blanking it turns the read itself
+    into the abort. `getattr` routes that case into the `None` branch already
+    here instead of adding a second one.
+
+    The key read was outside too and had no reason to be. Rounds twenty
+    through twenty-five each answered "why is this one safe" for a different
+    expression out there, and the sixth answer is that the question was
+    avoidable: the key is read where it is used, under the guard, so nothing
+    about `_ACTIVE_HOLDOUT_KEY` has to hold for the caller to survive. It is
+    still declared with `default=None`, which now buys a printed diagnostic
+    rather than an unaborted caller: dropping it used to abort the caller and
+    fail thirteen tests, and now loses the warning and fails six. What
+    remains outside is the guard's own construction, which no docstring can
+    promise against a caller who reassigns this module's globals. Everything
+    that can do work is inside the guard, including the redaction. Writing the
     opposite down is what exposed it: a redaction that raises would leave the
     message unprinted either way, so suppressing costs a diagnostic and
     excluding it costs the caller the abort that rounds twenty through
@@ -797,11 +804,11 @@ def _warn(message: str) -> None:
     verdict the caller parses. A diagnostic that corrupts the payload is worse
     than one that is lost, so a missing stream drops the message.
     """
-    key = _ACTIVE_HOLDOUT_KEY.get()
     stream = getattr(sys, "stderr", None)
     if stream is None:
         return
     with suppress(Exception):
+        key = _ACTIVE_HOLDOUT_KEY.get()
         if key is not None:
             message = _scrub(message, key)
         print(message, file=stream)

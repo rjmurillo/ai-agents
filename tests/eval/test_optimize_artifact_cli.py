@@ -21,7 +21,7 @@ import os
 import stat
 import sys
 import traceback
-from contextvars import ContextVar, copy_context
+from contextvars import copy_context
 from pathlib import Path
 
 import pytest
@@ -4748,20 +4748,18 @@ class TestADiagnosticNeitherLeaksNorFails:
         oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
         assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
 
-    def test_the_key_read_outside_the_guard_cannot_raise(self):
-        """The second unguarded read is total only because of a constructor arg.
+    def test_the_scrub_key_reads_as_none_when_no_scrub_is_active(self):
+        """The default is what lets an unscrubbed warning still get printed.
 
-        `_warn` reads the scrub key before entering the guard, so `get()` must
-        not raise. It cannot, because the `ContextVar` carries `default=None`,
-        and a `ContextVar` without one raises `LookupError` outside a set
-        scope. That argument sits fifty lines from the read that depends on it,
-        which is the distance that lets an edit look harmless. Dropping it
-        turns thirteen diagnostic tests red without any of them naming the
-        cause, so the invariant is asserted here where the name is the reason.
+        `_warn` reads the key under the guard, so a raise here costs the
+        diagnostic rather than the caller. It should cost neither. The
+        `ContextVar` carries `default=None`, and one declared without a
+        default raises `LookupError` from `get()` outside a set scope, which
+        the guard would swallow into silence. Dropping the argument fails six
+        tests and five of them report a missing warning, which points at the
+        stream rather than at the declaration. This one names it.
         """
         assert oa._ACTIVE_HOLDOUT_KEY.get() is None
-        with pytest.raises(LookupError):
-            ContextVar("_probe_without_default").get()
 
     @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
     def test_a_warning_never_lands_on_the_stream_carrying_the_verdict(
