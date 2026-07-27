@@ -5500,10 +5500,10 @@ def test_immutable_suppression_error_and_clean_paths(
         "_changed_commit_paths",
         lambda *_args: ["README.md", "source.py"],
     )
-    monkeypatch.setattr(policy, "_read_commit_blob", lambda *_args: None)
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="error"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 2
 
-    monkeypatch.setattr(policy, "_read_commit_blob", lambda *_args: "clean\n")
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "clean\n"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 0
 
 

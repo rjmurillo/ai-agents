@@ -741,6 +741,11 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     gated_paths = _gated_adr_review_paths(paths, repo_root)
     if not gated_paths:
         return 0
+    if _merge_in_progress(repo_root):
+        from_main = _paths_on_merge_head(gated_paths, repo_root)
+        gated_paths = [p for p in gated_paths if p not in from_main]
+        if not gated_paths:
+            return 0
 
     session_log = _today_session_log(repo_root / ".agents" / "sessions")
     if session_log is None or not _session_has_adr_review(session_log):
@@ -958,6 +963,26 @@ def _merge_in_progress(repo_root: Path) -> bool:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     return merge_head.is_file()
+
+
+def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
+    """Return the subset of *paths* that exist on MERGE_HEAD.
+
+    Used by ``check_adr_review_policy`` to exempt only the ADR paths that
+    came from the merge parent (main) while still gating branch-authored
+    ADR content.  Returns the empty set on any git error (fail open to the
+    caller's gating logic).
+    """
+    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return set()
+    merge_head = result.stdout.strip()
+    present: set[str] = set()
+    for path in paths:
+        check = _run_git(repo_root, ["cat-file", "-e", f"{merge_head}:{path}"])
+        if check.returncode == 0:
+            present.add(path)
+    return present
 
 
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
@@ -1750,14 +1775,10 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
-        head_violations = _head_suppression_violations(
-            update.head,
-            paths,
-            repo_root,
-        )
-        if head_violations is None:
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
             return 2
-        violations.extend(head_violations)
+        violations.extend(added_violations)
     if not violations:
         return 0
     print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
@@ -1766,19 +1787,53 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     return 1
 
 
-def _head_suppression_violations(
-    head: str,
+def _added_suppression_violations(
+    update: PushUpdate,
     paths: Sequence[str],
     repo_root: Path,
 ) -> list[str] | None:
+    scan_paths = [path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES]
+    if not scan_paths:
+        return []
+    if ".." not in update.range_spec:
+        # No base available; `git diff <sha>` would compare against the
+        # working tree, not against a parent commit.  Fail open: the SHA
+        # gate at push time remains the hard safety boundary.
+        return []
+    result = _run_git(
+        repo_root,
+        ["diff", "--unified=0", "--no-color", update.range_spec, "--", *scan_paths],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _suppression_violations_in_diff(update.head, result.stdout)
+
+
+def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     violations: list[str] = []
-    for path in paths:
-        if Path(path).suffix.lower() not in SEMGREP_SUFFIXES:
+    current_path: str | None = None
+    current_line: int | None = None
+    for line in diff_text.splitlines():
+        file_match = DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None:
+            current_path = _normalize_ratchet_path(file_match.group("path"))
+            current_line = None
             continue
-        content = _read_commit_blob(head, path, repo_root)
-        if content is None:
-            return None
-        violations.extend(_suppression_violations_in_text(head, path, content))
+        hunk_match = DIFF_HUNK_RE.match(line)
+        if hunk_match is not None:
+            current_line = int(hunk_match.group("start"))
+            continue
+        if current_path is None or current_line is None or line.startswith("\\"):
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            if SECURITY_SUPPRESSION_RE.search(line[1:]):
+                violations.append(f"{head[:12]}:{current_path}:{current_line}")
+            current_line += 1
+            continue
+        if line.startswith("-") and not line.startswith("---"):
+            continue
+        current_line += 1
     return violations
 
 
