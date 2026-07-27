@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-07-27-session-3490-active-agent-adr",
+  "session": "2026-07-27-session-3490-active-agent-adr",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Create the ADR-only PR for issue #3413, after fixing PR #3566 conflicts and filing the separate file-overlap issue.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PR #3566 conflicts first by merging origin/main into fix/3464-memory-causal-order, validating targeted memory tests, and pushing head faa300d216c8b4d9d8e313b275663e4e2d57659f.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Counted 60 legacy inverted episode edges in existing generated memory episodes. No marker distinguishes fixed edges from legacy edges, which remains a known review gap for PR #3566.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3572 for the measured 27-file overlap hazard and duplicate-branch hazard so #3413 stays scoped to one active holder per PR branch.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created ADR-088 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-088 to close P0 findings and recorded the debate in .agents/analysis/ADR-088-debate-log.md.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a focused critic recheck after revision. It found no remaining P0 blockers and three P1 clarity gaps, then the ADR was updated for base_sha semantics, v1 expiry parsing, and kill-criteria observability.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: faa300d216c8b4d9d8e313b275663e4e2d57659f",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

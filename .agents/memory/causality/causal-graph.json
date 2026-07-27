@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:33:30.225437+00:00",
+  "updated": "2026-07-27T22:42:02.082746+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22105,6 +22105,78 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "05c4a1086624",
+      "type": "milestone",
+      "label": "milestone: Fixed PR #3566 conflicts first by merging origin/main into fix/3464-memory-causal-order, validating targeted memory tests, and pushing head faa300d216c8b4d9d8e313b275663e4e2d57659f.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076531+00:00"
+    },
+    {
+      "id": "2e5697af4395",
+      "type": "milestone",
+      "label": "milestone: Counted 60 legacy inverted episode edges in existing generated memory episodes. No marker distinguishes fixed edges from legacy edges, which remains a known review gap for PR #3566.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076623+00:00"
+    },
+    {
+      "id": "22e873099758",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3572 for the measured 27-file overlap hazard and duplicate-branch hazard so #3413 stays scoped to one active holder per PR branch.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076713+00:00"
+    },
+    {
+      "id": "a515d0d35f33",
+      "type": "milestone",
+      "label": "milestone: Created ADR-088 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076791+00:00"
+    },
+    {
+      "id": "144d6a713de3",
+      "type": "milestone",
+      "label": "milestone: Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-088 to close P0 findings and recorded the debate in .agents/analysis/ADR-088-debate-log.md.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076872+00:00"
+    },
+    {
+      "id": "f0d00021473e",
+      "type": "milestone",
+      "label": "milestone: Ran a focused critic recheck after revision. It found no remaining P0 blockers and three P1 clarity gaps, then the ADR was updated for base_sha semantics, v1 expiry parsing, and kill-criteria observability.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.076954+00:00"
+    },
+    {
+      "id": "f065ace922e0",
+      "type": "commit",
+      "label": "commit: Commit: faa300d216c8b4d9d8e313b275663e4e2d57659f",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.077034+00:00"
+    },
+    {
+      "id": "7b821adf468f",
+      "type": "outcome",
+      "label": "Outcome: success - Create the ADR-only PR for issue #3413, after fixing PR #3566 conflicts and filing the separate file-overlap issue.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-active-agent-adr"
+      ],
+      "created": "2026-07-27T22:42:02.077114+00:00"
     }
   ],
   "patterns": [
