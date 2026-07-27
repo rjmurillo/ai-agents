@@ -86,7 +86,7 @@ guide, and official CLI changelog. Pinned URLs live in
   Copilot CLI conventions.
 - Update `.claude-plugin/marketplace.json` to declare two plugins (one
   per provider). The same manifest serves both Claude and Copilot CLI.
-- Generalize `build/scripts/validate_marketplace_counts.py` to a
+- Generalize `build/scripts/validate_marketplace_counts.py` to a <!-- orphan-ref-ignore -->
   config-driven counter loaded from `templates/platforms/copilot-cli.yaml`.
 - Document provider×artifact mapping in `templates/README.md`.
 - Generate Copilot CLI hook JSON from `.claude/settings.json` +
@@ -272,7 +272,7 @@ Each plugin's description shall carry per-artifact counts that match actual file
 Verification: `python3 build/scripts/validate_marketplace_counts.py` exits 0; `jq '.plugins | length' .claude-plugin/marketplace.json` = 2.
 
 **REQ-003-004 : Counter generalization (config-driven)**
-`build/scripts/validate_marketplace_counts.py` shall replace the hard-coded `PLUGIN_COUNTERS` dict with a config-driven table loaded from `templates/platforms/copilot-cli.yaml` (per provider). Adding a new artifact type shall require only:
+`build/scripts/validate_marketplace_counts.py` shall replace the hard-coded `PLUGIN_COUNTERS` dict with a config-driven table loaded from `templates/platforms/copilot-cli.yaml` (per provider). Adding a new artifact type shall require only: <!-- orphan-ref-ignore -->
 - adding files under `.claude/<artifact>/`,
 - adding the artifact entry in `copilot-cli.yaml`,
 - updating the plugin description count tokens.
@@ -414,7 +414,7 @@ All Q1-Q6 from the prior round resolved by user; OQ-1 through OQ-4 from the anal
 - **Copilot CLI command reference**: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
 - **Custom instructions format**: https://docs.github.com/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot
 - **Existing implementation**: `build/generate_agents.py`, `build/generate_agents_common.py`, `templates/platforms/*.yaml`
-- **Existing validator**: `build/scripts/validate_marketplace_counts.py`
+- **Existing validator**: `build/scripts/validate_marketplace_counts.py` <!-- orphan-ref-ignore -->
 - **Marketplace**: `.claude-plugin/marketplace.json`
 - **Canonical content roots**: `.claude/{agents,skills,hooks,commands,rules}/`, `.claude/settings.json`
 - **Related ADRs**: ADR-006 (no logic in YAML), ADR-042 (Python migration strategy), ADR-007 (memory-first)

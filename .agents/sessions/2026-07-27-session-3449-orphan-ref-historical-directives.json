@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3449,
+    "date": "2026-07-27",
+    "branch": "docs/orphan-ref-historical-spec-directives",
+    "startingCommit": "d544eaa60a",
+    "objective": "Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned docs/orphan-ref-historical-spec-directives"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md loaded; the orphan-ref-validator SKILL.md directive table and anti-pattern list read before choosing line scope over file scope"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from main at d544eaa60a after a fast-forward pull"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read at session start and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = docs/orphan-ref-historical-spec-directives"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Enumerated the portability validators under scripts/validation/ before writing the rule, which changed the deliverable"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session-end checklist walked before the final commit"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Decision recorded that the retired scripts are historical and the current correction already lives in .claude/commands/build.md"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 run on all 12 changed files; the config excludes .agents/** so 0 files were linted and 0 issues reported"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three commits of four files each, per the atomic-commit ceiling"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scan.py on default targets prints VERDICT: PASS with 0 findings, down from CRITICAL_FAIL with 32"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Follow-up issue filed for the specs that now describe a retired dependency"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Findings folded into the PR body"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Measure the gate failure and trace every orphan",
+      "actions": [
+        "Ran scan.py on default targets against clean main and got VERDICT: CRITICAL_FAIL with 32 findings across 12 spec files",
+        "Grouped findings by referenced entity: 24 point at one retired script, and the rest split across three more",
+        "Ran git log --diff-filter=D on each missing path to find the commit that removed it, rather than guessing whether a replacement exists"
+      ],
+      "outcome": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against build/scripts/validate_marketplace_counts.py, which no longer exists",
+    "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only"
+  ]
+}

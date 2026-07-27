@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-27-session-3449-orphan-ref-historical-directives",
+  "session": "2026-07-27-session-3449-orphan-ref-historical-directives",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

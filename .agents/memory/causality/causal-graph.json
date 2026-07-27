@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T06:00:12.157256+00:00",
+  "updated": "2026-07-27T06:43:43.734984+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20851,6 +20851,24 @@
         "episode-2026-07-26-session-3402-plugin-self-containment"
       ],
       "created": "2026-07-27T05:58:30.440248+00:00"
+    },
+    {
+      "id": "1d3da89feb59",
+      "type": "milestone",
+      "label": "milestone: Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T06:43:43.728950+00:00"
+    },
+    {
+      "id": "aa239e010529",
+      "type": "outcome",
+      "label": "Outcome: success - Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T06:43:43.729039+00:00"
     }
   ],
   "patterns": [

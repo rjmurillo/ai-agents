@@ -14,7 +14,7 @@ author: richard
 
 ## Requirements Addressed
 
-This design implements all eight REQ-009 acceptance criteria (AC1 through AC8). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, and the opt-in `--enforce-counts` single-plugin emission path is tracked in REQ-009's "PR2 follow-up" section. The `/test` Gate 5 wiring is also tracked in REQ-009's PR2 follow-up section, not as an AC of PR1. Cross-references: REQ-009-AC1 through REQ-009-AC8, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
+This design implements all eight REQ-009 acceptance criteria (AC1 through AC8). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, and the opt-in `--enforce-counts` single-plugin emission path is tracked in REQ-009's "PR2 follow-up" section. The `/test` Gate 5 wiring is also tracked in REQ-009's PR2 follow-up section, not as an AC of PR1. Cross-references: REQ-009-AC1 through REQ-009-AC8, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy). <!-- orphan-ref-ignore -->
 
 ## Design Overview
 
@@ -31,7 +31,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 | File walk | `walking.py:walk_targets`, `_iter_dir_pruned`, `is_safe_subdirectory` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap; symlink-directory containment at recursion entry |
 | Reference detection | `patterns.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support; consumed by `scan.py` via re-export |
 | Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
-| Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts |
+| Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts | <!-- orphan-ref-ignore -->
 | Output rendering | `envelope.py:Finding`, `ScanResult`, `render_envelope`, `render_error_envelope` | ADR-056 envelope shape and verdict line; `render_error_envelope` covers the exit-2 path |
 | Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution); `skill_catalog_present` flag thread for warn-vs-critical disambiguation |
 
@@ -244,7 +244,7 @@ build-gate purpose. The `--include-adrs` flag opts back in for periodic audits.
 
 PR1 of TASK-009 implements detection for skill_name, script_path, and
 count_claim refs. count_claim emission is delegated to the canonical
-`build/scripts/validate_marketplace_counts.py` (PR1 ships the regex and label
+`build/scripts/validate_marketplace_counts.py` (PR1 ships the regex and label <!-- orphan-ref-ignore -->
 map but no Findings). `/test` Gate 5 wiring is in REQ-009's PR2 follow-up section.
 
 Real orphans inside `.agents/architecture/` (deleted skills referenced in

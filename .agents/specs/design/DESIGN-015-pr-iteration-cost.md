@@ -135,9 +135,9 @@ def _validate_manifest_counts(_manifest_files: list[str], _all: list[str]) -> li
 
 ---
 
-### Existing script: `build/scripts/validate_marketplace_counts.py`
+### Existing script: `build/scripts/validate_marketplace_counts.py` <!-- orphan-ref-ignore -->
 
-**Location**: `build/scripts/validate_marketplace_counts.py` (EXISTING, not new)
+**Location**: `build/scripts/validate_marketplace_counts.py` (EXISTING, not new) <!-- orphan-ref-ignore -->
 
 **Purpose**: Validates marketplace.json description strings contain accurate counts. Already
 used in CI via `validate-marketplace-counts.yml`. Config in `templates/marketplace-counters.yaml`.
@@ -278,7 +278,7 @@ validator-specific logic.
 | Changeset source | `git diff --name-only @{push}..HEAD` (fallback: `origin/main...HEAD`) | Committed but not-yet-pushed files; per ADR-043 |
 | Count SoR | Filesystem globs (via existing validator) | Per `.claude/rules/templates.md` and PRD Data model |
 | Framework pattern | Strategy (CVA) | Three validators share identical shell; differ only in body |
-| Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI |
+| Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI | <!-- orphan-ref-ignore -->
 | Timeout (markdownlint) | 60s subprocess, 70s hook, fail-open on timeout | Large changeset upper bound; CI runner latency under load is infrastructure noise, not a lint violation. See PLAN-1884 R-H. |
 | Glob matching | Prefix+suffix string check for multi-segment patterns | `fnmatch.fnmatch` and `pathlib.match` both fail to match `.claude/skills/foo/SKILL.md` against `.claude/skills/*/SKILL.md`. Pre-mortem mitigation R-E. |
 | Marketplace validator import | Always pass `repo_root=project_dir` explicitly to `validate_known_marketplaces` | Validator's module-level `REPO_ROOT` resolves at import time and is fragile under alternate `sys.path`. Pre-mortem mitigation R-F. |
