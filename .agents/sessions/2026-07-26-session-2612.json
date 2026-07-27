@@ -50,7 +50,7 @@
         "evidence": ".agents/sessions/2026-07-26-session-2612.json."
       },
       "skillScriptsListed": {
-        "complete": false,
+        "complete": true,
         "level": "SHOULD",
         "evidence": "Read .claude/skills/memory/scripts/update_causal_graph.py, scripts/validation/merge_causal_graph.py and scripts/maintenance/ before changing them."
       },
