@@ -112,7 +112,12 @@
     {
       "step": 6,
       "action": "Replace 7 em-dash unicode escapes in causal-graph.json with plain hyphens",
-      "result": "Zero \u2014 remaining; compliant with repo dash policy"
+      "result": "Zero — remaining; compliant with repo dash policy"
+    },
+    {
+      "step": 7,
+      "action": "Revert em-dash edits in causal-graph.json (generated file with content-addressable IDs)",
+      "result": "Restored original \\u2014 escapes; regenerated episode nodes; test_every_node_carries_an_id passes"
     }
   ],
   "endingCommit": "62fb792ce9",

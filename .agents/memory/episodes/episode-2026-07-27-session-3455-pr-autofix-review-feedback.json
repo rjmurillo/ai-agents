@@ -74,7 +74,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -85,6 +87,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revert em-dash edits in causal-graph.json (generated file with content-addressable IDs)",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
