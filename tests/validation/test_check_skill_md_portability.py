@@ -510,6 +510,145 @@ class TestScan:
         assert cmp.scan_skill_markdown(skills_dir) == {}
 
 
+class TestPluginRootScan:
+    """Every plugin root's skills tree must be scanned, not just the first one."""
+
+    def _skill_md(self, root: Path, plugin_root: str, rel: str, body: str) -> None:
+        path = root / plugin_root / "skills" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    def test_skills_dirs_skips_roots_without_one(self, tmp_path: Path) -> None:
+        """A root with no skills tree is absent, not an error.
+
+        ``src/claude`` ships agents and rules but no skills, so a missing tree
+        is the normal case rather than a misconfiguration.
+        """
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "prose\n")
+        assert cmp.skills_dirs(tmp_path) == [tmp_path / ".claude" / "skills"]
+
+    def test_skills_dirs_preserves_declared_order(self, tmp_path: Path) -> None:
+        """Scan order fixes baseline diff order, so it must not follow the filesystem."""
+        for name in reversed(cmp.PLUGIN_ROOTS):
+            self._skill_md(tmp_path, name, "a/SKILL.md", "prose\n")
+        found = [d.parent.relative_to(tmp_path).as_posix() for d in cmp.skills_dirs(tmp_path)]
+        assert found == list(cmp.PLUGIN_ROOTS)
+
+    def test_a_second_root_is_scanned(self, tmp_path: Path) -> None:
+        """The defect this closes: refs in a shipped mirror were invisible.
+
+        ``src/copilot-cli/skills`` is generated from ``.claude/commands``, so it
+        was covered by neither the commands tree nor the ``.claude/skills``
+        scan. Thirty nine references lived there unratcheted. Refs #3578.
+        """
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        assert cmp.scan_plugin_roots(tmp_path) == {
+            "src/copilot-cli/skills/a/SKILL.md": 1
+        }
+
+    def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
+        """Keys are repository relative because both roots hold ``skills/spec``.
+
+        A key relative to the skills dir parent is ``skills/spec/SKILL.md`` in
+        both roots, so one count would overwrite the other and half the surface
+        would vanish from the baseline while still reporting clean.
+        """
+        self._skill_md(tmp_path, ".claude", "spec/SKILL.md", "Reads .agents/x\n")
+        self._skill_md(
+            tmp_path, "src/copilot-cli", "spec/SKILL.md", "Reads .agents/x and .agents/y\n"
+        )
+        assert cmp.scan_plugin_roots(tmp_path) == {
+            ".claude/skills/spec/SKILL.md": 1,
+            "src/copilot-cli/skills/spec/SKILL.md": 2,
+        }
+
+    def test_drift_in_the_second_root_returns_exit_1(self, tmp_path: Path) -> None:
+        """End to end proof that the widened scan reaches the CLI exit code."""
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(
+            ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
+        )
+        assert code == 1
+
+    def test_exit_2_when_no_root_has_a_skills_dir(self, tmp_path: Path) -> None:
+        """An empty scan must fail loudly rather than report a clean zero."""
+        assert cmp.main(["--repo-root", str(tmp_path)]) == 2
+
+
+class TestReport:
+    """The output branches. None had coverage before ``_report`` was extracted."""
+
+    def _args(self, **over: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "regressions": [],
+            "improvements": [],
+            "current": {},
+            "baseline": {},
+            "scanned": [Path("/repo/.claude/skills")],
+            "root": Path("/repo"),
+            "output_format": "text",
+        }
+        base.update(over)
+        return base
+
+    def test_json_format_emits_the_four_totals(self, capsys: pytest.CaptureFixture[str]) -> None:
+        cmp._report(
+            **self._args(
+                regressions=["a: 2 refs"],
+                improvements=["b: 1 ref"],
+                current={"a": 2},
+                baseline={"a": 1, "b": 1},
+                output_format="json",
+            )
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "regressions": ["a: 2 refs"],
+            "improvements": ["b: 1 ref"],
+            "current_total": 2,
+            "baseline_total": 2,
+        }
+
+    def test_json_format_prints_no_prose(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Machine output must stay parseable, so the human lines cannot leak in."""
+        cmp._report(**self._args(regressions=["a: 2 refs"], output_format="json"))
+        assert "DRIFT" not in capsys.readouterr().out
+
+    def test_drift_suppresses_the_clean_line(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Reporting both a drift list and a no-drift summary would contradict itself."""
+        cmp._report(**self._args(regressions=["a: 2 refs"]))
+        out = capsys.readouterr().out
+        assert "[DRIFT] a: 2 refs" in out
+        assert "No Markdown vendor-portability drift" not in out
+
+    def test_improvements_print_alongside_the_clean_line(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An improvement is not drift, so the run is still clean and says so."""
+        cmp._report(**self._args(improvements=["b: 1 ref"], baseline={"b": 1}))
+        out = capsys.readouterr().out
+        assert "[IMPROVED] b: 1 ref" in out
+        assert "No Markdown vendor-portability drift" in out
+
+    def test_the_clean_line_names_every_scanned_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Reading 'across 0 files' as 'scanned 0 files' is what hid issue #3578."""
+        cmp._report(
+            **self._args(
+                scanned=[
+                    Path("/repo/.claude/skills"),
+                    Path("/repo/src/copilot-cli/skills"),
+                ]
+            )
+        )
+        assert "Scanned .claude/skills, src/copilot-cli/skills." in capsys.readouterr().out
+
+
 class TestDiff:
     def test_regression_when_count_rises(self) -> None:
         regressions, improvements = cmp.diff_against_baseline(
@@ -553,7 +692,7 @@ class TestMainCli:
         )
         assert rc == 0
         data = json.loads(baseline.read_text(encoding="utf-8"))
-        assert data["files"] == {"skills/a/SKILL.md": 1}
+        assert data["files"] == {".claude/skills/a/SKILL.md": 1}
 
     def test_drift_returns_exit_1(self, tmp_path: Path) -> None:
         skills = tmp_path / ".claude" / "skills" / "a"
@@ -563,7 +702,7 @@ class TestMainCli:
         )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
-            json.dumps({"files": {"skills/a/SKILL.md": 1}}), encoding="utf-8"
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
         )
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
@@ -601,16 +740,34 @@ class TestCommittedRepoHasNoDrift:
 
     def test_repo_markdown_matches_baseline(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        skills_dir = root / ".claude" / "skills"
-        if not skills_dir.is_dir():
-            pytest.skip("no .claude/skills in this checkout")
+        if not cmp.skills_dirs(root):
+            pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = (
             root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         )
-        current = cmp.scan_skill_markdown(skills_dir)
+        current = cmp.scan_plugin_roots(root)
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+    def test_the_baseline_covers_every_scanned_root(self) -> None:
+        """Guards the vacuous pass this test had while the scan was single root.
+
+        ``diff_against_baseline`` reports a baseline entry with no current file
+        as an improvement, not a regression. So a scan narrower than the
+        baseline stays green while ignoring whole roots. Asserting that the
+        baseline's roots are a subset of the scanned roots catches a future
+        narrowing that the drift assertion alone would let through.
+        """
+        root = Path(__file__).resolve().parents[2]
+        if not cmp.skills_dirs(root):
+            pytest.skip("no plugin root has a skills dir in this checkout")
+        baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
+        scanned = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
+        recorded = {
+            key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)
+        }
+        assert recorded <= scanned, f"baseline names unscanned roots: {recorded - scanned}"
 
 
 class TestBlockquoteFenceDepth:

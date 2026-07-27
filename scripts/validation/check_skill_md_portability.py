@@ -41,7 +41,10 @@ Baseline ratchet:
   or a previously-clean file introduces references. It REPORTS when counts drop
   so the baseline can be tightened with ``--update-baseline``.
 
-Scope: ``*.md`` under ``.claude/skills/``.
+Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
+``PLUGIN_ROOTS``. Scanning only ``.claude/skills`` left thirty nine references
+unratcheted in ``src/copilot-cli/skills``, which is generated from
+``.claude/commands`` and so was covered by neither path. See issue #3578.
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -213,6 +216,13 @@ _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
 
+# Plugin roots whose ``skills/`` tree ships to a consumer. Order fixes the scan
+# order so a regenerated baseline stays diff-stable. ``src/claude`` is listed
+# even though it has no skills tree today, because the cost of naming it is one
+# line and the cost of omitting it is a silently unratcheted root the day one
+# appears.
+PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
+
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -344,6 +354,37 @@ def scan_skill_markdown(skills_dir: Path) -> dict[str, int]:
     return counts
 
 
+def skills_dirs(root: Path) -> list[Path]:
+    """Return the existing ``skills/`` directory of every plugin root.
+
+    A plugin root is a directory that ships to a consumer, so its ``skills/``
+    tree reaches the same reader whichever root it came from. Scanning only one
+    of them left thirty nine references unratcheted in ``src/copilot-cli``,
+    which is generated from ``.claude/commands`` and therefore never passed
+    under the ``.claude/skills`` scan either. See issue #3578.
+
+    Absent roots are skipped rather than reported. ``src/claude`` ships agents
+    and rules but has no skills tree, and a root that grows one later is picked
+    up without touching this list.
+    """
+    return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
+
+
+def scan_plugin_roots(root: Path) -> dict[str, int]:
+    """Return {repo_relative_posix_path: count} across every plugin root.
+
+    Keys are relative to the repository root rather than to the skills dir's
+    parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
+    key that a single-root scan could use collides the moment a second root is
+    read, and one root's count would silently overwrite the other's.
+    """
+    counts: dict[str, int] = {}
+    for skills_dir in skills_dirs(root):
+        for rel, n in scan_skill_markdown(skills_dir).items():
+            counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
+    return counts
+
+
 def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
     return (
         f"{rel}: {count} upstream-path refs in prose (baseline {allowed}). "
@@ -395,12 +436,60 @@ def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
     )
 
 
+def _report(
+    *,
+    regressions: list[str],
+    improvements: list[str],
+    current: dict[str, int],
+    baseline: dict[str, int],
+    scanned: list[Path],
+    root: Path,
+    output_format: str,
+) -> None:
+    """Print the scan outcome. Presentation only, no exit decision.
+
+    Split out of ``main`` so that argument handling and orchestration read as
+    one thing and formatting as another. ``main`` carried both and sat above
+    the complexity ceiling before this seam existed.
+    """
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "regressions": regressions,
+                    "improvements": improvements,
+                    "current_total": sum(current.values()),
+                    "baseline_total": sum(baseline.values()),
+                },
+                indent=2,
+            )
+        )
+        return
+    if improvements:
+        print("Portability improved (tighten the baseline with --update-baseline):")
+        for line in improvements:
+            print(f"  [IMPROVED] {line}")
+    if regressions:
+        print("Markdown vendor-portability drift detected (issue #2050):")
+        for line in regressions:
+            print(f"  [DRIFT] {line}")
+        return
+    roots = ", ".join(d.relative_to(root).as_posix() for d in scanned)
+    print(
+        f"No Markdown vendor-portability drift. "
+        f"{sum(current.values())} grandfathered refs across "
+        f"{len(current)} files (baseline {sum(baseline.values())}). "
+        f"Scanned {roots}."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    skills_dir = root / ".claude" / "skills"
-    if not skills_dir.is_dir():
-        print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
+    scanned = skills_dirs(root)
+    if not scanned:
+        roots = ", ".join(f"{name}/skills" for name in PLUGIN_ROOTS)
+        print(f"No plugin root has a skills dir under {root}: {roots}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path == Path(""):
@@ -411,9 +500,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        current = scan_skill_markdown(skills_dir)
+        current = scan_plugin_roots(root)
     except OSError as exc:
-        print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
+        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
@@ -426,35 +515,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-
-    if args.output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "regressions": regressions,
-                    "improvements": improvements,
-                    "current_total": sum(current.values()),
-                    "baseline_total": sum(baseline.values()),
-                },
-                indent=2,
-            )
-        )
-    else:
-        if improvements:
-            print("Portability improved (tighten the baseline with --update-baseline):")
-            for line in improvements:
-                print(f"  [IMPROVED] {line}")
-        if regressions:
-            print("Markdown vendor-portability drift detected (issue #2050):")
-            for line in regressions:
-                print(f"  [DRIFT] {line}")
-        else:
-            print(
-                f"No Markdown vendor-portability drift. "
-                f"{sum(current.values())} grandfathered refs across "
-                f"{len(current)} files (baseline {sum(baseline.values())})."
-            )
-
+    _report(
+        regressions=regressions,
+        improvements=improvements,
+        current=current,
+        baseline=baseline,
+        scanned=scanned,
+        root=root,
+        output_format=args.output_format,
+    )
     return 1 if regressions else 0
 
 
