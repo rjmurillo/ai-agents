@@ -20779,6 +20779,78 @@
         "episode-2026-07-27-session-3429-pr-autofix"
       ],
       "created": "2026-07-27T06:00:12.151297+00:00"
+    },
+    {
+      "id": "51e2bd81bfaf",
+      "type": "milestone",
+      "label": "milestone: The boundary is verified from the manifests, and every number in the rule comes from a command a reader can rerun",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695149+00:00"
+    },
+    {
+      "id": "3e1e4726fcc6",
+      "type": "milestone",
+      "label": "milestone: The draft was materially wrong in three ways and the review caught all three",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695240+00:00"
+    },
+    {
+      "id": "6ac170478837",
+      "type": "milestone",
+      "label": "milestone: The rule now documents an existing system rather than competing with it",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695317+00:00"
+    },
+    {
+      "id": "abba30ac6918",
+      "type": "milestone",
+      "label": "milestone: The rule distinguishes the three cases a grep cannot, and the coverage gap it reports is scoped to what the data supports",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695391+00:00"
+    },
+    {
+      "id": "d7f71c12a9c8",
+      "type": "milestone",
+      "label": "milestone: One canonical rule, one augmented memory, no third representation to drift",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695464+00:00"
+    },
+    {
+      "id": "1f62d89a5f47",
+      "type": "commit",
+      "label": "commit: Commit: 120528e74c",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695537+00:00"
+    },
+    {
+      "id": "9f2b809b4f7a",
+      "type": "outcome",
+      "label": "Outcome: success - Bake the plugin self-containment boundary into binding knowledge after the user reported that plugin-shipped content cannot reference paths outside its plugin root",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695619+00:00"
+    },
+    {
+      "id": "57b08bd5a568",
+      "type": "commit",
+      "label": "commit: Commit: d3eefa86b0",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:58:30.440248+00:00"
     }
   ],
   "patterns": [
