@@ -1303,6 +1303,37 @@ class TestSplitFileIsSelfValidating:
         assert code == 0
         assert out["decision"] == "ACCEPT"
 
+    def test_legacy_numeric_inexact_ratio_redraws_with_legacy_membership(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(25)})
+        tasks = [f"t{i}" for i in range(25)]
+        ranked = sorted(
+            tasks,
+            key=lambda task_id: oa.hashlib.sha256(
+                f"s1\x00{task_id}".encode()
+            ).hexdigest(),
+        )
+        split = {
+            "opt": ranked[14:],
+            "sel": ranked[:14],
+            "test": [],
+            "fingerprint": _legacy_split_fingerprint(
+                tasks, seed="s1", sel_ratio=0.58, test_ratio=0.0
+            ),
+            "seed": "s1",
+            "sel_ratio": 0.58,
+            "test_ratio": 0.0,
+            "min_sel": 0,
+        }
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert len(split["sel"]) == 14
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
     def test_legacy_numeric_fingerprint_does_not_alias_precise_string_ratio(
         self, tmp_path, capsys
     ):
@@ -1332,6 +1363,13 @@ class TestSplitFileIsSelfValidating:
                          "--split", path)
         assert code == 0
         assert out["decision"] == "ACCEPT"
+
+    def test_string_schema_inexact_ratio_uses_exact_membership(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.58", "--min-sel", "0")
+        assert len(split["sel"]) == 15
+        assert len(split["opt"]) == 10
 
     def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
         """The union is unchanged, so only recomputation catches this."""
@@ -1438,6 +1476,21 @@ class TestSplitFileIsSelfValidating:
                          "--sel-ratio", ratio, "--out", tmp_path / "split.json")
         assert code == EXIT_CONFIG
         assert "decimal ratio" in out["error"]
+
+    def test_split_rejects_absurd_decimal_coefficients_without_traceback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        ratios = {
+            "million_digit": "0." + "1" * 1_000_000,
+            "thousand_digit": "0." + "1" * 1000,
+        }
+        for name, ratio in ratios.items():
+            code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                             "--sel-ratio", ratio, "--out", tmp_path / f"{name}.json")
+            assert code == EXIT_CONFIG
+            assert "decimal ratio" in out["error"]
+            assert len(out["error"]) < 200
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})

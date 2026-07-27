@@ -241,6 +241,16 @@ class TestSplitTasks:
         with pytest.raises(ValueError, match="decimal ratio"):
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
 
+    def test_rejects_absurd_decimal_coefficients_before_fraction_conversion(self):
+        ratios = {
+            "million_digit": "0." + "1" * 1_000_000,
+            "thousand_digit": "0." + "1" * 1000,
+        }
+        for ratio in ratios.values():
+            with pytest.raises(ValueError, match="decimal ratio") as excinfo:
+                split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+            assert len(str(excinfo.value)) < 200
+
     def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
         with pytest.raises(ValueError, match="leaves no opt tasks"):
             split_tasks(_ids(1), seed="s", sel_ratio="0.5", min_sel=0)

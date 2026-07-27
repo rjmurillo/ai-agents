@@ -78,6 +78,8 @@ FENCE_END = "<!-- SLOW_UPDATE_END -->"
 _ANCHORED_OPS = frozenset({"insert_after", "replace", "delete"})
 _TEXT_OPS = frozenset({"append", "insert_after", "replace"})
 _VALID_OPS = frozenset({"append", "insert_after", "replace", "delete"})
+_MAX_RATIO_TEXT_LENGTH = 128
+_MAX_RATIO_COEFFICIENT_DIGITS = 64
 _MAX_RATIO_EXPONENT_MAGNITUDE = 100
 Ratio = float | str
 
@@ -159,20 +161,38 @@ class GateResult:
 
 
 def _ratio_fraction(name: str, value: Ratio) -> Fraction:
+    ratio_text = str(value)
+    display = _ratio_display(ratio_text)
+    if len(ratio_text) > _MAX_RATIO_TEXT_LENGTH:
+        raise ValueError(
+            f"{name} must be a decimal ratio with at most "
+            f"{_MAX_RATIO_TEXT_LENGTH} characters, got {display}"
+        )
     try:
-        decimal = Decimal(str(value))
+        decimal = Decimal(ratio_text)
     except InvalidOperation as exc:
-        raise ValueError(f"{name} must be a decimal ratio, got {value}") from exc
+        raise ValueError(f"{name} must be a decimal ratio, got {display}") from exc
     if not decimal.is_finite():
-        raise ValueError(f"{name} must be a finite decimal ratio, got {value}")
+        raise ValueError(f"{name} must be a finite decimal ratio, got {display}")
     if not Decimal("0") <= decimal <= Decimal("1"):
-        raise ValueError(f"{name} must be a decimal ratio between 0 and 1, got {value}")
+        raise ValueError(f"{name} must be a decimal ratio between 0 and 1, got {display}")
     if decimal and abs(decimal.adjusted()) > _MAX_RATIO_EXPONENT_MAGNITUDE:
         raise ValueError(
             f"{name} must be a decimal ratio with exponent magnitude "
-            f"<= {_MAX_RATIO_EXPONENT_MAGNITUDE}, got {value}"
+            f"<= {_MAX_RATIO_EXPONENT_MAGNITUDE}, got {display}"
+        )
+    if len(decimal.as_tuple().digits) > _MAX_RATIO_COEFFICIENT_DIGITS:
+        raise ValueError(
+            f"{name} must be a decimal ratio with at most "
+            f"{_MAX_RATIO_COEFFICIENT_DIGITS} coefficient digits, got {display}"
         )
     return Fraction(decimal)
+
+
+def _ratio_display(value: str) -> str:
+    if len(value) <= 40:
+        return value
+    return f"{value[:37]}... (length {len(value)})"
 
 
 def _canonical_ratio(value: Ratio, *, name: str = "ratio") -> str:
