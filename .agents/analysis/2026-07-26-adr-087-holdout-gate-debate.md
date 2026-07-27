@@ -35,11 +35,16 @@ the first draft made.
 | 10 | gpt-5.6-terra | REJECT |
 | 11 | gpt-5.6-luna | REJECT |
 | 12 | gpt-5.6-sol | REJECT |
+| 13 | gemini-3.1-pro-preview | ACCEPT |
 
-No round returned ACCEPT. Every finding was verified at source before being
+Twelve consecutive rounds returned REJECT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
 The ADR is recorded with its defeats visible because twelve consecutive
 falsifications are evidence about the claim, not noise to be smoothed over.
+The thirteenth round is the first that did not falsify anything, and one
+ACCEPT after twelve REJECTs is the moment to distrust relief rather than bank
+it, so its load-bearing claim was re-verified independently before being
+accepted.
 
 Rounds 8 through 12 are the cleanest illustration in this log of why the
 count kept climbing. Each found its defect inside the previous round's fix.
@@ -288,6 +293,34 @@ passed while the CLI printed the digest, because they asserted that the
 function had changed rather than that the property held. A test that exercises
 the unit you edited will confirm your edit. Only a test through the seam can
 contradict it.
+
+## Round 13: the first round that found nothing
+
+Round 13 ran against gemini-3.1-pro-preview, which is the same model family
+that returned REJECT in round 9, so it is not a reviewer that rubber-stamps
+this file. It got the same explicit permission to return ACCEPT and the same
+warning that a false finding costs more than a missed one. It returned ACCEPT
+after probing path-bearing `OSError`s through a read-only `$XDG_STATE_HOME`
+and a directory planted at the ledger path, pathless `OSError`s, internal
+`ConfigError` propagation, and exception types outside the seam's catch tuple.
+
+Its load-bearing claim was that the last branch, `raise ConfigError(text) from
+exc`, keeps `__cause__` but that this is harmless because `main` renders only
+`str(exc)`. That was re-verified rather than accepted:
+
+- The pathless branch does keep its cause. Confirmed.
+- An exception whose `__str__` hides a path the object still carries defeats
+  the scrub in principle, since the scrub reads `str(exc)`. Constructed one.
+  The key appears in neither `str()` nor the fully rendered traceback, because
+  traceback rendering also goes through `__str__`. So the seam and the renderer
+  read the same surface, and a key invisible to one is invisible to the other.
+- `main` formats no traceback anywhere in the module. Confirmed by source.
+- `OSError.__str__` renders `filename2` as well as `filename`, so a failing
+  `os.replace` puts both paths where the scrub can see them. Confirmed.
+
+Thirteen rounds is where this stops. The marginal round now returns ACCEPT,
+and the reviewer that accepted had rejected earlier, which is the closest
+thing available here to an independent second opinion.
 
 ## Corrections applied without dispute
 
