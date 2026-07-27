@@ -66,9 +66,15 @@ theme sibling.
 
 It also says the clause must name the sibling, which is stricter than having any clause.
 Five members carry a clause that routes somewhere useful but not to a family sibling, and
-17 within-family routing edges have no back-pointer, 11 of them in the 15-member
-`ai-agents-*` family where pairwise reciprocity would need 105 clause pairs and cannot fit
-the 1024-char budget.
+19 within-family routing edges have no back-pointer: 11 in the 15-member `ai-agents-*`
+family, where pairwise reciprocity would need 105 clause pairs and cannot fit the 1024-char
+budget, and 8 in the `memory-*` family. The merge-base carried 20. This change closed one
+(`github-url-intercept` gained its back-pointer) and introduced none.
+
+That count uses one stated predicate: an edge is a skill named as a routing target inside a
+`Do NOT use ...` clause, in one of the three documented forms, where source and target share
+a leading `-`-delimited name token. A compound parenthetical counts once per name, so
+`memory-search`'s `(use memory or memory-enhancement)` is two edges, not one.
 
 Those are rule-interpretation questions, not defects to patch silently. Filed as issue
 #3484 with the measurement script and a proposal to define family membership operationally,
@@ -88,11 +94,27 @@ weaker predicate than the rule states produces a compliance claim that is true o
 measurement and false of the rule. State the predicate you measured next to the number, not
 just the number.
 
-Ad hoc audit scripts need the same scepticism as the artifacts they audit. A first version
-of this one split negative clauses on `.` and truncated a clause at `github.com`, hiding a
-real routing target. A second version matched any skill name inside the clause span and
-counted the prose phrase "a new session log" as a route to the `session` skill, inventing
-two reciprocity violations. Only targets in the documented `(use X)` form are reliable.
+Ad hoc audit scripts need the same scepticism as the artifacts they audit. Four versions of
+this one produced four different counts. The first split negative clauses on `.` and
+truncated a clause at `github.com`, hiding a real routing target. The second matched any
+skill name inside the clause span and counted the prose phrase "a new session log" as a
+route to the `session` skill, inventing two reciprocity violations. The third required the
+name to sit immediately before the closing paren, so it read `(use memory or
+memory-enhancement)` as one target and missed the other. The fourth parses the whole
+parenthetical and keeps every token that is a real skill name.
+
+The corpus contains exactly one compound parenthetical, which is why three of the four
+versions looked right. A single unusual instance is enough to make a count wrong, and a
+count that is off by one is indistinguishable from a correct one until someone re-derives
+it. Two defences work: assert the script against a handful of cases whose answers are known
+by hand before trusting its aggregate, and print the underlying list rather than the total,
+because a wrong list is obvious to a reader and a wrong integer is not.
+
+Disagreement between two measurements is a signal to re-measure, not to pick a winner. An
+adversarial reviewer here reported a different total, then reconciled it in prose and
+concluded no change was needed. Both totals were wrong. The reconciliation was reasoning
+about numbers instead of re-running the measurement, which is the same failure the number
+was supposed to guard against.
 
 A referent check must also cover every artifact kind the repo can route to. Searching only
 skills reports false violations for clauses that correctly name an agent.

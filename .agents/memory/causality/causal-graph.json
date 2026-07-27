@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:56:11.201629+00:00",
+  "updated": "2026-07-27T12:43:51.825917+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21582,6 +21582,42 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "521419055a2b",
+      "type": "milestone",
+      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818108+00:00"
+    },
+    {
+      "id": "636303e9a180",
+      "type": "milestone",
+      "label": "milestone: Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818198+00:00"
+    },
+    {
+      "id": "6b453cb88caa",
+      "type": "milestone",
+      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820086+00:00"
+    },
+    {
+      "id": "7cfbfe3e3448",
+      "type": "milestone",
+      "label": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820251+00:00"
     }
   ],
   "patterns": [
@@ -25950,6 +25986,34 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
       },
       "created": "2026-07-27T11:56:11.196012+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "6b453cb88caa",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T12:43:51.820096+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "7cfbfe3e3448",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T12:43:51.820258+00:00"
     }
   ]
 }
