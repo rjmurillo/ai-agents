@@ -46,6 +46,7 @@ import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 
 __all__ = [
@@ -158,9 +159,12 @@ class GateResult:
 
 def _ratio_fraction(name: str, value: Ratio) -> Fraction:
     try:
-        return Fraction(str(value))
-    except ValueError as exc:
+        decimal = Decimal(str(value))
+    except InvalidOperation as exc:
         raise ValueError(f"{name} must be a decimal ratio, got {value}") from exc
+    if not decimal.is_finite():
+        raise ValueError(f"{name} must be a finite decimal ratio, got {value}")
+    return Fraction(decimal)
 
 
 def _canonical_ratio(value: Ratio) -> str:
