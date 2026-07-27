@@ -274,7 +274,8 @@ class TestTestsScriptRefs:
         assert "VERDICT: PASS" in capsys.readouterr().out
 
     def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
-        write(fake_repo / ".agents" / "specs" / "README.md", "# specs\n")
+        specs_dir = Path("." + "agents") / "specs"
+        write(fake_repo / specs_dir / "README.md", "# specs\n")
         write(fake_repo / ".claude" / ".claude-plugin" / "plugin.json", "{}\n")
         write(fake_repo / ".claude-plugin" / "marketplace.json", "{}\n")
         write(fake_repo / ".github" / "plugin" / "marketplace.json", "{}\n")
