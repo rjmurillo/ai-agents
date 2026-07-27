@@ -2031,3 +2031,51 @@ every finding was real. Rounds 31, 32 and 33 each stated impact wrongly and
 were right about the defect. The discipline that survives all six rounds is to
 judge the instance and the general form and to re-derive the impact, never to
 accept or reject a finding on the sentence describing what it costs.
+
+## Shape 46: the remedy that keeps every assertion green
+
+A reviewer flagged that the round-31 lock tests build their barrier out of
+`chmod(0o555)`, which root ignores and Windows does not carry, and proposed
+replacing it with a file at the lock's parent path. The premise is right. The
+remedy was checked rather than adopted, and checking it found a bug in the
+code the tests cover.
+
+Both barriers produce a `ConfigError` at exit 2 naming the lock, so every
+assertion in the class stays green under either. They do not reach the same
+branch. The read-only directory reports the lock as refused. The file at the
+parent path reports that another buffer-add holds it.
+
+The acquire ran two calls under one `try` and read `FileExistsError` as
+contention. That is correct for `os.open` with `O_EXCL`, where a lock file
+already on disk is the only evidence one holder ever has of another. It is
+wrong for `mkdir`, because `exist_ok=True` swallows the error only when what
+it found is a directory and re-raises otherwise. A plain file where the lock's
+parent belongs raises the same errno 17 with nothing holding anything, and the
+operator is told to wait for a process that does not exist or to clear a lock
+that was never taken. The one message that would name the real cause is the
+one the other branch prints.
+
+Split so each call carries the reading that fits it. Preferred over checking
+`is_dir()` inside the handler, which would decide the cause from a second look
+at a filesystem that has been free to change since the failure. M32 reverts
+the split, 5 red. M33 lets the `mkdir` handler borrow the contention message,
+6 red.
+
+The reviewer's stated impact was wrong in the same direction the last three
+rounds were wrong, and worth correcting for the same reason. It said the
+barrier can silently disappear and leave the test ineffective. It cannot go
+quiet: every assertion in the class demands exit 2, and a missing barrier
+lets the command reach its ordinary path and return exit 0, so the class fails
+loudly. Skipping is still right, because a precondition that is absent should
+say so rather than accuse the code, and the same file already had that guard
+on its newer tests. Two conventions for one problem is how the older half got
+left behind.
+
+What generalizes is narrower than "verify before acting". A remedy is not a
+finding, and it does not arrive with the finding's evidence. This one was
+sound about the barrier and silently wrong about the branch, and the tests
+could not have told anyone, because a test that changes which branch it
+exercises while keeping its assertions green reports nothing at all. The same
+property that made the substitution invisible is what made the underlying bug
+survive: two causes that print at the same exit code, through the same error
+class, naming the same path.

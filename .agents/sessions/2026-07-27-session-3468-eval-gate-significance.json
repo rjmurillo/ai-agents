@@ -586,9 +586,30 @@
         "Eight mutations M24 through M31, every one red, each multi-part fix falsified in halves.",
         "Shape 45 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md."
       ]
+    },
+    {
+      "phase": "Round thirty-five: checking a remedy instead of adopting it found the bug it would have hidden",
+      "actions": [
+        "Answered and resolved the two bot threads left open on PR 3579. The first was the duplicate endingCommit, fixed in 90fbc4942, with the note that the top-level value the reviewer quoted was itself stale by five commits, which the fix also had to address.",
+        "The second flagged that the round-31 lock tests build their barrier from chmod 0o555, which root ignores and Windows does not carry, and proposed putting a file at the lock's parent path instead. Ran the proposed remedy rather than adopting it.",
+        "Both barriers raise ConfigError at exit 2 naming the lock, so every assertion in the class stays green under either. They do not reach the same branch. The read-only directory reports the lock refused. The file at the parent path reports that another buffer-add holds it.",
+        "The cause is a real bug. The acquire ran mkdir and os.open under one try and read FileExistsError as contention. That is right for os.open with O_EXCL and wrong for mkdir, because exist_ok swallows the error only when what it found is a directory and re-raises otherwise, so a plain file at the parent raises the same errno 17 with nothing holding anything.",
+        "An operator whose path was wrong was told to wait for a process that does not exist or clear a lock never taken, and the message that would name the real cause is the one the other branch prints. Split the two calls so each carries the reading that fits it, preferred over re-checking is_dir in the handler, which would decide the cause from a second look at a filesystem free to change in between.",
+        "Corrected the reviewer's impact for the fourth round running while keeping the finding. It said the barrier can silently disappear and leave the test ineffective. It cannot go quiet, because every assertion in the class demands exit 2 and an absent barrier lets the command reach its ordinary path and return exit 0, so the class fails loudly.",
+        "Fixed the premise anyway by hoisting the guard the round-34 tests in the same file already used and applying it to the round-31 class. Two conventions for one problem is how the older half got left behind.",
+        "Labelled what was not run. Real root behaviour is reasoned from CAP_DAC_OVERRIDE, since this environment cannot become root; a probe that monkeypatched geteuid to zero tested only the guard and was discarded as evidence for the barrier. Also confirmed the eval tests never reach the Windows CI job, which selects a narrow file list not including tests/eval."
+      ],
+      "evidence": [
+        "Eval suite 1494 to 1505 passed, all three optimizer modules still at 100 percent statement coverage.",
+        "Commits 4fc921120 the contention split, e4d5c0d6c the permission guard hoist.",
+        "M32 reverts the split, 5 red. M33 lets the mkdir handler borrow the contention message, 6 red.",
+        "Guard verified to fire: 16 tests go from run to skipped when the predicate sees a zero euid.",
+        "Both review threads answered with the measured output and resolved.",
+        "Shape 46 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md."
+      ]
     }
   ],
-  "endingCommit": "8583129b3",
+  "endingCommit": "e4d5c0d6c",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
