@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T00:10:48.067406+00:00",
+  "updated": "2026-07-27T01:45:53.055333+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15572,7 +15572,8 @@
       "label": "milestone: Negative controls",
       "episodes": [
         "episode-2026-07-25-session-3275-smoke-signal",
-        "episode-2026-07-26-session-3342-harness-reference-size"
+        "episode-2026-07-26-session-3342-harness-reference-size",
+        "episode-2026-07-26-session-2612"
       ],
       "created": "2026-07-26T09:39:53.610242+00:00"
     },
@@ -19995,6 +19996,150 @@
         "episode-2026-07-26-session-3384-copilot-hook-surface"
       ],
       "created": "2026-07-27T00:10:48.063663+00:00"
+    },
+    {
+      "id": "a253559f7f38",
+      "type": "milestone",
+      "label": "milestone: Measure all four causal-graph issues against live main",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.048957+00:00"
+    },
+    {
+      "id": "4bd34e72ba43",
+      "type": "milestone",
+      "label": "milestone: Fix #3375 without tombstones",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049048+00:00"
+    },
+    {
+      "id": "2a4b2a1e5cb5",
+      "type": "milestone",
+      "label": "milestone: Verify the delete-beats-modify premise",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049119+00:00"
+    },
+    {
+      "id": "55e5409cf11a",
+      "type": "milestone",
+      "label": "milestone: Establish that the 13 bad ids are unrecoverable (#3367 AC 1)",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049188+00:00"
+    },
+    {
+      "id": "ebe8c5e62b47",
+      "type": "milestone",
+      "label": "milestone: Repair the 13 ids (#3367)",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049260+00:00"
+    },
+    {
+      "id": "68eeffb7babf",
+      "type": "milestone",
+      "label": "milestone: Add the guard #3367 AC 3 asks for",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049329+00:00"
+    },
+    {
+      "id": "6447a214390c",
+      "type": "milestone",
+      "label": "milestone: Search before building on #3350",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049397+00:00"
+    },
+    {
+      "id": "cd222c7509c6",
+      "type": "milestone",
+      "label": "milestone: Find and fix a defect the backfill would have shipped",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049473+00:00"
+    },
+    {
+      "id": "be7f26b809ff",
+      "type": "milestone",
+      "label": "milestone: Reconcile the graph (#3350)",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049542+00:00"
+    },
+    {
+      "id": "f15a902b22e7",
+      "type": "milestone",
+      "label": "milestone: Reject a false lead",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049671+00:00"
+    },
+    {
+      "id": "c571358b4f8e",
+      "type": "commit",
+      "label": "commit: Commit: 39b754c79a",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049741+00:00"
+    },
+    {
+      "id": "ddce9f74aff2",
+      "type": "commit",
+      "label": "commit: Commit: 43bb0487d1",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049810+00:00"
+    },
+    {
+      "id": "f6dba13c66c0",
+      "type": "commit",
+      "label": "commit: Commit: 06a666f466",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049878+00:00"
+    },
+    {
+      "id": "177936041f9c",
+      "type": "commit",
+      "label": "commit: Commit: 988aee1e5b",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.049947+00:00"
+    },
+    {
+      "id": "16d5f50c1076",
+      "type": "commit",
+      "label": "commit: Commit: e595d2b647",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.050016+00:00"
+    },
+    {
+      "id": "08164c067834",
+      "type": "outcome",
+      "label": "Outcome: success - Fix the causal graph cluster: merge resurrection (#3375), unreproducible node ids (#3367), and episodes that never reached the graph (#3350).",
+      "episodes": [
+        "episode-2026-07-26-session-2612"
+      ],
+      "created": "2026-07-27T01:45:53.050088+00:00"
     }
   ],
   "patterns": [

@@ -261,13 +261,10 @@ def _survives(
     removed by that side. A record absent from the ancestor was added by
     whichever side has it. Nothing has to be written into the artifact.
 
-    Delete beats modify. In this file a removal is always deliberate, a purge of
-    something that should not be committed, while a modification is usually the
-    generator bumping a counter. Keeping the record to preserve a counter would
-    undo the purge, which is the bug. Measured over the file's whole history:
-    of 85 commits that touched it, 3 removed rows, and all three were
-    deliberate (663bbac48 the #3358 purge, c2264799b the PowerShell to Python
-    migration, bdacb6b19 a session protocol change). The generator also removes
+    Delete beats modify. In this file a removal is always deliberate: a purge
+    of something that should not be committed, while a modification is usually
+    the generator bumping a counter. Keeping the record to preserve a counter
+    would undo the purge, which is the bug. The generator also removes
     rows: _retract_stale drops nodes whose labels are no longer earned, and
     _drop_orphaned_edges sweeps edges whose endpoints are gone. Delete beats
     modify still holds for those removals because both are statements about the

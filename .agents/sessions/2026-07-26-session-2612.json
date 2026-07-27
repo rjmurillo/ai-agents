@@ -114,7 +114,7 @@
     },
     {
       "task": "Verify the delete-beats-modify premise",
-      "outcome": "Audited all 85 commits that touched the graph. 3 removed rows, all deliberate (663bbac48, c2264799b, bdacb6b19). The generator only ever adds."
+      "outcome": "Audited all 85 commits that touched the graph. 3 removed rows, all deliberate (663bbac48, c2264799b, bdacb6b19). The generator also removes rows via retraction and orphan-edge cleanup, but delete-beats-modify still holds for those removals."
     },
     {
       "task": "Establish that the 13 bad ids are unrecoverable (#3367 AC 1)",
