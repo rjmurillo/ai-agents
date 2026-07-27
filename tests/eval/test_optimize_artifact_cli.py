@@ -167,6 +167,17 @@ def _results(passing: int, failing: int) -> dict:
 
 
 class TestExtract:
+    def _agent_report(self, tmp_path: Path, rates: dict[str, float]) -> Path:
+        return _write(
+            tmp_path,
+            "report.json",
+            {
+                "per_fixture_pass_rates": {
+                    fixture_id: {"agent": [rate]} for fixture_id, rate in rates.items()
+                }
+            },
+        )
+
     def test_agent_report(self, tmp_path, capsys):
         report = _write(
             tmp_path,
@@ -175,7 +186,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
-        assert out == {"C1": True, "C2": False}
+        assert out["results"] == {"C1": True, "C2": False}
 
     def test_agent_report_honors_variant_and_threshold(self, tmp_path, capsys):
         report = _write(
@@ -196,7 +207,48 @@ class TestExtract:
             "0.5",
         )
         assert code == EXIT_OK
-        assert out == {"C1": True}
+        assert out["results"] == {"C1": True}
+
+    def test_agent_extract_records_scoring_parameters(self, tmp_path, capsys):
+        report = self._agent_report(tmp_path, {"C1": 0.5})
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            report,
+            "--pass-threshold",
+            "0.6",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"C1": False}
+        assert out["provenance"]["kind"] == "agent"
+        assert out["provenance"]["pass_threshold"] == 0.6
+
+    def test_extract_group_filters_to_split_group(self, tmp_path, capsys):
+        report = self._agent_report(tmp_path, {f"t{i}": 1.0 for i in range(10)})
+        all_results = _write(tmp_path, "all.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", all_results, "--seed", "s1")
+        split_path = _write(tmp_path, "split.json", split)
+
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            report,
+            "--split",
+            split_path,
+            "--group",
+            "opt",
+        )
+
+        assert code == EXIT_OK
+        assert sorted(out["results"]) == sorted(split["opt"])
+        assert out["provenance"]["group"] == "opt"
+        assert out["provenance"]["split_fingerprint"] == split["fingerprint"]
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
@@ -220,7 +272,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": True}
+        assert out["results"] == {"S1": True}
 
     def test_rule_extract_refuses_errored_mechanism(self, tmp_path, capsys):
         scenarios = _write(
@@ -312,7 +364,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S2": True}
+        assert out["results"] == {"S2": True}
 
     def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
         envelope = {
@@ -360,7 +412,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": False}
+        assert out["results"] == {"S1": False}
 
     def test_hook_junit(self, tmp_path, capsys):
         junit = tmp_path / "j.xml"
@@ -373,7 +425,10 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "hook", "--input", junit)
         assert code == EXIT_OK
-        assert out == {"tests.test_a::test_x": True, "tests.test_a::test_y": False}
+        assert out["results"] == {
+            "tests.test_a::test_x": True,
+            "tests.test_a::test_y": False,
+        }
 
     def test_missing_input_is_a_config_error(self, tmp_path, capsys):
         code, _ = _run(capsys, "extract", "--kind", "agent", "--input", tmp_path / "nope.json")
@@ -446,12 +501,12 @@ class TestExtractRealRuleEnvelope:
         path = _write(tmp_path, "rules.json", self._envelope())
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
         assert code == EXIT_OK
-        assert len(out) == 3
+        assert len(out["results"]) == 3
 
     def test_namespaces_scenario_ids_by_rule(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", self._envelope())
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {
+        assert out["results"] == {
             "clean-architecture::S1": True,
             "clean-architecture::S2": False,
             "refactoring::S1": False,
@@ -466,7 +521,7 @@ class TestExtractRealRuleEnvelope:
         envelope = {"rules": {"refactoring": {"scenarios": [self._scenario("S1", 5)]}}}
         path = _write(tmp_path, "rules.json", envelope)
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {"refactoring::S1": True}
+        assert out["results"] == {"refactoring::S1": True}
 
     def test_a_non_mapping_rules_value_is_a_config_error(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", {"rules": ["not", "a", "mapping"]})
@@ -1671,13 +1726,11 @@ class TestConsultationLedgerIsHeldByTheGate:
         assert not ledger.exists()
         assert out["error"]
 
-    def test_a_result_missing_a_held_out_task_refuses_without_naming_it(self, tmp_path, capsys):
-        """The gate cannot score a held-out task the run never reported.
+    def test_a_result_missing_a_task_refuses_without_naming_it(self, tmp_path, capsys):
+        """The gate cannot score a task the run never reported.
 
-        Distinct from a truncated file: this one parses, covers every task the
-        optimizer could see, and is short only on the group the optimizer is
-        not allowed to look at. It refuses rather than producing a verdict, it
-        does not say which task is missing, and it costs a consultation.
+        Whole-universe coverage is safe to validate before a consultation,
+        because it does not identify which split group owns the missing task.
         """
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
         partition = json.loads(split.read_text(encoding="utf-8"))
@@ -1688,7 +1741,7 @@ class TestConsultationLedgerIsHeldByTheGate:
         code, out = self._gate(capsys, inc, short_path, split, ledger)
         assert (code, out["decision"], out["compared"]) == (EXIT_LOGIC, "REJECT", False)
         assert dropped not in json.dumps(out)
-        assert ledger.exists()
+        assert not ledger.exists()
 
 
 class TestTheBudgetCapIsPinnedByTheLedger:
@@ -1988,21 +2041,21 @@ class TestTheGateNeverNamesAHeldOutTask:
         assert (code, out["compared"]) == (EXIT_LOGIC, False)
         assert not any(task_id in json.dumps(out) for task_id in record["sel"])
 
-    def test_the_refusal_costs_a_consultation(self, tmp_path, capsys):
+    def test_the_refusal_costs_no_consultation(self, tmp_path, capsys):
         inc, split, record = self._fixture(tmp_path, capsys)
         empty = _write(tmp_path, "empty.json", {})
         _, out = self._gate(capsys, inc, empty, split, record)
-        assert out["sel_consultations"] == 1
+        assert out["sel_consultations"] == 0
 
-    def test_probing_exhausts_the_budget(self, tmp_path, capsys):
-        """A membership oracle has to be expensive, not just quiet."""
+    def test_repeated_whole_universe_failures_do_not_exhaust_the_budget(self, tmp_path, capsys):
+        """A whole-universe refusal reads no held-out result."""
         inc, split, record = self._fixture(tmp_path, capsys)
         empty = _write(tmp_path, "empty.json", {})
         for _ in range(2):
             self._gate(capsys, inc, empty, split, record, cap=2)
         code, out = self._gate(capsys, inc, empty, split, record, cap=2)
         assert (code, out["compared"]) == (EXIT_LOGIC, False)
-        assert "exhausted" in out["reason"]
+        assert out["sel_consultations"] == 0
 
     def test_a_missing_incumbent_result_refuses_the_same_way(self, tmp_path, capsys):
         """Both sides are read against the held-out group, so both must redact."""
@@ -2053,6 +2106,92 @@ class TestTheGateNeverNamesAHeldOutTask:
         """No held-out ids means nothing to cover; the split guard rejects that
         case earlier, so this only pins the predicate as total."""
         assert oa._covers_holdout({}, [])
+
+
+class TestGateResultsProvenance:
+    def _extract_agent(
+        self,
+        capsys,
+        tmp_path: Path,
+        name: str,
+        threshold: str,
+        rates: dict[str, float],
+    ) -> Path:
+        report = _write(
+            tmp_path,
+            f"{name}-report.json",
+            {
+                "per_fixture_pass_rates": {
+                    fixture_id: {"agent": [rate]} for fixture_id, rate in rates.items()
+                }
+            },
+        )
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            report,
+            "--pass-threshold",
+            threshold,
+        )
+        assert code == EXIT_OK
+        return _write(tmp_path, f"{name}.json", out)
+
+    def test_gate_refuses_mismatched_extraction_parameters_without_consultation(
+        self, tmp_path, capsys
+    ):
+        rates = {f"t{i}": 0.5 for i in range(10)}
+        incumbent = self._extract_agent(capsys, tmp_path, "inc", "0.6", rates)
+        candidate = self._extract_agent(capsys, tmp_path, "cand", "0.4", rates)
+        code, split = _split(capsys, tmp_path, "--results", incumbent, "--seed", "s1")
+        assert code == EXIT_OK
+        split_path = _write(tmp_path, "split.json", split)
+
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", incumbent, "--candidate", candidate,
+            "--split", split_path
+        )
+
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "pass_threshold" in out["reason"]
+        assert out["compared"] is False
+        assert out["sel_consultations"] == 0
+
+    def test_gate_refuses_results_that_do_not_cover_the_whole_universe(
+        self, tmp_path, capsys
+    ):
+        full = _write(tmp_path, "full.json", {f"t{i}": True for i in range(10)})
+        code, split = _split(capsys, tmp_path, "--results", full, "--seed", "s1")
+        assert code == EXIT_OK
+        split_path = _write(tmp_path, "split.json", split)
+        provenance = {"schema": "eval-results-v1", "kind": "agent", "group": "all"}
+        full_envelope = _write(
+            tmp_path,
+            "full-envelope.json",
+            {"results": {f"t{i}": True for i in range(10)}, "provenance": provenance},
+        )
+        opt_only = _write(
+            tmp_path,
+            "opt.json",
+            {
+                "results": {task_id: True for task_id in split["opt"]},
+                "provenance": provenance,
+            },
+        )
+
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", full_envelope, "--candidate", opt_only,
+            "--split", split_path
+        )
+
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "whole task set" in out["reason"]
+        assert out["sel_consultations"] == 0
+        assert not any(task_id in json.dumps(out) for task_id in split["sel"])
 
 
 class TestTheIncumbentFingerprintIsRequired:

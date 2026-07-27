@@ -79,6 +79,7 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
 _GROUPS = ("opt", "sel", "test")
+_RESULTS_SCHEMA = "eval-results-v1"
 
 
 class ConfigError(Exception):
@@ -143,8 +144,24 @@ def _covers_holdout(results: Mapping[str, Any], sel_ids: list[str]) -> bool:
     return all(isinstance(results.get(task_id), bool) for task_id in sel_ids)
 
 
-def _read_results(path: Path) -> dict[str, bool]:
+def _universe_ids(split: Mapping[str, Any]) -> list[str]:
+    return [str(t) for group in _GROUPS for t in split[group]]
+
+
+def _covers_universe(results: Mapping[str, Any], split: Mapping[str, Any]) -> bool:
+    return all(isinstance(results.get(task_id), bool) for task_id in _universe_ids(split))
+
+
+def _read_results_artifact(path: Path) -> tuple[dict[str, bool], dict[str, Any] | None]:
     data = _read_json(path)
+    provenance: dict[str, Any] | None = None
+    if (
+        isinstance(data, Mapping)
+        and isinstance(data.get("results"), Mapping)
+        and isinstance(data.get("provenance"), Mapping)
+    ):
+        provenance = dict(data["provenance"])
+        data = data["results"]
     if not isinstance(data, dict):
         raise ConfigError(f"{path} must hold a JSON object of task id to boolean")
     bad = [k for k, v in data.items() if not isinstance(v, bool)]
@@ -152,7 +169,12 @@ def _read_results(path: Path) -> dict[str, bool]:
         raise ConfigError(
             f"{path} has non-boolean results for: {', '.join(sorted(bad)[:5])}"
         )
-    return data
+    return data, provenance
+
+
+def _read_results(path: Path) -> dict[str, bool]:
+    results, _provenance = _read_results_artifact(path)
+    return results
 
 
 def _read_patches(path: Path) -> list[Patch]:
@@ -362,6 +384,47 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _extract_provenance(
+    args: argparse.Namespace, *, group: str = "all", split: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
+    provenance: dict[str, Any] = {
+        "schema": _RESULTS_SCHEMA,
+        "kind": args.kind,
+        "group": group,
+    }
+    if args.kind == "agent":
+        provenance.update(
+            {
+                "variant": args.variant,
+                "reduce": args.reduce,
+                "pass_threshold": args.pass_threshold,
+            }
+        )
+    elif args.kind == "rule":
+        provenance.update(
+            {
+                "mechanism": args.mechanism,
+                "min_score": args.min_score,
+            }
+        )
+    else:
+        provenance["on_skip"] = args.on_skip
+    if split is not None:
+        provenance["split_fingerprint"] = split["fingerprint"]
+    return provenance
+
+
+def _filter_results_to_group(
+    results: dict[str, bool], split: Mapping[str, Any], group: str
+) -> dict[str, bool]:
+    if not _covers_universe(results, split):
+        raise ConfigError(
+            "extracted results do not cover the whole task set; rerun the scorer "
+            "over the complete split universe before filtering a group"
+        )
+    return {task_id: results[task_id] for task_id in split[group]}
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
@@ -377,7 +440,20 @@ def cmd_extract(args: argparse.Namespace) -> int:
         )
     else:
         results = _extract_rule(_read_json(args.input), args)
-    _emit(results)
+    split = None
+    group = "all"
+    if args.split is not None or args.group is not None:
+        if args.split is None or args.group is None:
+            raise ConfigError("--split and --group must be supplied together")
+        split = _read_split(args.split)
+        group = args.group
+        results = _filter_results_to_group(results, split, group)
+    _emit(
+        {
+            "results": results,
+            "provenance": _extract_provenance(args, group=group, split=split),
+        }
+    )
     return EXIT_OK
 
 
@@ -794,6 +870,20 @@ def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> st
         raise ConfigError(str(exc)) from exc
 
 
+def _provenance_mismatch(
+    incumbent: Mapping[str, Any] | None, candidate: Mapping[str, Any] | None
+) -> str | None:
+    if incumbent is None and candidate is None:
+        return None
+    if incumbent is None or candidate is None:
+        return "one results file has extraction provenance and the other does not"
+    keys = sorted(set(incumbent) | set(candidate))
+    for key in keys:
+        if incumbent.get(key) != candidate.get(key):
+            return f"extraction parameter mismatch: {key} differs"
+    return None
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
     if _split_drifted(split):
@@ -852,8 +942,39 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         )
         return EXIT_LOGIC
 
-    incumbent_results = _read_results(args.incumbent)
-    candidate_results = _read_results(args.candidate)
+    incumbent_results, incumbent_provenance = _read_results_artifact(args.incumbent)
+    candidate_results, candidate_provenance = _read_results_artifact(args.candidate)
+    mismatch = _provenance_mismatch(incumbent_provenance, candidate_provenance)
+    if mismatch is not None:
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": mismatch,
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+    if not _covers_universe(incumbent_results, split) or not _covers_universe(
+        candidate_results, split
+    ):
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    "the results do not cover the whole task set; score both "
+                    "artifacts over the complete split universe and gate again. "
+                    "Which tasks are missing is withheld."
+                ),
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
     sel_ids = _group_ids(split, _GATE_GROUP)
 
     # Charge before reading the group, not after reaching a verdict. Two things
@@ -864,27 +985,6 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     spent_after = spent + 1
     with _digest_scrubbed(holdout_key):
         _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
-
-    if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
-        candidate_results, sel_ids
-    ):
-        _emit(
-            {
-                "decision": "REJECT",
-                "reason": (
-                    "the results do not cover the held-out group; score both "
-                    "artifacts over the whole task set and gate again. Which "
-                    "tasks are missing is withheld: with a test group drawn, "
-                    "naming them would say which of the two withheld groups "
-                    "each one belongs to."
-                ),
-                "sel_consultations": spent_after,
-                "compared": False,
-                "group": _GATE_GROUP,
-                "fingerprint": split["fingerprint"],
-            }
-        )
-        return EXIT_LOGIC
 
     incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
     candidate = _score_group(candidate_results, split, _GATE_GROUP)
@@ -1025,6 +1125,8 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
     extract.add_argument("--min-score", type=float, default=3.5)
     extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
+    extract.add_argument("--split", type=Path, help="split used to filter a group")
+    extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")

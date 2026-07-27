@@ -393,13 +393,12 @@ files it can already reach. **It is not held-out validation of unseen tasks.**
 
 Three things make that the honest description rather than an overcautious one:
 
-- **`extract` emits every task's outcome, uncharged.** It takes `--kind`,
-  `--input`, and scoring flags. It takes no group argument, so the mapping it
-  writes covers `opt`, `sel`, and `test` alike. The documented workflow has the
-  optimizer run `extract` itself to build `base.json` and `cand.json`, which
-  means held-out outcomes are already in the optimizer's own files before the
-  gate is called. Only `score --group` is group-aware, and nothing forces the
-  loop through it.
+- **`extract` can emit either the full result set or one split group.** Its
+  output is an envelope that records the scoring parameters beside the
+  `{task_id: bool}` mapping. When `--split` and `--group` are supplied, it first
+  requires coverage of the whole split universe, then emits only that group.
+  The gate refuses mismatched extraction parameters and refuses any results
+  file that does not cover `opt`, `sel`, and `test`.
 - **Task ids resolve to readable definitions that carry their own grading
   criteria.** `evals/analyst-spike/fixtures/F001.json` holds the input, the
   expected verdict, and the regex the scorer asserts.
@@ -498,16 +497,13 @@ Four further refusals close holes that open once a loop runs many steps:
   exists, since there the complement spans two groups and the published sizes
   do not say which task is in which. It is not worth describing as a boundary.
 
-  Held-out outcomes do not stay behind that line either. `score --group` is
-  group-aware, but `extract` is not, and the workflow above has the optimizer
-  run `extract` itself. What the budget bounds is how many times an edit may be
-  compared against the held-out group through the gate, which is the loop's
-  own **gate comparisons** against that group. It is not a bound on total
-  selection pressure, and the difference matters: `extract` and `score` reach
-  results without touching the ledger, so an optimizer that inspects its own
-  files applies pressure the count never sees. Closing that needs #3452 and a
-  controller. Gate comparisons are the quantity multiple-comparison correction
-  is about, and it is the one this mechanism actually holds.
+  Held-out outcomes still do not stay behind that line by themselves. `extract`
+  is group-aware, but a caller can still run the ungrouped form unless a
+  controller owns the scorer output and hands the optimizer only `opt`. What
+  the budget bounds is how many times an edit may be compared against the
+  held-out group through the gate, which is the loop's own **gate comparisons**
+  against that group. It is not a bound on total selection pressure. Closing
+  that needs the trusted controller in ADR-087 Open Requirement 1.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
