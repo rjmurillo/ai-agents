@@ -97,8 +97,7 @@ class TestCheckSkillSize:
     def test_exceeds_limit_with_exception(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
         skill.write_text(
-            "---\nname: test\nsize-exception: true\n---\n"
-            + "line\n" * SKILL_SIZE_LIMIT
+            "---\nname: test\nsize-exception: true\n---\n" + "line\n" * SKILL_SIZE_LIMIT
         )
 
         result = check_skill_size(skill)
@@ -153,9 +152,7 @@ class TestCheckSkillSizeBytes:
         # Over the 12 KiB soft ceiling but under the enforced limit and under
         # the 500-line limit: warns on bytes alone.
         skill = tmp_path / "SKILL.md"
-        skill.write_text(
-            "---\nname: test\n---\n" + ("x" * 200 + "\n") * 70, encoding="utf-8"
-        )
+        skill.write_text("---\nname: test\n---\n" + ("x" * 200 + "\n") * 70, encoding="utf-8")
 
         result = check_skill_size(skill)
 
@@ -169,9 +166,7 @@ class TestCheckSkillSizeBytes:
         # The case the line check misses: a table-heavy body sits well under
         # 500 lines yet blows the byte ceiling. It must FAIL on bytes.
         skill = tmp_path / "SKILL.md"
-        skill.write_text(
-            "---\nname: test\n---\n" + ("x" * 600 + "\n") * 50, encoding="utf-8"
-        )
+        skill.write_text("---\nname: test\n---\n" + ("x" * 600 + "\n") * 50, encoding="utf-8")
 
         result = check_skill_size(skill)
 
@@ -272,9 +267,7 @@ class TestCheckSkillSizeBytes:
     def test_oversized_fails_in_ci(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\n---\n" + "line\n" * 600
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n" + "line\n" * 600)
 
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
@@ -283,9 +276,7 @@ class TestCheckSkillSizeBytes:
         monkeypatch.delenv("CI", raising=False)
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\n---\n" + "line\n" * 600
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n" + "line\n" * 600)
 
         exit_code = main(["--path", str(tmp_path)])
         assert exit_code == 0
@@ -293,9 +284,7 @@ class TestCheckSkillSizeBytes:
     def test_custom_limit(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\n---\n" + "line\n" * 150
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n" + "line\n" * 150)
 
         exit_code = main(["--path", str(tmp_path), "--ci", "--limit", "100"])
         assert exit_code == 1
@@ -314,9 +303,7 @@ class TestCheckSkillSizeBytes:
         # A body that is fine on lines but over a tightened byte limit fails CI.
         skill_dir = tmp_path / "skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: test\n---\n" + "x" * 500, encoding="utf-8"
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n" + "x" * 500, encoding="utf-8")
 
         exit_code = main(
             ["--path", str(tmp_path), "--ci", "--byte-limit", "100", "--byte-warn", "50"]
@@ -419,9 +406,7 @@ class TestStagedBlobValidation:
         # Proves exception parsing reads the staged blob too.
         self._init_repo(tmp_path)
         big = b"x" * (SKILL_BYTE_LIMIT + 64)
-        skill = self._write_skill(
-            tmp_path, b"---\nname: big\nsize-exception: true\n---\n" + big
-        )
+        skill = self._write_skill(tmp_path, b"---\nname: big\nsize-exception: true\n---\n" + big)
         self._stage_all(tmp_path)
         skill.write_bytes(b"---\nname: big\n---\n" + big)  # exception removed, unstaged
 
@@ -523,9 +508,7 @@ class TestStagedBlobValidation:
         # A gitlink cacheinfo needs a non-null commit id; git rejects the all-zero
         # SHA. Reuse a real commit id from an initial commit in this repo.
         (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
-        subprocess.run(
-            ["git", "add", "seed.txt"], cwd=tmp_path, check=True, capture_output=True
-        )
+        subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(
             ["git", "commit", "-qm", "seed"], cwd=tmp_path, check=True, capture_output=True
         )
@@ -688,9 +671,7 @@ class TestStagedBlobValidation:
         # bytes (under-count, exit 0). ``--no-replace-objects`` must read the true
         # indexed object (exit 1).
         self._init_repo(tmp_path)
-        self._write_skill(
-            tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
-        )
+        self._write_skill(tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
         self._stage_all(tmp_path)
         big_oid = (
             subprocess.run(
@@ -735,9 +716,77 @@ class TestStagedBlobValidation:
         assert len(measured) > SKILL_BYTE_LIMIT
         assert main(["--staged-only", "--ci"]) == 1
 
-    def test_newline_in_staged_path_is_discovered(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_replace_ref_head_does_not_hide_staged_skill_from_discovery(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Discovery-side replace-refs (PR #3462 round-2 review): ``git diff
+        # --cached`` honors ``refs/replace/`` by default. A replacement HEAD
+        # whose tree already contains the oversized staged skill makes the diff
+        # report no change for that path, dropping it from discovery while the
+        # real commit still writes the index (including the oversized file).
+        # Discovery must run with ``--no-replace-objects`` so it diffs the real
+        # HEAD and still finds the file (exit 1).
+        self._init_repo(tmp_path)
+        # Real HEAD C0: a seed commit that does NOT contain the skill.
+        (tmp_path / "README.md").write_bytes(b"seed\n")
+        subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "seed"], cwd=tmp_path, check=True, capture_output=True
+        )
+        head = (
+            subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        # Stage the oversized skill: the index now differs from the real HEAD.
+        self._write_skill(tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
+        self._stage_all(tmp_path)
+        # Doctored HEAD C0': a commit whose tree equals the current index, so it
+        # already carries the oversized skill.
+        index_tree = (
+            subprocess.run(["git", "write-tree"], cwd=tmp_path, capture_output=True, check=True)
+            .stdout.decode()
+            .strip()
+        )
+        doctored = (
+            subprocess.run(
+                ["git", "commit-tree", index_tree, "-m", "doctored"],
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        subprocess.run(
+            ["git", "update-ref", f"refs/replace/{head}", doctored],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        monkeypatch.chdir(tmp_path)
+        # Setup proof: a default diff --cached honors the replacement, so a
+        # replace-honoring discovery would not list the oversized skill.
+        default_listed = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMRT"],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        ).stdout
+        assert b".claude/skills/big/SKILL.md" not in default_listed
+        # The gate discovers with --no-replace-objects, so it diffs the real HEAD
+        # and still finds the oversized file.
+        discovered = {p.as_posix() for p in get_staged_skill_files()}
+        assert ".claude/skills/big/SKILL.md" in discovered
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_newline_in_staged_path_is_discovered(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Finding 3 (newline path): a newline is a legal git path byte that ``-z``
         # keeps inside one NUL record. The prior ``^...$`` match (no DOTALL) let
         # ``.*`` stop at the newline, so a newline-bearing skill path failed the
@@ -749,9 +798,7 @@ class TestStagedBlobValidation:
         completed = subprocess.CompletedProcess(
             args=["git", "diff"], returncode=0, stdout=payload, stderr=b""
         )
-        monkeypatch.setattr(
-            _skill_size_mod.subprocess, "run", lambda *a, **k: completed
-        )
+        monkeypatch.setattr(_skill_size_mod.subprocess, "run", lambda *a, **k: completed)
         discovered = {p.as_posix() for p in get_staged_skill_files()}
         assert ".claude/skills/ev\nil/SKILL.md" in discovered
         assert ".claude/skills/ok/SKILL.md" in discovered
@@ -767,9 +814,7 @@ class TestStagedBlobValidation:
         self._init_repo(tmp_path)
         mirror = tmp_path / "src" / "copilot-cli" / "skills" / "big" / "SKILL.md"
         mirror.parent.mkdir(parents=True, exist_ok=True)
-        mirror.write_bytes(
-            b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
-        )
+        mirror.write_bytes(b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
         self._stage_all(tmp_path)
 
         monkeypatch.chdir(tmp_path)

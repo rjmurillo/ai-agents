@@ -248,10 +248,24 @@ def get_staged_skill_files() -> list[Path]:
     ``StagedDiscoveryError``. An empty result with a clean exit legitimately
     means "no staged SKILL.md" and returns ``[]``; only a *failed* discovery
     fails closed, so the common no-skills commit is not penalized.
+
+    ``--no-replace-objects`` runs discovery against the real HEAD, so a
+    ``refs/replace/*`` entry cannot swap in a doctored HEAD tree that already
+    contains the oversized staged skill (which would make ``diff --cached``
+    report no change and drop the file from discovery while the real commit
+    still writes it).
     """
     try:
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMRT"],
+            [
+                "git",
+                "--no-replace-objects",
+                "diff",
+                "--cached",
+                "--name-only",
+                "-z",
+                "--diff-filter=ACMRT",
+            ],
             capture_output=True,
             timeout=10,
         )
