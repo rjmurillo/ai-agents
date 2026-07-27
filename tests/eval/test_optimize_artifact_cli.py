@@ -6161,3 +6161,154 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
         _, split, inc, cand = self._gate_fixture(tmp_path, capsys, monkeypatch)
         code, _ = self._run_the_gate(capsys, tmp_path, split, inc, cand)
         assert code in (EXIT_OK, EXIT_LOGIC)
+
+
+class TestAWrongPathIsNotAnotherProcess:
+    """`mkdir(exist_ok=True)` raises `FileExistsError` when the parent is a file.
+
+    The acquire block runs two filesystem calls under one `try`, and reads
+    `FileExistsError` as contention. That reading is right for the second
+    call: `os.open` with `O_CREAT | O_EXCL` raises it when the lock file is
+    already there, which is exactly what one holder looks like to another.
+
+    It is wrong for the first. `Path.mkdir(exist_ok=True)` swallows
+    `FileExistsError` only when the path it found is a directory, and
+    re-raises otherwise, so a plain file sitting where the lock's parent
+    should be produces errno 17 with nothing holding anything.
+
+    The operator is then told to wait for a process that does not exist, or
+    to clear a stale lock that was never taken. The path is wrong, and the
+    one message that would say so is the one the other branch prints.
+
+    Found while checking a review's proposed test remedy rather than adopting
+    it. The remedy was to replace a read-only directory with a file at the
+    parent path, since a permission barrier does not hold on Windows or under
+    root. The substitution keeps every assertion in those tests green, because
+    both branches raise `ConfigError` at exit 2 and both name the lock, while
+    silently moving them onto the branch that is not under test.
+    """
+
+    def _patches(self, tmp_path):
+        return _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+
+    def _add(self, capsys, tmp_path, buffer):
+        return _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            self._patches(tmp_path),
+            "--reason",
+            "r",
+        )
+
+    def test_a_file_where_the_parent_belongs_is_not_reported_as_contention(
+        self, tmp_path, capsys
+    ):
+        """Negative: errno 17 from `mkdir` must not borrow the holder message."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert "another buffer-add holds" not in out["error"]
+
+    def test_a_file_where_the_parent_belongs_is_reported_as_a_refusal(
+        self, tmp_path, capsys
+    ):
+        """Positive: the operator is told the lock could not be taken."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert "could not take the lock" in out["error"]
+
+    def test_the_refusal_says_the_write_was_not_attempted(self, tmp_path, capsys):
+        """Positive: the caller learns nothing was half-done."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert "was not attempted" in out["error"]
+
+    def test_a_file_where_the_parent_belongs_still_exits_config(
+        self, tmp_path, capsys
+    ):
+        """Positive: the exit code stays the one that means config, not verdict."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        code, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert (code, out["type"]) == (EXIT_CONFIG, "ConfigError")
+
+    def test_a_file_further_up_the_path_is_also_a_refusal(self, tmp_path, capsys):
+        """Edge: `parents=True` walks up, so the collision can be a level higher."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "deeper" / "b.json")
+        assert "another buffer-add holds" not in out["error"]
+        assert out["type"] == "ConfigError"
+
+    def test_a_symlink_to_a_file_is_also_a_refusal(self, tmp_path, capsys):
+        """Edge: `mkdir` resolves the link, so the collision is one hop away."""
+        target = tmp_path / "target"
+        target.write_text("a file, not a directory")
+        link = tmp_path / "link"
+        link.symlink_to(target)
+        _, out = self._add(capsys, tmp_path, link / "b.json")
+        assert "another buffer-add holds" not in out["error"]
+        assert out["type"] == "ConfigError"
+
+    def test_a_real_holder_is_still_reported_as_contention(self, tmp_path, capsys):
+        """Positive control: the branch under test keeps its own cause.
+
+        This is the assertion the fix must not break. A lock file already on
+        disk is what one holder looks like to another, and `os.open` with
+        `O_EXCL` raising `FileExistsError` is the only evidence of it there is.
+        """
+        buffer = tmp_path / "b.json"
+        lock = tmp_path / "b.json.lock"
+        lock.write_text("4242")
+        _, out = self._add(capsys, tmp_path, buffer)
+        assert "another buffer-add holds" in out["error"]
+        assert out["type"] == "ConfigError"
+
+    def test_a_real_holder_does_not_borrow_the_refusal_message(
+        self, tmp_path, capsys
+    ):
+        """Negative control: contention must not report as a refused lock."""
+        buffer = tmp_path / "b.json"
+        (tmp_path / "b.json.lock").write_text("4242")
+        _, out = self._add(capsys, tmp_path, buffer)
+        assert "could not take the lock" not in out["error"]
+
+    def test_an_ordinary_add_still_takes_the_lock(self, tmp_path, capsys):
+        """Positive control: the ordinary path is untouched by the split."""
+        code, out = self._add(capsys, tmp_path, tmp_path / "b.json")
+        assert code == EXIT_OK
+        assert (tmp_path / "b.json").exists()
+
+    def test_the_gate_reports_a_wrong_ledger_path_as_a_refusal(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Negative: the ledger caller shares the acquire and the same defect.
+
+        Reached at unit level rather than through `cmd_gate`, whose contention
+        message is deliberately vague about the path it locks, so the CLI
+        cannot show which cause it printed. The helper is the seam both
+        callers share, so the split belongs there and is tested there.
+        """
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._lock_held(
+                occupied / "l.lock", "another gate holds a lock", lambda exc: "w"
+            ):
+                pass
+        assert "another gate holds" not in str(caught.value)
+        assert "could not take the lock" in str(caught.value)
+
+    def test_the_helper_still_reports_a_real_holder_to_the_gate(self, tmp_path):
+        """Positive control: the ledger caller keeps its contention message."""
+        lock = tmp_path / "l.lock"
+        lock.write_text("4242")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._lock_held(lock, "another gate holds a lock", lambda exc: "w"):
+                pass
+        assert "another gate holds" in str(caught.value)

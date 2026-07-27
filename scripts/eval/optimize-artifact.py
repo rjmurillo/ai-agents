@@ -1033,9 +1033,23 @@ def _lock_held(
     converts too, and deliberately outside a `finally`: when the write has
     already failed it is the cause an operator can act on, and a `finally`
     that raised would replace it with the consequence.
+
+    The acquire runs its two calls under separate `try` blocks because they do
+    not agree on what `FileExistsError` means. For `os.open` with `O_EXCL` it
+    is the whole signal: a lock file already on disk is what one holder looks
+    like to another. For `mkdir` it is a different fact, since `exist_ok=True`
+    swallows the error only when what it found is a directory and re-raises
+    otherwise, so a plain file sitting where the lock's parent belongs raises
+    the same errno with nothing holding anything. Sharing one block told that
+    operator to wait for a process that does not exist. Splitting is preferred
+    to re-checking `is_dir()` in the handler, which would decide the cause from
+    a second look at a filesystem that has since been free to change.
     """
     try:
         lock.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ConfigError(_lock_refused(lock, exc)) from exc
+    try:
         handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         raise ConfigError(contention) from None
