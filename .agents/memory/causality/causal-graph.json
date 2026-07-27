@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:58:41.235955+00:00",
+  "updated": "2026-07-27T13:16:42.518057+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21456,6 +21456,114 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "1f945a2ff014",
+      "type": "milestone",
+      "label": "milestone: Read the wiki page Skill Description as Loadtime Trigger and .agents/governance/skill-description-trigger-standard.md. Both state the description is the only text loaded at routing time and must carry phrases the user would actually say.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511604+00:00"
+    },
+    {
+      "id": "3215c124d032",
+      "type": "milestone",
+      "label": "milestone: Measured trigger presence twice, wrong both times. A regex for Use (when|for|to) counted the negative clause Do NOT use to as a positive trigger, flagging 8. Stripping negative clauses gave 9. Reading all 9 by hand showed 5 were false positives because the corpus also uses Trigger on, Apply when, Run after, Use PROACTIVELY after, and Designed to be invoked.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511709+00:00"
+    },
+    {
+      "id": "a905926914eb",
+      "type": "milestone",
+      "label": "milestone: Abandoned the phrasing heuristic for a checkable predicate. 48 of 96 skills carry a ## Triggers table whose first column holds backticked user phrases. Testing case-insensitive membership of those phrases in the skill's own description found 21 skills matching zero of their own documented phrases, covering 150 phrases the router never sees.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511792+00:00"
+    },
+    {
+      "id": "74bc526b24b8",
+      "type": "milestone",
+      "label": "milestone: Scoped the change to the 13 of those 21 that carry no quoted user phrase of any kind. The other 8 already have some phrase surface, so choosing between two phrasings is a judgement call that belongs in a separate argument.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511872+00:00"
+    },
+    {
+      "id": "f52d3936d60e",
+      "type": "milestone",
+      "label": "milestone: Wrote the edit as a script with three assertions worked out by hand before running: placement ahead of any Do NOT clause, YAML round-trip preserving the value byte for byte, and the key set unchanged. Each new description was checked under 1024 characters with no angle brackets.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511951+00:00"
+    },
+    {
+      "id": "8ad06f6b688f",
+      "type": "milestone",
+      "label": "milestone: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512030+00:00"
+    },
+    {
+      "id": "21d35a56bc40",
+      "type": "test",
+      "label": "test: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512109+00:00"
+    },
+    {
+      "id": "4be1ca835a95",
+      "type": "milestone",
+      "label": "milestone: Measured the cost honestly. The 13 descriptions grew by 1,270 bytes total, roughly 318 tokens added to the permanently loaded description block.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512191+00:00"
+    },
+    {
+      "id": "1a772b3a69c1",
+      "type": "milestone",
+      "label": "milestone: Dropped 2 of the intended 13. The skillforge pre-commit hook rejected observability and taste-lints for pre-existing structural errors: observability documents its scripts under ## Available Scripts rather than ## Scripts, and taste-lints has neither a Scripts section nor a Verification section. Confirmed pre-existing by reading both files as they stand on origin/main. The hook only inspects staged files, so both failures were latent until an unrelated edit staged them.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512270+00:00"
+    },
+    {
+      "id": "4dc22f7d7389",
+      "type": "milestone",
+      "label": "milestone: Kept the two changes separate rather than authoring structural sections inside a phrase-promotion change. Filed #3496 with the exact errors, the reason each is latent, and the two description sentences it should land once the structure is fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512349+00:00"
+    },
+    {
+      "id": "87e5c48b0178",
+      "type": "milestone",
+      "label": "milestone: Final cost, measured on the 11 that landed: 1,102 bytes added to the permanently loaded description block, roughly 276 tokens.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512430+00:00"
+    },
+    {
+      "id": "eef8ee36e741",
+      "type": "outcome",
+      "label": "Outcome: success - Promote already-documented trigger phrases from ## Triggers tables into the skill descriptions that carry none, so the router can see them at load time. Refs #3494.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512510+00:00"
     }
   ],
   "patterns": [
