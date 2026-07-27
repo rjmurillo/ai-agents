@@ -51,7 +51,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 6. Record the result in a decision memory: `.serena/memories/decision-<slug>.md` with Question, Conventional answer (docs, cited), First-principles position (measured), Evidence, Decision. Exemplar: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
 7. Freeze the contract into a runtime-contract test (Recipe 6) so it survives you.
 
-**Worked examples**: see references/worked-examples.md, Recipe 1.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 1.
 
 **What invalidates the result**: unpinned tool version; probe run from the artifact's own directory; env inherited from your dev shell instead of controlled; no negative control; extrapolating to a dimension the probe did not capture; inferring a name "by analogy" to a sibling tool.
 
@@ -68,7 +68,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 5. If the detector fires on zero of five, the threshold is wrong or the metric is wrong. Fix before commit, and put the table in the PR description.
 6. After shipping, watch its tier via `guard-maturity` (EVENT= telemetry consumers).
 
-**Worked examples**: see references/worked-examples.md, Recipe 2.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 2.
 
 **What invalidates the result**: calibrating against synthetic or hand-picked PRs; changing the metric definition after building the table; sample PRs authored specifically to trip the guard; skipping the run-on-own-branch step.
 
@@ -99,7 +99,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 
 5. Compare actuals to predictions. A surprise in EITHER direction is a finding: record it in a memory.
 
-**Worked examples**: see references/worked-examples.md, Recipe 3.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 3.
 
 **What invalidates the result**: predictions written after seeing results; comparing runs across different models or scenario files; single-run verdicts on flaky scenarios (ADR-057 has a flakiness protocol; use it); editing scenarios and the prompt in the same experiment.
 
@@ -114,7 +114,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 3. For vendor docs: remember they were wrong by omission twice here (#2205 env vars, #2290 payload casing). If the behavior is load-bearing, escalate to Recipe 1.
 4. When you find stale docs, fix on contact or flag with path:line; do not silently work around them.
 
-**Worked examples**: see references/worked-examples.md, Recipe 4.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 4.
 
 **What invalidates the result**: verifying existence but not behavior ("the file is there" does not mean "the flag works"); quoting a paraphrase instead of the verbatim contract; auditing the copy instead of the canonical source (ask which tree is source of truth; see the 2025-12-15 drift-direction story in `ai-agents-failure-archaeology`).
 
@@ -129,7 +129,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 3. If it fails only on the PR: the discriminating experiment is now cheap. Bisect your diff (revert half the changes locally, re-run the failing check via `python3 scripts/validation/pre_pr.py` or the specific validator).
 4. Record misattribution near-misses in a memory; they compound.
 
-**Worked examples**: see references/worked-examples.md, Recipe 5.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 5.
 
 **What invalidates the result**: comparing against a stale main (fetch first); a workflow whose behavior depends on PR context (file-set-sensitive coverage pins, see `ai-agents-debugging-playbook`), where "passes on main" does not imply "your diff broke it".
 
@@ -145,7 +145,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 4. Add a load-bearing check: strip the contract precondition (unset the env var) and assert the passing case now fails, proving the anchor matters.
 5. Cite the empirical contract (tool name + version + date) in the test module docstring, per `.claude/rules/generated-artifacts.md`.
 
-**Worked examples**: see references/worked-examples.md, Recipe 6.
+**Worked examples**: see [references/worked-examples.md](references/worked-examples.md), Recipe 6.
 
 **What invalidates the result**: negative control that fails for an unrelated reason (assert on the SPECIFIC failure); mocking the subprocess boundary you are supposed to be exercising; a "contract" docstring with no tool version.
 
@@ -175,4 +175,4 @@ Before claiming a probe, calibration, or eval result:
 
 ## Provenance and Maintenance
 
-See references/provenance.md for sources and re-verification one-liners for every fact in this skill.
+See [references/provenance.md](references/provenance.md) for sources and re-verification one-liners for every fact in this skill.
