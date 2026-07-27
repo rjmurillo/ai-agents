@@ -158,5 +158,5 @@
   "notes": [
     "Regex widened to catch :line-range hook references per review feedback."
   ],
-  "workNotes": " | Added clarification note to analysis file per Copilot convention feedback."
+  "workNotes": " | Added clarification note to analysis file per Copilot convention feedback. | Fixed typo in ADR-084 (capitalization). Added descriptive comment for _BACKTICKED_INVOKE_RE regex."
 }

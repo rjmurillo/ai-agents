@@ -50,6 +50,7 @@ HOOK_SEARCH_ROOTS = (
 _HOOK_PATH_RE = re.compile(
     r"`([^`]*?(?:(?:hooks/)?[A-Za-z]\w*/)?invoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`"
 )
+# Wider fallback: any backticked `invoke_*.py` token, with optional :line-range suffix.
 _BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*\binvoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
 _RETIREMENT_WORDS = (
