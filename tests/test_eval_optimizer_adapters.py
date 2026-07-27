@@ -678,3 +678,140 @@ class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
                 ),
                 "full",
             )
+
+
+class TestAnIntegerTooBigForAFloatIsOutOfRangeNotACrash:
+    """The check that would have caught it ran one line too late.
+
+    `_as_float` asks `math.isfinite` before it asks whether the value is in
+    range. `math.isfinite` converts to float first, so an integer past
+    1.8e308 raises `OverflowError`. That is not one of the three exceptions
+    `main` catches, so the command prints a traceback and exits 1, and exit 1
+    is this tool's REJECT verdict. A caller branching on the exit code reads a
+    crash as a decision.
+
+    The range check added the round before would have refused the same value
+    with the right message, because Python compares an integer to a float
+    exactly at any size: `10**400 <= 1.0` is False without converting
+    anything. It was placed after the call that cannot survive the input.
+
+    So the fix is to stop asking a question of integers that only floats can
+    answer. An integer is never NaN and never infinite; only a float can be.
+    Restricting the finiteness check to floats leaves every integer to the
+    range check, which handles arbitrary size, and leaves the final `float()`
+    safe because nothing that survives the range check is large.
+    """
+
+    def _scen(self, **scores):
+        return [{"id": "S", "mechanisms": {"full": {"scores": scores}}}]
+
+    # A float cannot hold this, and it is far outside both scales.
+    HUGE = 10**400
+
+    def test_a_huge_run_is_refused_as_out_of_range(self):
+        with pytest.raises(AdapterError, match="between"):
+            agent_results(_report({"C1": {"agent": [self.HUGE]}}), "agent")
+
+    def test_a_huge_run_does_not_raise_overflow(self):
+        with pytest.raises(AdapterError):
+            agent_results(_report({"C1": {"agent": [self.HUGE]}}), "agent")
+
+    def test_a_hugely_negative_run_is_refused_as_out_of_range(self):
+        with pytest.raises(AdapterError, match="between"):
+            agent_results(_report({"C1": {"agent": [-self.HUGE]}}), "agent")
+
+    @pytest.mark.parametrize(
+        "key", ["activation_score", "behavior_score", "citation_score"]
+    )
+    def test_a_huge_score_is_refused_in_every_rule_dimension(self, key):
+        scores = {
+            "activation_score": 5,
+            "behavior_score": 5,
+            "citation_score": 5,
+        }
+        scores[key] = self.HUGE
+        with pytest.raises(AdapterError, match="between"):
+            rule_results(self._scen(**scores), "full")
+
+    def test_a_hugely_negative_rule_score_is_refused(self):
+        with pytest.raises(AdapterError, match="between"):
+            rule_results(
+                self._scen(
+                    activation_score=-self.HUGE,
+                    behavior_score=5,
+                    citation_score=5,
+                ),
+                "full",
+            )
+
+    def test_the_refusal_names_the_value_it_refused(self):
+        with pytest.raises(AdapterError) as caught:
+            agent_results(_report({"C1": {"agent": [self.HUGE]}}), "agent")
+        assert str(self.HUGE) in str(caught.value)
+
+    # --- the boundary between "converts" and "does not" -------------------
+
+    def test_the_largest_convertible_integer_is_still_out_of_range(self):
+        """One below the overflow boundary must reach the same verdict.
+
+        Otherwise the fix would only move the crash, and a value that does
+        convert would take a different path from one that does not.
+        """
+        biggest = int(sys.float_info.max)
+        with pytest.raises(AdapterError, match="between"):
+            agent_results(_report({"C1": {"agent": [biggest]}}), "agent")
+
+    def test_an_integer_at_the_top_of_the_pass_rate_scale_is_accepted(self):
+        assert agent_results(_report({"C1": {"agent": [1]}}), "agent") == {"C1": True}
+
+    def test_an_integer_at_the_bottom_of_the_pass_rate_scale_is_accepted(self):
+        assert agent_results(_report({"C1": {"agent": [0]}}), "agent") == {"C1": False}
+
+    def test_an_integer_at_the_top_of_the_rule_scale_is_accepted(self):
+        assert rule_results(
+            self._scen(
+                activation_score=5, behavior_score=5, citation_score=5
+            ),
+            "full",
+        ) == {"S": True}
+
+    def test_one_past_the_top_of_the_rule_scale_is_still_refused(self):
+        with pytest.raises(AdapterError, match="between"):
+            rule_results(
+                self._scen(
+                    activation_score=6, behavior_score=5, citation_score=5
+                ),
+                "full",
+            )
+
+    # --- controls: the checks this must not disturb -----------------------
+
+    def test_nan_still_reports_finiteness_not_range(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C1": {"agent": [float("nan")]}}), "agent")
+
+    def test_infinity_still_reports_finiteness_not_range(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C1": {"agent": [float("inf")]}}), "agent")
+
+    def test_negative_infinity_still_reports_finiteness_not_range(self):
+        with pytest.raises(AdapterError, match="finite"):
+            agent_results(_report({"C1": {"agent": [float("-inf")]}}), "agent")
+
+    def test_nan_in_a_rule_score_still_reports_finiteness(self):
+        with pytest.raises(AdapterError, match="finite"):
+            rule_results(
+                self._scen(
+                    activation_score=float("nan"),
+                    behavior_score=5,
+                    citation_score=5,
+                ),
+                "full",
+            )
+
+    def test_a_bool_is_still_refused_as_non_numeric(self):
+        with pytest.raises(AdapterError, match="numeric"):
+            agent_results(_report({"C1": {"agent": [True]}}), "agent")
+
+    def test_an_ordinary_float_still_passes(self):
+        assert agent_results(_report({"C1": {"agent": [0.5]}}), "agent") == {"C1": False}

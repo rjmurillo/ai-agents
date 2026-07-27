@@ -6318,3 +6318,80 @@ class TestAWrongPathIsNotAnotherProcess:
             with oa._lock_held(lock, "another gate holds a lock", lambda exc: "w"):
                 pass
         assert "another gate holds" in str(caught.value)
+
+
+class TestACrashOnAHugeNumberIsNotARejectVerdict:
+    """`OverflowError` is not one of the three exceptions `main` catches.
+
+    `_as_float` asked `math.isfinite` before it asked whether the value was in
+    range, and `math.isfinite` converts to float first. An integer past
+    1.8e308 raised `OverflowError` there, which reached the top uncaught. The
+    command printed a traceback and exited 1, and exit 1 is the REJECT
+    verdict a driver branches on, so a malformed scorer file read as a
+    decision that the candidate lost.
+
+    These assert at the command boundary rather than the adapter, because the
+    exit code is the whole finding. The adapter tests prove the refusal is an
+    `AdapterError`; only running the command proves `main` turns that into a
+    config failure with a JSON error document instead of a traceback.
+    """
+
+    # A float cannot hold this.
+    HUGE = 10**400
+
+    def test_a_huge_agent_run_exits_config_not_reject(self, capsys, tmp_path):
+        report = _write(
+            tmp_path,
+            "r.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}}},
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == 2
+        assert out["type"] == "AdapterError"
+        assert "between" in out["error"]
+
+    def test_a_huge_rule_score_exits_config_not_reject(self, capsys, tmp_path):
+        scenarios = _write(
+            tmp_path,
+            "s.json",
+            [
+                {
+                    "id": "S1",
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": self.HUGE,
+                                "behavior_score": 5,
+                                "citation_score": 5,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == 2
+        assert out["type"] == "AdapterError"
+        assert "between" in out["error"]
+
+    def test_the_failure_arrives_as_one_json_document(self, capsys, tmp_path):
+        """A traceback on stderr is not something a driver can parse."""
+        report = _write(
+            tmp_path,
+            "r.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}}},
+        )
+        oa.main(["extract", "--kind", "agent", "--input", str(report)])
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert set(json.loads(captured.out)) == {"error", "type"}
+
+    def test_an_ordinary_report_still_exits_zero(self, capsys, tmp_path):
+        report = _write(
+            tmp_path,
+            "r.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}}},
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == 0
+        assert out["results"] == {"C1": True}

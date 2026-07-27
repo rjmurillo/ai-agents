@@ -87,10 +87,20 @@ def _as_float(value: object, context: str, *, lo: float, hi: float) -> float:
     point. The same scenario with the other two at 6 passed. Callers pass
     their own domain rather than sharing a default, because the two scales
     differ and a shared default would be right for neither.
+
+    The finiteness check is asked of floats only. `math.isfinite` converts its
+    argument to float first, so an integer past 1.8e308 raises `OverflowError`
+    there, and `OverflowError` is not one of the exceptions the CLI catches:
+    the command printed a traceback and exited 1, which is this tool's REJECT
+    verdict. An integer is never NaN and never infinite, so the question was
+    only ever meaningful for floats. Skipping it for integers leaves them to
+    the range check below, which compares an integer against a float exactly
+    at any size, and leaves the final conversion safe because nothing that
+    survives that check is large.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise AdapterError(f"{context} must be numeric, got {value!r}")
-    if not math.isfinite(value):
+    if isinstance(value, float) and not math.isfinite(value):
         raise AdapterError(f"{context} must be finite, got {value!r}")
     if not lo <= value <= hi:
         raise AdapterError(
