@@ -142,7 +142,7 @@ Consequences. Withholding is the goal; a counted budget is what the current
 mechanism delivers, and it is what the requirements below can honestly
 demand.
 
-Four requirements follow.
+Five requirements follow.
 
 ### 1. The decision group is fixed before the first edit
 
@@ -207,6 +207,16 @@ derived from task contents or from trusted corpus provenance would work; it
 needs a seam that carries one. Sharing is the conservative direction, so the
 collision is accepted until that seam exists.
 
+Requirement 5 put a corpus identity into the seam, and the ledger key
+deliberately does not use it. Adding it would split budgets rather than merge
+them, and a caller who strips the envelope back to a bare mapping would land on
+a different key with the same held-out tasks. That is a budget reset reachable
+by editing an input, which is the defect rounds one through five closed five
+times. The key stays keyed on membership alone: over-sharing a budget is safe,
+resetting one is not. That same strip is refused at the gate instead, which is
+the right layer for it: a refusal belongs where the comparison is decided, not
+in the name of the file that counts it.
+
 The key is a digest, and a digest of a set the caller can enumerate is that
 set. It is therefore kept out of error output. A fifth round found it in three
 hand-written lock and ledger messages; a sixth found the three fixes had missed
@@ -261,6 +271,87 @@ regression." An earlier draft of this ADR provided an opt-out flag, described
 as something a human would pass. It was not human-only, nothing distinguished a
 human caller from the agent driving the loop, and it would have been a weaker
 rule than the ADR it claimed to source from. It has been removed.
+
+### 5. A comparison whose corpus is not pinned and agreed is refused
+
+`split` records the corpus of the results it was drawn from, and both results
+files declare the corpus they were scored against. When the three do not name
+one corpus, the comparison is refused before the ledger is touched: it would
+measure the corpus change alongside the edit.
+
+This requirement exists because the omission had already cost something. On
+2026-07-27 two runs of the same agent were gated against each other and read as
+a null control. They agreed on `model_id` and on `agent_prompt_sha` and
+disagreed on `fixture_set_sha`; all eight fixture files had changed between
+them. The accept was published across four files before the mismatch was found.
+The retraction is in Validation Status.
+
+Six properties, each answering a specific failure the earlier rounds taught:
+
+- **The refusal is free and cannot be masked.** It is decidable from three
+  header fields, so it sits beside the split-drift refusal and ahead of the
+  ledger. A mismatched pair is unusable at any budget, so charging for it would
+  sell a consultation that can never be spent, and ordering it behind the budget
+  check would tell an operator to buy budget for a comparison that can never be
+  valid. This is the same ordering rule the out-of-range `--max-p` check
+  follows. The preflight reads headers only and answers unknown to every content
+  problem, so the converse also holds: a malformed verdict mapping cannot answer
+  in place of the ledger, and the full read happens after the guards.
+- **A results envelope cannot delete the refusal.** The first cut compared the two files
+  against each other and refused only when both declared a corpus and the two
+  disagreed, which left the refusal reachable by omission. Stripping the
+  envelope off either side, which is what every consumer written before the
+  envelope did, turned a known mismatch into two unknowns, and two unknowns have
+  nothing to disagree about. The pin moves the value into the baseline
+  commitment so no results file can delete it, and one known corpus beside an
+  unknown one counts as a conflict, because a pair scored on one corpus does not
+  have one side that forgot.
+- **Deleting the split's pin is reported, not refused.** Removing the `corpus`
+  key leaves two agreeing results files and nothing to contradict them, so the
+  conflict rule finds no disagreement. Refusing that shape would refuse every
+  `--tasks` split and both artifact classes that pin nothing, so the verdict
+  carries `corpus_pinned` instead: `true` means the split named the corpus both
+  results carry, `false` means only the two results were checked against each
+  other. A sixteenth review found the earlier wording claiming this case was
+  refused when it was not.
+- **What was scored is what was checked.** The preflight reads headers; the
+  comparison is scored from a second, full read. Only the second is
+  authoritative, so the conflict rule runs again against the loaded values
+  before a consultation is charged. Two reads of one path that never have to
+  agree leave a window between them.
+- **The refusal names nothing.** No task ids, no holdout key. A caller cannot
+  turn repeated mismatches into a probe of the held-out group. The preflight runs
+  under the same digest scrubber as the ledger paths.
+- **Unknown everywhere is reported, not refused.** Only the agent path publishes
+  a corpus identity today. Refusing unknown on all three would disable the gate
+  for rules and hooks to guard a case it cannot detect there anyway, so the
+  verdict carries `corpus_verified`, where `false` means the check never ran. A
+  real mismatch never reaches a verdict.
+
+A corpus identity is validated as 64 lowercase hex characters, the form
+`hexdigest()` emits. An unchecked string reports a verified match on values that
+identify nothing: two reports both carrying `fixture_set_sha: ""` compared as
+verified until a fifteenth review pointed at it.
+
+The bound is worth stating in the decision rather than leaving it to be
+discovered. The split file is caller-supplied and its corpus pin is outside the
+fingerprint, so a caller who edits the split can still push an
+incomparable pair through: delete the pin, and two results scored on one corpus
+compare against a split drawn from another. The verdict reports
+`corpus_pinned: false` when that happens; nothing refuses it. Closing it needs
+authenticated provenance, which this design does not have and does not claim. The requirement
+defends against omission, which is the failure that occurred.
+
+Task ids do not substitute, which is the reason the requirement is about corpus
+contents rather than key sets. All eight fixture ids matched across those two
+runs while all eight files differed. Identity of the keys says nothing about
+identity of what the keys point at.
+
+The requirement is bounded by what the scorers publish. `fixture_set_sha` is a
+trusted source in the sense that requirement 12 asks for: it is computed by the
+scorer from the fixture contents, not supplied by the caller being budgeted.
+Neither the rule path nor the hook path publishes an equivalent, so open
+requirement 12 stays open for them.
 
 ### What the mechanism protects against, and what it does not
 
@@ -532,8 +623,10 @@ that reason.
     claim was published before the mismatch was found. The same missing identity
     that lets two corpora share a budget lets two corpora be compared, and the
     comparison failure is the more expensive of the two because it produces a
-    verdict that looks valid. The upstream reports already carry the identity;
-    the seam discards it.
+    verdict that looks valid. Requirement 5 closed the comparison half for the
+    agent path, whose scorer publishes `fixture_set_sha`. What stays open is the
+    budget half, and both halves for the rule and hook paths, which publish no
+    corpus identity for the seam to carry.
 
 The default `--test-ratio` is 0.0, so the ordinary invocation produces optimize
 and selection groups only. Requirement 1's "test group, when present" describes
@@ -718,10 +811,11 @@ it. Nothing in the design would have stopped the next person from repeating the
 mistake, and the person who made it had just spent a session arguing that a
 property reported but not enforced is not a property. Open requirement 12
 already named the missing piece, that the seam carries no corpus identity. This
-is the first evidence of what that costs, and it raises the requirement from a
+is the first evidence of what that costs, and it raised the requirement from a
 budget-accounting nicety to a correctness gap: the same absence that lets two
 unrelated corpora share a ledger also lets two unrelated corpora be compared to
-each other.
+each other. Requirement 5 closes the comparison half on the one path whose
+scorer publishes an identity.
 
 ### What follows for anyone running this loop
 

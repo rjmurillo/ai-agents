@@ -306,7 +306,7 @@ one-fixture gate, which measures nothing.
 
 | Subcommand | Purpose |
 |------------|---------|
-| `extract` | Convert an existing scorer's output to `{task_id: bool}`. |
+| `extract` | Convert an existing scorer's output to the results envelope. |
 | `split` | Partition task ids into `opt`, `sel`, and `test`. |
 | `budget` | Edits allowed at this step, cosine-decayed from `max` to `min`. |
 | `score` | Fraction of one group passing. |
@@ -321,11 +321,28 @@ one-fixture gate, which measures nothing.
 already has a scorer; each reports in its own shape, and `extract` converges
 them on the one shape the gate reads.
 
-| `--kind` | Input | Task id |
-|----------|-------|---------|
-| `agent` | An agent eval `report.json` | Fixture id |
-| `rule` | `eval-rule-activation.py` scenario output | Scenario id |
-| `hook` | `pytest --junitxml` output | Test node id |
+| `--kind` | Input | Task id | Corpus identity |
+|----------|-------|---------|-----------------|
+| `agent` | An agent eval `report.json` | Fixture id | `fixture_set_sha` |
+| `rule` | `eval-rule-activation.py` scenario output | Scenario id | none published |
+| `hook` | `pytest --junitxml` output | Test node id | none published |
+
+`extract` writes an envelope, not a bare mapping:
+
+```json
+{
+  "schema": "optimizer-results/1",
+  "corpus": "26136df314d6ba1f...",
+  "results": {"A001": true, "A002": false}
+}
+```
+
+`corpus` answers "which task set was this scored against", as the producer's
+sha256 hex digest of that set, and `gate` refuses a pair that does not agree on
+it. `split` pins the value it was drawn from so the answer cannot be stripped
+back out. Only the agent path has a source for it today, so the other two write
+`null` and the gate reports the comparison as unverified rather than pretending
+it checked. A bare `{task_id: bool}` file still reads, as an unknown corpus.
 
 Adapters fail closed. A fixture the variant never ran, a scenario whose judge
 errored, and a skipped test all score as failures rather than being dropped.
@@ -715,6 +732,90 @@ everything, genuine improvements included. More tasks, or repeated sampling
 per task with a majority vote, is what buys power. A different threshold does
 not. Until then, treat a single-sample accept on a nondeterministic scorer as
 a hypothesis, and run the null control before believing it.
+
+### Refusing an incomparable pair
+
+`split` records the corpus of the results it was drawn from, and `gate` refuses
+unless the split and both results files name one corpus:
+
+```text
+decision: REJECT   compared: false   consultations: 0
+reason: the split and the two results files do not agree on one corpus, so a
+        comparison between them measures the corpus change as well as the edit.
+```
+
+That output is a replay, not an illustration. Extracting the two tracked
+architect reports, `20260528T051601Z-70c6ae97` and `20260528T055934Z-5f4d8ad4`,
+and gating them exactly as the false accept was produced now returns the refusal
+above, exit 1, with no ledger file written.
+
+Five properties, each chosen against a specific failure:
+
+- **It costs nothing.** The decision comes from three header fields, so it lands
+  beside the split-drift refusal and ahead of the ledger. A mismatched pair is
+  unusable at any budget, so charging for it would sell the caller a
+  consultation it can never spend.
+- **An exhausted budget does not mask it.** Same precedent as the `--max-p`
+  range check. A refusal decidable without the held-out group must not be
+  reordered behind one that needs the ledger, or the operator is told to buy
+  budget for a comparison that can never be valid. The converse also holds: the
+  preflight reads headers only and answers "unknown" to every content problem,
+  so a malformed verdict mapping can never answer in place of the ledger. The
+  full read happens after the guards, where it reports properly.
+- **Stripping a results envelope does not delete it.** The first cut compared
+  the two files against each other and refused only when both declared a corpus
+  and the two disagreed. That made the refusal reachable by omission: piping
+  either side through anything that emits a bare mapping, which is what every
+  consumer wrote before the envelope existed, turned "known to differ" into
+  "unknown", and unknown compared. Two changes close it. The split pins the
+  corpus, so the value lives in the baseline commitment rather than being
+  inferred from the pair. And one known corpus beside an unknown one is a
+  conflict, because a pair scored on one corpus does not have one side that
+  forgot.
+- **Deleting the split's pin is reported, not refused.** Removing the `corpus`
+  key leaves two agreeing results files and nothing to contradict them, so the
+  conflict rule has no disagreement to find. Refusing that shape would also
+  refuse every `--tasks` split and both artifact classes that pin nothing at
+  all. The verdict carries `corpus_pinned` instead: `true` means the split named
+  the corpus both results carry, `false` means only the two results were checked
+  against each other. A sixteenth review found the earlier wording claiming this
+  case was refused when it was not.
+- **What was scored is what was checked.** The preflight reads file headers; the
+  comparison is scored from a second, full read. Only the second is
+  authoritative, so the conflict rule runs again against the loaded values
+  before a consultation is charged. Without that, the two reads never had to
+  agree and the gap between them was a window a file could change in.
+- **It leaks nothing.** The reason names neither task ids nor the holdout key,
+  so a caller cannot use repeated mismatches to probe the held-out group. The
+  preflight runs under the same digest scrubber as the ledger paths.
+- **Unknown everywhere is reported, not refused.** Only the agent path publishes
+  a corpus identity. Refusing unknown on all three would disable the gate for
+  rules and hooks to guard a case it cannot detect there anyway, so the verdict
+  carries `corpus_verified` instead. `false` means the check never ran. A real
+  mismatch never reaches a verdict at all.
+
+A corpus identity has to look like one: 64 lowercase hex characters, the form
+`hexdigest()` emits. An unchecked string reports success on values that identify
+nothing, and two reports both carrying `fixture_set_sha: ""` compared as
+verified until a fifteenth review pointed at it.
+
+Task ids are not a substitute for this check, which is the whole reason it
+exists. All eight fixture ids matched across the two architect runs while every
+one of the eight fixture files differed. Identity of the keys says nothing about
+identity of what the keys point at.
+
+**The limit, stated plainly.** The split file is caller-supplied and its corpus
+pin is outside the fingerprint, so a caller who edits the split can still get an
+incomparable pair through: delete the pin, and two results files scored on one
+corpus compare against a split drawn from another. The verdict reports
+`corpus_pinned: false` when that happens, but nothing refuses it. Closing it
+needs authenticated provenance, which this does not have. What it defends against is
+omission: a field going unread, an envelope getting stripped, a pair being
+eyeballed instead of checked. That is the failure that actually happened.
+
+The remaining gap is that two of the three paths have no corpus source to read.
+That is ADR-087 open requirement 12: an identity derived from task contents,
+which needs a seam that carries them.
 
 ## Scenario File Format
 

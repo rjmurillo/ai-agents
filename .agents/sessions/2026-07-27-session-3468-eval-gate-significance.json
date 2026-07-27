@@ -189,6 +189,44 @@
         "Named the defect: _fixture_set_sha's own docstring says it lets a report consumer verify two runs hit the same set, and optimize-artifact.py extract never reads it. The schema supplies the check and the tool that needs it discards it. Filed as defect shape 17 and folded into ADR-087 open requirement 12, which had already named the missing corpus identity as a budget concern."
       ],
       "outcome": "A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none."
+    },
+    {
+      "phase": "Build the corpus guard, then survive two reviews of it",
+      "actions": [
+        "Implemented the corpus-comparability guard TDD. Wrote 18 tests first, confirmed 12 red, implemented an envelope format optimizer-results/1 carrying {schema, corpus, results}, and made gate refuse a pair whose corpora disagree. Reader accepts legacy bare mappings; the discriminator is a string-valued schema key, not the key alone, so a legacy file with a task named schema still parses as legacy.",
+        "Proved the guard against the real incident rather than a fixture. Extracted the two tracked architect reports through the new extract, confirmed they emit different corpus values, and gated them exactly as the false accept was produced. REJECT, compared false, consultations 0, no ledger file written.",
+        "Round 15 adversarial review with gpt-5.6-terra returned REJECT with three findings, all real. CRITICAL: the guard was reachable by deletion, since stripping the envelope off either side left two unknowns and unknowns compared. REQUIRED: an unvalidated corpus string reported a verified match, so two reports both carrying an empty fixture_set_sha compared as verified. REQUIRED: reading both results files in full before the ledger lock let a malformed verdict mapping answer in place of an exhausted budget.",
+        "Closed the CRITICAL with two changes rather than one. split now pins the corpus of the results it was drawn from, so the value lives in the baseline commitment and no results file can delete it. And one known corpus beside an unknown one now counts as a conflict, which covers splits drawn before the pin existed. Neither alone is sufficient.",
+        "Closed the first REQUIRED by validating the corpus form as 64 lowercase hex at both the extraction boundary and the envelope reader.",
+        "Closed the second REQUIRED by splitting the read. The pre-lock work is now a header-only read that answers unknown to every content problem and cannot raise, wrapped in the digest scrubber. The full read moved into _gate_decision, after the ledger guards and before the charge.",
+        "Argued one point down rather than absorbing it. The reviewer wanted the whole corpus check moved behind the ledger lock. It stayed ahead: the file's convention, visible in the out-of-range --max-p check and the split-drift refusal, is that structural-validity refusals precede ledger refusals, and an incomparable pair is unusable at any budget. The reviewer's real concern was the full read, which the header-only split fixes.",
+        "Rewrote the test that encoded the bypass. The old assertion said unknown beside known compares; it now says that pair is refused. Bending the code to a stale test would have re-opened the CRITICAL.",
+        "Re-proved against the real data after the redesign. Both the original incident pair and the same pair with the candidate envelope stripped now return REJECT, consultations 0, zero ledger files.",
+        "Stated the bound in the README and the ADR rather than leaving it to be found. The split is caller-supplied and its pin sits outside the fingerprint, so a caller who edits two files together can still push an incomparable pair through. This defends against omission, not an adversary.",
+        "Recorded defect shape 18 in the debate log: a refusal reachable by deletion is not a refusal, and the generalization that a guard with a cannot-determine state should be measured by what it costs to reach that state deliberately."
+      ],
+      "outcome": "1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "evidence": [
+        "uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed",
+        "coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%",
+        "gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0",
+        "same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0"
+      ]
+    },
+    {
+      "phase": "Round 16 review: close five defects and correct a documented overclaim",
+      "actions": [
+        "Second adversarial review of the corpus guard, gpt-5.6-terra, returned REJECT with five findings. Confirmed all five by running the code, not by reading it. Two CRITICAL, three REQUIRED.",
+        "CRITICAL 1, the documented property was wrong. README and ADR-087 both claimed the corpus refusal cannot be deleted. True of the results envelope, false of the split pin: deleting the split's corpus key leaves two agreeing results files and no disagreement to refuse. Did not take the reviewer's fix of requiring a pin before any ACCEPT, because a --tasks split pins nothing by construction and neither the rule nor the hook path publishes a corpus identity, so that rule would disable the gate for two of three artifact classes. Split the claim into two reported facts instead: corpus_verified for the two results agreeing, corpus_pinned for the split naming the corpus they carry.",
+        "CRITICAL 2, TOCTOU between the header preflight and the full read. The two reads were never reconciled, so the values the comparison scored from never had to match the values the guard checked. The conflict rule now runs again against the loaded ResultsFile values, before the consultation is charged. Both call sites now emit one shared refusal payload so they cannot drift.",
+        "REQUIRED 3, split corpus pin was unvalidated. A split carrying corpus of [] raised TypeError out of a set comprehension. Now validated with the same 64-lowercase-hex check the results files get.",
+        "REQUIRED 4, _corpus_header promised it could not raise on content and caught only ValueError. A JSON array nested 200000 deep raises RecursionError, which escaped as an uncaught traceback ahead of the ledger guard. Normalized in both _read_json and _corpus_header.",
+        "REQUIRED 5, the preflight scrub test was tautological. It read capsys after _run_gate had drained it, and checked stderr while errors are emitted as JSON on stdout. Rewrote it against the returned payload and added a negative control that fails when the scrubber is removed.",
+        "TDD throughout: 18 new tests written first, 18 confirmed red, then implemented. Suite is 1081 passing with 100 percent coverage on optimize-artifact.py at 474 statements, _optimizer_core.py at 259, and _optimizer_adapters.py at 89.",
+        "Re-proved against the real incident pair three ways: pinned, candidate envelope stripped, and split pin deleted. All three REJECT with compared false, consultations 0, and zero ledger files written.",
+        "adr-review: ADR-087 requirement 5 rewritten from four properties to six, adding the pin-deletion limit and the recheck. The debate log records defect shape 19 and the reasoning for declining the reviewer's proposed fix."
+      ],
+      "outcome": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file."
     }
   ],
   "endingCommit": "bb98bf24a",
