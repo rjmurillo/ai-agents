@@ -1,8 +1,9 @@
 # Archived Planning Artifacts
 
 110 files moved here from `.agents/planning/` on 2026-07-27 under issue #3431.
-77 markdown documents and 33 JSON eval outputs. The superseded index came with
-them as `INDEX-2026-01-23.md`, so the state it claimed is still readable.
+The 33 JSON eval outputs were re-homed to `evals/agent-slimming-spike/` under
+issue #3435. The remaining planning archive keeps the 77 markdown documents plus
+`INDEX-2026-01-23.md`, so the superseded state it claimed is still readable.
 
 Nothing was deleted. Every file kept its name and its position inside the
 original subdirectory tree, so `git log --follow` still reaches the full history.
@@ -67,7 +68,7 @@ Not one referenced issue or PR is open. Milestone state agrees independently:
 | Knowledge integration set | 5 | Superseded, residual tracked | See the note below |
 | Three-MCP set | 3 | Superseded, not shipped as specified | Tracking issues closed, but `packages/` holds only `ai-agents-cli` and `semantic-hooks`. None of the three named MCP packages exist. The repository took a different approach |
 | Remaining root PRDs, plans, and task lists | 43 | Retired | Every referenced issue closed. See the verification limits note below before treating any single document here as shipped-as-written |
-| Eval JSON output | 33 | Misfiled, not planning documents | See the note below |
+| Eval JSON output | 33 re-homed | Misfiled, not planning documents | Moved to `evals/agent-slimming-spike/` under #3435 |
 
 ## What this verification does not prove
 
@@ -110,24 +111,16 @@ is the named anomaly, and `memory/resources/schemas` holds JSON schemas rather
 than reference documents. An agent following the older spec would adopt a
 convention the repository abandoned. No open defect, so no issue was filed.
 
-**Eval JSON output.** The 33 JSON files are agent-slimming experiment results, not
-planning artifacts. Names follow `*-slim-results.json`, `spot-check-*.json`,
-`agent-baseline-*.json`, `*-verify.json`, and `quality-results-*.json`. All date to
-2026-04-11 and 2026-04-12. `build/scripts/validate_planning_artifacts.py` never
-scanned them; it counts 57 documents and ignores JSON. Nothing outside
-`.agents/planning/` referenced any of them. Two are cited by
-`quality-results.md`, which moved here with them, so that link still resolves.
+**Eval JSON output.** The 33 JSON files were agent-slimming experiment results,
+not planning artifacts. Names followed `*-slim-results.json`, `spot-check-*.json`,
+`agent-baseline-*.json`, `*-verify.json`, and `quality-results-*.json`. All date
+to 2026-04-11 and 2026-04-12. `build/scripts/validate_planning_artifacts.py`
+never scanned them; it counts markdown documents and ignores JSON.
 
-They moved here with the rest of the directory because the standing rule for this
-pass was that retired material goes to the archive. That preserves them but does
-not fix the filing: the repository's eval directory is the documented system of
-record for this class of artifact. Re-homing is a separate decision with a
-different destination, so it is tracked under #3435 rather than assumed here.
-
-The repository has a top-level `evals/` directory that is the natural subject-matter
-home for this output. They were sent here instead because the standing instruction
-for this cleanup is that retired material goes to `.agents/archive/`. Relocating
-them to `evals/` is a follow-up decision, not a correctness problem.
+Issue #3435 re-homed those outputs to `evals/agent-slimming-spike/`, the
+documented system of record for committed eval inputs and outputs. The JSON bytes
+were not changed. `quality-results.md` stays here as the archived narrative
+report and now points readers to the eval directory for machine-readable output.
 
 ## What did not move
 
