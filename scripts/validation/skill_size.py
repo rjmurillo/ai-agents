@@ -92,6 +92,8 @@ def check_skill_size(
     warn: int = SKILL_SIZE_WARNING,
     byte_limit: int = SKILL_BYTE_LIMIT,
     byte_warn: int = SKILL_BYTE_WARNING,
+    *,
+    content_bytes: bytes | None = None,
 ) -> SizeCheckResult:
     """Check a single SKILL.md file against line and byte size limits.
 
@@ -99,21 +101,30 @@ def check_skill_size(
     other (a table-heavy skill stays under 500 lines yet exceeds the byte
     ceiling). Both honor the same ``size-exception: true`` frontmatter escape,
     which downgrades a hard failure to a warning.
+
+    Pass ``content_bytes`` to measure a specific byte payload (the staged index
+    blob) instead of reading the working tree. When it is None the working-tree
+    file is read. Measuring bytes and parsing the exception from the SAME source
+    keeps a staged gate honest: an oversized staged body cannot be masked by a
+    shrunk unstaged working copy, and only a staged exception is honored.
     """
     try:
         relative = file_path.relative_to(Path.cwd())
     except ValueError:
         relative = file_path
 
-    try:
-        raw = file_path.read_bytes()
-    except OSError:
-        return SizeCheckResult(
-            file_path=str(relative),
-            line_count=0,
-            passed=False,
-            errors=["File is unreadable"],
-        )
+    if content_bytes is not None:
+        raw = content_bytes
+    else:
+        try:
+            raw = file_path.read_bytes()
+        except OSError:
+            return SizeCheckResult(
+                file_path=str(relative),
+                line_count=0,
+                passed=False,
+                errors=["File is unreadable"],
+            )
 
     content = raw.decode("utf-8", errors="replace")
     line_count = len(content.splitlines())
@@ -180,6 +191,30 @@ def get_staged_skill_files() -> list[Path]:
             if path.exists():
                 files.append(path)
     return files
+
+
+def read_staged_blob_bytes(path: Path) -> bytes | None:
+    """Return the staged (indexed) bytes for ``path``, or None if unavailable.
+
+    A pre-commit gate must judge what will be committed, not the working tree.
+    ``git show :<path>`` reads the blob from the index, so an oversized staged
+    body cannot be masked by a shrunk (unstaged) working copy, and a staged
+    ``size-exception`` is honored while an unstaged one is ignored. The path is
+    emitted as POSIX because git indexes forward-slash paths on every platform.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "show", f":{path.as_posix()}"],
+            capture_output=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    return result.stdout
 
 
 def get_skill_files(
@@ -292,8 +327,14 @@ def main(argv: list[str] | None = None) -> int:
     fail_count = 0
 
     for file_path in files:
+        content_bytes = read_staged_blob_bytes(file_path) if args.staged_only else None
         result = check_skill_size(
-            file_path, limit=limit, warn=warn, byte_limit=byte_limit, byte_warn=byte_warn
+            file_path,
+            limit=limit,
+            warn=warn,
+            byte_limit=byte_limit,
+            byte_warn=byte_warn,
+            content_bytes=content_bytes,
         )
         size = f"{result.line_count} lines, {result.byte_count} bytes"
 

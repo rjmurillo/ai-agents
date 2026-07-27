@@ -6,7 +6,10 @@ Covers size checking, exception handling, CLI modes, and edge cases.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from scripts.validation.skill_size import (
     SKILL_BYTE_LIMIT,
@@ -189,15 +192,20 @@ class TestCheckSkillSizeBytes:
 
     def test_byte_count_is_raw_bytes_not_chars(self, tmp_path: Path) -> None:
         # Multi-byte UTF-8 must count as raw bytes (matching `wc -c`), not code
-        # points, so the measure cannot be dodged with wide characters.
+        # points, so the measure cannot be dodged with wide characters. Write raw
+        # bytes (not write_text) so the on-disk size is identical on Windows and
+        # POSIX: write_text translates LF to CRLF on Windows and would inflate the
+        # count, failing this test spuriously. The embedded CRLF also proves the
+        # counter preserves bytes verbatim rather than normalizing newlines.
         skill = tmp_path / "SKILL.md"
-        body = "---\nname: test\n---\n" + "é" * 100  # 'é' is 2 bytes in UTF-8
-        skill.write_text(body, encoding="utf-8")
+        payload = b"---\r\nname: test\r\n---\r\n" + "\u00e9".encode("utf-8") * 100
+        skill.write_bytes(payload)
 
         result = check_skill_size(skill)
 
-        assert result.byte_count == len(body.encode("utf-8"))
-        assert result.byte_count > len(body)
+        assert result.byte_count == len(payload)
+        # 100 two-byte 'é' plus the prefix: more raw bytes than decoded code points.
+        assert result.byte_count > len(payload.decode("utf-8"))
 
     def test_custom_byte_limit_triggers_failure(self, tmp_path: Path) -> None:
         skill = tmp_path / "SKILL.md"
@@ -208,8 +216,41 @@ class TestCheckSkillSizeBytes:
         assert result.passed is False
         assert any("bytes" in e for e in result.errors)
 
+    def test_byte_limit_boundary_is_inclusive(self, tmp_path: Path) -> None:
+        # Pin ``>`` (not ``>=``): a body of EXACTLY the limit passes; one byte
+        # over fails. Guards the ratchet against an off-by-one that would red a
+        # file sitting on the boundary or pass one just past it.
+        at_limit = tmp_path / "at.md"
+        at_limit.write_bytes(b"x" * SKILL_BYTE_LIMIT)
+        result_at = check_skill_size(at_limit)
+        assert result_at.byte_count == SKILL_BYTE_LIMIT
+        assert result_at.passed is True
 
+        over = tmp_path / "over.md"
+        over.write_bytes(b"x" * (SKILL_BYTE_LIMIT + 1))
+        result_over = check_skill_size(over)
+        assert result_over.byte_count == SKILL_BYTE_LIMIT + 1
+        assert result_over.passed is False
 
+    def test_real_corpus_within_byte_ratchet(self) -> None:
+        # Main must stay green: every shipped SKILL.md is within the seeded
+        # ratchet. If a new skill lands oversized, or the ratchet is lowered
+        # below the current largest body, this fails, exactly when a human must
+        # decide to decompose the skill or re-seed the constant. Mirrors the
+        # instruction-budget anchor test. Reads raw bytes directly so it pins the
+        # byte dimension without coupling to the line check.
+        repo_root = Path(__file__).resolve().parents[1]
+        skills = sorted((repo_root / ".claude" / "skills").rglob("SKILL.md"))
+        assert skills, "expected shipped skills under .claude/skills"
+        oversized = [
+            (str(skill), len(skill.read_bytes()))
+            for skill in skills
+            if len(skill.read_bytes()) > SKILL_BYTE_LIMIT
+        ]
+        assert not oversized, (
+            f"ratchet seed too low: these bodies exceed "
+            f"SKILL_BYTE_LIMIT={SKILL_BYTE_LIMIT}: {oversized}"
+        )
 
     def test_no_files_returns_zero(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path)])
@@ -289,3 +330,94 @@ class TestCheckSkillSizeBytes:
             ["--path", str(tmp_path), "--ci", "--byte-limit", "100", "--byte-warn", "50"]
         )
         assert exit_code == 0
+
+
+class TestStagedBlobValidation:
+    """Staged mode judges the indexed blob, not the working tree (#3421 review).
+
+    A pre-commit gate that measured the working tree could be fooled: stage an
+    oversized body, then shrink or add an exception in the worktree without
+    staging, and the oversized blob would still get committed. These tests build
+    a real repo and drive ``main(["--staged-only", "--ci"])`` to prove the gate
+    reads ``git show :<path>``.
+    """
+
+    @staticmethod
+    def _init_repo(repo: Path) -> None:
+        for args in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(args, cwd=repo, check=True, capture_output=True)
+
+    @staticmethod
+    def _write_skill(repo: Path, payload: bytes) -> Path:
+        skill = repo / ".claude" / "skills" / "big" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_bytes(payload)
+        return skill
+
+    @staticmethod
+    def _stage_all(repo: Path) -> None:
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+
+    def test_oversized_staged_blob_fails_despite_small_worktree(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Stage an oversized body, then shrink the worktree WITHOUT staging. The
+        # gate must fail on the staged (committed) blob, not the small worktree.
+        self._init_repo(tmp_path)
+        skill = self._write_skill(
+            tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
+        )
+        self._stage_all(tmp_path)
+        skill.write_bytes(b"---\nname: big\n---\nsmall")  # unstaged shrink
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_unstaged_growth_does_not_fail_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Stage a small body, then grow the worktree oversized WITHOUT staging.
+        # The gate must pass: only the staged blob (small) is committed.
+        self._init_repo(tmp_path)
+        skill = self._write_skill(tmp_path, b"---\nname: big\n---\nsmall")
+        self._stage_all(tmp_path)
+        skill.write_bytes(b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 0
+
+    def test_unstaged_exception_does_not_bypass_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The reviewer's exact concern: an oversized body is staged WITHOUT an
+        # exception; the worktree adds `size-exception: true` unstaged. The gate
+        # must still FAIL, because the staged blob carries no exception.
+        self._init_repo(tmp_path)
+        big = b"x" * (SKILL_BYTE_LIMIT + 64)
+        skill = self._write_skill(tmp_path, b"---\nname: big\n---\n" + big)
+        self._stage_all(tmp_path)
+        skill.write_bytes(b"---\nname: big\nsize-exception: true\n---\n" + big)
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_staged_exception_is_honored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A staged oversized body WITH an exception downgrades to a warning
+        # (exit 0), even though the worktree removes the exception unstaged.
+        # Proves exception parsing reads the staged blob too.
+        self._init_repo(tmp_path)
+        big = b"x" * (SKILL_BYTE_LIMIT + 64)
+        skill = self._write_skill(
+            tmp_path, b"---\nname: big\nsize-exception: true\n---\n" + big
+        )
+        self._stage_all(tmp_path)
+        skill.write_bytes(b"---\nname: big\n---\n" + big)  # exception removed, unstaged
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 0
