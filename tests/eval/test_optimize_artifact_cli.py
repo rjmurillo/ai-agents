@@ -48,6 +48,16 @@ EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
+# Several tests build a barrier out of file permissions. Root ignores the mode
+# bits and Windows does not carry them, so on either the barrier is not there
+# and the command under test succeeds where the test expects a refusal. That
+# reads as a failure in the code rather than an absent precondition, which is
+# what this skips instead.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+_NEEDS_PERMISSION_BARRIER = pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
+)
+
 
 def _key_of(split_path):
     """The held-out key the gate will use for this split file."""
@@ -5772,6 +5782,7 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
         assert oa.rule_results(scenarios, "full") == {"S1": True, "S2": False}
 
 
+@_NEEDS_PERMISSION_BARRIER
 class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
     """Round 31's extraction lost the seam that made `_lock_held` safe.
 
@@ -6013,12 +6024,7 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
         assert out["added"] is True
 
 
-_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
-
-
-@pytest.mark.skipif(
-    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
-)
+@_NEEDS_PERMISSION_BARRIER
 class TestAnUnreadableRecordIsNotAnEmptyOne:
     """`Path.exists()` answers False to two different questions.
 
