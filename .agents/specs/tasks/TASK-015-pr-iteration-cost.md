@@ -20,11 +20,12 @@ updated: 2026-05-04
 # TASK-015: Implement pre-push validation hooks for PR iteration cost reduction
 
 > [!IMPORTANT]
-> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
 > #2187 (commit `2043c39863`) when embedded manifest count claims and the count
 > validator were retired together. Text below that creates, imports, generalizes, or
 > invokes that script is no longer actionable. It is kept as a record of the plan as
-> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+> written. Nothing validates embedded count claims today: the scanner's own
+> count subsystem was retired to match in #2853 (commit `9c88990b77`).
 
 ## Objective
 

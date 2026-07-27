@@ -156,7 +156,7 @@
       "outcome": "Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change"
     }
   ],
-  "endingCommit": "e0d5390dd7938c308c9a26c2fec67619c582b651",
+  "endingCommit": "08b04883360aba99511f48b42e8e5e6940825afe",
   "nextSteps": [
     "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against a script that no longer exists (issue #3449)",
     "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only",
