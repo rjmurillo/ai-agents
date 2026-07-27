@@ -46,6 +46,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
+from active_plan_closeout import validate_active_plan_closeout  # noqa: E402, F401
 from checks_common import (  # noqa: E402, F401
     MissingScriptSkip,
     _gh_base_ref,
