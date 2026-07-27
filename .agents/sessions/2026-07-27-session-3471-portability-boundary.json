@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "One commit on this branch: fix(validation): anchor upstream path patterns at a real boundary"
+        "evidence": "Three commits on this branch: fix(validation): anchor upstream path patterns at a real boundary; docs(session): record the boundary decision; docs(session): set endingCommit"
       },
       "validationPassed": {
         "complete": true,

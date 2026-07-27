@@ -67,9 +67,15 @@ path or URL segment ending in `/` before a dot-directory matched.
 The three legacy patterns also gained `?#` in their terminator class so URL query and
 fragment forms terminate the match the same way the `templates` patterns already did.
 
-Coverage lives in `TestDotPrefixedUpstreamBoundary` in
-`tests/validation/test_check_skill_md_portability.py`. Nine of its thirteen cases fail
-against the previous regex, so they are regression proof rather than decoration.
+Coverage adds seventeen cases in `tests/validation/test_check_skill_md_portability.py`,
+split across two classes. Fourteen sit in the new `TestDotPrefixedUpstreamBoundary`,
+which covers `.agents`, `.claude/lib`, and `.claude/review-axes`. Three extend the
+pre-existing `TestCountUpstreamRefs.test_counts_paths_that_name_the_upstream_dir`
+parametrize with the `templates` shapes this fix repairs.
+
+Nine of the seventeen change verdict against the previous regex, so they are regression
+proof rather than decoration. The other eight pin behavior that already held, which is
+what makes the nine meaningful.
 
 Filed as issue #3471. Landed after PR #3463 merged, because the fix was still local
 when that PR merged.
