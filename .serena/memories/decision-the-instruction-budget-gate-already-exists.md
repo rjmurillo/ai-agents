@@ -27,8 +27,9 @@ and check the git log dates on the artifacts the note says are missing.
 figure, references the same issue (#3419), implements exactly the prescribed
 per-language ratchet, and is wired into `.github/workflows/instruction-budget.yml`
 as `uv run --frozen python3 -m scripts.validation.instruction_budget --ci`.
-Supporting modules: `instruction_budget_globs.py`, `_constants.py`, `_types.py`,
-plus `passive_context_budget.py`.
+Supporting modules: `instruction_budget_globs.py`,
+`instruction_budget_constants.py`, `instruction_budget_types.py`, plus
+`passive_context_budget.py`.
 
 It landed in `db46e0305` on 2026-07-27. The note was written 2026-07-26. The
 repo shipped the fix the day after the gap was recorded.
@@ -45,11 +46,20 @@ Ext     Files     Bytes   Ceiling   Tokens~    Usage  Status
 
 Two figures can both be right and disagree. An independent count of the same
 tree gave 222,475 bytes across 20 files. The gate reports 218,603 across 19
-because it counts only *language-universal* `applyTo` patterns (`**`, `**/*`,
-`**/*.<ext>`); directory-scoped rules such as `scripts/**` are excluded by
-design, since they do not load on an arbitrary edit. Neither number is wrong.
-Read `is_language_universal` in `instruction_budget_globs.py` before quoting
-either one.
+because it counts only *language-universal* rules; directory-scoped rules such
+as `scripts/**` are excluded by design, since they do not load on an arbitrary
+edit. Neither number is wrong.
+
+Do not read universality as a list of blessed spellings. `is_language_universal`
+decides it by *matching*, not by enumeration: it splits `applyTo` on commas,
+reduces each pattern to its harness-effective form, and asks whether every probe
+path for the extension is matched by at least one pattern, plus a special case
+for all-files wildcards (`_ALL_FILES_FORMS`). Universality is a property of the
+union, so a rule whose depths are split across disjoint globs still counts.
+That is deliberate: under-counting is the dangerous direction for an upper
+bound, and an exact-form table let broad shapes (`?` wildcards, zero-segment
+globstars, absolute anchors) dodge the budget. Read the function before quoting
+either number.
 
 ## The headroom is the story
 

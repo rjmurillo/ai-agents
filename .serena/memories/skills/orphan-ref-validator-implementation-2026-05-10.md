@@ -141,9 +141,9 @@ syntax (`any-glob-to-any-file`, `all-globs-to-all-files`), HTTP response headers
 (`skill-pr-enum-001`), language constructs (`try-catch`, `if-then-else`),
 software-engineering vocabulary (`hexagonal-architecture`,
 `branch-by-abstraction`, `swarm-intelligence`), and one placeholder,
-`your-api-key-here`. A 100 percent false-positive rate on the dominant kind.
+`your-api-key-here`. A 100% false-positive rate on the dominant kind.
 
-The 21 `script_path` findings are worse than false, they are *correct*. Eighteen
+The 21 `script_path` findings are not merely false. They are *correct*. Eighteen
 of them name `.ps1` files from the pre-ADR-042 PowerShell era
 (`Invoke-PRMaintenance.ps1`, `Validate-PrePR.ps1`,
 `Review-MemoryExportSecurity.ps1`). Those scripts genuinely existed when the
