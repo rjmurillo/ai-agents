@@ -21889,6 +21889,222 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
       "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "cfdc4a24bbfd",
+      "type": "milestone",
+      "label": "milestone: Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456565+00:00"
+    },
+    {
+      "id": "d2dabb36d649",
+      "type": "milestone",
+      "label": "milestone: All 33 files are eval outputs. No genuine planning JSON was left behind.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456666+00:00"
+    },
+    {
+      "id": "a40e7874d46a",
+      "type": "milestone",
+      "label": "milestone: The eval system of record now contains the agent-slimming outputs without JSON byte changes.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456747+00:00"
+    },
+    {
+      "id": "f1b7526d4293",
+      "type": "milestone",
+      "label": "milestone: Artifact integrity checks passed before final validation.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456822+00:00"
+    },
+    {
+      "id": "3d84d690720f",
+      "type": "milestone",
+      "label": "milestone: Branch is ready for documentation and session-log commits, then push and PR creation.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456897+00:00"
+    },
+    {
+      "id": "9a14322ed7b1",
+      "type": "commit",
+      "label": "commit: Commit: c1186bbf6",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456972+00:00"
+    },
+    {
+      "id": "8cbbf4a2e573",
+      "type": "commit",
+      "label": "commit: Commit: 977d5568a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457046+00:00"
+    },
+    {
+      "id": "a32309cbb296",
+      "type": "commit",
+      "label": "commit: Commit: 7ce1ef95d",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457120+00:00"
+    },
+    {
+      "id": "5a6bbfcd1daa",
+      "type": "commit",
+      "label": "commit: Commit: e898ab722",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457194+00:00"
+    },
+    {
+      "id": "3c0cd5d8f07f",
+      "type": "commit",
+      "label": "commit: Commit: 0d4ff0275",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457271+00:00"
+    },
+    {
+      "id": "0920ab5571a6",
+      "type": "commit",
+      "label": "commit: Commit: 032d1c73a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457345+00:00"
+    },
+    {
+      "id": "7041bb3cd2c4",
+      "type": "commit",
+      "label": "commit: Commit: d1aa0a2aa",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457418+00:00"
+    },
+    {
+      "id": "ce274bd75127",
+      "type": "outcome",
+      "label": "Outcome: success - Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457493+00:00"
+    },
+    {
+      "id": "5a584c6746e6",
+      "type": "milestone",
+      "label": "milestone: Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:44:25.271725+00:00"
+    },
+    {
+      "id": "bc099e5f78b5",
+      "type": "milestone",
+      "label": "milestone: Branch is current with origin/main and remains within the requested scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855693+00:00"
+    },
+    {
+      "id": "1f0ce7fe19a3",
+      "type": "commit",
+      "label": "commit: Commit: 31b993c42",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855779+00:00"
+    },
+    {
+      "id": "a02ca49f7688",
+      "type": "commit",
+      "label": "commit: Commit: 89409bd60",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855855+00:00"
+    },
+    {
+      "id": "97408e274c65",
+      "type": "commit",
+      "label": "commit: Commit: 1bb576b9e",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855930+00:00"
+    },
+    {
+      "id": "d822c9419f54",
+      "type": "commit",
+      "label": "commit: Commit: fa7669ffe",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856005+00:00"
+    },
+    {
+      "id": "ce2586037743",
+      "type": "commit",
+      "label": "commit: Commit: cb53ef0d7",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856081+00:00"
+    },
+    {
+      "id": "f48043a64bca",
+      "type": "commit",
+      "label": "commit: Commit: 069318da9",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856163+00:00"
+    },
+    {
+      "id": "45a9ccf0ae94",
+      "type": "commit",
+      "label": "commit: Commit: 8d9712744",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856239+00:00"
+    },
+    {
+      "id": "13f116a83c37",
+      "type": "commit",
+      "label": "commit: Commit: b791f3391",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856313+00:00"
+    },
+    {
+      "id": "c4c3f10659c4",
+      "type": "commit",
+      "label": "commit: Commit: c2234c9fe",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856388+00:00"
     }
   ],
   "patterns": [
