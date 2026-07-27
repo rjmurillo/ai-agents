@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -23,8 +24,23 @@ if str(_SCRIPT_DIR) not in sys.path:
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
-    _run_subprocess,
 )
+from checks_common import (  # noqa: E402
+    _run_subprocess as _run_subprocess_untyped,
+)
+
+
+def _run_subprocess(
+    args: list[str],
+    timeout: int = 300,
+    cwd: Path | str | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str, str]:
+    """Typed wrapper for the bare-imported subprocess helper."""
+    return cast(
+        tuple[int, str, str],
+        _run_subprocess_untyped(args, timeout=timeout, cwd=cwd, env=env),
+    )
 
 
 def validate_build_gates(repo_root: Path) -> bool:
@@ -145,6 +161,31 @@ def validate_skill_shells(repo_root: Path) -> bool:
         for line in output.strip().splitlines()[:40]:
             print(line)
     return exit_code == 0
+
+
+def validate_skill_skip_clauses(repo_root: Path) -> bool:
+    """Fail when sibling skill families lack well-formed SKIP routes.
+
+    Wraps ``scripts/validation/check_skill_skip_clauses.py``. The wrapped script
+    exits 0 when every member of every multi-member leading-token family routes
+    to at least one real sibling and each family graph is connected, 1 when a
+    violation is found, and 2 on a configuration error. Exit 1 and 2 are both
+    hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_skill_skip_clauses.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_skill_skip_clauses.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
 
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
