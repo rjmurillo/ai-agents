@@ -437,12 +437,18 @@ def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violati
         # registrations at all into a clean zero-entry pass, which is the exact
         # #3384 failure mode: the validator reported success over a surface it
         # had never read.
+        if not isinstance(data, dict):
+            reason = (
+                f"top-level value is {type(data).__name__}, not an object"
+            )
+        else:
+            reason = "required 'hooks' key is missing"
         return entries, [
             Violation(
                 hook_type="plugin",
                 script=str(COPILOT_HOOKS_PATH),
                 category="invalid_plugin_hooks",
-                message="Copilot registrations declare no top-level 'hooks' key",
+                message=f"Copilot registration file is invalid: {reason}",
             )
         ]
 
