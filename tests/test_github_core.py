@@ -1039,7 +1039,7 @@ class TestCountUnresolvedThreads:
         ]
         assert count_unresolved_threads(nodes) == 2
 
-    def test_missing_isResolved_defaults_to_resolved(self):
+    def test_missing_is_resolved_defaults_to_resolved(self):
         """A malformed thread without isResolved defaults to resolved
         (treated as not unresolved). Prevents a missing field from
         silently inflating the unresolved count.
@@ -1047,7 +1047,7 @@ class TestCountUnresolvedThreads:
         nodes = [{}, {"id": "x"}]
         assert count_unresolved_threads(nodes) == 0
 
-    def test_explicit_null_isResolved_defaults_to_resolved(self):
+    def test_explicit_null_is_resolved_defaults_to_resolved(self):
         """An explicit null isResolved from the GraphQL payload is treated the
         same as a missing field (resolved), so it is not counted as unresolved.
         """
@@ -1199,7 +1199,9 @@ class TestGetUnresolvedReviewThreads:
         assert mock_run.call_count == 2, (
             "Pagination loop did not call gh twice; pageInfo.hasNextPage=true was ignored"
         )
-        assert len(result) == 105, f"Expected 105 unresolved threads across pages, got {len(result)}"
+        assert len(result) == 105, (
+            f"Expected 105 unresolved threads across pages, got {len(result)}"
+        )
         page1_ids = {f"page1-{i}" for i in range(100)}
         page2_ids = {f"page2-{i}" for i in range(5)}
         actual_ids = {t["id"] for t in result}
