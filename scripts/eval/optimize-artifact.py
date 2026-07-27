@@ -13,7 +13,8 @@ so the loop is drivable from a shell or from an agent's tool calls.
     optimize-artifact.py extract --kind agent --input report.json > base.json
     optimize-artifact.py split --results base.json --seed run-7 > split.json
     optimize-artifact.py budget --step 3 --total 12
-    optimize-artifact.py buffer-check --buffer rejected.json --patches p.json
+    optimize-artifact.py buffer-check --buffer rejected.json --patches p.json \\
+        --artifact target.md
     optimize-artifact.py apply --file target.md --patches p.json --budget 3
     # rerun the real scorer here, then extract its output to cand.json
     optimize-artifact.py gate --incumbent base.json --candidate cand.json \\
@@ -975,11 +976,30 @@ def _read_buffer(path: Path) -> list[dict[str, Any]]:
     return data
 
 
+def _artifact_fingerprint(path: Path) -> str:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise ConfigError(f"could not read artifact {path}: {exc}") from exc
+    return hashlib.sha256(data).hexdigest()
+
+
 def cmd_buffer_check(args: argparse.Namespace) -> int:
     entries = _read_buffer(args.buffer)
     patches = _read_patches(args.patches)
-    seen = buffer_contains(entries, patches)
-    _emit({"seen": seen, "fingerprint": patch_fingerprint(patches)})
+    artifact_fingerprint = _artifact_fingerprint(args.artifact)
+    seen = buffer_contains(
+        entries,
+        patches,
+        artifact_fingerprint=artifact_fingerprint,
+    )
+    _emit(
+        {
+            "seen": seen,
+            "fingerprint": patch_fingerprint(patches),
+            "artifact_fingerprint": artifact_fingerprint,
+        }
+    )
     return EXIT_LOGIC if seen else EXIT_OK
 
 
@@ -987,12 +1007,25 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
     entries = _read_buffer(args.buffer)
     patches = _read_patches(args.patches)
     fingerprint = patch_fingerprint(patches)
-    if any(e.get("fingerprint") == fingerprint for e in entries):
-        _emit({"added": False, "fingerprint": fingerprint, "entries": len(entries)})
+    artifact_fingerprint = _artifact_fingerprint(args.artifact)
+    if any(
+        e.get("fingerprint") == fingerprint
+        and e.get("artifact_fingerprint") == artifact_fingerprint
+        for e in entries
+    ):
+        _emit(
+            {
+                "added": False,
+                "fingerprint": fingerprint,
+                "artifact_fingerprint": artifact_fingerprint,
+                "entries": len(entries),
+            }
+        )
         return EXIT_OK
     entries.append(
         {
             "fingerprint": fingerprint,
+            "artifact_fingerprint": artifact_fingerprint,
             "reason": args.reason,
             "patches": [
                 {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
@@ -1000,7 +1033,14 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
         }
     )
     _write_atomic(args.buffer, json.dumps(entries, indent=2))
-    _emit({"added": True, "fingerprint": fingerprint, "entries": len(entries)})
+    _emit(
+        {
+            "added": True,
+            "fingerprint": fingerprint,
+            "artifact_fingerprint": artifact_fingerprint,
+            "entries": len(entries),
+        }
+    )
     return EXIT_OK
 
 
@@ -1090,11 +1130,13 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")
     check.add_argument("--buffer", type=Path, required=True)
     check.add_argument("--patches", type=Path, required=True)
+    check.add_argument("--artifact", type=Path, required=True)
     check.set_defaults(func=cmd_buffer_check)
 
     add = sub.add_parser("buffer-add", help="record a rejected edit")
     add.add_argument("--buffer", type=Path, required=True)
     add.add_argument("--patches", type=Path, required=True)
+    add.add_argument("--artifact", type=Path, required=True)
     add.add_argument("--reason", required=True)
     add.set_defaults(func=cmd_buffer_add)
 
