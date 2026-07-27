@@ -165,6 +165,10 @@
     {
       "action": "Committed single plan closeout",
       "result": "Completed retro fixes plan with PR #1965 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed Step 0.5 memory-first gate plan with checked milestones."
     }
   ],
   "endingCommit": "",

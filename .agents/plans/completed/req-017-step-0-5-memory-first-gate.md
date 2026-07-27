@@ -4,10 +4,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-05-09 |
 | **Owner** | implementer |
 | **Complexity** | Medium (Tier 2; 9.5-14.5 hours) |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: all five milestones are checked off; Step 0.5 is present in .claude/commands/spec.md.
 
 ## Objectives
 
