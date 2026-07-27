@@ -62,7 +62,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e006",
@@ -85,6 +87,16 @@
       "leads_to": [
         "e006"
       ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair causal-graph node IDs after merge from main",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

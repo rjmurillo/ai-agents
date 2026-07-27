@@ -123,6 +123,10 @@
     {
       "task": "Negative control on mirror drift",
       "outcome": "Corrupting .github/instructions/ci-scripts.instructions.md leaves tests/build_scripts/test_generate_rules.py green at 43 passed. build_all.py --check catches it with exit 2 and STALENESS DETECTED, and that is what lefthook and two workflows run. The generator's own tests are not the drift gate."
+    },
+    {
+      "task": "Repair causal-graph node IDs after merge from main",
+      "outcome": "scripts/maintenance/repair_causal_graph_ids.py repaired 6 stale node IDs and folded 6 duplicates. Test test_every_node_carries_an_id_derived_from_its_own_content now passes."
     }
   ],
   "endingCommit": "0fd7210a81",
