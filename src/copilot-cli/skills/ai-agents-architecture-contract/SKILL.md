@@ -161,7 +161,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: local settings print `4 5`, vendored source prints `2 2`, and generated Copilot config prints `2 2`
+- [ ] Confirmed event counts still match: local settings print `3 4`, vendored source prints `2 2`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: bumped that tree's plugin.json strictly greater
 
