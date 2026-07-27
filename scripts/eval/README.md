@@ -44,7 +44,7 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
-| `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, hooks, and prompts. Splits tasks, bounds the edit budget, applies patches, and accepts an edit only on data withheld from the author. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
+| `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds the edit budget, applies patches, and accepts an edit only on data withheld from the author. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 
 ## End-to-End Delivery Eval
@@ -276,11 +276,24 @@ report may be memorization rather than a better artifact.
 
 This tool splits the task ids into three groups and keeps them apart:
 
-| Group | Who sees it | Purpose |
-|-------|-------------|---------|
-| `opt` | The optimizing agent | Read failures here, propose edits from them. |
-| `sel` | The gate only | Decides accept or reject. Never shown to the author. |
-| `test` | Nobody, until the end | Final unbiased number after the loop stops. |
+| Group | Who sees it | Purpose | Default share |
+|-------|-------------|---------|---------------|
+| `opt` | The optimizing agent | Read failures here, propose edits from them. | The remainder, 0.6 |
+| `sel` | The gate only | Decides accept or reject. Never shown to the author. | 0.4 |
+| `test` | Nobody, until the end | Final unbiased number after the loop stops. | 0.0, opt in with `--test-ratio` |
+
+`--test-ratio` defaults to zero, so out of the box you get two groups and an
+empty `test`. That is a concession to this repo's real fixture counts: most
+spike directories hold 8 fixtures, where a third group would leave the
+optimizing agent 3 tasks to learn from. Set `--test-ratio 0.2` when the set is
+large enough to afford it. The 24-fixture analyst set can; an 8-fixture set
+cannot.
+
+Size the `sel` group before trusting a verdict. At the 3-task floor a single
+task flipping decides the gate, which is close to a coin toss. The gate is
+worth running there as a guard against obvious overfit, not as evidence of
+improvement. Treat a held-out accept on fewer than about 8 tasks as a weak
+signal and say so wherever you cite it.
 
 The split is a deterministic function of the seed and the task-id set, so it
 reproduces on any machine and does not depend on input order. Ratios pick exact
@@ -317,9 +330,13 @@ errored, and a skipped test all score as failures rather than being dropped.
 Dropping a task shrinks the denominator, which raises the score, so a silent
 omission would read as an improvement.
 
-`--kind rule` scores negative cases inverted, so a rule that fires when it
-should stay quiet loses. `eval-rule-activation.py` collects negative cases into
-their own summary but its verdict never reads them.
+`--kind rule` does not invert negative cases. `eval-rule-activation.py` builds
+the judge prompt so 5 always means the rule behaved correctly, negative cases
+included ("5 means the response correctly did NOT activate the rule"), so the
+score arrives already normalized and inverting here would double-invert and
+punish rules that correctly stay quiet. Including them is still worth doing:
+the evaluator's own verdict averages positive scenarios only, so a rule that
+fires when it should not is invisible to it and visible here.
 
 ### A loop step
 
@@ -350,25 +367,55 @@ A strictly-greater held-out score is the only way to earn an accept. A tie is a
 reject, because an edit that did not move the held-out score is churn and churn
 on an artifact costs review attention forever.
 
-Three further refusals close holes that open once a loop runs many steps:
+The gate reads `sel` and only `sel`. There is no flag to point it at another
+group, because a gate that can be aimed at the group the author has been
+reading is not a gate.
 
+Four further refusals close holes that open once a loop runs many steps:
+
+- **A broken held-out task.** An aggregate win can still contain a task that
+  passed before the edit and fails after it. ADR-057 blocks every pass-to-fail
+  transition rather than netting it against a gain, so one broken task rejects
+  the edit however good the aggregate looks. `--allow-regressions` opts out.
 - **Moved split.** The split fingerprint covers the seed, the task-id set, and
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.
 - **Exhausted consultations.** Gating N times against one `sel` group selects
   on it N times. Pass `--consultations` and `--max-consultations` to cap it. The
-  count only advances when scores were actually weighed, so a refusal on a moved
-  fingerprint costs nothing.
+  count only advances when scores were actually weighed, and a refusal reports
+  no scores at all, so a refused call cannot be used to read the group for free.
 - **Protected sections.** Text between `<!-- SLOW_UPDATE_START -->` and
   `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
   fence marker in their text are rejected too, since one could otherwise open a
   fence over the rest of the file or close an existing one.
 
+### What the numbers can and cannot show
+
+Every compared verdict reports `discordant_gain`, `discordant_loss`, and
+`p_value`: the counts of held-out tasks that moved fail-to-pass and
+pass-to-fail, and the one-sided exact McNemar tail on those counts. Tasks that
+did not move carry no evidence about the edit, so they are not in the test.
+
+The `p` is reported, never enforced. A held-out group with three discordant
+tasks cannot produce a `p` below 0.125 no matter how one-sided the result, so
+enforcing a conventional 0.05 floor would make the ordinary case unpassable
+rather than informative. Read it as a resolution limit: at these sizes a single
+task flip moves the verdict, so a one-step accept is weak evidence and a run of
+them is worth more than any single number.
+
+The seam is boolean, so an edit that lifts every held-out task from 0.50 to
+0.99 without crossing the threshold scores as no change and rejects as a tie.
+That is a real limit of this design, not a rounding artifact. Lower
+`--pass-threshold` when the artifact under test moves scores rather than
+outcomes.
+
 ### Exit codes
 
 Per ADR-035. A reject is exit 1 because it is a decision a shell loop branches
-on, not a crash. Every path prints JSON, so a caller that needs to tell a reject
-from a broken input reads `decision` rather than inferring from the code.
+on, not a crash. Every verdict path prints JSON, so a caller that needs to tell
+a reject from a broken input reads `decision` rather than inferring from the
+code. Argument errors from `argparse` are the exception and print plain text to
+stderr, exit 2, as with every other script here.
 
 | Code | Meaning |
 |------|---------|

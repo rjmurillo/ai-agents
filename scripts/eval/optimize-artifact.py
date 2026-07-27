@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Held-out-gated optimization rails for agents, rules, hooks, and prompts.
+"""Held-out-gated optimization rails for agents, rules, and hooks.
 
 The optimizing agent proposes the edits. This CLI decides whether they
 survive. Splitting that responsibility is the whole point: an author who
