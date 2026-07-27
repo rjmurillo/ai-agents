@@ -12,6 +12,13 @@ author: richard
 
 # DESIGN-009: Orphan-Ref Validator Skill
 
+> [!IMPORTANT]
+> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+
 ## Requirements Addressed
 
 This design implements all eight REQ-009 acceptance criteria (AC1 through AC8). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, and the opt-in `--enforce-counts` single-plugin emission path is tracked in REQ-009's "PR2 follow-up" section. The `/test` Gate 5 wiring is also tracked in REQ-009's PR2 follow-up section, not as an AC of PR1. Cross-references: REQ-009-AC1 through REQ-009-AC8, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy). <!-- orphan-ref-ignore -->

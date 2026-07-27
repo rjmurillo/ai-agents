@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T06:46:52.815564+00:00",
+  "updated": "2026-07-27T07:03:00.857190+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20862,15 +20862,6 @@
       "created": "2026-07-27T06:43:43.728950+00:00"
     },
     {
-      "id": "aa239e010529",
-      "type": "outcome",
-      "label": "Outcome: success - Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T06:43:43.729039+00:00"
-    },
-    {
       "id": "9e9472836633",
       "type": "milestone",
       "label": "milestone: Rewriting the specs would introduce anachronism the repo has already ruled against, and the correction a reader needs is already in current documentation",
@@ -20905,6 +20896,51 @@
         "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
       ],
       "created": "2026-07-27T06:46:52.810012+00:00"
+    },
+    {
+      "id": "c31b8cec80ba",
+      "type": "milestone",
+      "label": "milestone: 32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and two skill names were folded into `session`",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851072+00:00"
+    },
+    {
+      "id": "f5403a9d8bc2",
+      "type": "milestone",
+      "label": "milestone: Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851155+00:00"
+    },
+    {
+      "id": "0d20610eb602",
+      "type": "milestone",
+      "label": "milestone: 30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851229+00:00"
+    },
+    {
+      "id": "9f595f5439b3",
+      "type": "milestone",
+      "label": "milestone: Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851302+00:00"
+    },
+    {
+      "id": "ae8f2b9ec423",
+      "type": "outcome",
+      "label": "Outcome: success - Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851375+00:00"
     }
   ],
   "patterns": [

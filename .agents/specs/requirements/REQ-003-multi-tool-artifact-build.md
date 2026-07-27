@@ -11,6 +11,13 @@ updated: 2026-07-19
 # REQ-003: Multi-tool Artifact Build System
 
 > [!IMPORTANT]
+> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+
+> [!IMPORTANT]
 > This draft originated in April 2026. Hook contract rows were refreshed on
 > 2026-07-19 from the official GitHub hook reference, pinned docs source,
 > official Copilot CLI changelog, and Copilot CLI 1.0.72-1 probes. Use

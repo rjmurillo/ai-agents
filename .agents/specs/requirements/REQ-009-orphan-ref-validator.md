@@ -17,6 +17,13 @@ author: richard
 
 # REQ-009: Orphan-Ref Validator Skill
 
+> [!IMPORTANT]
+> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality

@@ -17,6 +17,13 @@ updated: 2026-05-04
 
 # REQ-015: Reduce PR iteration cost via pre-push validation
 
+> [!IMPORTANT]
+> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+
 ## Problem
 
 Agent-authored PRs in this repo burn 10 to 22 commits and 3 to 6 review rounds because three classes of mechanical errors (markdown style violations, manifest count drift, session log placeholders) are caught in CI or review rather than at push time. Block these at push time and they cannot reach review.

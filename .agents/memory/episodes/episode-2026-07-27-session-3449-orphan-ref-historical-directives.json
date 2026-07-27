@@ -3,7 +3,7 @@
   "session": "2026-07-27-session-3449-orphan-ref-historical-directives",
   "timestamp": "2026-07-27T00:00:00+00:00",
   "outcome": "success",
-  "task": "Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record",
+  "task": "Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts",
   "decisions": [],
   "events": [
     {
@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -61,6 +63,52 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and two skill names were folded into `session`",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -69,7 +117,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 12
+    "files_changed": 24
   },
   "lessons": []
 }

@@ -5,7 +5,7 @@
     "date": "2026-07-27",
     "branch": "docs/orphan-ref-historical-spec-directives",
     "startingCommit": "d544eaa60a",
-    "objective": "Turn the orphan-ref shipping gate green by marking historical spec references with the escape hatch the skill documents, instead of rewriting the historical record"
+    "objective": "Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -17,7 +17,7 @@
       "constraintsRead": {
         "complete": true,
         "level": "MUST",
-        "evidence": "AGENTS.md loaded; the orphan-ref-validator SKILL.md directive table and anti-pattern list read before choosing line scope over file scope"
+        "evidence": "AGENTS.md loaded; the orphan-ref-validator SKILL.md directive table and anti-pattern list read before choosing line scope over file scope; .agents/specs/STATUS.md read for the repo's documented supersession convention"
       },
       "gitStateVerified": {
         "complete": true,
@@ -74,7 +74,7 @@
       "serenaMemoryUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Decision recorded that the retired scripts are historical and the current correction already lives in .claude/commands/build.md"
+        "evidence": "Augmented .serena/memories/skills/orphan-ref-validator-implementation-2026-05-10.md with the stale-spec decision, the five entity fates, and the imperative-versus-narrative trap, rather than creating a duplicate memory"
       },
       "markdownLintRun": {
         "complete": true,
@@ -111,30 +111,41 @@
         "Grouped findings by referenced entity: 24 point at one retired script, and the rest split across three more",
         "Ran git log --diff-filter=D on each missing path to find the commit that removed it, rather than guessing whether a replacement exists"
       ],
-      "outcome": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator"
+      "outcome": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and two skill names were folded into `session`"
     },
     {
       "phase": "Check whether the repo had already decided this question",
       "actions": [
-        "Found .agents/critique/001-fix-validate-sessionend-references-critique.md, which rejected an earlier plan for treating historical records as errors",
-        "Confirmed the current correction already lives in .claude/commands/build.md, which states the old marketplace count validator has been retired",
-        "Read every one of the 32 reference lines: each reads as narrative about what existed at authoring time, using words like existing and EXISTING, not new"
+        "Found .agents/critique/001-fix-validate-sessionend-references-critique.md, which rejected an earlier plan for rewriting historical records",
+        "Confirmed the current correction already lives in .claude/commands/build.md, which states the old marketplace count validator has been retired and points contributors at the ignore directives",
+        "Read .agents/specs/STATUS.md, which documents the repo's supersession convention: mark the status, cite the successor, keep the file in place"
       ],
-      "outcome": "Rewriting the specs would introduce anachronism the repo has already ruled against, and the correction a reader needs is already in current documentation"
+      "outcome": "Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting"
     },
     {
       "phase": "Choose the narrower of the two escape hatches",
       "actions": [
         "Read the directive table in the skill: file scope skips the whole file, line scope skips one line",
-        "Counted existing precedent with git ls-files: 39 line-scope directives and 29 file-scope already in the tree, four of them in the files being fixed",
+        "Counted base-tree precedent at d544eaa60a with git grep: 25 line-scope and 22 file-scope directives already present",
         "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
       ],
-      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7."
+      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7"
+    },
+    {
+      "phase": "Adversarial review caught that the directives alone were dishonest",
+      "actions": [
+        "Ran a review on a different model with the explicit question: is any silenced line an active instruction rather than historical narrative",
+        "The reviewer flagged that the specs carry status draft, todo, and in-progress, and that many flagged lines are imperative: Create bundle_registry.py, MUST import from, shall replace the hard-coded PLUGIN_COUNTERS dict, THE SYSTEM SHALL invoke",
+        "Verified the reviewer rather than trusting it: COUNT_PATTERN and LABEL_MAP are absent from patterns.py, tests/test_command_bundles.py and BUNDLE_REGISTRY no longer exist, and PLUGIN_COUNTERS matches nothing in the tree, so all three instructions are unimplementable as written",
+        "Also verified two false claims in the first draft of this log: the precedent counts were 25 and 22, not 39 and 29, and the 32 findings sit on 30 lines, not 32"
+      ],
+      "outcome": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file"
     }
   ],
   "endingCommit": "e0d5390dd7938c308c9a26c2fec67619c582b651",
   "nextSteps": [
-    "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against build/scripts/validate_marketplace_counts.py, which no longer exists",
-    "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only"
+    "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against a script that no longer exists (issue #3449)",
+    "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only",
+    "The episode extractor counts commits by regexing the session log for SHA-shaped tokens, so a multi-SHA line counts as one; the metric under-reports"
   ]
 }
