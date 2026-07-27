@@ -170,11 +170,14 @@ def rule_results(
         Mapping from scenario id to pass or fail.
 
     Raises:
-        AdapterError: A scenario lacks an id, ids repeat, or a score is not
-            numeric.
+        AdapterError: A scenario is not an object, lacks an id, repeats an
+            id, carries a malformed `mechanisms` or `scores` block, or holds a
+            score that is not finite and numeric.
     """
     out: dict[str, bool] = {}
     for scenario in scenarios:
+        if not isinstance(scenario, Mapping):
+            raise AdapterError(f"scenario must be an object, got {scenario!r}")
         raw_id = scenario.get("id")
         if not raw_id:
             raise AdapterError("scenario is missing an id")
@@ -182,7 +185,16 @@ def rule_results(
         if sid in out:
             raise AdapterError(f"duplicate scenario id: {sid}")
 
-        mech_data = scenario.get("mechanisms", {}).get(mechanism)
+        mechanisms = scenario.get("mechanisms", {})
+        if not isinstance(mechanisms, Mapping):
+            # An absent key keeps its fail-closed meaning of no evidence. A
+            # present but malformed one is a broken input and says so, rather
+            # than escaping as a bare AttributeError from inside a get chain.
+            raise AdapterError(
+                f"scenario {sid!r} has a malformed mechanisms block, "
+                f"expected an object, got {mechanisms!r}"
+            )
+        mech_data = mechanisms.get(mechanism)
         if not isinstance(mech_data, Mapping) or "error" in mech_data:
             # Mechanism never ran, or ran and errored. Either way it produced
             # no evidence, and no evidence is not a pass.

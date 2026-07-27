@@ -439,3 +439,32 @@ class TestPytestResults:
     def test_rejects_an_unknown_skip_policy(self):
         with pytest.raises(AdapterError, match="on_skip"):
             pytest_results(_junit(""), on_skip="ignore")
+
+
+class TestMalformedScenarioShapes:
+    """Every level of the scenario shape has to fail as AdapterError.
+
+    The `scores` block was hardened earlier in this branch but the two levels
+    above it were not, so a malformed `mechanisms` value or a scenario that is
+    not an object still escaped as a bare AttributeError from inside a
+    dict.get chain. A raw AttributeError names neither the scenario nor the
+    field, which is the whole reason AdapterError exists.
+    """
+
+    @pytest.mark.parametrize("mechanisms", [None, [], "x", 3])
+    def test_a_non_mapping_mechanisms_block_is_an_adapter_error(self, mechanisms):
+        with pytest.raises(AdapterError, match="mechanisms"):
+            rule_results([{"id": "S1", "mechanisms": mechanisms}], "m")
+
+    @pytest.mark.parametrize("scenario", [None, [], "x", 3])
+    def test_a_non_mapping_scenario_is_an_adapter_error(self, scenario):
+        with pytest.raises(AdapterError, match="scenario"):
+            rule_results([scenario], "m")
+
+    def test_an_absent_mechanisms_key_still_means_no_evidence(self):
+        """Absent is not malformed. It keeps its fail-closed meaning."""
+        assert rule_results([{"id": "S1"}], "m") == {"S1": False}
+
+    def test_the_error_names_the_scenario(self):
+        with pytest.raises(AdapterError, match="S7"):
+            rule_results([{"id": "S7", "mechanisms": "bad"}], "m")
