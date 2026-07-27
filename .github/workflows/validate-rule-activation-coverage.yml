@@ -74,35 +74,6 @@ jobs:
       - name: Check rule and skill activation coverage ratchet
         run: python3 scripts/validation/check_rule_activation_coverage.py
 
-      - name: Show remediation on failure
-        if: failure()
-        run: |
-          echo ""
-          echo "=== Rule Activation Coverage Validation Failed ==="
-          echo ""
-          echo "A rule or skill has no activation scenario, or a scenario"
-          echo "points at a deleted artifact. Exit 1 means a new uncovered"
-          echo "rule or skill is not baselined; exit 2 means a config or"
-          echo "structural fault (missing inventory, bad baseline, orphan"
-          echo "scenario, or a scenario that measures no activation)."
-          echo ""
-          echo "To cover a rule, add a scenario at:"
-          echo "  tests/evals/rule-scenarios/<rule-id>.json"
-          echo "To cover a skill, add a scenario at:"
-          echo "  tests/evals/skill-scenarios/<skill-id>.json"
-          echo "Each scenario needs at least one positive case (a prompt the"
-          echo "rule or skill should activate on)."
-          echo ""
-          echo "A scenario proves an artifact CAN be measured, not that"
-          echo "routing to it works (necessary, not sufficient)."
-          echo ""
-          echo "Shrink the baseline by adding scenarios; never widen it to"
-          echo "route around the gate:"
-          echo "  Baseline: scripts/validation/rule_activation_coverage_baseline.json"
-          echo "  Update:   python3 scripts/validation/check_rule_activation_coverage.py --update-baseline"
-          echo ""
-          echo "See issue #3457 for context."
-
   skip-validation:
     name: Skip Validation (No Coverage-Relevant Changes)
     needs: check-changes
