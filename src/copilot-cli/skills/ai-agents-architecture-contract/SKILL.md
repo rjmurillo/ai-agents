@@ -87,7 +87,7 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
 | Copilot dispatcher | Active `gate` handles one PreToolUse shim; active `observe` handles one PostToolUse shim; dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
 
-Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs 008/033/035 still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
+Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
 ### Phase 4: Understand the memory architecture
 
@@ -134,7 +134,7 @@ belong to `ai-agents-generation-and-release`.
 
 ### Phase 7: Account for the known-weak points
 
-State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each is in `references/weak-points.md`.
+State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
 - **Hook sources serve different consumers**: `.claude/settings.json` has 3 events and 4 groups, `.claude/hooks/hooks.json` has 2 events and 2 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.

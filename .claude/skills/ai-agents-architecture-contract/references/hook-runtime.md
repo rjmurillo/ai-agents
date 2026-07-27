@@ -6,7 +6,7 @@ The WHY behind the Phase 3 hook-runtime tables. SKILL.md keeps the two operative
 
 ## Why failure policy is per family, not global
 
-Guards that assert an invariant on shipped artifacts must fail loud. A silent exit 0 disabled a hook for 33 days in #2205. Observer and lifecycle behavior follows the host event contract instead of a repository-wide exit policy. Older ADRs (008, 033, 035) still carry blanket fail-open language; ADR-066 and ADR-071 own the released-artifact direction. SessionStart hooks cannot block regardless.
+Guards that assert an invariant on shipped artifacts must fail loud. A silent exit 0 disabled a hook for 33 days in #2205. Observer and lifecycle behavior follows the host event contract instead of a repository-wide exit policy. Older ADRs (ADR-008, ADR-033, ADR-035) still carry blanket fail-open language; ADR-066 and ADR-071 own the released-artifact direction. SessionStart hooks cannot block regardless.
 
 ## Why one dispatcher per event (ADR-068)
 
