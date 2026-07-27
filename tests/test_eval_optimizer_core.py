@@ -1110,3 +1110,44 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
         """A larger budget buys more looks, each held to a stricter bar."""
         strict = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=100)
         assert strict.decision == "REJECT"
+
+
+class TestBothBarsAreLabeledInTheRefusal:
+    """Round eighteen: two bare numbers in one sentence do not say which is which.
+
+    A reviewer read "above the 0.01 this comparison is allowed" as a sentence
+    missing a word, and could not tell the family bar from the value it had been
+    corrected to. Both numbers were already present; the round-fourteen test
+    asserted only that. Presence is not legibility: the operator reading a
+    refusal has to know which number they asked for and which one the correction
+    produced, because only the second explains why this p value lost.
+    """
+
+    def test_each_number_carries_the_label_that_says_which_bar_it_is(self):
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert result.decision == "REJECT"
+        assert "per-comparison bar of 0.01" in result.reason
+        assert "0.05 family bar" in result.reason
+
+    def test_the_refusal_shows_the_arithmetic_that_produced_the_corrected_bar(self):
+        """Naming both bars is not enough; the reader must be able to check them."""
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "divided across 5 consultation(s)" in result.reason
+
+    def test_the_ambiguous_fragment_is_gone(self):
+        """Negative control: the exact phrasing the reviewer could not parse."""
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "this comparison is allowed" not in result.reason
+
+    def test_a_family_of_one_still_labels_both_bars_and_states_the_division(self):
+        """Edge: dividing by one is a no-op, so both numbers are equal.
+
+        The sentence has to stay honest and checkable when the correction
+        changes nothing, rather than dropping the arithmetic and leaving the
+        reader unable to tell a corrected bar from an uncorrected one.
+        """
+        result = gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1)
+        assert result.decision == "REJECT"
+        assert "per-comparison bar of 0.05" in result.reason
+        assert "0.05 family bar" in result.reason
+        assert "divided across 1 consultation(s)" in result.reason

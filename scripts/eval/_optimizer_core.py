@@ -713,8 +713,8 @@ def gate(
                     "REJECT",
                     f"candidate {candidate:.4f} beats {incumbent:.4f} but the "
                     f"one-sided exact McNemar tail is {p_value:g}, above the "
-                    f"{corrected:g} this comparison is allowed; that is the "
-                    f"{max_p:g} family bar spent across {max_consultations} "
+                    f"per-comparison bar of {corrected:g}, which is the "
+                    f"{max_p:g} family bar divided across {max_consultations} "
                     f"consultation(s). The gain is not distinguishable from "
                     f"scorer variance at this held-out size",
                 )
