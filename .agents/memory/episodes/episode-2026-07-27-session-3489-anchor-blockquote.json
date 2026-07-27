@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
       "caused_by": [
-        "e007"
+        "e016"
       ],
       "leads_to": [
         "e002"
@@ -74,7 +74,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -85,7 +87,7 @@
         "e008"
       ],
       "leads_to": [
-        "e001"
+        "e015"
       ]
     },
     {
@@ -97,12 +99,118 @@
       "leads_to": [
         "e007"
       ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "error",
+      "content": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 22,
     "recoveries": 0,
     "commits": 1,
     "files_changed": 5

@@ -85,16 +85,26 @@ path or URL segment ending in `/` before a dot-directory matched.
 The three legacy patterns also gained `?#` in their terminator class so URL query and
 fragment forms terminate the match the same way the `templates` patterns already did.
 
-Coverage grows the file from 55 tests on `main` to 106, across four classes. The new
-`TestDotPrefixedUpstreamBoundary` covers `.agents`, `.claude/lib` and
+Coverage grows the file from 55 tests at `303f918ea` to 96 here, across four classes. The
+new `TestDotPrefixedUpstreamBoundary` covers `.agents`, `.claude/lib` and
 `.claude/review-axes`. `TestCountUpstreamRefs.test_counts_paths_that_name_the_upstream_dir`
 gains the `templates` shapes this fix repairs. `TestPathStartAnchor` pins the shapes that
 supply their own root. `TestBlockquotedFence` pins fence handling inside a blockquote.
 
-Twenty-two of the 96 that predate this follow-up fail against `main`'s module, so they are regression proof rather than
-decoration; the rest pin behavior that already held, which is what makes the failures
-meaningful. Reproduce by copying the test file into a worktree checked out at
-`origin/main` and running pytest on it.
+Twenty-two of those 96 fail against the module at `303f918ea`, so they are regression proof
+rather than decoration; the rest pin behavior that already held, which is what makes the
+failures meaningful. Reproduce against that commit, not against `origin/main`: `main` has
+since absorbed this fix, so the same command there reports 96 passed and proves nothing.
+
+```
+git worktree add /tmp/wt303 303f918ea
+cp tests/validation/test_check_skill_md_portability.py /tmp/wt303/tests/validation/
+cd /tmp/wt303 && uv run pytest tests/validation/test_check_skill_md_portability.py -q
+# 22 failed, 74 passed
+```
+
+The follow-up in PR #3490 took the file to 112 tests, so a later reader comparing against a
+plain checkout should expect that number rather than 96.
 
 Filed as issue #3471. Landed after PR #3463 merged, because the fix was still local
 when that PR merged.

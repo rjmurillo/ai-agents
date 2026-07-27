@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:28:54.159131+00:00",
+  "updated": "2026-07-27T13:33:30.225437+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21529,6 +21529,123 @@
         "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
       "created": "2026-07-27T11:58:41.229748+00:00"
+    },
+    {
+      "id": "4472302e0698",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143367+00:00"
+    },
+    {
+      "id": "04798dd6ab2b",
+      "type": "test",
+      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143461+00:00"
+    },
+    {
+      "id": "45f169b4e8de",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218813+00:00"
+    },
+    {
+      "id": "00b8bf54800b",
+      "type": "milestone",
+      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218902+00:00"
+    },
+    {
+      "id": "6fd7cc4cdc3c",
+      "type": "milestone",
+      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218983+00:00"
+    },
+    {
+      "id": "924d259f8650",
+      "type": "milestone",
+      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219065+00:00"
+    },
+    {
+      "id": "39f7c5894a10",
+      "type": "milestone",
+      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219143+00:00"
+    },
+    {
+      "id": "f188dee3c58e",
+      "type": "milestone",
+      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219221+00:00"
+    },
+    {
+      "id": "cb74c7701693",
+      "type": "test",
+      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219300+00:00"
+    },
+    {
+      "id": "600d5ed0bc31",
+      "type": "error",
+      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219381+00:00"
+    },
+    {
+      "id": "1afb97b06903",
+      "type": "milestone",
+      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219462+00:00"
+    },
+    {
+      "id": "f2fedd92db5a",
+      "type": "error",
+      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219690+00:00"
+    },
+    {
+      "id": "7c36d1ff15c0",
+      "type": "outcome",
+      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219770+00:00"
     }
   ],
   "patterns": [
@@ -25755,6 +25872,20 @@
         "episode-2026-04-27-session-1761": 0.6
       },
       "created": "2026-07-27T08:26:30.325239+00:00"
+    },
+    {
+      "source": "f2fedd92db5a",
+      "target": "7c36d1ff15c0",
+      "type": "causes",
+      "weight": 0.8,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3489-anchor-blockquote": 0.8
+      },
+      "created": "2026-07-27T13:33:30.219779+00:00"
     }
   ]
 }

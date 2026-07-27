@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Confirmed the defect against the code on main rather than against my own notes. Called count_upstream_refs from a copy of main's module on nine path shapes: four that should count returned 0, five that should not count returned 1.",
       "caused_by": [
-        "e007"
+        "e014"
       ],
       "leads_to": [
         "e002"
@@ -85,7 +85,7 @@
       "content": "Commit: 661f2e665",
       "caused_by": [],
       "leads_to": [
-        "e001"
+        "e014"
       ]
     },
     {
@@ -144,7 +144,31 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {

@@ -121,12 +121,34 @@
     },
     {
       "step": "Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode."
+    },
+    {
+      "step": "Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced."
+    },
+    {
+      "step": "Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct."
+    },
+    {
+      "step": "Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six."
+    },
+    {
+      "step": "Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth."
+    },
+    {
+      "step": "Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills."
+    },
+    {
+      "step": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed."
+    },
+    {
+      "step": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix."
     }
   ],
   "endingCommit": "661f2e665",
   "nextSteps": [
-    "Issue #3482 still tracks the bare directory reference gap, where a reference ending at whitespace, a period or a closing parenthesis is missed. Widening the terminator moves the drift baseline across the whole skill tree, so it needs its own change.",
-    "PR #3472 merged before this follow-up existed, and its head branch was auto-deleted. Pushing to a deleted branch silently re-creates it; check the PR state before pushing to any branch whose PR may have merged.",
-    "endingCommit is left empty because the final commit SHA is not known at write time."
+    "#3499 tracks replacing _strip_code with a markdown-it AST walk, which would fix the indented-code false positive and retire the class rather than the instance.",
+    "#3482 tracks the pre-existing gap that a bare directory reference ending at a word boundary is not counted.",
+    "#3465 tracks that this validator only scans Markdown under .claude/skills, so shipped agents, rules, and instructions are not covered.",
+    "The reproduction for the #3472-era numbers is pinned to 303f918ea. Any future document quoting a pass or fail count against this module should name a commit, not a branch."
   ]
 }
