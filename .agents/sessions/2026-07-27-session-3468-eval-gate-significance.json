@@ -5,8 +5,7 @@
     "date": "2026-07-27",
     "branch": "fix/eval-buffer-crash-exit-code",
     "startingCommit": "303f918ea8",
-    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings.",
-    "endingCommit": ""
+    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -550,9 +549,23 @@
         "Falsified with M20, which is the reviewer's own proposed fix: make _refuse_degraded_rule_report return unconditionally. Seven red, six of them written by earlier rounds. A defect whose repair breaks six existing tests is usually not a defect."
       ],
       "evidence": "Measured three-way contrast, all verified by running: extract --kind agent exit 0 {f1 true, f2 false}; extract --kind hook exit 0 {t::a true, t::b false}; extract --kind rule exit 2 with ConfigError naming S2; rule_results(scenarios, 'full') returns {S1 True, S2 False}. M20 turns 7 tests red including the new contrast test. 1441 eval tests pass with 100% statement coverage on optimize-artifact.py (587), _optimizer_core.py (283), _optimizer_adapters.py (89). ruff clean on the changed test file; RUFF_RATCHET_BASE_REF=origin/main ruff_ratchet.py passed for 3 changed files; markdownlint clean on scripts/eval/README.md; zero em or en dashes in all three changed files."
+    },
+    {
+      "phase": "Round thirty-three: the extraction lost the seam that made the helper safe",
+      "actions": [
+        "Read the two bot threads left open on PR #3579 rather than resolving them. Both were real. One of them found a regression introduced by round 31's own fix.",
+        "Reproduced the first by running. buffer-add into an unwritable directory printed a PermissionError traceback and exited 1. Exit 1 is the code the README's contract reserves for a reject, a decision a shell loop branches on rather than a crash it stops for, which is the failure mode this whole branch exists to close.",
+        "Corrected the reviewer's impact claim while accepting its finding. It said the crash reintroduces crash-can-look-like-a-verdict for callers that branch on exit codes; cmd_buffer_add returns only EXIT_OK and has no exit-1 verdict, so exit 1 there is unambiguously a crash. The harm is the missing JSON document the module docstring promises, not an ambiguous verdict.",
+        "Enumerated the general form rather than patching the instance. Every other filesystem call in the module converts OSError to ConfigError: _read_buffer reports could not read, _write_atomic reports could not write, both verified by running. _lock_held is the only one that does not. It got away with it because its only caller ran inside _digest_scrubbed, whose handler converts every OSError raised under the ledger. Round 31 gave it a second caller with no such cover.",
+        "Proved authorship of the regression by running the pre-extraction CLI. git archive of commit 468cae3fa against the same unwritable path returned exit 2 and a JSON error document. The extraction, not the codebase, introduced the hole.",
+        "Confirmed the gate path was already whole in both directions. An unwritable ledger root, and a writable-but-locked one, both returned exit 2 with the digest scrubbed to <held-out group>, so the fix had to preserve that. It does: _digest_scrubbed catches ConfigError as well as OSError, so converting inside the helper keeps the redaction.",
+        "Wrote eight tests, five red first and three green controls, then fixed. Falsified in halves: M21 drops the acquire conversion, 3 red; M22 drops the pid-write conversion, 2 red; M23 lets the generic message swallow contention, 4 red including 3 written by earlier rounds.",
+        "Accepted the second thread and found it understated. The session log carried endingCommit twice, top-level 4710c7ee4 against a nested empty string, and the nested key is not in the schema's session properties while startingCommit is, so the symmetry was false. The top-level value was also stale: 4710c7ee4 is this branch's first commit and five commits had landed since. Dropped the nested key and refreshed the top-level."
+      ],
+      "evidence": "Before the fix: buffer-add into an unwritable directory raised PermissionError past main's handler list, traceback on stderr, exit 1. After: {\"error\": \"could not take the lock ...b.json.lock (Permission denied); the read-modify-write it serializes was not attempted.\", \"type\": \"ConfigError\"}, exit 2. Pre-extraction CLI at 468cae3fa on the same input: exit 2 with a JSON document, which is what makes this a regression rather than a standing gap. Gate against an unwritable ledger root after the fix still reports <held-out group>.lock. M21 3 red, M22 2 red, M23 4 red. 1449 eval tests pass with 100 percent statement coverage on optimize-artifact.py (594), _optimizer_core.py (283), _optimizer_adapters.py (89). ruff clean, ratchet passed for 3 changed files, mypy clean, zero em or en dashes."
     }
   ],
-  "endingCommit": "4710c7ee4",
+  "endingCommit": "29db6cf54",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

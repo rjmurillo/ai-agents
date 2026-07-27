@@ -1889,3 +1889,65 @@ in `extract` and not in the library, so moving the scan down would turn the new
 prose false and turn a test red at the same time.
 
 M20 is the reviewer's own proposed fix: delete the refusal. Seven red.
+
+## Shape 44: an extraction can lose a property that was never written down
+
+Round 31 extracted `_lock_held` out of `_ledger_held` and gave it a second
+caller. Round 33's reviewer found what that cost. `buffer-add` into an
+unwritable directory printed a `PermissionError` traceback and exited 1, where
+the module docstring promises a JSON document and where exit 1 is the code the
+README reserves for a reject, a decision a shell loop branches on rather than a
+crash it stops for. That is the failure mode this whole branch exists to close,
+arriving through a door the branch itself opened.
+
+The instance is small. The general form is the finding. Every filesystem call
+in this module converts `OSError` into `ConfigError` and says which file:
+`_read_buffer` reports "could not read", `_write_atomic` reports "could not
+write". Both were checked by running. `_lock_held` is the only one that does
+not, and it never had to, because its only caller ran inside `_digest_scrubbed`,
+whose entire job is to convert every `OSError` raised anywhere under the ledger.
+The helper's safety was a property of where it was called from, not of what it
+did. Extraction moved the code and left the property behind.
+
+That the extraction is at fault, rather than the codebase carrying a standing
+gap, was settled by running the pre-extraction CLI. `git archive` of the commit
+before the buffer lock, against the same unwritable path, returns exit 2 and a
+JSON error document. Before: correct. After: traceback. The regression is
+authored, and it was authored by the fix for shape 42.
+
+There is a rule in this. A property enforced by a wrapper is invisible at the
+site it protects. Nothing at the `os.open` call says "an `OSError` here is
+already handled"; the handling is two frames up and in another function, and
+the comment that would have said so is in `_digest_scrubbed`'s docstring, which
+is where it belongs and where nobody reading `_lock_held` will find it. So the
+question to ask before extracting anything is not "does the moved code still
+work", which it did, and 423 tests agreed. It is "what was true about this code
+only because of where it sat". Coverage cannot ask that question either: the
+extraction kept 100 percent throughout, because the uncovered path is one that
+no test reached before or after.
+
+The fix converts inside the helper, which is the argument `_digest_scrubbed`
+already makes about itself: a wrapper covers the caller someone remembered, a
+seam covers the one added next year. `_digest_scrubbed` catches `ConfigError`
+as well as `OSError`, so the ledger caller's redaction survives, and a gate
+against an unwritable ledger root still reports `<held-out group>.lock` rather
+than the digest.
+
+The reviewer's stated impact was wrong and its finding was right. It said the
+crash reintroduces "crash can look like a verdict" for callers that branch on
+exit codes; `cmd_buffer_add` returns only `EXIT_OK` and has no exit-1 verdict,
+so exit 1 there is unambiguously a crash. The harm is the missing document, not
+an ambiguous one. Correcting the impact and keeping the finding is the whole
+skill: rounds 31 and 32 were both rejected on their stated impact, and this one
+would have been too if the impact were the thing being judged.
+
+M21 drops the acquire conversion, 3 red. M22 drops the pid-write conversion, 2
+red. M23 lets the generic message swallow contention, 4 red, three of them
+written by earlier rounds.
+
+The round's second finding is smaller and the same species. The session log
+recorded `endingCommit` twice, top-level against a nested empty string, and the
+nested key is not in the schema's `session` properties while `startingCommit`
+is. The symmetry was false, which is why nobody questioned it. The top-level
+value was also stale by five commits, which the reviewer did not notice and the
+verification did.
