@@ -69,6 +69,7 @@ jobs:
               - '.github/prompts/**'
               - '.github/workflows/**'
               - 'tests/ci/test_validation_scripts_are_reachable.py'
+              - 'tests/ci/test_frontmatter_gate_paths_filter.py'
 
       - name: Determine if validation should run
         id: determine
@@ -142,6 +143,19 @@ jobs:
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
         run: python3 -m pytest -q tests/ci/test_validation_scripts_are_reachable.py
+
+      # This guard belongs here rather than only in the default pytest run.
+      # It asserts that this workflow's own paths filter still covers every
+      # tree the frontmatter gate scans, so the regression it catches is a
+      # YAML-only edit to the filter above. pytest.yml does run this file as
+      # part of the full suite, but its trigger list is Python-shaped and does
+      # not include this workflow, so a YAML-only narrowing would skip
+      # pytest.yml entirely and the guard would never fire on the one change
+      # it exists to catch. Running it here closes that hole, because this
+      # workflow triggers on .github/workflows/**.
+      - name: Validate frontmatter gate paths filter
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 -m pytest -q tests/ci/test_frontmatter_gate_paths_filter.py
 
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'

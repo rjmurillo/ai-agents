@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
 #
-# file-size suppression rationale: of 537 lines this file carries roughly 160
-# of code. The rest is 217 lines of docstring, 81 of comment, and 79 blank,
-# because every regex here records which shape it excludes and which reported
-# defect made it exclude that shape. Splitting a 160-line module to satisfy a
-# line count measured mostly on prose would move the prose away from the
-# pattern it explains, and the patterns carry load-bearing semantics that only
-# read correctly next to each other.
+# file-size suppression rationale: most of this file is prose, not code. Every
+# regex here records which shape it excludes and which reported defect made it
+# exclude that shape, so docstring, comment, and blank lines outweigh executable
+# ones by a wide margin. Splitting the small code core to satisfy a line count
+# measured mostly on prose would move the prose away from the pattern it
+# explains, and the patterns carry load-bearing semantics that only read
+# correctly next to each other. Exact counts are deliberately omitted: they
+# drift on every comment edit and would make this rationale stale rather than
+# wrong-but-checkable.
 """Frontmatter self-containment gate for shipped plugin files (issue #3565).
 
 Why this exists separately from ``check_skill_md_portability.py``:
