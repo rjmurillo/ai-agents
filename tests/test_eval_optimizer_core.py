@@ -37,6 +37,7 @@ from _optimizer_core import (  # noqa: E402
     mcnemar_exact,
     patch_fingerprint,
     score,
+    split_fingerprint,
     split_tasks,
 )
 
@@ -877,3 +878,53 @@ class TestBufferContains:
     def test_rejects_an_empty_patch_list(self):
         with pytest.raises(ValueError, match="at least one patch"):
             buffer_contains([], [])
+
+
+class TestSplitFingerprint:
+    """The fingerprint has to be recomputable from a split file's own contents.
+
+    Before this existed, the only drift check compared a split file's stored
+    fingerprint against a value the caller passed on the command line. A caller
+    who omitted the flag got no check, and a stored fingerprint was trusted
+    even when the group membership beside it had been edited. Both holes close
+    only if a reader can recompute the value instead of trusting it.
+    """
+
+    def test_matches_what_split_tasks_recorded(self):
+        ids = _ids(10)
+        split = split_tasks(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
+        assert (
+            split_fingerprint(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
+            == split.fingerprint
+        )
+
+    def test_task_order_does_not_matter(self):
+        ids = _ids(6)
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.5) == split_fingerprint(
+            list(reversed(ids)), seed="s", sel_ratio=0.5
+        )
+
+    def test_an_added_task_changes_it(self):
+        ids = _ids(6)
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.5) != split_fingerprint(
+            [*ids, "extra"], seed="s", sel_ratio=0.5
+        )
+
+    def test_a_different_seed_changes_it(self):
+        ids = _ids(6)
+        assert split_fingerprint(ids, seed="a", sel_ratio=0.5) != split_fingerprint(
+            ids, seed="b", sel_ratio=0.5
+        )
+
+    def test_a_different_ratio_changes_it(self):
+        ids = _ids(6)
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.5) != split_fingerprint(
+            ids, seed="s", sel_ratio=0.4
+        )
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.5) != split_fingerprint(
+            ids, seed="s", sel_ratio=0.5, test_ratio=0.2
+        )
+
+    def test_an_empty_task_set_still_hashes(self):
+        """It is a hash, not a validator. split_tasks owns the size rules."""
+        assert len(split_fingerprint([], seed="s", sel_ratio=0.5)) == 64

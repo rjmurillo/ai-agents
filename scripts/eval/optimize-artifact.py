@@ -134,10 +134,44 @@ def _read_split(path: Path) -> dict[str, Any]:
     data = _read_json(path)
     if not isinstance(data, dict):
         raise ConfigError(f"{path} must hold a split object")
-    missing = [key for key in (*_GROUPS, "fingerprint") if key not in data]
+    required = (*_GROUPS, "fingerprint", "seed", "sel_ratio", "test_ratio")
+    missing = [key for key in required if key not in data]
     if missing:
-        raise ConfigError(f"{path} is missing split keys: {', '.join(missing)}")
+        raise ConfigError(
+            f"{path} is missing split keys: {', '.join(missing)}. A split file "
+            "that cannot be re-fingerprinted cannot be verified; re-run split."
+        )
     return data
+
+
+def _split_drifted(split: Mapping[str, Any]) -> bool:
+    """Has the split file changed since it was written?
+
+    Redrawn from the file's own recorded inputs rather than compared against a
+    value the caller passes, because a caller who forgets the flag would
+    otherwise get no check at all.
+
+    Both halves are needed and neither is redundant. The fingerprint covers the
+    split's inputs (seed, task set, ratios), so it catches an added or removed
+    task. It cannot catch a task moved between groups, because the union it
+    hashes is unchanged by a move. Redrawing the split catches that: the draw is
+    seeded, so the groups are a pure function of the inputs, and any membership
+    that the recorded inputs would not produce is drift.
+    """
+    try:
+        tasks = [str(t) for group in _GROUPS for t in split[group]]
+        redrawn = split_tasks(
+            tasks,
+            seed=str(split["seed"]),
+            sel_ratio=float(split["sel_ratio"]),
+            test_ratio=float(split["test_ratio"]),
+            min_sel=int(split.get("min_sel", 3)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
+    if redrawn.fingerprint != split["fingerprint"]:
+        return True
+    return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +275,9 @@ def cmd_split(args: argparse.Namespace) -> int:
             "test": list(result.test),
             "fingerprint": result.fingerprint,
             "seed": args.seed,
+            "sel_ratio": args.sel_ratio,
+            "test_ratio": args.test_ratio,
+            "min_sel": args.min_sel,
         }
     )
     return EXIT_OK
@@ -308,6 +345,19 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def cmd_gate(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
+    if _split_drifted(split):
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    "split fingerprint does not match the split file's own "
+                    "contents; the groups or the seed were edited after the "
+                    "split was drawn. Re-split and re-baseline."
+                ),
+                "consultations": args.consultations,
+            }
+        )
+        return EXIT_OK
 
     # Guards first, scoring second. Both refusals are decidable from
     # bookkeeping alone, and scoring before asking would read the held-out

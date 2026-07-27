@@ -1029,3 +1029,103 @@ class TestMalformedInputs:
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
         assert code == EXIT_CONFIG
+
+
+class TestSplitFileIsSelfValidating:
+    """A split file has to prove its own integrity, with no flag to remember.
+
+    Two adversarial reviewers plus both PR bots flagged the same hole
+    independently: the only drift check compared the split file's stored
+    fingerprint against a --incumbent-fingerprint the caller supplied, so a
+    caller who omitted the flag got no check at all, and the stored value was
+    trusted even when the group membership beside it had been edited. A
+    guarantee that is opt-in is not a guarantee. The gate now recomputes the
+    fingerprint from the split file's own contents on every call.
+    """
+
+    def _setup(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        return inc, cand, split
+
+    def test_an_untampered_split_gates_normally(self, tmp_path, capsys):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
+    def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
+        """The union is unchanged, so only recomputation catches this."""
+        inc, cand, split = self._setup(tmp_path, capsys)
+        moved = split["opt"][0]
+        split["opt"] = [t for t in split["opt"] if t != moved]
+        split["sel"] = [*split["sel"], moved]
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == 0
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
+        assert "score" not in out and "candidate" not in out
+
+    def test_an_added_task_is_refused(self, tmp_path, capsys):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel"] = [*split["sel"], "smuggled"]
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
+
+    def test_an_edited_fingerprint_is_refused(self, tmp_path, capsys):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["fingerprint"] = "0" * 64
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert out["decision"] == "REJECT"
+
+    def test_an_edited_seed_is_refused(self, tmp_path, capsys):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["seed"] = "s2"
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert out["decision"] == "REJECT"
+
+    def test_a_refused_split_costs_no_consultation(self, tmp_path, capsys):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel"] = [*split["sel"], "smuggled"]
+        path = _write(tmp_path, "split.json", split)
+        _, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                      "--split", path, "--consultations", "0",
+                      "--max-consultations", "3")
+        assert out["consultations"] == 0
+
+    def test_a_split_file_without_ratios_is_refused(self, tmp_path, capsys):
+        """Older split files cannot be verified, so they cannot be trusted."""
+        inc, cand, split = self._setup(tmp_path, capsys)
+        del split["sel_ratio"]
+        path = _write(tmp_path, "split.json", split)
+        code, _ = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                       "--split", path)
+        assert code == EXIT_CONFIG
+
+    def test_a_non_numeric_ratio_is_a_config_error(self, tmp_path, capsys):
+        """The keys are present, so only the redraw catches the bad value."""
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = "half"
+        path = _write(tmp_path, "split.json", split)
+        code, _ = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                       "--split", path)
+        assert code == EXIT_CONFIG
+
+    def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.4", "--test-ratio", "0.2")
+        assert split["sel_ratio"] == 0.4
+        assert split["test_ratio"] == 0.2

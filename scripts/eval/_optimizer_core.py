@@ -65,6 +65,7 @@ __all__ = [
     "guard_refusal",
     "mcnemar_exact",
     "patch_fingerprint",
+    "split_fingerprint",
     "score",
     "split_tasks",
 ]
@@ -240,18 +241,40 @@ def split_tasks(
     test = tuple(ranked[n_sel : n_sel + n_test])
     opt = tuple(ranked[n_sel + n_test :])
 
+    fingerprint = split_fingerprint(
+        cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio
+    )
+    return TaskSplit(opt=opt, sel=sel, test=test, fingerprint=fingerprint)
+
+
+def split_fingerprint(
+    task_ids: Iterable[str],
+    *,
+    seed: str,
+    sel_ratio: float,
+    test_ratio: float = 0.0,
+) -> str:
+    """Hash the inputs that determine a split.
+
+    Public rather than private because a reader has to be able to recompute
+    this from a split file's own contents. A stored fingerprint that nobody
+    can recompute is a claim, not evidence: editing group membership while
+    leaving the recorded hash alone would go unnoticed.
+
+    Order-insensitive by design. The task set determines the split; the order
+    it arrived in does not.
+    """
     payload = json.dumps(
         {
             "seed": seed,
-            "tasks": sorted(cleaned),
+            "tasks": sorted(task_ids),
             "sel_ratio": sel_ratio,
             "test_ratio": test_ratio,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
-    fingerprint = hashlib.sha256(payload.encode()).hexdigest()
-    return TaskSplit(opt=opt, sel=sel, test=test, fingerprint=fingerprint)
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def edit_budget(step: int, total: int, *, max_edits: int = 5, min_edits: int = 1) -> int:
