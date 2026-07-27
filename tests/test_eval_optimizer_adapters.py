@@ -148,6 +148,23 @@ class TestAgentResults:
         report = _report({"C001": {"agent": [0.5, 0.5]}})
         assert agent_results(report, "agent", pass_threshold=0.5) == {"C001": True}
 
+    @pytest.mark.parametrize("runs", [0.9, {"score": 0.9}, "0.9"])
+    def test_a_run_list_that_is_not_a_list_is_refused(self, runs):
+        """A bare score, a dict, and a string all iterate or index wrongly.
+
+        A string is the trap: it is a Sequence, so a bare `isinstance` check
+        admits it and then `mean` over its characters raises somewhere far
+        from the malformed file. Refusing here names the fixture.
+        """
+        report = _report({"C001": {"agent": runs}})
+        with pytest.raises(AdapterError, match="must be a list of scores"):
+            agent_results(report, "agent")
+
+    def test_an_empty_run_list_is_a_fixture_that_did_not_run(self):
+        """Empty is not malformed: the variant never ran it, so fail closed."""
+        report = _report({"C001": {"agent": []}})
+        assert agent_results(report, "agent") == {"C001": False}
+
     def test_min_reduction_punishes_one_bad_run(self):
         report = _report({"C001": {"agent": [1.0, 1.0, 0.0]}})
         assert agent_results(report, "agent", reduce="min", pass_threshold=1.0) == {

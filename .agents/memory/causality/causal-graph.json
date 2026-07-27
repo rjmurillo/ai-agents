@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:26:30.481404+00:00",
+  "updated": "2026-07-27T09:04:44.449936+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20736,6 +20736,339 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T05:34:46.577440+00:00"
+    },
+    {
+      "id": "0100c10367bc",
+      "type": "milestone",
+      "label": "milestone: Read the external skillopt skill bundle and the whole scripts/eval catalog. Confirmed the harness measures but never gates an artifact edit, and that no fixture set carries a train/held-out split despite the Fixture docstring calling fixtures held-out.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034583+00:00"
+    },
+    {
+      "id": "055d45989520",
+      "type": "milestone",
+      "label": "milestone: Placed the change against prior art. ADR-010 is a runtime output-quality loop, ADR-057 is before/after regression on one artifact, ADR-058 is agent versus baseline. None gates an artifact edit on data withheld from the author. SkillOpt-gated commits b4070e7ad and 869a03ed9 prove the discipline works here but used an out-of-repo harness on skills only.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034674+00:00"
+    },
+    {
+      "id": "aa80ed7291b6",
+      "type": "milestone",
+      "label": "milestone: Three TDD cycles produced the decision core (split, fingerprint, budget, gate, refusal guards, exact McNemar; pure, no I/O), the adapters converging agent reports, rule scenario scores, and pytest JUnit onto one task-id-to-bool seam, and the CLI an optimizing agent drives. The boolean seam is what generalizes the discipline past skills: a fixture id, a scenario id, and a pytest node id are the same kind of thing to the decider.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034754+00:00"
+    },
+    {
+      "id": "c78c3a06eb37",
+      "type": "milestone",
+      "label": "milestone: First adversarial round (gpt-5.6-sol, gemini-3.1-pro-preview, both non-Claude per the user instruction). Found a CRITICAL double inversion the README had advertised as a feature: rule_results flipped negative cases and the caller flipped them again, so a lower activation score read as an improvement. Fixed with the failing case pinned.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034831+00:00"
+    },
+    {
+      "id": "2bb86b4adb88",
+      "type": "milestone",
+      "label": "milestone: Second adversarial round returned REJECT on the ADR draft and found the held-out discipline was, in the reviewer phrase, an honor system wrapped in a hash. Three exposure holes, all real: split printed held-out membership to the stream the optimizing agent reads; score accepted --group sel and test unmetered, which is exactly the read the consultation budget exists to charge for; and --allow-regressions let any caller accept a broken held-out task. All three closed.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034909+00:00"
+    },
+    {
+      "id": "e746a699b010",
+      "type": "milestone",
+      "label": "milestone: Replaced the consultation counter with a ledger the gate writes. --consultations defaulted to 0 and arrived on every invocation, so a loop that passed zero each time had an unlimited budget while looking capped; the reviewer reproduced ACCEPT twice under a cap of one. The ledger is bound to the split fingerprint so redrawing cannot reset it. Two defects found while testing it: guard_refusal turned a cap below one into a permanently exhausted budget indistinguishable from real discipline, and an except ValueError arm was unreachable once its inputs were validated upstream.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.034987+00:00"
+    },
+    {
+      "id": "23f8114da372",
+      "type": "milestone",
+      "label": "milestone: The second review falsified six claims in my own ADR draft, three of which were about this repository governance. The worst: I described ADR-057 as enforcing only an aggregate mean and used that to justify an override flag. ADR-057 in fact blocks every pass-to-fail flip and states it has no mechanism to accept a justified regression, so my flag was a weaker rule shipping under the same name. Removed the flag, corrected the ADR, and added an Open Requirements section naming what still blocks acceptance.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035065+00:00"
+    },
+    {
+      "id": "bcff8764fade",
+      "type": "milestone",
+      "label": "milestone: 356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035135+00:00"
+    },
+    {
+      "id": "bb6d41e48ab8",
+      "type": "test",
+      "label": "test: 356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035208+00:00"
+    },
+    {
+      "id": "08e14c6d0a0b",
+      "type": "milestone",
+      "label": "milestone: Third review round found the ledger had fixed the count and left everything around it on the command line. Three ways back out, each the same defect wearing a different hat: the cap defaulted to unlimited so the ordinary invocation had no budget, a caller that hit the cap could raise it, and pointing --ledger at a fresh path restored the whole budget because a missing ledger starts at zero. Fixed by pinning the cap in the ledger, deriving the ledger path from the split, and requiring the incumbent fingerprint that had been optional. The general rule extracted: any part of a budget the caller restates each time is not part of the budget.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035278+00:00"
+    },
+    {
+      "id": "4be1ded20001",
+      "type": "milestone",
+      "label": "milestone: Fourth review round reproduced a rounding alias in the ledger key. The fingerprint hashes the selection's inputs (seed, task ids, ratios) rather than its result, and group sizes round, so ten tasks at --sel-ratio 0.40 and at 0.41 hold out the same four tasks under two different fingerprints, giving one held-out group two budgets. Rekeyed the ledger, its lock, and the ledger's own identity field onto a digest of the sorted held-out membership. Declined the reviewer's corpus namespace, because a caller-supplied key is the defect class being closed.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035351+00:00"
+    },
+    {
+      "id": "34dc534dc1ec",
+      "type": "milestone",
+      "label": "milestone: Same round found the last free read of the held-out group. score() and mcnemar_exact() name the ids they cannot find, which is correct everywhere except the gate, where those ids are the withheld ones, and an empty candidate results file printed the whole membership before the ledger advanced. Added a one-bit coverage predicate and moved the consultation reserve ahead of scoring, which also closed the crash window that let a killed process retry a comparison for free. A count was rejected as a membership oracle, since split publishes the held-out size.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035426+00:00"
+    },
+    {
+      "id": "4168cb5f4e40",
+      "type": "milestone",
+      "label": "milestone: Fifth review round found the fix had relocated the disclosure again, the fourth consecutive round in which that happened. The new ledger key is an unsalted digest of the held-out ids, and three error paths printed it: lock contention carried the lock path, two ledger errors carried the ledger path and both digests, and none was charged a consultation. Redacted all three to the ledger directory alone. Also fixed an injectivity defect: joining ids on NUL is not injective when an id may contain one.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035497+00:00"
+    },
+    {
+      "id": "ad57590db863",
+      "type": "milestone",
+      "label": "milestone: Verifying that review finding produced the session's most important result. The reviewer argued the digest was reversible from the published group sizes. It is, but reversal is unnecessary: split publishes opt in full, the task universe is the caller's own results file, and --test-ratio defaults to 0.0, so sel = universe - opt by subtraction. Verified live on a twelve-task run. Held-out membership is public by construction and closing that would break the loop, since an optimizer that cannot name the group it must not touch cannot avoid touching it. The property that has to hold is that held-out outcomes do not cross back, not that held-out identity is secret. Both the ADR and the README now say so; several sentences had read as though the task list were hidden.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035568+00:00"
+    },
+    {
+      "id": "b63f72de694b",
+      "type": "milestone",
+      "label": "milestone: Closed the sixth review's code finding. Three hand-written ledger errors had been redacted in round five, but every generic I/O failure under the ledger root still printed a filename ending in the digest of the held-out membership. Added a _digest_scrubbed contextmanager at the seam rather than sanitizing three more call sites, so paths added later inherit it, and nested the lock-contention branch inside so its operator-facing message survives. Also corrected two source comments the review found stale. 410 tests, 100% coverage, ruff and mypy clean. Commit 81ad4283b.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035638+00:00"
+    },
+    {
+      "id": "94c0cffaa735",
+      "type": "milestone",
+      "label": "milestone: Rewrote the README seam section around the reviewer's characterization: a consultation-budgeted comparison over a public benchmark relying on a cooperating optimizer, not held-out validation of unseen tasks. Recorded that cmd_extract emits every task's outcome with no group argument, that task ids resolve to readable fixtures carrying their own grading criteria, and that the gate returns six fields rather than one bit. Separated what the mechanism enforces regardless of cooperation from what it merely encourages. Commit 7a08a60b5.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035715+00:00"
+    },
+    {
+      "id": "c5baae508e85",
+      "type": "milestone",
+      "label": "milestone: Rewrote ADR-087 for the eight claims the sixth review falsified. Weakened the Decision statement from validation on withheld tasks to validation under a counted consultation budget, recording the falsification rather than hiding it. Replaced the identity-public-outcomes-withheld argument with four paragraphs explaining why both halves are false, why the loop needs no knowledge of sel at all, and why Dwork's reusable holdout assumes an access path this does not have. Added round six to the defeat table and restated Open Requirement 1 as a prerequisite for the central claim.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035785+00:00"
+    },
+    {
+      "id": "6b518c052ec7",
+      "type": "milestone",
+      "label": "milestone: Opened #3452 (make extract group-aware, replace the one-bit coverage predicate with a whole-universe check) and #3453 (budget what each consultation discloses, not just how many there are). Both deferred rather than built: each changes behavior and needs its own review round, and this PR is already about 5,400 lines. #3453 records the tension that a --diagnostics flag the loop passes itself would be the same caller-supplied-restriction defect the ADR catalogs six times.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035856+00:00"
+    },
+    {
+      "id": "47b9e0eb3e56",
+      "type": "milestone",
+      "label": "milestone: Seventh adversarial review returned REJECT with two blocking findings, both verified at source. The digest scrub covered the lock's acquire and left its release outside: the unlink in the finally block names the lock, the lock's name is the digest, and main() catches ConfigError but not OSError, so a cleanup failure printed the held-out group as an uncaught traceback one line below where the leak was closed. Widened the scrub over the whole lifecycle, safe because LedgerMismatchError is a sibling of ConfigError rather than a subclass. Regression test asserts on raw stdout since release runs after the decision is emitted. Commit 97817c0ba.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035927+00:00"
+    },
+    {
+      "id": "34e3d158a038",
+      "type": "milestone",
+      "label": "milestone: Rebased onto cd56ce09f, an incoming commit addressing seven PR review threads. It dropped all three optimizer modules from 100% to 99% coverage by shipping four defensive branches with no test. Added positive, negative, and edge cases for each: guard_refusal on a negative spend, agent_results on a non-list run value (with the string trap, since str is a Sequence), _read_split on four wrong group shapes plus a well-formed control, and _write_atomic on a non-OSError so an interrupt keeps its type. 925 tests, 100% coverage restored. Commit 148bfd8a8.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.035997+00:00"
+    },
+    {
+      "id": "292d3d516eb0",
+      "type": "milestone",
+      "label": "milestone: Corrected six more README claims the seventh review falsified, each verified at source first. The budget bounds gate comparisons, not selection pressure, since extract and score reach results without touching the ledger. The path root and the first cap value are not membership-derived. The fingerprint covers the split's inputs rather than its drawn result, and catching a moved task takes the redraw comparison as well. A consultation is reserved before the group is read and before coverage is checked. No command scores the test group at all. Commit f690ce24b.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036068+00:00"
+    },
+    {
+      "id": "3a2917df2ff4",
+      "type": "milestone",
+      "label": "milestone: Applied the same corrections to ADR-087 and to the two deferred issues. Requirement 1's heading no longer claims the decision group is withheld. The Decision statement now says the loop cannot move the mechanism through its own arguments, which is what holds. Commented on #3452 that its two changes do not compose without a controller owning the complete mapping, and on #3453 that there is no fixed multiplier to document, so the statable property is the output alphabet.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036138+00:00"
+    },
+    {
+      "id": "3611db1ed86a",
+      "type": "milestone",
+      "label": "milestone: Ran the adr-review skill against ADR-087 across seven rounds, every reviewer a non-Claude model (gpt-5.6-sol, gemini-3.1-pro-preview) per the objective's adversarial-review requirement. Every round falsified at least one load-bearing claim, so the ADR carries a defeat table instead of a clean argument. Round 6 was the most expensive: it showed that withholding the decision group's membership bounds nothing, because cmd_extract emits every task's outcome with no group argument and because task ids resolve to definitions carrying their own grading criteria. Round 7 returned REJECT on two blocking findings, both verified at source before fixing: the digest scrub left lock release uncovered, and both documents claimed the budget bounds selection pressure when it bounds gate comparisons only. Each finding was verified independently rather than accepted on the reviewer's authority; all held. Deferred design changes opened as #3452 and #3453 rather than rushed into this PR.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036213+00:00"
+    },
+    {
+      "id": "fb420a28a044",
+      "type": "commit",
+      "label": "commit: Commit: f690ce24b",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036283+00:00"
+    },
+    {
+      "id": "d42b5623b1d9",
+      "type": "commit",
+      "label": "commit: Commit: b7966f9d2",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036355+00:00"
+    },
+    {
+      "id": "3f775bd925ff",
+      "type": "outcome",
+      "label": "Outcome: success - Give the eval harness a held-out-gated optimization loop for agents, rules, and hooks (issue #3422)",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:33:06.036426+00:00"
+    },
+    {
+      "id": "57ec39346492",
+      "type": "milestone",
+      "label": "milestone: PR #3430 was squash-merged as 98caa0e54 and its branch deleted while six commits were still unpushed, so the merged code carries the per-call-site digest scrub but not the seam-level one, not the lock-release fix, not the coverage for the four branches the review-thread commit added, and none of the corrected documents. Rebased all six onto main as fix/eval-holdout-gate-digest-leak and confirmed they apply cleanly: 426 tests pass with 100% coverage on all three optimizer modules, ruff and mypy clean. The follow-up PR carries the round-seven blocking fix, which is a real leak of the withheld group on a cleanup failure, so it should not wait.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:40:47.331112+00:00"
+    },
+    {
+      "id": "7ea70fe47ff9",
+      "type": "commit",
+      "label": "commit: Commit: 98caa0e54",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:40:47.331196+00:00"
+    },
+    {
+      "id": "4ca5cd1194cf",
+      "type": "milestone",
+      "label": "milestone: An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:57:27.929056+00:00"
+    },
+    {
+      "id": "904f9b86dcb6",
+      "type": "milestone",
+      "label": "milestone: Fixed the two round-nine findings: the digest reachable through __cause__, and cleanup failure rewriting an already-emitted decision",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:22:20.882135+00:00"
+    },
+    {
+      "id": "d08f46121cef",
+      "type": "commit",
+      "label": "commit: Commit: 4e2284053",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:22:20.882220+00:00"
+    },
+    {
+      "id": "bc54b6618ea1",
+      "type": "milestone",
+      "label": "milestone: Ran a tenth adversarial round (gpt-5.6-terra) with explicit permission to return ACCEPT, then fixed the finding it returned",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:38:18.603393+00:00"
+    },
+    {
+      "id": "098d2909e45d",
+      "type": "commit",
+      "label": "commit: Commit: 1ed89118d",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:38:18.603479+00:00"
+    },
+    {
+      "id": "0f08983b6bc5",
+      "type": "milestone",
+      "label": "milestone: Ran an eleventh adversarial round (gpt-5.6-luna), fixed three of its four findings and declined the fourth with the reason recorded",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:55:41.812054+00:00"
+    },
+    {
+      "id": "6470dce49f3f",
+      "type": "commit",
+      "label": "commit: Commit: c66939a96",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:55:41.812138+00:00"
+    },
+    {
+      "id": "892d53c9c0dc",
+      "type": "milestone",
+      "label": "milestone: Ran a twelfth adversarial round (gpt-5.6-sol) and fixed the single finding, which was the round-eleven fix applied to half the pair",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:04:44.443858+00:00"
+    },
+    {
+      "id": "015ce33e50b9",
+      "type": "commit",
+      "label": "commit: Commit: ff16b4dc8",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:04:44.443947+00:00"
     }
   ],
   "patterns": [

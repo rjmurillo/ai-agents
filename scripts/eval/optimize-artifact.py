@@ -43,6 +43,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 from collections.abc import Iterator, Mapping
@@ -415,6 +416,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 
 _LEDGER_DIR_ENV = "EVAL_LEDGER_DIR"
+_HELD_OUT_PLACEHOLDER = "<held-out group>"
 
 
 def _ledger_root() -> Path:
@@ -429,7 +431,24 @@ def _ledger_root() -> Path:
     override = os.environ.get(_LEDGER_DIR_ENV)
     if override:
         return Path(override)
-    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    state = os.environ.get("XDG_STATE_HOME")
+    if not state:
+        try:
+            state = str(Path.home() / ".local" / "state")
+        except RuntimeError as exc:
+            # An eleventh review found this escaping as RuntimeError, which main
+            # does not catch, so the caller got a traceback where the module
+            # docstring promises a JSON error document. Reached on the default
+            # configuration by any container running as a uid with no passwd
+            # entry: Path.home() consults $HOME first and the passwd database
+            # second, and gives up when both are absent.
+            raise ConfigError(
+                f"cannot resolve a ledger directory ({exc}). Neither "
+                f"${_LEDGER_DIR_ENV} nor $XDG_STATE_HOME is set and the home "
+                f"directory is undeterminable, which is what a container running "
+                f"as a numeric uid with no passwd entry looks like. Set "
+                f"${_LEDGER_DIR_ENV} to a writable path."
+            ) from exc
     return Path(state) / "ai-agents-eval" / "ledgers"
 
 
@@ -458,8 +477,10 @@ def _holdout_key(split: dict[str, Any]) -> str:
     principle: two unrelated eval sets whose task ids and held-out membership
     both coincide would share a budget. A namespace would have to come from the
     caller, and a caller-supplied key is the exact defect this function exists
-    to close. Sharing is the conservative direction, so the collision is
-    accepted rather than reopened.
+    to close. A namespace derived from task contents or from trusted corpus
+    provenance would work and needs a seam that carries one; the seam here
+    carries task ids and pass booleans. Sharing is the conservative direction,
+    so the collision is accepted rather than reopened.
     """
     sel = sorted(str(task_id) for task_id in _group_ids(split, _GATE_GROUP))
     # JSON rather than a NUL join: joining is not injective when an id may
@@ -467,6 +488,69 @@ def _holdout_key(split: dict[str, Any]) -> str:
     # budget as ["a\0b", "c"].
     canonical = json.dumps(sel, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _scrub(text: str, holdout_key: str) -> str:
+    """Replace the held-out digest wherever it appears in `text`.
+
+    One definition rather than a `.replace` at each site. A tenth review found
+    the release warning redacting by hand and getting it wrong, one round after
+    a ninth review found the same at the cause chain. Two consecutive rounds
+    finding a defect at a hand-written redaction site is the argument for
+    having exactly one.
+
+    Case-insensitive because a hex digest has an uppercase spelling and
+    `$EVAL_LEDGER_DIR` can carry it. Hex is the one alphabet where folding has
+    no surprises. That path only fires for a caller who already knows the
+    digest, so the reason to close it is the stated property, not the threat.
+    """
+    return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
+
+
+@contextmanager
+def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
+    """Keep the held-out digest out of whatever goes wrong under the ledger.
+
+    Every ledger and lock filename ends in the digest, and the digest is an
+    unsalted hash of a set the caller can enumerate. The three hand-written
+    errors were redacted one at a time and that left every other way to fail
+    intact: a ledger that is not JSON, a write that cannot land, an os.open
+    that fails for any errno but EEXIST. Each raises with the full path.
+
+    Scrubbing at the seam rather than sanitizing each call site is the point.
+    A wrapper covers the paths someone remembered; a seam covers the one
+    added next year. The message survives with the name replaced, because an
+    error that says nothing about what failed is a worse trade than the leak.
+
+    Every `OSError` becomes a `ConfigError` whether or not it carried the
+    digest, because `main` catches `ConfigError` and not `OSError`, and an
+    eighth review found the first draft re-raising the pathless ones raw. An
+    `os.write` that runs out of space and an `os.close` that hits EIO name no
+    file, so they missed the redaction branch and escaped as tracebacks: the
+    same shape of defect the scrub exists to fix, one layer down. A
+    `ConfigError` without the digest is re-raised as itself rather than
+    rewrapped, so nothing that inspects the exception object loses it.
+    """
+    try:
+        yield
+    except (ConfigError, OSError) as exc:
+        text = str(exc)
+        # `_scrub` decides whether the digest is here, rather than a separate
+        # `holdout_key in text`. A twelfth review found that guard reading case
+        # sensitively one round after `_scrub` learned to fold case, so an
+        # uppercase digest failed the test, skipped the scrub, and printed
+        # whole. Two answers to one question is what keeps going wrong; asking
+        # `_scrub` leaves nothing to keep in step.
+        scrubbed = _scrub(text, holdout_key)
+        if scrubbed != text:
+            # `from None`, not `from exc`. Chaining would set __cause__ to the
+            # exception whose message is the reason this branch exists, and a
+            # printed traceback walks the chain. Round 9 found the redaction
+            # handing the digest straight back that way.
+            raise ConfigError(scrubbed) from None
+        if isinstance(exc, ConfigError):
+            raise
+        raise ConfigError(text) from exc
 
 
 def _ledger_path(holdout_key: str) -> Path:
@@ -488,24 +572,63 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     guessing that the holder is gone is how a lock becomes advisory.
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError as exc:
-        raise ConfigError(
-            f"another gate holds a lock under {lock.parent}; consultations "
-            f"against one held-out group are serialized so a concurrent pair "
-            f"cannot spend one budget twice. Remove the lock file there if no "
-            f"gate is running. Its name is withheld: the name digests the "
-            f"held-out membership, and an unsalted digest of a set the caller "
-            f"can enumerate is that set."
-        ) from exc
-    try:
-        os.write(handle, str(os.getpid()).encode("utf-8"))
-        os.close(handle)
-        yield
-    finally:
-        lock.unlink(missing_ok=True)
+    # The scrub spans the whole lifecycle, not just the acquire. A seventh
+    # review found the release outside it: the unlink in the finally block
+    # names the lock, the lock's name is the digest, and main() does not catch
+    # OSError, so a cleanup failure printed the group as an uncaught traceback.
+    # A tenth review found the mkdir outside it too, which cost more than the
+    # leak: an unwritable ledger root raised PermissionError past main's
+    # handler list, so a read-only home returned a traceback where the module
+    # docstring promises a JSON error document.
+    # The contention branch nests inside because its own message carries no
+    # digest and an operator needs it to clear a stale lock.
+    with _digest_scrubbed(holdout_key):
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            raise ConfigError(
+                f"another gate holds a lock under {lock.parent}; consultations "
+                f"against one held-out group are serialized so a concurrent "
+                f"pair cannot spend one budget twice. Remove the lock file "
+                f"there if no gate is running. Its name is withheld: the name "
+                f"digests the held-out membership, and an unsalted digest of a "
+                f"set the caller can enumerate is that set."
+            ) from None
+        try:
+            try:
+                os.write(handle, str(os.getpid()).encode("utf-8"))
+            finally:
+                # Its own finally, so a write that fails on a full disk still
+                # releases the descriptor. POSIX frees the descriptor even when
+                # close reports EIO, so this must never be retried.
+                os.close(handle)
+            yield
+        finally:
+            try:
+                lock.unlink(missing_ok=True)
+            except OSError as exc:
+                # The decision is already on stdout. Letting this reach main
+                # would print a second JSON document after it and return the
+                # config-failure code for a comparison that succeeded, and the
+                # module docstring promises one readable document. Silence
+                # would hide a lock that now blocks the next run, so it goes to
+                # stderr, named by its directory rather than by itself.
+                #
+                # Through _scrub, because naming the directory was justified in
+                # review by the claim that a directory carries no digest, and a
+                # tenth review falsified it: $EVAL_LEDGER_DIR can name one.
+                print(
+                    _scrub(
+                        f"warning: could not remove the lock under {lock.parent} "
+                        f"({exc.strerror or exc.errno}); the next gate against "
+                        f"this held-out group reports contention until it is "
+                        f"removed. Its name is withheld: the name digests the "
+                        f"membership.",
+                        holdout_key,
+                    ),
+                    file=sys.stderr,
+                )
 
 
 def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
@@ -611,7 +734,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     holdout_key = _holdout_key(split)
     ledger = _ledger_path(holdout_key)
     try:
-        spent = _read_ledger(ledger, holdout_key, args.max_consultations)
+        with _digest_scrubbed(holdout_key):
+            spent = _read_ledger(ledger, holdout_key, args.max_consultations)
     except LedgerMismatchError as exc:
         _emit({
             "decision": "REJECT",
@@ -650,7 +774,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # comparison for free. And any refusal decided after scoring was equally
     # free, which is what made the reveal below worth buying.
     spent_after = spent + 1
-    _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
+    with _digest_scrubbed(holdout_key):
+        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
 
     if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
         candidate_results, sel_ids
@@ -661,8 +786,9 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
                 "reason": (
                     "the results do not cover the held-out group; score both "
                     "artifacts over the whole task set and gate again. Which "
-                    "tasks are missing is withheld: naming them would publish "
-                    "the membership the group exists to withhold."
+                    "tasks are missing is withheld: with a test group drawn, "
+                    "naming them would say which of the two withheld groups "
+                    "each one belongs to."
                 ),
                 "sel_consultations": spent_after,
                 "compared": False,
