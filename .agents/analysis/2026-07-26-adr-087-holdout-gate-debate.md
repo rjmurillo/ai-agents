@@ -1307,3 +1307,44 @@ patch had been measured and rejected; severity labels from reviewers are
 estimates about importance, not about correctness, and this one was
 under-labelled. And it was reproduced before it was believed, which took one
 test and produced the red half of the fix for free.
+
+## Shape 34: the sentence describing the guard was still short by one read
+
+Round twenty-five was the first substantively clean verdict of the campaign. It
+answered all five questions asked of it, labelled each as verified by running or
+by reading, and probed `ContextVar` semantics rather than asserting them. It
+found nothing in the code, and that reading survives: the code is correct.
+
+The finding is in what it declined to count. Asked whether every sentence of the
+amended `_warn` docstring was true, it reported that the key read is also
+lexically outside the guard, then set that aside as shorthand rather than a
+defect, on the ground that the read cannot raise. The ground is sound. The
+conclusion does not follow, and this is the third round running in which the
+docstring asserted something the code did not do.
+
+The sentence said only the stream check sat outside the guard. Two reads sit
+outside it. A reader who takes the sentence literally believes the key read is
+protected. It is not protected; it is safe, which is a different property held
+up by a different line. `_ACTIVE_HOLDOUT_KEY` is declared with `default=None`
+fifty lines above the read that depends on it, and a `ContextVar` without a
+default raises `LookupError` from `get()` outside a set scope. That is the same
+abort class rounds twenty through twenty-four were each spent removing, reachable
+by deleting one keyword argument on a line no docstring pointed at.
+
+Two measurements decided the shape of the repair. Removing the default turns
+thirteen tests red, so the invariant is genuinely pinned and the risk is smaller
+than it first reads. But every one of those thirteen is a diagnostic test about
+stderr or scrubbing, and not one names the constructor argument that caused it,
+so the editor who removes the argument gets thirteen failures pointing away from
+the edit. The repair is therefore prose plus one assertion: the docstring names
+both reads and the reason the second is total, and a test named for the invariant
+fails with `LookupError: <ContextVar name='_ACTIVE_HOLDOUT_KEY'>` so the cause is
+in the failure rather than inferred from thirteen symptoms.
+
+The generalisation is about reviewers rather than about guards. A reviewer that
+notices a discrepancy and classifies it as not-a-defect has done the expensive
+half of the work and stopped before the cheap half. Round twenty-four's finding
+arrived under-labelled as a Nit. Round twenty-five's arrived labelled as not a
+finding at all, inside an otherwise correct clean verdict, which is the harder
+version of the same failure to catch: the verdict is right about the code and
+wrong about the artifact the next editor will read.

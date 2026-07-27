@@ -366,9 +366,20 @@
         "Then found a precision bug in that fix. The README correction said a declared corpus beside an undeclared one is a disagreement, and undeclared reads as the absent split key, which is exactly the case that is NOT a conflict. The ADR survived the same wording only because a neighbouring paragraph disambiguates it; the README had no such neighbour. Rewrote it to name the two absences separately: a results file says null, which counts as a value, while a split with no corpus key names nothing and is dropped before counting. Verified all six resulting claims against _corpus_conflict directly, zero mismatches.",
         "Replied to both threads with the fix, the reason no test was added, and the third copy neither thread named. Resolved both."
       ]
+    },
+    {
+      "phase": "Round twenty-five: the first clean verdict, and the finding inside it",
+      "actions": [
+        "Round twenty-five (gpt-5.6-luna) answered all five questions with method labels and probe evidence, and found nothing in the code. That reading survives; the code is correct.",
+        "It reported that the key read is also lexically outside the guard, then set it aside as shorthand rather than a defect because the read cannot raise. The premise is right and the conclusion is not: the docstring said only one read sat outside the guard and two do.",
+        "Measured the risk instead of asserting it. Removing default=None from the ContextVar turns thirteen tests red, so the invariant is pinned, but every one of the thirteen is about stderr or scrubbing and none names the constructor argument that caused it.",
+        "Repaired the prose to name both reads and the reason the second is total, and added one test that fails with LookupError naming the ContextVar so the cause is in the failure rather than inferred from thirteen symptoms.",
+        "Fixed a stale sentence the change created in a neighbouring test docstring, which quoted the sentence being replaced.",
+        "1390 pass, 100% on the CLI module held, ruff and mypy clean. Committed bac4cf0e7."
+      ]
     }
   ],
-  "endingCommit": "5f0b23a30",
+  "endingCommit": "bac4cf0e7",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
