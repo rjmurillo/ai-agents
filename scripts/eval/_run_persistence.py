@@ -30,15 +30,16 @@ import dataclasses
 import json
 import os
 import tempfile
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, cast
 
 from _eval_agent_types import (
+    SCHEMA_VERSION,
     AssertionKind,
     AssertionResult,
     RunRecord,
-    SCHEMA_VERSION,
     SchemaVersionError,
 )
 
@@ -206,7 +207,7 @@ class RunPersistence:
                 if None in key:
                     missing = [
                         name
-                        for name, value in zip(identity_fields, key)
+                        for name, value in zip(identity_fields, key, strict=True)
                         if value is None
                     ]
                     raise MalformedRunRecordError(
@@ -237,9 +238,10 @@ class RunPersistence:
                             f"{name!r} has wrong type (expected "
                             f"{expected_type.__name__}, got {type(value).__name__})"
                         )
-                self._seen.add(key)  # type: ignore[arg-type]
+                record_key = cast(tuple[str, str, int], key)
+                self._seen.add(record_key)
                 if payload.get("outcome") == "success":
-                    self._completed.add(key)  # type: ignore[arg-type]
+                    self._completed.add(record_key)
 
     def is_completed(self, fixture_id: str, variant: str, run_index: int) -> bool:
         """True only when the prior record was `outcome="success"`.
