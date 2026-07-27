@@ -83,8 +83,67 @@ class TestCountUpstreamRefs:
         assert cmp.count_upstream_refs(text) == 0
 
     def test_does_not_count_templates_nested_under_another_dir(self) -> None:
-        text = "The file assets/templates/foo.md ships with the skill.\n"
+        """A second segment is required, so this probes the real nested shape.
+
+        The earlier version of this test used ``assets/templates/foo.md``,
+        which matches no pattern at all because ``foo.md`` is not ``agents``
+        or ``platforms``. It passed against a regex that did not exclude a
+        leading path separator, so it proved nothing.
+        """
+        text = "The file assets/templates/agents/foo.md ships with the skill.\n"
         assert cmp.count_upstream_refs(text) == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/templates/agents/x.md",
+            "assets/templates/platforms/x.yaml",
+            "https://example.com/templates/agents/x.md",
+            "../templates/agents/x.md",
+            r"src\templates\agents\x.md",
+            "mytemplates/agents/x.md",
+            "https://x.com/awesome-templates/agents/x.md",
+            "--templates/agents/x",
+            "templates/agentsfoo",
+        ],
+    )
+    def test_does_not_count_paths_that_resolve_elsewhere(self, text: str) -> None:
+        """Only a path that starts at the repo root names the upstream dir.
+
+        A separator before ``templates`` means the path resolves somewhere
+        else, so it ships with whatever contains it. Windows and POSIX must
+        agree; an earlier regex rejected the Windows nested form and accepted
+        the POSIX one.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agents/x.md",
+            "./templates/agents/x.md",
+            r".\templates\agents\x.md",
+            "- templates/agents/x.md",
+            "  - templates/platforms/x.yaml",
+            "`templates/agents/x.md`",
+            "|templates/agents/x.md|",
+            "(templates/agents/x.md)",
+            "'templates/agents'",
+            "Templates/Agents/x.md",
+            "templates/agents?raw=1",
+            "templates/agents#section",
+            "templates/agents",
+        ],
+    )
+    def test_counts_paths_that_name_the_upstream_dir(self, text: str) -> None:
+        """Every shape that really does name the source-tree directory.
+
+        Covers an optional ``./`` prefix, Markdown bullets, nested list
+        items, inline code, table cells, parentheses, quotes, case
+        insensitivity, and a query string or anchor after a bare directory
+        reference.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
 
     def test_does_not_count_hyphenated_or_glued_templates(self) -> None:
         # A URL segment like awesome-templates/agents/ and a glued word like

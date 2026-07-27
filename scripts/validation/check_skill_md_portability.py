@@ -96,11 +96,11 @@ UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?<![\\\w.-])templates[\\/]+agents(?:[\\/]+|['\"]|$)",
+        r"(?<![\\/\w.-])(?:\.[\\/]+)?templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?<![\\\w.-])templates[\\/]+platforms(?:[\\/]+|['\"]|$)",
+        r"(?<![\\/\w.-])(?:\.[\\/]+)?templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
         re.IGNORECASE,
     ),
 )
