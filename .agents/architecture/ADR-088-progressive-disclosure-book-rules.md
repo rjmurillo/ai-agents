@@ -57,9 +57,9 @@ to one progressively-disclosed skill named `software-engineering-library`.
 
 Keep these rules always-on:
 
-- `code-quality`
-- `pragmatic-programmer`
-- `unified-software-engineering`
+- code-quality
+- pragmatic-programmer
+- unified-software-engineering
 
 Those three provide the everyday synthesis and conflict resolution for routine
 engineering work. The new skill acts as a task-to-book router. It loads only

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:11:04.500498+00:00",
+  "updated": "2026-07-27T13:20:49.609377+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21707,7 +21707,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493215+00:00"
+      "created": "2026-07-27T13:20:49.602555+00:00"
     },
     {
       "id": "9c53a9e30cdb",
@@ -21716,7 +21716,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493309+00:00"
+      "created": "2026-07-27T13:20:49.602662+00:00"
     },
     {
       "id": "8cbcef449069",
@@ -21725,7 +21725,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493391+00:00"
+      "created": "2026-07-27T13:20:49.602746+00:00"
     },
     {
       "id": "368d7a8b512d",
@@ -21734,7 +21734,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493470+00:00"
+      "created": "2026-07-27T13:20:49.602826+00:00"
     },
     {
       "id": "8fda9c19831c",
@@ -21743,7 +21743,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493548+00:00"
+      "created": "2026-07-27T13:20:49.602906+00:00"
     },
     {
       "id": "8cdaaf48f1a9",
@@ -21752,7 +21752,16 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493626+00:00"
+      "created": "2026-07-27T13:20:49.602985+00:00"
+    },
+    {
+      "id": "d300effc56b7",
+      "type": "milestone",
+      "label": "milestone: Reworded changed review examples that looked like missing skill references and restored causal-graph.json to origin/main so generated graph debt is outside this PR.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.603064+00:00"
     },
     {
       "id": "a32f0774548a",
@@ -21761,7 +21770,7 @@
       "episodes": [
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
-      "created": "2026-07-27T13:11:04.493713+00:00"
+      "created": "2026-07-27T13:20:49.603148+00:00"
     }
   ],
   "patterns": [

@@ -79,7 +79,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "instruction_budget passed at .py 94764, .cs 94641, .ps1 94473, .md 81622 bytes. Targeted pytest passed 269 selected tests. SkillForge passed for software-engineering-library."
+        "Evidence": "instruction_budget passed at .py 94764, .cs 94641, .ps1 94473, .md 81622 bytes. Targeted pytest passed 269 selected tests. SkillForge passed for software-engineering-library. Orphan reference findings in touched markdown were fixed."
       },
       "adrReviewEvidence": {
         "level": "MUST",
@@ -112,6 +112,10 @@
     {
       "phase": "Validation",
       "summary": "Ran targeted pytest, instruction budget, SkillForge, skill size, and pre-commit hooks on committed slices."
+    },
+    {
+      "phase": "Validation cleanup",
+      "summary": "Reworded changed review examples that looked like missing skill references and restored causal-graph.json to origin/main so generated graph debt is outside this PR."
     }
   ],
   "outcomes": {
