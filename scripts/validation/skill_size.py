@@ -72,6 +72,31 @@ SKILL_BYTE_WARNING: int = 12_288  # 12 KiB, progressive-disclosure trigger
 # Pattern matching staged/changed SKILL.md files
 _SKILL_MD_PATTERN: str = r"^\.claude/skills/.*/SKILL\.md$"
 
+# Git stores a symlink's *target path text* as its blob content, not the bytes
+# of the file it points to. A staged symlink SKILL.md therefore measures the
+# short link text and would slip a 30 KiB target past the ceiling, so the gate
+# rejects it (see StagedBlobError / read_staged_blob_bytes).
+_GIT_SYMLINK_MODE: str = "120000"
+
+
+class StagedBlobError(RuntimeError):
+    """A staged SKILL.md blob could not be certified for size measurement.
+
+    Raised in staged mode when the index blob is missing, is a symlink (git
+    stores the link target text as the blob, not the linked file's bytes, so
+    measuring it under-counts), or ``git show`` fails. The gate fails closed on
+    this rather than fall back to the working tree, which a pre-commit hook must
+    never trust for what is about to be committed.
+    """
+
+
+def _relative_display(file_path: Path) -> str:
+    """Best-effort cwd-relative string for display; absolute path on failure."""
+    try:
+        return str(file_path.relative_to(Path.cwd()))
+    except ValueError:
+        return str(file_path)
+
 
 @dataclass
 class SizeCheckResult:
@@ -84,6 +109,21 @@ class SizeCheckResult:
     passed: bool = True
     warning: bool = False
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class _Tally:
+    """Running counts across the SKILL.md files a single run inspects.
+
+    ``uncertifiable`` counts staged blobs the gate could not measure (missing
+    index entry, symlink, or failed ``git show``); it drives an unconditional
+    fail-closed exit so an unmeasurable blob can never be reported as passing.
+    """
+
+    passed: int = 0
+    warnings: int = 0
+    failed: int = 0
+    uncertifiable: int = 0
 
 
 def check_skill_size(
@@ -108,10 +148,7 @@ def check_skill_size(
     keeps a staged gate honest: an oversized staged body cannot be masked by a
     shrunk unstaged working copy, and only a staged exception is honored.
     """
-    try:
-        relative = file_path.relative_to(Path.cwd())
-    except ValueError:
-        relative = file_path
+    relative = _relative_display(file_path)
 
     if content_bytes is not None:
         raw = content_bytes
@@ -120,7 +157,7 @@ def check_skill_size(
             raw = file_path.read_bytes()
         except OSError:
             return SizeCheckResult(
-                file_path=str(relative),
+                file_path=relative,
                 line_count=0,
                 passed=False,
                 errors=["File is unreadable"],
@@ -132,7 +169,7 @@ def check_skill_size(
     exception = has_size_exception(content)
 
     result = SizeCheckResult(
-        file_path=str(relative),
+        file_path=relative,
         line_count=line_count,
         byte_count=byte_count,
         has_exception=exception,
@@ -186,34 +223,72 @@ def get_staged_skill_files() -> list[Path]:
 
     files: list[Path] = []
     for line in result.stdout.strip().split("\n"):
-        if re.search(_SKILL_MD_PATTERN, line):
-            path = Path(line)
-            if path.exists():
-                files.append(path)
+        if line and re.search(_SKILL_MD_PATTERN, line):
+            files.append(Path(line))
     return files
 
 
-def read_staged_blob_bytes(path: Path) -> bytes | None:
-    """Return the staged (indexed) bytes for ``path``, or None if unavailable.
+def _staged_index_mode(path: Path) -> str | None:
+    """Return the git index mode for ``path`` (e.g. '100644', '120000'), or None.
+
+    ``git ls-files -s`` prints ``<mode> <sha> <stage>\\t<path>``; the first token
+    is the mode. None means the path has no index entry (or git is unavailable).
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-s", "--", path.as_posix()],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    out = result.stdout.strip()
+    if not out:
+        return None
+    return out.split(maxsplit=1)[0]
+
+
+def read_staged_blob_bytes(path: Path) -> bytes:
+    """Return the staged (indexed) bytes for ``path``; fail closed on any doubt.
 
     A pre-commit gate must judge what will be committed, not the working tree.
     ``git show :<path>`` reads the blob from the index, so an oversized staged
     body cannot be masked by a shrunk (unstaged) working copy, and a staged
     ``size-exception`` is honored while an unstaged one is ignored. The path is
     emitted as POSIX because git indexes forward-slash paths on every platform.
+
+    Raises ``StagedBlobError`` when the blob cannot be certified: no index entry,
+    a symlink (git stores the link target text as the blob, which under-measures
+    a link to a large file), or a failed/timed-out ``git show``. The caller must
+    never fall back to the working tree in staged mode.
     """
+    mode = _staged_index_mode(path)
+    if mode is None:
+        msg = f"{path.as_posix()}: no staged index entry; cannot measure staged bytes"
+        raise StagedBlobError(msg)
+    if mode == _GIT_SYMLINK_MODE:
+        msg = (
+            f"{path.as_posix()}: staged entry is a symlink (mode 120000); git "
+            "stores the link target as the blob, so its size cannot certify the "
+            "linked file. Commit a real SKILL.md, not a symlink."
+        )
+        raise StagedBlobError(msg)
     try:
         result = subprocess.run(
             ["git", "show", f":{path.as_posix()}"],
             capture_output=True,
             timeout=10,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        msg = f"{path.as_posix()}: git show failed ({exc})"
+        raise StagedBlobError(msg) from exc
     if result.returncode != 0:
-        return None
-
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        msg = f"{path.as_posix()}: git show exited {result.returncode}: {stderr}"
+        raise StagedBlobError(msg)
     return result.stdout
 
 
@@ -297,6 +372,54 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _report_summary(files_count: int, tally: _Tally, args: argparse.Namespace) -> int:
+    """Print the run summary and return the ADR-035 exit code.
+
+    An uncertifiable staged blob is a fail-closed integrity failure and returns
+    2 unconditionally (even outside ``--ci``): the gate refuses to pass a blob it
+    could not measure. This takes priority over the ordinary oversize failure
+    (exit 1 in CI), because a blob whose size is unknown is a stronger signal
+    than one that is known to be too large.
+    """
+    print()
+    print("=" * 40)
+    print("Skill Size Summary")
+    print("=" * 40)
+    print(f"  Total:    {files_count}")
+    print(f"  Passed:   {tally.passed}")
+    print(f"  Warnings: {tally.warnings}")
+    print(f"  Failed:   {tally.failed}")
+    if tally.uncertifiable:
+        print(f"  Uncertifiable (staged): {tally.uncertifiable}")
+    print(f"  Limit:    {args.limit} lines / {args.byte_limit} bytes")
+    print()
+
+    if tally.uncertifiable > 0:
+        print(
+            f"{tally.uncertifiable} staged SKILL.md file(s) could not be certified "
+            "for size. Failing closed: a pre-commit gate must not pass a blob it "
+            "cannot measure. Fix the staged entry (commit a real file, not a "
+            "symlink; ensure it is actually staged) and retry."
+        )
+        return 2
+
+    if tally.failed > 0:
+        print("Fix oversized skills by refactoring to progressive disclosure:")
+        print("  - Move reference docs to references/")
+        print("  - Extract scripts to scripts/")
+        print("  - Use modules/ for reusable logic")
+        print("  - Add 'size-exception: true' to frontmatter if justified")
+
+        if args.ci:
+            return 1
+
+        print("\nNot in CI mode. Continuing...")
+    else:
+        print("All skill files within size limits.")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     parser = build_parser()
@@ -322,12 +445,22 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Found {len(files)} SKILL.md file(s) to check.\n")
 
-    pass_count = 0
-    warn_count = 0
-    fail_count = 0
+    tally = _Tally()
 
     for file_path in files:
-        content_bytes = read_staged_blob_bytes(file_path) if args.staged_only else None
+        content_bytes: bytes | None = None
+        if args.staged_only:
+            try:
+                content_bytes = read_staged_blob_bytes(file_path)
+            except StagedBlobError as exc:
+                tally.uncertifiable += 1
+                print(
+                    f"  [FAIL] {_relative_display(file_path)} "
+                    "(staged blob uncertifiable)"
+                )
+                print(f"    {exc}")
+                continue
+
         result = check_skill_size(
             file_path,
             limit=limit,
@@ -339,15 +472,15 @@ def main(argv: list[str] | None = None) -> int:
         size = f"{result.line_count} lines, {result.byte_count} bytes"
 
         if not result.passed:
-            fail_count += 1
+            tally.failed += 1
             print(f"  [FAIL] {result.file_path} ({size})")
             for error in result.errors:
                 print(f"    {error}")
             continue
 
-        pass_count += 1
+        tally.passed += 1
         if result.warning:
-            warn_count += 1
+            tally.warnings += 1
             if result.has_exception:
                 print(
                     f"  [EXCEPTION] {result.file_path} ({size})"
@@ -356,33 +489,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"  [WARN] {result.file_path} ({size})")
 
-    print()
-    print("=" * 40)
-    print("Skill Size Summary")
-    print("=" * 40)
-    print(f"  Total:    {len(files)}")
-    print(f"  Passed:   {pass_count}")
-    print(f"  Warnings: {warn_count}")
-    print(f"  Failed:   {fail_count}")
-    print(f"  Limit:    {limit} lines / {byte_limit} bytes")
-    print()
-
-    if fail_count > 0:
-        print("Fix oversized skills by refactoring to progressive disclosure:")
-        print("  - Move reference docs to references/")
-        print("  - Extract scripts to scripts/")
-        print("  - Use modules/ for reusable logic")
-        print("  - Add 'size-exception: true' to frontmatter if justified")
-
-        if args.ci:
-            return 1
-
-        print("\nNot in CI mode. Continuing...")
-
-    else:
-        print("All skill files within size limits.")
-
-    return 0
+    return _report_summary(len(files), tally, args)
 
 
 if __name__ == "__main__":

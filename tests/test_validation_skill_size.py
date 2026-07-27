@@ -11,15 +11,18 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import skill_size as _skill_size_mod
 from scripts.validation.skill_size import (
     SKILL_BYTE_LIMIT,
     SKILL_BYTE_TARGET,
     SKILL_BYTE_WARNING,
     SKILL_SIZE_LIMIT,
     SKILL_SIZE_WARNING,
+    StagedBlobError,
     check_skill_size,
     has_size_exception,
     main,
+    read_staged_blob_bytes,
 )
 
 # ---------------------------------------------------------------------------
@@ -421,3 +424,87 @@ class TestStagedBlobValidation:
 
         monkeypatch.chdir(tmp_path)
         assert main(["--staged-only", "--ci"]) == 0
+
+    def test_staged_deletion_of_oversized_add_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding A (fail-open): stage an oversized ADD, then delete the worktree
+        # file WITHOUT staging the deletion. The index still carries the oversized
+        # blob, so it is commit-ready. The old discovery filtered by
+        # ``path.exists()`` and dropped it -> gate found nothing -> exit 0. The
+        # gate must instead measure the staged blob and FAIL.
+        import os
+
+        self._init_repo(tmp_path)
+        skill = self._write_skill(
+            tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
+        )
+        self._stage_all(tmp_path)
+        os.remove(skill)  # worktree gone; staged ADD remains commit-ready
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_read_staged_blob_bytes_raises_when_not_staged(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A path with no index entry cannot be measured; fail closed rather than
+        # return None (which the old code let fall back to the working tree).
+        self._init_repo(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(StagedBlobError):
+            read_staged_blob_bytes(Path(".claude/skills/ghost/SKILL.md"))
+
+    def test_git_show_failure_fails_closed_in_main(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # If reading the staged blob fails for any reason, main must fail closed
+        # (exit 2, unconditionally) and never silently pass the file.
+        self._init_repo(tmp_path)
+        self._write_skill(tmp_path, b"---\nname: big\n---\nsmall")
+        self._stage_all(tmp_path)
+
+        def _boom(path: Path) -> bytes:
+            msg = f"{path.as_posix()}: simulated git show failure"
+            raise StagedBlobError(msg)
+
+        monkeypatch.setattr(_skill_size_mod, "read_staged_blob_bytes", _boom)
+        monkeypatch.chdir(tmp_path)
+        # Not --ci: fail-closed on an uncertifiable blob is unconditional.
+        assert main(["--staged-only"]) == 2
+
+    def test_staged_symlink_skill_is_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding B (symlink): git stores a symlink's target text as its blob, so
+        # a staged SKILL.md symlink to a 30 KiB file measures only the short link
+        # text and would slip past the ceiling. Staged via update-index cacheinfo
+        # (mode 120000) so the test is OS-independent (no real filesystem symlink,
+        # works on Windows CI). The gate must reject it (fail closed, exit 2).
+        self._init_repo(tmp_path)
+        sha = (
+            subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                input=b"../../../some/large/target/file",
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        subprocess.run(
+            [
+                "git",
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"120000,{sha},.claude/skills/big/SKILL.md",
+            ],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 2
