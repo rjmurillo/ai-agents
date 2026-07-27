@@ -881,7 +881,7 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks. Two
+    Only a determinate ``current_branch != session_branch`` blocks. Three
     exemptions. A merge in progress is exempt: a merge legitimately imports
     another branch's newer session log into the tree, which would otherwise
     read as a mismatch. A committed merge is exempt on the same grounds but
