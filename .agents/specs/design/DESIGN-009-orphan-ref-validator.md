@@ -62,10 +62,10 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 
 ## Testing Strategy
 
-- **Unit tests**: `tests/test_scan.py` covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, in-repo symlink-cycle guard, max-findings cap, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
+- **Unit tests**: `.claude/skills/orphan-ref-validator/tests/test_scan.py` covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, in-repo symlink-cycle guard, max-findings cap, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
 - **Self-test (TASK-009-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
 - **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
-- **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.
+- **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap. <!-- orphan-ref-ignore -->
 
 ## Architecture
 
@@ -157,15 +157,15 @@ Body sections:
 - Examples
 - References (REQ-009, ADR-035, ADR-056, ADR-042)
 
-### `tests/test_scan.py` (pytest)
+### `.claude/skills/orphan-ref-validator/tests/test_scan.py` (pytest)
 
 Test cases:
 
 | Case | Setup | Expected |
 |---|---|---|
-| AC2 positive | tmp file mentions `doc-sync`; `.claude/skills/doc-sync/` absent | Finding(kind=skill_name, severity=critical) | <!-- orphan-ref-ignore -->
+| AC2 positive | tmp file mentions `doc-sync`; `.claude/skills/doc-sync/` absent | Finding(kind=skill_name, severity=critical) <!-- orphan-ref-ignore --> |
 | AC2 negative | tmp file mentions only living skill names | 0 findings |
-| AC3 positive | tmp file references `build/scripts/nonexistent.py` | Finding(kind=script_path, severity=critical) | <!-- orphan-ref-ignore -->
+| AC3 positive | tmp file references `build/scripts/nonexistent.py` | Finding(kind=script_path, severity=critical) <!-- orphan-ref-ignore --> |
 | AC3 negative | tmp file references existing scripts | 0 findings |
 | AC4 positive | manifest claims `100 skills` with 67 actual | Finding(kind=count_claim, severity=critical) |
 | AC4 negative | manifest count matches actual | 0 findings |
