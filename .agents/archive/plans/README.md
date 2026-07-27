@@ -1,7 +1,11 @@
 # Archived Execution Plans
 
 Plans retired from `.agents/plans/active/` on 2026-07-26. Every plan here was
-verified finished or superseded before it moved. Nothing was deleted.
+verified against two independent signals before it moved: its tracking issue
+closed as completed, and the deliverable it names present on disk. Twelve of
+the 13 are finished or superseded outright. The rest is residual work, tracked
+in the follow-ups table at the bottom of this file, not left implicit in a
+stale `In Progress` header. Nothing was deleted.
 
 ## Why these moved
 

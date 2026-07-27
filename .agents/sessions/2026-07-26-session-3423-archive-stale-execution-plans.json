@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Nine commits ae8be1c0 through 19d4a761 on chore/archive-stale-execution-plans"
+        "evidence": "Commits on chore/archive-stale-execution-plans as of this log: ae8be1c0, f2094108, c74c8b07, 0809412c, 50860bf0, 53f220e9, 48c2b938, 3f40fac7, 19d4a761, 1bf125d7, 9f1df6b3. Any later commit on the branch addresses review feedback."
       },
       "validationPassed": {
         "complete": true,
@@ -141,7 +141,7 @@
       ]
     }
   ],
-  "endingCommit": "19d4a761",
+  "endingCommit": "9f1df6b3",
   "nextSteps": [
     "Decide #3424: rebuild the bundle registry and enforce, or delete the check now that /autoplan carries the routing intent",
     "Land #3425 as a paired edit across both instruction trees with the plugin manifest bump",
