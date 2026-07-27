@@ -207,18 +207,46 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
     """
     try:
         tasks = [str(t) for group in _GROUPS for t in split[group]]
+        seed = str(split["seed"])
+        sel_ratio = str(split["sel_ratio"])
+        test_ratio = str(split["test_ratio"])
         redrawn = split_tasks(
             tasks,
-            seed=str(split["seed"]),
-            sel_ratio=str(split["sel_ratio"]),
-            test_ratio=str(split["test_ratio"]),
+            seed=seed,
+            sel_ratio=sel_ratio,
+            test_ratio=test_ratio,
             min_sel=int(split.get("min_sel", 3)),
         )
+        compatible_fingerprints = {
+            redrawn.fingerprint,
+            _legacy_numeric_split_fingerprint(
+                tasks,
+                seed=seed,
+                sel_ratio=float(sel_ratio),
+                test_ratio=float(test_ratio),
+            ),
+        }
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
-    if redrawn.fingerprint != split["fingerprint"]:
+    if split["fingerprint"] not in compatible_fingerprints:
         return True
     return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
+
+
+def _legacy_numeric_split_fingerprint(
+    task_ids: list[str], *, seed: str, sel_ratio: float, test_ratio: float
+) -> str:
+    payload = json.dumps(
+        {
+            "seed": seed,
+            "tasks": sorted(task_ids),
+            "sel_ratio": sel_ratio,
+            "test_ratio": test_ratio,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------

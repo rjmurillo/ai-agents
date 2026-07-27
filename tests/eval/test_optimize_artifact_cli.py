@@ -55,6 +55,20 @@ def _raise_boom(*_args, **_kwargs):
     raise RuntimeError("boom")
 
 
+def _legacy_split_fingerprint(task_ids, *, seed, sel_ratio, test_ratio=0.0):
+    payload = json.dumps(
+        {
+            "seed": seed,
+            "tasks": sorted(task_ids),
+            "sel_ratio": sel_ratio,
+            "test_ratio": test_ratio,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return oa.hashlib.sha256(payload.encode()).hexdigest()
+
+
 @pytest.fixture(autouse=True)
 def _isolated_ledger_root(tmp_path_factory, monkeypatch):
     """Point the consultation ledgers at this test's own directory.
@@ -1152,6 +1166,22 @@ class TestSplitFileIsSelfValidating:
         assert code == 0
         assert out["decision"] == "ACCEPT"
 
+    def test_an_untampered_legacy_numeric_ratio_split_gates_normally(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
     def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
         """The union is unchanged, so only recomputation catches this."""
         inc, cand, split = self._setup(tmp_path, capsys)
@@ -1165,6 +1195,26 @@ class TestSplitFileIsSelfValidating:
         assert out["decision"] == "REJECT"
         assert "fingerprint" in out["reason"]
         assert "score" not in out and "candidate" not in out
+
+    def test_a_task_moved_in_legacy_numeric_ratio_split_is_refused(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        moved = split["opt"][0]
+        split["opt"] = [t for t in split["opt"] if t != moved]
+        split["sel"] = [*split["sel"], moved]
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
 
     def test_an_added_task_is_refused(self, tmp_path, capsys):
         inc, cand, split = self._setup(tmp_path, capsys)

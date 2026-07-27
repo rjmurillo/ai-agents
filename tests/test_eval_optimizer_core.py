@@ -11,6 +11,8 @@ branch that changes user-facing output.
 from __future__ import annotations
 
 import sys
+from decimal import localcontext
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -56,6 +58,11 @@ def _ids(n: int, prefix: str = "F") -> list[str]:
     return [f"{prefix}{i:03d}" for i in range(1, n + 1)]
 
 
+def _half_up_fraction(total: int, ratio: str) -> int:
+    value = Fraction(total) * Fraction(ratio)
+    return (value + Fraction(1, 2)).numerator // (value + Fraction(1, 2)).denominator
+
+
 # ---------------------------------------------------------------------------
 # split_tasks
 # ---------------------------------------------------------------------------
@@ -79,6 +86,28 @@ class TestSplitTasks:
         split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
         assert len(split.sel) == 15
         assert len(split.opt) == 10
+
+    def test_ratio_sizing_ignores_decimal_context_precision(self):
+        with localcontext() as context:
+            context.prec = 2
+            split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
+        assert len(split.sel) == 15
+        assert len(split.opt) == 10
+
+    @pytest.mark.parametrize("total", range(1, 31))
+    @pytest.mark.parametrize("ratio", ["0.01", "0.1", "0.25", "0.33", "0.5", "0.58", "0.99"])
+    def test_ratio_sizing_matches_exact_fraction_half_up(self, total, ratio):
+        expected = _half_up_fraction(total, ratio)
+        if expected == 0:
+            with pytest.raises(SplitTooSmallError, match="at least one"):
+                split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+            return
+        if total - expected < 1:
+            with pytest.raises(ValueError, match="leaves no opt tasks"):
+                split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+            return
+        split = split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(split.sel) == expected
 
     def test_is_deterministic_across_calls(self):
         a = split_tasks(_ids(20), seed="seed-1", sel_ratio=0.3)
@@ -935,6 +964,12 @@ class TestSplitFingerprint:
         assert (
             split_fingerprint(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
             == split.fingerprint
+        )
+
+    def test_numeric_and_string_ratios_fingerprint_identically(self):
+        ids = _ids(10)
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.4) == split_fingerprint(
+            ids, seed="s", sel_ratio="0.4"
         )
 
     def test_task_order_does_not_matter(self):
