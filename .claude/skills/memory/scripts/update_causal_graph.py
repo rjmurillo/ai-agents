@@ -491,9 +491,9 @@ def _drop_orphaned_edges(graph: dict[str, Any]) -> int:
     Edge retraction is episode scoped: it finds an edge through the episode
     listed in its ``episodes`` provenance. Pre-#3034 edges have no such
     provenance (their evidence is anonymous, carried under ``_LEGACY_PREFIX``),
-    so no episode's retraction can reach them, and they outlived the nodes they
-    connected. Reconciling all 255 episodes left three edges pointing at nodes
-    that retraction had removed.
+    so no episode's retraction can reach them, and they outlive the nodes they
+    connect. A full reconciliation can leave edges pointing at nodes that
+    retraction has removed.
 
     Provenance is the wrong tool for this. An edge to a node that is not in the
     graph says nothing whatever the evidence behind it, so the sweep is
