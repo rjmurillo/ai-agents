@@ -348,10 +348,27 @@ it today, so the other two write `null` and the gate reports the comparison as
 unverified rather than pretending it checked. A bare `{task_id: bool}` file
 still reads, as an unknown corpus.
 
-Adapters fail closed. A fixture the variant never ran, a scenario whose judge
-errored, and a skipped test all score as failures rather than being dropped.
-Dropping a task shrinks the denominator, which raises the score, so a silent
-omission would read as an improvement.
+Adapters fail closed. A fixture the variant never ran and a skipped test both
+score as failures rather than being dropped. Dropping a task shrinks the
+denominator, which raises the score, so a silent omission would read as an
+improvement.
+
+`--kind rule` goes further and refuses. A scenario whose mechanism errored,
+whose scores are missing, or whose judge reported a failure is a config error
+that exits 2 and names the scenarios, rather than scoring them false. The two
+policies answer the same threat and differ on what a wasted consultation is
+worth. Scoring a failed judge as a real failure is a measurement of the judge,
+not of the rule, and the gate would spend one of a small budget of held-out
+consultations to reach a verdict that carries no information about the
+candidate. The rule path is also the one that can least afford the noise: it is
+single-shot against an LLM judge, and scoring identical rule text twice moved 5
+of 24 tasks across the pass threshold (ADR-087 Open Requirement 6, #3445),
+while the agent path averages over runs. Exit 2 is the loop's documented signal
+to stop and let an operator re-run the scorer.
+
+Calling `rule_results` from `_optimizer_adapters` directly still fails closed.
+The refusal lives in `extract`, so the library keeps one contract and the
+command that spends budget keeps a stricter one.
 
 `--kind rule` does not invert negative cases. `eval-rule-activation.py` builds
 the judge prompt so 5 always means the rule behaved correctly, negative cases

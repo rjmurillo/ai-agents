@@ -5686,3 +5686,87 @@ class TestBufferCleanupFailureDoesNotRewriteTheResult:
         buffer, patches = self._fixture(tmp_path)
         self._add(buffer, patches)
         assert capsys.readouterr().err == ""
+
+
+class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
+    """The README claimed one policy for three paths and two exist.
+
+    Its adapter paragraph listed "a fixture the variant never ran, a scenario
+    whose judge errored, and a skipped test" as scoring false together. Two of
+    the three do. The rule path refuses the whole report with exit 2, because
+    `extract --kind rule` runs a degraded scan the other kinds have no
+    equivalent of.
+
+    A thirty-second review read that sentence, found the code disagreeing with
+    it, and filed the refusal as a Critical. The code is right here: scoring a
+    failed judge as a real failure measures the judge rather than the rule, and
+    the gate would spend one of a small budget of consultations to reach a
+    verdict carrying no information about the candidate. Four earlier rounds had
+    the document right and the code wrong; this is the same defect inverted, and
+    a reviewer misled by prose is the evidence that an operator would be.
+
+    These tests pin the contrast rather than each path alone, which the existing
+    per-path tests already do. The contrast is what the prose asserts.
+    """
+
+    def test_a_fixture_with_no_run_under_the_variant_scores_false(self, tmp_path, capsys):
+        report = _write(tmp_path, "r.json", {
+            "per_fixture_pass_rates": {"f1": {"cand": [1.0]}, "f2": {"other": [1.0]}},
+        })
+        code, out = _run(
+            capsys, "extract", "--kind", "agent", "--input", report, "--variant", "cand"
+        )
+        assert (code, out["results"]) == (EXIT_OK, {"f1": True, "f2": False})
+
+    def test_a_skipped_test_scores_false(self, tmp_path, capsys):
+        xml = tmp_path / "j.xml"
+        xml.write_text(
+            '<testsuites><testsuite name="s" tests="2">'
+            '<testcase classname="t" name="a"/>'
+            '<testcase classname="t" name="b"><skipped message="no"/></testcase>'
+            "</testsuite></testsuites>",
+            encoding="utf-8",
+        )
+        code, out = _run(capsys, "extract", "--kind", "hook", "--input", xml)
+        assert (code, out["results"]) == (EXIT_OK, {"t::a": True, "t::b": False})
+
+    def test_a_failed_judge_refuses_instead_of_scoring_false(self, tmp_path, capsys):
+        scen = _write(tmp_path, "s.json", [
+            {"id": "S1", "negative_case": False, "mechanisms": {
+                "full": {"scores": {
+                    "activation_score": 5, "citation_score": 5, "behavior_score": 5,
+                }},
+            }},
+            {"id": "S2", "negative_case": False, "mechanisms": {
+                "full": {"scores": {
+                    "activation_score": 5, "citation_score": 5, "behavior_score": 5,
+                    "judge_failed": True,
+                }},
+            }},
+        ])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scen)
+        assert code == EXIT_CONFIG
+        assert "results" not in out
+        assert "S2" in out["error"]
+
+    def test_the_library_still_fails_closed_on_the_same_input(self, tmp_path):
+        """The refusal is `extract`'s, not the adapter's.
+
+        The README now says the library keeps one contract and the command that
+        spends budget keeps a stricter one. If someone moved the scan down into
+        `rule_results`, this turns red and the prose becomes wrong again.
+        """
+        scenarios = [
+            {"id": "S1", "negative_case": False, "mechanisms": {
+                "full": {"scores": {
+                    "activation_score": 5, "citation_score": 5, "behavior_score": 5,
+                }},
+            }},
+            {"id": "S2", "negative_case": False, "mechanisms": {
+                "full": {"scores": {
+                    "activation_score": 5, "citation_score": 5, "behavior_score": 5,
+                    "judge_failed": True,
+                }},
+            }},
+        ]
+        assert oa.rule_results(scenarios, "full") == {"S1": True, "S2": False}
