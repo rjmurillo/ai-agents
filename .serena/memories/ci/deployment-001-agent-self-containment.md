@@ -87,8 +87,9 @@ directions. A grep cannot separate them.
 inside the plugin roots carry it.
 
 **Every portability check is a baselined ratchet**, not a universal enforcer.
-`check_vendor_portability.py`, `check_skill_md_portability.py`,
-`check_skill_md_exec_portability.py`, `check_skill_portability.py`. Passing
+All four live in `scripts/validation/`: `check_vendor_portability.py`,
+`check_skill_md_portability.py`, `check_skill_md_exec_portability.py`,
+`check_skill_portability.py`. Passing
 means "no new debt", never "this file is portable". Do not cite a green check
 as proof of portability.
 

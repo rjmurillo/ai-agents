@@ -4,6 +4,10 @@ applyTo: .claude/**,src/claude/**,src/copilot-cli/**,templates/agents/**,**/.cla
 
 # Plugin Self-Containment
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo itself;
+     it must name upstream-only paths because naming them is the subject of the rule
+     (issue #2050) -->
+
 ## The boundary
 
 Three directories ship as installable plugins. Nothing else in this repository reaches a consumer.
@@ -38,12 +42,14 @@ This repository self-hosts its own plugins. `.claude/` is both the plugin source
 
 Do not invent a new one. Issue #2050 built this stack:
 
-- `.claude/lib/paths.py`. The portability helper. `resolve_artifact_root` and `artifact_dir` for write paths, `resolve_skill_resource` for read paths. Route through it instead of hard-coding.
+- `.claude/lib/paths.py`, mirrored byte-identical at `src/copilot-cli/lib/paths.py`. The portability helper. `resolve_artifact_root` and `artifact_dir` for write paths, `resolve_skill_resource` for read paths. Route through it instead of hard-coding. Import the copy inside your own root: a Copilot-side caller reaching for the `.claude/` copy is the defect this rule describes.
 - `check_vendor_portability.py`. Ratchet over Python files under skill script roots.
 - `check_skill_md_portability.py`. Ratchet over upstream paths in Markdown prose.
 - `check_skill_md_exec_portability.py`. Ratchet over executable invocations in `SKILL.md`.
 - `check_skill_portability.py`. Ratchet over hard-coded upstream paths in skill scripts.
 - `validate-vendor-portability.yml`. Runs the vendor ratchet in CI.
+
+The four ratchets live in `scripts/validation/`, the workflow in `.github/workflows/`. Both stay upstream; a consumer never runs them.
 
 Every one is a **regression ratchet with a baseline**, not a universal enforcer. They block new offenders and grandfather existing ones. Passing them means "no new debt", not "this file is portable".
 
