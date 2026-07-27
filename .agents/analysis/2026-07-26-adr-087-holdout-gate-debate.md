@@ -1348,3 +1348,46 @@ arrived under-labelled as a Nit. Round twenty-five's arrived labelled as not a
 finding at all, inside an otherwise correct clean verdict, which is the harder
 version of the same failure to catch: the verdict is right about the code and
 wrong about the artifact the next editor will read.
+
+## Shape 35: the sixth answer was that the question was avoidable
+
+Round twenty-six was asked to audit round twenty-five's correction rather than
+the code, on the grounds that the docstring had been false in three consecutive
+rounds, each time immediately after someone corrected it. It found four things
+and was right about three, and the one it was least sure of was the one worth
+acting on.
+
+Its literal reading is correct and the correction over-claimed. "Two reads sit
+outside the guard" is false if read as a count of what Python evaluates before
+the guard is active: the `suppress` and `Exception` lookups, the constructor
+call, and `__enter__` are all out there too. Its distance check is also correct
+and is the better lesson: the docstring said the declaration sat fifty lines
+above the read and it sits sixty, because a number in a docstring is a claim
+like any other and this one was never checked. Both of those are fixed by the
+paragraph no longer existing.
+
+The finding underneath them is that the key read had no reason to be outside
+the guard. Six rounds had been spent answering "why is this one safe" about a
+different expression each time, and the sixth answer is that the question was
+avoidable. The key is read in exactly two places, both inside the guard, so
+moving the read to its uses costs nothing and removes the need to justify it.
+The stream read stays outside because it decides the early return that keeps
+the message off stdout, which is a reason the key read never had. The
+distinction is the point: one expression is outside for a reason and the other
+was outside by habit, and five rounds of documenting the habit did not make it
+a reason.
+
+The improvement was measured rather than argued. Before the move, deleting
+`default=None` from the `ContextVar` raised `LookupError` out of `_warn` and
+failed thirteen tests. After it, the same deletion loses the warning, fails
+six, and the caller returns normally. That is the same conversion from abort to
+lost diagnostic that rounds twenty through twenty-five each performed at one
+site, done once at the level of the function's shape.
+
+Two smaller things carried over. The test added in round twenty-five contained
+an assertion that built an unrelated `ContextVar` and checked that `get()`
+raises, which verifies CPython and not this repository; round twenty-six called
+it a tautology and it is deleted. And the count in the surviving prose had to
+be re-measured after the move, because the number that made the argument in one
+round stopped being true in the next, which is the same failure mode as the
+line distance, one round later and caught before shipping this time.

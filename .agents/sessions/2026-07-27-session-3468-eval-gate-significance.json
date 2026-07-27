@@ -387,9 +387,21 @@
         "Found a third site with the same conflation that neither thread named, `test_a_significant_gain_passes_the_bar`, and renamed it too.",
         "1390 pass, ruff clean. Committed e3bdae5bb. All three threads replied to and resolved, twenty-three resolved and zero open."
       ]
+    },
+    {
+      "phase": "Round twenty-six: auditing the correction rather than the code",
+      "actions": [
+        "Sent round twenty-six (gpt-5.6-terra) at the correction itself rather than the code, on the grounds that the docstring had been false in three consecutive rounds, each time right after someone corrected it.",
+        "It was right that 'two reads sit outside the guard' is false as a literal count, since the suppress and Exception lookups and __enter__ are out there too, and right that the declaration sits sixty lines above the read rather than fifty.",
+        "Acted on the finding underneath both: the key read had no reason to be outside the guard at all. Moved it next to its only two uses, so nothing about _ACTIVE_HOLDOUT_KEY has to hold for the caller to survive. The stream read stays outside because it decides the early return that keeps the message off stdout, which is a reason the key read never had.",
+        "Measured the improvement instead of asserting it. Dropping default=None used to abort the caller and fail thirteen tests; it now loses the warning, fails six, and the caller returns normally.",
+        "Deleted the tautological assertion it flagged, which built an unrelated ContextVar and verified CPython rather than this repository.",
+        "Re-measured the count in the surviving prose after the move, because the number that made the argument in round twenty-five stopped being true in round twenty-six.",
+        "1390 pass, 100% on the CLI module held, ruff and mypy clean. Committed cdd704367."
+      ]
     }
   ],
-  "endingCommit": "e3bdae5bb",
+  "endingCommit": "cdd704367",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
