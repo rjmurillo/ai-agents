@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import traceback
 from pathlib import Path
 
 import pytest
@@ -2103,10 +2104,13 @@ class TestNoLedgerFailureLeaksTheDigest:
     def test_a_lock_cleanup_failure_does_not_leak(self, tmp_path, capsys, monkeypatch):
         """The unlink in the finally block names the lock, and the lock is the digest.
 
-        Release runs after the decision is emitted, so stdout carries two
-        documents here and the assertion is on the raw text rather than on a
-        parse. Before the fix this escaped as an uncaught PermissionError,
-        since main() catches ConfigError and not OSError.
+        Before round 7 this escaped as an uncaught PermissionError, since main
+        catches ConfigError and not OSError. Round 9 then stopped it reaching
+        main at all, because release runs after the decision is emitted and a
+        second document on stdout breaks every reader of the first. So the
+        assertions here are on the leak, which is the invariant, and both
+        streams are checked; the exit code and the stream split belong to
+        TestCleanupFailureDoesNotRewriteTheDecision.
         """
         inc, split, record = self._fixture(tmp_path, capsys)
         key = oa._holdout_key(record)
@@ -2123,10 +2127,10 @@ class TestNoLedgerFailureLeaksTheDigest:
             "--split", str(split), "--max-consultations", "2",
             "--incumbent-fingerprint", record["fingerprint"],
         ])
-        text = capsys.readouterr().out
-        assert code == EXIT_CONFIG
+        captured = capsys.readouterr()
+        text = captured.out + captured.err
+        assert code != EXIT_CONFIG
         assert key not in text
-        assert "<held-out group>" in text
         for task in record["sel"]:
             assert task not in text
 
@@ -2230,3 +2234,115 @@ class TestLedgerFailuresKeepTheJsonErrorContract:
         with pytest.raises(KeyboardInterrupt):
             with oa._digest_scrubbed("d" * 64):
                 raise KeyboardInterrupt
+
+
+class TestTheSeamLeaksNothingThroughTheCauseChain:
+    """A scrubbed message with an unscrubbed `__cause__` is not scrubbed.
+
+    A ninth review (gemini-3.1-pro-preview, 2026-07-26) found the redaction
+    handing the digest straight back: `raise ConfigError(scrubbed) from exc`
+    sets `__cause__` to the original, and a printed traceback walks the chain.
+    The contention branch was worse, because its message withholds the lock
+    name on purpose and then attached the `FileExistsError` that spells it out.
+
+    The chain is severed exactly where it carries the digest. Where the message
+    never had it, `from exc` stays, because the original raise site is worth
+    keeping and there is nothing there to leak.
+    """
+
+    def _traceback(self, exc):
+        return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+    def test_a_scrubbed_oserror_leaks_nothing_through_the_chain(self):
+        key = "a" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(2, "No such file", f"/state/{key}.lock")
+        assert key not in self._traceback(caught.value)
+
+    def test_lock_contention_leaks_nothing_through_the_chain(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "ledgers"))
+        key = "b" * 64
+        root = oa._ledger_root()
+        root.mkdir(parents=True, exist_ok=True)
+        (root / f"{key}.lock").write_text("999")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._ledger_held(key):
+                pass
+        assert key not in self._traceback(caught.value)
+
+    def test_a_pathless_oserror_keeps_its_cause_for_debugging(self):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("c" * 64):
+                raise OSError(28, "No space left on device")
+        assert isinstance(caught.value.__cause__, OSError)
+
+
+class TestCleanupFailureDoesNotRewriteTheDecision:
+    """The gate had already answered; removing the lock is bookkeeping.
+
+    The same ninth review found that an unlink failure in the `finally` reached
+    `main` after `_emit` had printed the decision, so stdout carried two JSON
+    documents and a successful comparison returned the config-failure exit
+    code. The module docstring promises a caller can read a field instead of
+    guessing from the exit code, and two documents break every reader of it.
+
+    Swallowing it silently would hide a lock that now blocks the next run, so
+    the failure goes to stderr and the decision keeps stdout to itself.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, inc, split, record):
+        return oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+
+    def _break_unlink(self, monkeypatch):
+        original = Path.unlink
+
+        def refuse(self, missing_ok=False):
+            if str(self).endswith(".lock"):
+                raise OSError(13, "Permission denied", str(self))
+            return original(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", refuse)
+
+    def test_stdout_still_holds_exactly_one_document(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["decision"] in {"ACCEPT", "REJECT"}
+
+    def test_the_decision_keeps_its_exit_code(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        code = self._gate(inc, split, record)
+        assert code != oa.EXIT_CONFIG
+
+    def test_the_stale_lock_is_reported_on_stderr(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        assert "Permission denied" in capsys.readouterr().err
+
+    def test_the_warning_withholds_the_digest(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.err
+        assert key not in captured.out
+
+    def test_a_clean_release_says_nothing(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._gate(inc, split, record)
+        assert capsys.readouterr().err == ""

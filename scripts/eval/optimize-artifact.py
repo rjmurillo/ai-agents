@@ -500,7 +500,11 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     except (ConfigError, OSError) as exc:
         text = str(exc)
         if holdout_key in text:
-            raise ConfigError(text.replace(holdout_key, "<held-out group>")) from exc
+            # `from None`, not `from exc`. Chaining would set __cause__ to the
+            # exception whose message is the reason this branch exists, and a
+            # printed traceback walks the chain. Round 9 found the redaction
+            # handing the digest straight back that way.
+            raise ConfigError(text.replace(holdout_key, "<held-out group>")) from None
         if isinstance(exc, ConfigError):
             raise
         raise ConfigError(text) from exc
@@ -535,7 +539,7 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     with _digest_scrubbed(holdout_key):
         try:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as exc:
+        except FileExistsError:
             raise ConfigError(
                 f"another gate holds a lock under {lock.parent}; consultations "
                 f"against one held-out group are serialized so a concurrent "
@@ -543,13 +547,28 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 f"there if no gate is running. Its name is withheld: the name "
                 f"digests the held-out membership, and an unsalted digest of a "
                 f"set the caller can enumerate is that set."
-            ) from exc
+            ) from None
         try:
             os.write(handle, str(os.getpid()).encode("utf-8"))
             os.close(handle)
             yield
         finally:
-            lock.unlink(missing_ok=True)
+            try:
+                lock.unlink(missing_ok=True)
+            except OSError as exc:
+                # The decision is already on stdout. Letting this reach main
+                # would print a second JSON document after it and return the
+                # config-failure code for a comparison that succeeded, and the
+                # module docstring promises one readable document. Silence
+                # would hide a lock that now blocks the next run, so it goes to
+                # stderr, named by its directory rather than by itself.
+                print(
+                    f"warning: could not remove the lock under {lock.parent} "
+                    f"({exc.strerror or exc.errno}); the next gate against this "
+                    f"held-out group reports contention until it is removed. "
+                    f"Its name is withheld: the name digests the membership.",
+                    file=sys.stderr,
+                )
 
 
 def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
