@@ -44,7 +44,8 @@ import json
 import os
 import sys
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -386,17 +387,74 @@ def cmd_apply(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _ledger_path(split: Path) -> Path:
+_LEDGER_DIR_ENV = "EVAL_LEDGER_DIR"
+
+
+def _ledger_root() -> Path:
+    """The one directory every consultation ledger lives in.
+
+    Fixed rather than relative to the split, because anything derived from a
+    path the caller supplies is a path the caller can change. `$EVAL_LEDGER_DIR`
+    exists so tests do not write to a real user directory; setting it is a
+    deliberate act outside the loop's argument surface, which is the line this
+    mechanism draws everywhere else too.
+    """
+    override = os.environ.get(_LEDGER_DIR_ENV)
+    if override:
+        return Path(override)
+    state = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(state) / "ai-agents-eval" / "ledgers"
+
+
+def _ledger_path(fingerprint: str) -> Path:
     """Where the budget for this split lives.
 
-    Derived rather than supplied. A `--ledger` flag read as discipline but
-    handed the caller the reset: a missing ledger starts at zero, so pointing
-    the next invocation at a fresh path restored the whole budget without
-    editing anything. Deriving it means resetting the count is deleting a file
-    that sits beside the split it belongs to. The full split filename is used,
-    not its stem, so two splits in one directory cannot share a budget.
+    Keyed by fingerprint, not by pathname. Two earlier versions keyed it on
+    something the caller passed: first `--ledger` directly, then the `--split`
+    path it was derived from. Both reset the same way, because a missing ledger
+    starts at zero, so copying the split under a second name bought a second
+    budget.
+
+    Content keying is also the semantically right answer, not just the one that
+    closes the hole. A consultation spends against a held-out *group*, and the
+    fingerprint is what identifies that group: same seed, same task ids, same
+    ratios, same group, whatever the file is called or wherever it sits. Two
+    runs sharing a split share the selection pressure on it, so they share the
+    budget. A genuinely fresh budget comes from a fresh split, which is a new
+    seed and a new fingerprint.
     """
-    return split.with_name(split.name + ".ledger")
+    return _ledger_root() / f"{fingerprint}.ledger"
+
+
+@contextmanager
+def _ledger_held(fingerprint: str) -> Iterator[None]:
+    """Serialize the read, compare, and write of one ledger.
+
+    Without this, two gates started together both read the same count, both
+    compare, and both write count + 1, so N concurrent gates spend one
+    consultation between them. Atomic replacement keeps the file whole; it does
+    not make the read-modify-write sequence a transaction.
+
+    An exclusive create is the lock rather than `fcntl`, which is POSIX only.
+    A stale lock left by a killed process is reported rather than broken, since
+    guessing that the holder is gone is how a lock becomes advisory.
+    """
+    lock = _ledger_root() / f"{fingerprint}.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as exc:
+        raise ConfigError(
+            f"another gate holds {lock}; consultations against one split are "
+            f"serialized so a concurrent pair cannot spend one budget twice. "
+            f"Remove the file if no gate is running."
+        ) from exc
+    try:
+        os.write(handle, str(os.getpid()).encode("utf-8"))
+        os.close(handle)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
@@ -441,6 +499,7 @@ def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
 
 
 def _write_ledger(path: Path, fingerprint: str, spent: int, cap: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"consultations": spent, "fingerprint": fingerprint, "max_consultations": cap}
     _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
@@ -481,7 +540,15 @@ def cmd_gate(args: argparse.Namespace) -> int:
         )
         return EXIT_OK
 
-    ledger = _ledger_path(args.split)
+    # The lock spans read, compare, and write. A drifted split never reaches it
+    # because that refusal reads no ledger and spends nothing.
+    with _ledger_held(split["fingerprint"]):
+        return _gate_decision(args, split)
+
+
+def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
+    """Spend at most one consultation and report what it bought."""
+    ledger = _ledger_path(split["fingerprint"])
     try:
         spent = _read_ledger(ledger, split["fingerprint"], args.max_consultations)
     except LedgerMismatchError as exc:

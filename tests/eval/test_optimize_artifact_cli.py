@@ -43,6 +43,24 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
 
+def _raise_boom(*_args, **_kwargs):
+    """Stand-in for any failure between taking the lock and releasing it."""
+    raise RuntimeError("boom")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_ledger_root(tmp_path_factory, monkeypatch):
+    """Point the consultation ledgers at this test's own directory.
+
+    They are keyed by split fingerprint in one fixed root, which is what stops
+    a caller buying a fresh budget by renaming the split. The same property
+    means two tests that draw the same split share a ledger, so the root has to
+    move per test rather than the key. It sits outside `tmp_path` because tests
+    that assert on the contents of `tmp_path` should not see it.
+    """
+    monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path_factory.mktemp("ledgers")))
+
+
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
     """Invoke the CLI and return (exit code, parsed stdout JSON)."""
     code = oa.main([str(a) for a in argv])
@@ -81,7 +99,9 @@ def _run_gate(capsys, tmp_path, *args, spent=None, cap=100):
     if "--incumbent-fingerprint" not in argv and isinstance(split, dict):
         argv += ["--incumbent-fingerprint", str(split.get("fingerprint", "unknown"))]
     if spent is not None and isinstance(split, dict):
-        oa._ledger_path(Path(argv[argv.index("--split") + 1])).write_text(
+        seeded = oa._ledger_path(str(split.get("fingerprint")))
+        seeded.parent.mkdir(parents=True, exist_ok=True)
+        seeded.write_text(
             json.dumps({"consultations": spent, "fingerprint": split.get("fingerprint"),
                         "max_consultations": effective}),
             encoding="utf-8",
@@ -1343,7 +1363,8 @@ class TestConsultationLedgerIsHeldByTheGate:
              "--out", tmp_path / "split.json")
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
         split = tmp_path / "split.json"
-        return inc, cand, split, oa._ledger_path(split)
+        fingerprint = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
+        return inc, cand, split, oa._ledger_path(fingerprint)
 
     def _gate(self, capsys, inc, cand, split, _ledger, cap=100):
         """The ledger path is derived, so tests receive it rather than choose it."""
@@ -1468,7 +1489,7 @@ class TestTheBudgetCapIsPinnedByTheLedger:
         inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
         code, _ = self._gate(capsys, inc, cand, split, fingerprint, 3)
         assert code == EXIT_OK
-        ledger = json.loads(oa._ledger_path(split).read_text(encoding="utf-8"))
+        ledger = json.loads(oa._ledger_path(fingerprint).read_text(encoding="utf-8"))
         assert ledger["max_consultations"] == 3
 
     def test_raising_the_cap_mid_run_is_refused(self, tmp_path, capsys):
@@ -1499,7 +1520,9 @@ class TestTheBudgetCapIsPinnedByTheLedger:
     @pytest.mark.parametrize("recorded", ["five", -1, None, True])
     def test_a_malformed_recorded_cap_is_a_config_error(self, tmp_path, capsys, recorded):
         inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
-        oa._ledger_path(split).write_text(
+        seeded = oa._ledger_path(fingerprint)
+        seeded.parent.mkdir(parents=True, exist_ok=True)
+        seeded.write_text(
             json.dumps({"consultations": 0, "fingerprint": fingerprint,
                         "max_consultations": recorded}),
             encoding="utf-8",
@@ -1508,14 +1531,106 @@ class TestTheBudgetCapIsPinnedByTheLedger:
         assert code == EXIT_CONFIG
 
 
-class TestTheLedgerLivesBesideTheSplit:
-    """A ledger path the caller chooses is a ledger the caller can replace.
+class TestTheBudgetIsKeyedByTheSplitItself:
+    """A ledger path derived from a caller-supplied path is still caller-supplied.
 
-    `--ledger` was required, which read as discipline, but pointing the next
-    invocation at a fresh path reset the count to zero because a missing
-    ledger starts empty. Deriving the path from the split removes the choice:
-    resetting the budget now means deleting a file that sits next to the split
-    it belongs to, which is unambiguous tampering rather than an argument.
+    `--ledger` was replaced by a path derived from `--split`, which moved the
+    reset instead of closing it: a third adversarial review (gpt-5.6-sol,
+    2026-07-26) pointed out that the caller still names the split, so copying
+    `split.json` to `split2.json` produced an identical fingerprint with no
+    ledger beside it, and the budget started over. The key is now the
+    fingerprint in one fixed directory. Same split content, same budget,
+    whatever the file is called. A fresh budget needs a fresh seed.
+    """
+
+    def _fixture(self, tmp_path, capsys, seed="s1"):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", seed,
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        split = tmp_path / "split.json"
+        fingerprint = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
+        return inc, cand, split, fingerprint
+
+    def _gate(self, capsys, inc, cand, split, fingerprint, cap=3):
+        return _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                    "--split", split, "--max-consultations", str(cap),
+                    "--incumbent-fingerprint", fingerprint)
+
+    def test_the_ledger_is_written_under_the_state_root(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, fingerprint)
+        assert oa._ledger_path(fingerprint).exists()
+
+    def test_a_copied_split_shares_the_budget(self, tmp_path, capsys):
+        """The reported attack: copy the split, keep the fingerprint, reset the count."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        _, first = self._gate(capsys, inc, cand, split, fingerprint)
+        copy = tmp_path / "split-copy.json"
+        copy.write_text(split.read_text(encoding="utf-8"), encoding="utf-8")
+        _, second = self._gate(capsys, inc, cand, copy, fingerprint)
+        assert (first["sel_consultations"], second["sel_consultations"]) == (1, 2)
+
+    def test_a_renamed_split_shares_the_budget(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, fingerprint)
+        moved = tmp_path / "nested" / "renamed.json"
+        moved.parent.mkdir()
+        moved.write_text(split.read_text(encoding="utf-8"), encoding="utf-8")
+        split.unlink()
+        _, second = self._gate(capsys, inc, cand, moved, fingerprint)
+        assert second["sel_consultations"] == 2
+
+    def test_exhaustion_survives_the_copy(self, tmp_path, capsys):
+        """The budget is only real if the copy cannot buy one more comparison."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, fingerprint, cap=1)
+        copy = tmp_path / "elsewhere.json"
+        copy.write_text(split.read_text(encoding="utf-8"), encoding="utf-8")
+        code, out = self._gate(capsys, inc, cand, copy, fingerprint, cap=1)
+        assert (code, out["compared"], out["decision"]) == (EXIT_LOGIC, False, "REJECT")
+
+    def test_a_redrawn_split_gets_its_own_budget(self, tmp_path, capsys):
+        """The honest reset is a new seed, which is a new held-out group."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, fingerprint, cap=1)
+        other = tmp_path / "redrawn.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s2", "--out", other)
+        redrawn = json.loads(other.read_text(encoding="utf-8"))["fingerprint"]
+        assert redrawn != fingerprint
+        _, out = self._gate(capsys, inc, cand, other, redrawn, cap=1)
+        assert out["sel_consultations"] == 1
+
+    def test_the_ledger_flag_is_gone(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        with pytest.raises(SystemExit) as exc:
+            self._gate(capsys, inc, cand, split, fingerprint)
+            _run(capsys, "gate", "--ledger", tmp_path / "elsewhere.json")
+        assert exc.value.code == EXIT_CONFIG
+
+    def test_two_fingerprints_never_share_a_file(self, tmp_path):
+        assert oa._ledger_path("aaaa") != oa._ledger_path("bbbb")
+
+    def test_the_root_defaults_to_the_state_directory(self, monkeypatch, tmp_path):
+        """Unset override falls back to XDG rather than the working directory."""
+        monkeypatch.delenv("EVAL_LEDGER_DIR", raising=False)
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        assert oa._ledger_root() == tmp_path / "state" / "ai-agents-eval" / "ledgers"
+
+    def test_the_root_falls_back_to_home_without_xdg(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("EVAL_LEDGER_DIR", raising=False)
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.setattr(oa.Path, "home", classmethod(lambda cls: tmp_path))
+        assert oa._ledger_root() == tmp_path / ".local" / "state" / "ai-agents-eval" / "ledgers"
+
+
+class TestOneGateAtATimePerSplit:
+    """Atomic writes keep a file whole; they do not make a sequence a transaction.
+
+    The same review found that two gates started together both read the same
+    count, both compare, and both write count + 1, so a concurrent pair spends
+    one consultation between them. The read, the comparison, and the write now
+    happen under an exclusive lock file keyed by the same fingerprint.
     """
 
     def _fixture(self, tmp_path, capsys):
@@ -1527,28 +1642,46 @@ class TestTheLedgerLivesBesideTheSplit:
         fingerprint = json.loads(split.read_text(encoding="utf-8"))["fingerprint"]
         return inc, cand, split, fingerprint
 
-    def test_the_ledger_is_written_beside_the_split(self, tmp_path, capsys):
+    def test_a_held_lock_refuses_the_second_gate(self, tmp_path, capsys):
         inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
-        _run(capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split,
-             "--max-consultations", "3", "--incumbent-fingerprint", fingerprint)
-        assert (tmp_path / "split.json.ledger").exists()
+        lock = oa._ledger_root() / f"{fingerprint}.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text("999", encoding="utf-8")
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", split, "--max-consultations", "3",
+                         "--incumbent-fingerprint", fingerprint)
+        assert code == EXIT_CONFIG and "another gate holds" in out["error"]
 
-    def test_the_ledger_flag_is_gone(self, tmp_path, capsys):
+    def test_the_lock_is_released_when_the_gate_returns(self, tmp_path, capsys):
         inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
-        with pytest.raises(SystemExit) as exc:
-            _run(capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split,
-                 "--max-consultations", "3", "--incumbent-fingerprint", fingerprint,
-                 "--ledger", tmp_path / "elsewhere.json")
-        assert exc.value.code == EXIT_CONFIG
+        _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+             "--split", split, "--max-consultations", "3",
+             "--incumbent-fingerprint", fingerprint)
+        assert not (oa._ledger_root() / f"{fingerprint}.lock").exists()
 
-    def test_the_derived_path_is_unique_per_split(self, tmp_path, capsys):
-        """Two splits in one directory must not share a budget."""
-        assert oa._ledger_path(tmp_path / "a.json") != oa._ledger_path(tmp_path / "b.json")
-        assert oa._ledger_path(tmp_path / "a.json") != oa._ledger_path(tmp_path / "a.yaml")
+    def test_the_lock_is_released_when_the_gate_raises(self, tmp_path, capsys, monkeypatch):
+        """A lock held past a crash would wedge every later run."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        monkeypatch.setattr(oa, "_gate_decision", _raise_boom)
+        with pytest.raises(RuntimeError):
+            _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                 "--split", split, "--max-consultations", "3",
+                 "--incumbent-fingerprint", fingerprint)
+        assert not (oa._ledger_root() / f"{fingerprint}.lock").exists()
 
-    def test_a_split_with_no_suffix_still_derives_a_ledger(self, tmp_path):
-        """Total function: no path shape may raise on the way to a budget."""
-        assert oa._ledger_path(tmp_path / "split").name == "split.ledger"
+    def test_a_drifted_split_takes_no_lock(self, tmp_path, capsys):
+        """The refusal that reads no ledger must not serialize against one."""
+        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
+        record = json.loads(split.read_text(encoding="utf-8"))
+        record["fingerprint"] = "tampered"
+        split.write_text(json.dumps(record), encoding="utf-8")
+        lock = oa._ledger_root() / "tampered.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text("999", encoding="utf-8")
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", split, "--max-consultations", "3",
+                         "--incumbent-fingerprint", fingerprint)
+        assert (code, out["decision"]) == (EXIT_OK, "REJECT")
 
 
 class TestTheIncumbentFingerprintIsRequired:
