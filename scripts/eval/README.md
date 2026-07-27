@@ -410,28 +410,47 @@ Four further refusals close holes that open once a loop runs many steps:
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.
 - **Exhausted consultations.** Gating N times against one `sel` group selects
-  on it N times, so the gate keeps a budget in a ledger keyed by the split
-  fingerprint, under `$XDG_STATE_HOME/ai-agents-eval/ledgers/`. Each piece of
-  that budget moved off the command line after a review reproduced a way around
-  the previous version:
+  on it N times, so the gate keeps a budget in a ledger keyed by the held-out
+  membership itself, by default under
+  `$XDG_STATE_HOME/ai-agents-eval/ledgers/`. Each piece of that budget moved
+  off the command line after a review reproduced a way around the previous
+  version:
 
   | Held where | Why not on the command line |
   | --- | --- |
   | Count | `--consultations` defaulted to zero every invocation, so a loop that passed zero each time had an unlimited budget while looking capped. Review reproduced ACCEPT twice under a cap of one. |
   | Cap | `--max-consultations` defaulted to unlimited, so the ordinary invocation had no budget at all, and a caller that did hit the cap could raise it and continue. It is now required, recorded at the first gate, and a later change is refused. |
-  | Ledger path | `--ledger PATH` looked like discipline but a missing ledger starts at zero, so naming a fresh path restored the whole budget. Deriving the path from `--split` only moved that: copy `split.json` to `split2.json` and the fingerprint matches with no ledger beside it. The key is the fingerprint, so a copy or a rename shares the budget its content already spent. |
+  | Ledger path | `--ledger PATH` looked like discipline but a missing ledger starts at zero, so naming a fresh path restored the whole budget. |
+  | The split path it was derived from | Deriving the ledger path from `--split` only moved that: copy `split.json` to `split2.json` and the fingerprint matches with no ledger beside it. |
+  | The inputs the fingerprint covers | The fingerprint covers the seed, task ids, and ratios, which are inputs to the selection rather than its result, and group sizes round. Ten tasks at `--sel-ratio 0.40` and at `0.41` hold out the same four and fingerprint differently, so one group got two budgets. The key is now a digest of the sorted held-out membership. |
 
-  The ledger records the split fingerprint too, so redrawing the split does not
-  reset the budget: the gate refuses a ledger and a split that disagree. The
-  count advances only when scores were actually weighed, and a refusal reports
-  no scores at all, so a refused call cannot be used to read the group for free.
-  Two gates cannot race for the last consultation either; the read, the
-  comparison, and the write happen under a lock keyed by the same fingerprint.
+  Any two splits that hold out the same tasks share the budget those tasks have
+  already spent, whatever ratio or seed produced them. Redrawing with a new seed
+  usually does hold out different tasks, and that is a genuinely new group with
+  its own budget; the gate is counting selection pressure on a set of tasks, not
+  on a file.
 
-  Two things this does not cover, stated rather than implied. The cap is
+  A consultation is charged when the held-out group is read, not when a verdict
+  comes back. A refusal decided from bookkeeping alone (an exhausted budget, a
+  stale incumbent fingerprint, a drifted split) reads nothing and costs nothing.
+  Everything past that point costs one, including a results file that turns out
+  not to cover the group, and including a process killed mid-comparison. Two
+  gates cannot race for the last consultation; the read, the comparison, and the
+  write happen under a lock keyed by the same held-out group.
+
+  The gate never names a held-out task. `score` and `mcnemar_exact` report which
+  ids they could not find, which is the right message everywhere else and a full
+  disclosure here, so the gate asks its own coverage question and answers one
+  bit. Not a count: `split` publishes the held-out size, so a count would tell a
+  caller how many of the keys it chose to omit were held out, and a few chosen
+  omissions recover the membership.
+
+  Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
-  as that first invocation. And `$EVAL_LEDGER_DIR` relocates the root, which is
-  how the tests stay isolated and equally how anyone who sets it starts over.
+  as that first invocation. `$EVAL_LEDGER_DIR` relocates the root, which is how
+  the tests stay isolated and equally how anyone who sets it starts over. And a
+  stale lock left by a killed process is reported rather than broken, so
+  clearing it by hand is a deliberate act with no record.
 
   ```bash
   optimize-artifact.py gate --incumbent inc.json --candidate cand.json \
