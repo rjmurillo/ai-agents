@@ -245,7 +245,7 @@
       "outcome": "Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output."
     }
   ],
-  "endingCommit": "d30417c7d4b29385e44785be2089a05a305e74bd",
+  "endingCommit": "e8f3cb0fe8871786efaeb82225d72d0c49906348",
   "nextSteps": [
     "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
     "PR #3467 is green on 112 checks and blocked only on human approval.",
