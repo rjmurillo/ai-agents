@@ -22,9 +22,9 @@ memory and only aggregate counts and the phrases themselves reach stdout or the
 report file.
 
 Examples:
-    python3 scripts/eval/eval-trigger-phrase-realism.py
-    python3 scripts/eval/eval-trigger-phrase-realism.py --project-filter ai-agents
-    python3 scripts/eval/eval-trigger-phrase-realism.py --output realism.json
+    uv run python scripts/eval/eval-trigger-phrase-realism.py
+    uv run python scripts/eval/eval-trigger-phrase-realism.py --project-filter ai-agents
+    uv run python scripts/eval/eval-trigger-phrase-realism.py --output realism.json
 
 Exit codes (ADR-035):
     0 success
@@ -113,7 +113,7 @@ def load_transcript_prompts(store: Path, project_filter: str) -> tuple[list[str]
     for project in sorted(store.glob(f"*{project_filter}*")):
         for transcript in project.rglob("*.jsonl"):
             try:
-                lines = transcript.read_text(errors="replace").splitlines()
+                lines = transcript.read_text(encoding="utf-8", errors="replace").splitlines()
             except OSError:
                 continue
             for line in lines:
@@ -197,7 +197,7 @@ def collect_phrases(skills_dir: Path) -> tuple[dict[str, list[str]], dict[str, l
     documented: dict[str, list[str]] = {}
     promoted: dict[str, list[str]] = {}
     for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
-        body = skill_md.read_text(errors="replace")
+        body = skill_md.read_text(encoding="utf-8", errors="replace")
         parts = body.split("---", 2)
         if len(parts) < 3:
             continue

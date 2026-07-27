@@ -32,7 +32,7 @@ finally:
 
 
 class _Resp(io.BytesIO):
-    def __enter__(self) -> "_Resp":
+    def __enter__(self) -> _Resp:
         return self
 
     def __exit__(self, *_: object) -> bool:

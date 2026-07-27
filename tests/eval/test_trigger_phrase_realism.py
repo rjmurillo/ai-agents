@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sqlite3
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -932,3 +935,69 @@ class TestNoPromptTextEscapes:
         public = (self._skills(tmp_path) / "alpha" / "SKILL.md").read_text()
         untraceable = [s for s in strings(report) if s not in schema and s not in public]
         assert untraceable == []
+
+
+class TestTextDecoding:
+    """Reads pin UTF-8 rather than the platform default.
+
+    This eval's whole job is reading text accurately. Under a non-UTF-8
+    default locale an unpinned read decodes transcript bodies and skill files
+    as ASCII, so non-ASCII prompts and trigger phrases silently become
+    replacement characters and the corruption looks like a real measurement.
+
+    The check runs in a subprocess under ``LC_ALL=C`` because the decode
+    default is resolved from the environment at interpreter start; patching
+    ``locale`` in-process does not reproduce it. An in-process assertion here
+    would pass whether or not the encoding is pinned, which is worse than no
+    test.
+    """
+
+    SCRIPT = textwrap.dedent(
+        r"""
+        import importlib.util, json, pathlib, sys
+        spec = importlib.util.spec_from_file_location("cli", sys.argv[1])
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+
+        root = pathlib.Path(sys.argv[2])
+        prompt = "arregla el error de codificaci\u00f3n"
+        store = root / "projects" / "x-ai-agents"
+        store.mkdir(parents=True)
+        store.joinpath("a.jsonl").write_bytes(
+            (json.dumps({"type": "user", "message": {"content": prompt}}) + "\n").encode("utf-8")
+        )
+        skills = root / "skills" / "acentos"
+        skills.mkdir(parents=True)
+        skills.joinpath("SKILL.md").write_bytes(
+            (
+                "---\nname: acentos\ndescription: x\n---\n\n"
+                "## Triggers\n\n| Phrase | Effect |\n|---|---|\n"
+                "| `revisi\u00f3n de c\u00f3digo` | runs |\n"
+            ).encode("utf-8")
+        )
+
+        operator, _ = cli.load_transcript_prompts(root / "projects", "ai-agents")
+        documented, _ = cli.collect_phrases(root / "skills")
+        ok = operator == [prompt] and documented == {"acentos": ["revisi\u00f3n de c\u00f3digo"]}
+        # ASCII-only output: a C-locale stdout cannot carry the text itself.
+        print("ROUNDTRIP_OK" if ok else "ROUNDTRIP_CORRUPTED")
+        """
+    )
+
+    def test_non_ascii_survives_under_a_c_locale(self, tmp_path):
+        runner = tmp_path / "runner.py"
+        runner.write_text(self.SCRIPT, encoding="utf-8")
+        env = dict(os.environ, LC_ALL="C", LANG="C", PYTHONUTF8="0", PYTHONCOERCECLOCALE="0")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(runner),
+                str(_EVAL_DIR / "eval-trigger-phrase-realism.py"),
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "ROUNDTRIP_OK" in result.stdout
