@@ -862,7 +862,13 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
         # scopes in one context in the order they were entered rather than the
         # reverse, which leaves the first one's value behind; nothing here can
         # do that, because both scopes are `with` statements and a `with`
-        # statement unwinds last-entered-first.
+        # statement unwinds last-entered-first. What a token also does not fix
+        # is exiting a scope in a different context than it was entered in:
+        # `reset` refuses a foreign token with `ValueError`, where the global
+        # it replaced would have restored something. Every scope here is a
+        # plain `with` in straight-line synchronous code, so no call site can
+        # reach it, and guarding an unreachable path would only hide the day
+        # one appears.
         _ACTIVE_HOLDOUT_KEY.reset(token)
 
 

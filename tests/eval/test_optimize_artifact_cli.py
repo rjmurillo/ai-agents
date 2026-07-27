@@ -4832,14 +4832,46 @@ class TestADiagnosticNeitherLeaksNorFails:
         key by scheduling luck. A test that passes against the mutation is
         worth less than no test, because it also reports as covered.
         `copy_context` asks the same question with the scheduler removed.
+
+        A twenty-third review pointed out that the first working version drove
+        the `ContextVar` directly rather than this module's own scope, which
+        tests the standard library instead of the seam. Its proposed repair,
+        abandoning a generator mid-scope, does not discriminate as written:
+        CPython drops the generator's last reference when the function
+        returns, closes it, and runs the very `finally` the test needs left
+        undone, so it passes against a module global too. Measured, not
+        argued. Holding the reference is what abandons the scope for real.
+
+        Closing it happens inside the same `Context` that opened it. Dropping
+        the reference from out here instead leaves CPython to close the
+        generator during collection, where `reset` is handed a token from a
+        context it is no longer in, refuses it, and pytest reports the
+        ignored exception as a warning. That is the limitation the `finally`
+        in `_digest_scrubbed` discloses, reached from a test rather than from
+        a call site.
         """
         outer = "a" * 64
         inner = "b" * 64
+        abandoned = []
 
         def abandon_a_key_without_restoring_it():
-            oa._ACTIVE_HOLDOUT_KEY.set(inner)
+            def never_finishes():
+                with oa._digest_scrubbed(inner):
+                    yield
 
-        with oa._digest_scrubbed(outer):
-            copy_context().run(abandon_a_key_without_restoring_it)
-            assert oa._ACTIVE_HOLDOUT_KEY.get() == outer
-        assert oa._ACTIVE_HOLDOUT_KEY.get() is None
+            generator = never_finishes()
+            abandoned.append(generator)
+            next(generator)
+
+        def close_what_was_abandoned():
+            while abandoned:
+                abandoned.pop().close()
+
+        context = copy_context()
+        try:
+            with oa._digest_scrubbed(outer):
+                context.run(abandon_a_key_without_restoring_it)
+                assert oa._ACTIVE_HOLDOUT_KEY.get() == outer
+            assert oa._ACTIVE_HOLDOUT_KEY.get() is None
+        finally:
+            context.run(close_what_was_abandoned)
