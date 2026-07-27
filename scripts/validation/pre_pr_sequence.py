@@ -395,7 +395,7 @@ def run_all_validations(
     )
 
     # 7c. Instruction Budget (always-on, Issue #3419). Non-regression ratchet on
-    # the summed bytes of language-universal .github/instructions/*.md files, so
+    # the summed bytes of language-universal .github/instructions/*.instructions.md files, so
     # the always-on corpus cannot grow silently on a new all-language rule.
     run_validation(
         "Instruction Budget (always-on)",

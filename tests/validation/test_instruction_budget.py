@@ -2,7 +2,7 @@
 
 The validator measures the always-on instruction budget per language: the summed
 bytes of ``.github/instructions/*.instructions.md`` files whose ``applyTo`` scopes
-them to every file of a language (``**`` or ``**/*.<ext>``). It gates growth via a
+them to every file of a language (``**``, ``**/*``, or ``**/*.<ext>``). It gates growth via a
 non-regression byte ceiling.
 
 Tests use crafted temporary instruction trees so results are independent of the

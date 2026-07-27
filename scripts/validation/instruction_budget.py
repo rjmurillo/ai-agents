@@ -10,7 +10,7 @@ Without an instrument this corpus grows silently on every rule addition.
 
 This validator computes the *language-baseline always-on budget*: the summed
 bytes of instruction files whose ``applyTo`` includes a language-universal
-pattern (``**`` or ``**/*.<ext>``) for a representative extension. Directory
+pattern (``**``, ``**/*``, or ``**/*.<ext>``) for a representative extension. Directory
 scoped rules (for example ``tests/**``) are situational, not always-on, so they
 are excluded by design.
 
@@ -47,9 +47,6 @@ from scripts.validation.token_budget import estimate_token_count
 
 INSTRUCTIONS_SUBDIR = ".github/instructions"
 INSTRUCTION_GLOB = "*.instructions.md"
-
-# Representative source extensions from issue #3419 acceptance criteria.
-REPRESENTATIVE_EXTENSIONS: tuple[str, ...] = (".py", ".cs", ".ps1", ".md")
 
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.
@@ -362,7 +359,7 @@ def _resolve_safe(repo_root: Path, relative: str) -> Path | None:
     """Resolve a relative path safely within repo_root (CWE-22 protection)."""
     candidate = (repo_root / relative).resolve()
     root_resolved = repo_root.resolve()
-    if not str(candidate).startswith(str(root_resolved) + os.sep) and candidate != root_resolved:
+    if not candidate.is_relative_to(root_resolved):
         return None
     return candidate
 
