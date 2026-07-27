@@ -625,3 +625,154 @@ class TestStagedBlobValidation:
         monkeypatch.setattr(_skill_size_mod, "get_staged_skill_files", _boom)
         monkeypatch.chdir(tmp_path)
         assert main(["--staged-only"]) == 2
+
+    def test_pathspec_glob_dir_name_measures_own_blob(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding 1 (pathspec glob collision): a skill dir whose name holds a glob
+        # metacharacter (``x?``) was passed to ``git ls-files -- <path>`` as a
+        # pathspec, so it glob-matched a smaller sibling (``x0``). ``git ls-files``
+        # emits ``x0`` first (it sorts before ``x?``), so a first-match read
+        # measured the small decoy and the oversized body slipped (under-count,
+        # exit 0). ``:(literal)`` plus a returned-pathname check must bind the read
+        # to the exact path. Staged via cacheinfo so the ``?`` path is
+        # OS-independent (Windows cannot create it on disk, but the index never
+        # touches the filesystem).
+        self._init_repo(tmp_path)
+        big = (
+            subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                input=b"---\nname: xq\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64),
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        small = (
+            subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                input=b"small",
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        for cacheinfo in (
+            f"100644,{big},.claude/skills/x?/SKILL.md",
+            f"100644,{small},.claude/skills/x0/SKILL.md",
+        ):
+            subprocess.run(
+                ["git", "update-index", "--add", "--cacheinfo", cacheinfo],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+            )
+
+        monkeypatch.chdir(tmp_path)
+        # The read binds to x?'s own oversized blob, not the small x0 decoy that
+        # the glob pathspec would have matched first.
+        measured = read_staged_blob_bytes(Path(".claude/skills/x?/SKILL.md"))
+        assert len(measured) > SKILL_BYTE_LIMIT
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_replace_ref_does_not_swap_measured_blob(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding 2 (replace-refs): ``git cat-file blob <oid>`` honors
+        # ``refs/replace/`` by default, so a replace ref pointing the oversized
+        # index blob at a tiny substitute would make the gate measure the small
+        # bytes (under-count, exit 0). ``--no-replace-objects`` must read the true
+        # indexed object (exit 1).
+        self._init_repo(tmp_path)
+        self._write_skill(
+            tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
+        )
+        self._stage_all(tmp_path)
+        big_oid = (
+            subprocess.run(
+                ["git", "rev-parse", ":.claude/skills/big/SKILL.md"],
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        small_oid = (
+            subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                input=b"tiny",
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        subprocess.run(
+            ["git", "update-ref", f"refs/replace/{big_oid}", small_oid],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        monkeypatch.chdir(tmp_path)
+        # Setup proof: a default cat-file honors the replacement (reads "tiny"),
+        # so the substitution is genuinely active in this repo.
+        swapped = subprocess.run(
+            ["git", "cat-file", "blob", big_oid],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        ).stdout
+        assert swapped == b"tiny"
+        # The gate reads with --no-replace-objects, so it measures the real blob.
+        measured = read_staged_blob_bytes(Path(".claude/skills/big/SKILL.md"))
+        assert len(measured) > SKILL_BYTE_LIMIT
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_newline_in_staged_path_is_discovered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding 3 (newline path): a newline is a legal git path byte that ``-z``
+        # keeps inside one NUL record. The prior ``^...$`` match (no DOTALL) let
+        # ``.*`` stop at the newline, so a newline-bearing skill path failed the
+        # match, dropped from discovery, and under-counted (exit 0). The
+        # DOTALL/\Z pattern must still discover it. Driven through a stubbed
+        # ``git diff`` so the newline path needs no filesystem staging (a newline
+        # path is unstageable on some platforms).
+        payload = b".claude/skills/ev\nil/SKILL.md\x00.claude/skills/ok/SKILL.md\x00"
+        completed = subprocess.CompletedProcess(
+            args=["git", "diff"], returncode=0, stdout=payload, stderr=b""
+        )
+        monkeypatch.setattr(
+            _skill_size_mod.subprocess, "run", lambda *a, **k: completed
+        )
+        discovered = {p.as_posix() for p in get_staged_skill_files()}
+        assert ".claude/skills/ev\nil/SKILL.md" in discovered
+        assert ".claude/skills/ok/SKILL.md" in discovered
+
+    def test_staged_mirror_tree_skill_is_discovered(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding 4 (mirror-tree scope): the lefthook ``**/SKILL.md`` glob stages
+        # both the canonical Claude tree and the generated Copilot mirror, but
+        # discovery matched only ``.claude/skills``. An oversized staged mirror
+        # SKILL.md was silently dropped (exit 0). The pattern must also cover
+        # ``src/copilot-cli/skills``.
+        self._init_repo(tmp_path)
+        mirror = tmp_path / "src" / "copilot-cli" / "skills" / "big" / "SKILL.md"
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        mirror.write_bytes(
+            b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64)
+        )
+        self._stage_all(tmp_path)
+
+        monkeypatch.chdir(tmp_path)
+        discovered = {p.as_posix() for p in get_staged_skill_files()}
+        assert "src/copilot-cli/skills/big/SKILL.md" in discovered
+        assert main(["--staged-only", "--ci"]) == 1
