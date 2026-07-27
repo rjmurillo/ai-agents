@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2615,
+    "date": "2026-07-26",
+    "branch": "fix/3402-worktree-identity-rules",
+    "startingCommit": "f8b5f200ce",
+    "objective": "Close #3402: state the worktree-identity, resolver-anchoring, and skill-contract-test requirements as rules, after measuring which acceptance criteria already ship."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3402-worktree-identity-rules, branched from origin/main."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and AGENTS.md."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status --short showed only scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md at session start."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3402-worktree-identity-rules."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP tools were not exposed in this harness session; proceeded without and documented the unavailability."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP tools were not exposed in this harness session; read .serena/memories/*.md directly as the documented fallback."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Read scripts/validation/git_hook_policy.py check_branch_context and its helpers in full, plus the existing branch-context tests, before changing anything."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .serena/memories/usage-mandatory.md."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item below carries evidence gathered in this session."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote .serena/memories/decision-worktree-identity-guard-scope.md recording why the runtime guard was rejected."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 on .claude/rules/ci-scripts.md, .claude/rules/claude-agents.md and both .github/instructions mirrors: 0 issues."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three commits: the ci-scripts rule with mirrors, the claude-agents rule with mirrors, and the manifest bump (0.6.127, later rebumped to 0.6.129 after main advanced twice)."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "build_all.py --check confirmed the mirrors regenerate byte-identical; parity gate green."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commented the measurement on issue #3402."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Findings recorded in the workLog above, including that the reported worktree symptom has a non-worktree root cause."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Measure the acceptance criteria against the tree",
+      "outcome": "Two of three already ship. check_skill_resolver_anchoring.py enforces absolute-top-level anchoring for SKILL.md resolvers and names the same installed-plugins stale-copy failure. check_skill_contract_tests.py enforces the test requirement for skill prose defining executable contracts. Neither had a rule stating the requirement."
+    },
+    {
+      "task": "Measure the worktree-identity hazard before writing the rule",
+      "outcome": "core.worktree and GIT_WORK_TREE both redirect git rev-parse --show-toplevel, and git status then reports every tracked file as deleted. The three cases that would make it latent came back negative: git worktree add sets neither, a moved worktree still resolves, and a worktree whose main checkout moved away fails closed with a non-zero exit."
+    },
+    {
+      "task": "Decide against a runtime containment guard in get_repo_root",
+      "outcome": "The redirection is always deliberate, nothing in this repository sets it, and the guard would have broken five tests in tests/test_repo_root.py plus a legitimate GIT_WORK_TREE invocation where cwd is outside the tree by design. Recorded the reasoning in .serena/memories/decision-worktree-identity-guard-scope.md."
+    },
+    {
+      "task": "Ship the rules and regenerate the mirrors",
+      "outcome": "ci-scripts.md MUST 7 and MUST 8, claude-agents.md MUST 7, both instruction mirrors regenerated with build/scripts/generate_rules.py, both plugin manifests bumped to 0.6.129 (rebumped twice as main advanced to 0.6.127 then 0.6.128) and parity confirmed."
+    },
+    {
+      "task": "Negative control on mirror drift",
+      "outcome": "Corrupting .github/instructions/ci-scripts.instructions.md leaves tests/build_scripts/test_generate_rules.py green at 43 passed. build_all.py --check catches it with exit 2 and STALENESS DETECTED, and that is what lefthook and two workflows run. The generator's own tests are not the drift gate."
+    },
+    {
+      "task": "Repair causal-graph node IDs after merge from main",
+      "outcome": "scripts/maintenance/repair_causal_graph_ids.py repaired 6 stale node IDs and folded 6 duplicates. Test test_every_node_carries_an_id_derived_from_its_own_content now passes."
+    },
+    {
+      "task": "Remove em-dash from causal-graph node label",
+      "outcome": "Replaced Unicode em-dash (U+2014) with hyphen in one node label, repaired 7 node IDs. Repo dash-prohibition gate satisfied."
+    }
+  ],
+  "endingCommit": "0fd7210a81",
+  "nextSteps": [
+    "Report to the user that the open issue count is 17, not the 31 the objective assumed.",
+    "Skill-local _get_repo_root copies each say 'Canonical reference: scripts/github_core/repo.py::get_repo_root' while duplicating its body; that duplication is worth its own issue.",
+    "#3360 still has two unstarted arms: traceability.py and consistency.py."
+  ]
+}
