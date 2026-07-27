@@ -166,6 +166,17 @@
         "Added the operational warning to the README, the ADR validation status, and the debate log: the default configuration accepts null controls on the rule and agent paths, and only the deterministic hook path is safe to read at face value."
       ],
       "outcome": "The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed."
+    },
+    {
+      "phase": "Close the reviewer findings on PR #3478",
+      "actions": [
+        "Three inline findings landed on PR #3478, two from Copilot on this session log and one from CodeRabbit on the causal graph. All three were correct.",
+        "endingCommit was empty while changesCommitted read complete, so the log contradicted itself. Set to bb98bf24a. The validator emitted a WARN rather than a failure, which is why it survived.",
+        "The session-end validation evidence claimed 489 tests while a later phase claimed 508. Corrected the end-of-session evidence to 508, since that evidence has to report the final state. Left the 489 in the earlier phase, which was true at that point, and made the qualifier explicit rather than leaving the reader to infer it.",
+        "The causal graph attributed the false ACCEPT to scorer variance. That names one stage when the run cannot distinguish two: the response model and the judge are both gpt-4o-mini at temperature 0, and this harness passes no seed and reads back no system_fingerprint. Rewrote the label to name both stages and cite issue #3475.",
+        "The pre-push suite then refused the push. Node ids in the causal graph are content-derived, so rewriting a label without recomputing its id orphans the node: the next episode naming the same milestone would hash to a different id and append a second record, splitting the evidence. Repaired with scripts/maintenance/repair_causal_graph_ids.py."
+      ],
+      "outcome": "All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file."
     }
   ],
   "endingCommit": "bb98bf24a",
