@@ -410,21 +410,28 @@ Four further refusals close holes that open once a loop runs many steps:
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.
 - **Exhausted consultations.** Gating N times against one `sel` group selects
-  on it N times, so the gate keeps a budget in a ledger it writes beside the
-  split, at `<split>.ledger`. Nothing about that budget arrives on the command
-  line twice, and each piece was moved there after a review reproduced a way
-  around the previous version:
+  on it N times, so the gate keeps a budget in a ledger keyed by the split
+  fingerprint, under `$XDG_STATE_HOME/ai-agents-eval/ledgers/`. Each piece of
+  that budget moved off the command line after a review reproduced a way around
+  the previous version:
 
   | Held where | Why not on the command line |
   | --- | --- |
   | Count | `--consultations` defaulted to zero every invocation, so a loop that passed zero each time had an unlimited budget while looking capped. Review reproduced ACCEPT twice under a cap of one. |
   | Cap | `--max-consultations` defaulted to unlimited, so the ordinary invocation had no budget at all, and a caller that did hit the cap could raise it and continue. It is now required, recorded at the first gate, and a later change is refused. |
-  | Ledger path | `--ledger PATH` looked like discipline but a missing ledger starts at zero, so naming a fresh path restored the whole budget. The path is derived from the split, so resetting the count means deleting a file, not passing an argument. |
+  | Ledger path | `--ledger PATH` looked like discipline but a missing ledger starts at zero, so naming a fresh path restored the whole budget. Deriving the path from `--split` only moved that: copy `split.json` to `split2.json` and the fingerprint matches with no ledger beside it. The key is the fingerprint, so a copy or a rename shares the budget its content already spent. |
 
   The ledger records the split fingerprint too, so redrawing the split does not
   reset the budget: the gate refuses a ledger and a split that disagree. The
   count advances only when scores were actually weighed, and a refusal reports
   no scores at all, so a refused call cannot be used to read the group for free.
+  Two gates cannot race for the last consultation either; the read, the
+  comparison, and the write happen under a lock keyed by the same fingerprint.
+
+  Two things this does not cover, stated rather than implied. The cap is
+  whatever positive integer the first call names, so the budget is only as tight
+  as that first invocation. And `$EVAL_LEDGER_DIR` relocates the root, which is
+  how the tests stay isolated and equally how anyone who sets it starts over.
 
   ```bash
   optimize-artifact.py gate --incumbent inc.json --candidate cand.json \
