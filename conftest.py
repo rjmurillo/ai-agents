@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import uuid
@@ -18,6 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 _GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
 _TRACE_FILE_ENV_NAMES = ("GIT_TRACE2_EVENT", "GIT_TRACE_REFS", "GIT_TRACE_SETUP")
 _TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", *_TRACE_FILE_ENV_NAMES)
+_TMP_PATH_SAFE_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 _TRACE_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{6}\s+\S+:\d+\s+(?P<message>.*)$")
 _HEAD_TRANSACTION_PATTERN = re.compile(r"^\d+:\s+HEAD\s+[0-9a-f]+\s+->\s+[0-9a-f]+\b")
 _HEAD_SYMREF_PATTERN = re.compile(r'^create_symref:\s+HEAD\s+->\s+\S+\s+".*":\s+0$')
@@ -25,6 +27,116 @@ _TRANSACTION_FINISH_PATTERN = re.compile(r"^finish:\s+(-?\d+)$")
 _REFLOG_EXPIRY_CONTINUATION_PATTERN = re.compile(r"^ \d+: -?\d+$")
 _SETUP_GIT_DIR_PREFIX = "setup: git_dir: "
 _SETUP_CWD_PREFIX = "setup: cwd: "
+
+
+def _is_inside_project(path: Path) -> bool:
+    """Return whether path resolves under the repository worktree."""
+    try:
+        return path.resolve().is_relative_to(PROJECT_ROOT)
+    except OSError:
+        return False
+
+
+def _merge_path_list(existing: str | None, additions: list[Path]) -> str:
+    """Append path-list entries without duplicating resolved paths."""
+    values = [entry for entry in (existing or "").split(os.pathsep) if entry]
+    seen = set(values)
+    for path in additions:
+        value = str(path)
+        if value not in seen:
+            values.append(value)
+            seen.add(value)
+    return os.pathsep.join(values)
+
+
+def _safe_tmp_name(node_name: str) -> str:
+    """Build a short filesystem-safe temp directory stem for a test node."""
+    safe = _TMP_PATH_SAFE_CHARS.sub("_", node_name).strip("._")
+    return (safe or "test")[:48]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_pytest_git_discovery(
+    tmp_path_factory: pytest.TempPathFactory,
+    _external_tmp_root: Path | None,
+) -> Iterator[None]:
+    """Stop fake repos under in-tree pytest temp roots from finding this repo.
+
+    CI may run pytest with TMPDIR and --basetemp under the project worktree.
+    Many tests create scratch directories and intentionally expect them to be
+    outside any Git repository. GIT_CEILING_DIRECTORIES restores that invariant
+    without affecting commands run from the real worktree.
+    """
+    candidates = [tmp_path_factory.getbasetemp(), Path(tempfile.gettempdir())]
+    if tmpdir := os.environ.get("TMPDIR"):
+        candidates.append(Path(tmpdir))
+
+    ceilings: list[Path] = []
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved != PROJECT_ROOT and _is_inside_project(resolved):
+            ceilings.append(resolved)
+
+    previous = os.environ.get("GIT_CEILING_DIRECTORIES")
+    if ceilings:
+        os.environ["GIT_CEILING_DIRECTORIES"] = _merge_path_list(previous, ceilings)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("GIT_CEILING_DIRECTORIES", None)
+        else:
+            os.environ["GIT_CEILING_DIRECTORIES"] = previous
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _external_tmp_root(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path | None]:
+    """Create an external temp root when pytest's basetemp is inside the repo."""
+    basetemp = tmp_path_factory.getbasetemp().resolve()
+    if not _is_inside_project(basetemp):
+        yield None
+        return
+
+    root = Path("/tmp") / f"ai-agents-pytest-{uuid.uuid4().hex}"
+    root.mkdir(mode=0o700)
+    previous_tmpdir = os.environ.get("TMPDIR")
+    previous_tempdir = tempfile.tempdir
+    os.environ["TMPDIR"] = str(root)
+    tempfile.tempdir = None
+    try:
+        yield root
+    finally:
+        if previous_tmpdir is None:
+            os.environ.pop("TMPDIR", None)
+        else:
+            os.environ["TMPDIR"] = previous_tmpdir
+        tempfile.tempdir = previous_tempdir
+        shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.fixture
+def tmp_path(
+    request: pytest.FixtureRequest,
+    tmp_path_factory: pytest.TempPathFactory,
+    _external_tmp_root: Path | None,
+) -> Iterator[Path]:
+    """Return a temp directory that stays outside the repo when needed.
+
+    Pytest honors --basetemp even when it points inside the worktree. Tests in
+    this repository treat tmp_path as scratch space outside the project unless
+    they explicitly build a repo there. Redirect only that unsafe configuration.
+    """
+    if _external_tmp_root is None:
+        yield tmp_path_factory.mktemp(_safe_tmp_name(request.node.name))
+        return
+
+    path = _external_tmp_root / uuid.uuid4().hex
+    path.mkdir(mode=0o700)
+    yield path
+
 
 def _git_env() -> dict[str, str]:
     blocked = _GIT_ENV_OVERRIDES | set(_TRACE_ENV_NAMES)

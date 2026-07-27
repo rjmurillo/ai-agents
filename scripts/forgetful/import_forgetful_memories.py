@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -157,10 +156,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
     args = parser.parse_args(argv)
-
-    if not shutil.which("sqlite3"):
-        print("ERROR: sqlite3 is not installed or not in PATH", file=sys.stderr)
-        return 1
 
     if not Path(args.database_path).exists():
         print(f"ERROR: Forgetful database not found at: {args.database_path}", file=sys.stderr)
