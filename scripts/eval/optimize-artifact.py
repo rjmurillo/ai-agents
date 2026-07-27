@@ -49,7 +49,7 @@ import tempfile
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -106,6 +106,13 @@ def _read_json(path: Path) -> object:
         raise ConfigError(f"no such file: {path}") from exc
     except json.JSONDecodeError as exc:
         raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
+    except RecursionError as exc:
+        # Deeply nested arrays exhaust the decoder's stack rather than failing
+        # its grammar, so this is a second exception family out of one call
+        # that every caller reads as one. The gate's preflight promises it
+        # cannot raise on content; leaving this uncaught let a nested file
+        # crash the run ahead of an exhausted-budget refusal.
+        raise ConfigError(f"{path} is nested too deeply to parse") from exc
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
 
@@ -143,10 +150,104 @@ def _covers_holdout(results: Mapping[str, Any], sel_ids: list[str]) -> bool:
     return all(isinstance(results.get(task_id), bool) for task_id in sel_ids)
 
 
-def _read_results(path: Path) -> dict[str, bool]:
+class ResultsFile(NamedTuple):
+    """A scored task set plus the identity of the corpus it was scored against.
+
+    The two travel together because a verdict about the first is meaningless
+    without the second. `corpus` is None when the upstream scorer publishes no
+    corpus identity, which is the honest answer for the rule and hook paths
+    today; it is never synthesized from the task ids, because ids matching is
+    exactly the condition under which a mismatched pair slips through.
+    """
+
+    results: dict[str, bool]
+    corpus: str | None
+
+
+_RESULTS_SCHEMA = "optimizer-results/1"
+
+# A corpus identity is the producer's sha256 hex digest of the task set. The
+# form is checked rather than taken on faith because an unchecked string makes
+# the guard report success on values that identify nothing: two reports both
+# carrying `fixture_set_sha: ""` compared as verified until a fifteenth review
+# pointed at it. Lowercase only, because `hexdigest()` has exactly one spelling
+# and accepting a second would make two names for one corpus look like two
+# corpora.
+_CORPUS_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+
+# A split written before the pin existed says nothing about the corpus, which is
+# different from one that pinned an unknown. A sentinel keeps the two apart;
+# `None` cannot, because `None` is a legal pin. JSON cannot produce this value,
+# so no split file can forge an absent pin.
+_UNPINNED = object()
+
+
+def _checked_corpus(path: Path, value: object) -> str | None:
+    """The value if it is a corpus identity, None if absent, else a refusal."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigError(f"{path} corpus must be a string or null, got {type(value).__name__}")
+    if not _CORPUS_RE.match(value):
+        raise ConfigError(
+            f"{path} corpus is not a sha256 hex digest. A corpus identity that "
+            "is not one cannot be compared against another, and an empty or "
+            "truncated value would report a verified match it never made."
+        )
+    return value
+
+
+def _read_results(path: Path) -> ResultsFile:
     data = _read_json(path)
     if not isinstance(data, dict):
         raise ConfigError(f"{path} must hold a JSON object of task id to boolean")
+    # A bare mapping is all-boolean by construction, so a string-valued
+    # `schema` is unambiguous. Keying on the presence of the word alone would
+    # misread a legacy file whose task happened to be named `schema`.
+    if isinstance(data.get("schema"), str):
+        return _read_results_envelope(path, data)
+    return ResultsFile(_checked_verdicts(path, data), None)
+
+
+def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
+    schema = data["schema"]
+    if schema != _RESULTS_SCHEMA:
+        raise ConfigError(
+            f"{path} declares schema {schema!r}, which this build cannot read; "
+            f"expected {_RESULTS_SCHEMA!r}"
+        )
+    results = data.get("results")
+    if not isinstance(results, dict):
+        raise ConfigError(f"{path} envelope needs a 'results' object of task id to boolean")
+    return ResultsFile(_checked_verdicts(path, results), _checked_corpus(path, data.get("corpus")))
+
+
+def _corpus_header(path: Path) -> str | None:
+    """The file's declared corpus, read without validating anything else.
+
+    Best-effort on purpose: every content problem answers None rather than
+    raising. This runs before the ledger lock so the corpus refusal costs
+    nothing, and a read that could raise there would let a malformed verdict
+    mapping answer in place of the ledger. An exhausted budget is the
+    authoritative refusal and must not be masked by a parse error that the full
+    read, after the guards, reports properly anyway.
+
+    Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
+    because a failing open names the file. `RecursionError` joins `ValueError`
+    because a deeply nested array exhausts the decoder's stack rather than
+    failing its grammar, and letting it out would break the promise above.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
+        return None
+    value = data.get("corpus")
+    return value if isinstance(value, str) and _CORPUS_RE.match(value) else None
+
+
+def _checked_verdicts(path: Path, data: dict[str, Any]) -> dict[str, bool]:
     bad = [k for k, v in data.items() if not isinstance(v, bool)]
     if bad:
         raise ConfigError(
@@ -188,6 +289,12 @@ def _read_split(path: Path) -> dict[str, Any]:
             raise ConfigError(
                 f"{path} group '{group}' must be a list of strings"
             )
+    if "corpus" in data:
+        # Optional, and caller-supplied like the rest of the file. Unvalidated
+        # it reached the conflict rule as-is, where a list pin raised
+        # `TypeError` out of a set comprehension and a truncated string named a
+        # corpus that identifies nothing.
+        data["corpus"] = _checked_corpus(path, data["corpus"])
     return data
 
 
@@ -275,12 +382,14 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
 
 
 def cmd_extract(args: argparse.Namespace) -> int:
+    corpus: str | None = None
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
     elif args.kind == "agent":
         report = _read_json(args.input)
         if not isinstance(report, Mapping):
             raise ConfigError(f"{args.input} must hold an agent report object")
+        corpus = _report_corpus(args.input, report)
         results = agent_results(
             report,
             args.variant,
@@ -289,8 +398,24 @@ def cmd_extract(args: argparse.Namespace) -> int:
         )
     else:
         results = _extract_rule(_read_json(args.input), args)
-    _emit(results)
+    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
     return EXIT_OK
+
+
+def _report_corpus(path: Path, report: Mapping[str, Any]) -> str | None:
+    """The agent report's own answer to "which task set was this scored on".
+
+    `eval-agent-vs-baseline.py` writes `fixture_set_sha` and its docstring says
+    the field exists so a report consumer can verify two runs hit the same set.
+    This is the consumer. Reading it here is the whole fix: on 2026-07-27 a pair
+    that disagreed on this field was gated, accepted, and published as a null
+    control, because the comparison tool ignored the field that falsifies the
+    comparison.
+
+    Absent stays absent. Older reports predate the field and a value invented
+    for them would assert a match this function cannot know.
+    """
+    return _checked_corpus(path, report.get("fixture_set_sha"))
 
 
 # ---------------------------------------------------------------------------
@@ -299,8 +424,16 @@ def cmd_extract(args: argparse.Namespace) -> int:
 
 
 def cmd_split(args: argparse.Namespace) -> int:
+    pinned: dict[str, Any] = {}
     if args.results:
-        task_ids = sorted(_read_results(args.results))
+        source = _read_results(args.results)
+        task_ids = sorted(source.results)
+        # The baseline commitment carries the corpus rather than the comparison
+        # inferring it from the pair. Without the pin, a mismatch is reachable
+        # by omission: stripping the envelope off either side leaves two
+        # unknowns, and two unknowns have nothing to disagree about. The pin
+        # gives the gate a value neither results file can delete.
+        pinned["corpus"] = source.corpus
     else:
         task_ids = [
             line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()
@@ -324,6 +457,7 @@ def cmd_split(args: argparse.Namespace) -> int:
         "sel_ratio": args.sel_ratio,
         "test_ratio": args.test_ratio,
         "min_sel": args.min_sel,
+        **pinned,
     }
     _write_atomic(args.out, json.dumps(record, indent=2, sort_keys=True) + "\n")
     # The full record goes to the file the gate reads. Stdout, which is what
@@ -370,7 +504,7 @@ def _score_group(results: dict[str, bool], split: dict[str, Any], group: str) ->
 
 def cmd_score(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
-    results = _read_results(args.results)
+    results = _read_results(args.results).results
     value = _score_group(results, split, args.group)
     # The fingerprint rides along because `gate` requires it and this is the
     # only command that reads the split on the caller's behalf. Without it the
@@ -762,10 +896,63 @@ def cmd_gate(args: argparse.Namespace) -> int:
         )
         return EXIT_LOGIC
 
+    # Headers only, and before the lock, so the corpus refusal costs nothing.
+    # Reading them is not a reveal: the caller supplied both files, and the
+    # refusal below prints neither task ids nor verdicts. The scrubber is here
+    # because a failing open names the file, and the ledger directory can carry
+    # the digest.
+    with _digest_scrubbed(_holdout_key(split)):
+        pin = split.get("corpus", _UNPINNED)
+        incumbent_corpus = _corpus_header(args.incumbent)
+        candidate_corpus = _corpus_header(args.candidate)
+    if _corpus_conflict(pin, incumbent_corpus, candidate_corpus):
+        _emit(_corpus_refusal())
+        return EXIT_LOGIC
+
     # The lock spans read, compare, and write. A drifted split never reaches it
     # because that refusal reads no ledger and spends nothing.
     with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
+
+
+def _corpus_conflict(pin: object, incumbent: str | None, candidate: str | None) -> bool:
+    """Whether the split and the two results files name more than one corpus.
+
+    One rule covers every case worth refusing. A pinned digest that a file does
+    not carry conflicts, which is what closes the strip: stripping the envelope
+    turns a digest into an unknown, and an unknown beside a pin is a
+    disagreement rather than a pair of blanks. One known corpus beside an
+    unknown one conflicts for the same reason even with no pin at all, because
+    a pair scored on one corpus does not have one side that forgot.
+
+    Unknown everywhere is not a conflict. The rule and hook paths publish no
+    corpus identity, so refusing there would disable the gate for two of the
+    three artifact classes to guard a case it cannot detect there anyway. The
+    verdict reports `corpus_verified` instead, which is the difference between
+    a check that passed and a check that never ran.
+    """
+    declared = (pin, incumbent, candidate)
+    return len({d for d in declared if d is not _UNPINNED}) > 1
+
+
+def _corpus_refusal() -> dict[str, object]:
+    """The one refusal both corpus checks emit.
+
+    The preflight reads headers and the gate reads bodies. Two call sites
+    phrasing the same refusal would let the caller tell which read caught it,
+    and would drift the moment one of them is edited.
+    """
+    return {
+        "decision": "REJECT",
+        "reason": (
+            "the split and the two results files do not agree on one corpus, "
+            "so a comparison between them measures the corpus change as well "
+            "as the edit. Re-score both artifacts against the corpus the split "
+            "was drawn from and gate again."
+        ),
+        "compared": False,
+        "consultations": 0,
+    }
 
 
 def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
@@ -803,8 +990,24 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         )
         return EXIT_LOGIC
 
-    incumbent_results = _read_results(args.incumbent)
-    candidate_results = _read_results(args.candidate)
+    # The full read lands here, after the guards and before the charge. Doing
+    # it before the lock would let a bad verdict mapping answer in place of an
+    # exhausted budget, which tells the caller to fix the wrong thing; doing it
+    # after the charge would bill a consultation for a file that never parsed.
+    incumbent_file = _read_results(args.incumbent)
+    candidate_file = _read_results(args.candidate)
+
+    # The preflight read headers; this read produced the numbers the comparison
+    # is scored from. Only the second pair is authoritative, so the conflict
+    # rule runs again against it. Without this the two reads never had to
+    # agree, and the gap between them was a window a file could change in.
+    pin = split.get("corpus", _UNPINNED)
+    if _corpus_conflict(pin, incumbent_file.corpus, candidate_file.corpus):
+        _emit(_corpus_refusal() | {"sel_consultations": spent})
+        return EXIT_LOGIC
+
+    incumbent_results = incumbent_file.results
+    candidate_results = candidate_file.results
     sel_ids = _group_ids(split, _GATE_GROUP)
 
     # Charge before reading the group, not after reaching a verdict. Two things
@@ -882,6 +1085,20 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             ),
             "sel_consultations": spent_after,
             "compared": result.compared,
+            # False means the check never ran, not that it failed: a mismatch
+            # refuses before this point. It is reported so an accept on a path
+            # with no corpus source cannot be read as an accept that was
+            # checked.
+            "corpus_verified": incumbent_file.corpus is not None
+            and incumbent_file.corpus == candidate_file.corpus,
+            # Whether the split named the corpus the results carry. A caller
+            # who deletes the split's `corpus` key leaves two agreeing files
+            # and nothing to contradict them, so the guard cannot refuse that
+            # pair; refusing it would also disable the gate for the rule and
+            # hook paths, which pin nothing at all. The verdict names the
+            # weaker guarantee rather than letting `corpus_verified` be read
+            # as the stronger one.
+            "corpus_pinned": pin is not _UNPINNED and pin is not None,
             "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
         }

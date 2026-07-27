@@ -13,6 +13,7 @@ which is precisely the overfitting the gate exists to stop.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import os
@@ -66,6 +67,16 @@ def _isolated_ledger_root(tmp_path_factory, monkeypatch):
     that assert on the contents of `tmp_path` should not see it.
     """
     monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path_factory.mktemp("ledgers")))
+
+
+def _enveloped(corpus, results: dict) -> dict:
+    """A results file in the envelope the extractor writes."""
+    return {"schema": "optimizer-results/1", "corpus": corpus, "results": results}
+
+
+def _env_file(tmp_path, name: str, corpus, n: int = 10):
+    """An enveloped results file of `n` passing tasks."""
+    return _write(tmp_path, name, _enveloped(corpus, {f"t{i}": True for i in range(n)}))
 
 
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
@@ -161,7 +172,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
-        assert out == {"C1": True, "C2": False}
+        assert out["results"] == {"C1": True, "C2": False}
 
     def test_agent_report_honors_variant_and_threshold(self, tmp_path, capsys):
         report = _write(
@@ -182,7 +193,7 @@ class TestExtract:
             "0.5",
         )
         assert code == EXIT_OK
-        assert out == {"C1": True}
+        assert out["results"] == {"C1": True}
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
@@ -206,7 +217,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": True}
+        assert out["results"] == {"S1": True}
 
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
         """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
@@ -225,7 +236,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": False}
+        assert out["results"] == {"S1": False}
 
     def test_hook_junit(self, tmp_path, capsys):
         junit = tmp_path / "j.xml"
@@ -238,7 +249,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "hook", "--input", junit)
         assert code == EXIT_OK
-        assert out == {"tests.test_a::test_x": True, "tests.test_a::test_y": False}
+        assert out["results"] == {"tests.test_a::test_x": True, "tests.test_a::test_y": False}
 
     def test_missing_input_is_a_config_error(self, tmp_path, capsys):
         code, _ = _run(capsys, "extract", "--kind", "agent", "--input", tmp_path / "nope.json")
@@ -316,7 +327,7 @@ class TestExtractRealRuleEnvelope:
     def test_namespaces_scenario_ids_by_rule(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", self._envelope())
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {
+        assert out["results"] == {
             "clean-architecture::S1": True,
             "clean-architecture::S2": False,
             "refactoring::S1": False,
@@ -331,7 +342,7 @@ class TestExtractRealRuleEnvelope:
         envelope = {"rules": {"refactoring": {"scenarios": [self._scenario("S1", 5)]}}}
         path = _write(tmp_path, "rules.json", envelope)
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {"refactoring::S1": True}
+        assert out["results"] == {"refactoring::S1": True}
 
     def test_a_non_mapping_rules_value_is_a_config_error(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", {"rules": ["not", "a", "mapping"]})
@@ -2910,3 +2921,780 @@ class TestTheBarIsPinnedLikeTheBudget:
         code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
         assert code == EXIT_CONFIG
         assert "p_value" in out["error"]
+
+
+# The two corpus identities the architect incident actually disagreed on,
+# padded to the sha256 width the producer emits.
+_CORPUS_ONE = "be99fa1b1180".ljust(64, "0")
+_CORPUS_TWO = "26136df314d6".ljust(64, "0")
+
+
+class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
+    """A comparison of two results files says nothing unless both scored the
+    same tasks, and until now the seam could not tell.
+
+    On 2026-07-27 two architect-spike runs were gated against each other and
+    read as a null control. They agreed on `model_id` and `agent_prompt_sha`
+    and disagreed on `fixture_set_sha`: every one of the eight fixture files
+    had changed between them. The accept was published before the mismatch was
+    found. The report format already carried the falsifier, and
+    `_fixture_set_sha`'s own docstring says it exists so a report consumer can
+    verify two runs hit the same set. `extract` never read it.
+
+    Task ids do not substitute. All eight ids matched across those two runs
+    while the contents behind them differed, so a key-set comparison would
+    have passed the pair through.
+    """
+
+    def _agent_report(self, tmp_path, name, corpus, rates=None):
+        payload = {
+            "per_fixture_pass_rates": rates
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+        }
+        if corpus is not None:
+            payload["fixture_set_sha"] = corpus
+        return _write(tmp_path, name, payload)
+
+    def _extract(self, capsys, report, out_name, tmp_path):
+        _, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        return _write(tmp_path, out_name, out)
+
+    def _gate_pair(self, tmp_path, capsys, inc_corpus, cand_corpus, seed="c1"):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "ri.json", inc_corpus), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys,
+            self._agent_report(
+                tmp_path,
+                "rc.json",
+                cand_corpus,
+                rates={f"t{i}": {"agent": [1.0]} for i in range(10)},
+            ),
+            "cand.json",
+            tmp_path,
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        return code, out, split
+
+    # -- extract carries it forward ----------------------------------------
+
+    def test_extract_carries_the_report_s_own_corpus_identity(self, tmp_path, capsys):
+        report = self._agent_report(tmp_path, "r.json", _CORPUS_ONE)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] == _CORPUS_ONE
+        assert out["results"]["t0"] is True
+        assert out["schema"] == "optimizer-results/1"
+
+    def test_a_report_without_the_field_extracts_an_unknown_corpus(self, tmp_path, capsys):
+        """Absent is null, never a value invented from the task ids.
+
+        A synthesized id would make two unrelated corpora compare equal
+        whenever their ids matched, which is the exact failure this guards.
+        """
+        report = self._agent_report(tmp_path, "r.json", None)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] is None
+
+    def test_a_non_string_corpus_field_in_the_report_is_refused(self, tmp_path, capsys):
+        """A corpus identity that is not an identity is a config error, not a
+        value to coerce. Coercing it would let `17` and `"17"` compare equal
+        across two reports that meant different things."""
+        report = _write(
+            tmp_path, "r.json",
+            {"per_fixture_pass_rates": {"t0": {"agent": [1.0]}}, "fixture_set_sha": 17},
+        )
+        code, _ = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+
+    def test_the_hook_path_has_no_corpus_source_and_says_so(self, tmp_path, capsys):
+        junit = tmp_path / "j.xml"
+        junit.write_text(
+            '<testsuite><testcase classname="tests.a" name="test_x"/></testsuite>',
+            encoding="utf-8",
+        )
+        code, out = _run(capsys, "extract", "--kind", "hook", "--input", junit)
+        assert code == EXIT_OK
+        assert out["corpus"] is None
+        assert out["results"]
+
+    # -- the reader ---------------------------------------------------------
+
+    def test_a_bare_mapping_still_reads_as_results_with_an_unknown_corpus(self, tmp_path):
+        path = _write(tmp_path, "legacy.json", {"a": True, "b": False})
+        parsed = oa._read_results(path)
+        assert parsed.results == {"a": True, "b": False}
+        assert parsed.corpus is None
+
+    def test_a_task_named_schema_does_not_masquerade_as_an_envelope(self, tmp_path):
+        """The discriminator is a string-valued `schema`, not the key alone.
+
+        Bare mappings are all-boolean by construction, so a task id that
+        collides with the envelope's key still parses as a task.
+        """
+        path = _write(tmp_path, "legacy.json", {"schema": True, "results": False})
+        parsed = oa._read_results(path)
+        assert parsed.results == {"schema": True, "results": False}
+        assert parsed.corpus is None
+
+    def test_an_unrecognized_envelope_version_is_refused_not_guessed(self, tmp_path):
+        path = _write(
+            tmp_path, "future.json",
+            {"schema": "optimizer-results/2", "corpus": None, "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="optimizer-results/2"):
+            oa._read_results(path)
+
+    def test_an_envelope_whose_corpus_is_not_a_string_is_refused(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": 17, "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="corpus"):
+            oa._read_results(path)
+
+    def test_an_envelope_without_results_is_refused(self, tmp_path):
+        path = _write(tmp_path, "bad.json", {"schema": "optimizer-results/1", "corpus": None})
+        with pytest.raises(oa.ConfigError, match="results"):
+            oa._read_results(path)
+
+    def test_non_boolean_verdicts_are_still_refused_inside_an_envelope(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": None, "results": {"a": 1}},
+        )
+        with pytest.raises(oa.ConfigError, match="non-boolean"):
+            oa._read_results(path)
+
+    # -- the refusal --------------------------------------------------------
+
+    def test_two_known_and_different_corpora_are_refused_uncompared(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+        assert "corpus" in out["reason"]
+
+    def test_the_refusal_spends_no_consultation(self, tmp_path, capsys):
+        """Decidable from two header fields, so it must be free.
+
+        A mismatch that cost a consultation would let a caller burn a budget
+        it can never spend usefully, and the pair is unusable no matter how
+        much budget remains.
+        """
+        code, out, split = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO)
+        assert out["consultations"] == 0
+        assert not oa._ledger_path(oa._holdout_key(split)).exists()
+
+    def test_matching_corpora_gate_normally(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_ONE, seed="c2")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is True
+
+    def test_an_unknown_corpus_beside_a_known_one_is_refused(self, tmp_path, capsys):
+        """This assertion is the inverse of the one it replaces.
+
+        The first cut let unknown pass beside known, on the reasoning that the
+        rule and hook paths publish no corpus and refusing unknown would
+        disable the gate for them. That reasoning holds for a pair where
+        *neither* side knows, and a fifteenth review showed it does not survive
+        the asymmetric case: it made the refusal deletable, since stripping the
+        envelope off either file turns a known mismatch into an unknown that
+        compares. A pair scored on one corpus does not have one side that
+        forgot.
+        """
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, _CORPUS_TWO, seed="c3")
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+
+    def test_two_unknown_corpora_are_reported_rather_than_silently_allowed(
+        self, tmp_path, capsys
+    ):
+        """Unknown on both sides is not refused: the rule and hook paths have
+        no corpus source at all, so refusing there would disable the gate for
+        two of three artifact classes. It is reported so an operator reading
+        the verdict knows the comparison was never checked."""
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, None, seed="c3b")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_both_unknown_gates_and_reports_unverified(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, None, seed="c4")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_the_mismatch_refusal_names_no_held_out_task(self, tmp_path, capsys):
+        _, out, split = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO, seed="c5")
+        blob = json.dumps(out)
+        for task_id in split["sel"] + split["test"]:
+            assert task_id not in blob
+        assert oa._holdout_key(split) not in blob
+
+    def test_an_exhausted_budget_does_not_mask_the_mismatch(self, tmp_path, capsys):
+        """Same precedent as the `--max-p` range check: a refusal decidable
+        without the held-out group must not be reordered behind one that needs
+        the ledger, or the caller is told to buy budget for a comparison that
+        can never be valid."""
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "ri.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys, self._agent_report(tmp_path, "rc.json", _CORPUS_TWO), "cand.json", tmp_path
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c6")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert out["decision"] == "REJECT"
+        assert "corpus" in out["reason"]
+
+    # -- the other readers keep working -------------------------------------
+
+    def test_split_reads_an_envelope(self, tmp_path, capsys):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "r.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c7")
+        assert code == EXIT_OK
+        assert len(split["opt"]) + len(split["sel"]) + len(split["test"]) == 10
+
+    def test_score_reads_an_envelope(self, tmp_path, capsys):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "r.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c8")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run(
+            capsys, "score", "--results", inc, "--split", split_path, "--group", "opt"
+        )
+        assert code == EXIT_OK
+        assert 0.0 <= out["score"] <= 1.0
+
+
+_SHA_A = "a" * 64
+_SHA_B = "b" * 64
+
+
+class TestTheCorpusPinCannotBeStrippedAway:
+    """A refusal a caller can delete their way past is not a refusal.
+
+    The first cut of the corpus guard refused only when both files declared a
+    corpus and the two disagreed. That left the mismatch reachable by omission:
+    piping either side through anything that emits a bare mapping, which is
+    what every consumer wrote before the envelope existed, turned the pair from
+    "known to differ" into "unknown", and unknown compared. The bypass needed no
+    intent. It is the same shape as the incident it was built for, where nobody
+    edited anything and the field simply went unread.
+
+    Two changes close it. `split` pins the corpus of the results it was drawn
+    from, so the baseline commitment carries the corpus rather than the
+    comparison inferring it. And one known corpus beside an unknown one is a
+    conflict, because the asymmetry is itself the evidence: a pair scored on one
+    corpus does not have one side that forgot.
+
+    The limit is worth stating. The split file is caller-supplied and its
+    corpus pin is outside the fingerprint, so a caller who edits two files in
+    concert can still defeat this. That is not what it defends against. It
+    defends against omission, which is the failure that actually happened.
+    """
+
+    def _report(self, tmp_path, name, corpus, rates=None):
+        payload = {
+            "per_fixture_pass_rates": rates
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+        }
+        if corpus is not None:
+            payload["fixture_set_sha"] = corpus
+        return _write(tmp_path, name, payload)
+
+    def _extract(self, capsys, report, out_name, tmp_path):
+        _, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        return _write(tmp_path, out_name, out)
+
+    def _pair(self, tmp_path, capsys, inc_corpus, cand_corpus):
+        """Two enveloped results files that differ only in verdicts and corpus."""
+        inc = self._extract(
+            capsys, self._report(tmp_path, "ri.json", inc_corpus), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys,
+            self._report(
+                tmp_path, "rc.json", cand_corpus,
+                rates={f"t{i}": {"agent": [1.0]} for i in range(10)},
+            ),
+            "cand.json",
+            tmp_path,
+        )
+        return inc, cand
+
+    def _bare(self, tmp_path, name, path):
+        """The same results with the envelope stripped, as an old consumer emits."""
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        return _write(tmp_path, name, payload["results"])
+
+    def _gate(self, tmp_path, capsys, inc, cand, seed, split_from=None, **kw):
+        _, split = _split(capsys, tmp_path, "--results", split_from or inc, "--seed", seed)
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5, **kw
+        )
+
+    # -- the pin ------------------------------------------------------------
+
+    def test_split_records_the_corpus_of_the_results_it_was_drawn_from(
+        self, tmp_path, capsys
+    ):
+        inc = self._extract(
+            capsys, self._report(tmp_path, "r.json", _SHA_A), "inc.json", tmp_path
+        )
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p1")
+        assert code == EXIT_OK
+        assert split["corpus"] == _SHA_A
+
+    def test_a_split_drawn_from_a_task_list_pins_nothing(self, tmp_path, capsys):
+        tasks = tmp_path / "tasks.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(10)), encoding="utf-8")
+        code, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "p2")
+        assert code == EXIT_OK
+        assert "corpus" not in split
+
+    def test_a_split_drawn_from_a_bare_mapping_pins_unknown(self, tmp_path, capsys):
+        legacy = _write(tmp_path, "legacy.json", {f"t{i}": i < 5 for i in range(10)})
+        code, split = _split(capsys, tmp_path, "--results", legacy, "--seed", "p3")
+        assert code == EXIT_OK
+        assert split["corpus"] is None
+
+    # -- the bypass, closed -------------------------------------------------
+
+    def test_stripping_one_envelope_does_not_buy_a_comparison(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        stripped = self._bare(tmp_path, "cand-bare.json", cand)
+        code, out = self._gate(tmp_path, capsys, inc, stripped, "p4")
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+        assert out["consultations"] == 0
+
+    def test_stripping_both_envelopes_does_not_buy_a_comparison(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p5")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path,
+            "--incumbent", self._bare(tmp_path, "i-bare.json", inc),
+            "--candidate", self._bare(tmp_path, "c-bare.json", cand),
+            "--split", split_path, cap=5,
+        )
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_one_known_corpus_beside_an_unknown_one_conflicts_without_a_pin(
+        self, tmp_path, capsys
+    ):
+        """No pin at all, so the conflict has to come from the pair itself."""
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, None)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p6")
+        split.pop("corpus")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    # -- what must keep working ---------------------------------------------
+
+    def test_two_unknown_corpora_still_compare(self, tmp_path, capsys):
+        """The rule and hook paths publish no corpus and must not be disabled."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        code, out = self._gate(tmp_path, capsys, inc, cand, "p7")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_a_matching_digest_on_both_sides_compares_and_reports_verified(
+        self, tmp_path, capsys
+    ):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_A)
+        code, out = self._gate(tmp_path, capsys, inc, cand, "p8")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is True
+
+    def test_a_pinned_digest_that_both_files_match_compares(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_A)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p9")
+        assert split["corpus"] == _SHA_A
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert out["compared"] is True
+
+    # -- the digest has to look like one ------------------------------------
+
+    @pytest.mark.parametrize(
+        "bad", ["", "   ", "be99fa1b1180", "A" * 64, "g" * 64, "a" * 63, "a" * 65]
+    )
+    def test_a_corpus_that_is_not_a_sha256_digest_is_refused_at_extract(
+        self, tmp_path, capsys, bad
+    ):
+        report = self._report(tmp_path, "r.json", bad)
+        code, _ = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+
+    def test_a_lowercase_sha256_digest_survives_extract(self, tmp_path, capsys):
+        report = self._report(tmp_path, "r.json", _SHA_A)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] == _SHA_A
+
+    def test_an_envelope_whose_corpus_is_not_a_digest_is_refused(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": "", "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="corpus"):
+            oa._read_results(path)
+
+    # -- ordering: a parse error must not stand in for the ledger's answer ---
+
+    def test_malformed_results_do_not_preempt_an_exhausted_ledger(
+        self, tmp_path, capsys
+    ):
+        """The budget refusal is the authoritative one and has to survive.
+
+        Reading both files before the lock is what makes the corpus refusal
+        free. Doing the *whole* read there would let a bad verdict mapping
+        answer in place of the ledger, which tells the caller to fix the wrong
+        thing.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pa")
+        split_path = _write(tmp_path, "split.json", split)
+        bad = _write(tmp_path, "cand.json", {f"t{i}": "yes" for i in range(10)})
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", bad,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "consultation" in out["reason"]
+
+    def test_unreadable_results_do_not_preempt_an_exhausted_ledger(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pb")
+        split_path = _write(tmp_path, "split.json", split)
+        junk = tmp_path / "cand.json"
+        junk.write_text("{not json", encoding="utf-8")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", junk,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "consultation" in out["reason"]
+
+    def test_malformed_results_still_fail_loudly_when_the_budget_allows(
+        self, tmp_path, capsys
+    ):
+        """Deferring the full read must not swallow it."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pc")
+        split_path = _write(tmp_path, "split.json", split)
+        bad = _write(tmp_path, "cand.json", {f"t{i}": "yes" for i in range(10)})
+        code, _ = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", bad,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+
+    def test_the_preflight_refusal_names_no_task_and_no_digest(
+        self, tmp_path, capsys
+    ):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pd")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        blob = json.dumps(out)
+        assert oa._holdout_key(split) not in blob
+        assert not any(t in blob for t in split["sel"] + split["test"])
+
+    def test_a_preflight_read_failure_leaves_the_digest_out_of_the_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Whatever goes wrong under the preflight is still scrubbed.
+
+        The error lands on stdout as JSON, not on stderr: `main` turns a
+        `ConfigError` into a payload so a driver can tell a refusal from a
+        config failure by reading a field. An earlier version of this test read
+        stderr after `_run_gate` had already drained the capture, so it asserted
+        the digest was absent from an empty string and could not have failed.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe")
+        split_path = _write(tmp_path, "split.json", split)
+        key = oa._holdout_key(split)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: (_ for _ in ()).throw(
+            OSError(f"cannot open {key}")
+        ))
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert key not in json.dumps(out)
+        assert oa._HELD_OUT_PLACEHOLDER in out["error"]
+
+    def test_that_scrub_test_would_fail_without_the_scrubber(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The negative control the tautological version never had."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe2")
+        split_path = _write(tmp_path, "split.json", split)
+        key = oa._holdout_key(split)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: (_ for _ in ()).throw(
+            OSError(f"cannot open {key}")
+        ))
+        monkeypatch.setattr(oa, "_digest_scrubbed", contextlib.nullcontext)
+        with pytest.raises(OSError) as caught:
+            _run_gate(
+                capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+                "--split", split_path, cap=5,
+            )
+        assert key in str(caught.value)
+
+    # -- the predicate on its own -------------------------------------------
+
+    @pytest.mark.parametrize(
+        ("pin", "inc", "cand", "conflict"),
+        [
+            (oa._UNPINNED, None, None, False),
+            (oa._UNPINNED, _SHA_A, _SHA_A, False),
+            (None, None, None, False),
+            (_SHA_A, _SHA_A, _SHA_A, False),
+            (oa._UNPINNED, _SHA_A, _SHA_B, True),
+            (oa._UNPINNED, _SHA_A, None, True),
+            (oa._UNPINNED, None, _SHA_A, True),
+            (_SHA_A, _SHA_A, None, True),
+            (_SHA_A, None, None, True),
+            (_SHA_A, _SHA_B, _SHA_B, True),
+            (None, _SHA_A, _SHA_A, True),
+        ],
+    )
+    def test_the_conflict_rule_is_more_than_one_declared_corpus(
+        self, pin, inc, cand, conflict
+    ):
+        assert oa._corpus_conflict(pin, inc, cand) is conflict
+
+    def test_an_absent_pin_is_not_the_same_as_a_pin_of_unknown(self):
+        """`None` is a legal pin, so absence needs a value JSON cannot produce.
+
+        Collapsing the two would make a split written before the pin existed
+        assert that its corpus was unknown, which would refuse every enveloped
+        pair gated against an older split.
+        """
+        assert oa._corpus_conflict(oa._UNPINNED, _SHA_A, _SHA_A) is False
+        assert oa._corpus_conflict(None, _SHA_A, _SHA_A) is True
+        assert json.loads(json.dumps({"corpus": None}))["corpus"] is None
+
+
+class TestWhatTheVerdictClaimsWasChecked:
+    """Round sixteen: the pin is caller-supplied, so say when it was absent.
+
+    `corpus_verified` reports that the two results agree. It cannot report that
+    the split was drawn from the corpus they name, because a caller who deletes
+    the split's `corpus` key leaves two agreeing files and nothing to contradict
+    them. Refusing that pair would disable the gate for the rule and hook paths,
+    which pin nothing at all, so the verdict names the weaker guarantee instead
+    of hiding it behind the stronger one.
+    """
+
+    def test_a_pinned_split_that_agrees_reports_both_facts(self, tmp_path, capsys):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-a")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is True
+
+    def test_deleting_the_pin_is_visible_in_the_verdict(self, tmp_path, capsys):
+        """The one-file edit the guard cannot refuse is the one it must report."""
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-b")
+        del split["corpus"]
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is False
+
+    def test_a_task_list_split_pins_nothing_and_says_so(self, tmp_path, capsys):
+        tasks = tmp_path / "ids.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(10)), encoding="utf-8")
+        _, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "pin-c")
+        split_path = _write(tmp_path, "split.json", split)
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is False
+
+    def test_legacy_files_claim_neither(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-d")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is False
+        assert out["corpus_pinned"] is False
+
+
+class TestTheCorpusIsRecheckedAgainstWhatWasActuallyScored:
+    """Round sixteen: the preflight reads headers, the gate reads bodies.
+
+    Two reads of one path can disagree, whether because a writer moved under
+    them or because the two parsers drift. The values the comparison is scored
+    from are the ones in `ResultsFile`, so those are the ones that have to
+    agree before a consultation is charged.
+    """
+
+    def _swapped(self, tmp_path, capsys, monkeypatch, header_says):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "toc")
+        split_path = _write(tmp_path, "split.json", split)
+        real = oa._corpus_header
+        monkeypatch.setattr(
+            oa, "_corpus_header",
+            lambda p: header_says if Path(p) == Path(cand) else real(p),
+        )
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+
+    def test_a_file_that_changes_after_the_preflight_is_refused(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        code, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_ONE)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_the_recheck_refuses_before_the_consultation_is_charged(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        _, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_ONE)
+        assert out["sel_consultations"] == 0
+
+    def test_an_honest_preflight_still_compares(self, tmp_path, capsys, monkeypatch):
+        code, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_TWO)
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert "corpus" in out["reason"]
+
+
+class TestASplitCannotCarryACorpusThatIsNotOne:
+    """Round sixteen: the pin comes off a caller-supplied file unvalidated."""
+
+    def _gate_with_pin(self, tmp_path, capsys, pin):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "bad-pin")
+        split["corpus"] = pin
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+
+    @pytest.mark.parametrize("pin", [[], {}, 7, True, "nope", _CORPUS_ONE.upper()])
+    def test_a_pin_that_is_not_a_digest_is_a_config_error(self, tmp_path, capsys, pin):
+        code, out = self._gate_with_pin(tmp_path, capsys, pin)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "corpus" in out["error"]
+
+    def test_an_unhashable_pin_does_not_reach_the_set(self, tmp_path, capsys):
+        """A list pin used to raise `TypeError` out of the conflict rule."""
+        code, out = self._gate_with_pin(tmp_path, capsys, [])
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_null_pin_is_still_legal(self, tmp_path, capsys):
+        code, out = self._gate_with_pin(tmp_path, capsys, None)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_a_real_digest_pin_is_accepted(self, tmp_path, capsys):
+        code, out = self._gate_with_pin(tmp_path, capsys, _CORPUS_ONE)
+        assert out.get("corpus_pinned") is True
+
+
+class TestAParserFailureNeverPreemptsTheLedger:
+    """Round sixteen: `_read_json` promised one exception family and had two."""
+
+    def _deep(self, tmp_path, name):
+        path = tmp_path / name
+        path.write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+        return path
+
+    def test_deeply_nested_json_is_a_config_error_not_a_traceback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "deep")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc,
+            "--candidate", self._deep(tmp_path, "cand.json"),
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_an_exhausted_budget_still_answers_first(self, tmp_path, capsys):
+        """The defect: a parse crash in the preflight outranked the ledger."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "deep2")
+        split_path = _write(tmp_path, "split.json", split)
+        _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=1,
+        )
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc,
+            "--candidate", self._deep(tmp_path, "cand.json"),
+            "--split", split_path, cap=1,
+        )
+        assert code == EXIT_LOGIC
+        assert "consultation" in out["reason"]
+        assert out["compared"] is False
