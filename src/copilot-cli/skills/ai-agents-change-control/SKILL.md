@@ -97,7 +97,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 
 Escape hatches (env vars, commit markers, skip semantics) exist for several gates. They are deliberately narrow after session 1187, and each is cataloged with its abuse story in `ai-agents-config-catalog`. Do not invent a new one inline; a new flag is itself a governance change.
 
-Six of the table's incidents compress a multi-round failure and are told in full in `references/incident-history.md`: the #2205 fail-closed reversal, the PR #1942 stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 and PR #1887 verbatim quoting, FM-10 and PR #1965 silent defaults, and the SHA-pinning tension. The remaining rationale cells are single-line ADR or issue citations; deeper history for any of them lives in `ai-agents-failure-archaeology`. Read the incident before you argue with its rule.
+Six of the table's incidents compress a multi-round failure and are told in full in `references/incident-history.md`: the #2205 fail-closed reversal, the PR #1942 stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 and PR #1887 verbatim quoting, FM-10 and PR #1965 silent defaults, and the SHA-pinning tension. The other rationale cells are briefer; deeper history for any of them lives in `ai-agents-failure-archaeology`. Read the incident before you argue with its rule.
 
 ## Anti-Patterns
 
