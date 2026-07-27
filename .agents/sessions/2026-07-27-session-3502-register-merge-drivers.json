@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Four commits on fix/register-merge-drivers-on-runners: add12a90 the CI fix, b572c0a9 the SHA record, 288ccfcd the review fixes, plus a trailing SHA record. 9 files changed across the branch."
+        "evidence": "Commits on fix/register-merge-drivers-on-runners: add12a90 the CI fix, b572c0a9 and 5c560507 SHA records, 288ccfcd the review fixes, edc60977 the merge of main. 9 files changed across the branch."
       },
       "validationPassed": {
         "complete": true,
@@ -154,9 +154,19 @@
         "Confirmed the maintenance workflow needs no equivalent guard: it already calls python3 directly for the resolver and does not use the setup action"
       ],
       "outcome": "Both findings were accurate and both are fixed. 2 files changed."
+    },
+    {
+      "phase": "The PR reproduced the unfixed half on itself",
+      "actions": [
+        "After the review fixes landed, PR #3504 went from MERGEABLE to CONFLICTING DIRTY with 0 failing checks, because main moved and both sides had touched causal-graph.json",
+        "The hooks had staged that file into this branch automatically, so even a ten line CI change joined the conflict class",
+        "Reran merge-tree with the driver blanked: causal-graph.json was again the only conflicting path",
+        "Merged origin/main with the driver registered; it auto-merged and mergeability returned to MERGEABLE"
+      ],
+      "outcome": "Live confirmation that the runner-side fix in this branch cannot touch GitHub's merge ref, and that the class stays open until the graph stops being committed as one file. 1 file conflicted."
     }
   ],
-  "endingCommit": "288ccfcd",
+  "endingCommit": "edc60977",
   "nextSteps": [
     "GitHub computes refs/pull/N/merge in its backend before any runner starts and will never run repository code, so no merge driver can make a PR report MERGEABLE. Closing that half needs option 3 (stop committing the graph) or option 4 (shard it) from issue #3345, both architectural and both requiring the user's decision.",
     "scripts/validation/get_pr_checks equivalent at .claude/skills/github/scripts/pr/get_pr_checks.py has no mergeability awareness, so it reported AllPassing true with 12 checks on PR #3442 where 123 later ran. A conflicting PR should never be able to report all-passing.",

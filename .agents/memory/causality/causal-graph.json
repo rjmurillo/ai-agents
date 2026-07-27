@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T14:11:06.165719+00:00",
+  "updated": "2026-07-27T14:29:00.918823+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21996,6 +21996,33 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "d46d9263eae6",
+      "type": "milestone",
+      "label": "milestone: Live confirmation that the runner-side fix in this branch cannot touch GitHub's merge ref, and that the class stays open until the graph stops being committed as one file. 1 file conflicted.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T14:29:00.912500+00:00"
+    },
+    {
+      "id": "9bba48f1c443",
+      "type": "commit",
+      "label": "commit: Commit: edc60977",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T14:29:00.912587+00:00"
+    },
+    {
+      "id": "fe779e7139b6",
+      "type": "commit",
+      "label": "commit: Commit: 5c560507",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T14:29:00.912674+00:00"
     }
   ],
   "patterns": [

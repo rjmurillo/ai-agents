@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Confirmed the cause is that .gitattributes names a driver whose definition lives only in git config --local, which is never committed. 1 file changed the outcome.",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -72,7 +72,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -95,6 +97,40 @@
         "e007"
       ],
       "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live confirmation that the runner-side fix in this branch cannot touch GitHub's merge ref, and that the class stays open until the graph stops being committed as one file. 1 file conflicted.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: edc60977",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5c560507",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -104,8 +140,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 7
+    "commits": 5,
+    "files_changed": 8
   },
   "lessons": []
 }
