@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "No markdown changed on this branch; scoped lint has nothing to run."
+        "evidence": "One markdown file changed (.serena/memories/decision-hook-contract-surface-seam.md); markdownlint excludes .serena/** by config, so scoped lint has nothing to run."
       },
       "changesCommitted": {
         "complete": true,

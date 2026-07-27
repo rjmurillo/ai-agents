@@ -499,12 +499,26 @@ def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violati
             script_path = extract_script_path(command, COPILOT_ROOT)
             if not script_path:
                 continue
+            matcher = registration.get("matcher")
+            if matcher is not None and not isinstance(matcher, str):
+                violations.append(
+                    Violation(
+                        hook_type=hook_type,
+                        script=str(COPILOT_HOOKS_PATH),
+                        category="invalid_plugin_hooks",
+                        message=(
+                            f"Copilot event '{hook_type}' has a matcher of type "
+                            f"{type(matcher).__name__}, expected string or null"
+                        ),
+                    )
+                )
+                continue
             entries.append(
                 HookEntry(
                     hook_type=hook_type,
                     script_path=script_path,
                     command=command,
-                    matcher=registration.get("matcher"),
+                    matcher=matcher,
                     timeout=registration.get("timeoutSec"),
                 )
             )

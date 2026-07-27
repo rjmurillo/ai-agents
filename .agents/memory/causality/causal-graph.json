@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T21:44:36.629341+00:00",
+  "updated": "2026-07-27T00:10:48.067406+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16670,6 +16670,114 @@
         "episode-2026-07-26-session-3400-orphaned-test-hardening"
       ],
       "created": "2026-07-26T21:44:36.625585+00:00"
+    },
+    {
+      "id": "81dd91f663c7",
+      "type": "milestone",
+      "label": "milestone: Reproduce the issue's evidence before writing code",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.062965+00:00"
+    },
+    {
+      "id": "3086a2f1778a",
+      "type": "milestone",
+      "label": "milestone: Reject the issue's proposed design on measurement",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063035+00:00"
+    },
+    {
+      "id": "ae877c9e34be",
+      "type": "milestone",
+      "label": "milestone: Find the seam that keeps the rest of the file surface-agnostic",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063095+00:00"
+    },
+    {
+      "id": "3f1fc0ea1c0b",
+      "type": "milestone",
+      "label": "milestone: Decide against a surface field on Violation",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063154+00:00"
+    },
+    {
+      "id": "155996f608cc",
+      "type": "milestone",
+      "label": "milestone: Fix the two real violations the gate found the moment it could see them",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063212+00:00"
+    },
+    {
+      "id": "c72ec69f4542",
+      "type": "milestone",
+      "label": "milestone: Prove each part of the fix is load-bearing",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063270+00:00"
+    },
+    {
+      "id": "ee314f731bce",
+      "type": "milestone",
+      "label": "milestone: Correct a test that could pass vacuously",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063328+00:00"
+    },
+    {
+      "id": "e5bf0a77b234",
+      "type": "milestone",
+      "label": "milestone: Widen the workflow path filter and bump the plugin manifests",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063386+00:00"
+    },
+    {
+      "id": "e6a9caec6074",
+      "type": "milestone",
+      "label": "milestone: Answer the review on parse_copilot_hooks",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063444+00:00"
+    },
+    {
+      "id": "1dedfa6d3d9c",
+      "type": "milestone",
+      "label": "milestone: Correct the dispatcher exit-code comments",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063503+00:00"
+    },
+    {
+      "id": "8066771170e7",
+      "type": "commit",
+      "label": "commit: Commit: 05f7c63842e0fbb2c09c185b77c1c620d279aa2a",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063577+00:00"
+    },
+    {
+      "id": "9ac508519129",
+      "type": "outcome",
+      "label": "Outcome: success - Extend hook_contracts.py to the Copilot CLI surface, which shipped ungated.",
+      "episodes": [
+        "episode-2026-07-26-session-3384-copilot-hook-surface"
+      ],
+      "created": "2026-07-27T00:10:48.063663+00:00"
     }
   ],
   "patterns": [
