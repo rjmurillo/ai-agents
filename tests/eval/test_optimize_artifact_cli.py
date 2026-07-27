@@ -171,7 +171,10 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}}},
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}},
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
@@ -181,7 +184,7 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
+            {"error_count": 0, "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
         )
         code, out = _run(
             capsys,
@@ -211,6 +214,32 @@ class TestExtract:
         assert code == EXIT_CONFIG
         assert "degraded agent report" in out["error"]
         assert "error_count=1" in out["error"]
+
+    @pytest.mark.parametrize("error_count", ["1", None, -1])
+    def test_agent_report_refuses_malformed_error_count(
+        self, tmp_path, capsys, error_count
+    ):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": error_count,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
+
+    def test_agent_report_refuses_missing_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}}},
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(

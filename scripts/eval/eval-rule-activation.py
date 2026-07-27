@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 import time
@@ -242,7 +243,7 @@ def _clamp_score(value: object) -> int:
         return 0
     try:
         n = int(value)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return 0
     return max(0, min(5, n))
 
@@ -257,6 +258,7 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
         if (
             not isinstance(value, (int, float))
             or isinstance(value, bool)
+            or not math.isfinite(value)
         ):
             return (
                 f"judge returned non-numeric {field}: "

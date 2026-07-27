@@ -375,12 +375,23 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
 
 
 def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
-    error_count = report.get("error_count", 0)
-    if (
-        not isinstance(error_count, (int, float))
-        or isinstance(error_count, bool)
-        or error_count <= 0
-    ):
+    if "error_count" not in report:
+        raise ConfigError(
+            "refusing to extract agent report with missing error_count; "
+            "rerun with a current report writer"
+        )
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count!r}; expected a non-negative integer"
+        )
+    if error_count < 0:
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count}; expected a non-negative integer"
+        )
+    if error_count == 0:
         return
     raise ConfigError(
         "refusing to extract degraded agent report: "

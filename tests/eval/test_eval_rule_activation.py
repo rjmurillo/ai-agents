@@ -143,6 +143,8 @@ class TestScoreResponseJudgeShape:
             "{}",
             '{"activation_score": 5, "citation_score": "5", "behavior_score": 5}',
             '{"activation_score": 5, "citation_score": 5}',
+            '{"activation_score": NaN, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": Infinity, "citation_score": 5, "behavior_score": 5}',
         ],
     )
     def test_malformed_judge_score_object_sets_judge_failed(
@@ -337,6 +339,7 @@ class TestClampScore:
             (None, 0),
             (True, 1),  # bool is int subclass; True -> 1, False -> 0
             (3.7, 3),  # float coerces to int via int()
+            (float("inf"), 0),
         ],
     )
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
