@@ -63,12 +63,12 @@ two independent axes, then found a deeper safety defect in the auto-approval goa
 
 Three survivor hooks were named in #3217 when this ADR began:
 
-- `invoke_skill_first_guard.py` (PreToolUse). It blocked a raw `gh` call when a
+- Retired `invoke_skill_first_guard.py` (PreToolUse). It blocked a raw `gh` call when a
   validated skill script existed for that operation. It shipped to Copilot but
   self-neutered outside this repository. PR #3293 selected Retirement and
   removed the source, registrations, generated artifacts, and dedicated tests.
   It was a policy and developer-experience control, not a security boundary.
-- `invoke_test_auto_approval.py` (PermissionRequest). Auto-approves a fixed set
+- Retired `invoke_test_auto_approval.py` (PermissionRequest). Auto-approved a fixed set
   of test-runner commands to cut permission fatigue. It was Claude-only when this
   ADR started. The hook-contract branch briefly generated a Copilot translation,
   then removed both registrations after Finding 3.
@@ -122,7 +122,7 @@ to be customer-facing, but the `skip_if_consumer_repo` gate (added #1194,
 
 ### Finding 2: Claude allow-rules do not screen the metacharacters the test hook rejects
 
-`invoke_test_auto_approval.py` is not a pure static allowlist. Before matching a
+The previously registered `invoke_test_auto_approval.py` was not a pure static allowlist. Before matching a
 runner pattern it rejects any command containing a shell metacharacter: `;`, `|`,
 `&`, `<`, `>`, `$`, backtick, newline, or carriage return
 (`DANGEROUS_METACHARACTERS`, lines 22-32). It anchors each pattern to the start of
@@ -470,7 +470,7 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 | Issue #3218 | Direct | Evaluate dispatcher, translation, parity, and drift components against active consumers and direct-registration alternatives | Medium |
 | Historical `.claude/hooks/PreToolUse/invoke_skill_first_guard.py` | Direct | Removed by PR #3293 under the Retirement terminal state | High |
 | `.claude/settings.json`, `.claude/hooks/hooks.json`, `.claude/hooks/dispatch_groups.json` | Direct | `test_auto_approval` and `skill_first_guard` registrations are removed | High |
-| `.claude/hooks/PermissionRequest/invoke_test_auto_approval.py` | Direct | Delete the producer and its dedicated tests | High |
+| Removed `.claude/hooks/PermissionRequest/invoke_test_auto_approval.py` | Direct | Delete the producer and its dedicated tests | High |
 | `src/copilot-cli/hooks/PermissionRequest/` | Generated | Remove through regeneration and prove the event directory stays absent | High |
 | `src/copilot-cli/hooks/PreToolUse/invoke_skill_first_guard__*.py` | Generated | Removed from the vendored surface under #3217 (stops shipping) | Medium |
 
