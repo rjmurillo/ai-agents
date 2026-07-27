@@ -224,7 +224,7 @@ def test_find_manifests_prunes_node_modules(tmp_path: Path) -> None:
     real_manifest.write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
-    assert "node_modules" not in str(found[0])
+    assert "node_modules" not in found[0].relative_to(tmp_path).parts
 
 
 def test_hooks_string_ref_skipped_when_file_missing(tmp_path: Path) -> None:
@@ -407,7 +407,7 @@ def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
     worktree_manifest.write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
-    assert "worktrees" not in str(found[0])
+    assert "worktrees" not in found[0].relative_to(tmp_path).parts
 
 
 def test_find_manifests_skips_dot_worktrees(tmp_path: Path) -> None:
@@ -422,7 +422,7 @@ def test_find_manifests_skips_dot_worktrees(tmp_path: Path) -> None:
     dot_worktree.write_text("{ broken json", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
-    assert ".worktrees" not in str(found[0])
+    assert ".worktrees" not in found[0].relative_to(tmp_path).parts
 
 
 def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:
