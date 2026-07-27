@@ -284,7 +284,10 @@ class TestPathStartAnchor:
 
         A link reference definition and a ``path:`` label both put a colon
         before the path; an unquoted HTML attribute puts an equals sign there.
-        CommonMark resolves all three as destinations, so each counts.
+        Only the ``[label]:`` form is a CommonMark construct, a link reference
+        definition; ``path:`` is a project convention and the unquoted attribute
+        is HTML. The validator treats each as a path reference by naming the
+        context, so each counts.
 
         Naming the context is what makes this safe. Admitting a raw ``:`` would
         also count the Windows drive letters ``C:\\templates\\`` and
@@ -297,10 +300,36 @@ class TestPathStartAnchor:
     @pytest.mark.parametrize(
         "text",
         [
+            "[x]: /templates/agents/x.md",
+            "[x]:   /templates/agents/x.md",
+            "[x]:\t/templates/agents/x.md",
+            "[x]:\n/templates/agents/x.md",
+            "path:   /templates/agents/x.md",
+            "<img src= /templates/agents/x.md>",
+        ],
+    )
+    def test_label_definition_whitespace_after_colon_still_counts(self, text: str) -> None:
+        """Whitespace between the label colon and the path still counts.
+
+        CommonMark allows optional spaces, tabs, and up to one line ending
+        between a link reference definition's colon and its destination. A
+        review asked to widen ``_LABEL_ANCHOR`` and ``_ATTR_ANCHOR`` to accept
+        that gap, but no widening is needed: the whitespace is itself an anchor
+        character, a space, tab or newline, so the path anchors on the gap
+        rather than on the label. Widening the label anchors would only re-match
+        what the whitespace anchor already matches, which is dead regex. This
+        pins the deliberate limit so the label anchors stay tight-only.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
             "C:\\templates\\agents\\x.md",
             "C:\\.agents\\specs\\x.md",
             "[x](https://example.com/p?next=/.agents/x)",
             "file:/templates/agents/x.md",
+            "note:/templates/agents/x.md",
             "https://example.com/path:/templates/agents/x.md",
             "https://example.com/?src=/templates/agents/x.md",
         ],
@@ -310,11 +339,13 @@ class TestPathStartAnchor:
 
         Each of these carries a colon or an equals sign immediately before a
         path-looking string, and none of them names the repository root. A
-        Windows drive letter is a single character rather than a label, a URI
-        scheme is not preceded by an anchor character, and a URL query parameter
-        has no enclosing tag. If someone replaces the contextual anchors with a
-        raw ``:`` or ``=`` in the character set, these start counting and this
-        test fails, which is the intended warning.
+        colon anchors a path only when the literal ``path`` or a bracketed
+        label sits at an anchor before it: a Windows drive letter, a URI scheme,
+        and a bare prose word (``note:``) are none of those, and a URL query
+        parameter has no enclosing tag for the attribute anchor. If someone
+        replaces the contextual anchors with a raw ``:`` or ``=`` in the
+        character set, these start counting and this test fails, which is the
+        intended warning.
         """
         assert cmp.count_upstream_refs(text + "\n") == 0
 
