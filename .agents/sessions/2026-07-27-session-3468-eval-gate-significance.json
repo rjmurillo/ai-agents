@@ -432,11 +432,13 @@
         "Confirmed the class earns its place by mutation. M10 applies round twenty-seven's fix to the drift refusal: before this commit nothing broke, after it two tests fail, and the failure output is the self-contradicting payload itself.",
         "Extended the README accounting-keys paragraph to cover all four keys, naming the corpus refusal as the one deliberate exception and the reason it is one: a single document emitted from both sides of the lock carries only what the earlier side can say.",
         "Recorded shape 37 in the debate log: a contract documented for some of the keys it governs reads as an accident at the keys it skipped.",
-        "Verified 1396 pass, 100 percent statement coverage held on all three eval modules, ruff and mypy clean, zero em or en dashes byte-verified across every edited file."
+        "Verified 1396 pass, 100 percent statement coverage held on all three eval modules, ruff and mypy clean, zero em or en dashes byte-verified across every edited file.",
+        "Triaged a bot thread on ADR-087 claiming the Bonferroni caveat was missing a subject. The claim is false: the subject is 'looks', a plural noun repeated from earlier in the same sentence, so 'which looks at one selection group are not' parses. The complaint is right for a reason the bot did not give, which is that 'looks' sits immediately after 'which', where English prefers a verb reading, so the reader garden-paths and reparses at 'are not'.",
+        "Fixed it by making the ADR match the README, which already states the same caveat with an explicit plural subject ('and five looks at one selection group are not') rather than by inventing new prose. Word diff confirms the only semantic change is one clause becoming a sentence; everything else is rewrap. No decision, requirement, consequence, or status changed, so this is a copy edit rather than an ADR revision and adr-review was not fired."
       ]
     }
   ],
-  "endingCommit": "8810db74e",
+  "endingCommit": "11c2ba505",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
