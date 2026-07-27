@@ -1452,3 +1452,55 @@ The README quotes this reason in a transcript and stops after the first
 sentence, so it carried no stale copy. The only other match in the trees is a
 dated entry in this log paraphrasing the advice as it stood, which is what a
 dated log is for.
+
+## Shape 37: a rule stated for two of the four keys it governs
+
+Round twenty-seven (gemini-3.1-pro-preview) was pointed at what the gate
+decides rather than at the diagnostic helper the previous seven rounds had
+circled. It cleared the decision paths: no contamination, no off by one in the
+slice boundaries, ties refuse, the Bonferroni family size is the declared cap,
+the adapters raise on duplicate ids instead of dropping one, and errored tasks
+record as failures rather than vanishing from the denominator. It also read the
+sentinel correctly and said why it is load bearing.
+
+Its one finding was that the REJECT payload has three shapes. That is true. An
+AST pass over every emit site confirms it: the refusals decided before the lock
+carry four keys, a ledger key mismatch carries six, the guard and coverage
+refusals carry seven, and a verdict carries sixteen.
+
+The proposed fix was to fill every refusal in, including by querying the ledger
+so the preflight could report `sel_consultations`. Both halves of that were
+already settled here and written down. Round seventeen removed
+`sel_consultations` from the corpus recheck because a key set alone told the
+caller which of the two reads caught the disagreement, and round nineteen fixed
+the opposite failure, a key that was missing exactly where its answer was
+nonzero. The README states the resulting rule: a document carries the facts the
+site emitting it can state honestly, and an absent key is the honest answer
+rather than a gap.
+
+Measuring the other half of the proposal was more useful than arguing with it.
+Applying it to the drift refusal, so that payload carries `group` and
+`fingerprint`, produces this:
+
+```text
+"fingerprint": "0000...0000", "group": "sel", "reason": "split fingerprint does
+not match the split file's own contents..."
+```
+
+The document reports a fingerprint beside a sentence saying that fingerprint
+does not describe the file. The drift check is the thing that disproved the
+value, so echoing it is the one field that site cannot state honestly.
+
+So the finding was right about the observation and wrong about the remedy, and
+the reason it was wrong is the part worth keeping. The README stated the
+presence rule for `consultations` and `sel_consultations`, and both have a test
+class. `group` and `fingerprint` vary the same way and had neither. A careful
+reader given the payloads and no rule reaches exactly the conclusion this round
+reached. Before this commit, applying the proposed fix broke nothing; after it,
+it breaks two tests.
+
+That is the shape: a contract documented for some of the keys it governs reads
+as an accident at the keys it skipped. The rule now covers all four, and the
+new class pins the one exception with its reason, which is that the corpus
+refusal is a single document emitted from both sides of the lock and can carry
+only what the earlier side can say.

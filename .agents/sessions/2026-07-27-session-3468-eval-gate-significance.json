@@ -419,9 +419,24 @@
         "Grepped every tree for other copies. The README transcript stops after the first sentence and carried nothing stale; the only other match is a dated paraphrase in the review log.",
         "1391 pass, ruff clean, mypy clean, zero dashes. Documented as shape 36."
       ]
+    },
+    {
+      "phase": "Pinning the payload presence rule for the two keys it was never written for",
+      "actions": [
+        "Round twenty-seven (gemini-3.1-pro-preview) was aimed at the decision logic rather than the diagnostic helper the previous rounds had circled. It cleared every ACCEPT and REFUSE path: strict slice boundaries make overlap structurally impossible, ties refuse, the Bonferroni family size is the declared cap, adapters raise on duplicate ids, and errored tasks record as failures instead of shrinking the denominator.",
+        "Its one finding was that REJECT has three payload shapes. Verified by an AST pass over every emit site: pre-lock refusals carry four keys, ledger mismatch six, guard and coverage seven, a verdict sixteen. The observation is true.",
+        "Rejected the proposed remedy on evidence rather than argument. Querying the ledger so the preflight could report sel_consultations reverses round seventeen, which removed that key so a key set alone could not reveal which of the two corpus reads caught the disagreement, and it would read the ledger before the lock.",
+        "Measured the other half. Applied the fix to the drift refusal and ran the suite: the payload then reports a fingerprint of all zeroes beside a reason saying that fingerprint does not describe the file. The drift check is what disproved the value, so that site cannot state it honestly.",
+        "Found the real defect inside the rejected fix. The README stated the presence rule for consultations and sel_consultations and was silent on group and fingerprint, and no test pinned them, so a careful reader given the payloads and no rule reaches exactly the conclusion this round reached.",
+        "Added TestWhichRefusalsNameTheGroupTheyOpened, five tests covering the verdict, an under-lock refusal, the drift refusal, the no-echo-of-a-disproved-fingerprint edge, and the corpus refusal from both sides of the lock.",
+        "Confirmed the class earns its place by mutation. M10 applies round twenty-seven's fix to the drift refusal: before this commit nothing broke, after it two tests fail, and the failure output is the self-contradicting payload itself.",
+        "Extended the README accounting-keys paragraph to cover all four keys, naming the corpus refusal as the one deliberate exception and the reason it is one: a single document emitted from both sides of the lock carries only what the earlier side can say.",
+        "Recorded shape 37 in the debate log: a contract documented for some of the keys it governs reads as an accident at the keys it skipped.",
+        "Verified 1396 pass, 100 percent statement coverage held on all three eval modules, ruff and mypy clean, zero em or en dashes byte-verified across every edited file."
+      ]
     }
   ],
-  "endingCommit": "feb236208",
+  "endingCommit": "8810db74e",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

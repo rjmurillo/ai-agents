@@ -4308,6 +4308,112 @@ class TestEveryVerdictNamesWhatThisRunCharged:
         assert [out.get("consultations", "MISSING") for out in seen] == [1, 0, 0]
 
 
+class TestWhichRefusalsNameTheGroupTheyOpened:
+    """Round twenty-seven: two more keys come and go, and no rule said so.
+
+    `consultations` and `sel_consultations` each have a written presence rule
+    and a test class of their own. `group` and `fingerprint` vary the same way
+    with neither, which is why a reviewer reading the payloads alone called the
+    schema inconsistent and proposed filling every refusal in.
+
+    The rule they follow: both keys name the held-out group whose ledger this
+    run opened. They appear on the documents `_gate_decision` emits under
+    `_ledger_held`, and are absent from the refusals `cmd_gate` reaches before
+    it takes that lock. The corpus refusal is the one exception, because it is
+    a single document emitted from both sides of the lock and can carry only
+    what the earlier side is able to say.
+
+    Filling them in is wrong twice over. On a drifted split the recorded
+    fingerprint is the value the drift check has just disproved, so echoing it
+    would report a fact the same document denies. On the corpus refusal a
+    second key set would answer which of the two reads caught the disagreement,
+    which is the question the one-voice class above exists to keep unanswered.
+    """
+
+    def _pair(self, tmp_path, capsys, seed):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
+        return inc, cand, split
+
+    def test_a_verdict_reached_under_the_lock_names_the_group(self, tmp_path, capsys):
+        """Positive control: the compared path carries both keys."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g1")
+        path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert out["compared"] is True
+        assert out["group"] == oa._GATE_GROUP
+        assert out["fingerprint"] == split["fingerprint"]
+
+    def test_a_refusal_reached_under_the_lock_still_names_the_group(
+        self, tmp_path, capsys
+    ):
+        """An exhausted budget refuses inside the lock, so the group is known."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g2")
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, "--max-consultations", "3", spent=3,
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert out["group"] == oa._GATE_GROUP
+        assert out["fingerprint"] == split["fingerprint"]
+
+    def test_a_drifted_split_names_no_group_because_none_was_opened(
+        self, tmp_path, capsys
+    ):
+        """Negative: the drift refusal is decided before the lock is taken."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g3")
+        split["fingerprint"] = "0" * 64
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert code == EXIT_LOGIC
+        assert "group" not in out
+        assert "fingerprint" not in out
+
+    def test_the_refusal_does_not_echo_the_fingerprint_the_check_disproved(
+        self, tmp_path, capsys
+    ):
+        """Edge: the recorded value is exactly what drift means is wrong."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g4")
+        split["fingerprint"] = "0" * 64
+        path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert "0" * 64 not in json.dumps(out)
+
+    def test_the_corpus_refusal_names_no_group_from_either_side(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the recheck runs under the lock and still carries neither.
+
+        This is the exception the rule needs, and it is not an oversight. Both
+        call sites emit one document, so the later one carries only what the
+        earlier one can say.
+        """
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "g5")
+        path = _write(tmp_path, "split.json", split)
+        argv = ("--incumbent", inc, "--candidate", cand, "--split", path)
+        _, early = _run_gate(capsys, tmp_path, *argv, cap=5)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        _, late = _run_gate(capsys, tmp_path, *argv, cap=5)
+        for out in (early, late):
+            assert "group" not in out
+            assert "fingerprint" not in out
+        assert early == late
+
+
 class TestAFailedCleanupDoesNotReplaceTheFailureItCleansUpAfter:
     """Round nineteen: the unlink in the handler could raise out of the handler.
 

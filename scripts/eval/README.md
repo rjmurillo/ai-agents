@@ -666,6 +666,22 @@ the recorded count belongs to a different group, so it is withheld rather than
 reported as a zero that was never true; absence is the honest answer when the
 number on disk is not yours to quote.
 
+`group` and `fingerprint` follow the same shape for the same reason. Both name
+the held-out group whose ledger this run opened, so they appear on the
+documents the gate emits once it holds that lock, and are absent from the
+refusals decided before it takes one: a drifted split, and the corpus
+preflight. The corpus refusal is the single exception, and it is deliberate.
+It is one document emitted from both sides of the lock, so it carries only
+what the earlier side can say, which is what keeps the key set from answering
+which of the two reads caught the disagreement.
+
+Filling those keys into every refusal looks like a schema cleanup and is not.
+On a drifted split the recorded fingerprint is the value the drift check has
+just disproved, so a payload carrying both would report a fingerprint beside a
+reason saying that fingerprint does not describe the file. The rule across all
+four keys is one rule: a verdict carries the facts the site emitting it can
+state honestly, and an absent key is the honest answer, not a gap.
+
 That promise has been broken three times by exceptions that reached the top
 level under a class the handler did not name, and each cost a traceback where a
 caller was parsing stdout. `_write_atomic` created its temp file before the
