@@ -84,6 +84,18 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added autoplan and analyze routes for software-engineering-library, migrated activation evals to skill references, added enterprise-patterns and data-intensive-applications fixtures, fixed live deleted-rule references, and recorded ADR rollback criteria.",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     }
   ],

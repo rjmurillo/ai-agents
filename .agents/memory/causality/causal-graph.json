@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:20:49.609377+00:00",
+  "updated": "2026-07-27T16:00:15.554282+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21987,6 +21987,15 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "2696f7a677e3",
+      "type": "milestone",
+      "label": "milestone: Added autoplan and analyze routes for software-engineering-library, migrated activation evals to skill references, added enterprise-patterns and data-intensive-applications fixtures, fixed live deleted-rule references, and recorded ADR rollback criteria.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T16:00:15.548201+00:00"
     }
   ],
   "patterns": [

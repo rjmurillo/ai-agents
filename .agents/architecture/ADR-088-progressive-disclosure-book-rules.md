@@ -104,7 +104,8 @@ returning to the always-on surface.
   and book references load only when opened.
 - **What are the risks of change?** The risk is late retrieval. A model may fail
   to trigger the skill. The mitigation is a concrete description with task
-  triggers, plus keeping the everyday synthesis rules always-on.
+  triggers, post-investigation routing from `analyze`, and keeping the everyday
+  synthesis rules always-on.
 
 ## Rationale
 
@@ -124,6 +125,13 @@ The moved content is depth material for specific tasks. The new skill
 description carries concrete trigger phrases so the model can retrieve it when
 that depth affects a decision.
 
+The retrieval path has two gates. Autoplan can select
+`software-engineering-library` directly when the initial request names a matching
+design domain. Analysis can also invoke it after investigation discovers a
+condition that was not visible in the initial request, such as low coverage, old
+file age, an external API call, a queue, a retry, a transaction boundary, event
+ordering, schema evolution, a dependency boundary, or module interface shape.
+
 ## Consequences
 
 ### Positive
@@ -141,6 +149,11 @@ that depth affects a decision.
   that needs it.
 - Skill retrieval happens after intent classification. Critical every-task
   rules would be weaker in this shape, which is why they stay always-on.
+- Activation measurement must keep proving reachability. If the rule activation
+  eval reports fewer than 7 of 8 moved references passing in two consecutive
+  runs, or any one moved reference has no positive activation signal in a run,
+  revert this ADR's move and restore the affected guidance to always-on rules
+  until the routing path is fixed.
 
 ### Neutral
 
@@ -167,6 +180,10 @@ The skill must remain an umbrella router, not eight sibling skills. Its
 description is the always-on trigger surface, so it names concrete tasks and
 file types. The reference files preserve the moved book bodies without the rule
 frontmatter.
+
+Autoplan routes initial design-depth requests to the skill. Analyze performs the
+post-investigation handoff when file evidence discovers hidden trigger
+conditions that front-door routing could not know.
 
 ## Related Decisions
 
