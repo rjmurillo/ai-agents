@@ -1259,13 +1259,18 @@ def update_causal_graph(repo_root: Path) -> int:
     deleted = _staged_episode_paths(repo_root, "D")
     if staged is None or deleted is None:
         return 2
-    if not staged and not deleted:
-        return 0
     relative_graph = ".agents/memory/causality/causal-graph.json"
     graph_path = _safe_output_path(repo_root, relative_graph)
     if graph_path is None:
         print("ERROR: unsafe causal graph output path", file=sys.stderr)
         return 2
+    orphaned = []
+    if not staged and not deleted:
+        orphaned = _orphaned_episode_paths(repo_root, graph_path)
+        if orphaned is None:
+            return 2
+        if not orphaned:
+            return 0
     try:
         snapshot = graph_path.read_bytes()
     except FileNotFoundError:
@@ -1273,7 +1278,7 @@ def update_causal_graph(repo_root: Path) -> int:
     except OSError as exc:
         print(f"ERROR: could not snapshot causal graph: {exc}", file=sys.stderr)
         return 2
-    result = _apply_causal_graph_updates(staged, deleted, graph_path, repo_root)
+    result = _apply_causal_graph_updates(staged, deleted, orphaned, graph_path, repo_root)
     if result == 0:
         return _stage_causal_graph(graph_path, repo_root)
     try:
@@ -1308,6 +1313,7 @@ def update_causal_graph(repo_root: Path) -> int:
 def _apply_causal_graph_updates(
     staged: Sequence[str],
     deleted: Sequence[str],
+    orphaned: Sequence[str],
     graph_path: Path,
     repo_root: Path,
 ) -> int:
@@ -1315,12 +1321,15 @@ def _apply_causal_graph_updates(
     if prune_result != 0:
         return prune_result
     with tempfile.TemporaryDirectory(prefix="lefthook-causal-") as temp_dir:
-        return _apply_staged_episodes(
+        staged_result = _apply_staged_episodes(
             staged,
             Path(temp_dir),
             graph_path,
             repo_root,
         )
+    if staged_result != 0:
+        return staged_result
+    return _apply_orphaned_episodes(orphaned, graph_path, repo_root)
 
 
 def _apply_staged_episodes(
@@ -1339,6 +1348,96 @@ def _apply_staged_episodes(
         if result != 0:
             return result
     return 0
+
+
+def _apply_orphaned_episodes(
+    orphaned: Sequence[str],
+    graph_path: Path,
+    repo_root: Path,
+) -> int:
+    for relative_path in orphaned:
+        episode_path = _safe_output_path(repo_root, relative_path)
+        if episode_path is None:
+            print(f"ERROR: unsafe orphaned episode path: {relative_path}", file=sys.stderr)
+            return 2
+        result = _run_causal_updater(episode_path, graph_path, repo_root)
+        if result != 0:
+            return result
+    return 0
+
+
+def _orphaned_episode_paths(repo_root: Path, graph_path: Path) -> list[str] | None:
+    graph_episode_ids = _causal_graph_episode_ids(graph_path)
+    if graph_episode_ids is None:
+        return None
+    episode_dir = _safe_output_path(repo_root, _CAUSAL_EPISODES)
+    if episode_dir is None:
+        print("ERROR: unsafe causal episode directory", file=sys.stderr)
+        return None
+    if not episode_dir.is_dir():
+        return []
+    orphaned: list[str] = []
+    try:
+        episode_paths = sorted(episode_dir.glob("episode-*.json"))
+    except OSError as exc:
+        print(f"ERROR: could not scan causal episodes: {exc}", file=sys.stderr)
+        return None
+    for episode_path in episode_paths:
+        try:
+            relative_path = episode_path.relative_to(repo_root).as_posix()
+        except ValueError:
+            continue
+        if not EPISODE_PATH_RE.fullmatch(relative_path):
+            continue
+        safe_path = _safe_output_path(repo_root, relative_path)
+        if safe_path is None or not safe_path.is_file():
+            continue
+        episode_id = _episode_id_from_file(safe_path)
+        if episode_id is not None and episode_id not in graph_episode_ids:
+            orphaned.append(relative_path)
+    return orphaned
+
+
+def _causal_graph_episode_ids(graph_path: Path) -> set[str] | None:
+    try:
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return set()
+    except UnicodeDecodeError as exc:
+        print(f"ERROR: causal graph file is not valid UTF-8: {exc}", file=sys.stderr)
+        return None
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: causal graph file contains invalid JSON: {exc}", file=sys.stderr)
+        return None
+    except OSError as exc:
+        print(f"ERROR: causal graph file could not be read: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(graph, dict):
+        print("ERROR: causal graph file is valid JSON but not an object", file=sys.stderr)
+        return None
+    episode_ids: set[str] = set()
+    nodes = graph.get("nodes", [])
+    if not isinstance(nodes, list):
+        return episode_ids
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        episodes = node.get("episodes", [])
+        if isinstance(episodes, list):
+            episode_ids.update(episode for episode in episodes if isinstance(episode, str))
+    return episode_ids
+
+
+def _episode_id_from_file(episode_path: Path) -> str | None:
+    try:
+        payload = json.loads(episode_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
+        print(f"WARNING: could not read episode for causal backfill: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(payload, dict):
+        return None
+    episode_id = payload.get("id", episode_path.stem)
+    return episode_id if isinstance(episode_id, str) else episode_path.stem
 
 
 def _prune_deleted_episodes(

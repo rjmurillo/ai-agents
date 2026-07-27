@@ -2574,6 +2574,54 @@ def test_causal_graph_noops_without_staged_episodes(tmp_path: Path) -> None:
     assert policy.update_causal_graph(repo) == 0
 
 
+def test_causal_graph_backfills_unstaged_orphan_episode(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_causal_updater(repo)
+    episode = repo / ".agents/memory/episodes/episode-test.json"
+    episode.parent.mkdir(parents=True)
+    episode.write_text(
+        json.dumps(_episode_payload("episode-orphan", "orphaned content")),
+        encoding="utf-8",
+    )
+    graph = repo / ".agents/memory/causality/causal-graph.json"
+    graph.parent.mkdir(parents=True)
+    graph.write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "updated": "2026-07-19T00:00:00+00:00",
+                "nodes": [
+                    {
+                        "id": "existing-node",
+                        "type": "decision",
+                        "label": "existing",
+                        "episodes": ["episode-existing"],
+                        "created": "2026-07-19T00:00:00+00:00",
+                    }
+                ],
+                "edges": [],
+                "patterns": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "test: seed orphan episode")
+
+    assert policy.update_causal_graph(repo) == 0
+
+    updated_graph = json.loads(graph.read_text(encoding="utf-8"))
+    serialized = json.dumps(updated_graph)
+    assert "orphaned content" in serialized
+    existing = next(node for node in updated_graph["nodes"] if node["id"] == "existing-node")
+    assert existing["created"] == "2026-07-19T00:00:00+00:00"
+    assert (
+        ".agents/memory/causality/causal-graph.json"
+        in _git(repo, "diff", "--cached", "--name-only").stdout.splitlines()
+    )
+
+
 @pytest.mark.parametrize(
     ("tool_exit", "expected"),
     [(0, 0), (2, 2), (3, 3)],
@@ -4818,11 +4866,11 @@ def test_causal_graph_apply_propagates_prune_and_blob_failures(
 ) -> None:
     graph = tmp_path / "graph.json"
     monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 1)
-    assert policy._apply_causal_graph_updates([], ["deleted"], graph, tmp_path) == 1
+    assert policy._apply_causal_graph_updates([], ["deleted"], [], graph, tmp_path) == 1
 
     monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 0)
     monkeypatch.setattr(policy, "_read_index_blob", lambda *_args: None)
-    assert policy._apply_causal_graph_updates(["episode.json"], [], graph, tmp_path) == 1
+    assert policy._apply_causal_graph_updates(["episode.json"], [], [], graph, tmp_path) == 1
 
 
 def test_deleted_episode_pruning_uses_head_id_and_reports_failure(
