@@ -170,7 +170,7 @@ The lifecycle commands are the primary interface for repo maintainers and agents
 - **Prerequisite verification**: Before implementation begins, verify the 13 unique skills referenced in the BundleRegistry (15 total invocations across 7 commands) exist by confirming `.claude/skills/<name>/SKILL.md` is present for each. This is T5-0 in TASK-005.
 - All skills in the BundleRegistry must already exist. New skills are out of scope.
 - `scripts/validation/pre_pr.py` must be extensible to parse markdown for skill invocations. The existing pre-PR runner already parses command files for other checks.
-- `tests/test_command_bundles.py` must be added (new file; covered in TASK-005).
+- `tests/test_command_bundles.py` must be added (new file; covered in TASK-005). <!-- orphan-ref-ignore -->
 - `/research` command file must exist at `.claude/commands/research.md` (AC-10 target).
 
 ## Out of Scope
