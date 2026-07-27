@@ -1015,3 +1015,81 @@ guarantee, which is the whole shape: a correction is a claim, and it inherits
 every obligation the claim it replaced had. All four sites now state the
 condition and name the null control as the evidence that the condition is not
 free here.
+
+## Round twenty: a durability fix that became an availability regression
+
+Round twenty ran on `gemini-3.1-pro-preview`, a vendor family used in no
+previous round, read-only, against code that was three commits old and had had
+no review at all. Three findings. Two real, one false.
+
+The false one is worth recording because of how it failed. It claimed
+`mcnemar_exact` crashes with `OverflowError` for `n >= 1024`, because `2**n`
+exceeds the maximum representable float. Python's int-by-int true division does
+not work that way: it divides exactly and rounds the result, so the computation
+succeeds whenever the *result* is representable. Checked directly at n = 1023,
+1024, 2000 and 5000. At n = 2000 with all pairs in one direction the value
+underflows to 0.0, which is the correct answer to float precision and makes the
+gate stricter rather than looser. The reviewer asserted a crash it had not run.
+The same discipline that caught round nineteen's two false Criticals catches
+this: run the claim before filing it, in both directions.
+
+### Defect shape 26: a durability fix that spends what it was protecting
+
+Defect shape 24 added a parent-directory fsync after `os.replace`. Round twenty
+pointed out that raising `ConfigError` when that fsync fails is wrong twice
+over.
+
+The message was false. It read "could not write <path>", and by the time the
+directory sync runs the bytes are written, the mode is set, and the rename has
+succeeded. Claiming a failed write when the write succeeded is the same
+code-contradicts-prose shape this log has recorded five times.
+
+The behaviour was worse than the message. Before shape 24, `os.replace` was the
+last operation in the function, so every failure path preceded the rename and
+left the destination untouched: refusing cost the caller nothing. The directory
+fsync is the first step that can fail *after* the write has landed, and in the
+ledger's case after a consultation has already been charged, since the gate
+writes the ledger before it scores. So a raise there spends a look and returns
+no verdict. Charging before scoring exists so that a crash costs the caller a
+consultation rather than granting one; aborting after the charge is the same
+trade pointing the other way, and the fix for one had quietly created the
+other.
+
+Staying silent is not the alternative. That leaves the caller believing a
+durability guarantee that did not hold, which is what shape 24 existed to stop.
+The loss is now named on stderr, which the exit-code contract keeps free while
+stdout carries the one JSON document a caller parses, and the write stands.
+Every failure that precedes the rename still refuses, and a test pins that
+distinction so the change reads as a correction rather than a loosening.
+
+The general shape: a fix that adds a step to a sequence inherits responsibility
+for where in the sequence it sits. Shape 24 reasoned about what the new step
+guarantees and not about what its failure now costs, and the cost was created
+entirely by the position, not by the step.
+
+### Defect shape 27: advice that names an invocation the parser rejects
+
+The exhausted-budget refusal ended "refresh the split or report on the test
+group". `score --group` accepts only `opt`, and argparse rejects anything else
+before the command runs. So an operator who had just run out of budget was
+directed into a dead end that the tool statically refuses.
+
+The interesting part is which way to fix it. Widening the choice would make the
+sentence true and would also hand the loop unmetered reads of the one group
+held back as a final unbiased look, and "`score --group opt` refuses to read
+any other group" is listed in the README among the properties enforced whether
+or not the optimizer cooperates. Making a message true by weakening the
+boundary it describes is not a fix.
+
+So the advice is removed and the gap it pointed at is filed as #3552. The
+methodological point behind the sentence is sound: after a selection budget is
+spent, the honest number is one read of a group no selection decision has
+touched. The CLI has no path to that read. That is a missing capability, not a
+wrong string, and it belongs on the Open Requirements list rather than in the
+PR that found the symptom.
+
+Shapes 26 and 27 share a root with much of this log. Prose asserted something
+the mechanism did not do. What is new is that in both cases the honest repair
+was to change the mechanism's *contract* rather than its words: shape 26 by
+deciding what a post-rename failure should cost, shape 27 by deciding that the
+boundary outranks the sentence describing it.

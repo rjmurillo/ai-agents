@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:49:37.585355+00:00",
+  "updated": "2026-07-27T14:58:54.374296+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21618,6 +21618,33 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T13:49:37.578432+00:00"
+    },
+    {
+      "id": "a05995b18c55",
+      "type": "milestone",
+      "label": "milestone: Seven review threads closed, and the two highest-priority were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. Three lessons generalize. A retraction is not complete when the source document carries it, only when every derived artifact does, and SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. Asserting that both numbers appear in a refusal does not test that a reader can tell which is which. And a number carried into five documents by copying is corrected in five places or in none, with the test docstring the most likely to be missed, because nobody greps rationale prose when they change a claim.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368397+00:00"
+    },
+    {
+      "id": "fff44aa4ee59",
+      "type": "milestone",
+      "label": "milestone: The statistical claim is correct in all five places it lives, and every review thread on PR #3478 is answered and resolved. Defect shape 21 generalizes one level up: it was first diagnosed as a retraction that stops at the source document and leaves the generated tier asserting a withdrawn claim, and the independence figure is the same failure in prose. A number copied into five documents is corrected in five places or in none, and the test docstring is the one most likely to be missed because nobody greps rationale prose when they change a claim.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368488+00:00"
+    },
+    {
+      "id": "43661f33c1f0",
+      "type": "commit",
+      "label": "commit: Commit: c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368568+00:00"
     }
   ],
   "patterns": [

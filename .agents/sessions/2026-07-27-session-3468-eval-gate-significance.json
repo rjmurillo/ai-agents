@@ -284,13 +284,25 @@
         "Full verification after all fixes: 1118 tests pass, 100% coverage on all three optimizer files (optimize-artifact.py 494 statements, _optimizer_core.py 259, _optimizer_adapters.py 89), ruff clean, mypy clean, and a byte-level scan showing zero em or en dashes across all seven changed files.",
         "Reverted an unrelated rewrite of .serena/project.yml that a newer Serena version had produced (languages renamed to language_servers, comments reflowed). The value is preserved either way, but a tool-driven config migration does not belong in an eval-harness PR, and adopting the rename is the user's call."
       ]
+    },
+    {
+      "phase": "Round 20: a fix that inherited responsibility for where it sat",
+      "actions": [
+        "Ran round 20 on gemini-3.1-pro-preview, a vendor family used in no previous round, read-only, at high reasoning, against the three commits that had had no review at all. It returned three findings in 415 seconds. Verified each empirically before acting, in both directions.",
+        "Finding 2 is a false positive and was disproved by running it. The reviewer claimed mcnemar_exact raises OverflowError for n >= 1024 because 2**n exceeds the maximum float. Python's int-by-int true division divides exactly and rounds, so it succeeds whenever the result is representable. Measured directly: n=1023 gives 1.11e-308, n=1024 gives 5.56e-309, n=2000 and n=5000 give 0.0, and n=2000 with b=1100 gives 4.23e-06. A p-value of 0.0 at n=5000 all in one direction is correct to float precision and makes the gate stricter, not looser. No change.",
+        "Finding 1 is real and is a defect the previous round created. Defect shape 24 added a parent-directory fsync after os.replace so a crash could not undo a recorded charge. Raising ConfigError when that fsync fails is wrong twice: the message said 'could not write' when the bytes, the mode and the rename had all already succeeded, and more seriously it was the first failure in that function that can fire after the write has landed. In the gate the ledger is written before scoring, so raising there charges a consultation and returns no verdict. Charging before scoring exists so a crash costs the caller a look rather than granting one; aborting after the charge is that same trade pointing the other way. Fixed TDD with four tests plus a control: the loss is now named on stderr, which the exit-code contract keeps free while stdout carries the one JSON document a caller parses, the write stands, and every failure that precedes the rename still refuses.",
+        "Finding 3 is real, a Nit by severity and a boundary question by substance. The exhausted-budget refusal advised the operator to 'report on the test group', but score --group has choices=('opt',) and argparse rejects anything else statically. The reviewer offered widening the choice as one remedy. That is the wrong direction: the README lists 'score --group opt refuses to read any other group' among the properties enforced whether or not the optimizer cooperates, and widening it would hand the loop unmetered reads of the group held back as a final unbiased look. Making a message true by weakening the boundary it describes is not a fix. The advice was removed, and the capability it pointed at was filed as issue #3552 for the ADR-087 Open Requirements list.",
+        "Recorded defect shapes 26 and 27 in the debate log. Both share this log's recurring root, prose asserting what the mechanism does not do, but the honest repair in each was to change the mechanism's contract rather than its words: shape 26 by deciding what a post-rename failure should cost, shape 27 by deciding that the boundary outranks the sentence describing it.",
+        "Full verification: 1127 tests pass, 100% coverage on all three optimizer files (optimize-artifact.py 497 statements, _optimizer_core.py 259, _optimizer_adapters.py 89), ruff clean, mypy clean, zero em or en dashes across every changed file."
+      ]
     }
   ],
-  "endingCommit": "c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
+  "endingCommit": "166199372",
   "nextSteps": [
-    "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
-    "PR #3467 is green on 112 checks and blocked only on human approval.",
-    "#3437 (widen the seam to {task_id: float}) and #3445 (repeated sampling) are decisions for @rjmurillo, not fold-ins. Every reviewer across fourteen rounds pushed for #3437; it is a redesign of the scorer contract, not a tweak.",
-    "#3474 (errored scenarios scored as failures manufacture discordant pairs) and #3475 (no seed, no system_fingerprint) are both on the extract path, not the gate path."
+    "PR #3478 carries twenty adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
+    "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
+    "#3437 (widen the seam to {task_id: float}) and #3445 (repeated sampling) remain decisions for @rjmurillo, not fold-ins. Every reviewer across twenty rounds pushed for #3437; it is a redesign of the scorer contract.",
+    "#3474 (errored scenarios scored as failures manufacture discordant pairs) and #3475 (no seed, no system_fingerprint) are both on the extract path, not the gate path.",
+    "Whether --max-p should default to non-absent is open. Absent today means the gate applies no family-wise bar unless asked."
   ]
 }

@@ -458,7 +458,13 @@ optimizer cooperates:
   one outcome charging before scoring exists to prevent, so a charge a crash
   can erase defeats the ordering it was written to protect. Windows cannot open
   a directory as a descriptor and `os.replace` is atomic there regardless, so
-  the step is skipped on that platform rather than failed.
+  the step is skipped on that platform rather than failed. A directory that
+  opens and then refuses to sync is warned about on stderr and not raised: the
+  write and the rename have already succeeded by then, and in the ledger's case
+  the consultation has already been charged, so aborting would spend a look and
+  return no verdict. That is the same trade the charging order exists to avoid,
+  pointing the other way. Every other failure in that function precedes the
+  rename and leaves the destination untouched, so those still refuse.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task
