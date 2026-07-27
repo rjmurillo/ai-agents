@@ -205,6 +205,10 @@
     {
       "phase": "implementation",
       "summary": "PR #3430 was squash-merged as 98caa0e54 and its branch deleted while six commits were still unpushed, so the merged code carries the per-call-site digest scrub but not the seam-level one, not the lock-release fix, not the coverage for the four branches the review-thread commit added, and none of the corrected documents. Rebased all six onto main as fix/eval-holdout-gate-digest-leak and confirmed they apply cleanly: 426 tests pass with 100% coverage on all three optimizer modules, ruff and mypy clean. The follow-up PR carries the round-seven blocking fix, which is a real leak of the withheld group on a cleanup failure, so it should not wait."
+    },
+    {
+      "phase": "review",
+      "summary": "An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules."
     }
   ],
   "endingCommit": "f690ce24b",

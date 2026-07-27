@@ -312,7 +312,9 @@
       "caused_by": [
         "e023"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e028"
+      ]
     },
     {
       "id": "e027",
@@ -325,6 +327,16 @@
       "leads_to": [
         "e009"
       ]
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules.",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

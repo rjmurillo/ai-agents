@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T07:40:47.337311+00:00",
+  "updated": "2026-07-27T07:57:27.934500+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21103,6 +21103,15 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T07:40:47.331196+00:00"
+    },
+    {
+      "id": "4ca5cd1194cf",
+      "type": "milestone",
+      "label": "milestone: An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules.",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T07:57:27.929056+00:00"
     }
   ],
   "patterns": [

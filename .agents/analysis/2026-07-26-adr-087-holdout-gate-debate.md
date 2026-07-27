@@ -30,6 +30,9 @@ the first draft made.
 | 5 | gpt-5.6-sol | REJECT |
 | 6 | gemini-3.1-pro-preview | REJECT |
 | 7 | gpt-5.6-sol | REJECT |
+| 8 | Copilot (PR #3458) | REJECT |
+
+No round returned ACCEPT. Round 8 arrived as a PR review on the follow-up branch and found a defect inside the round-7 fix itself, which is the cleanest illustration in this log of why the count kept climbing.
 
 No round returned ACCEPT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
@@ -100,6 +103,29 @@ can restate, or move by renaming something else, is not part of the budget.
    False: `extract` and `score` reach results without touching the ledger, so
    the budget bounds gate comparisons only. RESOLVED in `f690ce24b` for the
    README and in this ADR's Consequences section.
+
+## Round 8 blocking finding
+
+The scrub added in round 7 re-raised `OSError` untouched whenever the message
+did not contain the digest, and `main` catches `ConfigError`, `AdapterError`,
+and `ValueError` but not `OSError`. Ledger failures that name a path stayed
+inside the CLI's JSON error contract; ones that name no path escaped as
+tracebacks. Two are reachable inside the lock: `os.write` filling the disk and
+`os.close` hitting EIO both operate on a file descriptor, so neither message
+carries a filename, so neither reached the redaction branch that also happened
+to be the branch keeping them in the contract.
+
+This is the recurring defect one layer down. The handled paths were the ones
+somebody enumerated. RESOLVED: the seam converts every `OSError` and redacts
+only when the digest is present, so the contract and the redaction stop being
+the same branch. A `ConfigError` without the digest is re-raised as itself so
+nothing inspecting the exception object loses it.
+
+Two adjacent claims were checked while fixing it and both held, so no change
+was made: `LedgerMismatchError` derives from `Exception` rather than
+`ConfigError`, so the scrub never touches it and it reaches its handler
+intact; and both of its messages name `path.parent` rather than the
+digest-bearing filename.
 
 ## Corrections applied without dispute
 
