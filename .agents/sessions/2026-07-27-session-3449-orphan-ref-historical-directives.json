@@ -121,6 +121,15 @@
         "Read every one of the 32 reference lines: each reads as narrative about what existed at authoring time, using words like existing and EXISTING, not new"
       ],
       "outcome": "Rewriting the specs would introduce anachronism the repo has already ruled against, and the correction a reader needs is already in current documentation"
+    },
+    {
+      "phase": "Choose the narrower of the two escape hatches",
+      "actions": [
+        "Read the directive table in the skill: file scope skips the whole file, line scope skips one line",
+        "Counted existing precedent with git ls-files: 39 line-scope directives and 29 file-scope already in the tree, four of them in the files being fixed",
+        "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
+      ],
+      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS"
     }
   ],
   "endingCommit": "",

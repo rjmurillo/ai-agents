@@ -308,7 +308,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 **BundleRegistry (shared module, imported by both test and pre_pr)**:
 
-Create `scripts/validation/bundle_registry.py` as the single source of truth (located alongside `pre_pr.py` so the validation consumer imports a sibling, and the test consumer imports via repo-root sys.path injection):
+Create `scripts/validation/bundle_registry.py` as the single source of truth (located alongside `pre_pr.py` so the validation consumer imports a sibling, and the test consumer imports via repo-root sys.path injection): <!-- orphan-ref-ignore -->
 
 ```python
 BUNDLE_REGISTRY = [
@@ -330,7 +330,7 @@ BUNDLE_REGISTRY = [
 ]
 ```
 
-Both `tests/test_command_bundles.py` and the new function in `scripts/validation/pre_pr.py` MUST import from `scripts/validation/bundle_registry.py` (the test side adds the directory to `sys.path`; the pre_pr side imports it as a sibling). Do NOT copy-paste the list into both files (prevents drift per pre-mortem finding #3).
+Both `tests/test_command_bundles.py` and the new function in `scripts/validation/pre_pr.py` MUST import from `scripts/validation/bundle_registry.py` (the test side adds the directory to `sys.path`; the pre_pr side imports it as a sibling). Do NOT copy-paste the list into both files (prevents drift per pre-mortem finding #3). <!-- orphan-ref-ignore -->
 
 **Out of Scope**: Runtime execution of skills. Testing skill behavior. The test is a static contract check only.
 
@@ -422,7 +422,7 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 | `.claude/commands/review.md` | T5-6 | modify |
 | `.claude/commands/pr-review.md` | T5-7 | modify |
 | `.claude/commands/research.md` | T5-7 | modify |
-| `scripts/validation/bundle_registry.py` | T5-8 | create |
+| `scripts/validation/bundle_registry.py` | T5-8 | create | <!-- orphan-ref-ignore -->
 | `tests/test_command_bundles.py` | T5-8 | create |
 | `scripts/validation/pre_pr.py` | T5-8 | modify |
 

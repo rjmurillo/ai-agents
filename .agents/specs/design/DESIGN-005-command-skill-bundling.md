@@ -373,7 +373,7 @@ Satisfies: AC-10, AC-11, AC-13.
 |---|---|---|
 | Static parse | `tests/test_command_bundles.py` | Each command file contains the `Skill(skill="...")` calls from the BundleRegistry. Parses markdown; does not execute commands. Tests use `xfail` marks for not-yet-edited rows so CI stays green during M1/M2. |
 | Pre-PR advisory | `scripts/validation/pre_pr.py` (new check) | Same parser as test file; emits **advisory WARN** findings (not BLOCKING) for missing invocations. Gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`); `1` upgrades to BLOCKING in a future spec. |
-| Shared registry | `scripts/validation/bundle_registry.py` | Single source of truth for BUNDLE_REGISTRY list, imported by both test and pre_pr.py. Avoids copy-paste drift between consumers. |
+| Shared registry | `scripts/validation/bundle_registry.py` | Single source of truth for BUNDLE_REGISTRY list, imported by both test and pre_pr.py. Avoids copy-paste drift between consumers. | <!-- orphan-ref-ignore -->
 | Manual smoke | Run `/spec` and `/ship` on a clean repo | Verify `BUNDLE:` text appears in command file and skill invocations succeed. |
 | CWE-78 check | `tests/test_command_bundles.py` | All git log commands in build.md and review.md quote file paths (independent regex grep, NOT shared with the bundle parser). |
 
