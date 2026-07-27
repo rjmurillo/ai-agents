@@ -147,7 +147,7 @@ For the current scope and ACs, see:
 - `.agents/specs/requirements/REQ-005-pr-iteration-cost.md`
 - `.agents/specs/design/DESIGN-005-pr-iteration-cost.md`
 - `.agents/specs/tasks/TASK-005-pr-iteration-cost.md`
-- `.agents/plans/active/PLAN-1884-pr-iteration-cost.md`
+- `.agents/archive/plans/PLAN-1884-pr-iteration-cost.md`
 
 ### CVA summary
 

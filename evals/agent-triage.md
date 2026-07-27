@@ -88,4 +88,4 @@ Baseline target per spike (operator-tunable):
 - `scripts/eval/eval-agent-vs-baseline.py`. Agent-vs-baseline runner.
 - `.serena/memories/skills/triage-eval-2026-05-27-full-coverage`. Skill triage memory.
 - [ADR-057](../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md). Prompt behavioral evaluation.
-- REQ-004 / DESIGN-004 / [PLAN-1854](../.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md). Agent-vs-baseline harness origin.
+- REQ-004 / DESIGN-004 / [PLAN-1854](../.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md). Agent-vs-baseline harness origin.

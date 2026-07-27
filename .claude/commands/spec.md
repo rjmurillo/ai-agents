@@ -539,12 +539,12 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - [ ] .github/actions/pr-quality-gate/action.yml:"validity" -- add to valid input list
    - [ ] .github/workflows/pr-quality-gate.yml:"blockingVerdicts" -- decide whether to block
    - [ ] .github/workflows/pr-quality-gate.yml:"exit_code" -- map to exit code per ADR-035
-   - [ ] .claude/review-axes/analyst.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/architect.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/qa.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/security.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/devops.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/roadmap.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/analyst.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/architect.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/qa.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/security.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/devops.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/roadmap.md -- document new verdict in axis prose
    - [ ] .github/prompts/pr-quality-gate-analyst.md -- mirror axis prose
    - [ ] .github/prompts/pr-quality-gate-architect.md -- mirror axis prose
    - [ ] .github/prompts/pr-quality-gate-qa.md -- mirror axis prose

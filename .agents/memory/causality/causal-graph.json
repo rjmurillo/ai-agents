@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T05:34:46.583305+00:00",
+  "updated": "2026-07-27T06:00:12.157256+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20119,99 +20119,110 @@
       "type": "commit",
       "label": "commit: Commit: ae8be1c0",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317470+00:00"
+      "created": "2026-07-27T04:09:55.160168+00:00"
     },
     {
       "id": "dc2a616055e1",
       "type": "commit",
       "label": "commit: Commit: f2094108",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317562+00:00"
+      "created": "2026-07-27T04:24:15.154685+00:00"
     },
     {
       "id": "66c513e6a577",
       "type": "commit",
       "label": "commit: Commit: c74c8b07",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317652+00:00"
+      "created": "2026-07-27T04:24:15.154761+00:00"
     },
     {
       "id": "95e3a2f47e58",
       "type": "commit",
       "label": "commit: Commit: 0809412c",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317737+00:00"
+      "created": "2026-07-27T04:24:15.154833+00:00"
     },
     {
       "id": "887142e06ba7",
       "type": "commit",
       "label": "commit: Commit: 50860bf0",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317810+00:00"
+      "created": "2026-07-27T04:24:15.154905+00:00"
     },
     {
       "id": "f28a41a11662",
       "type": "commit",
       "label": "commit: Commit: 53f220e9",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317887+00:00"
+      "created": "2026-07-27T04:24:15.154976+00:00"
     },
     {
       "id": "ab8c18a26f2c",
       "type": "commit",
       "label": "commit: Commit: 48c2b938",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.317960+00:00"
+      "created": "2026-07-27T04:24:15.155048+00:00"
     },
     {
       "id": "48978045b751",
       "type": "commit",
       "label": "commit: Commit: 3f40fac7",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.318033+00:00"
+      "created": "2026-07-27T04:24:15.155119+00:00"
     },
     {
       "id": "6e5bea63d2be",
       "type": "commit",
       "label": "commit: Commit: 19d4a761",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.318110+00:00"
+      "created": "2026-07-27T04:09:55.160095+00:00"
     },
     {
       "id": "3c207343a40b",
       "type": "commit",
       "label": "commit: Commit: 1bf125d7",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.318199+00:00"
+      "created": "2026-07-27T04:24:15.155191+00:00"
     },
     {
       "id": "22a60c38150d",
       "type": "commit",
       "label": "commit: Commit: 9f1df6b3",
       "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:45:13.318291+00:00"
+      "created": "2026-07-27T04:24:15.154595+00:00"
     },
     {
       "id": "e0f161010107",
@@ -20788,6 +20799,150 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T05:34:46.577440+00:00"
+    },
+    {
+      "id": "67ded865ef9c",
+      "type": "milestone",
+      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159793+00:00"
+    },
+    {
+      "id": "f2d7d47e373c",
+      "type": "milestone",
+      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159876+00:00"
+    },
+    {
+      "id": "8483b7aa02d2",
+      "type": "milestone",
+      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159951+00:00"
+    },
+    {
+      "id": "c2dd9c2d885d",
+      "type": "milestone",
+      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160023+00:00"
+    },
+    {
+      "id": "d39c4dcdb31a",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160242+00:00"
+    },
+    {
+      "id": "e17a5f8f0260",
+      "type": "outcome",
+      "label": "Outcome: success - Merge main to resolve stale conflict and address two Copilot review findings on PR #3429",
+      "episodes": [
+        "episode-2026-07-27-session-3429-pr-autofix"
+      ],
+      "created": "2026-07-27T05:46:07.843201+00:00"
+    },
+    {
+      "id": "3ec2f9512cca",
+      "type": "commit",
+      "label": "commit: Commit: 63ed646fb9",
+      "episodes": [
+        "episode-2026-07-27-session-3429-pr-autofix"
+      ],
+      "created": "2026-07-27T06:00:12.151208+00:00"
+    },
+    {
+      "id": "dcb6feb1010b",
+      "type": "commit",
+      "label": "commit: Commit: d996ad73",
+      "episodes": [
+        "episode-2026-07-27-session-3429-pr-autofix"
+      ],
+      "created": "2026-07-27T06:00:12.151297+00:00"
+    },
+    {
+      "id": "51e2bd81bfaf",
+      "type": "milestone",
+      "label": "milestone: The boundary is verified from the manifests, and every number in the rule comes from a command a reader can rerun",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695149+00:00"
+    },
+    {
+      "id": "3e1e4726fcc6",
+      "type": "milestone",
+      "label": "milestone: The draft was materially wrong in three ways and the review caught all three",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695240+00:00"
+    },
+    {
+      "id": "6ac170478837",
+      "type": "milestone",
+      "label": "milestone: The rule now documents an existing system rather than competing with it",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695317+00:00"
+    },
+    {
+      "id": "abba30ac6918",
+      "type": "milestone",
+      "label": "milestone: The rule distinguishes the three cases a grep cannot, and the coverage gap it reports is scoped to what the data supports",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695391+00:00"
+    },
+    {
+      "id": "d7f71c12a9c8",
+      "type": "milestone",
+      "label": "milestone: One canonical rule, one augmented memory, no third representation to drift",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695464+00:00"
+    },
+    {
+      "id": "1f62d89a5f47",
+      "type": "commit",
+      "label": "commit: Commit: 120528e74c",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695537+00:00"
+    },
+    {
+      "id": "9f2b809b4f7a",
+      "type": "outcome",
+      "label": "Outcome: success - Bake the plugin self-containment boundary into binding knowledge after the user reported that plugin-shipped content cannot reference paths outside its plugin root",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:22:38.695619+00:00"
+    },
+    {
+      "id": "57b08bd5a568",
+      "type": "commit",
+      "label": "commit: Commit: d3eefa86b0",
+      "episodes": [
+        "episode-2026-07-26-session-3402-plugin-self-containment"
+      ],
+      "created": "2026-07-27T05:58:30.440248+00:00"
     }
   ],
   "patterns": [

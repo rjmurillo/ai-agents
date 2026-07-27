@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3429,
+    "date": "2026-07-27",
+    "branch": "chore/archive-stale-execution-plans",
+    "startingCommit": "7bb9df4e",
+    "objective": "Merge main to resolve stale conflict and address two Copilot review findings on PR #3429"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created at /tmp/pr-3429-worktree on chore/archive-stale-execution-plans at 7bb9df4e"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pr-autofix skill protocol followed; hooks never bypassed"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Remote HEAD 7bb9df4e matched expected SHA before push"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch = chore/archive-stale-execution-plans"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Autofix session, PR context gathered via API"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions read"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pr-autofix command and skill docs read"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "check_pr_live_state.py, pr_autofix_lease.py, test_pr_merge_ready.py, get_pr_review_threads.py used"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Merge commit d996ad73 (main into branch), then fix commit 63ed646fb9 for two Copilot review findings"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All 87 CI checks pass on d996ad73; pre-push hooks pass"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 ran via lefthook pre-commit hook: 0 issues in 0 files"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote pr-3429-autofix-session this session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Merge",
+      "actions": [
+        "Fetched origin/main, verified real conflict in .agents/memory/causality/causal-graph.json via trial merge",
+        "Resolved using the merge_causal_graph.py custom merge driver",
+        "Pushed merge commit d996ad73 after force-push safety SHA check passed"
+      ]
+    },
+    {
+      "phase": "Review",
+      "actions": [
+        "Addressed PRRT_kwDOQoWRls6T8Wg5: rewrote \"predating this lifecycle\" to \"whose work has shipped\" in .agents/plans/README.md",
+        "Addressed PRRT_kwDOQoWRls6T8WhV: set metrics.files_changed from 3 to 0 in episode-2026-07-26-session-3423 (the parent session episode, not this one) to match extractor output"
+      ]
+    }
+  ],
+  "endingCommit": "63ed646fb9",
+  "nextSteps": []
+}
