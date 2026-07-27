@@ -364,7 +364,14 @@ jobs:
 
           # Commit and push
           git commit -m "Merge $env:BASE_REF into $env:HEAD_REF - AI-resolved conflicts"
-          git push origin $env:HEAD_REF
+          # Issue #3412: push through the transport-verifying helper so a push
+          # that reports success without updating the requested ref (or that
+          # names a different branch) fails loudly instead of silently.
+          python3 .github/scripts/safe_push_pr_branch.py --branch $env:HEAD_REF --remote origin
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::PR #$($env:PR_NUMBER): verified push failed (exit $LASTEXITCODE)"
+            exit $LASTEXITCODE
+          }
           Write-Host "::notice::PR #$($env:PR_NUMBER): AI-resolved conflicts successfully"
 
       - name: Report unresolvable conflicts
