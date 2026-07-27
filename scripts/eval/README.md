@@ -816,7 +816,10 @@ a hypothesis, and run the null control before believing it.
 ### Refusing an incomparable pair
 
 `split` records the corpus of the results it was drawn from, and `gate` refuses
-unless the split and both results files name one corpus:
+when the split and the two results files name more than one corpus between
+them, counting a declared corpus beside an undeclared one as a disagreement.
+Undeclared everywhere is not one, and is reported as `corpus_verified: false`
+rather than refused, because the rule and hook paths declare no corpus at all:
 
 ```text
 decision: REJECT   compared: false   consultations: 0
