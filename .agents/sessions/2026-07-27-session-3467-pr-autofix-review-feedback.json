@@ -90,6 +90,6 @@
       "outcome": "Replaced 'No round returned ACCEPT' with 'Twelve consecutive rounds returned REJECT'"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "341682152a",
   "nextSteps": []
 }
