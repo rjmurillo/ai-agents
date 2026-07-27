@@ -93,6 +93,38 @@
     {
       "action": "Committed closeout docs",
       "result": "Updated lifecycle README files to point at completed and abandoned plan directories."
+    },
+    {
+      "action": "Committed closeout batch 2",
+      "result": "Moved superseded req-008 and stale SPEC-005 bundle plan into abandoned."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed Stage 1 vendor and knowledge integration plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed eval harness and PR iteration cost plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed dash enforcement and Step 0 plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed skill catalog triage and multi-tool artifact build plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed PR 1965 retro fixes and memory-first gate plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed review axes convergence plan."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Abandoned req-008 findings note because REQ-017 superseded it."
     }
   ],
   "endingCommit": "",

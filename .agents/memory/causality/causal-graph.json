@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:43:54.525143+00:00",
+  "updated": "2026-07-27T12:48:08.264705+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21510,6 +21510,33 @@
         "episode-2026-07-27-session-3426-plan-closeout"
       ],
       "created": "2026-07-27T12:43:54.519216+00:00"
+    },
+    {
+      "id": "8d477003135d",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:44:42.128789+00:00"
+    },
+    {
+      "id": "a76f1303445a",
+      "type": "milestone",
+      "label": "milestone: Committed completed plan batch",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:45:48.675324+00:00"
+    },
+    {
+      "id": "24368d5c21ec",
+      "type": "milestone",
+      "label": "milestone: Committed single plan closeout",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:48:08.258840+00:00"
     }
   ],
   "patterns": [
