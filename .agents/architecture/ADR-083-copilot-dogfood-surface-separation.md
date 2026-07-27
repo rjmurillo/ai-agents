@@ -161,13 +161,12 @@ customer installs the base.
    shared declarative source that #3197's purge and #3216's enumeration read. The
    mechanism for hooks is delete-and-re-home, not overlay.
 
-   Binding constraint on the hook surface: the customer-facing security controls in
-   the shipped base, specifically `invoke_security_gate` (Write and Edit) and
-   `invoke_security_commit_gate` (Bash), are `surface: ship` and MUST remain in the
-   base. #3197's purge and #3216's enumeration MUST NOT tag them `internal` or strip
-   them, because a customer install depends on them for its own security posture.
-   Moving any security control off the shipped base requires its own ADR, not a
-   hook-ROI reclassification.
+   Binding constraint on the hook surface: customer-facing security controls in the
+   shipped base are `surface: ship` and MUST remain in the base. The removed
+   `invoke_security_gate` and removed `invoke_security_commit_gate` hook files no
+   longer ship, so this ADR no longer claims a customer install depends on them.
+   Moving any future customer-facing security control off the shipped base requires
+   its own ADR, not a hook-ROI reclassification.
 
 6. **Overlay decision gate (kill criterion).** The genuinely-internal skill set is
    expected to be empty at first: per the owner's classification, even the session
@@ -370,9 +369,9 @@ any `marketplace.json`.
 - The `surface` tag gate fails a CI run when an untagged item is added and passes
   when it is tagged, proven by a positive, a negative, and an invalid-value test
   case.
-- CI asserts both shipped security hooks (`invoke_security_gate`,
-  `invoke_security_commit_gate`) are present in the base and classified
-  `surface: ship`; the run fails if either is missing or reclassified `internal`.
+- If customer-facing security hooks are restored, CI asserts the restored hooks are
+  present in the base and classified `surface: ship`; the run fails if any such
+  hook is missing or reclassified `internal`.
 - The copy dogfood install makes `copilot` load the repo `HEAD` version in an
   interactive session, verified by the loaded `plugin.json` version matching `HEAD`
   rather than 0.5.248.
