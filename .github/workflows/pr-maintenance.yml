@@ -139,6 +139,14 @@ jobs:
           git config user.email "rjmurillo-bot@users.noreply.github.com"
           python3 scripts/maintenance/install_merge_drivers.py --trusted-copy
 
+      - name: Checkout trusted push helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: .trusted-helper
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Auto-resolve conflicts for PR #${{ matrix.number }}
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
@@ -365,7 +373,14 @@ jobs:
 
           # Commit and push
           git commit -m "Merge $env:BASE_REF into $env:HEAD_REF - AI-resolved conflicts"
-          git push origin $env:HEAD_REF
+          # Issue #3412: push through the transport-verifying helper so a push
+          # that reports success without updating the requested ref (or that
+          # names a different branch) fails loudly instead of silently.
+          python3 .trusted-helper/.github/scripts/safe_push_pr_branch.py --repo-root . --branch $env:HEAD_REF --remote origin
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::PR #$($env:PR_NUMBER): verified push failed (exit $LASTEXITCODE)"
+            exit $LASTEXITCODE
+          }
           Write-Host "::notice::PR #$($env:PR_NUMBER): AI-resolved conflicts successfully"
 
       - name: Report unresolvable conflicts
