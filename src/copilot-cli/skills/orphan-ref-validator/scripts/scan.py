@@ -202,10 +202,17 @@ def _check_skill_refs(
 
     Sibling resolution applies only to references that make no type claim.
     When the prose explicitly calls the token a skill ("the ``ship`` skill",
-    ``skill="ship"``), REQ-009 AC-2 governs and the token must resolve
+    ``skill=`ship```), REQ-009 AC-2 governs and the token must resolve
     against ``.claude/skills/`` alone: a same-named agent or memory does not
     make the sentence true. Skipping that distinction would trade a false
     positive for a wrong pass.
+
+    A type claim only strengthens resolution for a token that is already a
+    candidate, and both extractors require backticks. So a quoted
+    ``skill="ship"`` with no backticked ``ship`` anywhere on the line is
+    never checked at all; the same line written as
+    ``Use `ship` (skill="ship")`` is, because the backticks supply the
+    candidate and the quoted form supplies the type claim.
     """
     findings: list[Finding] = []
     refs_checked = 0

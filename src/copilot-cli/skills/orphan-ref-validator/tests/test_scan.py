@@ -1182,3 +1182,44 @@ def test_type_claim_on_a_living_skill_still_passes(sibling_repo, capsys):
     rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        'Config sets skill="decision-rigor" here.',
+        'Config sets skill: "decision-rigor" here.',
+        "Config sets skill='decision-rigor' here.",
+    ],
+)
+def test_quoted_type_claim_alone_is_not_a_reference(sibling_repo, prose, capsys):
+    """A type claim strengthens resolution; it never creates a candidate.
+
+    Both extractors require backticks, so a quoted ``skill="x"`` with no
+    backticked ``x`` on the line yields a type claim about a token the
+    scanner never examines. Pinned because the natural "fix" on reading the
+    type-claim regex is to widen the extractors to quoted values, which would
+    flag every YAML and JSON config key that happens to be named ``skill``.
+    """
+    write(sibling_repo / "notes" / "s.md", prose + "\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_quoted_type_claim_types_a_backticked_token_on_the_same_line(
+    sibling_repo, capsys
+):
+    """The quoted arm is live: it types a candidate the backticks supply.
+
+    ``decision-rigor`` is a review axis, so a bare mention resolves through
+    the sibling namespace. The quoted type claim on the same line asserts it
+    is a skill, which forces strict resolution and the finding.
+    """
+    write(
+        sibling_repo / "notes" / "s.md",
+        'Use `decision-rigor` (skill="decision-rigor").\n',
+    )
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
+    assert rc == 1
+    assert "decision-rigor" in capsys.readouterr().out
