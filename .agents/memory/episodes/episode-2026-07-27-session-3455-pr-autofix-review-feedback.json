@@ -96,6 +96,18 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-grammar",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": []
     }
   ],

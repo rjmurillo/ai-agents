@@ -19,7 +19,7 @@ author: richard
 > validator were retired together. Text below that creates, imports, generalizes, or
 > invokes that script is no longer actionable. It is kept as a record of the plan as
 > written. Nothing validates embedded count claims today: the scanner's own
-> count subsystem was retired to match in #2853 (commit `9c88990b77`).
+> count subsystem was also retired in PR #2853 (commit `9c88990b77`).
 
 ## Milestones
 

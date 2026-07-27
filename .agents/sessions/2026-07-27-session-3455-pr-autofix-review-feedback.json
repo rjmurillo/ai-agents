@@ -118,6 +118,20 @@
       "step": 7,
       "action": "Revert em-dash edits in causal-graph.json (generated file with content-addressable IDs)",
       "result": "Restored original \\u2014 escapes; regenerated episode nodes; test_every_node_carries_an_id passes"
+    },
+    {
+      "action": "fix-grammar",
+      "description": "Clarified retirement phrasing in 7 spec files",
+      "files": [
+        ".agents/specs/requirements/REQ-003-multi-tool-artifact-build.md",
+        ".agents/specs/requirements/REQ-009-orphan-ref-validator.md",
+        ".agents/specs/requirements/REQ-015-pr-iteration-cost.md",
+        ".agents/specs/design/DESIGN-009-orphan-ref-validator.md",
+        ".agents/specs/design/DESIGN-015-pr-iteration-cost.md",
+        ".agents/specs/tasks/TASK-009-orphan-ref-validator.md",
+        ".agents/specs/tasks/TASK-015-pr-iteration-cost.md"
+      ],
+      "status": "complete"
     }
   ],
   "endingCommit": "62fb792ce9",

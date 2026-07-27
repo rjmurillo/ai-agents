@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T09:40:56.267967+00:00",
+  "updated": "2026-07-27T10:19:13.352228+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21222,6 +21222,15 @@
         "episode-2026-07-27-session-3459-templates-portability"
       ],
       "created": "2026-07-27T09:34:27.612874+00:00"
+    },
+    {
+      "id": "031157b555e6",
+      "type": "milestone",
+      "label": "milestone: fix-grammar",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T10:19:13.346312+00:00"
     }
   ],
   "patterns": [
