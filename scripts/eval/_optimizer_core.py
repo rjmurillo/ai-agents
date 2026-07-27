@@ -62,6 +62,7 @@ __all__ = [
     "buffer_contains",
     "edit_budget",
     "gate",
+    "mcnemar_exact",
     "patch_fingerprint",
     "score",
     "split_tasks",
@@ -151,13 +152,6 @@ class GateResult:
     compared: bool = True
 
 
-def _normalize_ws(value: str | None) -> str:
-    """Collapse every whitespace run to a single space."""
-    if value is None:
-        return ""
-    return " ".join(value.split())
-
-
 def _round_half_up(value: float) -> int:
     """Round halves away from zero, avoiding banker's rounding surprises."""
     return math.floor(value + 0.5)
@@ -205,10 +199,14 @@ def split_tasks(
 
     cleaned: list[str] = []
     for raw in task_ids:
-        task_id = raw.strip()
-        if not task_id:
+        if raw != raw.strip():
+            raise ValueError(
+                f"task id {raw!r} carries leading or trailing whitespace; "
+                f"ids must match the keys the scorer emits exactly"
+            )
+        if not raw:
             raise ValueError("split_tasks requires non-empty task ids")
-        cleaned.append(task_id)
+        cleaned.append(raw)
 
     if len(set(cleaned)) != len(cleaned):
         duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
@@ -221,6 +219,11 @@ def split_tasks(
         raise ValueError(
             f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
             f"leaves no opt tasks"
+        )
+    if n_sel < 1:
+        raise SplitTooSmallError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
         raise SplitTooSmallError(
@@ -276,10 +279,21 @@ def edit_budget(step: int, total: int, *, max_edits: int = 5, min_edits: int = 1
     return max(min_edits, min(max_edits, round(decayed)))
 
 
+def _normalize_newlines(text: str) -> str:
+    """Collapse CRLF and lone CR to LF.
+
+    One canonical form, used by every place that reasons about lines. When the
+    document splitter and the fence-marker check disagreed on whether a lone
+    carriage return starts a new line, a patch carrying "START\\rhidden\\rEND"
+    read as one harmless line at check time and became a real fence on the next
+    read. Sharing this helper is what keeps the two views from drifting apart.
+    """
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _split_lines(document: str) -> list[str]:
     """Split into lines, dropping exactly one trailing newline."""
-    normalized = document.replace("\r\n", "\n").replace("\r", "\n")
-    lines = normalized.split("\n")
+    lines = _normalize_newlines(document).split("\n")
     if lines and lines[-1] == "":
         lines.pop()
     return lines
@@ -334,6 +348,22 @@ def _validate_shape(patch: Patch) -> None:
         raise PatchShapeError(f"patch op {patch.op!r} requires text")
 
 
+def _check_patch_fields(patch: Patch) -> None:
+    """Refuse a patch whose fields are not the types the ops assume.
+
+    Patches arrive as agent-authored JSON, so a number where a string belongs
+    is an ordinary input error, not an internal fault. Checking here turns an
+    uncaught AttributeError deep inside the anchor search into a named error
+    the CLI can report as a shape problem.
+    """
+    if not isinstance(patch.op, str):
+        raise PatchShapeError(f"patch op must be a string, got {type(patch.op).__name__}")
+    if patch.anchor is not None and not isinstance(patch.anchor, str):
+        raise PatchShapeError(f"patch anchor must be a string, got {type(patch.anchor).__name__}")
+    if patch.text is not None and not isinstance(patch.text, str):
+        raise PatchShapeError(f"patch text must be a string, got {type(patch.text).__name__}")
+
+
 def _reject_smuggled_markers(patch: Patch) -> None:
     """Refuse patch text that would introduce a fence marker.
 
@@ -342,7 +372,7 @@ def _reject_smuggled_markers(patch: Patch) -> None:
     """
     if patch.text is None:
         return
-    for line in patch.text.replace("\r\n", "\n").split("\n"):
+    for line in _normalize_newlines(patch.text).split("\n"):
         if line.strip() in (FENCE_START, FENCE_END):
             raise ProtectedSectionError(
                 "patch text may not contain a slow-update fence marker; "
@@ -390,12 +420,13 @@ def apply_patches(document: str, patches: Sequence[Patch], *, budget: int) -> st
 
     lines = _split_lines(document)
     for patch in patches:
+        _check_patch_fields(patch)
         _validate_shape(patch)
         _reject_smuggled_markers(patch)
         protected = _protected_indices(lines)
 
         if patch.op == "append":
-            lines = [*lines, *(patch.text or "").replace("\r\n", "\n").split("\n")]
+            lines = [*lines, *_normalize_newlines(patch.text or "").split("\n")]
             continue
 
         assert patch.anchor is not None  # guaranteed by _validate_shape
@@ -409,13 +440,52 @@ def apply_patches(document: str, patches: Sequence[Patch], *, budget: int) -> st
         if patch.op == "delete":
             lines = [*lines[:index], *lines[index + 1 :]]
         elif patch.op == "replace":
-            payload = (patch.text or "").replace("\r\n", "\n").split("\n")
+            payload = _normalize_newlines(patch.text or "").split("\n")
             lines = [*lines[:index], *payload, *lines[index + 1 :]]
         else:  # insert_after
-            payload = (patch.text or "").replace("\r\n", "\n").split("\n")
+            payload = _normalize_newlines(patch.text or "").split("\n")
             lines = [*lines[: index + 1], *payload, *lines[index + 1 :]]
 
     return _join_lines(lines)
+
+
+def mcnemar_exact(
+    incumbent: Mapping[str, bool],
+    candidate: Mapping[str, bool],
+    task_ids: Sequence[str],
+) -> tuple[int, int, float]:
+    """Return ``(b, c, p)`` for a one-sided exact McNemar test.
+
+    The gate reads the same task ids before and after an edit, so the two
+    scores are paired. Tasks whose outcome did not move say nothing about the
+    edit; only the discordant pairs do. ``b`` counts fail to pass, ``c`` counts
+    pass to fail. Under the null that the edit is neutral, ``b`` is
+    ``Binomial(b + c, 0.5)``, and the reported ``p`` is ``P(X >= b)``.
+
+    Exact rather than chi-squared, because this repo's eval sets are small
+    enough that the asymptotic form does not apply. The number is worth
+    reporting precisely because it makes the resolution limit impossible to
+    talk around: three discordant tasks cannot produce a ``p`` below 0.125, so
+    a three-task held-out group cannot clear a conventional 0.05 floor no
+    matter how the edit performs.
+
+    Raises:
+        MissingResultError: when a requested task is absent from either side.
+    """
+    unique = sorted(set(task_ids))
+    for label, results in (("incumbent", incumbent), ("candidate", candidate)):
+        missing = [task_id for task_id in unique if task_id not in results]
+        if missing:
+            raise MissingResultError(f"{label} has no result for: {', '.join(missing)}")
+
+    b = sum(1 for t in unique if not incumbent[t] and candidate[t])
+    c = sum(1 for t in unique if incumbent[t] and not candidate[t])
+    n = b + c
+    if n == 0:
+        return 0, 0, 1.0
+
+    tail = sum(math.comb(n, k) for k in range(b, n + 1))
+    return b, c, tail / (2**n)
 
 
 def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
@@ -455,6 +525,8 @@ def gate(
     max_consultations: int | None = None,
     split_fingerprint: str | None = None,
     incumbent_fingerprint: str | None = None,
+    discordant_loss: int = 0,
+    allow_regressions: bool = False,
 ) -> GateResult:
     """Decide whether a candidate replaces the incumbent.
 
@@ -467,9 +539,16 @@ def gate(
     so the comparison is meaningless. An exhausted consultation budget means the
     held-out split has been selected against too many times to carry the claim.
 
+    ``discordant_loss`` is the number of held-out tasks that passed before the
+    edit and fail after it. A net gain can still contain one, and ADR-057
+    blocks every pass-to-fail transition rather than netting it against a gain,
+    so by default one broken task rejects the edit however good the aggregate
+    looks. ``allow_regressions`` opts out for callers who genuinely want the
+    aggregate verdict.
+
     Raises:
-        ValueError: on scores outside ``[0, 1]``, negative consultations, or a
-            non-positive consultation cap.
+        ValueError: on scores outside ``[0, 1]``, negative consultations, a
+            non-positive consultation cap, or a negative discordant count.
     """
     if not 0.0 <= candidate <= 1.0:
         raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
@@ -479,6 +558,8 @@ def gate(
         raise ValueError(f"sel_consultations must be non-negative, got {sel_consultations}")
     if max_consultations is not None and max_consultations < 1:
         raise ValueError(f"max_consultations must be positive, got {max_consultations}")
+    if discordant_loss < 0:
+        raise ValueError(f"discordant_loss must be non-negative, got {discordant_loss}")
 
     def _result(decision: str, reason: str, *, compared: bool = True) -> GateResult:
         return GateResult(
@@ -511,6 +592,13 @@ def gate(
         )
 
     if candidate > incumbent:
+        if discordant_loss and not allow_regressions:
+            return _result(
+                "REJECT",
+                f"candidate {candidate:.4f} beats {incumbent:.4f} overall but "
+                f"regressed {discordant_loss} held-out task(s) from pass to fail; "
+                f"a net gain does not buy back a broken task",
+            )
         return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
     if candidate == incumbent:
         return _result("REJECT", f"tie at {candidate:.4f}; a tie does not earn an edit")
@@ -520,9 +608,17 @@ def gate(
 def patch_fingerprint(patches: Sequence[Patch]) -> str:
     """Return a stable identity for a proposed edit.
 
-    Order-independent and whitespace-insensitive, so re-proposing the same edit
-    with the lines shuffled or the prose re-wrapped still matches a buffered
-    rejection.
+    Order-sensitive and text-exact, because both are load-bearing. Patches
+    apply sequentially, so appending "one" then "two" builds a different
+    document from the reverse; and whitespace is content, since a newline in
+    patch text splits one line into two. Only line endings are normalized,
+    which is transport rather than content.
+
+    The bias here is deliberate. A fingerprint that treats two different edits
+    as the same one lets a single rejection ban an edit that was never tried,
+    and the buffer has no expiry. Collapsing too little costs a duplicate
+    rollout; collapsing too much costs an edit that can never be proposed
+    again.
 
     Raises:
         ValueError: when ``patches`` is empty.
@@ -530,9 +626,14 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     if not patches:
         raise ValueError("patch_fingerprint requires at least one patch")
 
-    canonical = sorted(
-        [patch.op, _normalize_ws(patch.anchor), _normalize_ws(patch.text)] for patch in patches
-    )
+    canonical = [
+        [
+            patch.op,
+            _normalize_newlines(patch.anchor) if patch.anchor is not None else "",
+            _normalize_newlines(patch.text) if patch.text is not None else "",
+        ]
+        for patch in patches
+    ]
     payload = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
 

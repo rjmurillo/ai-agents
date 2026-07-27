@@ -33,6 +33,7 @@ from _optimizer_core import (  # noqa: E402
     buffer_contains,
     edit_budget,
     gate,
+    mcnemar_exact,
     patch_fingerprint,
     score,
     split_tasks,
@@ -123,8 +124,12 @@ class TestSplitTasks:
         with pytest.raises(ValueError, match="duplicate"):
             split_tasks(["A", "B", "A"], seed="s")
 
-    def test_rejects_blank_task_id(self):
+    def test_rejects_an_empty_task_id(self):
         with pytest.raises(ValueError, match="non-empty"):
+            split_tasks(["A", "", "C", "D"], seed="s")
+
+    def test_rejects_blank_task_id(self):
+        with pytest.raises(ValueError, match="whitespace|non-empty"):
             split_tasks(["A", "   "], seed="s")
 
     def test_rejects_empty_seed(self):
@@ -177,13 +182,29 @@ class TestSplitTasks:
         assert len(split.sel) == 3
         assert len(split.opt) == 1
 
-    def test_task_ids_are_stripped(self):
-        split = split_tasks([" A ", "B", "C", "D"], seed="s", sel_ratio=0.5, min_sel=0)
-        assert sorted(list(split.opt) + list(split.sel)) == ["A", "B", "C", "D"]
+    def test_task_ids_with_edge_whitespace_are_rejected(self):
+        """Silently stripping an id makes it stop matching the result map.
+
+        The result mapping is keyed by the id the scorer emitted. If the split
+        rewrites " A " to "A", every later lookup raises MissingResultError far
+        from the cause. Refusing the input names the problem at its source.
+        """
+        with pytest.raises(ValueError, match="whitespace"):
+            split_tasks([" A ", "B", "C", "D"], seed="s", sel_ratio=0.5, min_sel=1)
 
     def test_rejects_ids_that_collide_after_stripping(self):
-        with pytest.raises(ValueError, match="duplicate"):
-            split_tasks(["A", " A "], seed="s", min_sel=0)
+        with pytest.raises(ValueError, match="whitespace"):
+            split_tasks(["A", " A "], seed="s", min_sel=1)
+
+    def test_refuses_to_produce_an_empty_held_out_group(self):
+        """min_sel=0 must not be a route to a gate that holds nothing out.
+
+        An empty sel group is not a lenient gate, it is no gate: score() would
+        raise on the empty sequence and the caller would read a crash instead
+        of a verdict.
+        """
+        with pytest.raises(SplitTooSmallError, match="at least one"):
+            split_tasks(_ids(20), seed="s", sel_ratio=0.01, min_sel=0)
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +263,53 @@ class TestEditBudget:
 # ---------------------------------------------------------------------------
 # apply_patches
 # ---------------------------------------------------------------------------
+
+
+class TestSmuggledFenceMarkers:
+    """Regression cover for a protection bypass found in adversarial review.
+
+    The document splitter normalized lone carriage returns into newlines, but
+    the marker check normalized only CRLF. A patch carrying
+    "START\\rhidden\\rEND" therefore looked like one harmless line at check
+    time and became a real fence the next time the file was read, hiding the
+    smuggled region from every later edit.
+    """
+
+    def test_a_crlf_smuggled_marker_is_rejected(self):
+        patch = Patch("append", None, f"{FENCE_START}\r\nhidden\r\n{FENCE_END}")
+        with pytest.raises(ProtectedSectionError):
+            apply_patches("body\n", [patch], budget=1)
+
+    def test_a_lone_carriage_return_smuggled_marker_is_rejected(self):
+        patch = Patch("append", None, f"{FENCE_START}\rhidden\r{FENCE_END}")
+        with pytest.raises(ProtectedSectionError):
+            apply_patches("body\n", [patch], budget=1)
+
+    def test_a_lone_carriage_return_start_marker_alone_is_rejected(self):
+        patch = Patch("append", None, f"tail\r{FENCE_START}")
+        with pytest.raises(ProtectedSectionError):
+            apply_patches("body\n", [patch], budget=1)
+
+    def test_ordinary_carriage_return_text_still_applies(self):
+        """The fix must not reject text that merely contains a stray CR."""
+        out = apply_patches("body\n", [Patch("append", None, "one\rtwo")], budget=1)
+        assert out == "body\none\ntwo\n"
+
+
+class TestMalformedPatchFields:
+    """A patch is agent-authored JSON, so wrong field types are expected."""
+
+    def test_a_non_string_text_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError):
+            apply_patches("body\n", [Patch("append", None, 42)], budget=1)
+
+    def test_a_non_string_anchor_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError):
+            apply_patches("alpha\n", [Patch("replace", 7, "x")], budget=1)
+
+    def test_a_non_string_op_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError):
+            apply_patches("body\n", [Patch(3, None, "x")], budget=1)
 
 
 class TestApplyPatches:
@@ -426,6 +494,81 @@ class TestApplyPatches:
 # ---------------------------------------------------------------------------
 
 
+class TestMcnemarExact:
+    """One-sided exact McNemar test on the paired held-out outcomes.
+
+    The gate compares the same task ids before and after an edit, so the two
+    scores are paired, not independent. Tasks whose outcome did not move carry
+    no information about the edit. Only the discordant pairs do: b tasks that
+    went fail to pass, c that went pass to fail. Under the null that the edit
+    is neutral, b is Binomial(b + c, 0.5), and the one-sided p is
+    P(X >= b). Exact, so it stays valid at the small task counts this repo's
+    eval sets actually have.
+    """
+
+    def test_a_clean_sweep_of_three_is_one_eighth(self):
+        inc = {"A": False, "B": False, "C": False}
+        cand = {"A": True, "B": True, "C": True}
+        b, c, p = mcnemar_exact(inc, cand, ["A", "B", "C"])
+        assert (b, c) == (3, 0)
+        assert p == pytest.approx(0.125)
+
+    def test_no_discordant_pairs_is_p_one(self):
+        """Nothing moved, so the data cannot argue against the null."""
+        inc = {"A": True, "B": False}
+        cand = {"A": True, "B": False}
+        b, c, p = mcnemar_exact(inc, cand, ["A", "B"])
+        assert (b, c) == (0, 0)
+        assert p == 1.0
+
+    def test_a_regression_is_not_significant(self):
+        inc = {"A": True, "B": True}
+        cand = {"A": False, "B": False}
+        b, c, p = mcnemar_exact(inc, cand, ["A", "B"])
+        assert (b, c) == (0, 2)
+        assert p == 1.0
+
+    def test_one_flip_each_way_is_p_one(self):
+        inc = {"A": True, "B": False}
+        cand = {"A": False, "B": True}
+        b, c, p = mcnemar_exact(inc, cand, ["A", "B"])
+        assert (b, c) == (1, 1)
+        assert p == pytest.approx(0.75)
+
+    def test_five_clean_flips_clears_the_conventional_floor(self):
+        ids = ["A", "B", "C", "D", "E"]
+        inc = dict.fromkeys(ids, False)
+        cand = dict.fromkeys(ids, True)
+        b, c, p = mcnemar_exact(inc, cand, ids)
+        assert (b, c) == (5, 0)
+        assert p == pytest.approx(0.03125)
+        assert p <= 0.05
+
+    def test_three_flips_cannot_clear_the_conventional_floor(self):
+        """Documents the real resolution limit of a 3-task held-out group."""
+        ids = ["A", "B", "C"]
+        b, c, p = mcnemar_exact(dict.fromkeys(ids, False), dict.fromkeys(ids, True), ids)
+        assert p > 0.05
+
+    def test_unchanged_tasks_do_not_dilute_the_result(self):
+        inc = {"A": False, "B": True, "C": True, "D": True}
+        cand = {"A": True, "B": True, "C": True, "D": True}
+        b, c, p = mcnemar_exact(inc, cand, ["A", "B", "C", "D"])
+        assert (b, c) == (1, 0)
+        assert p == pytest.approx(0.5)
+
+    def test_an_empty_task_list_is_p_one(self):
+        assert mcnemar_exact({}, {}, []) == (0, 0, 1.0)
+
+    def test_a_missing_incumbent_result_raises(self):
+        with pytest.raises(MissingResultError):
+            mcnemar_exact({}, {"A": True}, ["A"])
+
+    def test_a_missing_candidate_result_raises(self):
+        with pytest.raises(MissingResultError):
+            mcnemar_exact({"A": True}, {}, ["A"])
+
+
 class TestScore:
     def test_counts_the_passing_fraction(self):
         results = {"A": True, "B": False, "C": True, "D": True}
@@ -464,6 +607,55 @@ class TestScore:
 # ---------------------------------------------------------------------------
 # gate
 # ---------------------------------------------------------------------------
+
+
+class TestGateRegressionGuard:
+    """An aggregate win must not hide a held-out task that stopped passing.
+
+    ADR-057 blocks every pass-to-fail transition rather than netting them
+    against gains. An aggregate-only gate accepts an edit that fixes two tasks
+    and breaks one, which is exactly the trade ADR-057 refuses. The gate takes
+    the discordant counts so it can refuse on the broken task.
+    """
+
+    def test_rejects_a_net_win_that_breaks_a_passing_task(self):
+        result = gate(0.8, 0.6, discordant_loss=1)
+        assert result.decision == "REJECT"
+        assert "regress" in result.reason
+
+    def test_names_how_many_tasks_broke(self):
+        result = gate(0.8, 0.6, discordant_loss=2)
+        assert "2" in result.reason
+
+    def test_accepts_a_win_with_no_regression(self):
+        assert gate(0.8, 0.6, discordant_loss=0).decision == "ACCEPT"
+
+    def test_defaults_to_no_regression_when_counts_are_unknown(self):
+        """Per-task detail is optional, so the aggregate path must still work."""
+        assert gate(0.8, 0.6).decision == "ACCEPT"
+
+    def test_rejects_a_negative_discordant_loss(self):
+        with pytest.raises(ValueError, match="discordant_loss"):
+            gate(0.8, 0.6, discordant_loss=-1)
+
+    def test_a_regression_still_counts_as_compared(self):
+        """The scores were weighed, so the consultation was spent."""
+        assert gate(0.8, 0.6, discordant_loss=1).compared is True
+
+    def test_allowing_regressions_restores_the_aggregate_verdict(self):
+        result = gate(0.8, 0.6, discordant_loss=1, allow_regressions=True)
+        assert result.decision == "ACCEPT"
+
+    def test_the_fingerprint_guard_still_wins_over_the_regression_guard(self):
+        result = gate(
+            0.8,
+            0.6,
+            discordant_loss=1,
+            split_fingerprint="a",
+            incumbent_fingerprint="b",
+        )
+        assert result.compared is False
+        assert "fingerprint" in result.reason
 
 
 class TestGate:
@@ -563,14 +755,32 @@ class TestPatchFingerprint:
         b = [Patch("replace", "x", "y")]
         assert patch_fingerprint(a) == patch_fingerprint(b)
 
-    def test_order_does_not_change_the_fingerprint(self):
+    def test_order_changes_the_fingerprint(self):
+        """Patches apply sequentially, so order is part of the edit's identity.
+
+        Appending "one" then "two" produces a different document from "two"
+        then "one". Treating them as the same edit would let one rejection ban
+        the other, and a banned edit can never be re-proposed.
+        """
         a = [Patch("append", None, "one"), Patch("append", None, "two")]
         b = [Patch("append", None, "two"), Patch("append", None, "one")]
-        assert patch_fingerprint(a) == patch_fingerprint(b)
+        assert patch_fingerprint(a) != patch_fingerprint(b)
 
-    def test_whitespace_reflow_does_not_change_the_fingerprint(self):
+    def test_whitespace_reflow_changes_the_fingerprint(self):
+        """Whitespace is content here: a newline splits one line into two."""
         a = [Patch("replace", "x", "hello  world")]
         b = [Patch("replace", "x", "hello\n world ")]
+        assert patch_fingerprint(a) != patch_fingerprint(b)
+
+    def test_line_endings_alone_do_not_change_the_fingerprint(self):
+        """CRLF is transport, not content, so it is normalized away."""
+        a = [Patch("replace", "x", "one\r\ntwo")]
+        b = [Patch("replace", "x", "one\ntwo")]
+        assert patch_fingerprint(a) == patch_fingerprint(b)
+
+    def test_a_lone_carriage_return_is_normalized_too(self):
+        a = [Patch("replace", "x", "one\rtwo")]
+        b = [Patch("replace", "x", "one\ntwo")]
         assert patch_fingerprint(a) == patch_fingerprint(b)
 
     def test_different_text_changes_the_fingerprint(self):
@@ -611,11 +821,12 @@ class TestBufferContains:
     def test_an_empty_buffer_contains_nothing(self):
         assert buffer_contains([], [Patch("append", None, "x")]) is False
 
-    def test_matches_across_reordering(self):
+    def test_does_not_match_across_reordering(self):
+        """Reordered patches build a different document, so they are a different edit."""
         stored = [Patch("append", None, "one"), Patch("append", None, "two")]
         buffer = [{"fingerprint": patch_fingerprint(stored)}]
         reordered = [Patch("append", None, "two"), Patch("append", None, "one")]
-        assert buffer_contains(buffer, reordered) is True
+        assert buffer_contains(buffer, reordered) is False
 
     def test_ignores_buffer_entries_without_a_fingerprint(self):
         buffer = [{"note": "malformed"}, {"fingerprint": None}]
