@@ -32,7 +32,7 @@ from pathlib import Path
 
 DEFAULT_TARGETS = (
     ".agents/specs",
-    "tests/evals",
+    "tests",
     ".claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",

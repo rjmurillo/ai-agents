@@ -26,8 +26,10 @@ SINGLE_WORD_SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*)`")
 # PR2 (issue #1994) broadens the suffix from ``.py`` only to ``.py`` or
 # ``.ps1``: PowerShell helpers under these prefixes are referenced in specs
 # (e.g. backticked `scripts/Validate-SessionEnd.ps1`) and went undetected.
+# Issue #3456 adds ``tests/`` so deleted test helpers referenced from specs
+# fail the same script_path check instead of passing invisibly.
 SCRIPT_REF_RE = re.compile(
-    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
+    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts|tests)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
     re.IGNORECASE,
 )
 # Skill-script references under .claude/skills/ or the copilot mirror, in
