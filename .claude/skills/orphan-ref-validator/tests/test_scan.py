@@ -57,6 +57,8 @@ ScanResult = _scan.ScanResult
 load_baseline = _scan.load_baseline
 BaselineError = _scan.BaselineError
 extract_script_refs = _scan.extract_script_refs
+extract_rule_refs = _scan.extract_rule_refs
+extract_instruction_refs = _scan.extract_instruction_refs
 extract_skill_refs = _scan.extract_skill_refs
 extract_single_word_skill_refs = _scan.extract_single_word_skill_refs
 extract_skill_script_refs = _scan.extract_skill_script_refs
@@ -119,6 +121,18 @@ def test_extract_script_refs_full_path_match():
     text = "See `build/scripts/foo.py` for details."
     refs = list(extract_script_refs(text))
     assert refs == [(1, "build/scripts/foo.py")]
+
+
+def test_extract_rule_refs_from_markdown_link_target():
+    text = "See [rule](.claude/rules/missing-rule.md)."
+    assert list(extract_rule_refs(text)) == [(1, ".claude/rules/missing-rule.md")]
+
+
+def test_extract_instruction_refs_from_markdown_link_target():
+    text = "See [mirror](src/copilot-cli/instructions/missing.instructions.md)."
+    assert list(extract_instruction_refs(text)) == [
+        (1, "src/copilot-cli/instructions/missing.instructions.md")
+    ]
 
 
 # ---------- enumerator tests ----------
@@ -260,6 +274,10 @@ class TestTestsScriptRefs:
         assert "VERDICT: PASS" in capsys.readouterr().out
 
     def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
+        write(fake_repo / ".agents" / "specs" / "README.md", "# specs\n")
+        write(fake_repo / ".claude" / ".claude-plugin" / "plugin.json", "{}\n")
+        write(fake_repo / ".claude-plugin" / "marketplace.json", "{}\n")
+        write(fake_repo / ".github" / "plugin" / "marketplace.json", "{}\n")
         target = fake_repo / "tests" / "contracts" / "orphan_refs.md"
         write(target, "Run `tests/hooks/missing.py` for the guard.\n")
         rc = main(["--repo-root", str(fake_repo)])
@@ -311,6 +329,53 @@ class TestTestsScriptRefs:
         assert result.verdict == "PASS"
 
 
+class TestRuleAndInstructionRefs:
+    """Rule and instruction mirror paths are first-class scanned entities."""
+
+    def test_missing_rule_path_yields_critical_finding(self, fake_repo):
+        target = fake_repo / "docs" / "rules.md"
+        write(target, "See `.claude/rules/deleted-rule.md`.\n")
+        result = scan([target], fake_repo)
+        findings = [f for f in result.findings if f.kind == "rule_path"]
+        assert len(findings) == 1
+        assert findings[0].referenced_entity == ".claude/rules/deleted-rule.md"
+        assert findings[0].severity == "critical"
+
+    def test_existing_rule_path_yields_no_finding(self, fake_repo):
+        target = fake_repo / "docs" / "rules.md"
+        write(fake_repo / ".claude" / "rules" / "living.md", "# rule\n")
+        write(target, "See [.claude/rules/living.md](.claude/rules/living.md).\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "rule_path"] == []
+
+    def test_missing_instruction_mirror_path_yields_critical_finding(self, fake_repo):
+        target = fake_repo / "docs" / "rules.md"
+        write(
+            target,
+            "See [mirror](.github/instructions/deleted.instructions.md).\n",
+        )
+        result = scan([target], fake_repo)
+        findings = [f for f in result.findings if f.kind == "instruction_path"]
+        assert len(findings) == 1
+        assert findings[0].referenced_entity == (
+            ".github/instructions/deleted.instructions.md"
+        )
+        assert result.verdict == "CRITICAL_FAIL"
+
+    def test_existing_instruction_mirror_path_yields_no_finding(self, fake_repo):
+        target = fake_repo / "docs" / "rules.md"
+        write(
+            fake_repo / "src" / "copilot-cli" / "instructions" / "living.instructions.md",
+            "# mirror\n",
+        )
+        write(
+            target,
+            "See [mirror](src/copilot-cli/instructions/living.instructions.md).\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "instruction_path"] == []
+
+
 # ---------- AC5: envelope + verdict ----------
 
 
@@ -352,18 +417,79 @@ def test_ac5_human_output_includes_verdict_line(fake_repo, capsys):
 
 def test_ac6_missing_target_path_does_not_raise(fake_repo, caplog):
     missing = fake_repo / "no-such-dir"
-    with caplog.at_level("INFO"):
+    with caplog.at_level("WARNING"):
         result = scan([missing], fake_repo)
     assert result.verdict == "PASS"
     assert result.findings == []
-    assert any("skipping" in r.getMessage() for r in caplog.records)
+    assert len(result.incomplete_scans) == 1
+    assert result.incomplete_scans[0].reason == "target does not exist or glob matched no files"
+    assert any("incomplete scan" in r.getMessage() for r in caplog.records)
 
 
-def test_ac6_default_targets_skip_when_absent(fake_repo, capsys):
-    rc = main(["--repo-root", str(fake_repo), "--output", "json"])
+def test_ac6_optional_default_targets_skip_when_absent(fake_repo, capsys):
+    rc = main([
+        "--repo-root",
+        str(fake_repo),
+        "--output",
+        "json",
+        "--allow-missing-targets",
+        "--allow-empty-scan",
+    ])
     assert rc == 0
     captured = capsys.readouterr().out
     assert "VERDICT: PASS" in captured
+
+
+def test_ac6_explicit_missing_target_exits_two(fake_repo, capsys):
+    rc = main([
+        "--repo-root",
+        str(fake_repo),
+        "--targets",
+        str(fake_repo / "no-such-dir"),
+        "--output",
+        "json",
+    ])
+    assert rc == 2
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured[-1] == "VERDICT: ERROR"
+    payload = json.loads("\n".join(captured[:-1]))
+    assert payload["Data"]["counts"]["incomplete_scans"] == 1
+    assert payload["Data"]["incomplete_scans"][0]["reason"] == (
+        "target does not exist or glob matched no files"
+    )
+
+
+def test_ac6_zero_files_scanned_exits_two_without_empty_scope(fake_repo, capsys):
+    empty = fake_repo / "docs"
+    empty.mkdir()
+    rc = main([
+        "--repo-root",
+        str(fake_repo),
+        "--targets",
+        str(empty),
+        "--output",
+        "json",
+    ])
+    assert rc == 2
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured[-1] == "VERDICT: ERROR"
+    payload = json.loads("\n".join(captured[:-1]))
+    assert payload["Data"]["counts"]["files_scanned"] == 0
+    assert payload["Data"]["counts"]["incomplete_scans"] == 1
+
+
+def test_ac6_zero_files_scanned_can_be_declared_empty_scope(fake_repo, capsys):
+    empty = fake_repo / "docs"
+    empty.mkdir()
+    rc = main([
+        "--repo-root",
+        str(fake_repo),
+        "--targets",
+        str(empty),
+        "--allow-empty-scan",
+    ])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
 
 
 def test_ac6_paths_outside_repo_are_skipped(tmp_path, fake_repo, caplog):
@@ -375,6 +501,7 @@ def test_ac6_paths_outside_repo_are_skipped(tmp_path, fake_repo, caplog):
         result = scan([target], fake_repo)
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
     assert result.verdict == "PASS"
+    assert len(result.incomplete_scans) == 1
 
 
 # ---------- AC9: edge cases ----------
@@ -491,6 +618,21 @@ def test_render_envelope_json_carries_findings(fake_repo):
     assert out.strip().endswith("VERDICT: CRITICAL_FAIL")
 
 
+def test_render_envelope_json_carries_directive_suppressed_refs(fake_repo):
+    target = fake_repo / "docs" / "fixture.md"
+    write(
+        target,
+        "Intentional fixture `scripts/missing.py` <!-- orphan-ref-ignore -->\n",
+    )
+    result = scan([target], fake_repo)
+    out = render_envelope(result, "json")
+    payload = json.loads(out.split("\nVERDICT:")[0])
+    assert payload["Data"]["counts"]["directive_suppressed"] == 1
+    assert payload["Data"]["directive_suppressed"][0]["referenced_entity"] == (
+        "scripts/missing.py"
+    )
+
+
 def test_render_envelope_human_lists_findings(fake_repo):
     result = ScanResult(
         findings=[
@@ -508,6 +650,19 @@ def test_render_envelope_human_lists_findings(fake_repo):
     assert "[critical]" in out
     assert "x.md:4" in out
     assert "VERDICT: CRITICAL_FAIL" in out
+
+
+def test_render_envelope_human_lists_directive_suppressed_refs(fake_repo):
+    target = fake_repo / "docs" / "fixture.md"
+    write(
+        target,
+        "Intentional fixture `tests/hooks/missing.py` <!-- orphan-ref-ignore -->\n",
+    )
+    result = scan([target], fake_repo)
+    out = render_envelope(result, "human")
+    assert "directive_suppressed: 1" in out
+    assert "[directive_suppressed]" in out
+    assert "tests/hooks/missing.py" in out
 
 
 # ---------- ADR-056: Success contract ----------
@@ -641,7 +796,7 @@ def test_resolve_repo_root_falls_back_to_cwd_when_no_git(tmp_path, monkeypatch):
     isolated = tmp_path / "no-git-here"
     isolated.mkdir()
     monkeypatch.chdir(isolated)
-    rc = main(["--targets", str(isolated)])
+    rc = main(["--targets", str(isolated), "--allow-empty-scan"])
     assert rc == 0
 
 
@@ -820,6 +975,16 @@ class TestSkillScriptRefs:
         assert list(extract_skill_script_refs("`src/copilot-cli/skills/x/scripts/y.py`")) == [
             (1, "src/copilot-cli/skills/x/scripts/y.py")
         ]
+
+    def test_skill_local_test_path_wrong_name_flagged(self, tmp_path):
+        tests_dir = tmp_path / ".claude" / "skills" / "orphan-ref-validator" / "tests"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_scan.py").write_text("# real\n")
+        text = "`.claude/skills/orphan-ref-validator/tests/test_missing.py`"
+        findings, checked = _check_skill_script_refs(text, "doc.md", tmp_path)
+        assert checked == 1
+        assert [f.kind for f in findings] == ["script_path"]
+        assert findings[0].referenced_entity.endswith("test_missing.py")
 
 
 class TestSingleWordSkillRefs:

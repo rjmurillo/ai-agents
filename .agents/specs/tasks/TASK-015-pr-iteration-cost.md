@@ -212,6 +212,11 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
 
 ### TASK-015-4: Implement `invoke_session_log_field_guard.py` and its tests
 
+> **Retired milestone, annotated 2026-07-27.** The session log field guard
+> hook and its tests were removed in PR #3295 (commit `8318d1c35`). The push
+> gate now validates session log shape through the retained validators, so this
+> historical plan section no longer names the deleted hook or test files.
+
 **Objective**: Ship US-3. Block `git push` when session logs have placeholder values.
 
 **Complexity**: S (2-4 hours)
@@ -220,8 +225,6 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
 
 | File | Action | Description |
 |------|--------|-------------|
-| `.claude/hooks/PreToolUse/invoke_session_log_field_guard.py` | Create | Hook: JSON parse, three-field check, violation lines |
-| `tests/hooks/test_session_log_field_guard.py` | Create | Tests: AC-6, AC-7, AC-8 partial, malformed JSON, all fields valid <!-- orphan-ref-ignore --> |
 | `.claude/hooks/hooks.json` | Modify | Append session log field hook entry to `Bash(git push*)` block |
 
 **Acceptance Criteria**
@@ -299,4 +302,3 @@ and M4 each rebase on the merged M2 (and then M3) before pushing.
 M3 imports from existing `build/scripts/validate_marketplace_counts.py` (no new script). <!-- orphan-ref-ignore -->
 
 ---
-
