@@ -1,13 +1,33 @@
 # Neither session store tells you who wrote a prompt
 
-Read this before building anything that treats stored prompts as human input.
-Four attempts to measure "what has an operator actually typed" failed on this
-one point. Each attempt trusted a different provenance premise, none of them
-held, and each produced a confident number that was wrong.
-
 Verified 2026-07-27 against the live stores. Issue #3509, PR #3513 (withdrawn).
 
-## The Copilot store: `turns.user_message` is not the human turn
+## Question
+
+Can either session store measure what an operator has actually typed, so that
+stored prompts can be treated as human input?
+
+## Conventional answer
+
+Both stores look like they answer it. Copilot's `turns.user_message` reads as
+the human half of the turn by construction, so no provenance filter appears
+necessary. Claude's transcripts carry an explicit `promptSource` label, so
+filtering on it appears sufficient. Four attempts adopted one of those two
+premises and went straight to the matcher.
+
+## First-principles position
+
+Neither store carries usable authorship, and provenance binds before any
+matcher does. Copilot has no author field at all, and the harness writes
+machine text into the column named for the human. Claude's label is trustworthy
+where present but covers 1% of entries, so accepting only it leaves too little
+to measure, while keeping the unlabelled majority is an assumption rather than
+a filter. Every one of the four attempts produced a confident number that was
+wrong for this single reason.
+
+## Evidence
+
+### The Copilot store: `turns.user_message` is not the human turn
 
 `~/.copilot/session-store.db` is SQLite. Tables: `sessions`, `turns`,
 `checkpoints`, `session_files`, `session_refs`, `assistant_usage_events`,
@@ -35,7 +55,7 @@ Prefix rejection is not a fix. It is a blacklist against an open set, and it
 cannot be validated because there is nothing to validate against. Any hook
 added tomorrow writes a shape the list does not know.
 
-## The Claude store: the label exists but covers 1%
+### The Claude store: the label exists but covers 1%
 
 `~/.claude/projects/**/*.jsonl`. Entries with `type == "user"` and no `isMeta`
 carry an optional `promptSource`. Counted directly:
@@ -61,7 +81,7 @@ between them is the whole design:
 An earlier note in this repo recorded the denominator as "120 of 3,331". That
 was wrong. It is 120 of 12,285.
 
-## Why the two stores cannot be pooled or compared
+### Why the two stores cannot be pooled or compared
 
 They differ on every axis that matters, so a difference between them attributes
 to nothing:
@@ -75,7 +95,7 @@ to nothing:
 A comparison across them changes source, harness, workflow, and register at
 once. Pooling them hides that under one label.
 
-## Exposure, not authorship, drives phrase-match counts
+### Exposure, not authorship, drives phrase-match counts
 
 A finding from the same review, worth keeping because it generalizes past this
 eval. When you count "how many of N documented phrases appear at least once",
@@ -97,18 +117,20 @@ Two further traps in the same shape:
   happily publish `0 of 428 (0.0%)` for an empty control. Guard every arm you
   intend to print.
 
-## What a valid instrument needs
+## Decision
 
-Do not start from the matcher. Start from provenance. All four are required:
+PR #3513 was withdrawn rather than repaired, and the question was reported as
+not yet measurable. That is a real answer. A number from a corpus nobody has
+audited is not.
+
+A valid instrument does not start from the matcher. It starts from provenance,
+and all four of these are required:
 
 1. An authoritative event-level author label distinguishing typed input from
    hook, autopilot, scheduled, and agent-authored injection. Not a prefix list.
 2. One source, or a per-source result that is never pooled.
 3. Equal exposure fixed in advance, measured in characters, not prompt counts.
 4. Eligibility guards on every arm that appears in the output.
-
-Absent these, report that the question cannot be measured yet. That is a real
-answer. A number from a corpus you have not audited is not.
 
 ## The pattern worth remembering
 
