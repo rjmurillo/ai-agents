@@ -1,6 +1,6 @@
 # Diagnostics Instrument Guides
 
-Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline as of 2026-07-02, the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
+Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline (as of 2026-07-02; description budget and skill size re-measured 2026-07-03), the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 

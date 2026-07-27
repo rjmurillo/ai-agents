@@ -8,7 +8,7 @@ description: Catalog of this repo's measurement instruments, each with command, 
 # ai-agents Diagnostics Toolkit
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; `references/instrument-guides.md` gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-02), and the trap that has already cost someone time.
+Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-02; description budget and skill size re-measured 2026-07-03), and the trap that has already cost someone time.
 
 Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. "EVENT telemetry" is the one-line JSON a push guard prints to stderr when it runs. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
 
@@ -55,7 +55,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of `references/instrument-guides.md`.
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -67,7 +67,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 ### Phase 3: Read the number against the baseline
 
-Compare against the "Current baseline" column in each guide in `references/instrument-guides.md`. The repo baseline is NOT all green: two instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
+Compare against the "Current baseline" column in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: two instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
 
 ### Phase 4: Act on the reading
 
@@ -75,7 +75,7 @@ Green and unchanged: move on. Red where the baseline was green: your change caus
 
 ## Instrument Guides
 
-Per-instrument detail (the exact command variants, the current repo baseline as of 2026-07-02, the healthy and unhealthy readings, and the trap each instrument has already cost someone) lives in `references/instrument-guides.md`. Pick the instrument from the index above, then consult its section. That reference also carries the Current Baselines Summary snapshot.
+Per-instrument detail (the exact command variants, the current repo baseline as of 2026-07-02, the healthy and unhealthy readings, and the trap each instrument has already cost someone) lives in [`references/instrument-guides.md`](references/instrument-guides.md). Pick the instrument from the index above, then consult its section. That reference also carries the Current Baselines Summary snapshot.
 
 ## Anti-Patterns
 
@@ -95,7 +95,7 @@ Per-instrument detail (the exact command variants, the current repo baseline as 
 Before citing any number from this toolkit in a PR, session log, or decision:
 
 - [ ] The command was run from repo root with `uv run python` and the exit code was captured, not just the prose output.
-- [ ] The reading was compared against the baselines in `references/instrument-guides.md`, and what you report is the DELTA your change introduces.
+- [ ] The reading was compared against the baselines in [`references/instrument-guides.md`](references/instrument-guides.md), and what you report is the DELTA your change introduces.
 - [ ] Any red you did not cause is flagged in your PR description, not silently fixed or silently ignored.
 - [ ] Volatile numbers you quote are date-stamped, the way this file stamps its own.
 
@@ -113,7 +113,7 @@ Re-verify one-liners for every volatile fact:
 | Skill size FAIL list | `uv run python ./scripts/validation/skill_size.py` |
 | Orphan-ref verdict and counts | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
 | Golden-principles totals | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
-| Drift gates green | run all three gate commands from the Drift gates section of `references/instrument-guides.md` |
+| Drift gates green | run all three gate commands from the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md) |
 | Guard tiers and telemetry dir | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` and `ls .agents/telemetry/` |
 | push_guard_base location | `ls .claude/hooks/PreToolUse/push_guard_base.py` |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
