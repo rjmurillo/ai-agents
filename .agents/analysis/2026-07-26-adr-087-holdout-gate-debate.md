@@ -1093,3 +1093,47 @@ the mechanism did not do. What is new is that in both cases the honest repair
 was to change the mechanism's *contract* rather than its words: shape 26 by
 deciding what a post-rename failure should cost, shape 27 by deciding that the
 boundary outranks the sentence describing it.
+
+### Defect shape 28: a diagnostic held to weaker rules than the thing it reports
+
+Shape 26 replaced a raise with a warning: the rename had already succeeded, so
+aborting spent a consultation to report a stronger guarantee than the caller
+needed. The fix was right about the cost and wrong about what a warning is.
+
+Two properties the raise path already had did not follow it across.
+
+The first is that it cannot fail. `print` raises when stderr is closed, and the
+enclosing writer converts any `OSError` from that region into a refusal. So the
+abort shape 26 removed came back in through the diagnostic reporting on its
+absence. Round twenty-one demonstrated it with a stderr whose `write` raises
+errno 32 rather than arguing it from the source, which is why it survived
+triage where several louder claims did not.
+
+The second is that it must redact. The redaction seam is a context manager over
+*raised* exceptions: it catches, scrubs the holdout key out of the message, and
+re-raises. A diagnostic that prints and returns never enters it, so a
+digest-bearing ledger root printed in full. The seam's own docstring had
+predicted this, in the sentence explaining why it exists: "a wrapper covers the
+paths someone remembered; a seam covers the one added next year." The tenth
+review had already fixed this leak by hand at a different warning site. Shape 26
+added a second site and the hand-fix did not generalize, which is the exact
+failure the seam was introduced to prevent.
+
+The repair is one helper both sites call. It takes no key. It reads the key
+published by the active scrub through a module global, because the caller who
+has no key to pass is precisely the caller who will leak, and a parameter is
+another thing the next author has to remember. The print runs under suppressed
+`OSError`.
+
+The generalization worth carrying: when a failure path is downgraded to a
+diagnostic, the diagnostic inherits every obligation the failure had. It is not
+a lesser thing that gets lesser rules. Here that meant it must not disclose what
+the raise redacts, and must not fail where the code it reports on succeeded.
+Routing both sites through the helper also fixed the older unguarded print,
+which had been repaired for leakage only and still carried the crash.
+
+Twenty-one rounds in, every round has found a defect in the previous round's
+fix. That is now the strongest evidence in this log for the review discipline
+itself: the defect rate per round has not fallen, but the defects have moved
+from the mechanism to its edges, and each round's finding has been smaller and
+more specific than the last.

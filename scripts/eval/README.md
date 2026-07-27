@@ -464,7 +464,11 @@ optimizer cooperates:
   the consultation has already been charged, so aborting would spend a look and
   return no verdict. That is the same trade the charging order exists to avoid,
   pointing the other way. Every other failure in that function precedes the
-  rename and leaves the destination untouched, so those still refuse.
+  rename and leaves the destination untouched, so those still refuse. That
+  warning goes through the same redaction the raised errors do, and cannot
+  itself fail: a diagnostic printed after a success must not become a new way
+  to lose the work it is reporting on, and must not disclose in plain text
+  what the exception path is required to redact.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task

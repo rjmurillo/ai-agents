@@ -295,11 +295,24 @@
         "Recorded defect shapes 26 and 27 in the debate log. Both share this log's recurring root, prose asserting what the mechanism does not do, but the honest repair in each was to change the mechanism's contract rather than its words: shape 26 by deciding what a post-rename failure should cost, shape 27 by deciding that the boundary outranks the sentence describing it.",
         "Full verification: 1127 tests pass, 100% coverage on all three optimizer files (optimize-artifact.py 497 statements, _optimizer_core.py 259, _optimizer_adapters.py 89), ruff clean, mypy clean, zero em or en dashes across every changed file."
       ]
+    },
+    {
+      "phase": "Round 21: a warning held to weaker rules than the raise it replaced",
+      "actions": [
+        "Merged origin/main, which had moved seven commits ahead including another agent's implementation of #3474 and #3475, two issues this session filed. One textual conflict, import-only, resolved as the union of both sides. One semantic conflict git could not see: main's new test_rule_extract_clean_report_succeeds asserts the pre-envelope extract shape, which this branch wraps in a corpus envelope. Git merged both cleanly and the suite failed. Fixed to match the branch convention used at six other sites.",
+        "The merge dropped coverage to 99 percent. Main's degraded-report scan arrived with four uncovered lines: a non-object scenario entry, a scenario with no mechanisms block, and a FAIL_JUDGE_ERRORS summary verdict with no scenario already carrying it. The PR body claims 100 percent as its verification, so the merge closes them with three tests rather than shipping a claim the merge had made false.",
+        "Ran round 21 on gpt-5.5 at xhigh, read-only, scoped to only the two commits no reviewer had seen, with explicit instructions naming the two failure modes previous rounds hit: re-reporting disclosed ADR limits as Criticals, and asserting runtime behavior without running it. It returned two findings, both Required, both verified by running.",
+        "Finding 1: round 20's warning is itself unguarded. print raises when stderr is closed, and _write_atomic converts any OSError from that region into ConfigError, so the abort round 20 removed came back through the diagnostic reporting on its absence. The reviewer demonstrated it with a stderr whose write raises errno 32 rather than arguing it from source.",
+        "Finding 2: the warning bypasses _digest_scrubbed, which is a context manager over raised exceptions. A diagnostic that prints and returns never enters it, so a digest-bearing EVAL_LEDGER_DIR root printed unredacted. The seam's own docstring predicted this. The tenth review had already fixed the same leak by hand at the lock-cleanup warning; round 20 added a second site and the hand-fix did not generalize, which is the exact failure a seam exists to prevent.",
+        "Fixed both TDD under one seam. _ACTIVE_HOLDOUT_KEY plus a _warn helper that scrubs with the active key and prints under suppressed OSError; _digest_scrubbed publishes the key and restores the previous value in a finally so the seam nests. _warn takes no key parameter on purpose: the caller with no key to pass is the caller who will leak. Both warning sites route through it, which also repairs the older unguarded print at the lock cleanup that had been fixed for leakage only.",
+        "Eight tests: five red (closed-stderr crash at both sites, digest leak at both sites, key restore under nesting) and three green controls (a warning with no active key still prints, a raised error still scrubs, the key clears after the scrub exits). 1382 pass, 100 percent on all three optimizer modules, ruff and mypy clean.",
+        "Recorded as debate-log defect shape 28: when a failure path is downgraded to a diagnostic, the diagnostic inherits every obligation the failure had. It must not disclose what the raise redacts, and must not fail where the code it reports on succeeded."
+      ]
     }
   ],
-  "endingCommit": "166199372",
+  "endingCommit": "44be0404f",
   "nextSteps": [
-    "PR #3478 carries twenty adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
+    "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
     "#3437 (widen the seam to {task_id: float}) and #3445 (repeated sampling) remain decisions for @rjmurillo, not fold-ins. Every reviewer across twenty rounds pushed for #3437; it is a redesign of the scorer contract.",
     "#3474 (errored scenarios scored as failures manufacture discordant pairs) and #3475 (no seed, no system_fingerprint) are both on the extract path, not the gate path.",
