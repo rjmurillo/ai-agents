@@ -135,13 +135,20 @@ class TaskSplit:
 
 @dataclass(frozen=True)
 class GateResult:
-    """The verdict on one candidate."""
+    """The verdict on one candidate.
+
+    ``compared`` records whether the scores were actually weighed. A refusal on
+    a moved fingerprint or an exhausted budget short-circuits before the
+    comparison, so it costs the held-out split nothing and the caller must not
+    charge a consultation for it.
+    """
 
     decision: str
     reason: str
     candidate: float
     incumbent: float
     sel_consultations: int
+    compared: bool = True
 
 
 def _normalize_ws(value: str | None) -> str:
@@ -473,13 +480,14 @@ def gate(
     if max_consultations is not None and max_consultations < 1:
         raise ValueError(f"max_consultations must be positive, got {max_consultations}")
 
-    def _result(decision: str, reason: str) -> GateResult:
+    def _result(decision: str, reason: str, *, compared: bool = True) -> GateResult:
         return GateResult(
             decision=decision,
             reason=reason,
             candidate=candidate,
             incumbent=incumbent,
             sel_consultations=sel_consultations,
+            compared=compared,
         )
 
     if (
@@ -491,6 +499,7 @@ def gate(
             "REJECT",
             "split fingerprint moved since the incumbent was scored; re-baseline "
             "on the current eval set before gating",
+            compared=False,
         )
 
     if max_consultations is not None and sel_consultations >= max_consultations:
@@ -498,6 +507,7 @@ def gate(
             "REJECT",
             f"held-out split exhausted after {sel_consultations} consultations "
             f"(limit {max_consultations}); refresh the split or report on the test group",
+            compared=False,
         )
 
     if candidate > incumbent:

@@ -491,6 +491,26 @@ class TestGate:
     def test_reports_how_many_times_the_split_was_consulted(self):
         assert gate(0.8, 0.6, sel_consultations=4).sel_consultations == 4
 
+    def test_a_scored_comparison_reports_compared(self):
+        assert gate(0.8, 0.6).compared is True
+
+    def test_a_tie_still_counts_as_a_comparison(self):
+        assert gate(0.6, 0.6).compared is True
+
+    def test_a_regression_still_counts_as_a_comparison(self):
+        assert gate(0.4, 0.6).compared is True
+
+    def test_a_fingerprint_refusal_did_not_compare(self):
+        """No comparison happened, so the caller must not burn a consultation."""
+        result = gate(0.9, 0.1, split_fingerprint="a", incumbent_fingerprint="b")
+        assert result.decision == "REJECT"
+        assert result.compared is False
+
+    def test_an_exhausted_refusal_did_not_compare(self):
+        result = gate(0.9, 0.1, sel_consultations=3, max_consultations=3)
+        assert result.decision == "REJECT"
+        assert result.compared is False
+
     def test_refuses_once_the_split_is_exhausted(self):
         """Gating N times on one split selects on it N times."""
         result = gate(0.9, 0.1, sel_consultations=10, max_consultations=10)
