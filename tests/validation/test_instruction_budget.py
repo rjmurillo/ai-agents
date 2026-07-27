@@ -83,6 +83,24 @@ def test_parse_applyto_unsupported_scalar_raises() -> None:
         ib.parse_applyto(text)
 
 
+def test_parse_applyto_invalid_yaml_raises() -> None:
+    # An unquoted glob starting with '*' is a YAML alias indicator and fails to
+    # parse. Failing closed (config error) beats returning an empty set, which
+    # would let a malformed rule contribute zero bytes and dodge the ceiling.
+    text = "---\napplyTo: **/*.py\n---\nbody\n"
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib.parse_applyto(text)
+
+
+def test_parse_applyto_duplicate_key_raises() -> None:
+    # PyYAML would keep the last 'applyTo', letting a trailing directory-scoped
+    # value mask a universal one. Reject duplicate keys so the mask cannot hide
+    # always-on bytes from the gate.
+    text = "---\napplyTo: '**/*.py'\napplyTo: tests/**\n---\nbody\n"
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib.parse_applyto(text)
+
+
 def test_parse_applyto_expands_brace_group() -> None:
     # A leading '**' forces quoting in YAML, so the realistic brace form is
     # quoted; an unquoted '**/*.{...}' is invalid YAML the harness would reject.
@@ -140,14 +158,23 @@ def test_is_language_universal_is_precise_not_endswith() -> None:
     assert ib.is_language_universal({"*.py"}, ".py") is False
 
 
-def test_is_language_universal_collapses_redundant_globstars() -> None:
-    # Padding an applyTo with equivalent '**/' segments matches the same files
-    # as the minimal form, so it must not dodge the always-on budget.
+def test_is_language_universal_normalizes_equivalent_globs() -> None:
+    # Padding an applyTo with equivalent '**/' segments, or spelling the file
+    # segment with a doubled star, matches the same files as the minimal form,
+    # so it must not dodge the always-on budget.
     assert ib.is_language_universal({"**/**/*.py"}, ".py") is True
     assert ib.is_language_universal({"**/**/**/*.py"}, ".py") is True
+    # '**/**.py': segment '**.py' is a filename-segment match (minimatch folds
+    # the doubled star to '*'), so the whole glob equals '**/*.py' == universal.
+    assert ib.is_language_universal({"**/**.py"}, ".py") is True
     assert ib.is_language_universal({"**/**/*.cs"}, ".py") is False
-    assert ib._collapse_globstars("**/**/*.py") == "**/*.py"
-    assert ib._collapse_globstars("**/**") == "**"
+    # A doubled star inside the filename segment alone is root-only (no leading
+    # globstar), so it is NOT the always-on baseline, matching bare '*.py'.
+    assert ib.is_language_universal({"**.py"}, ".py") is False
+    assert ib._normalize_glob("**/**/*.py") == "**/*.py"
+    assert ib._normalize_glob("**/**.py") == "**/*.py"
+    assert ib._normalize_glob("**/**") == "**"
+    assert ib._normalize_glob("**.py") == "*.py"
 
 
 # --------------------------------------------------------------------------
@@ -213,6 +240,19 @@ def test_main_returns_2_when_instructions_dir_missing(tmp_path: Path) -> None:
 def test_main_returns_2_when_path_not_a_directory(tmp_path: Path) -> None:
     missing = tmp_path / "nope"
     assert ib.main(["--path", str(missing)]) == 2
+
+
+def test_main_returns_2_on_malformed_frontmatter(tmp_path: Path) -> None:
+    # End-to-end fail-closed: a real instruction file with a duplicate applyTo
+    # key must surface as a config error (exit 2), not silently score as zero
+    # always-on bytes.
+    inst_dir = tmp_path / ib.INSTRUCTIONS_SUBDIR
+    inst_dir.mkdir(parents=True, exist_ok=True)
+    (inst_dir / "dup.instructions.md").write_text(
+        "---\napplyTo: '**/*.py'\napplyTo: tests/**\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    assert ib.main(["--path", str(tmp_path)]) == 2
 
 
 # --------------------------------------------------------------------------

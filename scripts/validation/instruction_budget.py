@@ -63,12 +63,46 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 class UnsupportedApplyToError(ValueError):
-    """A frontmatter ``applyTo`` is present but is neither a string nor a list of strings.
+    """A frontmatter ``applyTo`` cannot be resolved to a concrete glob set.
 
-    Silently excluding such a file would under-count the always-on budget and
-    let a malformed rule bypass the ceiling, so this is surfaced as a
-    configuration error (ADR-035 exit code 2) rather than swallowed.
+    Raised for malformed or ambiguous frontmatter: invalid YAML, a duplicate
+    top-level key (the YAML spec requires unique keys; a second ``applyTo``
+    would silently win under a permissive loader), or an ``applyTo`` that is
+    neither a string nor a list of strings. Silently excluding such a file
+    would under-count the always-on budget and let a malformed rule bypass the
+    ceiling, so this fails closed as a configuration error (ADR-035 exit code 2)
+    rather than being swallowed.
     """
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """``SafeLoader`` that rejects duplicate mapping keys instead of last-wins.
+
+    PyYAML (like most YAML parsers) silently keeps the last value when a key
+    repeats. A rule with two ``applyTo`` keys would then be scored on whichever
+    came last, so a universal ``applyTo`` could be masked by a trailing
+    directory-scoped one and dodge the budget. Fail closed on any duplicate.
+    """
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader, node: yaml.MappingNode, deep: bool = False
+) -> dict[object, object]:
+    """Build a mapping, raising ``UnsupportedApplyToError`` on a duplicate key."""
+    mapping: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            msg = f"duplicate key {key!r} in frontmatter"
+            raise UnsupportedApplyToError(msg)
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
 
 
 def language_universal_forms(ext: str) -> frozenset[str]:
@@ -132,20 +166,31 @@ def expand_braces(pattern: str) -> list[str]:
     return expanded
 
 
-def _collapse_globstars(pattern: str) -> str:
-    """Collapse redundant consecutive ``**`` segments to their minimal form.
+def _normalize_glob(pattern: str) -> str:
+    """Fold a glob to its minimal spelling using ``minimatch`` segment semantics.
 
-    ``**/**/*.py`` matches exactly the files ``**/*.py`` matches, because each
-    ``**`` can match zero directories. Folding any run of globstars makes the
-    universality check depend on glob semantics, not on the exact spelling, so
-    a rule cannot dodge the always-on budget by padding its ``applyTo`` with
-    equivalent ``**/`` segments.
+    Two rewrites, applied per path segment so the universality check depends on
+    glob meaning rather than on the exact spelling:
+
+    - A run of consecutive ``**`` segments collapses to one, because each ``**``
+      matches zero or more directories (``**/**/*.py`` == ``**/*.py``).
+    - Within any non-globstar segment, a run of ``*`` collapses to a single
+      ``*``, because ``minimatch`` treats ``**`` as ``*`` unless the whole
+      segment is ``**`` (``**/**.py`` == ``**/*.py``, a filename-segment match).
+
+    Without the second rewrite a rule could dodge the always-on budget by
+    padding its ``applyTo`` with an equivalent but unrecognized spelling such as
+    ``**/**.py``.
     """
-    previous = ""
-    while previous != pattern:
-        previous = pattern
-        pattern = pattern.replace("**/**", "**")
-    return pattern
+    segments: list[str] = []
+    for segment in pattern.split("/"):
+        if segment == "**":
+            if segments and segments[-1] == "**":
+                continue
+            segments.append("**")
+        else:
+            segments.append(re.sub(r"\*+", "*", segment))
+    return "/".join(segments)
 
 
 def _iter_applyto_globs(value: object) -> list[str]:
@@ -177,14 +222,21 @@ def parse_applyto(text: str) -> set[str]:
     ``# comment`` into the glob and would miss a block-style list entirely).
     Splits the comma-separated scope list without breaking brace groups, then
     expands each brace group so ``**/*.{py,pyi}`` becomes two concrete globs.
+
+    Fails closed: invalid YAML or a duplicate top-level key raises
+    ``UnsupportedApplyToError`` rather than yielding an empty set, so a file the
+    parser cannot resolve cannot silently contribute zero bytes and slip past
+    the ceiling. A file with no frontmatter block, or frontmatter without an
+    ``applyTo`` key, is legitimately unscoped and returns an empty set.
     """
     fm_match = _FRONTMATTER_RE.match(text)
     if fm_match is None:
         return set()
     try:
-        data = yaml.safe_load(fm_match.group(1))
-    except yaml.YAMLError:
-        return set()
+        data = yaml.load(fm_match.group(1), Loader=_UniqueKeySafeLoader)
+    except yaml.YAMLError as exc:
+        msg = f"frontmatter is not valid YAML: {exc}"
+        raise UnsupportedApplyToError(msg) from exc
     if not isinstance(data, dict) or "applyTo" not in data:
         return set()
     patterns: set[str] = set()
@@ -198,7 +250,7 @@ def parse_applyto(text: str) -> set[str]:
 def is_language_universal(patterns: set[str], ext: str) -> bool:
     """True when any pattern scopes the rule to every file of ``ext``."""
     forms = language_universal_forms(ext)
-    return any(_collapse_globstars(pattern) in forms for pattern in patterns)
+    return any(_normalize_glob(pattern) in forms for pattern in patterns)
 
 
 @dataclass(frozen=True)
