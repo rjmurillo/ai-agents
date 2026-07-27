@@ -17,6 +17,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import stat
 import sys
 import traceback
 from pathlib import Path
@@ -3891,3 +3892,282 @@ class TestBothCorpusChecksSpeakWithOneVoice:
         assert len(seen) == 2
         assert code == EXIT_LOGIC
         assert out["compared"] is False
+
+
+class TestEveryVerdictNamesWhatThisRunCharged:
+    """Round nineteen: `consultations` was missing exactly where it was not zero.
+
+    `_corpus_refusal` established the contract in its own docstring: the
+    honest claim a refusal can make is that this run charged nothing, reported
+    as `consultations: 0`. The charged paths never reported the other half.
+    A caller reading `consultations` got 0 on every refusal and a missing key
+    on every verdict, so the one field that answers "what did this cost me"
+    was absent from the only outcomes with a nonzero answer.
+
+    `sel_consultations` is the running total against the held-out group after
+    this run's charge, which is why the guard refusal reports `spent` and the
+    verdict reports `spent + 1`: nothing is charged before the guard. The
+    ledger-mismatch refusal reported a literal 0, which is a running total it
+    had no basis for. The count is parsed before the mismatch is raised, so
+    the number exists, but on a key mismatch it belongs to a different group
+    and naming it would leak that group's history through a refusal that
+    deliberately withholds the group itself. Absence is the honest report.
+    """
+
+    def _pair(self, tmp_path, capsys, cand_all_true=True):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "n19")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(tmp_path, "cand.json", {f"t{i}": cand_all_true for i in range(12)})
+        return ("--incumbent", inc, "--candidate", cand, "--split", split_path)
+
+    def test_a_charged_verdict_reports_one(self, tmp_path, capsys):
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert out["consultations"] == 1
+
+    def test_a_charged_verdict_still_reports_the_running_total(self, tmp_path, capsys):
+        """The running total includes this run's charge, so a first gate reads 1."""
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert out["sel_consultations"] == 1
+
+    def test_the_two_counts_are_different_numbers_on_a_later_run(
+        self, tmp_path, capsys
+    ):
+        """Edge: with prior spend the charge stays 1 while the total moves.
+
+        Asserting both on a first run cannot distinguish them, because the
+        charge and the total are both 1 there.
+        """
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, spent=3, cap=9)
+        assert out["consultations"] == 1
+        assert out["sel_consultations"] == 4
+
+    def test_a_coverage_refusal_reports_the_charge_it_took(self, tmp_path, capsys):
+        """The coverage refusal is charged, so it must not report zero."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "n19c")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(tmp_path, "cand.json", {"t0": True})
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert out["consultations"] == 1
+
+    def test_a_guard_refusal_reports_no_charge(self, tmp_path, capsys):
+        """Negative: an exhausted budget spends nothing, so the charge is zero."""
+        argv = self._pair(tmp_path, capsys)
+        code, out = _run_gate(capsys, tmp_path, *argv, spent=2, cap=2)
+        assert code == EXIT_LOGIC
+        assert out["consultations"] == 0
+        assert out["sel_consultations"] == 2
+
+    def test_a_ledger_mismatch_claims_no_running_total(self, tmp_path, capsys):
+        """A cap it cannot honour is not a licence to report a total of zero."""
+        argv = self._pair(tmp_path, capsys)
+        _run_gate(capsys, tmp_path, *argv, spent=2, cap=9)
+        code, out = _run_gate(capsys, tmp_path, *argv, cap=4)
+        assert code == EXIT_LOGIC
+        assert out["consultations"] == 0
+        assert "sel_consultations" not in out
+
+    def test_every_gate_outcome_names_the_charge(self, tmp_path, capsys):
+        """One key set for the field that answers what this run cost.
+
+        Four outcomes, reached by four different routes: a verdict, a charged
+        coverage refusal, an uncharged guard refusal, and an uncharged drift
+        refusal. Each is checked for the same key rather than for its own.
+        """
+        argv = self._pair(tmp_path, capsys)
+        seen = [_run_gate(capsys, tmp_path, *argv, cap=5)[1]]
+        seen.append(_run_gate(capsys, tmp_path, *argv, spent=2, cap=2)[1])
+
+        drift_inc = _write(tmp_path, "d_inc.json", {f"t{i}": True for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", drift_inc, "--seed", "n19d")
+        split["sel"] = list(split["sel"])[:-1]
+        drift_split = _write(tmp_path, "d_split.json", split)
+        drift_cand = _write(tmp_path, "d_cand.json", {f"t{i}": True for i in range(12)})
+        seen.append(
+            _run_gate(
+                capsys, tmp_path, "--incumbent", drift_inc, "--candidate", drift_cand,
+                "--split", drift_split, cap=5,
+            )[1]
+        )
+        assert [out.get("consultations", "MISSING") for out in seen] == [1, 0, 0]
+
+
+class TestAFailedCleanupDoesNotReplaceTheFailureItCleansUpAfter:
+    """Round nineteen: the unlink in the handler could raise out of the handler.
+
+    Round seventeen moved `mkstemp` inside the guarded block so a write
+    failure printed one JSON document instead of a traceback. The cleanup
+    itself stayed unguarded. An `OSError` from `tmp.unlink` inside the
+    `except` arm propagates in place of the exception being handled, so the
+    caller gets a traceback again, and it names the unlink rather than the
+    write that actually failed. A parent whose permissions are revoked after
+    `mkstemp` fails both calls, which is the pair that produces it.
+
+    The comment in that handler also claimed the descriptor is closed when
+    `os.fdopen` fails. It was not: nothing called `os.close`, so that path
+    leaked a descriptor while the comment said it did not.
+    """
+
+    def _tasks(self, tmp_path):
+        path = tmp_path / "tasks.txt"
+        path.write_text("\n".join(f"t{i}" for i in range(30)) + "\n", encoding="utf-8")
+        return path
+
+    def _split_into(self, tmp_path, capsys, out):
+        return _run(
+            capsys, "split", "--tasks", self._tasks(tmp_path), "--seed", "n19", "--out", out
+        )
+
+    def _both_fail(self, monkeypatch):
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        def _no_unlink(*_args, **_kwargs):
+            raise OSError(13, "unlink denied")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        monkeypatch.setattr(oa.Path, "unlink", _no_unlink)
+
+    def test_a_failed_cleanup_is_still_one_json_document(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        self._both_fail(monkeypatch)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_write_not_the_cleanup(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The failure a caller must act on is the write, not the tidy-up."""
+        self._both_fail(monkeypatch)
+        _, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert "replace denied" in out["error"]
+        assert "unlink denied" not in out["error"]
+
+    def test_a_cleanup_that_works_is_unchanged(self, tmp_path, capsys, monkeypatch):
+        """Positive control: the ordinary failure path still reports the write."""
+
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "replace denied" in out["error"]
+
+    def test_a_non_io_cleanup_failure_still_escapes(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: the new arm must not swallow a real bug."""
+
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("cleanup boom")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        monkeypatch.setattr(oa.Path, "unlink", _boom)
+        with pytest.raises(RuntimeError, match="cleanup boom"):
+            self._split_into(tmp_path, capsys, tmp_path / "split.json")
+
+    def test_a_descriptor_is_closed_when_fdopen_fails(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the one path where the with-block never takes the descriptor."""
+        closed: list[int] = []
+        real_close = oa.os.close
+
+        def _no_fdopen(fd, *_args, **_kwargs):
+            raise OSError(13, "fdopen denied")
+
+        monkeypatch.setattr(oa.os, "fdopen", _no_fdopen)
+        monkeypatch.setattr(
+            oa.os, "close", lambda fd: (closed.append(fd), real_close(fd))[1]
+        )
+        code, _ = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert closed
+
+
+class TestTheLedgerRenameIsMadeDurableNotJustTheBytes:
+    """Round nineteen: `fsync` on the file does not persist the rename.
+
+    `_write_atomic` fsyncs the temporary file and then calls `os.replace`.
+    The bytes are durable; the directory entry that points at them is not.
+    A host that loses power after the gate reports a charged consultation can
+    come back with the rename undone, which restores the previous ledger and
+    hands the caller the consultation again. The whole point of charging
+    before scoring is that a crash must not return a free look, so a charge
+    that a crash can erase defeats the ordering it was written to protect.
+    """
+
+    def _dir_fsyncs(self, monkeypatch):
+        kinds: list[bool] = []
+        real = oa.os.fsync
+
+        def _record(fd):
+            kinds.append(stat.S_ISDIR(os.fstat(fd).st_mode))
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _record)
+        return kinds
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_parent_directory_is_fsynced(self, tmp_path, monkeypatch):
+        kinds = self._dir_fsyncs(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert any(kinds)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_file_is_still_fsynced_too(self, tmp_path, monkeypatch):
+        """Positive control: the directory fsync must not have replaced it."""
+        kinds = self._dir_fsyncs(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert not all(kinds)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_directory_fsync_follows_the_rename(self, tmp_path, monkeypatch):
+        """Edge: fsyncing the directory before the rename persists nothing."""
+        order: list[str] = []
+        real_fsync = oa.os.fsync
+        real_replace = oa.os.replace
+
+        def _fsync(fd):
+            order.append("dir" if stat.S_ISDIR(os.fstat(fd).st_mode) else "file")
+            return real_fsync(fd)
+
+        def _replace(src, dst):
+            order.append("replace")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(oa.os, "fsync", _fsync)
+        monkeypatch.setattr(oa.os, "replace", _replace)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert order.index("dir") > order.index("replace")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_directory_that_refuses_fsync_is_a_config_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: an undurable rename is reported, not silently accepted."""
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        with pytest.raises(oa.ConfigError, match="could not write"):
+            oa._write_atomic(tmp_path / "ledger.json", "{}\n")

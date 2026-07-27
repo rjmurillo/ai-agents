@@ -47,7 +47,7 @@ import re
 import sys
 import tempfile
 from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -986,7 +986,14 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             "decision": "REJECT",
             "reason": str(exc),
             "compared": False,
-            "sel_consultations": 0,
+            # No running total. The count parses before the mismatch is
+            # raised, so a number exists, but on a key mismatch it belongs to
+            # a different group and naming it would leak that group's history
+            # through a refusal that deliberately withholds the group itself.
+            # The old literal 0 was worse than silence: it claimed nothing had
+            # ever been spent, which is false whenever the ledger holds a
+            # count, and false in the direction that invites another look.
+            "consultations": 0,
             "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
         })
@@ -1001,6 +1008,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             {
                 "decision": "REJECT",
                 "reason": refusal,
+                "consultations": 0,
                 "sel_consultations": spent,
                 "compared": False,
                 "group": _GATE_GROUP,
@@ -1037,6 +1045,11 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     spent_after = spent + 1
     with _digest_scrubbed(holdout_key):
         _write_ledger(ledger, holdout_key, spent_after, args.max_consultations, args.max_p)
+    # Derived rather than written as 1 twice below. The charge and the ledger
+    # would then be two numbers that have to agree, and this session has
+    # already paid for one figure copied into several places and corrected in
+    # only some of them.
+    charged = spent_after - spent
 
     if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
         candidate_results, sel_ids
@@ -1051,6 +1064,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
                     "naming them would say which of the two withheld groups "
                     "each one belongs to."
                 ),
+                "consultations": charged,
                 "sel_consultations": spent_after,
                 "compared": False,
                 "group": _GATE_GROUP,
@@ -1102,6 +1116,12 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             "max_p_per_comparison": (
                 None if args.max_p is None else args.max_p / args.max_consultations
             ),
+            # Two counts, two questions. `consultations` is what this run
+            # charged, which is the field a caller checks to learn whether a
+            # refusal was free. `sel_consultations` is the running total
+            # against the held-out group including that charge, which is the
+            # field a caller checks against the cap.
+            "consultations": charged,
             "sel_consultations": spent_after,
             "compared": result.compared,
             # False means the check never ran, not that it failed: a mismatch
@@ -1130,6 +1150,32 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _fsync_dir(directory: Path) -> None:
+    """Persist the directory entry that ``os.replace`` just created.
+
+    Fsyncing the temporary file makes its bytes durable. It does not make the
+    rename durable: the entry pointing at those bytes lives in the parent
+    directory, and a host that loses power before that entry reaches the disk
+    comes back with the rename undone. For the consultation ledger that hands
+    back a charged look for free, which is the one outcome charging before
+    scoring exists to prevent, so a charge a crash can erase defeats the
+    ordering it was written to protect.
+
+    Windows cannot open a directory as a descriptor, so there is nothing to
+    sync and ``os.replace`` is atomic there regardless. That is a skip rather
+    than a failure. A directory that opens and then refuses to sync is a
+    different case and is reported: claiming a durability guarantee that did
+    not hold is the failure shape this file keeps correcting.
+    """
+    if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
+        return
+    fd = os.open(str(directory), os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _write_atomic(path: Path, text: str) -> None:
     """Replace `path` with `text` so no reader ever sees a partial file.
 
@@ -1156,17 +1202,33 @@ def _write_atomic(path: Path, text: str) -> None:
         raise ConfigError(f"could not write {path}: {exc}") from exc
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            # os.fdopen did not take ownership, so nothing else closes it. The
+            # comment that used to sit in the handler below claimed this was
+            # already done. It was not: no call closed the descriptor, so this
+            # path leaked one while the comment said otherwise.
+            os.close(fd)
+            raise
+        with handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         if mode is not None:
             os.chmod(tmp, mode)
         os.replace(tmp, path)
+        _fsync_dir(path.parent)
     except BaseException as exc:
-        # Close the fd if os.fdopen failed (fd not yet owned by the handle).
-        # If os.fdopen succeeded, the with-block already closed it.
-        tmp.unlink(missing_ok=True)
+        # Cleanup cannot stand in for the failure it cleans up after. An
+        # OSError raised here would propagate from inside the handler, so the
+        # caller got a traceback naming the unlink instead of one JSON
+        # document naming the write. A parent whose permissions are revoked
+        # after mkstemp fails both calls, which is the pair that produces it.
+        # After a successful replace the temp name is already gone, so this is
+        # a no-op and never touches the destination.
+        with suppress(OSError):
+            tmp.unlink(missing_ok=True)
         if isinstance(exc, OSError):
             raise ConfigError(f"could not write {path}: {exc}") from exc
         raise
