@@ -136,9 +136,10 @@
       "outcome": "Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything"
     }
   ],
-  "endingCommit": "0e23a56a40",
+  "endingCommit": "113c59808e",
   "nextSteps": [
     "If a future skill takes a real runtime dependency on templates/, the marker is the wrong answer: the content has to move into the plugin root instead, per .claude/rules/plugin-self-containment.md",
-    "check_skill_portability.py is the script-file companion to this validator and was not examined for the same gap"
+    "check_skill_portability.py is the script-file companion to this validator and was not examined for the same gap",
+    "endingCommit is the last content commit, 113c59808e, not the commit that records it. session-end/SKILL.md specifies git rev-parse --short HEAD, which no commit can satisfy for the commit writing the field"
   ]
 }

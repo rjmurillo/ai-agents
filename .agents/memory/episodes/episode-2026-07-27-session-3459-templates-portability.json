@@ -11,7 +11,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -37,6 +39,16 @@
         "e002"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 113c59808e",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -44,7 +56,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 2
   },
   "lessons": []
