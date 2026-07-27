@@ -234,18 +234,20 @@ def split_tasks(
         raise ValueError("split_tasks requires at least one task id")
     if not seed or not seed.strip():
         raise ValueError("split_tasks requires a non-empty seed")
+    sel_display = _ratio_display(str(sel_ratio))
+    test_display = _ratio_display(str(test_ratio))
     sel_fraction = _ratio_fraction("sel_ratio", sel_ratio)
     test_fraction = _ratio_fraction("test_ratio", test_ratio)
     if not Fraction(0) < sel_fraction < Fraction(1):
-        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_display}")
     if not Fraction(0) <= test_fraction < Fraction(1):
-        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_display}")
     if min_sel < 0:
         raise ValueError(f"min_sel must be non-negative, got {min_sel}")
     if sel_fraction + test_fraction >= Fraction(1):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
-            f"got {sel_ratio} + {test_ratio}"
+            f"got {sel_display} + {test_display}"
         )
 
     cleaned: list[str] = []
@@ -268,12 +270,13 @@ def split_tasks(
     n_test = _round_half_up(Fraction(total) * test_fraction)
     if total - n_sel - n_test < 1:
         raise ValueError(
-            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"split of {total} tasks at sel_ratio={sel_display} "
+            f"test_ratio={test_display} "
             f"leaves no opt tasks"
         )
     if n_sel < 1:
         raise SplitTooSmallError(
-            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"split of {total} tasks at sel_ratio={sel_display} holds out no tasks; "
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:

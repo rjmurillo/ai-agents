@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -49,7 +50,7 @@ import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -211,16 +212,20 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         raw_sel_ratio = split["sel_ratio"]
         raw_test_ratio = split["test_ratio"]
         min_sel = int(split.get("min_sel", 3))
-        if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
+        numeric_schema = _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio)
+        string_schema = isinstance(raw_sel_ratio, str) and isinstance(raw_test_ratio, str)
+        if numeric_schema:
+            sel_ratio = _legacy_numeric_ratio("sel_ratio", raw_sel_ratio)
+            test_ratio = _legacy_numeric_ratio("test_ratio", raw_test_ratio)
             redrawn_groups, redrawn_fingerprint = _legacy_numeric_split_groups(
                 tasks,
                 seed=seed,
-                sel_ratio=float(raw_sel_ratio),
-                test_ratio=float(raw_test_ratio),
+                sel_ratio=sel_ratio,
+                test_ratio=test_ratio,
                 min_sel=min_sel,
             )
             compatible_fingerprints = {redrawn_fingerprint}
-        else:
+        elif string_schema:
             redrawn = split_tasks(
                 tasks,
                 seed=seed,
@@ -234,6 +239,11 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
                 "test": redrawn.test,
             }
             compatible_fingerprints = {redrawn.fingerprint}
+        else:
+            raise ValueError(
+                "sel_ratio and test_ratio must both use legacy numeric schema "
+                "or both use string schema"
+            )
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
     if split["fingerprint"] not in compatible_fingerprints:
@@ -243,6 +253,16 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
 
 def _is_json_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _legacy_numeric_ratio(name: str, value: object) -> float:
+    try:
+        ratio = float(cast(int | float, value))
+    except OverflowError as exc:
+        raise ValueError(f"{name} numeric value is too large") from exc
+    if not math.isfinite(ratio):
+        raise ValueError(f"{name} numeric value must be finite")
+    return ratio
 
 
 def _legacy_numeric_split_fingerprint(
