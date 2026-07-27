@@ -67,7 +67,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 ### Phase 3: Read the number against the baseline
 
-Compare against the "Current baseline" column in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: two instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
+Compare against the "Current baseline" column in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: three instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
 
 ### Phase 4: Act on the reading
 
