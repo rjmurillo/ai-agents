@@ -485,14 +485,25 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     A wrapper covers the paths someone remembered; a seam covers the one
     added next year. The message survives with the name replaced, because an
     error that says nothing about what failed is a worse trade than the leak.
+
+    Every `OSError` becomes a `ConfigError` whether or not it carried the
+    digest, because `main` catches `ConfigError` and not `OSError`, and an
+    eighth review found the first draft re-raising the pathless ones raw. An
+    `os.write` that runs out of space and an `os.close` that hits EIO name no
+    file, so they missed the redaction branch and escaped as tracebacks: the
+    same shape of defect the scrub exists to fix, one layer down. A
+    `ConfigError` without the digest is re-raised as itself rather than
+    rewrapped, so nothing that inspects the exception object loses it.
     """
     try:
         yield
     except (ConfigError, OSError) as exc:
         text = str(exc)
-        if holdout_key not in text:
+        if holdout_key in text:
+            raise ConfigError(text.replace(holdout_key, "<held-out group>")) from exc
+        if isinstance(exc, ConfigError):
             raise
-        raise ConfigError(text.replace(holdout_key, "<held-out group>")) from exc
+        raise ConfigError(text) from exc
 
 
 def _ledger_path(holdout_key: str) -> Path:

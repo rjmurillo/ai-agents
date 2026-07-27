@@ -2159,3 +2159,74 @@ class TestNoLedgerFailureLeaksTheDigest:
     def test_the_scrub_passes_a_clean_block_through(self):
         with oa._digest_scrubbed("a" * 64):
             pass
+
+
+class TestLedgerFailuresKeepTheJsonErrorContract:
+    """A scrub that re-raises a raw OSError breaks the promise it protects.
+
+    An eighth review (Copilot, PR #3458) found that `_digest_scrubbed` re-raised
+    `OSError` untouched whenever the message did not contain the digest, and
+    `main` catches `ConfigError`, `AdapterError`, and `ValueError` but not
+    `OSError`. So the failures that name a path stayed inside the contract while
+    the failures that do not, an `os.write` that runs out of space or an
+    `os.close` that hits EIO, escaped as an uncaught traceback.
+
+    That is the same defect the scrub was added to fix, one layer down: the
+    handled paths are the ones somebody enumerated. The seam now converts every
+    `OSError` it sees, and redacts the digest only when the message carries it,
+    so the two concerns stay separate.
+    """
+
+    def test_an_oserror_without_the_digest_still_emits_json(self, capsys):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("a" * 64):
+                raise OSError(28, "No space left on device")
+        assert "No space left on device" in str(caught.value)
+
+    def test_the_json_contract_holds_end_to_end_for_a_pathless_oserror(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        record = json.loads(split.read_text())
+
+        def _boom(_handle, _payload):
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(oa.os, "write", _boom)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        out = capsys.readouterr().out
+        assert code == oa.EXIT_CONFIG
+        payload = json.loads(out)
+        assert payload["type"] == "ConfigError"
+        assert "No space left on device" in payload["error"]
+
+    def test_an_oserror_carrying_the_digest_is_still_redacted(self, capsys):
+        key = "b" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, f"Permission denied: /state/{key}.lock")
+        assert key not in str(caught.value)
+        assert "<held-out group>" in str(caught.value)
+
+    def test_a_config_error_without_the_digest_is_reraised_as_itself(self, capsys):
+        original = oa.ConfigError("the split file is not JSON")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("c" * 64):
+                raise original
+        assert caught.value is original
+
+    def test_a_ledger_mismatch_passes_through_the_seam_untouched(self, capsys):
+        with pytest.raises(oa.LedgerMismatchError):
+            with oa._digest_scrubbed("c" * 64):
+                raise oa.LedgerMismatchError("the cap moved")
+
+    def test_a_non_oserror_passes_through_untouched(self, capsys):
+        with pytest.raises(KeyboardInterrupt):
+            with oa._digest_scrubbed("d" * 64):
+                raise KeyboardInterrupt
