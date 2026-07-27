@@ -250,9 +250,18 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T12:05:00Z",
+      "action": "Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "outcome": "It probed path-bearing OSErrors through a read-only XDG_STATE_HOME and a directory planted at the ledger path, pathless OSErrors, internal ConfigError propagation, and types outside the catch tuple. Its claim was that the last branch keeps __cause__ but main renders only str(exc). Re-verified rather than accepted: constructed an exception whose __str__ hides a path it still carries, and the key appears in neither str() nor the rendered traceback, because traceback rendering also goes through __str__, so the seam and the renderer read the same surface. Confirmed main formats no traceback and that OSError.__str__ renders filename2 as well as filename. Stopping the review loop at thirteen: the marginal round now returns ACCEPT and the accepting model is the same family that rejected in round 9.",
+      "artifacts": [
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
     }
   ],
-  "endingCommit": "ff16b4dc8",
+  "endingCommit": "7686d85d5",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",
