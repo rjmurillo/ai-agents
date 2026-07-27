@@ -408,6 +408,28 @@ The gate reads `sel` and only `sel`. There is no flag to point it at another
 group, because a gate that can be aimed at the group the author has been
 reading is not a gate.
 
+`score` refuses too, on the one condition it shares with the gate. Both read
+the split file, and both redraw it from its own recorded seed, task set, and
+ratios to check that the recorded groups are what those inputs produce. A file
+that fails redraw was hand-edited or corrupted after `split` wrote it, and
+`score` will not put a number on it.
+
+The reason is what `score` prints beside the number. It echoes the split's
+fingerprint so the loop can pass it to `gate --incumbent-fingerprint` without
+opening the file, and on an edited split that fingerprint no longer names the
+groups just scored: two runs of `score` return one fingerprint and different
+numbers, which is exactly the confusion the fingerprint exists to prevent.
+Nothing unsound reaches a verdict either way, because `gate` runs the same
+check and rejects. What the refusal buys is where the operator finds out. The
+gate is the end of a step that has already paid for a candidate, so a check
+that only fires there charges for the discovery.
+
+The two commands report it differently on purpose. `gate` emits
+`decision: REJECT` because its caller is a loop that branches on the document.
+`score` raises a `ConfigError` and exits 2, the same way it reports a split
+whose keys are missing, because a hand-edited split is a malformed one and
+`score` has no decision vocabulary to refuse in.
+
 ### What the seam does and does not protect
 
 Read this before citing a run of this loop as evidence.

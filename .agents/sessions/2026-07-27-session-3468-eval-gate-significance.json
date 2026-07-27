@@ -436,9 +436,26 @@
         "Triaged a bot thread on ADR-087 claiming the Bonferroni caveat was missing a subject. The claim is false: the subject is 'looks', a plural noun repeated from earlier in the same sentence, so 'which looks at one selection group are not' parses. The complaint is right for a reason the bot did not give, which is that 'looks' sits immediately after 'which', where English prefers a verb reading, so the reader garden-paths and reparses at 'are not'.",
         "Fixed it by making the ADR match the README, which already states the same caveat with an explicit plural subject ('and five looks at one selection group are not') rather than by inventing new prose. Word diff confirms the only semantic change is one clause becoming a sentence; everything else is rewrap. No decision, requirement, consequence, or status changed, so this is a copy edit rather than an ADR revision and adr-review was not fired."
       ]
+    },
+    {
+      "phase": "Making score refuse the drifted split it was quietly vouching for",
+      "actions": [
+        "Asked round twenty-seven the generalisation of its own finding: does any other emitted field carry a value some site cannot state honestly, and is there a fifth field varying under no rule and no test. Told it to enumerate the emit sites by reading them and that a negative answer with the work shown would beat another finding.",
+        "It found one and ran it. cmd_score prints split['fingerprint'] beside the score and never checks whether the fingerprint still describes the file. cmd_gate checks on the line after its read; _split_drifted has one caller and _read_split has two.",
+        "Reproduced independently on a real split rather than the fabricated one it used. Drew a split, dropped one opt task, left the fingerprint, and scored twice: same fingerprint, n of 6 then 5, score 0.333 then 0.200. One fingerprint naming two splits is the confusion the fingerprint exists to prevent.",
+        "Bounded the severity before fixing it. The gate runs the check and rejects the tampered split, so no unsound verdict is reachable. The cost is where the operator finds out: the gate sits at the end of a step that already paid for a candidate, so a check firing only there charges budget for the discovery.",
+        "Found the sharper statement in _read_split. It refuses a file missing any key needed to re-fingerprint it and says the reason is that such a file cannot be verified, collects exactly the keys verification needs, and then does not verify.",
+        "Decided against moving the check into the reader. cmd_gate must emit decision REJECT on drift because its caller is a loop that branches on the document, and a reader that raised would turn that verdict into an error document.",
+        "TDD, and the first red was invalid. The tests asserted pytest.raises(SystemExit), but main catches ConfigError and returns EXIT_CONFIG, so four failed for the wrong reason. Corrected them to assert on the exit code and the payload.",
+        "Re-falsified properly. M11 removes the new check and turns four of the five red with the corrected assertions; the fifth is the positive control proving the check costs an honest caller nothing.",
+        "Verified end to end on the CLI: the tampered split now exits 2 with a ConfigError naming the remedy, and the untouched split still scores 0.333 with its fingerprint.",
+        "Read round twenty-seven's other answer, that five fields vary across the three cmd_apply sites, and left it alone. Those documents are a tagged union discriminated by the keys present, and every omitted field is one that site could state honestly, which is the opposite of the fingerprint case.",
+        "Documented the refusal in the README next to what the gate refuses, including why the two commands report the same condition in two vocabularies, and recorded shape 38 in the debate log.",
+        "Verified 1401 pass, 100 percent statement coverage held at 563 statements, ruff and mypy clean, zero dashes byte-verified."
+      ]
     }
   ],
-  "endingCommit": "11c2ba505",
+  "endingCommit": "66029eb45",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

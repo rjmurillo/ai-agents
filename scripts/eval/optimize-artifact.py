@@ -599,6 +599,24 @@ def _score_group(results: dict[str, bool], split: dict[str, Any], group: str) ->
 
 def cmd_score(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
+    if _split_drifted(split):
+        # `_read_split` refuses a file it cannot re-fingerprint and says the
+        # reason is that such a file cannot be verified. It then does not
+        # verify, which left this command echoing a fingerprint below that no
+        # longer describes the groups it just scored: two documents, one
+        # fingerprint, different numbers. `gate` covers itself with this same
+        # call and refuses, so nothing unsound reached a verdict; the cost was
+        # that the operator learned it after paying for the candidates rather
+        # than at the first read. Raising rather than emitting a refusal keeps
+        # this the same class of report as a malformed split, which is what a
+        # hand-edited one is. `gate` still emits `decision: REJECT` because its
+        # caller is a loop that branches on the document.
+        raise ConfigError(
+            f"{args.split} does not match its own recorded inputs; the groups "
+            "or the seed were edited after the split was drawn. Scoring it "
+            "would report a number under a fingerprint that no longer names "
+            "it. Re-split and re-baseline."
+        )
     results = _read_results(args.results).results
     value = _score_group(results, split, args.group)
     # The fingerprint rides along because `gate` requires it and this is the

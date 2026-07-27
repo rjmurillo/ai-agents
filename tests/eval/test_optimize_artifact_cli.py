@@ -5031,3 +5031,106 @@ class TestADiagnosticNeitherLeaksNorFails:
             assert oa._ACTIVE_HOLDOUT_KEY.get() is None
         finally:
             context.run(close_what_was_abandoned)
+
+
+class TestScoreWillNotVouchForASplitItCannotVerify:
+    """Round twenty-eight: the one reader that skipped the check it enables.
+
+    `_read_split` refuses a file missing any key needed to re-fingerprint it,
+    and says why: "A split file that cannot be re-fingerprinted cannot be
+    verified; re-run split." It then never verifies. `cmd_gate` covers that by
+    calling `_split_drifted` on the line after the read. `cmd_score` did not,
+    and it echoes `split["fingerprint"]` so the caller can forward it to the
+    gate without opening the file.
+
+    So a hand-edited split produced two score documents carrying one
+    fingerprint and different numbers, and the fingerprint exists to make that
+    impossible. Nothing unsound reached a verdict, because the gate runs the
+    check and refuses. The cost was where the operator learns it: after
+    however many scored candidates, rather than at the first read.
+
+    `score` raises `ConfigError` rather than emitting a refusal document. A
+    drifted file is the same class of problem as a malformed one, which that
+    command already reports that way, and `score` has no decision vocabulary
+    to refuse in. `gate` keeps emitting `decision: REJECT` because its caller
+    is a loop that branches on the document.
+    """
+
+    def _drifted(self, tmp_path, capsys, mutate, name="drifted.json"):
+        """Draw a real split, then edit it the way an operator would."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        mutate(split)
+        path = tmp_path / name
+        path.write_text(json.dumps(split), encoding="utf-8")
+        return results, path
+
+    def test_an_undrifted_split_still_scores_and_still_forwards(self, tmp_path, capsys):
+        """Positive control: the check costs the honest caller nothing."""
+        results, path = self._drifted(tmp_path, capsys, lambda s: None)
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        recorded = json.loads(path.read_text(encoding="utf-8"))["fingerprint"]
+        assert code == EXIT_OK
+        assert out["fingerprint"] == recorded
+        assert out["n"] == len(json.loads(path.read_text(encoding="utf-8"))["opt"])
+
+    def test_a_dropped_task_refuses_instead_of_scoring(self, tmp_path, capsys):
+        """Negative: the half of the check the fingerprint alone can make."""
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "Re-split and re-baseline." in out["error"]
+
+    def test_a_moved_task_refuses_though_the_fingerprint_matches(self, tmp_path, capsys):
+        """Edge: the half only redrawing catches, reached through `score`.
+
+        Moving a task between groups leaves the hashed union unchanged, so the
+        recorded fingerprint still verifies. Only redrawing the split from the
+        recorded inputs disagrees. This pins that `score` gets both halves of
+        `_split_drifted` rather than the cheap one.
+        """
+        def move(split):
+            split["sel"] = [*split["sel"], split["opt"][0]]
+            split["opt"] = split["opt"][1:]
+
+        results, path = self._drifted(tmp_path, capsys, move)
+        moved = json.loads(path.read_text(encoding="utf-8"))
+        tasks = [t for group in ("opt", "sel", "test") for t in moved[group]]
+        assert sorted(tasks) == sorted(set(tasks)) and len(tasks) == 10
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_refusal_publishes_no_number_the_caller_could_bank(self, tmp_path, capsys):
+        """Edge: a refusal that still printed a score would be worse than none.
+
+        The whole cost of the defect was a number the caller could mistake for
+        a baseline, so the repair is not allowed to keep printing one.
+        """
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        _, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert "score" not in out
+        assert "fingerprint" not in out
+        assert "n" not in out
+        assert sorted(out) == ["error", "type"]
+
+    def test_score_and_gate_refuse_a_drifted_split_in_one_vocabulary(self, tmp_path, capsys):
+        """Edge: two commands, one diagnosis, so the operator reads it once."""
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        score_code, scored = _run(capsys, "score", "--results", results,
+                                  "--split", path)
+        gate_code, gated = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", path,
+        )
+        assert score_code == EXIT_CONFIG and gate_code == EXIT_LOGIC
+        remedy = "Re-split and re-baseline."
+        assert remedy in scored["error"] and remedy in gated["reason"]
+        assert gated["decision"] == "REJECT"

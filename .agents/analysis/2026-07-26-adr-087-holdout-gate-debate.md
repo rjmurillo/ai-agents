@@ -1504,3 +1504,78 @@ as an accident at the keys it skipped. The rule now covers all four, and the
 new class pins the one exception with its reason, which is that the corpus
 refusal is a single document emitted from both sides of the lock and can carry
 only what the earlier side can say.
+
+## Shape 38: the reader that named the check it did not run
+
+Shape 37 ended with a rule: a document carries the facts the site emitting it
+can state honestly, and an absent key is the honest answer rather than a gap.
+That rule was written from four keys in one command, which is a small sample to
+generalise from, so round twenty-seven was asked the obvious next question.
+Does any other emitted field carry a value some site cannot state honestly, and
+is there a fifth field whose presence varies under no rule and no test? It was
+told to enumerate the emit sites by reading them rather than infer from the
+four it had been handed, and that a negative answer with the enumeration shown
+would be worth more than another finding.
+
+It found one, and it ran it rather than describing it.
+
+`cmd_score` reads the split and prints `split["fingerprint"]` beside the score.
+The comment above that line says why the fingerprint rides along: `gate`
+requires it, and `score` is the only command that reads the split on the
+caller's behalf, so without the echo the caller has to open the split file to
+satisfy a required flag. What no line said is that `cmd_score` never checks
+whether the fingerprint still describes the file. `cmd_gate` does, on the line
+immediately after its read. `_split_drifted` has exactly one caller, and
+`_read_split` has exactly two.
+
+Reproduced on a real split rather than a fabricated one, because a hand-written
+file with a fake digest proves less than the edit an operator would actually
+make. Draw a split, drop one task from `opt`, leave the fingerprint alone, and
+score both:
+
+```text
+{"fingerprint": "77e97462...", "group": "opt", "n": 6, "score": 0.333}
+{"fingerprint": "77e97462...", "group": "opt", "n": 5, "score": 0.200}
+```
+
+One fingerprint, two different splits. That is the confusion the fingerprint
+exists to prevent, produced by the command whose output feeds it forward.
+
+The severity has a ceiling and it is worth stating rather than leaving to the
+reader. The gate runs the check, so the tampered split is rejected and no
+unsound verdict is reachable. The cost is entirely in where the operator finds
+out. `gate` sits at the end of a step that has already paid for a candidate,
+so a check that fires only there charges real budget for the discovery, and an
+operator scoring several candidates against a broken split pays for each one.
+
+The sharpest form of the defect is in `_read_split` itself. It refuses a file
+missing any key needed to re-fingerprint it, and the message it raises says the
+reason: a split file that cannot be re-fingerprinted cannot be verified. It
+collects exactly the keys verification needs, says that is why it wants them,
+and then does not verify. `cmd_gate` covered that by hand and `cmd_score` did
+not, which is what an unenforced convention looks like when it has two callers.
+
+The check did not move into the reader, and that is deliberate. `cmd_gate` has
+to emit `decision: REJECT` on drift because its caller is a loop that branches
+on the document, and a reader that raised would turn that verdict into an error
+document. So the repair is at the one site that lacked it, reported the way
+that site already reports a malformed split: `ConfigError`, exit 2. The two
+commands now refuse the same condition in two vocabularies on purpose, and both
+end on the same remedy sentence so the operator reads one instruction.
+
+Confirmed by mutation rather than by the red-green run, because the first
+red was against the wrong assertion shape and proved nothing. `main` catches
+`ConfigError` and emits a document, so the tests assert on an exit code and a
+payload rather than on `SystemExit`. With the corrected assertions the fix
+removed turns four of the five red, and the fifth is the positive control
+proving the check costs an honest caller nothing.
+
+Round twenty-seven's other answer was that five fields vary across the three
+`cmd_apply` sites under no rule and no test. That was read and left alone.
+Those three documents are a tagged union discriminated by the keys present, and
+every field each site omits is one the site could state honestly, which is the
+opposite of the `fingerprint` case: `applied` is on all three and already
+carries what a caller needs. An absence that hides nothing is not the defect
+this rule was written about, and widening the rule to cover mere variation
+would make it a schema-uniformity rule, which is the argument shape round
+twenty-seven's first proposal was rejected for.
