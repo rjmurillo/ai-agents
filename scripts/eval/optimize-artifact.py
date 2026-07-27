@@ -942,6 +942,18 @@ def _ledger_path(holdout_key: str) -> Path:
     return _ledger_root() / f"{holdout_key}.ledger"
 
 
+def _lock_refused(lock: Path, exc: OSError) -> str:
+    """Why the lock could not be taken, in the shape the other errors use.
+
+    Named rather than inlined at both raise sites so the acquire and the pid
+    write cannot drift into reporting the same failure two ways.
+    """
+    return (
+        f"could not take the lock {lock} ({exc.strerror or exc.errno}); the "
+        f"read-modify-write it serializes was not attempted."
+    )
+
+
 @contextmanager
 def _lock_held(
     lock: Path,
@@ -963,15 +975,37 @@ def _lock_held(
     what may be said. A ledger lock's name digests held-out membership and has
     to be withheld; a buffer lock's name came from the command line and
     withholding it would turn a stale lock into a puzzle.
+
+    Every failure to take the lock is a `ConfigError`, which is what the rest
+    of this module does: `_read_buffer` reports "could not read", and
+    `_write_atomic` reports "could not write". This helper did not, and did not
+    have to, while its only caller ran inside `_digest_scrubbed`, whose handler
+    converts every `OSError` raised under the ledger. A thirty-third review
+    found that the extraction gave it a second caller with no such cover, so an
+    unwritable buffer directory printed a traceback where the module docstring
+    promises a JSON document and exited 1, the code a loop reads as a decision
+    rather than a crash. Converting here rather than at the new call site is
+    the same argument the scrub makes: a wrapper covers the caller someone
+    remembered. `_digest_scrubbed` catches `ConfigError` as well, so the ledger
+    caller's redaction survives the change.
     """
-    lock.parent.mkdir(parents=True, exist_ok=True)
     try:
+        lock.parent.mkdir(parents=True, exist_ok=True)
         handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         raise ConfigError(contention) from None
+    except OSError as exc:
+        raise ConfigError(_lock_refused(lock, exc)) from exc
     try:
         try:
-            os.write(handle, str(os.getpid()).encode("utf-8"))
+            try:
+                os.write(handle, str(os.getpid()).encode("utf-8"))
+            except OSError as exc:
+                # Converted here rather than left to escape, for the reason
+                # above: the descriptor is released by the finally below and
+                # the lock file by the outer one, so the only thing left to
+                # decide is which document the caller reads.
+                raise ConfigError(_lock_refused(lock, exc)) from exc
         finally:
             # Its own finally, so a write that fails on a full disk still
             # releases the descriptor. POSIX frees the descriptor even when

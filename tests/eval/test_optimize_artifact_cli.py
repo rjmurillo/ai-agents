@@ -5770,3 +5770,128 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
             }},
         ]
         assert oa.rule_results(scenarios, "full") == {"S1": True, "S2": False}
+
+
+class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
+    """Round 31's extraction lost the seam that made `_lock_held` safe.
+
+    Every other filesystem call in this module turns `OSError` into
+    `ConfigError`: `_read_buffer` reports "could not read", `_write_atomic`
+    reports "could not write". `_lock_held` never did, and it did not have to,
+    because its only caller ran inside `_digest_scrubbed`, whose whole job is
+    to convert every `OSError` raised under the ledger. Giving the helper a
+    second caller with no such wrapper left the one unconverted filesystem
+    call in the program on the buffer path.
+
+    The cost is the failure mode this branch exists to close. An uncaught
+    `OSError` leaves `main`'s handler list, prints a traceback where the module
+    docstring promises a JSON document, and exits 1, which is the code a loop
+    reads as a decision it should branch on rather than a crash it should stop
+    for.
+
+    Measured against the commit before the extraction, `buffer-add` into an
+    unwritable directory returned exit 2 and a JSON error document. After it,
+    the same command returns exit 1 and a traceback.
+    """
+
+    def _fixture(self, tmp_path):
+        unwritable = tmp_path / "ro"
+        unwritable.mkdir()
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        unwritable.chmod(0o555)
+        return unwritable / "b.json", patches
+
+    def test_an_unwritable_directory_is_reported_as_a_config_error(self, tmp_path, capsys):
+        buffer, patches = self._fixture(tmp_path)
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_lock_so_an_operator_can_act(self, tmp_path, capsys):
+        buffer, patches = self._fixture(tmp_path)
+        _, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert f"{buffer}.lock" in out["error"]
+
+    def test_a_parent_that_cannot_be_created_is_reported_the_same_way(
+        self, tmp_path, capsys
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        nested = buffer.parent / "deeper" / "b.json"
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", nested, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_write_that_fails_after_the_create_is_reported_the_same_way(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        monkeypatch.setattr(oa.os, "write", _boom)
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_failed_write_still_removes_the_lock_it_created(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        monkeypatch.setattr(oa.os, "write", _boom)
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert not Path(f"{buffer}.lock").exists()
+
+    def test_contention_keeps_its_own_message_rather_than_the_generic_one(
+        self, tmp_path, capsys
+    ):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        Path(f"{buffer}.lock").write_text("999", encoding="utf-8")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert "another buffer-add holds" in out["error"]
+
+    def test_a_writable_directory_still_stores_the_rejection(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_OK
+        assert out["added"] is True
+
+    def test_the_gate_still_scrubs_the_digest_out_of_the_same_failure(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The ledger caller's cover must survive the helper learning to raise.
+
+        `_digest_scrubbed` catches `ConfigError` as well as `OSError`, so
+        converting inside the helper keeps the redaction. A conversion that
+        forgot this would publish the digest, which is the held-out membership.
+        """
+        root = tmp_path / "ledger"
+        root.mkdir()
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(root))
+        tasks = tmp_path / "tasks.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(12)), encoding="utf-8")
+        _, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "lock33")
+        inc = _write(tmp_path, "i.json", {t: False for t in split["sel"]})
+        cand = _write(tmp_path, "c.json", {t: True for t in split["sel"]})
+        root.chmod(0o555)
+        code, out = _run(
+            capsys, "gate", "--split", tmp_path / "split.json",
+            "--incumbent", inc, "--candidate", cand,
+            "--max-consultations", "5",
+            "--incumbent-fingerprint", split["fingerprint"],
+        )
+        assert code == EXIT_CONFIG
+        assert oa._holdout_key(split) not in out["error"]
