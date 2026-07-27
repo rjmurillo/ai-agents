@@ -145,7 +145,8 @@ def validate_rule_activation_coverage(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    succeeded: bool = exit_code == 0
+    return succeeded
 
 
 def validate_skill_shells(repo_root: Path) -> bool:

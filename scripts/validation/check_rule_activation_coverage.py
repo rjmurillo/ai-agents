@@ -200,17 +200,15 @@ def covered_ids(repo_root: Path, kind: str) -> set[str]:
         data = _read_scenario_json(path)
         target = data.get(target_key)
         other = data.get(other_key)
-        has_target = isinstance(target, str) and bool(target.strip())
+        target_ref = target.strip() if isinstance(target, str) else ""
         has_other = isinstance(other, str) and bool(other.strip())
-        if not has_target or has_other:
+        if not target_ref or has_other:
             raise CoverageConfigError(
                 f"{kind} scenario {path} must set {target_key} and not "
                 f"{other_key}"
             )
         _validate_scenarios_measure(data, path)
-        artifact_id = _resolve_target(
-            repo_root, target.strip(), artifact_dir, kind
-        )
+        artifact_id = _resolve_target(repo_root, target_ref, artifact_dir, kind)
         covered.add(artifact_id)
     return covered
 

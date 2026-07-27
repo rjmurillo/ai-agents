@@ -11,6 +11,7 @@ passes.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -56,7 +57,7 @@ def _skill_scenario(skill_id: str) -> dict[str, object]:
     }
 
 
-def _write_rule_scenario(root: Path, rule_id: str, payload: dict[str, object]) -> Path:
+def _write_rule_scenario(root: Path, rule_id: str, payload: Mapping[str, object]) -> Path:
     scen_dir = root / "tests" / "evals" / "rule-scenarios"
     scen_dir.mkdir(parents=True, exist_ok=True)
     path = scen_dir / f"{rule_id}.json"
@@ -64,7 +65,7 @@ def _write_rule_scenario(root: Path, rule_id: str, payload: dict[str, object]) -
     return path
 
 
-def _write_skill_scenario(root: Path, skill_id: str, payload: dict[str, object]) -> Path:
+def _write_skill_scenario(root: Path, skill_id: str, payload: Mapping[str, object]) -> Path:
     scen_dir = root / "tests" / "evals" / "skill-scenarios"
     scen_dir.mkdir(parents=True, exist_ok=True)
     path = scen_dir / f"{skill_id}.json"

@@ -602,8 +602,10 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
 
     rule_path_str = scenarios_data.get("rule_path")
     skill_path_str = scenarios_data.get("skill_path")
-    has_rule = isinstance(rule_path_str, str) and bool(rule_path_str.strip())
-    has_skill = isinstance(skill_path_str, str) and bool(skill_path_str.strip())
+    rule_ref = rule_path_str.strip() if isinstance(rule_path_str, str) else ""
+    skill_ref = skill_path_str.strip() if isinstance(skill_path_str, str) else ""
+    has_rule = bool(rule_ref)
+    has_skill = bool(skill_ref)
     if has_rule == has_skill:
         print(
             "ERROR: scenario file must set exactly one of rule_path or "
@@ -617,9 +619,9 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
         return shape_err
 
     if has_rule:
-        resolved = _resolve_rule_path(rule_path_str.strip())
+        resolved = _resolve_rule_path(rule_ref)
     else:
-        resolved = _resolve_skill_path(skill_path_str.strip())
+        resolved = _resolve_skill_path(skill_ref)
     if isinstance(resolved, int):
         return resolved
     return scenarios_data, resolved
