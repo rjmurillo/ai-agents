@@ -35,7 +35,7 @@ Two terms used throughout:
 
 ## Process
 
-Pick the recipe from the selector table. Each recipe states when to use it, the steps, a worked example with real repo paths, and what invalidates the result.
+Pick the recipe from the selector table. Each recipe states when to use it, the steps, and what invalidates the result. Worked examples with real repo paths are in [references/worked-examples.md](references/worked-examples.md).
 
 ### Recipe 1: Runtime-Contract Probe
 
