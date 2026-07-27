@@ -172,7 +172,7 @@ def _validate_path_string(path_str: str) -> str | None:
 
 **Canonical Implementations**:
 - `.claude/lib/hook_utilities/utilities.py:18-45` (get_project_directory with Path.resolve)
-- `.claude/hooks/Stop/invoke_skill_learning.py:66-95` (_validate_path_string pattern)
+- Historical removed hook reference: `.claude/hooks/Stop/invoke_skill_learning.py:66-95` (_validate_path_string pattern)
 
 **Test Requirements**: All hooks MUST pass path traversal rejection tests (e.g., `CLAUDE_PROJECT_DIR=../../etc/passwd`).
 
@@ -226,7 +226,7 @@ When creating a new hook or skill script:
 
 ## Amendments
 
-### 2026-04-29 — Manifest walk-up replaces `GITHUB_WORKSPACE`/`parents[N]` resolver
+### 2026-04-29: Manifest walk-up replaces `GITHUB_WORKSPACE`/`parents[N]` resolver
 
 **Change**: The Standard Import Boilerplate now resolves the lib directory using two branches: `CLAUDE_PLUGIN_ROOT` env var, then a walk up from `__file__` looking for `.claude-plugin/plugin.json`. The previous three-branch resolver (`CLAUDE_PLUGIN_ROOT` → `GITHUB_WORKSPACE` → relative `parents[4]/lib`) is replaced.
 
@@ -263,7 +263,7 @@ When creating a new hook or skill script:
 - Plugin marketplace distribution analysis: `.agents/analysis/claude-code-plugin-marketplaces.md`
 - Issues: #1179, #1180, #1181, #1182, #1183, #1184, #1185
 - Security patterns: `.gemini/styleguide.md:24-50` (Path Traversal guidance)
-- Path validation reference: `.claude/hooks/Stop/invoke_skill_learning.py:66-95`
+- Historical removed path validation reference: `.claude/hooks/Stop/invoke_skill_learning.py:66-95`
 - CWE-22: [Path Traversal](https://cwe.mitre.org/data/definitions/22.html)
 - CWE-426: [Untrusted Search Path](https://cwe.mitre.org/data/definitions/426.html)
 

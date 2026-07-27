@@ -1,0 +1,503 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3468,
+    "date": "2026-07-27",
+    "branch": "feat/eval-gate-significance-bar",
+    "startingCommit": "303f918ea8",
+    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned feat/eval-gate-significance-bar; branched from origin/main so PR #3467 stays docs-only"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = feat/eval-gate-significance-bar"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from origin/main at 303f918ea8"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read and left unmodified per ADR-014"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md, .agents/governance/TESTING-RIGOR.md, and ADR-087 loaded before the change"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read scripts/eval/README.md 'A loop step' and followed its recipe verbatim rather than improvising a driver"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This checklist"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "eval/eval-held-out-gated-optimization.md gains the measured noise floor and the null-control method"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "markdownlint-cli2 run scoped to the changed Markdown"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "508 tests pass across the three optimizer test files; 100% line coverage on _optimizer_core.py, _optimizer_adapters.py, and optimize-artifact.py; ruff and mypy clean on the changed files"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Drive the loop with a live scorer",
+      "actions": [
+        "Anthropic is rate-capped until 2026-08-01, so routed through GitHub Models: EVAL_PROVIDER=github with openai/gpt-4o-mini, which scripts/eval/_providers.py already supports",
+        "Ran scripts/eval/eval-rule-activation.py live over all seven files in tests/evals/rule-scenarios/, 24 scenarios, into base-report.json",
+        "optimize-artifact.py extract --kind rule produced 24 tasks, 12 passing: real headroom rather than a saturated benchmark",
+        "split --seed live-2026-07-27 drew 14 opt and 10 sel; stdout published opt membership only, so sel stayed hidden as designed",
+        "Read the report filtered to the 14 opt ids only, printing '<HELD OUT, not read>' for the rest, to keep the optimizer role honest"
+      ],
+      "outcome": "First end-to-end run of the loop against a real model. Fingerprint 06f74397..."
+    },
+    {
+      "phase": "Make a candidate edit and gate it",
+      "actions": [
+        "Opt-visible diagnosis on .claude/rules/working-with-legacy-code.md: both visible failures scored 2.33 with the judge saying the behavior was right but 'lacks the expected vocabulary', and the rule bound its vocabulary only to 'PR descriptions and review comments'",
+        "Edited the rule: added a two-gate summary, a 'Say The Words' section binding the vocabulary to every surface, and a plain-refusal instruction for the non-activating case",
+        "Re-ran the live scorer and extracted cand.json",
+        "On the visible opt group the edit moved 6/14 to 7/14, and neither task it targeted flipped",
+        "gate returned ACCEPT: sel 0.6 to 0.8, 2 discordant gains, 0 losses, p=0.25, 1 consultation of 5"
+      ],
+      "outcome": "A held-out ACCEPT, which the loop is built to treat as the win condition."
+    },
+    {
+      "phase": "Distrust the ACCEPT and run a null control",
+      "actions": [
+        "Post-hoc, the edited rule's own four scenarios had not moved at all: S1, S2, S3 still failing, S4 still passing. All three flips came from rules the edit never touched",
+        "That is not what a real improvement looks like, so restored the rule byte-for-byte (git diff empty) and re-ran the identical scorer as a null control",
+        "5 of 24 tasks flipped with no input change; the held-out group moved 6/10 to 7/10 on its own",
+        "Both sel gains that earned the ACCEPT also flipped under the null run, so the ACCEPT was variance, confirmed rather than suspected",
+        "Gating the byte-identical no-op returned REJECT, but only because noise had broken one task and the ADR-057 no-regression clause caught it"
+      ],
+      "outcome": "The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky."
+    },
+    {
+      "phase": "Act on the measurement",
+      "actions": [
+        "The gate already computed a one-sided exact McNemar tail and printed it, but nothing could act on it; the source comment said so explicitly",
+        "TDD: 16 core tests and 7 CLI tests written first, all failing for the right reason (no such parameter, then unrecognized argument)",
+        "Added max_p to gate() and --max-p to the gate subcommand, defaulting to absent so a small held-out group stays informative rather than unpassable",
+        "Ordered the bar last among accept-path refusals so a broken task is still the finding named first",
+        "Replayed both live runs under --max-p 0.05: the false ACCEPT became a REJECT naming the 0.25 tail, and the no-op stayed refused by the regression clause"
+      ],
+      "outcome": "489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean."
+    },
+    {
+      "phase": "Round fourteen adversarial review of the significance bar",
+      "actions": [
+        "Ran the ADR Review Protocol on ADR-087 and the --max-p change with two non-Claude reviewers in parallel, per the adr-review skill: gpt-5.6-terra on the code, gemini-3.1-pro-preview on the ADR claims. Both returned REJECT. Multi-agent consensus on ADR-087 was not reached; the findings were adjudicated against data rather than accepted or dismissed wholesale.",
+        "Accepted all four blocking code findings. The load-bearing one was statistical: a per-comparison p threshold does not bound a family, so five consultations at 0.05 each is a family-wise 0.226. --max-p is now the family bar, Bonferroni-divided by --max-consultations.",
+        "Pinned max_p in the ledger like the consultation cap, including pinning its absence, so a candidate refused at 0.05 cannot be re-gated at 0.1.",
+        "Moved --max-p range validation ahead of the ledger so a malformed flag no longer spends a consultation or hides behind an exhausted budget.",
+        "Made max_p without p_value or without max_consultations raise instead of accepting.",
+        "Falsified the ADR reviewer's headline finding empirically. It claimed the null-control flips were HTTP 429 errors scored as failures. Checked all three live reports: zero errored mechanism-runs out of 216 and no FAIL_JUDGE_ERRORS verdict. The mechanism is real but did not fire, so it was filed as #3474 rather than folded in or dismissed.",
+        "Filed #3475: providers never pass OpenAI's seed and never read back system_fingerprint, so paired re-runs cannot be made comparable.",
+        "Corrected three documentation contradictions the reviewers found: the README and ADR both still claimed p was reported and never enforced, and the debate log claimed a 21 percent per-task flip rate that one replication cannot support.",
+        "Added the confounded-variance disclosure to the ADR and debate log: the measured movement is the pipeline's, not the judge's, and this harness cannot separate them."
+      ],
+      "outcome": "Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c."
+    },
+    {
+      "phase": "Attack the rule finding with data already in the repository",
+      "actions": [
+        "The rule-path noise finding rested on one benchmark and one replication, which is thin enough to be worth attacking. Checked whether any committed artifact already disagreed with it before spending on another run.",
+        "Found the architect spike holds two runs of claude-sonnet-4-6, both reports tracked at evals/architect-spike/reports/. Verified model_id and agent_prompt_sha matched and treated the pair as a null control. Did not check fixture_set_sha. That omission is what makes the rest of this phase wrong.",
+        "Ran the full extract, split, gate loop on that pair. Default configuration returned ACCEPT: held-out 0.0 to 0.667, two discordant gains, no losses, p=0.25.",
+        "Verified --max-p 0.05 over a five-consultation budget refuses the same comparison at the corrected 0.01, and that adding the bar late to a group opened without one is refused. This part stands: it exercises the ledger pinning on real artifacts regardless of what the artifacts mean.",
+        "Measured the same comparison on the critic and high-level-advisor spikes and reported twelve of twenty-four across the three agents. Withdrawn in the next phase.",
+        "Corrected my own earlier reading in the debate log. I had recorded the rule run's REJECT as the design working. It was luck: requirement 4 fires when noise breaks something and is silent when noise falls one way. Filed as defect shape 16. This correction stands on the rule-path data and does not depend on the agent claim.",
+        "Published the agent claim in commit bb98bf24a across the README, ADR-087, the debate log, and this session log. Retracted the same day; see the next phase."
+      ],
+      "outcome": "WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured."
+    },
+    {
+      "phase": "Close the reviewer findings on PR #3478",
+      "actions": [
+        "Three inline findings landed on PR #3478, two from Copilot on this session log and one from CodeRabbit on the causal graph. All three were correct.",
+        "endingCommit was empty while changesCommitted read complete, so the log contradicted itself. Set to bb98bf24a. The validator emitted a WARN rather than a failure, which is why it survived.",
+        "The session-end validation evidence claimed 489 tests while a later phase claimed 508. Corrected the end-of-session evidence to 508, since that evidence has to report the final state. Left the 489 in the earlier phase, which was true at that point, and made the qualifier explicit rather than leaving the reader to infer it.",
+        "The causal graph attributed the false ACCEPT to scorer variance. That names one stage when the run cannot distinguish two: the response model and the judge are both gpt-4o-mini at temperature 0, and this harness passes no seed and reads back no system_fingerprint. Rewrote the label to name both stages and cite issue #3475.",
+        "The pre-push suite then refused the push. Node ids in the causal graph are content-derived, so rewriting a label without recomputing its id orphans the node: the next episode naming the same milestone would hash to a different id and append a second record, splitting the evidence. Repaired with scripts/maintenance/repair_causal_graph_ids.py."
+      ],
+      "outcome": "All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file."
+    },
+    {
+      "phase": "Retract the agent-path claim and find the defect it exposes",
+      "actions": [
+        "Pushed on the agent finding rather than banking it. Searched for prior art first and found scripts/eval/variance-control.py and a committed control run at evals/security-spike/control/20260531T184905Z-60538bcf/ from issue #1877: N=20 at temperature 0, verdict stable twenty times out of twenty, response text unique twenty times out of twenty.",
+        "Formed a hypothesis from it: the agent path's instability lives in the brittle free-text regex assertions, not the verdict. Measured per assertion across the paired runs. Verdict unstable in 9 of 16 cells, regex in 6. Hypothesis falsified, and the opposite of what #1877 suggested.",
+        "Chasing an inconsistency in that measurement, checked fixture_sha. All eight fixtures differ between the two architect runs. fixture_set_sha be99fa1b1180 against 26136df314d6.",
+        "Established the fixtures directory has exactly one commit, c81ac278f, dated after both runs, and that the committed fixtures hash-match run B exactly. Run A's corpus is unrecoverable, so the pair cannot be repaired.",
+        "Checked all six tracked spikes. The critic and high-level-advisor pairs match on fixture_set_sha but differ on agent_prompt_sha. No same-model pair in the repository agrees on both. There is no valid agent-path null control anywhere in the repo.",
+        "Retracted the claim in scripts/eval/README.md, ADR-087 (both the finding section and Validation Status), and the debate log, where the retracted section is kept intact under a banner because the retraction is the finding.",
+        "Named the defect: _fixture_set_sha's own docstring says it lets a report consumer verify two runs hit the same set, and optimize-artifact.py extract never reads it. The schema supplies the check and the tool that needs it discards it. Filed as defect shape 17 and folded into ADR-087 open requirement 12, which had already named the missing corpus identity as a budget concern."
+      ],
+      "outcome": "A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none."
+    },
+    {
+      "phase": "Build the corpus guard, then survive two reviews of it",
+      "actions": [
+        "Implemented the corpus-comparability guard TDD. Wrote 18 tests first, confirmed 12 red, implemented an envelope format optimizer-results/1 carrying {schema, corpus, results}, and made gate refuse a pair whose corpora disagree. Reader accepts legacy bare mappings; the discriminator is a string-valued schema key, not the key alone, so a legacy file with a task named schema still parses as legacy.",
+        "Proved the guard against the real incident rather than a fixture. Extracted the two tracked architect reports through the new extract, confirmed they emit different corpus values, and gated them exactly as the false accept was produced. REJECT, compared false, consultations 0, no ledger file written.",
+        "Round 15 adversarial review with gpt-5.6-terra returned REJECT with three findings, all real. CRITICAL: the guard was reachable by deletion, since stripping the envelope off either side left two unknowns and unknowns compared. REQUIRED: an unvalidated corpus string reported a verified match, so two reports both carrying an empty fixture_set_sha compared as verified. REQUIRED: reading both results files in full before the ledger lock let a malformed verdict mapping answer in place of an exhausted budget.",
+        "Closed the CRITICAL with two changes rather than one. split now pins the corpus of the results it was drawn from, so the value lives in the baseline commitment and no results file can delete it. And one known corpus beside an unknown one now counts as a conflict, which covers splits drawn before the pin existed. Neither alone is sufficient.",
+        "Closed the first REQUIRED by validating the corpus form as 64 lowercase hex at both the extraction boundary and the envelope reader.",
+        "Closed the second REQUIRED by splitting the read. The pre-lock work is now a header-only read that answers unknown to every content problem and cannot raise, wrapped in the digest scrubber. The full read moved into _gate_decision, after the ledger guards and before the charge.",
+        "Argued one point down rather than absorbing it. The reviewer wanted the whole corpus check moved behind the ledger lock. It stayed ahead: the file's convention, visible in the out-of-range --max-p check and the split-drift refusal, is that structural-validity refusals precede ledger refusals, and an incomparable pair is unusable at any budget. The reviewer's real concern was the full read, which the header-only split fixes.",
+        "Rewrote the test that encoded the bypass. The old assertion said unknown beside known compares; it now says that pair is refused. Bending the code to a stale test would have re-opened the CRITICAL.",
+        "Re-proved against the real data after the redesign. Both the original incident pair and the same pair with the candidate envelope stripped now return REJECT, consultations 0, zero ledger files.",
+        "Stated the bound in the README and the ADR rather than leaving it to be found. The split is caller-supplied and its pin sits outside the fingerprint, so a caller who edits two files together can still push an incomparable pair through. This defends against omission, not an adversary.",
+        "Recorded defect shape 18 in the debate log: a refusal reachable by deletion is not a refusal, and the generalization that a guard with a cannot-determine state should be measured by what it costs to reach that state deliberately."
+      ],
+      "outcome": "1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "evidence": [
+        "uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed",
+        "coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%",
+        "gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0",
+        "same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0"
+      ]
+    },
+    {
+      "phase": "Round 16 review: close five defects and correct a documented overclaim",
+      "actions": [
+        "Second adversarial review of the corpus guard, gpt-5.6-terra, returned REJECT with five findings. Confirmed all five by running the code, not by reading it. Two CRITICAL, three REQUIRED.",
+        "CRITICAL 1, the documented property was wrong. README and ADR-087 both claimed the corpus refusal cannot be deleted. True of the results envelope, false of the split pin: deleting the split's corpus key leaves two agreeing results files and no disagreement to refuse. Did not take the reviewer's fix of requiring a pin before any ACCEPT, because a --tasks split pins nothing by construction and neither the rule nor the hook path publishes a corpus identity, so that rule would disable the gate for two of three artifact classes. Split the claim into two reported facts instead: corpus_verified for the two results agreeing, corpus_pinned for the split naming the corpus they carry.",
+        "CRITICAL 2, TOCTOU between the header preflight and the full read. The two reads were never reconciled, so the values the comparison scored from never had to match the values the guard checked. The conflict rule now runs again against the loaded ResultsFile values, before the consultation is charged. Both call sites now emit one shared refusal payload so they cannot drift.",
+        "REQUIRED 3, split corpus pin was unvalidated. A split carrying corpus of [] raised TypeError out of a set comprehension. Now validated with the same 64-lowercase-hex check the results files get.",
+        "REQUIRED 4, _corpus_header promised it could not raise on content and caught only ValueError. A JSON array nested 200000 deep raises RecursionError, which escaped as an uncaught traceback ahead of the ledger guard. Normalized in both _read_json and _corpus_header.",
+        "REQUIRED 5, the preflight scrub test was tautological. It read capsys after _run_gate had drained it, and checked stderr while errors are emitted as JSON on stdout. Rewrote it against the returned payload and added a negative control that fails when the scrubber is removed.",
+        "TDD throughout: 18 new tests written first, 18 confirmed red, then implemented. Suite is 1081 passing with 100 percent coverage on optimize-artifact.py at 474 statements, _optimizer_core.py at 259, and _optimizer_adapters.py at 89.",
+        "Re-proved against the real incident pair three ways: pinned, candidate envelope stripped, and split pin deleted. All three REJECT with compared false, consultations 0, and zero ledger files written.",
+        "adr-review: ADR-087 requirement 5 rewritten from four properties to six, adding the pin-deletion limit and the recheck. The debate log records defect shape 19 and the reasoning for declining the reviewer's proposed fix."
+      ],
+      "outcome": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file."
+    },
+    {
+      "phase": "Round 17 review: a third model finds the error contract untested",
+      "actions": [
+        "Third adversarial review, gemini-3.1-pro-preview, chosen because rounds 15 and 16 both ran gpt-5.6-terra and two runs of one model is one opinion sampled twice. It was told what round 16 found, what was fixed, and which reviewer proposal was declined and why, and asked to attack that reasoning. It did not overturn the decline. REJECT with three findings.",
+        "Verified all three by running the code before accepting any. REQUIRED: _write_atomic called tempfile.mkstemp one line above the try that wraps OSError into ConfigError, so split --out into a nonexistent directory printed a FileNotFoundError traceback to a caller documented to parse stdout as JSON. Reproduced; the reviewer's own repro used four tasks and hit the min_sel refusal first, so it needed thirty tasks to reach the write.",
+        "NIT, accepted as real: _read_json did not name UnicodeDecodeError. _read_text catches it forty lines above with a comment saying it subclasses ValueError rather than OSError. Nothing crashed, since main catches ValueError, but a binary input produced an error document typed UnicodeDecodeError where every other unreadable input says ConfigError.",
+        "OPTIONAL, and the most interesting: defect shape 19 recurring inside the fix for defect shape 19. _corpus_refusal exists so the two corpus checks cannot phrase one refusal two ways, and says so in its docstring. The recheck emitted _corpus_refusal() | {sel_consultations: spent}, so the key set alone said which read caught the mismatch.",
+        "Went further than the reviewer's proposed schema unification. sel_consultations reports prior ledger spend, and _guard runs before the recheck, so an exhausted budget has already refused by then. The number was never actionable at that call site. Dropped it; both call sites now emit exactly _corpus_refusal().",
+        "TDD: wrote three test classes first, confirmed 8 red, then implemented. Removing the key broke one round-16 assertion that read sel_consultations == 0, a value that is prior spend and therefore zero in a fresh ledger whether or not the run charged. Rewrote it to assert no ledger file exists after the refusal, which is what the test name always claimed.",
+        "Re-proved the guard end to end on the real incident pair, the two tracked architect reports with fixture_set_sha be99fa1b1180 and 26136df314d6: REJECT, compared false, consultations 0, exit 1, zero ledger files, and now one clean payload shape.",
+        "1094 tests pass. 100 percent coverage held on all three optimizer modules: optimize-artifact.py 479 statements, _optimizer_core.py 259, _optimizer_adapters.py 89. ruff and mypy clean on changed files.",
+        "Flagged but did not fix: tests/eval/test_anthropic_model_default.py:35 trips ruff UP037, pre-existing from PR #2860 and outside this change.",
+        "Docs updated: README exit-codes section now records both error-contract breaks, the incomparable-pair section goes from a miscounted five to seven properties, ADR-087 requirement 5 records the one-voice property, and the debate log gains defect shape 20."
+      ],
+      "outcome": "Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output."
+    },
+    {
+      "phase": "Round 18: closing five unresolved PR review threads",
+      "actions": [
+        "Two Copilot threads flagged the retracted agent-path claim surviving in generated memory artifacts: the episode file asserted twelve of twenty-four agent fixtures corroborated the rule-path finding and called the agent path live-validated end to end, and the causal graph carried the same sentence as a milestone label. The session log had carried the retraction since the day it was made; the artifacts were stale because every commit this session used SKIP_AUTOFIX=1, and that is exactly the condition under which lefthook skips extract-session-episodes and update-causal-graph.",
+        "Tried regeneration first, per the generated-artifacts rule. It cannot fix this: the hook always passes --preserve, so the extractor merges fresh extraction over the existing file and never drops an event whose text is no longer derivable from the source. Proved it by re-running the hook and watching the stale event survive. Checked the alternative: --force rebuilds from the session log and does remove the claim, but it drops events e014 through e017, four real records of the round-16 and round-17 work, and renumbers the rest. Regenerating would have destroyed more truth than it restored.",
+        "Corrected the one stale event in place instead, replacing the withdrawn claim with the retraction and its cause: the two runs disagree on fixture_set_sha, so the corpus moved with the prompt and the comparison was confounded rather than a null control. Then re-ran the extractor to prove --preserve carries the correction forward rather than reverting it, and re-ran update-causal-graph, which picked the corrected text up and rewrote the milestone label. Both artifacts now hold zero occurrences of the withdrawn claim.",
+        "The significance-bar refusal named two numbers and labeled neither, so a reader could not tell the family bar from the corrected per-comparison bar. The round-14 test asserted only that both numbers appear, which is presence, not legibility. Wrote four tests first covering the labels, the arithmetic, the removed fragment, and the family-of-one edge where the two numbers are equal, confirmed four red, then rewrote the message to name each bar and show the division.",
+        "The README corpus example showed a truncated digest ending in an ellipsis, which the reader rejects: _CORPUS_RE requires exactly sixty-four lowercase hex characters. Worse, the invented tail did not even match the real digest's prefix. Replaced it with the actual fixture_set_sha of the incident run, then proved by running the tool that the full value parses while truncated and upper-case values exit 2 as ConfigError, and documented that contract next to the example.",
+        "ADR-087 had two lists both numbered to 5 and both referenced as bare Requirement N, so the CodeRabbit thread on Decision Requirement 5 versus Open Requirement 5 was a real ambiguity. The document already used Open Requirement 6 once, so the vocabulary existed and was simply not applied. Defined both labels where each list is introduced and qualified all five remaining bare references after confirming each one's referent by reading it.",
+        "Two more threads arrived while the first five were being closed, both on the same claim: every statement of the round-fourteen problem quoted 1 - 0.95**5, about 0.226, as the family-wise false accept probability of five consultations at 0.05. The reviewer is right that this is exact only under independence, and the five comparisons are not independent: all five look at the same selection group, and successive candidates are correlated edits of one artifact. Checked the arithmetic both ways before accepting: the dependence-agnostic union bound is 5 * 0.05 = 0.25, the independence figure is 0.226219.",
+        "The conclusion does not move, since both numbers are roughly five times the requested 0.05, so a per-comparison threshold still fails to bound a family and Bonferroni is still right. What was wrong was arguing for a dependence-agnostic correction by citing an independence-only figure, which is reasoning the mechanism itself rejects. Corrected all five live sites, the docstring, the README, the ADR, the test rationale, and the Serena memory, leaving the session log and the round-fourteen debate narrative as the historical record with a correcting note appended."
+      ],
+      "outcome": "Seven review threads closed, and the two highest-priority were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. Three lessons generalize. A retraction is not complete when the source document carries it, only when every derived artifact does, and SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. Asserting that both numbers appear in a refusal does not test that a reader can tell which is which. And a number carried into five documents by copying is corrected in five places or in none, with the test docstring the most likely to be missed, because nobody greps rationale prose when they change a claim."
+    },
+    {
+      "phase": "Round 18b: the independence assumption, and closing all thirteen threads",
+      "actions": [
+        "Two threads arrived mid-close, both on the same claim. Every statement of the round-14 problem quoted 1 - 0.95**5, about 0.226, as the family-wise false accept probability of five consultations at 0.05. Verified the reviewer is right: that value is exact only under independence, and the five looks share one selection group while successive candidates are correlated edits of one artifact. Computed both figures: independence gives 0.226219, the dependence-agnostic union bound gives 5 * 0.05 = 0.25.",
+        "The conclusion does not move, since both figures are roughly five times the requested 0.05. What was wrong was the argument. Bonferroni is chosen precisely because it holds under any dependence, so justifying it with a figure that only holds without dependence is reasoning the mechanism itself rejects.",
+        "Corrected all five live sites: the gate docstring in _optimizer_core.py, the README --max-p section, the TestOneBarSpentFiveTimesIsNotThatBar class docstring, ADR-087, and the Serena memory. Left the session log and the round-14 debate narrative as historical record with a correcting note appended, since rewriting a record of what was argued would hide the error rather than fix it.",
+        "Committed in two atomic chunks, 125f3563b (code, tests, README) and 710f7ef4b (ADR, debate log, Serena memory, session log). Fetched before pushing, since a second agent is active on this branch; no incoming commits this time. Push gate passed.",
+        "Replied to and resolved all six remaining review threads on PR #3478, each reply naming the commit, what changed, and the verification. Thirteen of thirteen threads on the PR are now resolved.",
+        "Reverted an unrelated .serena/project.yml rewrite that the Serena tool made on activation. A newer Serena version renamed the languages key to language_servers and reflowed the comment blocks. The value is preserved either way, but a tool-driven config migration does not belong in an eval-harness PR. Flagged rather than absorbed.",
+        "Launched round 19 adversarial review on gpt-5.6-terra, a model family not used in any prior round. Four consecutive rounds have each found real defects and two of round 18's seven threads arrived after the first five were already being closed, so treating eighteen clean-ish rounds as sufficient is the exact error this loop exists to catch."
+      ],
+      "outcome": "The statistical claim is correct in all five places it lives, and every review thread on PR #3478 is answered and resolved. Defect shape 21 generalizes one level up: it was first diagnosed as a retraction that stops at the source document and leaves the generated tier asserting a withdrawn claim, and the independence figure is the same failure in prose. A number copied into five documents is corrected in five places or in none, and the test docstring is the one most likely to be missed because nobody greps rationale prose when they change a claim."
+    },
+    {
+      "phase": "Round 19: an adversarial review that could not see the disclosures",
+      "actions": [
+        "Ran round 19 on gpt-5.6-terra, a model family used in no previous round, read-only, at extended reasoning. It returned six findings in 411 seconds. Verified each against the code rather than accepting any of them.",
+        "The two findings marked Critical are false positives against the stated threat model, and the disclosures are what proved it. The first (the optimizer can read held-out outcomes straight from extract output) is verbatim ADR-087 Open Requirement 1, and README lines 461-469 end with the sentence 'do not cite a run of this loop as evidence against an adversarial optimizer'. The second (EVAL_LEDGER_DIR resets the budget) is Open Requirement 10 and is documented in _ledger_root's own docstring. Neither was fixed: they are the user's deferred decisions, not defects. The lesson recorded in the debate log is that a reviewer reading only code will re-report every deliberately deferred limit as a Critical, because from inside the code a measured hole and an unnoticed one look identical.",
+        "Finding 3 fixed TDD. The reviewer had the symptom right and the remedy wrong: they wanted sel_consultations to hold the prior total, but the _corpus_refusal docstring defines consultations as this run's charge and sel_consultations as the running total including it. The real defects were that consultations was absent from both charged sites, so the key answering 'what did this cost me' was missing exactly where the answer is nonzero, and that the ledger-mismatch refusal emitted sel_consultations 0, a number that is never true since the ledger is parsed before the mismatch raises. Wrote 7 tests, confirmed 6 red and 1 passing control, applied the fix, all 7 green. The charged value is derived as spent_after minus spent rather than written as a literal 1 twice, citing this session's own copied-number defect.",
+        "Findings 4 and 5 fixed TDD together. Wrote 9 tests, confirmed 6 red and 3 passing controls. _write_atomic's cleanup unlink sat inside except BaseException unguarded, and main catches only ConfigError, AdapterError and ValueError, so an OSError from that unlink escaped as a traceback naming the cleanup instead of the write. It is now suppressed on OSError while every other class still escapes. The rename was also never followed by a parent-directory fsync, so a crash after a reported charge could undo it and hand the consultation back for free, inverting the charge-before-scoring ordering. Added _fsync_dir, called inside the guarded block, skipped on Windows since it cannot open a directory as a descriptor and os.replace is atomic there.",
+        "Found one defect the reviewer missed while writing those tests: the handler comment claimed it closed the descriptor when os.fdopen failed, and nothing called os.close, so the path leaked a descriptor while the comment said otherwise. The red test test_a_descriptor_is_closed_when_fdopen_fails proves it. This is the argument for writing the test rather than applying the patch.",
+        "Finding 6 fixed in five sites. The earlier correction said Bonferroni 'holds under any dependence'. It controls the family bar under arbitrary dependence among the p-values, but only given each per-comparison p-value is valid on its own, and the exact McNemar tail earns that only if discordant pairs are independent fair coin flips under the null. This harness's own rule-path null control reproduced both gains under a byte-identical no-op, which is direct evidence its outcomes are correlated. Qualified the claim in the gate docstring, the test rationale, the README, ADR-087, and the Serena memory.",
+        "Independently verified mcnemar_exact before trusting any p-value it reports: brute-forced all 2**n outcome sequences for every (n, b) pair with n from 0 to 12 against the implementation. Zero mismatches. Concordant pairs correctly excluded, and the docstring's power claims are exact (3 discordant floors at 0.125; n=5 b=5 gives 0.03125; n=7 b=7 gives 0.0078125).",
+        "Full verification after all fixes: 1118 tests pass, 100% coverage on all three optimizer files (optimize-artifact.py 494 statements, _optimizer_core.py 259, _optimizer_adapters.py 89), ruff clean, mypy clean, and a byte-level scan showing zero em or en dashes across all seven changed files.",
+        "Reverted an unrelated rewrite of .serena/project.yml that a newer Serena version had produced (languages renamed to language_servers, comments reflowed). The value is preserved either way, but a tool-driven config migration does not belong in an eval-harness PR, and adopting the rename is the user's call."
+      ]
+    },
+    {
+      "phase": "Round 20: a fix that inherited responsibility for where it sat",
+      "actions": [
+        "Ran round 20 on gemini-3.1-pro-preview, a vendor family used in no previous round, read-only, at high reasoning, against the three commits that had had no review at all. It returned three findings in 415 seconds. Verified each empirically before acting, in both directions.",
+        "Finding 2 is a false positive and was disproved by running it. The reviewer claimed mcnemar_exact raises OverflowError for n >= 1024 because 2**n exceeds the maximum float. Python's int-by-int true division divides exactly and rounds, so it succeeds whenever the result is representable. Measured directly: n=1023 gives 1.11e-308, n=1024 gives 5.56e-309, n=2000 and n=5000 give 0.0, and n=2000 with b=1100 gives 4.23e-06. A p-value of 0.0 at n=5000 all in one direction is correct to float precision and makes the gate stricter, not looser. No change.",
+        "Finding 1 is real and is a defect the previous round created. Defect shape 24 added a parent-directory fsync after os.replace so a crash could not undo a recorded charge. Raising ConfigError when that fsync fails is wrong twice: the message said 'could not write' when the bytes, the mode and the rename had all already succeeded, and more seriously it was the first failure in that function that can fire after the write has landed. In the gate the ledger is written before scoring, so raising there charges a consultation and returns no verdict. Charging before scoring exists so a crash costs the caller a look rather than granting one; aborting after the charge is that same trade pointing the other way. Fixed TDD with four tests plus a control: the loss is now named on stderr, which the exit-code contract keeps free while stdout carries the one JSON document a caller parses, the write stands, and every failure that precedes the rename still refuses.",
+        "Finding 3 is real, a Nit by severity and a boundary question by substance. The exhausted-budget refusal advised the operator to 'report on the test group', but score --group has choices=('opt',) and argparse rejects anything else statically. The reviewer offered widening the choice as one remedy. That is the wrong direction: the README lists 'score --group opt refuses to read any other group' among the properties enforced whether or not the optimizer cooperates, and widening it would hand the loop unmetered reads of the group held back as a final unbiased look. Making a message true by weakening the boundary it describes is not a fix. The advice was removed, and the capability it pointed at was filed as issue #3552 for the ADR-087 Open Requirements list.",
+        "Recorded defect shapes 26 and 27 in the debate log. Both share this log's recurring root, prose asserting what the mechanism does not do, but the honest repair in each was to change the mechanism's contract rather than its words: shape 26 by deciding what a post-rename failure should cost, shape 27 by deciding that the boundary outranks the sentence describing it.",
+        "Full verification: 1127 tests pass, 100% coverage on all three optimizer files (optimize-artifact.py 497 statements, _optimizer_core.py 259, _optimizer_adapters.py 89), ruff clean, mypy clean, zero em or en dashes across every changed file."
+      ]
+    },
+    {
+      "phase": "Round 21: a warning held to weaker rules than the raise it replaced",
+      "actions": [
+        "Merged origin/main, which had moved seven commits ahead including another agent's implementation of #3474 and #3475, two issues this session filed. One textual conflict, import-only, resolved as the union of both sides. One semantic conflict git could not see: main's new test_rule_extract_clean_report_succeeds asserts the pre-envelope extract shape, which this branch wraps in a corpus envelope. Git merged both cleanly and the suite failed. Fixed to match the branch convention used at six other sites.",
+        "The merge dropped coverage to 99 percent. Main's degraded-report scan arrived with four uncovered lines: a non-object scenario entry, a scenario with no mechanisms block, and a FAIL_JUDGE_ERRORS summary verdict with no scenario already carrying it. The PR body claims 100 percent as its verification, so the merge closes them with three tests rather than shipping a claim the merge had made false.",
+        "Ran round 21 on gpt-5.5 at xhigh, read-only, scoped to only the two commits no reviewer had seen, with explicit instructions naming the two failure modes previous rounds hit: re-reporting disclosed ADR limits as Criticals, and asserting runtime behavior without running it. It returned two findings, both Required, both verified by running.",
+        "Finding 1: round 20's warning is itself unguarded. print raises when stderr is closed, and _write_atomic converts any OSError from that region into ConfigError, so the abort round 20 removed came back through the diagnostic reporting on its absence. The reviewer demonstrated it with a stderr whose write raises errno 32 rather than arguing it from source.",
+        "Finding 2: the warning bypasses _digest_scrubbed, which is a context manager over raised exceptions. A diagnostic that prints and returns never enters it, so a digest-bearing EVAL_LEDGER_DIR root printed unredacted. The seam's own docstring predicted this. The tenth review had already fixed the same leak by hand at the lock-cleanup warning; round 20 added a second site and the hand-fix did not generalize, which is the exact failure a seam exists to prevent.",
+        "Fixed both TDD under one seam. _ACTIVE_HOLDOUT_KEY plus a _warn helper that scrubs with the active key and prints under suppressed OSError; _digest_scrubbed publishes the key and restores the previous value in a finally so the seam nests. _warn takes no key parameter on purpose: the caller with no key to pass is the caller who will leak. Both warning sites route through it, which also repairs the older unguarded print at the lock cleanup that had been fixed for leakage only.",
+        "Eight tests: five red (closed-stderr crash at both sites, digest leak at both sites, key restore under nesting) and three green controls (a warning with no active key still prints, a raised error still scrubs, the key clears after the scrub exits). 1382 pass, 100 percent on all three optimizer modules, ruff and mypy clean.",
+        "Recorded as debate-log defect shape 28: when a failure path is downgraded to a diagnostic, the diagnostic inherits every obligation the failure had. It must not disclose what the raise redacts, and must not fail where the code it reports on succeeded."
+      ]
+    },
+    {
+      "phase": "Round 22: guarding the exception a reviewer raised, and a coverage claim no test backed",
+      "actions": [
+        "Ran round 22 on gpt-5.6-sol at xhigh, read-only, scoped to the two commits round 21 produced, with explicit instructions naming the two failure modes prior reviewers hit. It returned three findings. All three were verified independently by running before any code changed.",
+        "Finding 1, Required and confirmed twice by measurement. Round 21 gave the post-rename warning back the two properties the raise path had, and guarded it with suppress(OSError) because errno 32 was what the reviewer's demonstration raised. A stream closed for real raises ValueError, not OSError: closing an io.StringIO and warning through it escaped the guard and aborted a write that had already succeeded, which is the exact outcome rounds 20 and 21 both existed to prevent. The worse half is not a crash. sys.stderr is None in an embedded or windowed interpreter and print(file=None) falls back to stdout, the stream carrying the JSON verdict. Measured directly: the warning text landed in captured stdout. A diagnostic that corrupts the payload it is diagnosing is worse than one that crashes, because nothing reports it.",
+        "Fixed by stating three named rules in _warn's docstring and holding all three, rather than handling a third case. It snapshots sys.stderr once, returns when there is no stream, and suppresses Exception rather than one subclass. Two rounds each handled the case in front of them and each left the next one open.",
+        "Finding 2, Optional and taken. The module global holding the active holdout key was correct for a single-threaded CLI but wrong as a primitive: a second live scope in another context overwrote it and left a stale key behind. Replaced with a ContextVar, set with a token and released with reset(token) rather than set(None), so a nested scrub restores its parent's key instead of clearing it.",
+        "Finding 3, Optional and the most serious of the three. Round 21's commit message, phase 16 of this log, and the PR body all claimed the fix was covered 'at both sites' and 'under nesting'. AST inspection and a direct read confirm all eight of those tests drove _write_atomic; none touched the lock-cleanup warning site and none nested a scrub. The code was correct at both sites. The claim about the evidence was not, and it is the one claim a reader cannot check by reading the code.",
+        "CORRECTION to phase 16 of this log. Where phase 16 says the round-21 tests cover 'the closed-stderr crash at both sites, the digest leak at both sites, and key restore under nesting', that was untrue when written. Round 21 covered one site and no nesting. This phase adds the two missing tests rather than editing phase 16, because a log that silently repairs its own errors cannot be used as evidence about the process that produced them.",
+        "Five tests added, every one mutation-checked, because round 16 caught a vacuous assertion here. Widening the suppression back to OSError, dropping the None guard, routing the lock-cleanup warning through a raw print, replacing reset(token) with set(None), and swapping the ContextVar for a hand-rolled module global each failed exactly one test.",
+        "Caught a non-discriminating test of my own before it shipped. The first draft of the context-isolation test used two threads and a barrier and passed against the module global it was written to rule out. Instrumenting the interleaving explained it: the barrier releases both threads but they still run one at a time, and the second finished its finally restore before the first resumed, so each read its own key from a genuinely shared variable by scheduling luck. Rewrote it with copy_context and no threads; it now fails against the global deterministically. A test whose discriminating power depends on scheduling has not been shown to discriminate by passing or failing once.",
+        "Audited Windows skip markers on all new tests. Three force a directory fd through _fsync_refuses and were missing @pytest.mark.skipif(os.name == 'nt'); added. The lock-cleanup test fails Path.unlink instead and is cross-platform.",
+        "Verified: 15560 pass across the repo suite, 100 percent on all three optimizer modules (optimize-artifact.py 561 statements, _optimizer_core.py 281, _optimizer_adapters.py 89). ruff clean, mypy clean.",
+        "Documented as defect shapes 29 (guarding the exception, not the rule) and 30 (a coverage claim no test backed) in the debate log, plus a note on the test that could not fail. README's durability bullet now states the third rule and why the OSError guard was too narrow."
+      ]
+    },
+    {
+      "phase": "Round 23, and the bug the docstring found on its own",
+      "actions": [
+        "While writing the three-rule docstring for _warn, the sentence justifying why _scrub sat outside the suppression turned out to be false in both halves. A redaction that raises leaves the message unprinted either way, because the exception skips the print with the message still bound to its unscrubbed value, so excluding it bought no leak protection. What it bought was a _warn that raises from inside _fsync_dir after a rename had already succeeded, which is the abort rounds 20, 21 and 22 were each spent removing, reintroduced by the fix for round 22. Moved the redaction inside the guard, added a test with _scrub monkeypatched to raise, and verified the reverse arrangement fails it.",
+        "Ran round 23 on gemini-3.1-pro-preview, read-only, scoped to the two round-22 commits, with the three prior failure modes named including the new one about trusting prose over test bodies.",
+        "It confirmed by running: the suppress(Exception) boundary lets KeyboardInterrupt and SystemExit through as intended; snapshotting sys.stderr is the right primitive rather than reading it twice; reset(token) is correct under out-of-order exits and generator suspension; LedgerMismatchError does not leak the key through path.parent, which resolves to the ledger root and excludes the digest-bearing filename; and three of the new tests discriminate under its own mutations.",
+        "It raised one Optional finding, structurally right and taken: the context-isolation test drove the ContextVar directly, so it tested the standard library rather than this module's scope.",
+        "Its proposed repair does not discriminate as written, which measurement showed and reading would not have. Abandoning a generator mid-scope only abandons it while something holds a reference; CPython drops the last one when the helper returns, closes the generator, and runs the very finally the test needs left undone. Measured both variants against both implementations: as proposed, the global mutation passes; holding the reference, it fails.",
+        "The review's own mutation was also weaker than it looked. Rebinding the module attribute to None breaks attribute access rather than behavior, so any test touching the variable raises AttributeError rather than failing an assertion. A mutation has to preserve the API and change only the property under test.",
+        "Taking the finding surfaced a limitation neither party was looking for. Closing the abandoned generator from outside its context makes reset refuse a foreign token with ValueError, which pytest reports as an unraisable-exception warning. A token has a constraint the module global did not: a scope entered in one context cannot be exited in another. Every scope in this CLI is a plain with in straight-line synchronous code, so _digest_scrubbed discloses it beside the non-LIFO limitation rather than guarding a path no call site can reach. The test closes its generator inside the context that opened it.",
+        "Verified: 1388 pass across the optimizer suites, 100 percent on all three modules, no warnings, ruff clean, mypy clean.",
+        "Documented as defect shapes 31 (the docstring found the bug the reviewer did not) and 32 (a proposed fix is a claim like any other) in the debate log."
+      ]
+    },
+    {
+      "phase": "Round 24: the last expression nobody guarded",
+      "actions": [
+        "Sent round 24 to the idle round-23 reviewer via write_agent rather than starting a fresh agent, reporting the outcome of its previous finding first: the finding was taken, its proposed patch was measured and rejected because CPython refcount-collects the abandoned generator and runs the finally the test needed left undone, and its proposed mutation broke attribute access rather than behavior. Scoped it read-only to 437923b10 and a541a88cd, named the three recurring reviewer failure modes, and said plainly that a clean verdict would be read as signal rather than as a failure to find something.",
+        "It returned a clean verdict on both commits and answered all three questions asked: _warn holds its three rules, _digest_scrubbed's finally restores correctly on every synchronous path, and the copy_context test does discriminate, which it confirmed by building its own API-preserving module global and watching the test fail against it. It then filed one Nit.",
+        "The Nit was real and under-labelled. sys.stderr is an attribute lookup, and stream = sys.stderr sat outside the suppression guard, so a harness that deletes the attribute rather than blanking it raises AttributeError from the line whose only job is to decide whether the guard runs. That abort lands after the rename it reports on has already succeeded, which is the same regression class rounds 20 through 23 each closed at a different site.",
+        "Reproduced it before believing it, as a red test: monkeypatch.delattr(sys, 'stderr') through _fsync_refuses into _write_atomic gives AttributeError: module 'sys' has no attribute 'stderr' at line 791, with the ledger already renamed.",
+        "Fixed with getattr(sys, 'stderr', None), which adds no control flow: the missing attribute routes into the None branch that already existed and was already tested, so one expression becomes total and no second branch is introduced. This is why it was taken rather than filed under the rule against error handling for unreachable paths; it is the difference between a partial and a total read of a value the function already branches on, not a new guard.",
+        "Corrected the docstring in the same change. It claimed only the stream check sat outside the guard while the stream read sat outside it too, making the sentence false for the second time in two rounds by the same mechanism as shape 31.",
+        "Verified: mutation M7 restores the partial read and fails exactly one test of 380 in the CLI file. 1389 pass across the optimizer suites, up one from the new test. Coverage stays 100% on all three modules and the statement count of optimize-artifact.py does not move, because the change replaced an expression rather than adding a line. Ruff and mypy clean.",
+        "Independently re-verified the two prior mutations at HEAD before this change: M5 (ContextVar swapped for an API-preserving module global) fails exactly one test with the cross-context overwrite it exists to catch, and M6 (redaction moved back outside the guard) fails exactly one different test with the redactor's RuntimeError escaping to the caller. Source restored byte-identical after each.",
+        "Committed as a33c5c089. Documented as defect shape 33, which is narrower than the four rounds before it: each of those moved a statement into the guard, while this one is about an expression that was never a candidate for moving because it reads as a fetch rather than as work.",
+        "Amended the operator doc's durability bullet, which said sys.stderr can be absent and described only the blanked case. Absent covers two cases and the deleted one raises from the read rather than redirecting the write, so the bullet now names both."
+      ]
+    },
+    {
+      "phase": "Two review threads, one real defect, and the test that already knew",
+      "actions": [
+        "The Copilot PR reviewer left two unresolved threads, both naming the same mismatch: ADR-087 requirement 5 and the Serena memory each said the gate refuses unless the split's pin and both results files name one corpus, while the same sections went on to describe an all-unknown case that is reported rather than refused.",
+        "Verified against _corpus_conflict rather than against the prose. The rule is that the declared corpora, with absent ones dropped, must not exceed one distinct value. All unknown collapses to a single value and is not a conflict; a known corpus beside an unknown one is two values and is. The reviewer was right on both counts and the docs overstated the rule.",
+        "The behaviour already had a test. The parametrised truth table pins (UNPINNED, None, None) to False, so the code was correct and only the prose drifted. No test was added, because adding one would duplicate a case already covered rather than close a gap.",
+        "Corrected both documents to state the rule the code enforces, and said in the ADR that the earlier wording read as refusing the all-unknown case. This is the same defect class the log calls shape 25, a claim stated more strongly than it holds, arriving this time from a bot reviewer rather than from the author.",
+        "Merged origin/main, which had moved four commits and reported CONFLICTING on the generated causal graph. Resolved by regenerating rather than by hand; the regenerated file matched the merge result exactly, so the merge was already correct. 1389 pass after the merge, ruff clean.",
+        "Grepped for the old wording rather than trusting the two threads to be exhaustive, and found a third copy of the same overstatement in the operator README that neither thread named. Corrected it in the same shape. A bot reviewer reports what it read, not what it did not read, so a finding about prose is a reason to search for the prose elsewhere.",
+        "Then found a precision bug in that fix. The README correction said a declared corpus beside an undeclared one is a disagreement, and undeclared reads as the absent split key, which is exactly the case that is NOT a conflict. The ADR survived the same wording only because a neighbouring paragraph disambiguates it; the README had no such neighbour. Rewrote it to name the two absences separately: a results file says null, which counts as a value, while a split with no corpus key names nothing and is dropped before counting. Verified all six resulting claims against _corpus_conflict directly, zero mismatches.",
+        "Replied to both threads with the fix, the reason no test was added, and the third copy neither thread named. Resolved both."
+      ]
+    },
+    {
+      "phase": "Round twenty-five: the first clean verdict, and the finding inside it",
+      "actions": [
+        "Round twenty-five (gpt-5.6-luna) answered all five questions with method labels and probe evidence, and found nothing in the code. That reading survives; the code is correct.",
+        "It reported that the key read is also lexically outside the guard, then set it aside as shorthand rather than a defect because the read cannot raise. The premise is right and the conclusion is not: the docstring said only one read sat outside the guard and two do.",
+        "Measured the risk instead of asserting it. Removing default=None from the ContextVar turns thirteen tests red, so the invariant is pinned, but every one of the thirteen is about stderr or scrubbing and none names the constructor argument that caused it.",
+        "Repaired the prose to name both reads and the reason the second is total, and added one test that fails with LookupError naming the ContextVar so the cause is in the failure rather than inferred from thirteen symptoms.",
+        "Fixed a stale sentence the change created in a neighbouring test docstring, which quoted the sentence being replaced.",
+        "1390 pass, 100% on the CLI module held, ruff and mypy clean. Committed bac4cf0e7."
+      ]
+    },
+    {
+      "phase": "Three bot threads, one accepted whole and two accepted for a different reason",
+      "actions": [
+        "The memory doc said three load-bearing details and listed eight. Counted the items rather than trusting either number, found exactly eight, and corrected the header. The cause was a drifted edit: the list grew one entry per review round and the header never moved.",
+        "Rejected the stated reason for the two banned-word threads. `significant` is banned because it substitutes a vague adjective for a number; statistical significance carries one. Left `significance bar` where it names the feature and left `test_a_regression_is_not_significant` alone, since a one-sided test for improvement really does return p of 1.0 for a regression.",
+        "Accepted the rename for a different reason the threads did not give. `gate(0.8, 0.6, p_value=0.25)` is a twenty-point gain called insignificant, which inverts the finding: the effect is large and only the evidence is weak. Renamed to name the tail.",
+        "Found a third site with the same conflation that neither thread named, `test_a_significant_gain_passes_the_bar`, and renamed it too.",
+        "1390 pass, ruff clean. Committed e3bdae5bb. All three threads replied to and resolved, twenty-three resolved and zero open."
+      ]
+    },
+    {
+      "phase": "Round twenty-six: auditing the correction rather than the code",
+      "actions": [
+        "Sent round twenty-six (gpt-5.6-terra) at the correction itself rather than the code, on the grounds that the docstring had been false in three consecutive rounds, each time right after someone corrected it.",
+        "It was right that 'two reads sit outside the guard' is false as a literal count, since the suppress and Exception lookups and __enter__ are out there too, and right that the declaration sits sixty lines above the read rather than fifty.",
+        "Acted on the finding underneath both: the key read had no reason to be outside the guard at all. Moved it next to its only two uses, so nothing about _ACTIVE_HOLDOUT_KEY has to hold for the caller to survive. The stream read stays outside because it decides the early return that keeps the message off stdout, which is a reason the key read never had.",
+        "Measured the improvement instead of asserting it. Dropping default=None used to abort the caller and fail thirteen tests; it now loses the warning, fails six, and the caller returns normally.",
+        "Deleted the tautological assertion it flagged, which built an unrelated ContextVar and verified CPython rather than this repository.",
+        "Re-measured the count in the surviving prose after the move, because the number that made the argument in round twenty-five stopped being true in round twenty-six.",
+        "1390 pass, 100% on the CLI module held, ruff and mypy clean. Committed cdd704367."
+      ]
+    },
+    {
+      "phase": "Treating the correction rate as evidence about the artifact",
+      "actions": [
+        "Four rounds corrected this docstring and four corrections were falsified, two of them by the commit that corrected the previous one. Treated that rate as evidence about the paragraph rather than about the readers.",
+        "The common factor is that every falsified claim was a quantity: a count of expressions outside the guard, a line distance to a declaration, a count of failing tests. Each was true when written and each was falsifiable by an edit elsewhere in the file.",
+        "Removed the quantities rather than re-verifying them. They now live in the dated review log. The docstring keeps only claims a reader of the function can check against the function.",
+        "1390 pass, 100% on the CLI module held, ruff clean, zero dashes. Committed de1e96c31."
+      ]
+    },
+    {
+      "phase": "Making the corpus refusal name only what every refusing input carries",
+      "actions": [
+        "A bot reviewer objected that the refusal advises re-scoring against the corpus the split was drawn from, while a --tasks split pins no corpus. Reproduced the refusing row directly: _corpus_conflict(_UNPINNED, SHA_A, SHA_B) is True, so a pinless split does reach that message.",
+        "Confirmed the path was already covered end to end by test_one_known_corpus_beside_an_unknown_one_conflicts_without_a_pin and by the parametrised truth table. Neither covered the advice the caller reads on that path.",
+        "Rejected the obvious repair. 'Re-score both artifacts against one corpus' is wrong when the split does pin a digest, because re-scoring against some other single corpus still leaves two declared values and still refuses. A procedure phrased for one input shape is wrong for the other.",
+        "Wrote the failing test first, then replaced the advice with the negation of the predicate: 'Re-score both artifacts so that only one corpus is named across all three.' It names no file to copy a value from, so no input can be missing what it names.",
+        "Grepped every tree for other copies. The README transcript stops after the first sentence and carried nothing stale; the only other match is a dated paraphrase in the review log.",
+        "1391 pass, ruff clean, mypy clean, zero dashes. Documented as shape 36."
+      ]
+    },
+    {
+      "phase": "Pinning the payload presence rule for the two keys it was never written for",
+      "actions": [
+        "Round twenty-seven (gemini-3.1-pro-preview) was aimed at the decision logic rather than the diagnostic helper the previous rounds had circled. It cleared every ACCEPT and REFUSE path: strict slice boundaries make overlap structurally impossible, ties refuse, the Bonferroni family size is the declared cap, adapters raise on duplicate ids, and errored tasks record as failures instead of shrinking the denominator.",
+        "Its one finding was that REJECT has three payload shapes. Verified by an AST pass over every emit site: pre-lock refusals carry four keys, ledger mismatch six, guard and coverage seven, a verdict sixteen. The observation is true.",
+        "Rejected the proposed remedy on evidence rather than argument. Querying the ledger so the preflight could report sel_consultations reverses round seventeen, which removed that key so a key set alone could not reveal which of the two corpus reads caught the disagreement, and it would read the ledger before the lock.",
+        "Measured the other half. Applied the fix to the drift refusal and ran the suite: the payload then reports a fingerprint of all zeroes beside a reason saying that fingerprint does not describe the file. The drift check is what disproved the value, so that site cannot state it honestly.",
+        "Found the real defect inside the rejected fix. The README stated the presence rule for consultations and sel_consultations and was silent on group and fingerprint, and no test pinned them, so a careful reader given the payloads and no rule reaches exactly the conclusion this round reached.",
+        "Added TestWhichRefusalsNameTheGroupTheyOpened, five tests covering the verdict, an under-lock refusal, the drift refusal, the no-echo-of-a-disproved-fingerprint edge, and the corpus refusal from both sides of the lock.",
+        "Confirmed the class earns its place by mutation. M10 applies round twenty-seven's fix to the drift refusal: before this commit nothing broke, after it two tests fail, and the failure output is the self-contradicting payload itself.",
+        "Extended the README accounting-keys paragraph to cover all four keys, naming the corpus refusal as the one deliberate exception and the reason it is one: a single document emitted from both sides of the lock carries only what the earlier side can say.",
+        "Recorded shape 37 in the debate log: a contract documented for some of the keys it governs reads as an accident at the keys it skipped.",
+        "Verified 1396 pass, 100 percent statement coverage held on all three eval modules, ruff and mypy clean, zero em or en dashes byte-verified across every edited file.",
+        "Triaged a bot thread on ADR-087 claiming the Bonferroni caveat was missing a subject. The claim is false: the subject is 'looks', a plural noun repeated from earlier in the same sentence, so 'which looks at one selection group are not' parses. The complaint is right for a reason the bot did not give, which is that 'looks' sits immediately after 'which', where English prefers a verb reading, so the reader garden-paths and reparses at 'are not'.",
+        "Fixed it by making the ADR match the README, which already states the same caveat with an explicit plural subject ('and five looks at one selection group are not') rather than by inventing new prose. Word diff confirms the only semantic change is one clause becoming a sentence; everything else is rewrap. No decision, requirement, consequence, or status changed, so this is a copy edit rather than an ADR revision and adr-review was not fired."
+      ]
+    },
+    {
+      "phase": "Making score refuse the drifted split it was quietly vouching for",
+      "actions": [
+        "Asked round twenty-seven the generalisation of its own finding: does any other emitted field carry a value some site cannot state honestly, and is there a fifth field varying under no rule and no test. Told it to enumerate the emit sites by reading them and that a negative answer with the work shown would beat another finding.",
+        "It found one and ran it. cmd_score prints split['fingerprint'] beside the score and never checks whether the fingerprint still describes the file. cmd_gate checks on the line after its read; _split_drifted has one caller and _read_split has two.",
+        "Reproduced independently on a real split rather than the fabricated one it used. Drew a split, dropped one opt task, left the fingerprint, and scored twice: same fingerprint, n of 6 then 5, score 0.333 then 0.200. One fingerprint naming two splits is the confusion the fingerprint exists to prevent.",
+        "Bounded the severity before fixing it. The gate runs the check and rejects the tampered split, so no unsound verdict is reachable. The cost is where the operator finds out: the gate sits at the end of a step that already paid for a candidate, so a check firing only there charges budget for the discovery.",
+        "Found the sharper statement in _read_split. It refuses a file missing any key needed to re-fingerprint it and says the reason is that such a file cannot be verified, collects exactly the keys verification needs, and then does not verify.",
+        "Decided against moving the check into the reader. cmd_gate must emit decision REJECT on drift because its caller is a loop that branches on the document, and a reader that raised would turn that verdict into an error document.",
+        "TDD, and the first red was invalid. The tests asserted pytest.raises(SystemExit), but main catches ConfigError and returns EXIT_CONFIG, so four failed for the wrong reason. Corrected them to assert on the exit code and the payload.",
+        "Re-falsified properly. M11 removes the new check and turns four of the five red with the corrected assertions; the fifth is the positive control proving the check costs an honest caller nothing.",
+        "Verified end to end on the CLI: the tampered split now exits 2 with a ConfigError naming the remedy, and the untouched split still scores 0.333 with its fingerprint.",
+        "Read round twenty-seven's other answer, that five fields vary across the three cmd_apply sites, and left it alone. Those documents are a tagged union discriminated by the keys present, and every omitted field is one that site could state honestly, which is the opposite of the fingerprint case.",
+        "Documented the refusal in the README next to what the gate refuses, including why the two commands report the same condition in two vocabularies, and recorded shape 38 in the debate log.",
+        "Verified 1401 pass, 100 percent statement coverage held at 563 statements, ruff and mypy clean, zero dashes byte-verified."
+      ]
+    },
+    {
+      "phase": "Closing the guard that its own except clause was written to close",
+      "actions": [
+        "Pushed the round-28 commit; every gate green including the 253 second python-tests hook. Replied to and resolved the ADR-087 Bonferroni thread, stating that the missing-subject diagnosis is false, that the garden-path complaint is right for a different reason, and that the fix mirrors the README's existing correct construction. All 26 threads now resolved, 0 unresolved.",
+        "Updated the PR body to round 28 and re-validated: 11 of 11 files, no mismatches, zero dashes. CI green, MERGEABLE / BLOCKED, where BLOCKED is the human approval requirement I cannot satisfy.",
+        "Ran round 29 on gpt-5.6-sol, a model family not used recently, pointed at the newest code since three consecutive rounds had touched cmd_score and no fresh reader had seen the result.",
+        "It found that a split whose fingerprint is a list kills the process with TypeError instead of refusing the file. Verified by running, then found the sharper statement by reading: _split_drifted already wraps its redraw in except (TypeError, ValueError) and converts either to ConfigError, so the code had already ruled on this class.",
+        "Two values walked through the ruling on technicalities. The fingerprint comparison sits one line below the except, outside the block, so it raises the very TypeError the clause names. And int(min_sel) on a JSON Infinity raises OverflowError, a sibling of ValueError rather than a subclass.",
+        "Enumerated the class rather than fixing the two instances reported. Fuzzed every field of a real split with twelve wrong-typed values: exactly five inputs across two fields escape, and the reading agrees with the running because those are the only two operations touching a caller-supplied value outside a guard.",
+        "Bounded the blame honestly. cmd_gate has called _split_drifted since the first commit, so the crash pre-existed this branch on that path; round 28 widened it to cmd_score one commit ago, which is why the fix is owed here.",
+        "Found the precedent in the same function. _read_split already validates the optional corpus pin, and the comment there records the identical bug: an unvalidated list pin raised TypeError out of a set comprehension. So the fingerprint check went beside its twin rather than into a new validator.",
+        "Rejected round 29's prescription of a 64-character lowercase hex format check, which would add a compatibility constraint on a field that has a legacy fingerprint path, when the defect is a type not a format.",
+        "Falsified both halves separately, because a two-part fix verified as a unit proves only that at least one part works. M12 removes the fingerprint check and turns three red; M13 removes OverflowError and turns one red.",
+        "Left the README unchanged after checking it. Its exit-codes section already promised that every path prints JSON so a caller can tell a reject from a broken input by reading decision rather than the code, which is the contract the crash broke. The document was right and the code was wrong, the second time in three rounds.",
+        "Verified 1407 pass, 100 percent statement coverage held at 565 statements, ruff clean on all touched files, mypy clean, zero dashes byte-verified."
+      ]
+    },
+    {
+      "phase": "Refusing the number before it can spend the budget",
+      "actions": [
+        "Asked round 29 for the general form of its own finding: enumerate every try block in all three eval modules and answer, per block, whether an operation that can raise a caught class sits outside the block, and whether the except tuple omits a sibling of a class it names. It returned all 26 blocks (24 in optimize-artifact.py, 1 in _optimizer_core.py, 1 in _optimizer_adapters.py) with a per-block verdict, and two failed. Demanding the general form is now the highest-yield follow-up in the series; it turned round 27 into round 28's real bug and round 29 into this one.",
+        "Verified the second finding and measured it worse than reported. Round 29 said the gate consumes a consultation and returns no verdict. Measured end to end with EVAL_LEDGER_DIR: one gate run with a cap of 10**400 exits 1 with a traceback and empty stdout, durably writes consultations 1 and a 401 digit max_consultations into the ledger, and then every subsequent legitimate run against that group is permanently refused for asking a different cap. The remedy that refusal offers is to re-split, which destroys the held-out group. One mistyped argument bricks the scarce resource the gate exists to protect.",
+        "Fuzzed the budget command's four integer arguments and found only --total and --max-edits crashed. Probed the other two a second time in pairs so the ordering checks would not fire first: --min-edits BIG --max-edits BIGGER crashes, and --step BIG --total BIGGER crashes. A single-variable fuzz under-reported the class by half. All five integer arguments that reach float arithmetic crash.",
+        "TDD'd the round-29b class, 3 red for the right reason and 3 controls green, then added an argparse type callable applied to all five arguments. Chose the boundary over the three division sites because cmd_gate charges the ledger before it reaches its second division, so a value caught later has already spent budget and written its own cap into the ledger. Parsing finishes before any command runs, so a value refused there has charged nothing.",
+        "Falsified with M14: removing the callable turns exactly the three crash tests red and leaves the three controls green. Kept a test pinning that 10**300 is accepted, because a semantic ceiling would be a policy decision wearing a bug fix's clothes; the bar is what the arithmetic can carry.",
+        "Verified the repair against the original damage: the typo'd cap now exits 2 with a plain argparse error and leaves the ledger directory empty, and the legitimate run that the poisoned ledger used to refuse forever now returns its verdict. Confirmed split --min-sel was already safe, its validation fires before any arithmetic.",
+        "Full suite 1413 pass, 100% statement coverage on all three eval modules. Ruff and mypy clean on every touched file; the one ruff error in tests/eval is the pre-existing UP037 from PR #2860. Wrote shape 40 and this phase.",
+        "Triaged a new bot thread on the Serena memory: the inline envelope example was not parseable JSON, using a <64-hex or null> placeholder and an unquoted task_id key. The complaint is correct, and the README already showed the same document as real JSON with a real digest, so the fix was again to make the other file agree rather than to invent a new construction. This is the third time in the series that a bot reported the one file it read while a sibling tree was already right."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
+    }
+  ],
+  "endingCommit": "db48b1c65",
+  "nextSteps": [
+    "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
+    "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
+    "#3437 (widen the seam to {task_id: float}) and #3445 (repeated sampling) remain decisions for @rjmurillo, not fold-ins. Every reviewer across twenty rounds pushed for #3437; it is a redesign of the scorer contract.",
+    "#3474 (errored scenarios scored as failures manufacture discordant pairs) and #3475 (no seed, no system_fingerprint) are both on the extract path, not the gate path.",
+    "Whether --max-p should default to non-absent is open. Absent today means the gate applies no family-wise bar unless asked."
+  ]
+}
