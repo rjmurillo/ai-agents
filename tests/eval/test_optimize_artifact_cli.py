@@ -1956,6 +1956,95 @@ class TestTheGateNeverPublishesTheHoldoutKey:
         assert oa._holdout_key({"sel": ["a", "b"]}) != oa._holdout_key({"sel": ["a", "c"]})
 
 
+class TestAtomicWriteDoesNotDisguiseNonIOFailures:
+    """A ConfigError means the disk refused. Anything else must keep its type.
+
+    The cleanup arm catches BaseException so an interrupt still removes the
+    temp file. Converting everything it caught into ConfigError would tell a
+    caller the write failed when what actually happened was Ctrl-C, and would
+    swallow an interrupt the operator meant to be immediate.
+    """
+
+    def test_an_interrupt_propagates_unchanged(self, tmp_path, monkeypatch):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+
+        def _interrupt(src, dst):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(oa.os, "replace", _interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            oa._write_atomic(target, "after")
+        assert target.read_text(encoding="utf-8") == "before"
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_an_os_error_becomes_a_config_error(self, tmp_path, monkeypatch):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+
+        def _refuse(src, dst):
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(oa.os, "replace", _refuse)
+        with pytest.raises(oa.ConfigError, match="could not write"):
+            oa._write_atomic(target, "after")
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_a_write_that_works_replaces_the_file(self, tmp_path):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+        oa._write_atomic(target, "after")
+        assert target.read_text(encoding="utf-8") == "after"
+        assert list(tmp_path.iterdir()) == [target]
+
+
+class TestASplitFileMustHoldGroupsOfTaskIds:
+    """The gate indexes into every group, so a wrong shape must fail at the file.
+
+    Added by the incoming review-thread commit; these cover its branch. A
+    group holding numbers, or holding a bare string instead of a list, would
+    otherwise surface as a TypeError deep in the comparison, long after the
+    file that caused it went out of scope.
+    """
+
+    def _split_with(self, tmp_path, groups):
+        record = {"opt": ["a"], "sel": ["b"], "test": [],
+                  "seed": "s", "sel_ratio": 0.4, "test_ratio": 0.0,
+                  "fingerprint": "x" * 64}
+        record.update(groups)
+        path = tmp_path / "bad.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        return path
+
+    @pytest.mark.parametrize("groups", [
+        {"opt": "a"},
+        {"sel": [1, 2]},
+        {"test": [None]},
+        {"opt": {"a": True}},
+    ])
+    def test_a_group_that_is_not_a_list_of_strings_is_refused(
+        self, tmp_path, capsys, groups
+    ):
+        split = self._split_with(tmp_path, groups)
+        inc = _write(tmp_path, "inc.json", {"a": True, "b": True})
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", inc,
+                         "--split", split, "--max-consultations", "2",
+                         "--incumbent-fingerprint", "x" * 64)
+        assert code == EXIT_CONFIG
+        assert "must be a list of strings" in out["error"]
+
+    def test_a_well_formed_split_passes_the_shape_check(self, tmp_path, capsys):
+        """The negative cases must not be passing for an unrelated reason."""
+        split = self._split_with(tmp_path, {})
+        assert "must be a list of strings" not in json.dumps(
+            _run(capsys, "gate", "--incumbent",
+                 _write(tmp_path, "i.json", {"a": True, "b": True}),
+                 "--candidate", _write(tmp_path, "c.json", {"a": True, "b": True}),
+                 "--split", split, "--max-consultations", "2",
+                 "--incumbent-fingerprint", "x" * 64)[1]
+        )
+
+
 class TestNoLedgerFailureLeaksTheDigest:
     """The explicit messages were redacted; the generic ones still carried it.
 
