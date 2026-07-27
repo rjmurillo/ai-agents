@@ -2346,3 +2346,120 @@ class TestCleanupFailureDoesNotRewriteTheDecision:
         inc, split, record = self._fixture(tmp_path, capsys)
         self._gate(inc, split, record)
         assert capsys.readouterr().err == ""
+
+
+class TestTheLedgerRootIsNotOutsideTheSeam:
+    """One line in `_ledger_held` sat outside the scrub, and it was the first one.
+
+    A tenth review found `lock.parent.mkdir(...)` above the `with` rather than
+    inside it. That has two costs and only the second one needs a contrived
+    setup.
+
+    The first is the round-8 contract defect, unfixed at this line. `mkdir` on a
+    ledger root the process cannot create raises `PermissionError`, `main`
+    catches `(ConfigError, AdapterError, ValueError)` and not `OSError`, so the
+    caller piping stdout through a JSON reader gets a traceback instead of the
+    error document the module docstring promises. A read-only home or a
+    sandboxed runner reaches this with no help from anyone.
+
+    The second is the leak. `$EVAL_LEDGER_DIR` can name a directory that
+    contains the digest, and both the `mkdir` traceback and the release warning
+    render that directory. A caller who set that variable already knows the
+    digest, so this leaks to someone holding the secret. It is fixed anyway,
+    because the standing rule from nine rounds is that a path by which the
+    withheld thing is readable is not withholding it, and because the release
+    warning was justified in review by the claim that a directory carries no
+    digest. That justification was wrong, which is reason enough.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, inc, split, record):
+        return oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+
+    def _break(self, monkeypatch, method):
+        original = getattr(Path, method)
+
+        def refuse(self, *args, **kwargs):
+            if method == "mkdir" or str(self).endswith(".lock"):
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, method, refuse)
+
+    def test_an_unwritable_ledger_root_keeps_the_json_contract(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """No digest anywhere. The contract still has to hold."""
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "plain"))
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break(monkeypatch, "mkdir")
+        code = self._gate(inc, split, record)
+        payload = json.loads(capsys.readouterr().out)
+        assert code == EXIT_CONFIG
+        assert payload["type"] == "ConfigError"
+
+    def test_a_digest_bearing_root_is_scrubbed_from_the_mkdir_failure(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / f"root-{key}"))
+        self._break(monkeypatch, "mkdir")
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.out + captured.err
+
+    def test_a_digest_bearing_root_is_scrubbed_from_the_release_warning(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / f"root-{key}"))
+        self._break(monkeypatch, "unlink")
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.out + captured.err
+        assert "<held-out group>" in captured.err
+
+    def test_a_plain_root_is_still_named_so_the_lock_can_be_cleared(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Redaction that redacts everything is not redaction, it is silence."""
+        root = tmp_path / "plain"
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(root))
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break(monkeypatch, "unlink")
+        self._gate(inc, split, record)
+        assert str(root) in capsys.readouterr().err
+
+
+class TestOneDefinitionOfHowWeRedact:
+    """The release warning was a second, hand-written redaction site, and it was wrong.
+
+    Two rounds in a row found a redaction defect at a site that had been
+    written by hand rather than routed through the seam. The rule the code now
+    states once is the rule every site gets.
+    """
+
+    def test_a_digest_in_the_text_is_replaced(self):
+        assert oa._scrub("under /x/abc123/y", "abc123") == "under /x/<held-out group>/y"
+
+    def test_text_without_the_digest_is_returned_unchanged(self):
+        assert oa._scrub("under /x/y", "abc123") == "under /x/y"
+
+    def test_every_occurrence_is_replaced_not_only_the_first(self):
+        out = oa._scrub("abc123 and abc123", "abc123")
+        assert "abc123" not in out
+        assert out.count("<held-out group>") == 2
+
+    def test_empty_text_is_not_a_special_case(self):
+        assert oa._scrub("", "abc123") == ""

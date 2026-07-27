@@ -415,6 +415,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 
 _LEDGER_DIR_ENV = "EVAL_LEDGER_DIR"
+_HELD_OUT_PLACEHOLDER = "<held-out group>"
 
 
 def _ledger_root() -> Path:
@@ -471,6 +472,18 @@ def _holdout_key(split: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _scrub(text: str, holdout_key: str) -> str:
+    """Replace the held-out digest wherever it appears in `text`.
+
+    One definition rather than a `.replace` at each site. A tenth review found
+    the release warning redacting by hand and getting it wrong, one round after
+    a ninth review found the same at the cause chain. Two consecutive rounds
+    finding a defect at a hand-written redaction site is the argument for
+    having exactly one.
+    """
+    return text.replace(holdout_key, _HELD_OUT_PLACEHOLDER)
+
+
 @contextmanager
 def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     """Keep the held-out digest out of whatever goes wrong under the ledger.
@@ -504,7 +517,7 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
             # exception whose message is the reason this branch exists, and a
             # printed traceback walks the chain. Round 9 found the redaction
             # handing the digest straight back that way.
-            raise ConfigError(text.replace(holdout_key, "<held-out group>")) from None
+            raise ConfigError(_scrub(text, holdout_key)) from None
         if isinstance(exc, ConfigError):
             raise
         raise ConfigError(text) from exc
@@ -529,14 +542,18 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     guessing that the holder is gone is how a lock becomes advisory.
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
-    lock.parent.mkdir(parents=True, exist_ok=True)
     # The scrub spans the whole lifecycle, not just the acquire. A seventh
     # review found the release outside it: the unlink in the finally block
     # names the lock, the lock's name is the digest, and main() does not catch
     # OSError, so a cleanup failure printed the group as an uncaught traceback.
+    # A tenth review found the mkdir outside it too, which cost more than the
+    # leak: an unwritable ledger root raised PermissionError past main's
+    # handler list, so a read-only home returned a traceback where the module
+    # docstring promises a JSON error document.
     # The contention branch nests inside because its own message carries no
     # digest and an operator needs it to clear a stale lock.
     with _digest_scrubbed(holdout_key):
+        lock.parent.mkdir(parents=True, exist_ok=True)
         try:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
@@ -562,11 +579,19 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 # module docstring promises one readable document. Silence
                 # would hide a lock that now blocks the next run, so it goes to
                 # stderr, named by its directory rather than by itself.
+                #
+                # Through _scrub, because naming the directory was justified in
+                # review by the claim that a directory carries no digest, and a
+                # tenth review falsified it: $EVAL_LEDGER_DIR can name one.
                 print(
-                    f"warning: could not remove the lock under {lock.parent} "
-                    f"({exc.strerror or exc.errno}); the next gate against this "
-                    f"held-out group reports contention until it is removed. "
-                    f"Its name is withheld: the name digests the membership.",
+                    _scrub(
+                        f"warning: could not remove the lock under {lock.parent} "
+                        f"({exc.strerror or exc.errno}); the next gate against "
+                        f"this held-out group reports contention until it is "
+                        f"removed. Its name is withheld: the name digests the "
+                        f"membership.",
+                        holdout_key,
+                    ),
                     file=sys.stderr,
                 )
 
