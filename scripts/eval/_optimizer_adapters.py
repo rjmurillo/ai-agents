@@ -54,14 +54,20 @@ _REDUCERS: dict[str, Callable[[list[float]], float]] = {
 _SKIP_POLICIES = ("fail", "exclude")
 
 _RULE_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
+# The judge is told "1-5 each" and `eval-rule-activation.py` clamps its own
+# output to [0, 5]; the floor is 0 rather than 1 because the absent-key default
+# is 0 and a scenario that recorded nothing must stay expressible.
+_MAX_RULE_SCORE = 5.0
+# Each run is the fraction of a fixture's assertions that were satisfied.
+_MAX_PASS_RATE = 1.0
 
 
 class AdapterError(ValueError):
     """A scorer's output did not have the shape the adapter requires."""
 
 
-def _as_float(value: object, context: str) -> float:
-    """Coerce a score to float, refusing bools, non-numbers, and non-finite values.
+def _as_float(value: object, context: str, *, lo: float, hi: float) -> float:
+    """Coerce a score to float, refusing bools, non-numbers, and out-of-domain values.
 
     `isinstance(True, int)` is True in Python, so a bool would otherwise slip
     through as 1.0 or 0.0. A pass-rate list holding bools means the producer
@@ -72,11 +78,24 @@ def _as_float(value: object, context: str) -> float:
     negative-case scenario pass; infinity clears any threshold, so it makes a
     fixture pass unconditionally. `json.loads` accepts the bare `NaN` and
     `Infinity` tokens, so neither is hypothetical.
+
+    The bounds are the same argument one step further out. Both scales here
+    are bounded and every producer says so, but a finite number outside the
+    range does what infinity does, only quietly: it covers for a measurement
+    that is missing. A rule scenario with no `behavior_score` and the other
+    two at the legal maximum reduces below the bar and fails, which is the
+    point. The same scenario with the other two at 6 passed. Callers pass
+    their own domain rather than sharing a default, because the two scales
+    differ and a shared default would be right for neither.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise AdapterError(f"{context} must be numeric, got {value!r}")
     if not math.isfinite(value):
         raise AdapterError(f"{context} must be finite, got {value!r}")
+    if not lo <= value <= hi:
+        raise AdapterError(
+            f"{context} must be between {lo} and {hi}, got {value!r}"
+        )
     return float(value)
 
 
@@ -104,7 +123,8 @@ def agent_results(
 
     Raises:
         AdapterError: The report lacks `per_fixture_pass_rates`, an entry is
-            not a mapping, a run value is not numeric, or `reduce` is unknown.
+            not a mapping, a run value is not numeric or falls outside the
+            [0, 1] a fraction can occupy, or `reduce` is unknown.
     """
     if reduce not in _REDUCERS:
         raise AdapterError(
@@ -137,7 +157,12 @@ def agent_results(
                 f"of scores, got {type(runs).__name__}"
             )
         values = [
-            _as_float(v, f"fixture {fixture_id!r} variant {variant!r} run")
+            _as_float(
+                v,
+                f"fixture {fixture_id!r} variant {variant!r} run",
+                lo=0.0,
+                hi=_MAX_PASS_RATE,
+            )
             for v in runs
         ]
         out[str(fixture_id)] = reducer(values) >= pass_threshold
@@ -177,7 +202,8 @@ def rule_results(
     Raises:
         AdapterError: A scenario is not an object, lacks an id, repeats an
             id, carries a malformed `mechanisms` or `scores` block, or holds a
-            score that is not finite and numeric.
+            score that is not finite and numeric or falls outside the [0, 5]
+            the judge is asked for and the producer clamps to.
     """
     out: dict[str, bool] = {}
     for scenario in scenarios:
@@ -221,7 +247,12 @@ def rule_results(
             continue
 
         triple = [
-            _as_float(raw_scores.get(key, 0), f"scenario {sid!r} {key}")
+            _as_float(
+                raw_scores.get(key, 0),
+                f"scenario {sid!r} {key}",
+                lo=0.0,
+                hi=_MAX_RULE_SCORE,
+            )
             for key in _RULE_SCORE_KEYS
         ]
         # No inversion. eval-rule-activation.py tells the judge that 5 is the

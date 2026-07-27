@@ -572,3 +572,109 @@ class TestASkipThatCarriesAFailureIsStillAFailure:
             "test_probe::test_skips_then_teardown_errors": False,
             "test_probe::test_plain_skip": False,
         }
+
+
+class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
+    """The documented range is what makes a missing measurement fail closed.
+
+    `_as_float` checked type and finiteness and stopped there. Both scales are
+    bounded and say so: `eval-rule-activation.py` grades three dimensions 1-5,
+    tells the judge "1-5 each" in the prompt, and clamps its own output to
+    [0, 5]; the README repeats the range; `agent_results` documents each run
+    as "the fraction of that fixture's assertions satisfied", which is [0, 1].
+    Every producer agreed on a domain that the one reader never enforced, and
+    a file can reach the adapter without passing through the producer that
+    clamps.
+
+    Inside the domain the fail-closed property already held. A rule scenario
+    missing `behavior_score`, with the other two at the legal maximum of 5,
+    reduces to 3.33 and fails against the 3.5 bar, which is the intended
+    behavior: a measurement that is not there is not evidence. Measured, the
+    only thing that broke it was leaving the domain. The same scenario with
+    the other two at 6 reduces to 4.0 and passed, and a scenario carrying
+    nothing but `activation_score` at 11 passed as well. Two thirds of the
+    evidence was missing and the verdict was still a pass, because one
+    out-of-range number was allowed to cover for it.
+
+    So this is enforcement of a contract already written in three places, not
+    a new one. It also removes the reduction's order dependence: the values
+    large enough to make `fsum` overflow are outside every domain here.
+    """
+
+    def _scen(self, **scores):
+        return [{"id": "S", "mechanisms": {"full": {"scores": scores}}}]
+
+    def test_a_missing_score_cannot_be_covered_by_out_of_range_ones(self):
+        with pytest.raises(AdapterError, match="S"):
+            rule_results(self._scen(activation_score=6, citation_score=6), "full")
+
+    def test_a_scenario_carrying_one_inflated_score_is_refused(self):
+        with pytest.raises(AdapterError):
+            rule_results(self._scen(activation_score=11), "full")
+
+    def test_a_missing_score_still_fails_closed_inside_the_domain(self):
+        """Unchanged, and the reason the domain is load-bearing."""
+        got = rule_results(self._scen(activation_score=5, citation_score=5), "full")
+        assert got == {"S": False}
+
+    def test_the_legal_maximum_still_passes(self):
+        got = rule_results(
+            self._scen(activation_score=5, citation_score=5, behavior_score=5), "full"
+        )
+        assert got == {"S": True}
+
+    def test_the_legal_minimum_is_still_accepted(self):
+        got = rule_results(
+            self._scen(activation_score=0, citation_score=0, behavior_score=0), "full"
+        )
+        assert got == {"S": False}
+
+    @pytest.mark.parametrize("bad", [5.5, 6, 100, -1, -0.5])
+    def test_a_rule_score_outside_zero_to_five_is_an_adapter_error(self, bad):
+        with pytest.raises(AdapterError, match="between"):
+            rule_results(
+                self._scen(activation_score=bad, citation_score=5, behavior_score=5),
+                "full",
+            )
+
+    def test_the_rule_error_names_the_scenario_and_the_field(self):
+        with pytest.raises(AdapterError, match="citation_score"):
+            rule_results(
+                self._scen(activation_score=5, citation_score=9, behavior_score=5),
+                "full",
+            )
+
+    @pytest.mark.parametrize("bad", [1.5, 2, -0.5, 100])
+    def test_an_agent_rate_outside_zero_to_one_is_an_adapter_error(self, bad):
+        with pytest.raises(AdapterError, match="between"):
+            agent_results(_report({"C001": {"agent": [bad]}}), "agent")
+
+    def test_an_inflated_run_cannot_carry_a_failed_one(self):
+        """The mean of 0.0 and 2.0 clears a threshold neither run reached."""
+        with pytest.raises(AdapterError):
+            agent_results(_report({"C001": {"agent": [0.0, 2.0]}}), "agent")
+
+    @pytest.mark.parametrize("ok", [0.0, 0.5, 1.0])
+    def test_an_agent_rate_inside_zero_to_one_is_accepted(self, ok):
+        got = agent_results(_report({"C001": {"agent": [ok]}}), "agent")
+        assert got == {"C001": ok >= 1.0}
+
+    def test_the_agent_error_names_the_fixture(self):
+        with pytest.raises(AdapterError, match="C007"):
+            agent_results(_report({"C007": {"agent": [3.0]}}), "agent")
+
+    @pytest.mark.parametrize(
+        "triple",
+        [(1e308, 1e308, -1e308), (1e308, -1e308, 1e308)],
+    )
+    def test_the_reduction_no_longer_depends_on_the_order_of_huge_values(self, triple):
+        """One ordering raised OverflowError and the other returned a pass."""
+        with pytest.raises(AdapterError):
+            rule_results(
+                self._scen(
+                    activation_score=triple[0],
+                    citation_score=triple[1],
+                    behavior_score=triple[2],
+                ),
+                "full",
+            )
