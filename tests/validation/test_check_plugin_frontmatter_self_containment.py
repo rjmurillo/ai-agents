@@ -135,6 +135,21 @@ class TestOutwardDetection:
 
     @pytest.mark.parametrize(
         "reference",
+        ["docs/c++/notes.md", "docs/a+b.md", ".github/c++/x.md"],
+    )
+    def test_a_plus_inside_a_path_does_not_end_the_path(self, reference: str) -> None:
+        """A character missing from the interior class drops the whole path.
+
+        Matching stops at the unknown character, and because the pattern still
+        has to close on an extension the partial match fails outright. There is
+        no other candidate start inside these strings, so the reference does not
+        get truncated at the plus, it disappears. Both shapes here returned no
+        match before ``+`` joined the interior class.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"Reads {reference}.")) != []
+
+    @pytest.mark.parametrize(
+        "reference",
         [
             "docs/agent-metrics.md",
             "docs/autonomous-pr-monitor.md",
@@ -185,6 +200,20 @@ class TestPrecision:
     def test_ignores_prose_collisions(self, phrase: str) -> None:
         """The rule names 'build/buy/partner' as a known collision."""
         assert gate.scan_file(Path("x.md"), _frontmatter(f"Covers {phrase} choices.")) == []
+
+    @pytest.mark.parametrize(
+        "phrase",
+        ["Use C++ and docs", "C++/CLI is a thing", "a+b.md alone", "scores are 1+2"],
+    )
+    def test_a_plus_alone_does_not_make_a_path(self, phrase: str) -> None:
+        """Pins the cost of admitting ``+`` to the interior class.
+
+        ``+`` only appears between a watched directory and an extension, so it
+        can never open a match by itself. Without that anchoring the widening
+        would read ordinary C++ prose as a reference, which is the trade that
+        kept it out of the extension alphabet.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"{phrase}.")) == []
 
     def test_ignores_bundled_templates_directory(self) -> None:
         """A skill may ship its own templates/. Only agents/ and platforms/ are upstream."""

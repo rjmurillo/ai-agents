@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: of 537 lines this file carries roughly 160
+# of code. The rest is 217 lines of docstring, 81 of comment, and 79 blank,
+# because every regex here records which shape it excludes and which reported
+# defect made it exclude that shape. Splitting a 160-line module to satisfy a
+# line count measured mostly on prose would move the prose away from the
+# pattern it explains, and the patterns carry load-bearing semantics that only
+# read correctly next to each other.
 """Frontmatter self-containment gate for shipped plugin files (issue #3565).
 
 Why this exists separately from ``check_skill_md_portability.py``:
@@ -188,9 +197,14 @@ UPSTREAM_ONLY = (
 # precision fix into a silent miss.
 #
 # `file:` is excluded because a standalone local file URI has to survive this
-# strip for `LOCAL_URI` to report it. The guard is live rather than defensive:
-# the local scan reads the stripped value, so without it every `file://`
-# reference would be erased here and silently pass.
+# strip for `LOCAL_URI` to report it. The exclusion is categorical, not an
+# ordering detail: a `file:` URI names a local path, so a pass that removes
+# addresses which are not local paths has nothing to do with it. Reading the
+# guard as merely order-dependent is what got it deleted once as dead code,
+# when the local scan still read the raw value. It is live now, because the
+# local scan reads the stripped value and `[a-z][a-z0-9+.-]*://` matches
+# `file://` like any other scheme, so without it every `file://` reference
+# would be erased here and pass silently.
 REMOTE_URI = re.compile(
     r"(?<![A-Za-z0-9])(?!file:)[a-z][a-z0-9+.-]*://[^\s<>,;)\]\"']+",
     re.IGNORECASE,
@@ -240,11 +254,21 @@ LOCAL_URI = re.compile(
 # which is a path character, so the boundary rejects it, and the only other
 # candidate start is `src`, which is not a watched directory. `findall`
 # returns the capture group, which is the path without its boundary character.
+#
+# `+` is in the interior class because leaving it out silently dropped whole
+# paths, not just the plus. `docs/c++/notes.md` failed at the `+`, and with no
+# other candidate start the reference vanished; so did `docs/a+b.md`. Widening
+# an interior class cannot create a match on its own, since a match still has
+# to open on a watched directory and close on an extension, and a sweep of
+# every checked value in all three plugin roots returned the same set before
+# and after. The extension alphabet is deliberately not widened: nothing
+# tracked here carries an extension past nine characters that this pattern
+# could reach, and a looser tail reads more prose as a path.
 OUTWARD_FILE = re.compile(
     r"(?:^|[^\w./-])"
     r"(/?(?:\.{1,2}/)*(?:"
     + "|".join(UPSTREAM_ONLY + ROOT_PREFIXED)
-    + r")/[\w./-]*\w\.[A-Za-z][A-Za-z0-9]{0,9})(?![\w/])"
+    + r")/[\w./+-]*\w\.[A-Za-z][A-Za-z0-9]{0,9})(?![\w/])"
 )
 
 DECLARATION = re.compile(r"<!--\s*vendor-portability:(.*?)-->", re.IGNORECASE | re.DOTALL)
