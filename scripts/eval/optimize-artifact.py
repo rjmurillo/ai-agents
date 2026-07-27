@@ -46,7 +46,7 @@ import os
 import re
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from pathlib import Path
@@ -943,17 +943,72 @@ def _ledger_path(holdout_key: str) -> Path:
 
 
 @contextmanager
+def _lock_held(
+    lock: Path,
+    contention: str,
+    cleanup_warning: Callable[[OSError], str],
+) -> Iterator[None]:
+    """Serialize a read-modify-write on one file behind an exclusive create.
+
+    Atomic replacement keeps a file whole. It does not make the sequence that
+    produced the replacement a transaction, so two callers that read the same
+    document, each change their own copy, and each replace the file leave only
+    the later one's change. Both are told they succeeded.
+
+    An exclusive create is the lock rather than ``fcntl``, which is POSIX only.
+    A stale lock left by a killed process is reported rather than broken, since
+    guessing that the holder is gone is how a lock becomes advisory.
+
+    The two messages are the caller's because the two callers do not agree on
+    what may be said. A ledger lock's name digests held-out membership and has
+    to be withheld; a buffer lock's name came from the command line and
+    withholding it would turn a stale lock into a puzzle.
+    """
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise ConfigError(contention) from None
+    try:
+        try:
+            os.write(handle, str(os.getpid()).encode("utf-8"))
+        finally:
+            # Its own finally, so a write that fails on a full disk still
+            # releases the descriptor. POSIX frees the descriptor even when
+            # close reports EIO, so this must never be retried.
+            os.close(handle)
+        yield
+    finally:
+        try:
+            lock.unlink(missing_ok=True)
+        except OSError as exc:
+            # The command's own document is already on stdout. Letting this
+            # reach main would print a second JSON document after it and
+            # return the config-failure code for work that succeeded, and the
+            # module docstring promises one readable document. Silence would
+            # hide a lock that now blocks the next run, so it goes to stderr.
+            #
+            # Through _warn, which cannot itself fail: this sits in a finally
+            # after the result is already on stdout, so a closed stderr would
+            # replace completed work with a traceback about the cleanup.
+            _warn(cleanup_warning(exc))
+
+
+@contextmanager
 def _ledger_held(holdout_key: str) -> Iterator[None]:
     """Serialize the read, compare, and write of one ledger.
 
     Without this, two gates started together both read the same count, both
     compare, and both write count + 1, so N concurrent gates spend one
-    consultation between them. Atomic replacement keeps the file whole; it does
-    not make the read-modify-write sequence a transaction.
+    consultation between them.
 
-    An exclusive create is the lock rather than `fcntl`, which is POSIX only.
-    A stale lock left by a killed process is reported rather than broken, since
-    guessing that the holder is gone is how a lock becomes advisory.
+    The mechanism is `_lock_held`, shared with the rejection buffer. It was not
+    shared originally, and the cost was measurable: a thirty-first review found
+    `buffer-add` performing the same read-modify-write with no lock, losing a
+    rejection and reporting it stored. The analysis that would have prevented
+    it was already written here, one screen away, about a different file. What
+    stays here is what only the ledger needs: the digest scrub, and messages
+    that withhold a name the buffer's messages may print.
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
     # The scrub spans the whole lifecycle, not just the acquire. A seventh
@@ -967,52 +1022,30 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     # The contention branch nests inside because its own message carries no
     # digest and an operator needs it to clear a stale lock.
     with _digest_scrubbed(holdout_key):
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            raise ConfigError(
-                f"another gate holds a lock under {lock.parent}; consultations "
-                f"against one held-out group are serialized so a concurrent "
-                f"pair cannot spend one budget twice. Remove the lock file "
-                f"there if no gate is running. Its name is withheld: the name "
-                f"digests the held-out membership, and an unsalted digest of a "
-                f"set the caller can enumerate is that set."
-            ) from None
-        try:
-            try:
-                os.write(handle, str(os.getpid()).encode("utf-8"))
-            finally:
-                # Its own finally, so a write that fails on a full disk still
-                # releases the descriptor. POSIX frees the descriptor even when
-                # close reports EIO, so this must never be retried.
-                os.close(handle)
+        contention = (
+            f"another gate holds a lock under {lock.parent}; consultations "
+            f"against one held-out group are serialized so a concurrent "
+            f"pair cannot spend one budget twice. Remove the lock file "
+            f"there if no gate is running. Its name is withheld: the name "
+            f"digests the held-out membership, and an unsalted digest of a "
+            f"set the caller can enumerate is that set."
+        )
+
+        def cleanup_warning(exc: OSError) -> str:
+            # Named by its directory rather than by itself, because naming a
+            # directory was justified in review by the claim that a directory
+            # carries no digest, and a tenth review falsified it:
+            # $EVAL_LEDGER_DIR can name one. Hence _warn, which scrubs.
+            return (
+                f"warning: could not remove the lock under {lock.parent} "
+                f"({exc.strerror or exc.errno}); the next gate against "
+                f"this held-out group reports contention until it is "
+                f"removed. Its name is withheld: the name digests the "
+                f"membership."
+            )
+
+        with _lock_held(lock, contention, cleanup_warning):
             yield
-        finally:
-            try:
-                lock.unlink(missing_ok=True)
-            except OSError as exc:
-                # The decision is already on stdout. Letting this reach main
-                # would print a second JSON document after it and return the
-                # config-failure code for a comparison that succeeded, and the
-                # module docstring promises one readable document. Silence
-                # would hide a lock that now blocks the next run, so it goes to
-                # stderr, named by its directory rather than by itself.
-                #
-                # Through _warn, because naming the directory was justified in
-                # review by the claim that a directory carries no digest, and a
-                # tenth review falsified it: $EVAL_LEDGER_DIR can name one. A
-                # twenty-first review then found this print unguarded: it sits
-                # in a finally after the decision is already on stdout, so a
-                # closed stderr would replace a completed comparison with a
-                # traceback about the cleanup.
-                _warn(
-                    f"warning: could not remove the lock under {lock.parent} "
-                    f"({exc.strerror or exc.errno}); the next gate against "
-                    f"this held-out group reports contention until it is "
-                    f"removed. Its name is withheld: the name digests the "
-                    f"membership."
-                )
 
 
 def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) -> int:
@@ -1518,6 +1551,9 @@ def _read_buffer(path: Path) -> list[dict[str, Any]]:
 
 
 def cmd_buffer_check(args: argparse.Namespace) -> int:
+    # No lock. `_write_atomic` replaces the file, so a reader sees the whole
+    # old document or the whole new one, never a torn one, and serializing
+    # readers would let a stale lock block the question the loop asks most.
     entries = _read_buffer(args.buffer)
     patches = _read_patches(args.patches)
     seen = buffer_contains(entries, patches)
@@ -1525,24 +1561,53 @@ def cmd_buffer_check(args: argparse.Namespace) -> int:
     return EXIT_LOGIC if seen else EXIT_OK
 
 
+def _buffer_lock(buffer: Path) -> Path:
+    """Beside the buffer rather than under the ledger root.
+
+    The buffer's path is a command-line argument and two loops can run against
+    two different buffers concurrently, so the lock has to be keyed by the
+    file it protects rather than by a single shared location.
+    """
+    return Path(f"{buffer}.lock")
+
+
 def cmd_buffer_add(args: argparse.Namespace) -> int:
-    entries = _read_buffer(args.buffer)
+    # Patches are parsed before the lock is taken. A malformed patch file is a
+    # refusal that touches no shared state, so serializing it would make one
+    # caller's bad argument another caller's contention error.
     patches = _read_patches(args.patches)
     fingerprint = patch_fingerprint(patches)
-    if any(e.get("fingerprint") == fingerprint for e in entries):
-        _emit({"added": False, "fingerprint": fingerprint, "entries": len(entries)})
-        return EXIT_OK
-    entries.append(
-        {
-            "fingerprint": fingerprint,
-            "reason": args.reason,
-            "patches": [
-                {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
-            ],
-        }
+    lock = _buffer_lock(args.buffer)
+    contention = (
+        f"another buffer-add holds {lock}; rejections against one buffer are "
+        f"serialized because the file is read, appended to, and replaced, and "
+        f"an unserialized pair loses the earlier append while telling its "
+        f"caller the rejection was stored. Remove that file if no buffer-add "
+        f"is running."
     )
-    _write_atomic(args.buffer, json.dumps(entries, indent=2))
-    _emit({"added": True, "fingerprint": fingerprint, "entries": len(entries)})
+
+    def cleanup_warning(exc: OSError) -> str:
+        return (
+            f"warning: could not remove {lock} "
+            f"({exc.strerror or exc.errno}); the next buffer-add against this "
+            f"buffer reports contention until it is removed."
+        )
+
+    with _lock_held(lock, contention, cleanup_warning):
+        entries = _read_buffer(args.buffer)
+        added = not any(e.get("fingerprint") == fingerprint for e in entries)
+        if added:
+            entries.append(
+                {
+                    "fingerprint": fingerprint,
+                    "reason": args.reason,
+                    "patches": [
+                        {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
+                    ],
+                }
+            )
+            _write_atomic(args.buffer, json.dumps(entries, indent=2))
+    _emit({"added": added, "fingerprint": fingerprint, "entries": len(entries)})
     return EXIT_OK
 
 

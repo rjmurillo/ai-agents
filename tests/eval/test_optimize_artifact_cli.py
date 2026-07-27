@@ -5460,3 +5460,229 @@ class TestABadBudgetIsAnOperatorErrorNotAPatchRefusal:
         code, out = _run(capsys, "apply", "--file", doc, "--patches", patches, "--budget", "0")
         assert code == EXIT_LOGIC
         assert out["type"] == "BudgetExceededError"
+
+
+class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
+    """The buffer is read-modify-written, so it needs what the ledger has.
+
+    `_ledger_held` states the rule this class enforces, about a different
+    file: two callers "both read the same count, both compare, and both write
+    count + 1", and "atomic replacement keeps the file whole; it does not make
+    the read-modify-write sequence a transaction." `cmd_buffer_add` performs
+    exactly that sequence and took no lock, so the later writer's copy of the
+    list, made before the earlier writer's append, overwrote it. Both callers
+    were told `added: true`, and one rejection was gone.
+
+    Losing one costs a duplicate rollout rather than a wrong verdict, since
+    the ledger still caps comparisons. The report is the sharper half: a loop
+    that reads `added: true` and moves on believes a rejection is recorded
+    that is not.
+
+    The ledger's own behavior is already pinned elsewhere, so those tests are
+    the regression guard for sharing the lock: `test_a_held_lock_refuses_the
+    _second_gate` for contention, `test_lock_contention_does_not_publish_the
+    _key` for the withheld name, and the two release tests for cleanup.
+    """
+
+    def _patches(self, tmp_path, name, text):
+        return _write(tmp_path, name, [{"op": "append", "text": text}])
+
+    def _lock_of(self, buffer):
+        return Path(str(buffer) + ".lock")
+
+    def test_a_held_lock_refuses_the_second_add(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        lock = self._lock_of(buffer)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text("999", encoding="utf-8")
+        patches = self._patches(tmp_path, "p.json", "x")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert "another buffer-add holds" in out["error"]
+
+    def test_contention_names_the_lock_so_a_stale_one_can_be_cleared(self, tmp_path, capsys):
+        """Unlike the ledger's, this name is the caller's own argument.
+
+        The ledger withholds its lock name because the name digests held-out
+        membership. A buffer path came from the command line, so naming it
+        costs nothing and withholding it would turn a stale lock into a
+        puzzle.
+        """
+        buffer = tmp_path / "b.json"
+        lock = self._lock_of(buffer)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.touch()
+        patches = self._patches(tmp_path, "p.json", "x")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert str(lock) in out["error"]
+
+    def test_the_read_and_the_write_happen_under_the_same_lock(self, tmp_path, capsys):
+        """The property, asserted directly rather than raced for.
+
+        A thread test proves a lock exists only when the schedule cooperates.
+        This pins the invariant that makes the schedule irrelevant: the lock
+        is present when the buffer is read and still present when it is
+        written, so no second caller can read between them.
+        """
+        buffer = tmp_path / "b.json"
+        lock = self._lock_of(buffer)
+        seen = {}
+        real_read, real_write = oa._read_buffer, oa._write_atomic
+
+        def read(path):
+            seen["read"] = lock.exists()
+            return real_read(path)
+
+        def write(path, text):
+            seen["write"] = lock.exists()
+            return real_write(path, text)
+
+        oa._read_buffer, oa._write_atomic = read, write
+        try:
+            patches = self._patches(tmp_path, "p.json", "x")
+            _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        finally:
+            oa._read_buffer, oa._write_atomic = real_read, real_write
+        assert seen == {"read": True, "write": True}
+
+    def test_the_lock_is_released_when_the_add_returns(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = self._patches(tmp_path, "p.json", "x")
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert not self._lock_of(buffer).exists()
+
+    def test_the_lock_is_released_when_the_add_refuses_a_duplicate(self, tmp_path, capsys):
+        """The early return is a second exit from the locked region."""
+        buffer = tmp_path / "b.json"
+        patches = self._patches(tmp_path, "p.json", "x")
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert (code, out["added"]) == (EXIT_OK, False)
+        assert not self._lock_of(buffer).exists()
+
+    def test_the_lock_is_released_when_the_write_raises(self, tmp_path, capsys, monkeypatch):
+        """A lock held past a crash would wedge every later add."""
+        buffer = tmp_path / "b.json"
+        monkeypatch.setattr(oa, "_write_atomic", _raise_boom)
+        patches = self._patches(tmp_path, "p.json", "x")
+        with pytest.raises(RuntimeError):
+            _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert not self._lock_of(buffer).exists()
+
+    def test_an_unreadable_patch_file_takes_no_lock(self, tmp_path, capsys):
+        """Patches are parsed before the lock, so a refusal serializes nothing."""
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": 7}])
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert (code, out["type"]) == (EXIT_CONFIG, "PatchShapeError")
+        assert not self._lock_of(buffer).exists()
+
+    def test_sequential_adds_both_persist(self, tmp_path, capsys):
+        """Control: serializing must not cost the ordinary path anything."""
+        buffer = tmp_path / "b.json"
+        first = self._patches(tmp_path, "p0.json", "alpha")
+        second = self._patches(tmp_path, "p1.json", "beta")
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", first, "--reason", "r0")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", second, "--reason", "r1"
+        )
+        assert (code, out["added"], out["entries"]) == (EXIT_OK, True, 2)
+        stored = json.loads(buffer.read_text(encoding="utf-8"))
+        assert [entry["reason"] for entry in stored] == ["r0", "r1"]
+
+    def test_buffer_check_takes_no_lock(self, tmp_path, capsys):
+        """Control: a pure read needs no lock and must not wait on a stale one.
+
+        `_write_atomic` replaces the file, so a reader sees the whole old
+        document or the whole new one. Serializing readers would let a stale
+        lock block the question the loop asks most often.
+        """
+        buffer = tmp_path / "b.json"
+        patches = self._patches(tmp_path, "p.json", "x")
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        lock = self._lock_of(buffer)
+        lock.write_text("999", encoding="utf-8")
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert (code, out["seen"]) == (EXIT_LOGIC, True)
+
+
+class TestBufferCleanupFailureDoesNotRewriteTheResult:
+    """The rejection is stored; removing the lock is bookkeeping after it.
+
+    Coverage found this: sharing `_lock_held` gave the buffer a release path
+    the ledger already had tests for, and no test drove the buffer's half. The
+    ledger's three properties have to hold here too, because a warning that
+    escaped would print a second document after the result and return the
+    config-failure code for work that succeeded.
+
+    One property inverts. The ledger withholds its lock's name because the
+    name digests held-out membership. A buffer's path came from the command
+    line, so withholding it would turn a stale lock into a puzzle with nothing
+    bought.
+    """
+
+    def _fixture(self, tmp_path):
+        return tmp_path / "b.json", _write(
+            tmp_path, "p.json", [{"op": "append", "text": "x"}]
+        )
+
+    def _break_unlink(self, monkeypatch):
+        original = Path.unlink
+
+        def refuse(self, missing_ok=False):
+            if str(self).endswith(".lock"):
+                raise OSError(13, "Permission denied", str(self))
+            return original(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", refuse)
+
+    def _add(self, buffer, patches):
+        """`main` directly, not `_run`, which drains the capture before stderr."""
+        return oa.main([
+            "buffer-add", "--buffer", str(buffer),
+            "--patches", str(patches), "--reason", "r",
+        ])
+
+    def test_stdout_still_holds_exactly_one_document(self, tmp_path, capsys, monkeypatch):
+        buffer, patches = self._fixture(tmp_path)
+        self._break_unlink(monkeypatch)
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert (code, out["added"]) == (EXIT_OK, True)
+
+    def test_the_stale_lock_is_reported_on_stderr(self, tmp_path, capsys, monkeypatch):
+        buffer, patches = self._fixture(tmp_path)
+        self._break_unlink(monkeypatch)
+        self._add(buffer, patches)
+        assert "Permission denied" in capsys.readouterr().err
+
+    def test_the_warning_names_the_lock_so_it_can_be_cleared(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._break_unlink(monkeypatch)
+        self._add(buffer, patches)
+        assert f"{buffer}.lock" in capsys.readouterr().err
+
+    def test_the_rejection_is_on_disk_despite_the_failed_cleanup(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._break_unlink(monkeypatch)
+        self._add(buffer, patches)
+        assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 1
+
+    def test_a_clean_release_says_nothing(self, tmp_path, capsys):
+        buffer, patches = self._fixture(tmp_path)
+        self._add(buffer, patches)
+        assert capsys.readouterr().err == ""
