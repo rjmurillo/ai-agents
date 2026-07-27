@@ -88,19 +88,30 @@ from scripts.validation.portability_common import (
 # ``templates/`` also names a Flask or Django template directory, a
 # file-relative asset directory bundled inside a skill, and a substring of
 # unrelated URLs (issue #3459).
+#
+# Every pattern shares one path-start boundary. A reference counts only when the
+# path begins at a token start, so ``src/templates/agents/`` and
+# ``https://example.com/.agents/`` resolve elsewhere and are not upstream
+# references. The optional group consumes a leading ``/``, ``\`` or ``./`` so a
+# repository-root-relative link such as ``/templates/agents/x.md`` still counts;
+# the lookbehind is then applied to whatever precedes that separator, which is
+# what distinguishes ``/templates/`` from ``src/templates/``. A ``../`` prefix
+# stays excluded because it resolves out of the repo root, not to it.
+_BOUNDARY = r"(?<![\w.\-/\\])(?:\.[\\/]+|[\\/]+)?"
+
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
-    re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.claude[\\/]+lib(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
     re.compile(
-        r"(?<![\\\w.])\.claude[\\/]+review-axes(?:[\\/]+|['\"]|$)",
+        _BOUNDARY + r"\.claude[\\/]+review-axes(?:[\\/]+|['\"?#]|$)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?<![\\/\w.-])(?:\.[\\/]+)?templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?<![\\/\w.-])(?:\.[\\/]+)?templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
         re.IGNORECASE,
     ),
 )

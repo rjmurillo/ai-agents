@@ -123,6 +123,9 @@ class TestCountUpstreamRefs:
             "templates/agents/x.md",
             "./templates/agents/x.md",
             r".\templates\agents\x.md",
+            "/templates/agents/x.md",
+            "See /templates/platforms/x.yaml here",
+            r"\templates\agents\x.md",
             "- templates/agents/x.md",
             "  - templates/platforms/x.yaml",
             "`templates/agents/x.md`",
@@ -153,6 +156,56 @@ class TestCountUpstreamRefs:
             "mytemplates/agents/y file.\n"
         )
         assert cmp.count_upstream_refs(text) == 0
+
+
+class TestDotPrefixedUpstreamBoundary:
+    """The ``.agents``, ``.claude/lib`` and ``.claude/review-axes`` families.
+
+    These three patterns predate the ``templates/`` families and carried a
+    lookbehind that omitted the forward slash, so any nested or URL-embedded
+    occurrence counted as an upstream reference. All five patterns now share
+    one boundary, so the same shapes must resolve the same way.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/.agents/foo.md",
+            "https://example.com/.agents/foo.md",
+            "vendor/.claude/lib/foo.py",
+            "https://example.com/.claude/lib/foo.py",
+            "src/.claude/review-axes/x.md",
+            "../.agents/x.md",
+            "x.agents/foo",
+        ],
+    )
+    def test_nested_dot_prefixed_paths_do_not_count(self, text: str) -> None:
+        """A dot directory under another path is not the upstream directory.
+
+        ``src/.agents/`` ships with ``src/``; a consumer following it does not
+        land on nothing, so counting it overstates the portability debt.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            ".agents/specs/x.md",
+            "/.agents/specs/x.md",
+            "./.agents/specs/x.md",
+            ".claude/lib/foo.py",
+            "/.claude/lib/foo.py",
+            ".claude/review-axes/x.md",
+            "/.claude/review-axes/x.md",
+        ],
+    )
+    def test_root_anchored_dot_prefixed_paths_count(self, text: str) -> None:
+        """A repository-root-relative link is still an upstream reference.
+
+        GitHub renders a leading-slash link relative to the repository root,
+        so ``/.agents/specs/x.md`` names the same directory as ``.agents/``.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
 
 
 class TestCodeBlockAndInlineHandling:
