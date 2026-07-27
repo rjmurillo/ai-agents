@@ -369,8 +369,8 @@ def validate_instruction_budget(repo_root: Path) -> bool:
     """Gate the always-on instruction budget per language (Issue #3419).
 
     Sums the bytes of ``.github/instructions/*.instructions.md`` files whose
-    ``applyTo`` scopes them to every file of a language (``**``, ``**/*``,
-    or ``**/*.<ext>``) and fails when a language exceeds its non-regression
+    ``applyTo`` scopes them to every file of a language (per VS Code applyTo
+    matching semantics) and fails when a language exceeds its non-regression
     ceiling. Runs the module via ``-m`` from ``repo_root`` so its
     ``scripts.validation`` package import resolves. The instructions tree is
     absent in downstream installs, so SKIP rather than FAIL when it is missing.
