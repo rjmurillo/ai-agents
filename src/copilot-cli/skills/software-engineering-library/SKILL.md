@@ -1,7 +1,7 @@
 ---
 name: software-engineering-library
 version: 1.0.0
-description: Route software engineering design tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `characterization test`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, and production resilience in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
+description: Route software engineering design and discovered code-risk tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `module interface shape`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `low test coverage`, `old file`, `characterization test`, `external API calls`, `queues`, `retries`, `transactions`, `event ordering`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, and production resilience in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
 license: MIT
 ---
 
@@ -14,10 +14,10 @@ For the everyday default, the always-on rules code-quality, pragmatic-programmer
 ## Triggers
 
 - `architecture review`
-- `domain modeling`
-- `refactoring code smells`
-- `legacy code characterization tests`
-- `data consistency schema evolution`
+- `domain modeling bounded context`
+- `refactoring code smells legacy code low test coverage old file characterization tests`
+- `external API calls queues retries timeouts circuit breaker bulkhead`
+- `transactions event ordering data consistency schema evolution module interface shape`
 
 ## When Each Reference Applies
 
@@ -45,10 +45,11 @@ For the everyday default, the always-on rules code-quality, pragmatic-programmer
 ## Process
 
 1. Classify the task using the routing table.
-2. Open the smallest matching reference set.
-3. Apply the reference to the current decision.
-4. Add a second reference only when it changes the decision.
-5. Keep the final answer tied to files, user impact, and validation evidence.
+2. If another skill discovers a risk condition, route from that evidence to the matching reference.
+3. Open the smallest matching reference set.
+4. Apply the reference to the current decision.
+5. Add a second reference only when it changes the decision.
+6. Keep the final answer tied to files, user impact, and validation evidence.
 
 ## Verification
 
