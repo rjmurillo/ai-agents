@@ -4,7 +4,7 @@
 **Complexity**: Medium
 **Scope**: Design only (governance documents, no code implementation)
 **Dependencies**: Phase 2 Traceability (T-001 to T-007) COMPLETE
-**Related**: [Issue #169](https://github.com/rjmurillo/ai-agents/issues/169), [PROJECT-PLAN.md Phase 2](.agents/planning/enhancement-PROJECT-PLAN.md)
+**Related**: [Issue #169](https://github.com/rjmurillo/ai-agents/issues/169), [PROJECT-PLAN.md Phase 2](.agents/archive/planning/enhancement-PROJECT-PLAN.md)
 **Status**: Historical design; current Git-event carrier is Lefthook
 
 > [!NOTE]
@@ -977,7 +977,7 @@ T-008 is complete and ready for T-009 when:
 | File | Purpose | What to Learn |
 |------|---------|---------------|
 | `.agents/analysis/claude-flow-architecture-analysis.md` | Reference architecture | System metrics (memory/CPU), task metrics (duration/status), performance metrics (activity) |
-| `.agents/planning/enhancement-PROJECT-PLAN.md` | Performance targets | Parallel execution (2.8-4.4x), memory search (96-164x), token efficiency (30%) |
+| `.agents/archive/planning/enhancement-PROJECT-PLAN.md` | Performance targets | Parallel execution (2.8-4.4x), memory search (96-164x), token efficiency (30%) |
 
 ### Existing Infrastructure
 | File | Purpose | What to Learn |

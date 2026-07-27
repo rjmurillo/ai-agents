@@ -82,7 +82,7 @@ Adopted claude-flow's performance claims as aspirational targets:
 ## Reference Documents
 
 **Primary Planning Document:**
-- `.agents/planning/enhancement-PROJECT-PLAN.md` (v2.0)
+- `.agents/archive/planning/enhancement-PROJECT-PLAN.md` (v2.0)
 
 **Research Documents:**
 - `.agents/analysis/claude-flow-architecture-analysis.md`

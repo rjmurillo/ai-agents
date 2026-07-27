@@ -2,7 +2,7 @@
 
 ## Source
 
-- PRD: `.agents/planning/PRD-acknowledged-vs-resolved.md`
+- PRD: `.agents/archive/planning/PRD-acknowledged-vs-resolved.md`
 - Tracking Issue: #402
 - Example PR: #365
 

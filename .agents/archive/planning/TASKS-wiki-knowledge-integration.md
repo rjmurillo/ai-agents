@@ -1,7 +1,7 @@
 # Task Breakdown: Wiki Knowledge Integration
 
 ## Source
-- Plan: `.agents/planning/2026-04-11-wiki-knowledge-integration-plan.md`
+- Plan: `.agents/archive/planning/2026-04-11-wiki-knowledge-integration-plan.md`
 - Wiki root: `~/Documents/Mobile/wiki/concepts/`
 - Wiki file count: 227 files across 28 domains
 

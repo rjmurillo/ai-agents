@@ -1102,7 +1102,7 @@ Before marking complete:
 ## References
 
 - `.agents/analysis/custom-slash-commands-research.md`
-- `.agents/planning/slashcommandcreator-skill-spec.md`
+- `.agents/archive/planning/slashcommandcreator-skill-spec.md`
 - `.serena/memories/slashcommand-best-practices.md`
 ```
 
@@ -1602,7 +1602,7 @@ pwsh scripts/Validate-SlashCommand.ps1 -Path .claude/commands/[name].md
 
 ### Pre-Implementation
 - [ ] Read `.agents/analysis/custom-slash-commands-research.md`
-- [ ] Read `.agents/planning/slashcommandcreator-skill-spec.md`
+- [ ] Read `.agents/archive/planning/slashcommandcreator-skill-spec.md`
 - [ ] Read `creator-001-frontmatter-trigger-specification` memory
 - [ ] Verify PowerShell version ≥7.0
 - [ ] Verify markdownlint-cli2 installed
@@ -1735,9 +1735,9 @@ pwsh scripts/Validate-SlashCommand.ps1 -Path .claude/commands/memory-documentary
 | `.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1` | doc-derived | `.agents/analysis/custom-slash-commands-research.md` Section 9.3 |
 | `.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.Tests.ps1` | doc-derived | ADR-006 (Pester requirement) |
 | `.claude/hooks/pre-commit-slash-commands.ps1` | doc-derived | PROJECT-CONSTRAINTS.md (git hooks) |
-| `.github/workflows/slash-command-quality.yml` | doc-derived | `.agents/planning/slashcommandcreator-skill-spec.md` |
-| `.claude/skills/slashcommandcreator/SKILL.md` | doc-derived | `.agents/planning/slashcommandcreator-skill-spec.md` |
-| `.claude/skills/slashcommandcreator/scripts/New-SlashCommand.ps1` | doc-derived | `.agents/planning/slashcommandcreator-skill-spec.md` |
+| `.github/workflows/slash-command-quality.yml` | doc-derived | `.agents/archive/planning/slashcommandcreator-skill-spec.md` |
+| `.claude/skills/slashcommandcreator/SKILL.md` | doc-derived | `.agents/archive/planning/slashcommandcreator-skill-spec.md` |
+| `.claude/skills/slashcommandcreator/scripts/New-SlashCommand.ps1` | doc-derived | `.agents/archive/planning/slashcommandcreator-skill-spec.md` |
 | `.claude/commands/README.md` | default-derived | Convention: command catalogs |
 
 ### Uncertainty Flags Explained
@@ -1761,7 +1761,7 @@ pwsh scripts/Validate-SlashCommand.ps1 -Path .claude/commands/memory-documentary
 | Document | Purpose |
 |----------|---------|
 | `.agents/analysis/custom-slash-commands-research.md` | Research findings, community patterns |
-| `.agents/planning/slashcommandcreator-skill-spec.md` | Complete skill specification |
+| `.agents/archive/planning/slashcommandcreator-skill-spec.md` | Complete skill specification |
 | `.serena/memories/slashcommand-best-practices.md` | Quick reference memory |
 | ADR-005 | PowerShell-only scripting rationale |
 | ADR-006 | Thin workflows, testable modules |

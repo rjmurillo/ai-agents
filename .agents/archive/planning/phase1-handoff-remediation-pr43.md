@@ -292,7 +292,7 @@ git checkout copilot/remediate-coderabbit-pr-43-issues
 git pull origin copilot/remediate-coderabbit-pr-43-issues
 
 # Review this handoff document
-cat .agents/planning/phase1-handoff-remediation-pr43.md
+cat .agents/archive/planning/phase1-handoff-remediation-pr43.md
 
 # Start with P1-1: critic.md escalation template
 # File to edit: src/claude/critic.md

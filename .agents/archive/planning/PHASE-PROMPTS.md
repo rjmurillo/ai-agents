@@ -2,7 +2,7 @@
 
 > **Usage**: Copy the relevant phase prompt to delegate work to orchestrator.
 > **Repository**: rjmurillo/ai-agents
-> **Master Plan**: `.agents/planning/enhancement-PROJECT-PLAN.md`
+> **Master Plan**: `.agents/archive/planning/enhancement-PROJECT-PLAN.md`
 >
 > **Current carrier note**: This historical phase prompt has been updated to use
 > Lefthook terminology. Do not recreate the deleted custom Git-hook framework.
@@ -39,7 +39,7 @@
 Read these files first:
 1. `.agents/AGENT-SYSTEM.md` - Current agent system
 2. `.agents/HANDOFF.md` - Previous session state (Phase 1 should be complete)
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master plan
 4. `.agents/governance/consistency-protocol.md` - From Phase 0
 
 ## Phase Goal
@@ -210,7 +210,7 @@ Continue on: `feat/phase-2-traceability`
 Read these files first:
 1. `.agents/AGENT-SYSTEM.md` - Current agent system
 2. `.agents/HANDOFF.md` - Previous session state
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master plan
 
 ## Phase Goal
 
@@ -366,7 +366,7 @@ Continue on: `feat/phase-3-parallel`
 Read these files first:
 1. `.agents/AGENT-SYSTEM.md` - Current agent system
 2. `.agents/HANDOFF.md` - Previous session state
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master plan
 4. `.agents/steering/README.md` - From Phase 0
 
 ## Phase Goal
@@ -537,7 +537,7 @@ Continue on: `feat/phase-4-steering`
 Read these files first:
 1. `.agents/AGENT-SYSTEM.md` - Current agent system
 2. `.agents/HANDOFF.md` - Previous session state
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master plan
 
 ## Phase Goal
 
@@ -709,7 +709,7 @@ Continue on: `feat/phase-5-evaluator`
 Read these files first:
 1. `.agents/AGENT-SYSTEM.md` - Current agent system
 2. `.agents/HANDOFF.md` - Previous session state (all phases should be complete)
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master plan
 
 ## Phase Goal
 
@@ -854,7 +854,7 @@ For resuming specific tasks within a phase:
 @orchestrator Resume Phase [N] of ai-agents enhancement.
 
 Read `.agents/HANDOFF.md` for previous session state.
-Continue from task [Task-ID] in `.agents/planning/enhancement-PROJECT-PLAN.md`.
+Continue from task [Task-ID] in `.agents/archive/planning/enhancement-PROJECT-PLAN.md`.
 
 Task context:
 - Task ID: [ID]
