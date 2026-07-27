@@ -3,7 +3,7 @@
   "session": {
     "number": 3468,
     "date": "2026-07-27",
-    "branch": "feat/eval-gate-significance-bar",
+    "branch": "fix/eval-buffer-crash-exit-code",
     "startingCommit": "303f918ea8",
     "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
   },
@@ -12,17 +12,17 @@
       "branchVerified": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current returned feat/eval-gate-significance-bar; branched from origin/main so PR #3467 stays docs-only"
+        "evidence": "git branch --show-current returned fix/eval-buffer-crash-exit-code, branched fresh from origin/main after PR #3478 squash-merged the work's first branch as 102e9976f. The session opened on feat/eval-gate-significance-bar and moved when that branch merged."
       },
       "notOnMain": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current = feat/eval-gate-significance-bar"
+        "evidence": "git branch --show-current = fix/eval-buffer-crash-exit-code"
       },
       "gitStateVerified": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Branched from origin/main at 303f918ea8"
+        "evidence": "Opened branched from origin/main at 303f918ea8. Re-branched from origin/main at 102e9976f after the first branch merged."
       },
       "handoffRead": {
         "complete": true,
@@ -509,9 +509,21 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Re-landing round thirty after the branch it was written on merged",
+      "actions": [
+        "Found PR #3478 merged while preparing to push round 30. It squash-merged as 102e9976f and closed issue #3422. Discovered it by fetching origin and seeing one commit behind, then reading what that commit was.",
+        "Merging origin/main into the old branch produced add/add conflicts on files that exist identically in both trees, including this session log, because a squash merge shares no ancestry with the branch it flattened. Aborted the merge rather than resolving conflicts between a file and itself.",
+        "Verified what main actually contains before branching: six occurrences of _arith_int and the Serena memory fix are present, the round 30 fix is not. Branched fix/eval-buffer-crash-exit-code fresh off origin/main and cherry-picked only the commit that post-dates the squash.",
+        "Filed issue #3577 for the round 30 defects, since #3422 closed with the merge and a PR needs a live issue to link.",
+        "Push was refused by branch-context-policy: the session log still named the merged branch. Updated the branch field to the branch the work now lives on. Left the two evidence strings in phases 1 and 2 naming the old branch, because those record what was true when they were written."
+      ],
+      "evidence": "PR #3478 merged 2026-07-27T20:47:36Z as 102e9976f. git merge --abort after add/add conflicts. Cherry-pick fe8dcb2be applied clean as 4710c7ee4. 1423 tests pass with 100 percent statement coverage on optimize-artifact.py (574), _optimizer_core.py (283), and _optimizer_adapters.py (89). git_hook_policy.py branch-context now passes.",
+      "learning": "A repository that squash-merges cannot be reasoned about with merge-base. Merging main into a branch whose content was just flattened into main asks git to reconcile a file with an identical copy of itself that shares no history, and it produces add/add conflicts on files nobody touched. The move is to abort, verify what main contains by reading it rather than by asking git about ancestry, branch fresh, and cherry-pick only what post-dates the squash. Resolving those conflicts would have been work performed on a question that was never real."
     }
   ],
-  "endingCommit": "a9154fc2d",
+  "endingCommit": "4710c7ee4",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
