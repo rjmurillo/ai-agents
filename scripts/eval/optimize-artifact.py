@@ -254,12 +254,27 @@ def _rule_degraded_scenario_ids(
             degraded.append(task_id)
             continue
         scores = mech_data.get("scores")
-        if isinstance(scores, Mapping) and scores.get("judge_failed"):
+        if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
         elif not isinstance(scores, Mapping) or not scores:
             # Missing or empty scores: scoring never completed. Fail closed.
             degraded.append(task_id)
     return degraded
+
+
+def _rule_score_block_is_degraded(scores: object) -> bool:
+    if not isinstance(scores, Mapping) or not scores:
+        return True
+    if scores.get("judge_failed"):
+        return True
+    for field in ("activation_score", "citation_score", "behavior_score"):
+        value = scores.get(field)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+        ):
+            return True
+    return False
 
 
 def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
@@ -327,6 +342,20 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
+    error_count = report.get("error_count", 0)
+    if (
+        not isinstance(error_count, (int, float))
+        or isinstance(error_count, bool)
+        or error_count <= 0
+    ):
+        return
+    raise ConfigError(
+        "refusing to extract degraded agent report: "
+        f"error_count={error_count}; rerun until all records succeed"
+    )
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
@@ -334,6 +363,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         report = _read_json(args.input)
         if not isinstance(report, Mapping):
             raise ConfigError(f"{args.input} must hold an agent report object")
+        _refuse_degraded_agent_report(report)
         results = agent_results(
             report,
             args.variant,

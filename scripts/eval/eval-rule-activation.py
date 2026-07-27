@@ -214,10 +214,19 @@ Respond in JSON only, no other text:
             "reasoning": f"judge returned non-object JSON: {text[:200]}",
             "judge_failed": True,
         }
+    score_error = _judge_score_shape_error(parsed)
+    if score_error is not None:
+        return {
+            "activation_score": 0,
+            "citation_score": 0,
+            "behavior_score": 0,
+            "reasoning": score_error,
+            "judge_failed": True,
+        }
     result = {
-        "activation_score": _clamp_score(parsed.get("activation_score")),
-        "citation_score": _clamp_score(parsed.get("citation_score")),
-        "behavior_score": _clamp_score(parsed.get("behavior_score")),
+        "activation_score": _clamp_score(parsed["activation_score"]),
+        "citation_score": _clamp_score(parsed["citation_score"]),
+        "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
     }
@@ -228,7 +237,7 @@ Respond in JSON only, no other text:
 
 
 def _clamp_score(value: object) -> int:
-    """Coerce a judge-supplied score to int in [0, 5]. Strings/None/out-of-range -> 0 or clamped."""
+    """Coerce a judge-supplied score to int in [0, 5]."""
     if not isinstance(value, (int, float, str)):
         return 0
     try:
@@ -236,6 +245,24 @@ def _clamp_score(value: object) -> int:
     except (TypeError, ValueError):
         return 0
     return max(0, min(5, n))
+
+
+def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
+    required_fields = ("activation_score", "citation_score", "behavior_score")
+    missing = [field for field in required_fields if field not in parsed]
+    if missing:
+        return f"judge returned missing score field(s): {', '.join(missing)}"
+    for field in required_fields:
+        value = parsed[field]
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+        ):
+            return (
+                f"judge returned non-numeric {field}: "
+                f"{type(value).__name__}"
+            )
+    return None
 
 
 # ---------------------------------------------------------------------------
