@@ -24,19 +24,20 @@ _EVAL_DIR = Path(__file__).resolve().parent.parent / "scripts" / "eval"
 # test cannot pick up an importable name it never asked for, and so repeated
 # imports cannot stack duplicate entries.
 _path_added = str(_EVAL_DIR) not in sys.path
-if _path_added:
-    sys.path.insert(0, str(_EVAL_DIR))
+try:
+    if _path_added:
+        sys.path.insert(0, str(_EVAL_DIR))
 
-from _optimizer_adapters import (  # noqa: E402
-    DEFAULT_MIN_ACTIVATION_SCORE,
-    AdapterError,
-    agent_results,
-    pytest_results,
-    rule_results,
-)
-
-if _path_added and str(_EVAL_DIR) in sys.path:
-    sys.path.remove(str(_EVAL_DIR))
+    from _optimizer_adapters import (  # noqa: E402
+        DEFAULT_MIN_ACTIVATION_SCORE,
+        AdapterError,
+        agent_results,
+        pytest_results,
+        rule_results,
+    )
+finally:
+    if _path_added and str(_EVAL_DIR) in sys.path:
+        sys.path.remove(str(_EVAL_DIR))
 
 # ---------------------------------------------------------------------------
 # agent_results

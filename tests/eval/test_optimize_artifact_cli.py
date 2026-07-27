@@ -1159,7 +1159,7 @@ class TestSplitFileIsSelfValidating:
         path = _write(tmp_path, "split.json", split)
         code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
-        assert code == 0
+        assert code == EXIT_LOGIC
         assert out["decision"] == "REJECT"
         assert "fingerprint" in out["reason"]
         assert "score" not in out and "candidate" not in out
@@ -1611,9 +1611,7 @@ class TestTheBudgetIsKeyedByTheSplitItself:
         assert out["sel_consultations"] == 1
 
     def test_the_ledger_flag_is_gone(self, tmp_path, capsys):
-        inc, cand, split, fingerprint = self._fixture(tmp_path, capsys)
         with pytest.raises(SystemExit) as exc:
-            self._gate(capsys, inc, cand, split, fingerprint)
             _run(capsys, "gate", "--ledger", tmp_path / "elsewhere.json")
         assert exc.value.code == EXIT_CONFIG
 
@@ -1722,7 +1720,7 @@ class TestOneGateAtATimePerSplit:
         code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
                          "--split", split, "--max-consultations", "3",
                          "--incumbent-fingerprint", fingerprint)
-        assert (code, out["decision"]) == (EXIT_OK, "REJECT")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
 
 
 class TestTheGateNeverNamesAHeldOutTask:

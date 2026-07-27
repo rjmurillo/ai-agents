@@ -561,6 +561,8 @@ def guard_refusal(
     discipline: every gate refuses, and the reason names a limit the operator
     never meant to set.
     """
+    if sel_consultations < 0:
+        raise ValueError(f"sel_consultations must be non-negative, got {sel_consultations}")
     if max_consultations is not None and max_consultations < 1:
         raise ValueError(f"max_consultations must be positive, got {max_consultations}")
 

@@ -131,6 +131,11 @@ def agent_results(
             # closed rather than dropping the id.
             out[str(fixture_id)] = False
             continue
+        if not isinstance(runs, Sequence) or isinstance(runs, str):
+            raise AdapterError(
+                f"fixture {fixture_id!r} variant {variant!r} must be a list "
+                f"of scores, got {type(runs).__name__}"
+            )
         values = [
             _as_float(v, f"fixture {fixture_id!r} variant {variant!r} run")
             for v in runs

@@ -181,6 +181,12 @@ def _read_split(path: Path) -> dict[str, Any]:
             f"{path} is missing split keys: {', '.join(missing)}. A split file "
             "that cannot be re-fingerprinted cannot be verified; re-run split."
         )
+    for group in _GROUPS:
+        value = data[group]
+        if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
+            raise ConfigError(
+                f"{path} group '{group}' must be a list of strings"
+            )
     return data
 
 
@@ -588,10 +594,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
                     "contents; the groups or the seed were edited after the "
                     "split was drawn. Re-split and re-baseline."
                 ),
+                "compared": False,
                 "consultations": 0,
             }
         )
-        return EXIT_OK
+        return EXIT_LOGIC
 
     # The lock spans read, compare, and write. A drifted split never reaches it
     # because that refusal reads no ledger and spends nothing.
@@ -606,7 +613,14 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     try:
         spent = _read_ledger(ledger, holdout_key, args.max_consultations)
     except LedgerMismatchError as exc:
-        _emit({"decision": "REJECT", "reason": str(exc), "compared": False})
+        _emit({
+            "decision": "REJECT",
+            "reason": str(exc),
+            "compared": False,
+            "sel_consultations": 0,
+            "group": _GATE_GROUP,
+            "fingerprint": split["fingerprint"],
+        })
         return EXIT_LOGIC
 
     # Guards first, scoring second. Both refusals are decidable from
@@ -708,6 +722,12 @@ def _write_atomic(path: Path, text: str) -> None:
     temp file is created beside the target so os.replace stays on one
     filesystem and therefore stays atomic.
     """
+    # Preserve the destination's mode if it exists; mkstemp defaults to 0o600.
+    try:
+        mode = path.stat().st_mode
+    except OSError:
+        mode = None
+
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
     tmp = Path(tmp_name)
     try:
@@ -715,10 +735,16 @@ def _write_atomic(path: Path, text: str) -> None:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)
         os.replace(tmp, path)
-    except OSError as exc:
+    except BaseException as exc:
+        # Close the fd if os.fdopen failed (fd not yet owned by the handle).
+        # If os.fdopen succeeded, the with-block already closed it.
         tmp.unlink(missing_ok=True)
-        raise ConfigError(f"could not write {path}: {exc}") from exc
+        if isinstance(exc, OSError):
+            raise ConfigError(f"could not write {path}: {exc}") from exc
+        raise
 
 
 def _read_buffer(path: Path) -> list[dict[str, Any]]:
@@ -759,7 +785,7 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
             ],
         }
     )
-    args.buffer.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    _write_atomic(args.buffer, json.dumps(entries, indent=2))
     _emit({"added": True, "fingerprint": fingerprint, "entries": len(entries)})
     return EXIT_OK
 
