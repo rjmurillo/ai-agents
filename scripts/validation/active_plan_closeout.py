@@ -15,6 +15,10 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_CONFIG = 2
 DEFAULT_REPO = "rjmurillo/ai-agents"
+GH_TIMEOUT_SECONDS = 30
+TERMINAL_STATES = frozenset({"CLOSED", "MERGED"})
+NONTERMINAL_STATES = frozenset({"OPEN", "DRAFT", "LOCKED"})
+KNOWN_STATES = TERMINAL_STATES | NONTERMINAL_STATES
 ISSUE_REF_RE = re.compile(
     r"(?:https://github\.com/[^/\s]+/[^/\s]+/issues/|(?<![A-Za-z0-9/])#)(\d+)"
 )
@@ -62,8 +66,16 @@ def active_plan_warnings(
         if not issue_numbers:
             continue
 
-        states = [issue_state_lookup(number) for number in issue_numbers]
-        if all(state == "CLOSED" for state in states):
+        states = [_normalize_state(issue_state_lookup(number)) for number in issue_numbers]
+        for issue_number, state in zip(issue_numbers, states, strict=True):
+            if state is not None and state not in KNOWN_STATES:
+                print(
+                    "[WARNING] Active plan closeout advisory saw "
+                    f"unrecognized state {state} for #{issue_number} in "
+                    f"{plan.relative_to(repo_root).as_posix()}"
+                )
+
+        if states and all(state in TERMINAL_STATES for state in states):
             warnings.append(
                 ActivePlanWarning(
                     plan_path=plan.relative_to(repo_root).as_posix(),
@@ -74,6 +86,20 @@ def active_plan_warnings(
     return warnings
 
 
+def _normalize_state(state: str | None) -> str | None:
+    if state is None:
+        return None
+    normalized = state.strip().upper()
+    return normalized or None
+
+
+def _print_lookup_advisory(issue_number: int, message: str) -> None:
+    print(
+        "[WARNING] Active plan closeout advisory could not inspect "
+        f"#{issue_number}: {message}"
+    )
+
+
 def gh_issue_state(
     issue_number: int,
     *,
@@ -81,29 +107,48 @@ def gh_issue_state(
     env: Mapping[str, str] | None = None,
 ) -> str | None:
     """Return a GitHub issue state, or None when lookup cannot prove closure."""
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "view",
-            str(issue_number),
-            "--repo",
-            repo,
-            "--json",
-            "state",
-            "--jq",
-            ".state",
-        ],
-        env=dict(env) if env is not None else None,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
+    command = [
+        "gh",
+        "issue",
+        "view",
+        str(issue_number),
+        "--repo",
+        repo,
+        "--json",
+        "state",
+        "--jq",
+        ".state",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            env=dict(env) if env is not None else None,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=GH_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError:
+        _print_lookup_advisory(issue_number, "gh executable unavailable")
         return None
-    state = result.stdout.strip().upper()
-    return state or None
+    except subprocess.TimeoutExpired:
+        _print_lookup_advisory(issue_number, "gh lookup timed out")
+        return None
+    except OSError as exc:
+        _print_lookup_advisory(issue_number, f"gh lookup failed: {exc}")
+        return None
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        suffix = f": {detail[0]}" if detail else ""
+        _print_lookup_advisory(issue_number, f"gh lookup failed{suffix}")
+        return None
+
+    state = _normalize_state(result.stdout)
+    if state is None:
+        _print_lookup_advisory(issue_number, "gh returned no state")
+    return state
 
 
 def validate_active_plan_closeout(repo_root: Path) -> bool:

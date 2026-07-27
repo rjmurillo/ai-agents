@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from scripts.validation.active_plan_closeout import (
     active_plan_warnings,
+    gh_issue_state,
     issue_refs,
     validate_active_plan_closeout,
 )
@@ -82,3 +84,88 @@ def test_validator_is_advisory_when_warning_exists(
     captured = capsys.readouterr()
     assert "[WARNING] Active execution plans have closed tracking issues:" in captured.out
     assert ".agents/plans/active/closed.md: #101 closed." in captured.out
+
+
+def test_evaluates_issue_and_pr_terminal_states_in_one_run(tmp_path: Path, capsys) -> None:
+    write_active_plan(tmp_path, "closed-issue.md", "# Plan\n\nRelated: #101\n")
+    write_active_plan(tmp_path, "merged-pr.md", "# Plan\n\nRelated: #102\n")
+    write_active_plan(tmp_path, "open-issue.md", "# Plan\n\nRelated: #103\n")
+    write_active_plan(tmp_path, "open-pr.md", "# Plan\n\nRelated: #104\n")
+    write_active_plan(tmp_path, "unknown-state.md", "# Plan\n\nRelated: #105\n")
+
+    states = {
+        101: "CLOSED",
+        102: "MERGED",
+        103: "OPEN",
+        104: "OPEN",
+        105: "UNRECOGNIZED",
+    }
+    warnings = active_plan_warnings(
+        tmp_path,
+        issue_state_lookup=lambda issue: states[issue],
+    )
+
+    assert [warning.plan_path for warning in warnings] == [
+        ".agents/plans/active/closed-issue.md",
+        ".agents/plans/active/merged-pr.md",
+    ]
+    captured = capsys.readouterr()
+    assert "unrecognized state UNRECOGNIZED for #105" in captured.out
+
+
+def test_gh_absent_is_advisory(
+    monkeypatch,
+    capsys,
+) -> None:
+    def raise_missing(*args, **kwargs):
+        raise FileNotFoundError("gh")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", raise_missing)
+
+    assert gh_issue_state(101, repo="owner/repo") is None
+
+    captured = capsys.readouterr()
+    assert "gh executable unavailable" in captured.out
+
+
+def test_gh_nonzero_is_advisory(monkeypatch, capsys) -> None:
+    def fail_command(*args, **kwargs):
+        return subprocess.CompletedProcess(args[0], 3, "", "network unavailable")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", fail_command)
+
+    assert gh_issue_state(101, repo="owner/repo") is None
+
+    captured = capsys.readouterr()
+    assert "could not inspect #101: gh lookup failed" in captured.out
+    assert "network unavailable" in captured.out
+
+
+def test_gh_unrecognized_output_is_advisory(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    write_active_plan(tmp_path, "bad-state.md", "# Plan\n\nRelated: #101\n")
+
+    def bad_state(*args, **kwargs):
+        return subprocess.CompletedProcess(args[0], 0, "SURPRISE\n", "")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", bad_state)
+
+    assert validate_active_plan_closeout(tmp_path) is True
+
+    captured = capsys.readouterr()
+    assert "unrecognized state SURPRISE for #101" in captured.out
+
+
+def test_gh_timeout_is_advisory(monkeypatch, capsys) -> None:
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=1)
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", timeout)
+
+    assert gh_issue_state(101, repo="owner/repo") is None
+
+    captured = capsys.readouterr()
+    assert "could not inspect #101: gh lookup timed out" in captured.out
