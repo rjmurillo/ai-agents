@@ -144,12 +144,37 @@
         "Inspected the two surviving resources/ directories: planner is the documented anomaly, memory/resources/schemas holds JSON schemas rather than doc references"
       ],
       "outcome": "No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue."
+    },
+    {
+      "phase": "Execute the archive",
+      "actions": [
+        "git mv 110 files from .agents/planning/ to .agents/archive/planning/, preserving the subdirectory tree",
+        "Archived the superseded index as .agents/archive/planning/INDEX-2026-01-23.md rather than overwriting it",
+        "Wrote .agents/archive/planning/README.md recording the verification method and a per-cluster verdict with evidence",
+        "Rewrote .agents/planning/INDEX.md to describe the live purpose, the gates that run against the directory, and the retirement convention",
+        "Repointed 14 live documents at the new paths and left dated records under analysis, critique, qa, retrospective, security, and roadmap untouched",
+        "Bumped .claude and src/copilot-cli plugin manifests to 0.6.129 because two SKILL.md files changed in both trees"
+      ],
+      "outcome": "110 files archived. .agents/planning/ holds only a current index. Nothing deleted."
+    },
+    {
+      "phase": "ADR review debate",
+      "actions": [
+        "Invoked the adr-review skill because the change edits eight files under .agents/architecture/ and .agents/SESSION-PROTOCOL.md, which fires the adr-review-policy pre-commit gate",
+        "Ran all six mandated roles: architect, critic, independent-thinker, security, analyst, and high-level-advisor. Declined to write the gate trigger string into this log without running the review, which would have fabricated evidence",
+        "Re-derived every checkable finding rather than accepting it on assertion: a link scanner over 977 files, a second scanner over the 79 archived markdown files, a direct listing of packages/, and GitHub close-reason queries for issues 51 and 739",
+        "Fixed two P0 defects the debate surfaced: ADR-026 had its display text repointed but its markdown link target left broken, and .agents/SESSION-PROTOCOL.md carried a SHOULD-read of a finished plan inside a BLOCKING phase",
+        "Fixed six P1 findings: ADR-006 and ADR-017 links missed, 21 stale paths across 15 Serena memory files, 30 references between archived documents, overclaimed Complete labels in the archive index, a cluster count of 4 that was really 2, and an issue citation that overclaimed its scope",
+        "Repointed 74 references across 37 files as a result. Both scanners now report zero broken references",
+        "Filed issue 3435 for the 33 eval JSONs, which the contrarian showed were misfiled from the start rather than retired, and added a scope note to issue 3426",
+        "Wrote the debate log to .agents/critique/issue-3431-planning-archive-debate-log.md with per-agent votes, contested points, and the dissent carried forward"
+      ],
+      "outcome": "Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed."
     }
   ],
-  "endingCommit": "8d5e5d16",
+  "endingCommit": "",
   "nextSteps": [
-    "Rewrite .agents/planning/INDEX.md so it describes the live purpose and points at the archive",
-    "Repoint live inbound references in .agents/AGENTS.md, .agents/AGENT-SYSTEM.md, .agents/AGENT-INSTRUCTIONS.md and the affected ADRs",
-    "Re-run build/scripts/validate_planning_artifacts.py and scripts/validation/pre_pr.py before opening the PR"
+    "Re-run build/scripts/validate_planning_artifacts.py and scripts/validation/pre_pr.py",
+    "Open the PR against #3431 and confirm CI is green"
   ]
 }

@@ -116,7 +116,7 @@ python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py --fil
 ## Related
 
 - [Steering System README](../../../.agents/steering/README.md)
-- [Enhancement Project Plan](../../../.agents/planning/enhancement-PROJECT-PLAN.md)
+- [Enhancement Project Plan](../../../.agents/archive/planning/enhancement-PROJECT-PLAN.md)
 - [Orchestrator Agent](../../../src/claude/orchestrator.md)
 
-<!-- vendor-portability: declared. This skill links .agents/steering/README.md and .agents/planning/enhancement-PROJECT-PLAN.md as documentation. Both are citations; the matcher reads the steering files the consumer repo actually has, and a vendored install loses only the broken links. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links .agents/steering/README.md and .agents/archive/planning/enhancement-PROJECT-PLAN.md as documentation. Both are citations; the matcher reads the steering files the consumer repo actually has, and a vendored install loses only the broken links. Issue #2050. -->

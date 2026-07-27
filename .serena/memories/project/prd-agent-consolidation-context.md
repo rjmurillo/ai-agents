@@ -5,7 +5,7 @@
 
 ## Quick Reference
 
-- **Location**: `.agents/planning/prd-agent-consolidation.md`
+- **Location**: `.agents/archive/planning/prd-agent-consolidation.md`
 - **Feature**: Consolidate VS Code + Copilot CLI agents into single shared source
 - **File Reduction**: 54 to 36 files (33%)
 

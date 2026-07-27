@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T04:45:13.323638+00:00",
+  "updated": "2026-07-27T05:12:19.300681+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20284,6 +20284,24 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:45:13.318386+00:00"
+    },
+    {
+      "id": "2d5d7edffe7e",
+      "type": "milestone",
+      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294867+00:00"
+    },
+    {
+      "id": "8a2cea8f7bc4",
+      "type": "milestone",
+      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294953+00:00"
     }
   ],
   "patterns": [

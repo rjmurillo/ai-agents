@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e005",
@@ -181,6 +183,28 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -189,7 +213,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 11,
-    "files_changed": 6
+    "files_changed": 110
   },
   "lessons": []
 }

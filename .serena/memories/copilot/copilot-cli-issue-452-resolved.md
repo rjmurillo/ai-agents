@@ -17,7 +17,7 @@ GitHub Copilot CLI issue #452 ("User-level agents not loaded") has been resolved
    - Removed entire "GitHub Copilot CLI Global Installation" troubleshooting section
    - Section contained issue link and workaround instructions
 
-3. **.agents/planning/cva-install-scripts.md:436-440**
+3. **.agents/archive/planning/cva-install-scripts.md:436-440**
    - Removed `KnownBug` configuration block from Copilot platform definition
    - Cleaned up planning artifact to reflect current state
 

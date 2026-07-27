@@ -123,7 +123,7 @@ The QA concerns are **implementation-time concerns** that do not require plan ch
 
 ## Work Breakdown
 
-Reference: `.agents/planning/tasks-agent-consolidation.md`
+Reference: `.agents/archive/planning/tasks-agent-consolidation.md`
 
 ### Phase 1: 2-Variant Consolidation (8-10 hours)
 
