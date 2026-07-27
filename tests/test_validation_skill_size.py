@@ -272,7 +272,9 @@ class TestCheckSkillSizeBytes:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
-    def test_oversized_passes_locally(self, tmp_path: Path, monkeypatch: object) -> None:
+    def test_oversized_passes_locally(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("CI", raising=False)
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
@@ -715,6 +717,134 @@ class TestStagedBlobValidation:
         measured = read_staged_blob_bytes(Path(".claude/skills/big/SKILL.md"))
         assert len(measured) > SKILL_BYTE_LIMIT
         assert main(["--staged-only", "--ci"]) == 1
+
+    def test_sparse_index_tree_replace_does_not_swap_measured_blob(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding (round-3 review, sparse-index tree replacement): a full index
+        # prints the recorded oid from ``ls-files -s`` verbatim, but a sparse
+        # index expands the sparse-directory tree entry that holds the path, and
+        # that expansion honors ``refs/replace/``. A replacement TREE mapping the
+        # skill path to a tiny decoy blob makes the oid resolution return the
+        # decoy; the cat-file (already --no-replace-objects) then reads the
+        # decoy's small bytes -> under-count (exit 0). ``ls-files`` must also run
+        # with --no-replace-objects. Reproduced on git 2.43.
+        # Make this test's git environment hermetic so no inherited
+        # configuration can disable replace refs (or redirect the repo, object
+        # store, index, or config this guard depends on) and turn the setup
+        # guard's skip into a silent mask over a real regression. git honors
+        # refs/replace/ unless replace is disabled, and replace resolution can
+        # be subverted through many channels that each outrank or bypass the
+        # repo-local write below. Rather than enumerate them by hand (a
+        # whack-a-mole that across review rounds missed GIT_NO_REPLACE_OBJECTS,
+        # then command-scope -c injection, then GIT_CONFIG, then
+        # GIT_TEMPLATE_DIR, then GIT_DIR/GIT_WORK_TREE), clear git's own
+        # authoritative list of local-scope env vars, reported by
+        # ``git rev-parse --local-env-vars``. That set covers
+        # GIT_NO_REPLACE_OBJECTS, GIT_REPLACE_REF_BASE, GIT_CONFIG,
+        # GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT, GIT_DIR, GIT_WORK_TREE,
+        # GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES,
+        # GIT_INDEX_FILE, GIT_COMMON_DIR, GIT_GRAFT_FILE, and every other var
+        # git uses to resolve THIS repository. On top of that: the indexed
+        # GIT_CONFIG_KEY_*/VALUE_* trio is neutralized because clearing
+        # GIT_CONFIG_COUNT (in the list) makes git read zero injected pairs;
+        # GIT_CONFIG_NOSYSTEM=1 disables system config outright;
+        # GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM redirect at a nonexistent file
+        # (git reads a missing config as empty); and GIT_TEMPLATE_DIR points at
+        # an empty dir so no template [include] seeds
+        # core.useReplaceRefs=false. git then falls back to its default of
+        # replace ENABLED and the repo-local write reinforces it. Sanitize
+        # before _init_repo so its identity writes and any template expansion
+        # land in a clean repo-local .git/config. This closes the whole class,
+        # bounded by git's own enumeration: a residual channel would have to be
+        # a var git does not report as local (a git bug, not a test gap).
+        _rev_parse_result = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            capture_output=True,
+            text=True,
+        )
+        if _rev_parse_result.returncode != 0:
+            pytest.skip("git build does not support --local-env-vars")
+        _local_env_vars = _rev_parse_result.stdout.split()
+        for _var in _local_env_vars:
+            monkeypatch.delenv(_var, raising=False)
+        _neutral_cfg = tmp_path / "hermetic-absent.gitconfig"
+        _empty_template = tmp_path / "hermetic-empty-template"
+        _empty_template.mkdir()
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(_neutral_cfg))
+        monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(_neutral_cfg))
+        monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+        monkeypatch.setenv("GIT_TEMPLATE_DIR", str(_empty_template))
+        self._init_repo(tmp_path)
+        subprocess.run(
+            ["git", "config", "core.useReplaceRefs", "true"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "keep").mkdir()
+        (tmp_path / "keep" / "a.txt").write_bytes(b"keep\n")
+        self._write_skill(tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
+        self._stage_all(tmp_path)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=tmp_path, check=True, capture_output=True
+        )
+        skill_rel = ".claude/skills/big/SKILL.md"
+
+        def _git(*args: str, _input: bytes | None = None) -> str:
+            return (
+                subprocess.run(
+                    ["git", *args],
+                    cwd=tmp_path,
+                    input=_input,
+                    capture_output=True,
+                    check=True,
+                )
+                .stdout.decode()
+                .strip()
+            )
+
+        big_oid = _git("rev-parse", f":{skill_rel}")
+        small_oid = _git("hash-object", "-w", "--stdin", _input=b"tiny")
+        orig_subtree = _git("rev-parse", "HEAD^{tree}:.claude/skills/big")
+        new_subtree = _git("mktree", _input=f"100644 blob {small_oid}\tSKILL.md\n".encode())
+        _git("replace", orig_subtree, new_subtree)
+        try:
+            _git("sparse-checkout", "init", "--cone", "--sparse-index")
+            _git("sparse-checkout", "set", "keep")
+        except subprocess.CalledProcessError:
+            pytest.skip("git build does not support sparse-checkout --sparse-index")
+        # Prove the sparse-index setup actually produced a sparse-directory
+        # entry (mode 040000): the .claude tree is outside the "keep" cone, so
+        # it must collapse to a tree entry the gate has to expand. A git build
+        # that does not produce one cannot stage this attack; skip there.
+        try:
+            staged = _git("ls-files", "--sparse", "--stage")
+        except subprocess.CalledProcessError:
+            pytest.skip("git build does not support ls-files --sparse")
+        if not any(line.startswith("040000") for line in staged.splitlines()):
+            pytest.skip("git build did not produce a sparse-directory index entry")
+
+        monkeypatch.chdir(tmp_path)
+        # Setup proof (replace refs forced on above): a replace-honoring
+        # ls-files expands the sparse tree through the replacement, resolving
+        # the path to the decoy oid. With the environment sanitized, reaching
+        # the skip below means a genuine git-build limitation, not inherited
+        # configuration.
+        default_listed = subprocess.run(
+            ["git", "ls-files", "-s", "-z", "--", f":(literal){skill_rel}"],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        ).stdout
+        default_oid = default_listed.split()[1].decode() if default_listed.strip() else ""
+        if default_oid != small_oid:
+            pytest.skip("git build does not resolve sparse tree entries through replace refs")
+        assert big_oid != small_oid
+        # The gate reads with --no-replace-objects on ls-files too, so it
+        # resolves the real indexed blob and measures the oversized bytes.
+        measured = read_staged_blob_bytes(Path(skill_rel))
+        assert len(measured) > SKILL_BYTE_LIMIT
 
     def test_replace_ref_head_does_not_hide_staged_skill_from_discovery(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
