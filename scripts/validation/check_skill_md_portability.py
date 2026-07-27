@@ -18,7 +18,8 @@ plugin/skill root, the consumer cwd, or a documented env var) to skill prose.
 
 What it counts:
   Upstream-only runtime path references (``.agents/``, ``.claude/lib/``,
-  ``.claude/review-axes/``) in a skill ``.md`` file, after stripping:
+  ``.claude/review-axes/``, ``templates/agents/``) in a skill ``.md`` file,
+  after stripping:
     * fenced code blocks (``` and ~~~): example commands, not runtime instructions
   ``.claude/skills/`` is NOT counted: it is the install-root-relative convention
   the ``paths.py`` helper resolves, mirroring the script ratchet's exclusion.
@@ -78,13 +79,22 @@ from scripts.validation.portability_common import (
 # which covers script files; this validator covers .md files. The .claude/skills/
 # pattern is excluded here: in prose a bare reference to a sibling skill by
 # ``.claude/skills/`` resolves through the install root, so it is not an
-# upstream-only dependency. ``.agents/``, ``.claude/lib/``, and
-# ``.claude/review-axes/`` have no consumer-side analogue.
+# upstream-only dependency. ``.agents/``, ``.claude/lib/``,
+# ``.claude/review-axes/``, and ``templates/agents/`` have no consumer-side
+# analogue.
+_UPSTREAM_REF_TERMINATOR = r"(?=\b|[\\/]+|['\"?#]|$)"
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
-    re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
+    re.compile(r"(?<![\\\w.])\.agents" + _UPSTREAM_REF_TERMINATOR, re.IGNORECASE),
     re.compile(
-        r"(?<![\\\w.])\.claude[\\/]+review-axes(?:[\\/]+|['\"]|$)",
+        r"(?<![\\\w.])\.claude[\\/]+lib" + _UPSTREAM_REF_TERMINATOR,
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![\\\w.])\.claude[\\/]+review-axes" + _UPSTREAM_REF_TERMINATOR,
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![\\\w.])templates[\\/]+agents" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
 )
