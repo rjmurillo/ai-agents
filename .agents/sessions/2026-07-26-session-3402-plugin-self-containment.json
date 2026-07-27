@@ -145,7 +145,7 @@
       "actions": [
         "Deleted the standalone Serena memory after confirming deployment-001-agent-self-containment.md already carries the principle",
         "Augmented that memory with only the context the rule does not carry: the roots, the three-kind distinction, the declaration, the ratchet caveat, and the gap",
-        "Bumped both project-toolkit manifests to 0.6.130, stacked above the open plugin PRs"
+        "Bumped both project-toolkit manifests to 0.6.131 after main advanced to 0.6.130 mid-review, stacked above the open plugin PRs"
       ],
       "outcome": "One canonical rule, one augmented memory, no third representation to drift"
     }
