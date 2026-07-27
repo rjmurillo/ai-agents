@@ -14,6 +14,10 @@ metadata:
 
 # Autoplan
 
+<!-- vendor-portability: the routing-tier heuristic quotes `templates/agents/` as an
+example of a high-blast-radius path in this repo. It names an upstream directory for
+illustration, not a runtime dependency of the skill. Issue #3459. -->
+
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
 Models and people do not hand-route across dozens of skills; this skill does.

@@ -11,6 +11,10 @@ metadata:
 
 # Negotiation Skill
 
+<!-- vendor-portability: cites `templates/agents/negotiation.shared.md` as the canonical
+source of the companion agent, which `.claude/rules/canonical-source-mirror.md` requires.
+The path is upstream-only provenance, not a runtime dependency. Issue #3459. -->
+
 Codifies deal intelligence behavior. Use when reviewing any offer or
 designing how an agentic system should analyze and counter-propose.
 The full crystallized skill set lives in `references/skills.md`.
