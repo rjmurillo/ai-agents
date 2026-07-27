@@ -59,15 +59,16 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 The gate returned `CRITICAL_FAIL` on clean `main` with 32 findings across 12 files
 in `.agents/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
 contributor regardless of what their PR touched. All 32 pointed at entities that
-were deliberately deleted with no successor:
+were deliberately deleted. Most had no successor; two did:
 
 | Entity | Refs | Removed by |
 | --- | --- | --- |
-| `build/scripts/validate_marketplace_counts.py` | 24 | #2187, `2043c39863` |
-| `scripts/validation/bundle_registry.py` | 4 | #3432, `9b121ec6e8` |
-| `scripts/Validate-Traceability.ps1` | 1 | #1141, `efa406e9ab` |
-| `scripts/Validate-SessionEnd.ps1` | 1 | #610, `a4c58192a5` |
-| skill names `session-qa-eligibility`, `session-migration` | 2 | folded into `session` |
+| `build/scripts/validate_marketplace_counts.py` | 24 | #2187, `2043c39863`, no successor |
+| `scripts/validation/bundle_registry.py` | 4 | #3432, `9b121ec6e8`, no successor |
+| `scripts/Validate-Traceability.ps1` | 1 | #1141, `efa406e9ab`, migrated to Python |
+| `scripts/Validate-SessionEnd.ps1` | 1 | #610, `a4c58192a5`, renamed |
+| skill `session-qa-eligibility` | 1 | folded into `session` |
+| skill `session-migration` | 1 | sunset, #2359, `59e6587c46` |
 
 **The trap.** The obvious fix is to append `<!-- orphan-ref-ignore -->` to each
 line and call them historical. An adversarial review caught that this is wrong for
@@ -78,10 +79,21 @@ hard-coded `PLUGIN_COUNTERS` dict", "THE SYSTEM SHALL invoke the existing
 validator". Those are live contracts against deleted code. Silencing them hides a
 real defect permanently, and also blinds that line to any future orphan.
 
-Verify a suspected-dead instruction before deciding. All three were confirmed
-unimplementable: `COUNT_PATTERN` and `LABEL_MAP` never landed in
-`patterns.py`, `tests/test_command_bundles.py` and `BUNDLE_REGISTRY` are gone,
-and `PLUGIN_COUNTERS` matches nothing in the tree.
+Verify a suspected-dead instruction before deciding, and check the history rather
+than only the working tree. `tests/test_command_bundles.py` and `BUNDLE_REGISTRY`
+are gone and `PLUGIN_COUNTERS` matches nothing, so those are unimplementable. But
+`COUNT_PATTERN` and `LABEL_MAP` were a different case: absent from `patterns.py`
+today, yet `git log -S COUNT_CLAIM_RE` shows they did land, as `COUNT_PATTERN`,
+`COUNT_CLAIM_RE`, `COUNT_LABEL_MAP`, and `extract_count_claims`, and were retired
+in #2853 (`9c88990b77`) to mirror the validator deleted in #2187. A first pass
+called them "never landed" on the strength of a `grep` over the working tree, and
+a second review corrected it. Grep proves absence now; only `git log -S` proves an
+entity never existed.
+
+Nothing validates embedded count claims today. `counts.py` in the skill is
+*catalog enumeration* added in #3434, not count-claim scanning; the filename is a
+fossil of the retired subsystem. The scanner emits exactly three kinds:
+`skill_name`, `script_path`, `scan_truncated`.
 
 **What was done instead.** Each affected spec got a dated `> [!IMPORTANT]`
 retirement note after its H1 naming the removed dependency, the PR, and the
@@ -93,8 +105,11 @@ contract pointing at a deleted file. Adding an annotation is not anachronism;
 rewriting the original prose would be.
 
 **Line scope, not file scope.** SKILL.md lists file scope on an active spec as an
-anti-pattern because it masks real orphans. Base-tree precedent at `d544eaa60a`
-was 25 line-scope and 22 file-scope directives.
+anti-pattern because it masks real orphans. Base-tree precedent at `d544eaa60a`,
+measured with `git grep -oh -F` over `*.md`, was 25 line-scope and 22 file-scope
+directives. Without the markdown filter the counts are 31 and 23; the extra six
+are `patterns.py`, its Copilot mirror, a test, and a session log, which implement
+the directive rather than use it. State the filter when quoting either number.
 
 **Directive mechanics worth remembering.** Line scope skips every reference on its
 line, so one directive covers a line carrying two findings. File scope must appear

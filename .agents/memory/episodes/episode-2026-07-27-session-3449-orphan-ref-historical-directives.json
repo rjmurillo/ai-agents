@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
       "caused_by": [
-        "e012"
+        "e013"
       ],
       "leads_to": [
         "e002"
@@ -143,6 +143,18 @@
         "e005"
       ],
       "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 104f52ffee4e911d4008b53befe8ea773fbcbeda",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -152,7 +164,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 24
   },
   "lessons": []
