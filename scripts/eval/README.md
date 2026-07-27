@@ -639,47 +639,51 @@ error rate. One replication cannot put an interval on any of them. It is
 enough to establish that the noise is larger than the effect being measured,
 which is the only claim made here.
 
-### The same control on the agent path, where nothing rescued it
+### A retracted agent-path claim, and the guard it produced
 
-The rule result above could be one benchmark's problem. It is not, and checking
-cost nothing: the architect spike already holds two runs of the same model
-against the same eight fixtures, both tracked at
-`evals/architect-spike/reports/`. Five of eight fixtures scored differently
-between the two runs. At the default pass threshold one run passes five and the
-other passes two.
+An earlier revision of this section claimed the architect spike reproduced the
+rule finding: two runs of the same model against the same eight fixtures, five
+of eight moving, and a null control that earned an ACCEPT. **That claim was
+wrong and is withdrawn.** The two runs did not use the same fixtures.
 
-Gating the lower as incumbent against the higher as candidate, with no
-significance bar, which is the default:
+Every agent report carries `fixture_set_sha`, and the schema comment says what
+it is for: it "allows the report consumer to verify that two runs hit the same
+set." The two architect runs report `be99fa1b1180` and `26136df314d6`. All eight
+individual `fixture_sha` values differ as well. The fixtures were committed once,
+on 2026-05-29, after both runs, and the committed copies match the later run, so
+the earlier run's corpus is not recoverable. The pair cannot support a null
+control because the corpus is a second changed variable.
 
-```text
-decision: ACCEPT   held-out 0.0000 -> 0.6667
-discordant_gain: 2   discordant_loss: 0   p_value: 0.25
-```
+The two supporting pairs fail the same test for a different reason. The critic
+and high-level-advisor comparisons hold `fixture_set_sha` constant but differ in
+`agent_prompt_sha`, so the prompt is the changed variable. The "twelve of
+twenty-four" figure pooled three confounded comparisons and is withdrawn in full.
 
-No edit was made. The two runs differ only in having been run twice.
+There is no agent-path null control in this repository. The honest state of the
+evidence is one path measured, not three:
 
-The rule run was refused in the same situation because the noise also broke a
-third task and the no-regression rule caught it. That was luck. It required the
-noise to fall both ways. Here it fell one way and nothing stopped it. The
-no-regression rule protects against a regression; it does not protect against
-variance, because variance need not be symmetric.
+- **Rule path, measured.** The artifact was restored byte-for-byte and verified
+  identical to `origin/main` before the re-run, so the corpus and the artifact
+  were both held fixed. That control stands, and it is the one that matters:
+  both held-out gains that earned the ACCEPT reproduced under the no-op.
+- **Agent path, unmeasured.** Running it requires two runs that agree on
+  `fixture_set_sha` and on `agent_prompt_sha`. No committed pair does.
+- **Hook path, deterministic by construction.** `pytest_results` re-runs to the
+  same mapping.
 
-`--max-p 0.05` over a five-consultation budget refuses this comparison at the
-corrected 0.01 bar. It is the only mechanism here that does.
-
-The same comparison moves three of eight fixtures on the critic spike and four
-of eight on high-level-advisor, twelve of twenty-four across the three, though
-one report in each of those two pairs is untracked spike output rather than
-committed evidence. Read the architect pair as the reproducible result. Against
-thirteen of twenty-four on the rule benchmark, two unrelated benchmarks both
-move about half their tasks when nothing changes.
+The error was worth more than the claim would have been. The report schema
+already carried the field that falsifies it, the comparison tool never read that
+field, and nothing in the loop would have stopped anyone else from making the
+same mistake. `gate` now refuses a comparison whose two sides disagree about the
+corpus. See "Refusing an incomparable pair" below.
 
 ### What this means for running the loop
 
-> **The default configuration accepts null controls on two of the three paths.**
-> `gate` without `--max-p` guards against an optimizing agent gaming its own
-> benchmark. It does not guard against the benchmark being noisy. Those are
-> different threats and only the first is closed by default.
+> **A `gate` ACCEPT is only as trustworthy as the benchmark under it.** `gate`
+> without `--max-p` guards against an optimizing agent gaming its own benchmark.
+> It does not guard against the benchmark being noisy. Those are different
+> threats and only the first is closed by default. On the one path where a
+> control was run, the default issued an ACCEPT for gains a no-op reproduced.
 
 Practical consequences, until repeated sampling lands:
 
@@ -688,9 +692,12 @@ Practical consequences, until repeated sampling lands:
   byte-for-byte, re-run the identical scorer, gate the result. If the no-op
   earns an accept, or gains the same tasks the real edit gained, the loop is
   measuring its own variance.
+- Hold the corpus fixed and prove it, do not assume it. Two runs of the same
+  agent are not comparable unless they agree on `fixture_set_sha`. `gate` now
+  checks this for you and refuses when they disagree, because the one time this
+  was done by eye it was done wrong.
 - If the tasks that moved are not the tasks your edit touched, that is the
-  cheap early signal. Both live findings here showed it before the control was
-  run.
+  cheap early signal. The rule finding showed it before the control was run.
 - Against `pytest_results` neither applies. That path is deterministic, so a
   repeated run of the same suite against the same tree gives the same mapping,
   and an accept there means what it says.

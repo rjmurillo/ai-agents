@@ -157,15 +157,14 @@
       "phase": "Attack the rule finding with data already in the repository",
       "actions": [
         "The rule-path noise finding rested on one benchmark and one replication, which is thin enough to be worth attacking. Checked whether any committed artifact already disagreed with it before spending on another run.",
-        "Found the architect spike holds two runs of claude-sonnet-4-6 against the same eight fixtures, both reports tracked at evals/architect-spike/reports/. Five of eight fixtures scored differently between them.",
-        "Ran the full extract, split, gate loop on that pair. This also live-validates the agent path end to end, which had previously only been exercised against a single report.",
-        "Default configuration returned ACCEPT on a pure null control: held-out 0.0 to 0.667, two discordant gains, no losses, p=0.25. No edit, no artifact change, two runs of the same model.",
-        "Verified --max-p 0.05 over a five-consultation budget refuses the same comparison at the corrected 0.01, and that adding the bar late to a group opened without one is refused. The ledger pinning works on real artifacts, not just fixtures.",
-        "Measured the same same-model comparison on the other two spikes: critic three of eight, high-level-advisor four of eight, twelve of twenty-four across the three. Weighted these lower in the writeup because one report in each of those pairs is untracked spike output.",
-        "Corrected my own earlier reading in the debate log. I had recorded the rule run's REJECT as the design working. It was luck: requirement 4 fires when noise breaks something and is silent when noise falls one way. Filed as defect shape 16.",
-        "Added the operational warning to the README, the ADR validation status, and the debate log: the default configuration accepts null controls on the rule and agent paths, and only the deterministic hook path is safe to read at face value."
+        "Found the architect spike holds two runs of claude-sonnet-4-6, both reports tracked at evals/architect-spike/reports/. Verified model_id and agent_prompt_sha matched and treated the pair as a null control. Did not check fixture_set_sha. That omission is what makes the rest of this phase wrong.",
+        "Ran the full extract, split, gate loop on that pair. Default configuration returned ACCEPT: held-out 0.0 to 0.667, two discordant gains, no losses, p=0.25.",
+        "Verified --max-p 0.05 over a five-consultation budget refuses the same comparison at the corrected 0.01, and that adding the bar late to a group opened without one is refused. This part stands: it exercises the ledger pinning on real artifacts regardless of what the artifacts mean.",
+        "Measured the same comparison on the critic and high-level-advisor spikes and reported twelve of twenty-four across the three agents. Withdrawn in the next phase.",
+        "Corrected my own earlier reading in the debate log. I had recorded the rule run's REJECT as the design working. It was luck: requirement 4 fires when noise breaks something and is silent when noise falls one way. Filed as defect shape 16. This correction stands on the rule-path data and does not depend on the agent claim.",
+        "Published the agent claim in commit bb98bf24a across the README, ADR-087, the debate log, and this session log. Retracted the same day; see the next phase."
       ],
-      "outcome": "The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed."
+      "outcome": "WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured."
     },
     {
       "phase": "Close the reviewer findings on PR #3478",
@@ -177,6 +176,19 @@
         "The pre-push suite then refused the push. Node ids in the causal graph are content-derived, so rewriting a label without recomputing its id orphans the node: the next episode naming the same milestone would hash to a different id and append a second record, splitting the evidence. Repaired with scripts/maintenance/repair_causal_graph_ids.py."
       ],
       "outcome": "All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file."
+    },
+    {
+      "phase": "Retract the agent-path claim and find the defect it exposes",
+      "actions": [
+        "Pushed on the agent finding rather than banking it. Searched for prior art first and found scripts/eval/variance-control.py and a committed control run at evals/security-spike/control/20260531T184905Z-60538bcf/ from issue #1877: N=20 at temperature 0, verdict stable twenty times out of twenty, response text unique twenty times out of twenty.",
+        "Formed a hypothesis from it: the agent path's instability lives in the brittle free-text regex assertions, not the verdict. Measured per assertion across the paired runs. Verdict unstable in 9 of 16 cells, regex in 6. Hypothesis falsified, and the opposite of what #1877 suggested.",
+        "Chasing an inconsistency in that measurement, checked fixture_sha. All eight fixtures differ between the two architect runs. fixture_set_sha be99fa1b1180 against 26136df314d6.",
+        "Established the fixtures directory has exactly one commit, c81ac278f, dated after both runs, and that the committed fixtures hash-match run B exactly. Run A's corpus is unrecoverable, so the pair cannot be repaired.",
+        "Checked all six tracked spikes. The critic and high-level-advisor pairs match on fixture_set_sha but differ on agent_prompt_sha. No same-model pair in the repository agrees on both. There is no valid agent-path null control anywhere in the repo.",
+        "Retracted the claim in scripts/eval/README.md, ADR-087 (both the finding section and Validation Status), and the debate log, where the retracted section is kept intact under a banner because the retraction is the finding.",
+        "Named the defect: _fixture_set_sha's own docstring says it lets a report consumer verify two runs hit the same set, and optimize-artifact.py extract never reads it. The schema supplies the check and the tool that needs it discards it. Filed as defect shape 17 and folded into ADR-087 open requirement 12, which had already named the missing corpus identity as a budget concern."
+      ],
+      "outcome": "A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none."
     }
   ],
   "endingCommit": "bb98bf24a",

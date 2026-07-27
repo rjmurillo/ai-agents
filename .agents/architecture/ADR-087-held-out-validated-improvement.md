@@ -526,7 +526,14 @@ that reason.
     unrelated corpora with identical task ids and identical held-out membership
     share a budget, because the seam offers no corpus identity the caller did
     not supply. A namespace derived from task contents would fix it and needs a
-    seam that carries them.
+    seam that carries them. On 2026-07-27 this stopped being hypothetical. Two
+    architect-spike runs with identical task ids but different `fixture_set_sha`
+    were gated against each other and read as a null control, and the resulting
+    claim was published before the mismatch was found. The same missing identity
+    that lets two corpora share a budget lets two corpora be compared, and the
+    comparison failure is the more expensive of the two because it produces a
+    verdict that looks valid. The upstream reports already carry the identity;
+    the seam discards it.
 
 The default `--test-ratio` is 0.0, so the ordinary invocation produces optimize
 and selection groups only. Requirement 1's "test group, when present" describes
@@ -609,9 +616,11 @@ Honest statement of what has and has not been exercised against real data.
 - **Agent path**: validated against a real report,
   `evals/analyst-spike/reports/20260528T050708Z-91be1106/report.json`, 24
   fixtures. Baseline 15/24 against agent 13/24; the decision correctly refused
-  a real regression. A null control on the agent path was run on 2026-07-27 and
-  is recorded below; it is the reason this ADR now says the default
-  configuration is not safe to run unattended on either path.
+  a real regression. **No null control has been run on this path.** One was
+  claimed on 2026-07-27 and retracted the same day: the two architect-spike
+  runs it used disagree on `fixture_set_sha`, so the corpus was a second changed
+  variable. A valid control needs two runs agreeing on both `fixture_set_sha`
+  and `agent_prompt_sha`, and no committed pair does.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
   node ids extracted. No null control has been run on the hook path, and none
   is needed for the same reason: `pytest_results` is deterministic, so a
@@ -669,71 +678,69 @@ in these reports attributes the movement to one stage or the other. The
 0.49-point mean is the variance of the pipeline. Whether a judge held fixed
 would show less is untested here.
 
-### The agent path fails the same control, and nothing rescues it
+### A retracted agent-path claim, and the guard it produced
 
-The rule finding could have been read as one benchmark's problem. It is not.
+An earlier revision of this section claimed the architect spike reproduced the
+rule finding on a second benchmark: two runs of `claude-sonnet-4-6` against the
+same eight fixtures, five of eight moving, and an ACCEPT on a pure null control.
+**That claim was wrong. It is withdrawn in full, and so is the twelve of
+twenty-four figure built on it.**
 
-The architect spike holds two runs of the same model, `claude-sonnet-4-6`,
-against the same eight fixtures, and both reports are tracked in this
-repository at `evals/architect-spike/reports/`. Nothing distinguishes them but
-the run. Five of the eight fixtures scored differently. Extracted at the
-default pass threshold, one run passes five fixtures and the other passes two.
+The two runs did not share a corpus. Each agent report carries
+`fixture_set_sha`, and `_fixture_set_sha` in `eval-agent-vs-baseline.py`
+documents its purpose exactly: it "allows the report consumer to verify that two
+runs hit the same set." The two architect runs report `be99fa1b1180` and
+`26136df314d6`, and all eight individual `fixture_sha` values differ. The
+fixtures were committed once, on 2026-05-29, after both runs; the committed
+copies match the later run, so the earlier corpus is unrecoverable. Fixture
+content is a second changed variable, so nothing about the movement can be
+attributed to run-to-run noise.
 
-Gating the lower run as incumbent against the higher as candidate, with no
-significance bar, which is the default configuration:
+The two corroborating pairs fail for a different reason. The critic and
+high-level-advisor comparisons hold `fixture_set_sha` fixed but differ in
+`agent_prompt_sha`. There the prompt is the changed variable. Three confounded
+comparisons pooled together do not make one valid one.
 
-```text
-decision: ACCEPT   held-out 0.0000 -> 0.6667
-discordant_gain: 2   discordant_loss: 0   p_value: 0.25
-```
+The corrected state of the evidence is one measured path, not three:
 
-Two held-out fixtures flipped fail to pass because the model was run twice.
-There was no edit. There was no artifact. The gate accepted it.
+- **Rule path, measured.** The artifact was restored byte-for-byte and verified
+  identical to `origin/main` before the re-run, holding both the corpus and the
+  artifact fixed. Both held-out gains that earned the ACCEPT reproduced under
+  the no-op.
+- **Agent path, unmeasured.** A control needs two runs agreeing on both
+  `fixture_set_sha` and `agent_prompt_sha`. No committed pair does.
+- **Hook path, deterministic by construction.**
 
-This is worse than the rule result, and the difference is the point. On the
-rule path the same noise also broke a third task, and requirement 4, no
-pass-to-fail transition accepted on an aggregate gain, refused the run. That
-refusal was luck. It depended on the noise being two-directional. Here the
-noise happened to fall one way and nothing stood in front of it. Requirement 4
-is a real protection against a real regression and it is not a protection
-against variance, because variance is under no obligation to be symmetric.
-
-With `--max-p 0.05` and a five-consultation budget, the same comparison
-refuses: p=0.5 against the corrected 0.01 bar. The flag is the only thing in
-the design that refuses this run.
-
-Two smaller confirmations came from the same data. Adding `--max-p` to the
-group that had already been opened without it is refused, which is the ledger
-pinning working on real artifacts rather than fixtures. And the same
-same-model, same-fixture comparison on the critic spike moves three of eight
-fixtures and on the high-level-advisor spike four of eight, for twelve of
-twenty-four across the three. Those two carry less weight than the architect
-pair because one report in each of their pairs is untracked spike output rather
-than committed evidence, so treat the architect pair as the reproducible result
-and the other two as corroboration.
-
-Twelve of twenty-four on the agent benchmark against thirteen of twenty-four on
-the rule benchmark is the useful number. Two unrelated benchmarks, different
-artifacts, different scorers, different models, and both move about half their
-tasks when nothing changes. The noise floor is not a property of one eval.
+The error is more useful than the claim would have been, and it belongs in this
+ADR rather than in a commit message. The report schema already carried the field
+that falsifies the comparison. The tool that performed the comparison never read
+it. Nothing in the design would have stopped the next person from repeating the
+mistake, and the person who made it had just spent a session arguing that a
+property reported but not enforced is not a property. Open requirement 12
+already named the missing piece, that the seam carries no corpus identity. This
+is the first evidence of what that costs, and it raises the requirement from a
+budget-accounting nicety to a correctness gap: the same absence that lets two
+unrelated corpora share a ledger also lets two unrelated corpora be compared to
+each other.
 
 ### What follows for anyone running this loop
 
-The default configuration accepts null controls on two of the three paths. Say
-that plainly rather than burying it: `optimize-artifact.py gate` with no
-`--max-p` is a guard against an optimizing agent gaming its own benchmark, and
-it is not a guard against the benchmark being noisy. Those are different
-threats and only the first one is closed by default.
+A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that
+plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is
+a guard against an optimizing agent gaming its own benchmark, and it is not a
+guard against the benchmark being noisy. Those are different threats and only
+the first one is closed by default. On the one path where a control was actually
+run, the default issued an ACCEPT for gains that a no-op reproduced.
 
 Until requirement 6 lands, a run of this loop against `rule_results` or
 `agent_results` is worth citing only alongside a null control, and `--max-p`
 should be supplied. The hook path needs neither, because it is deterministic.
 
-The ADR stays proposed. The rule path is now live-validated, but requirement 6
-below is the reason it cannot yet move: a single-sample scorer at this
-benchmark size cannot distinguish an edit from noise, and that is a property of
-the benchmark rather than of the gate. The agent null control above makes that
-a measured claim on two benchmarks rather than an inference from one.
+The ADR stays proposed. The rule path is live-validated; requirement 6 is why it
+cannot move further. A single-sample scorer at this benchmark size cannot
+distinguish an edit from noise, and that is a property of the benchmark rather
+than of the gate. That claim now rests on one benchmark, measured, rather than
+on two, one of which was not measuring what it said.
 
 ## References
 

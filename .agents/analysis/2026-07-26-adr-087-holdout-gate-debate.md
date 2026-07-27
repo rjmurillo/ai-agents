@@ -467,6 +467,12 @@ might reduce the noise floor it just measured. Filed as #3475.
 
 ## The agent path, and the luck that hid the problem
 
+> **RETRACTED 2026-07-27, same day.** Everything in this section between here
+> and "Defect shape 17" rests on the claim that the two architect runs used the
+> same fixtures. They did not. The section is kept intact rather than deleted
+> because the retraction is the finding; see defect shape 17 below for what was
+> wrong and how it was caught.
+
 The rule finding rested on one benchmark and one replication. That is thin
 enough to be worth attacking, so I attacked it with data already in the
 repository rather than more eval spend.
@@ -527,6 +533,64 @@ the whole time, in two report files committed months ago. The cheapest
 adversarial review available was re-reading data already on disk against a claim
 made later, and it produced a sharper correction than either paid reviewer in
 round fourteen.
+
+### Defect shape 17: the comparison tool ignores the field that validates the comparison
+
+The section above is wrong, and the same afternoon's attempt to push on it is
+what found the error.
+
+The published claim needed the two architect runs to differ in nothing. I had
+checked two things before publishing: `model_id` matched, and `agent_prompt_sha`
+matched. I did not check the third field, and the report schema puts it at the
+top level of both files:
+
+```text
+run A  fixture_set_sha be99fa1b1180
+run B  fixture_set_sha 26136df314d6
+```
+
+All eight individual `fixture_sha` values differ too. `_fixture_sha` is
+`sha256(path.read_text())`, so the fixture files changed between the runs. The
+fixtures directory carries exactly one commit, `c81ac278f`, dated the day after
+both runs, and the committed fixtures hash-match run B exactly. Run A's corpus
+is not recoverable from the repository. The comparison had two changed variables,
+not zero, and the null control it claimed to be was never a null control.
+
+The other two spikes fail differently. Critic and high-level-advisor each hold a
+pair with matching `fixture_set_sha` and **different** `agent_prompt_sha`. So
+the corroboration is confounded too, by the other variable. Across all six
+tracked spikes there is no same-model pair that agrees on both fields. The
+twelve-of-twenty-four figure is withdrawn in full, and the agent path currently
+has no null control at all.
+
+What makes this a defect shape rather than a mistake is where the falsifying
+information was. `_fixture_set_sha`'s own docstring says it "allows the report
+consumer to verify that two runs hit the same set." The report consumer here is
+`optimize-artifact.py extract`, and it never reads the field. The schema
+provides the check; the tool that needs it discards it. A tool whose entire
+purpose is comparing two measurements should refuse a pair the upstream format
+already labels as incomparable, and this one accepts it silently and prints a
+verdict.
+
+Task ids do not substitute. All eight architect ids matched across the two runs.
+Identity of the key set says nothing about identity of what the keys point at.
+
+Two smaller corrections fall out of the same check:
+
+- A hypothesis of mine died on the way here. I predicted the agent path's noise
+  lived in the brittle free-text `regex` assertions and that the `verdict`
+  assertion was stable, which the committed variance-control run (#1877, N=20,
+  ESCALATE twenty times) seemed to support. Measured per assertion across the
+  paired runs: `verdict` unstable in 9 of 16 cells, `regex` in 6. The opposite.
+  That measurement is drawn from the confounded pair, so it is not publishable
+  either; it is recorded here only as the reason I kept digging.
+- The #1877 FINDINGS.md generalizes verdict determinism from a single fixture
+  where the agent had an unambiguous opinion. That generalization is not safe,
+  and it is part of what made the bad claim feel plausible.
+
+The cost of the error was one commit, `bb98bf24a`, which put the claim in the
+README, this log, the ADR, and the session log at once. The cost of finding it
+was one `grep` for a field name. The asymmetry is the argument for the guard.
 
 Worth generalizing: before spending on a new run to test a claim, check whether
 some existing artifact already disagrees with it.
