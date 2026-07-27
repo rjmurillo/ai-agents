@@ -4,7 +4,7 @@
     "number": 3459,
     "date": "2026-07-27",
     "branch": "fix/skill-md-templates-portability",
-    "startingCommit": "0e23a56a40",
+    "startingCommit": "98caa0e54d",
     "objective": "Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin"
   },
   "protocolCompliance": {
@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "SHOULD",
-        "evidence": "markdownlint-cli2 ran via the pre-commit hook on the three changed SKILL.md files"
+        "evidence": "markdownlint-cli2 ran and covered none of the changed Markdown. Every changed .md path here sits under .claude/skills/ or src/copilot-cli/skills/, both excluded outright by .markdownlint-cli2.yaml (per PR #331 and Issue #1837). Earlier text in this field claimed the three SKILL.md files were linted; that was false. Markdown quality on those files rests on review. The Python changes were covered by ruff, which passed."
       },
       "changesCommitted": {
         "complete": true,
@@ -134,6 +134,20 @@
         "Bumped .claude and src/copilot-cli manifests to 0.6.133, above main's 0.6.131 and above the 0.6.132 claimed by open PR #3448"
       ],
       "outcome": "Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything"
+    },
+    {
+      "phase": "Adversarial review remediation (round 1, gpt-5.6-sol)",
+      "actions": [
+        "Confirmed the reviewer's BLOCKER by probe rather than by reading: the new lookbehind (?<![\\\\\\w.-]) omitted the forward slash, so src/templates/agents/x.md, assets/templates/agents/x.md and https://example.com/templates/agents/x.md each counted as an upstream reference. Trailing ? and # were also unhandled, so templates/agents?raw=1 and templates/agents#section counted as zero. POSIX and Windows disagreed on the nested form.",
+        "Replaced both patterns with (?<![\\\\/\\w.-])(?:\\.[\\\\/]+)?templates[\\\\/]+(agents|platforms)(?:[\\\\/]+|['\\\"?#]|$). The optional dot-separator group preserves ./templates/agents/ once the separator joins the lookbehind. Verified against 23 shapes, all correct.",
+        "Replaced test_does_not_count_templates_nested_under_another_dir, which used assets/templates/foo.md. That string lacks the required second segment, so it could never match any pattern and passed against the defective regex. Added 22 parametrized cases covering every probe shape.",
+        "Narrowed the vendor-portability markers from three files to one. A marker suppresses every pattern for the whole file, so marking autoplan and negotiation also exempted them from the .agents/, .claude/lib/ and .claude/review-axes/ patterns, weakening the ratchet rather than tightening it.",
+        "Reworded the two references instead. negotiation/SKILL.md pointed a plugin consumer at templates/agents/negotiation.shared.md, a file they never receive; the instruction it supported was complete without the pointer. autoplan/SKILL.md used the path as an illustrative tier signal, not as provenance. Only security-review declares canonical_source in frontmatter and genuinely mirrors upstream content, so only it keeps a marker.",
+        "Corrected startingCommit from 0e23a56a40 to 98caa0e54d, the actual parent of the branch's first commit 92df2118e2.",
+        "Corrected the markdownLintRun evidence, which claimed three SKILL.md files were linted. Both .claude/skills/** and src/copilot-cli/skills/** are excluded by .markdownlint-cli2.yaml.",
+        "Bumped both manifests to 0.6.135. Main advanced to 0.6.133 while this PR was open, so the claimed 0.6.133 would have shipped fourteen changed plugin files under an unchanged version. The gate passed regardless because it resolves the merge-base, not the tip."
+      ],
+      "outcome": "Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files."
     }
   ],
   "endingCommit": "113c59808e",

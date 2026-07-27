@@ -38,7 +38,9 @@
       "caused_by": [
         "e002"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e004",
@@ -49,6 +51,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

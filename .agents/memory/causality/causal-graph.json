@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:10:11.885414+00:00",
+  "updated": "2026-07-27T08:53:18.796715+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20896,6 +20896,15 @@
         "episode-2026-07-27-session-3459-templates-portability"
       ],
       "created": "2026-07-27T08:10:11.879746+00:00"
+    },
+    {
+      "id": "0c4b2ecdcdbe",
+      "type": "milestone",
+      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T08:53:18.790413+00:00"
     }
   ],
   "patterns": [
