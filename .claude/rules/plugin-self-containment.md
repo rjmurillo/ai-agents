@@ -89,6 +89,26 @@ Measured while writing this rule: 32 Markdown files inside the plugin roots carr
 
 Until those two patterns are added, such references are on the reviewer, not the gate.
 
+### Agent files are not scanned at all
+
+Both portability gates scan skills only. `check_skill_portability.py` walks skill
+scripts and `check_skill_md_portability.py` walks `SKILL.md` bodies. Neither reads
+`src/claude/*.md`, `src/copilot-cli/agents/*.agent.md`, or `templates/agents/*.shared.md`,
+even though the first two sit inside plugin roots and ship to consumers verbatim.
+
+An agent prompt that tells the reader to open `.claude/agents/<name>.md` therefore
+ships into `src/copilot-cli/` with a path that resolves to nothing, and no gate
+objects. Issue #3465 tracks widening the ratchet and carries the per-surface
+measurement; this section records the working practice to follow until it lands.
+
+Practical rule while the gap stands: **write shared agent prose without naming a
+tree-specific path.** Say "an agent registered in this install" rather than
+"a file at `.claude/agents/<name>.md`". The same body is copied into six trees
+across two plugin roots, so any path you name is wrong in most of them. This is
+not a style preference; it is the only way to be correct in all six copies at once.
+A draft of the orchestrator capability-matrix note did name that path, shipped it
+into both plugin roots, and no gate flagged it. A manual read caught it.
+
 ## MUST
 
 1. **No undeclared upstream-only dependency in a shipped file.** A file under a plugin root, or under `templates/agents/`, MUST NOT instruct the reader to open, run, or resolve a path that exists only in this repository, unless it carries the `vendor-portability` declaration. Consumer-workspace paths are exempt; they are the point.

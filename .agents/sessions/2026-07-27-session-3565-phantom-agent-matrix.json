@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3565,
+    "date": "2026-07-27",
+    "branch": "fix/orchestrator-phantom-agent",
+    "startingCommit": "bbe26780bb",
+    "objective": "Remove the phantom memory agent from the orchestrator capability matrix, add a validator that pins every matrix agent name to a real agent file, and record the two knowledge defects the fix exposed: GENERATOR-FILES.md misclassified src/claude as generated, and both portability gates skip agent trees entirely."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/orchestrator-phantom-agent in worktree /tmp/wtorch"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries, .claude/rules/universal.md, and .agents/governance/GENERATOR-FILES.md read before editing under a plugin root"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created --detach from origin/main at bbe26780bb, then branched"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/orchestrator-phantom-agent"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Project is pre-activated from .serena/project.yml; this harness exposes no activate_project tool. Confirmed active by serena list_memories returning this repository's memory set."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read. Called late in the session, after tool search surfaced the deferred Serena toolset, not at session start."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "code-review-and-quality skill drove the five-axis pass; doubt-driven-development drove the mutation testing"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "gh used only for issue reads; no skill exists for reading a single issue body"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Knowledge recorded in .claude/rules/plugin-self-containment.md instead, per .claude/rules/knowledge-persistence.md: a convention that must bind every harness belongs in a rule file, not only in an MCP-gated memory."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Scoped markdownlint ran in the pre-commit hook on every staged Markdown file; 0 issues across all commits"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Five commits: orchestrator matrix fix, agent index tables fix, validator plus tests plus workflow wiring, governance and rule corrections, plugin manifest bumps"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "validate_agent_matrix_refs.py exits 0 on this branch and 1 with 8 violations against origin/main; 42 new tests pass; 10 of 10 mutants killed; ruff clean on both new files; validate_install_parity.py, detect_agent_drift.py, and validate_plugin_manifests.py all exit 0; build_all.py --check clean after commit"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Refs #3565 on every commit; the agent-tree gate gap cites existing issue #3465 rather than filing a duplicate"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; one scoped content fix plus one validator"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Verified the premise before editing. .claude/agents/memory.md does not exist, templates/agents/memory.shared.md does not exist, and .claude/skills/memory does. Of 18 orchestrator matrix rows exactly one had no agent file. Lines 8 and 16 of the template list memory under tools_vscode and tools_copilot; those are tool names, not agents, and were left alone."
+    },
+    {
+      "step": "Read GENERATOR-FILES.md before touching a plugin root, which listed src/claude as a generate_agents.py output. Ran both generators; neither wrote src/claude/orchestrator.md and the phantom row survived. validate_install_parity.py encodes the truth: src/claude has no generator and is hand-maintained, corrected in Issue #2882. Fixed the stale row and moved src/claude into the hand-maintained table."
+    },
+    {
+      "step": "Caught a self-inflicted plugin self-containment violation by reading. The first draft of the matrix note said every row resolves to a file at .claude/agents/<name>.md. That body is copied into six trees across two plugin roots, so the path is wrong in most of them and dangles for every Copilot installer. Confirmed neither portability gate scans agent files, so nothing would have flagged it. Rewrote the note to name no path."
+    },
+    {
+      "step": "Wrote the validator with an explicit anti-vacuous guard, having twice this session shipped a scan that narrowed silently and still exited 0. The guard paid for itself on first run: it reported a matrix header with zero parsed rows in two files, because the row pattern matched only bolded names. Widening it surfaced two more phantom memory rows in the agent index tables that the orchestrator-only fix had missed."
+    },
+    {
+      "step": "The first version of the guard failed the wrong thing. It required every scanned tree to carry a matrix, which fires on correct repositories where a tree holds only agent definitions. Two tests caught it. Narrowed to real degeneration: no matrix anywhere, none in the canonical templates tree, or a header with no rows. The tree-list protection moved into a filesystem-anchored test, because at runtime a tree with no table cannot be told apart from a tree dropped out of the constant."
+    },
+    {
+      "step": "Proved the validator is not vacuous by running it against a detached origin/main worktree: 8 violations across all 8 sites, versus 0 on this branch. Mutation tested with 10 mutants; the first pass reported 1 survivor which turned out to be a broken mutant whose conditional evaluated to a no-op. Rewrote it as a real shrink of MATRIX_TREES and it was killed by the filesystem-anchored test, which named the five dropped trees."
+    },
+    {
+      "step": "Enforced one direction only. Every cited name must resolve; an agent file need not appear in any matrix. Twelve shipped agents are absent from the orchestrator table, and adding them is a curation call with a context-budget cost, not an invariant. Recorded the omission in the docstring so it reads as deliberate."
+    },
+    {
+      "step": "Cited issue #3465 for the agent-tree gate gap rather than filing a duplicate. That issue already carries the per-surface measurement. The rule text adds what the issue lacks: the working practice to follow until the ratchet widens, plus the near-miss from this branch as evidence."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "#3465 tracks widening the portability ratchet to cover agent, rule, and instruction trees. Until it lands, shared agent prose must name no tree-specific path.",
+    "Twelve agents ship without a row in the orchestrator capability matrix: backlog-generator, code-simplifier, comment-analyzer, debug, dependency-auditor, janitor, merge-resolver, negotiation, pr-comment-responder, pr-test-analyzer, silent-failure-hunter, type-design-analyzer. Whether to add them trades routing coverage against context budget and needs a human call.",
+    "The validator enforces name resolution only. It does not check that a matrix row's Model column names a real tier, nor that the Use For text matches the agent's own description."
+  ]
+}
