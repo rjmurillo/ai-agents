@@ -119,4 +119,4 @@ the directive rather than use it. State the filter when quoting either number.
 **Directive mechanics worth remembering.** Line scope skips every reference on its
 line, so one directive covers a line carrying two findings. File scope must appear
 in the first 50 lines or it silently fails. Appending the directive after a table
-row's closing pipe works: GFM discards the excess cell, so nothing renders.
+row works when the directive is placed inside the last cell's text (before the closing pipe). Appending after the closing pipe introduces an extra column.

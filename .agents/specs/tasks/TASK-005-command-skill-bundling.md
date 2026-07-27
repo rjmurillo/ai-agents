@@ -429,7 +429,7 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 | `.claude/commands/review.md` | T5-6 | modify |
 | `.claude/commands/pr-review.md` | T5-7 | modify |
 | `.claude/commands/research.md` | T5-7 | modify |
-| `scripts/validation/bundle_registry.py` | T5-8 | create | <!-- orphan-ref-ignore -->
+| `scripts/validation/bundle_registry.py` | T5-8 | create <!-- orphan-ref-ignore --> |
 | `tests/test_command_bundles.py` | T5-8 | create |
 | `scripts/validation/pre_pr.py` | T5-8 | modify |
 

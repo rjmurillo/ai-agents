@@ -18,7 +18,7 @@ updated: 2026-05-04
 
 > [!IMPORTANT]
 > **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
-> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> PR #2187 (commit `2043c39863`) when embedded manifest count claims and the count
 > validator were retired together. Text below that creates, imports, generalizes, or
 > invokes that script is no longer actionable. It is kept as a record of the plan as
 > written. Nothing validates embedded count claims today: the scanner's own
@@ -286,7 +286,7 @@ validator-specific logic.
 | Changeset source | `git diff --name-only @{push}..HEAD` (fallback: `origin/main...HEAD`) | Committed but not-yet-pushed files; per ADR-043 |
 | Count SoR | Filesystem globs (via existing validator) | Per `.claude/rules/templates.md` and PRD Data model |
 | Framework pattern | Strategy (CVA) | Three validators share identical shell; differ only in body |
-| Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI | <!-- orphan-ref-ignore -->
+| Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI <!-- orphan-ref-ignore --> |
 | Timeout (markdownlint) | 60s subprocess, 70s hook, fail-open on timeout | Large changeset upper bound; CI runner latency under load is infrastructure noise, not a lint violation. See PLAN-1884 R-H. |
 | Glob matching | Prefix+suffix string check for multi-segment patterns | `fnmatch.fnmatch` and `pathlib.match` both fail to match `.claude/skills/foo/SKILL.md` against `.claude/skills/*/SKILL.md`. Pre-mortem mitigation R-E. |
 | Marketplace validator import | Always pass `repo_root=project_dir` explicitly to `validate_known_marketplaces` | Validator's module-level `REPO_ROOT` resolves at import time and is fragile under alternate `sys.path`. Pre-mortem mitigation R-F. |

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3455,
+    "date": "2026-07-27",
+    "branch": "docs/orphan-ref-historical-spec-directives",
+    "startingCommit": "35489e9f77",
+    "objective": "Address 15 review threads from copilot-pull-request-reviewer on PR #3455: fix table column overflow, blockquote heading rendering, Gate 5 output contract, and em-dash policy violations"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned docs/orphan-ref-historical-spec-directives"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "ADR-076 lease acquired; check_pr_live_state.py returned ACT; all 15 review threads read via GraphQL API"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created from origin/docs/orphan-ref-historical-spec-directives; HEAD matched remote at 0af59fd81b"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "PR #3455 body and linked issues #3450 #3449 read as handoff context"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is docs/orphan-ref-historical-spec-directives"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena initial instructions loaded at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena instructions manual read before any tool use"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file created before fix commit"
+      }
+    },
+    "sessionEnd": {
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "1 merge commit + 1 fix commit addressing 15 review threads"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "orphan-ref-validator VERDICT: PASS (0 findings, 216 refs, 102 files)"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No changes to HANDOFF.md; PR description unchanged"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "lefthook markdown-check passed on all staged files"
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All MUST items complete"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "orphan-ref-validator-implementation-2026-05-10.md corrected for table directive guidance"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Merge origin/main into branch to resolve CONFLICTING merge state",
+      "result": "Two plugin.json version conflicts resolved (kept 0.6.134 from PR branch)"
+    },
+    {
+      "step": 2,
+      "action": "Fix 4 table column issues: move orphan-ref-ignore directive inside last cell (TASK-005 line 432, DESIGN-015 line 289, DESIGN-009 line 42, DESIGN-005 line 383)",
+      "result": "Tables now 3-column consistent; orphan-ref-validator still PASS"
+    },
+    {
+      "step": 3,
+      "action": "Correct memory guidance on table directive placement in orphan-ref-validator-implementation memory",
+      "result": "Text now states directive goes inside last cell, not after closing pipe"
+    },
+    {
+      "step": 4,
+      "action": "Fix 7 blockquote heading issues: prefix bare #2187 with PR to avoid H1 parsing (REQ-003, REQ-015, REQ-009, DESIGN-009, DESIGN-015, TASK-009, TASK-015)",
+      "result": "All blockquote lines now start with > PR #2187 instead of > #2187"
+    },
+    {
+      "step": 5,
+      "action": "Add ERROR to Gate 5 Output contract in test.md and src/copilot-cli/skills/test/SKILL.md",
+      "result": "Output line now declares PASS|WARN|CRITICAL_FAIL|ERROR matching Gate 5 rejection criteria"
+    },
+    {
+      "step": 6,
+      "action": "Replace 7 em-dash unicode escapes in causal-graph.json with plain hyphens",
+      "result": "Zero \u2014 remaining; compliant with repo dash policy"
+    }
+  ],
+  "endingCommit": "62fb792ce9",
+  "nextSteps": [
+    "Push to remote and verify CI passes",
+    "Resolve all 15 review threads via GraphQL",
+    "Merge PR when 4-condition gate passes"
+  ]
+}

@@ -14,7 +14,7 @@ author: richard
 
 > [!IMPORTANT]
 > **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
-> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> PR #2187 (commit `2043c39863`) when embedded manifest count claims and the count
 > validator were retired together. Text below that creates, imports, generalizes, or
 > invokes that script is no longer actionable. It is kept as a record of the plan as
 > written. Nothing validates embedded count claims today: the scanner's own
@@ -39,7 +39,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 | File walk | `walking.py:walk_targets`, `_iter_dir_pruned`, `is_safe_subdirectory` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap; symlink-directory containment at recursion entry |
 | Reference detection | `patterns.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support; consumed by `scan.py` via re-export |
 | Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
-| Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts | <!-- orphan-ref-ignore -->
+| Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts <!-- orphan-ref-ignore --> |
 | Output rendering | `envelope.py:Finding`, `ScanResult`, `render_envelope`, `render_error_envelope` | ADR-056 envelope shape and verdict line; `render_error_envelope` covers the exit-2 path |
 | Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution); `skill_catalog_present` flag thread for warn-vs-critical disambiguation |
 

@@ -104,7 +104,7 @@ Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FA
 4. **Onboarding** - Would a new contributor understand this code? Are conventions followed?
 5. **Tooling** - Does this work with existing linters, formatters, IDE support?
 
-Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
+Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
 ## Gate 6: Observability and Monitoring
 
