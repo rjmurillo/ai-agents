@@ -89,7 +89,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 93 passed; uv run python scripts/validation/check_skill_md_portability.py reported no drift and exited 0; uv run ruff check on both changed files passed; validate_plugin_version_bump.py --base origin/main returned OK with no bump required, because the branch touches only scripts/, tests/, .agents/ and .serena/."
+        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 106 passed; uv run python scripts/validation/check_skill_md_portability.py reported no drift and exited 0; uv run ruff check on both changed files passed; validate_plugin_version_bump.py --base origin/main returned OK with no bump required, because the branch touches only scripts/, tests/, .agents/ and .serena/."
       },
       "tasksUpdated": {
         "complete": true,

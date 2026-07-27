@@ -85,14 +85,14 @@ path or URL segment ending in `/` before a dot-directory matched.
 The three legacy patterns also gained `?#` in their terminator class so URL query and
 fragment forms terminate the match the same way the `templates` patterns already did.
 
-Coverage grows the file from 55 tests on `main` to 93, across four classes. The new
+Coverage grows the file from 55 tests on `main` to 106, across four classes. The new
 `TestDotPrefixedUpstreamBoundary` covers `.agents`, `.claude/lib` and
 `.claude/review-axes`. `TestCountUpstreamRefs.test_counts_paths_that_name_the_upstream_dir`
 gains the `templates` shapes this fix repairs. `TestPathStartAnchor` pins the shapes that
 supply their own root. `TestBlockquotedFence` pins fence handling inside a blockquote.
 
-Nineteen of the 93 fail against `main`'s module, so they are regression proof rather than
-decoration; the rest pin behavior that already held, which is what makes the nineteen
+Twenty-two of the 96 that predate this follow-up fail against `main`'s module, so they are regression proof rather than
+decoration; the rest pin behavior that already held, which is what makes the failures
 meaningful. Reproduce by copying the test file into a worktree checked out at
 `origin/main` and running pytest on it.
 
@@ -111,3 +111,40 @@ Two review rounds on this change found real defects that local tests did not, an
 defects were in the part that looked finished. Run a shape matrix that compares the old
 module against the new one directly, rather than trusting that a green suite means the
 boundary moved only where intended.
+
+## Follow-up: the closed set has to be closed on purpose (issue #3489)
+
+A third review round found the predicted failure mode. The anchor set omitted `>`, so a
+tight blockquote `>/templates/agents/x.md` stopped counting while the spaced form kept
+counting. That is a regression the old lookbehind did not have, and it is exactly the
+"missed reference a test can name" that the lesson above predicted. `>` was added.
+
+The same round proposed adding `:` and `=` alongside it. Both were measured and both were
+rejected, which is the more useful result.
+
+| candidate | fixes | breaks |
+|---|---|---|
+| `:` | `[x]:/templates/agents/x.md`, `path:/templates/agents/x.md` | `C:\templates\agents\x.md`, `C:\.agents\specs\x.md` |
+| `=` | `<img src=/templates/agents/x.md>` | `[x](https://example.com/p?next=/.agents/x)` |
+
+A Windows drive letter is a colon followed by a single separator. A URL query parameter is
+an equals sign followed by a root-relative path. Both are the exact shape the anchor
+accepts, so each candidate trades one false negative for one false positive. Net zero.
+`TestPathStartAnchor.test_shapes_that_colon_or_equals_anchors_would_break` pins the
+casualties so a future contributor who adds either character sees the failure.
+
+The blockquoted-fence handling had a second defect. A fenced code block has no lazy
+continuation, so it ends when its blockquote ends, but the close test stripped the
+blockquote prefix from every later line without checking the quote was still active. An
+unquoted line inside a quoted fence, and an unterminated quoted fence, both swallowed real
+top-level prose. False negatives are the dangerous direction for a gate: a genuine
+upstream dependency passes undetected. The fix ends the fence when the blockquote ends and
+re-reads that line at top level, so a bare fence marker there opens the top-level fence it
+should.
+
+### Transferable lesson from the follow-up
+
+When a reviewer proposes widening a boundary, measure what the widening costs before
+accepting it. Two of the three proposed characters were net-negative, and the only way to
+know was to run the candidate set against the shapes the boundary already rejects. A
+suggestion that fixes a named case is not evidence it fixes more than it breaks.
