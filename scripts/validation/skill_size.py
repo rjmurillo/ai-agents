@@ -71,8 +71,22 @@ SKILL_BYTE_TARGET: int = 20_480  # 20 KiB, the documented goal (Issue #3421)
 SKILL_BYTE_LIMIT: int = 24_576  # 24 KiB, current ratchet (max body is 24,210 B)
 SKILL_BYTE_WARNING: int = 12_288  # 12 KiB, progressive-disclosure trigger
 
-# Pattern matching staged/changed SKILL.md files
-_SKILL_MD_PATTERN: str = r"^\.claude/skills/.*/SKILL\.md$"
+# Skill trees whose staged/changed SKILL.md bodies the gate measures. Both the
+# canonical Claude tree and the generated Copilot mirror ship skills and are
+# staged by the lefthook ``**/SKILL.md`` glob, so both must be discoverable here
+# or a staged oversized mirror SKILL.md slips the ceiling (under-count, exit 0).
+# ``evals/`` fixtures are excluded by omission: they intentionally reuse skill
+# bodies verbatim and are exempt from skill validation upstream.
+_SKILL_TREE_PREFIXES: tuple[str, ...] = (".claude/skills", "src/copilot-cli/skills")
+# ``re.DOTALL`` so ``.*`` spans a path with an embedded newline (a legal git path
+# byte that ``-z`` discovery preserves); ``\Z`` anchors the true string end so a
+# trailing-newline path cannot smuggle a suffix past ``$``. Without DOTALL a
+# newline-bearing skill path fails the match, drops from discovery, and
+# under-counts. ``re.match`` anchors the start, so no leading ``^`` is needed.
+_SKILL_MD_RE: re.Pattern[str] = re.compile(
+    r"(?:" + "|".join(re.escape(p) for p in _SKILL_TREE_PREFIXES) + r")/.*/SKILL\.md\Z",
+    re.DOTALL,
+)
 
 # Git index modes for a *regular* file blob: 100644 (non-exec) and 100755
 # (exec). Only these carry the file's real bytes as the blob. A symlink (120000)
@@ -234,10 +248,24 @@ def get_staged_skill_files() -> list[Path]:
     ``StagedDiscoveryError``. An empty result with a clean exit legitimately
     means "no staged SKILL.md" and returns ``[]``; only a *failed* discovery
     fails closed, so the common no-skills commit is not penalized.
+
+    ``--no-replace-objects`` runs discovery against the real HEAD, so a
+    ``refs/replace/*`` entry cannot swap in a doctored HEAD tree that already
+    contains the oversized staged skill (which would make ``diff --cached``
+    report no change and drop the file from discovery while the real commit
+    still writes it).
     """
     try:
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMRT"],
+            [
+                "git",
+                "--no-replace-objects",
+                "diff",
+                "--cached",
+                "--name-only",
+                "-z",
+                "--diff-filter=ACMRT",
+            ],
             capture_output=True,
             timeout=10,
         )
@@ -257,7 +285,7 @@ def get_staged_skill_files() -> list[Path]:
         # surrogateescape round-trips undecodable bytes so the path re-encodes
         # correctly when handed back to git (os/subprocess use the same codec).
         line = raw.decode("utf-8", errors="surrogateescape")
-        if re.search(_SKILL_MD_PATTERN, line):
+        if _SKILL_MD_RE.match(line):
             files.append(Path(line))
     return files
 
@@ -275,7 +303,7 @@ def _staged_index_entry(path: Path) -> tuple[str, str]:
     """
     try:
         result = subprocess.run(
-            ["git", "ls-files", "-s", "-z", "--", path.as_posix()],
+            ["git", "ls-files", "-s", "-z", "--", f":(literal){path.as_posix()}"],
             capture_output=True,
             timeout=10,
         )
@@ -289,13 +317,20 @@ def _staged_index_entry(path: Path) -> tuple[str, str]:
     for record in result.stdout.split(b"\x00"):
         if not record:
             continue
-        meta = record.partition(b"\t")[0]
+        meta, _, raw_path = record.partition(b"\t")
         parts = meta.split()
         if len(parts) < 3:
             continue
         mode, oid, stage = parts[0], parts[1], parts[2]
-        if stage == b"0":
-            return mode.decode("ascii"), oid.decode("ascii")
+        if stage != b"0":
+            continue
+        # ``:(literal)`` above disables pathspec glob magic; confirming the
+        # listed pathname equals the requested path closes any residual gap
+        # where a pathspec could resolve to a different (smaller) blob than the
+        # SKILL.md under test. A mismatch is not our entry, so keep scanning.
+        if raw_path.decode("utf-8", errors="surrogateescape") != path.as_posix():
+            continue
+        return mode.decode("ascii"), oid.decode("ascii")
     msg = (
         f"{path.as_posix()}: no stage-0 index entry (unstaged or merge-conflicted); "
         "cannot certify staged bytes"
@@ -329,8 +364,11 @@ def read_staged_blob_bytes(path: Path) -> bytes:
         )
         raise StagedBlobError(msg)
     try:
+        # ``--no-replace-objects`` so a ``refs/replace/`` entry cannot swap the
+        # indexed blob for a smaller substitute at read time. The mode/oid come
+        # from the index; the byte count must come from that same object.
         result = subprocess.run(
-            ["git", "cat-file", "blob", oid],
+            ["git", "--no-replace-objects", "cat-file", "blob", oid],
             capture_output=True,
             timeout=10,
         )
@@ -351,7 +389,7 @@ def get_skill_files(
 ) -> list[Path]:
     """Get list of SKILL.md files to validate."""
     if changed_files:
-        skill_files = [f for f in changed_files if re.search(_SKILL_MD_PATTERN, f)]
+        skill_files = [f for f in changed_files if _SKILL_MD_RE.match(f)]
         if not skill_files:
             return []
         return [Path(f) for f in skill_files if Path(f).exists()]
