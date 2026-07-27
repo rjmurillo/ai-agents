@@ -1579,3 +1579,74 @@ carries what a caller needs. An absence that hides nothing is not the defect
 this rule was written about, and widening the rule to cover mere variation
 would make it a schema-uniformity rule, which is the argument shape round
 twenty-seven's first proposal was rejected for.
+
+## Shape 39: the guard defeated by the line below it
+
+Round twenty-nine was pointed at the newest code, since three consecutive
+rounds had touched `cmd_score` and no fresh reader had seen the result. It
+found that a split file holding a list where the fingerprint belongs kills the
+process with a `TypeError` instead of refusing the file.
+
+The interesting part is not that a malformed field crashes. It is that the code
+had already decided it should not. `_split_drifted` wraps its redraw in
+`except (TypeError, ValueError)` and converts either into a `ConfigError`, so
+the author had considered this exact class and ruled on it. Two values walked
+through the ruling anyway, each on a technicality.
+
+The fingerprint comparison sits one line below the `except`, outside the block.
+So `split["fingerprint"] not in compatible_fingerprints` raises the very
+`TypeError` the clause names, two lines after the clause stops applying. The
+guard was defeated by scope, not by omission. And `int(split["min_sel"])` on a
+JSON `Infinity` raises `OverflowError`, which is a sibling of `ValueError`
+rather than a subclass, so a clause written to catch unusable numbers missed
+the most obviously unusable number there is.
+
+The class was enumerated rather than accepted at the two instances reported,
+by fuzzing every field of a real split with twelve wrong-typed values and
+recording what failed to exit 0 or 2:
+
+```text
+fingerprint   list          exit=1  TypeError: unhashable type: 'list'
+fingerprint   dict          exit=1  TypeError: unhashable type: 'dict'
+fingerprint   list_of_list  exit=1  TypeError: unhashable type: 'list'
+fingerprint   list_of_int   exit=1  TypeError: unhashable type: 'list'
+min_sel       huge          exit=1  OverflowError: float infinity to int
+total escaping: 5
+```
+
+Two fields, and the reading agrees with the running: those are the only two
+operations that touch a caller-supplied value outside a guard. Every group is
+already validated as a list of strings on the way in, and the ratios and seed
+are inside the block.
+
+The precedent for the repair was already in the same function. `_read_split`
+validates the optional `corpus` pin, and the comment above that call records
+why: unvalidated, "a list pin raised `TypeError` out of a set comprehension".
+That is this bug, found and fixed once, in this function, for the neighbouring
+field. `fingerprint` sat two lines away and went unfixed. So the check goes
+beside its twin rather than into a new validator, and `OverflowError` joins the
+clause that was already trying to catch it.
+
+The harm has a low ceiling and saying so is part of the finding. Both commands
+die before any comparison, so no unsound ACCEPT and no consultation charge is
+reachable, and the tampering requires an operator to hand-edit their own split
+file. What is actually lost is the contract, and the README had already written
+it down: "Every verdict path prints JSON, so a caller that needs to tell a
+reject from a broken input reads `decision` rather than inferring from the
+code." A traceback prints no JSON and exits 1, which is the code that means the
+candidate lost. A loop branching on the exit code could not tell a lost
+candidate from an unreadable file. The document was right and the code was
+wrong, which is the second time in three rounds that the fix was to make the
+code agree with prose that already existed.
+
+Round twenty-eight widened this from one command to two. `cmd_gate` has called
+`_split_drifted` since the first commit; `cmd_score` began calling it one
+commit before this one, so a fix that was owed to the older caller became owed
+to a caller this branch created.
+
+Both halves were falsified separately, because a two-part fix verified as a
+unit proves only that at least one part works. M12 removes the fingerprint
+check and turns three red. M13 removes `OverflowError` and turns one red. The
+two remaining tests are controls: an honest split still scores, and a
+fingerprint that is a usable string but simply wrong still reports drift rather
+than becoming a config error, which is the case the drift refusal exists for.

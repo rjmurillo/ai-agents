@@ -453,9 +453,26 @@
         "Documented the refusal in the README next to what the gate refuses, including why the two commands report the same condition in two vocabularies, and recorded shape 38 in the debate log.",
         "Verified 1401 pass, 100 percent statement coverage held at 563 statements, ruff and mypy clean, zero dashes byte-verified."
       ]
+    },
+    {
+      "phase": "Closing the guard that its own except clause was written to close",
+      "actions": [
+        "Pushed the round-28 commit; every gate green including the 253 second python-tests hook. Replied to and resolved the ADR-087 Bonferroni thread, stating that the missing-subject diagnosis is false, that the garden-path complaint is right for a different reason, and that the fix mirrors the README's existing correct construction. All 26 threads now resolved, 0 unresolved.",
+        "Updated the PR body to round 28 and re-validated: 11 of 11 files, no mismatches, zero dashes. CI green, MERGEABLE / BLOCKED, where BLOCKED is the human approval requirement I cannot satisfy.",
+        "Ran round 29 on gpt-5.6-sol, a model family not used recently, pointed at the newest code since three consecutive rounds had touched cmd_score and no fresh reader had seen the result.",
+        "It found that a split whose fingerprint is a list kills the process with TypeError instead of refusing the file. Verified by running, then found the sharper statement by reading: _split_drifted already wraps its redraw in except (TypeError, ValueError) and converts either to ConfigError, so the code had already ruled on this class.",
+        "Two values walked through the ruling on technicalities. The fingerprint comparison sits one line below the except, outside the block, so it raises the very TypeError the clause names. And int(min_sel) on a JSON Infinity raises OverflowError, a sibling of ValueError rather than a subclass.",
+        "Enumerated the class rather than fixing the two instances reported. Fuzzed every field of a real split with twelve wrong-typed values: exactly five inputs across two fields escape, and the reading agrees with the running because those are the only two operations touching a caller-supplied value outside a guard.",
+        "Bounded the blame honestly. cmd_gate has called _split_drifted since the first commit, so the crash pre-existed this branch on that path; round 28 widened it to cmd_score one commit ago, which is why the fix is owed here.",
+        "Found the precedent in the same function. _read_split already validates the optional corpus pin, and the comment there records the identical bug: an unvalidated list pin raised TypeError out of a set comprehension. So the fingerprint check went beside its twin rather than into a new validator.",
+        "Rejected round 29's prescription of a 64-character lowercase hex format check, which would add a compatibility constraint on a field that has a legacy fingerprint path, when the defect is a type not a format.",
+        "Falsified both halves separately, because a two-part fix verified as a unit proves only that at least one part works. M12 removes the fingerprint check and turns three red; M13 removes OverflowError and turns one red.",
+        "Left the README unchanged after checking it. Its exit-codes section already promised that every path prints JSON so a caller can tell a reject from a broken input by reading decision rather than the code, which is the contract the crash broke. The document was right and the code was wrong, the second time in three rounds.",
+        "Verified 1407 pass, 100 percent statement coverage held at 565 statements, ruff clean on all touched files, mypy clean, zero dashes byte-verified."
+      ]
     }
   ],
-  "endingCommit": "66029eb45",
+  "endingCommit": "185fc7631",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

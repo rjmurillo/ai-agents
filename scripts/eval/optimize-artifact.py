@@ -296,6 +296,18 @@ def _read_split(path: Path) -> dict[str, Any]:
             raise ConfigError(
                 f"{path} group '{group}' must be a list of strings"
             )
+    if not isinstance(data["fingerprint"], str):
+        # Same defect as the `corpus` pin below, in the same field position.
+        # An unhashable fingerprint reaches a set membership test in
+        # `_split_drifted` that sits one line past the `except TypeError`
+        # written to catch exactly this, so it escaped on scope rather than
+        # on intent. Checked here because this is where the file's shape is
+        # already settled for both callers.
+        raise ConfigError(
+            f"{path} fingerprint must be a string, not "
+            f"{type(data['fingerprint']).__name__}. A split file that cannot "
+            "be re-fingerprinted cannot be verified; re-run split."
+        )
     if "corpus" in data:
         # Optional, and caller-supplied like the rest of the file. Unvalidated
         # it reached the conflict rule as-is, where a list pin raised
@@ -343,7 +355,10 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
                     test_ratio=float(raw_test_ratio),
                 )
             )
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
+        # `OverflowError` is a sibling of `ValueError`, not a subclass, so a
+        # JSON `Infinity` in `min_sel` walked through a clause written to
+        # turn exactly this into a refusal.
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
     if split["fingerprint"] not in compatible_fingerprints:
         return True

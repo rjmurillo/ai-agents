@@ -5134,3 +5134,108 @@ class TestScoreWillNotVouchForASplitItCannotVerify:
         remedy = "Re-split and re-baseline."
         assert remedy in scored["error"] and remedy in gated["reason"]
         assert gated["decision"] == "REJECT"
+
+
+class TestTheDriftGuardCatchesWhatItsExceptClauseNames:
+    """Round twenty-nine: a guard defeated one line past its own scope.
+
+    `_split_drifted` wraps its redraw in `except (TypeError, ValueError)` and
+    turns either into `ConfigError`, so the author had already decided that a
+    split holding an unusable value is a config problem and not a crash. Two
+    values escaped that decision anyway.
+
+    The fingerprint comparison sits one line below the `except`, outside the
+    block, so a fingerprint that is a list or a dict raises the very
+    `TypeError` the clause names and escapes it on a technicality of scope.
+    And `int(split["min_sel"])` on a JSON `Infinity` raises `OverflowError`,
+    which is a sibling of `ValueError` rather than a subclass, so the clause
+    misses it.
+
+    `_read_split` had already fixed this exact bug once, in this exact
+    function, for `corpus`: its comment records that an unvalidated list pin
+    "raised `TypeError` out of a set comprehension". `fingerprint` is that
+    field's twin and went unfixed, which is why the check now sits beside it.
+
+    The harm has a low ceiling and it is worth naming. Both commands die
+    before any comparison, so no unsound ACCEPT and no consultation charge is
+    reachable. What the operator loses is the contract: a malformed split is
+    supposed to exit 2 with a document naming the file, and instead the
+    process exits 1 with a traceback, colliding with the exit code that means
+    the candidate lost. A loop that branches on the exit code cannot tell a
+    lost candidate from an unreadable file.
+
+    Round twenty-eight widened this from one command to two. `cmd_gate` has
+    called `_split_drifted` since the beginning; `cmd_score` began calling it
+    in the commit before this one, so the fix is owed here.
+    """
+
+    def _mangled(self, tmp_path, capsys, key, value, name="mangled.json"):
+        """Draw a real split, then put one unusable value in one field."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split[key] = value
+        path = tmp_path / name
+        path.write_text(json.dumps(split), encoding="utf-8")
+        return results, path
+
+    def test_an_unusable_split_is_still_refused_by_the_honest_path(
+        self, tmp_path, capsys
+    ):
+        """Positive control: the guard still lets a usable split through."""
+        results, path = self._mangled(tmp_path, capsys, "seed", "s1")
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_OK
+        assert out["fingerprint"] == json.loads(
+            path.read_text(encoding="utf-8")
+        )["fingerprint"]
+
+    def test_a_list_fingerprint_is_refused_not_raised(self, tmp_path, capsys):
+        """Negative: the `TypeError` raised past the clause that names it."""
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", [])
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "fingerprint" in out["error"]
+
+    def test_a_dict_fingerprint_is_refused_too(self, tmp_path, capsys):
+        """Edge: the other unhashable JSON type reaches the same set."""
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", {"a": 1})
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_gate_refuses_a_list_fingerprint_as_a_config_error(
+        self, tmp_path, capsys
+    ):
+        """Negative: the older of the two callers, unfixed since the start.
+
+        A malformed split is a `ConfigError` from `gate` as well. Only drift
+        earns `decision: REJECT`, because only drift is a fact about a
+        readable file.
+        """
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", [])
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", path,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_an_infinite_min_sel_is_refused_not_raised(self, tmp_path, capsys):
+        """Negative: `OverflowError` is a sibling of `ValueError`, not a child."""
+        results, path = self._mangled(tmp_path, capsys, "min_sel", float("inf"))
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_merely_wrong_fingerprint_still_reports_drift(self, tmp_path, capsys):
+        """Edge: a usable value that is simply wrong keeps its old answer.
+
+        The repair must reject unusable fingerprints without turning a
+        readable-but-stale one into a config error, because that is the case
+        the drift refusal exists to report.
+        """
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", "0" * 64)
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert "Re-split and re-baseline." in out["error"]
