@@ -1223,3 +1223,42 @@ def test_quoted_type_claim_types_a_backticked_token_on_the_same_line(
     rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 1
     assert "decision-rigor" in capsys.readouterr().out
+
+
+def test_type_claim_does_not_reach_a_candidate_on_another_line(
+    sibling_repo, capsys
+):
+    """Type claims are line-scoped, and the scoping is what makes them safe.
+
+    Both extractors return ``(lineno, token)`` pairs and ``_check_skill_refs``
+    tests the pair, not the bare token. Collapsing that to a token-only set
+    would let one config line retroactively retype every prose mention of the
+    same name in the file, turning sibling artifacts into orphans document
+    wide.
+    """
+    write(
+        sibling_repo / "notes" / "s.md",
+        'Use `decision-rigor`.\nConfig sets skill="decision-rigor".\n',
+    )
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_type_claim_does_not_reach_a_different_token_on_its_own_line(
+    sibling_repo, capsys
+):
+    """A claim types the token it names, not every candidate beside it.
+
+    Matching on line number alone is the cheaper implementation and passes a
+    naive same-line test, so pin the token half of the pair too. Here the
+    claim names ``alpha-skill`` while the backticks supply ``decision-rigor``,
+    a review axis that must keep resolving through the sibling namespace.
+    """
+    write(
+        sibling_repo / "notes" / "s.md",
+        'Use `decision-rigor` (skill="alpha-skill").\n',
+    )
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
