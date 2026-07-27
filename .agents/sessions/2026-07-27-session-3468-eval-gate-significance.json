@@ -480,17 +480,19 @@
         "TDD'd the round-29b class, 3 red for the right reason and 3 controls green, then added an argparse type callable applied to all five arguments. Chose the boundary over the three division sites because cmd_gate charges the ledger before it reaches its second division, so a value caught later has already spent budget and written its own cap into the ledger. Parsing finishes before any command runs, so a value refused there has charged nothing.",
         "Falsified with M14: removing the callable turns exactly the three crash tests red and leaves the three controls green. Kept a test pinning that 10**300 is accepted, because a semantic ceiling would be a policy decision wearing a bug fix's clothes; the bar is what the arithmetic can carry.",
         "Verified the repair against the original damage: the typo'd cap now exits 2 with a plain argparse error and leaves the ledger directory empty, and the legitimate run that the poisoned ledger used to refuse forever now returns its verdict. Confirmed split --min-sel was already safe, its validation fires before any arithmetic.",
-        "Full suite 1413 pass, 100% statement coverage on all three eval modules. Ruff and mypy clean on every touched file; the one ruff error in tests/eval is the pre-existing UP037 from PR #2860. Wrote shape 40 and this phase."
+        "Full suite 1413 pass, 100% statement coverage on all three eval modules. Ruff and mypy clean on every touched file; the one ruff error in tests/eval is the pre-existing UP037 from PR #2860. Wrote shape 40 and this phase.",
+        "Triaged a new bot thread on the Serena memory: the inline envelope example was not parseable JSON, using a <64-hex or null> placeholder and an unquoted task_id key. The complaint is correct, and the README already showed the same document as real JSON with a real digest, so the fix was again to make the other file agree rather than to invent a new construction. This is the third time in the series that a bot reported the one file it read while a sibling tree was already right."
       ],
       "filesModified": [
         "scripts/eval/optimize-artifact.py",
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
-        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
     }
   ],
-  "endingCommit": "136840822",
+  "endingCommit": "db48b1c65",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
