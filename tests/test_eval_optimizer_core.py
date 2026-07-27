@@ -11,6 +11,8 @@ branch that changes user-facing output.
 from __future__ import annotations
 
 import sys
+from decimal import localcontext
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -56,6 +58,11 @@ def _ids(n: int, prefix: str = "F") -> list[str]:
     return [f"{prefix}{i:03d}" for i in range(1, n + 1)]
 
 
+def _half_up_fraction(total: int, ratio: str) -> int:
+    value = Fraction(total) * Fraction(ratio)
+    return (value + Fraction(1, 2)).numerator // (value + Fraction(1, 2)).denominator
+
+
 # ---------------------------------------------------------------------------
 # split_tasks
 # ---------------------------------------------------------------------------
@@ -74,6 +81,33 @@ class TestSplitTasks:
         split = split_tasks(_ids(10), seed="s", sel_ratio=0.4)
         assert len(split.sel) == 4
         assert len(split.opt) == 6
+
+    def test_string_ratio_rounds_half_up_via_decimal_parsing(self):
+        split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
+        assert len(split.sel) == 15
+        assert len(split.opt) == 10
+
+    def test_ratio_sizing_ignores_decimal_context_precision(self):
+        with localcontext() as context:
+            context.prec = 2
+            split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
+        assert len(split.sel) == 15
+        assert len(split.opt) == 10
+
+    @pytest.mark.parametrize("total", range(1, 31))
+    @pytest.mark.parametrize("ratio", ["0.01", "0.1", "0.25", "0.33", "0.5", "0.58", "0.99"])
+    def test_ratio_sizing_matches_exact_fraction_half_up(self, total, ratio):
+        expected = _half_up_fraction(total, ratio)
+        if expected == 0:
+            with pytest.raises(SplitTooSmallError, match="at least one"):
+                split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+            return
+        if total - expected < 1:
+            with pytest.raises(ValueError, match="leaves no opt tasks"):
+                split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+            return
+        split = split_tasks(_ids(total), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(split.sel) == expected
 
     def test_is_deterministic_across_calls(self):
         a = split_tasks(_ids(20), seed="seed-1", sel_ratio=0.3)
@@ -150,6 +184,16 @@ class TestSplitTasks:
         with pytest.raises(ValueError, match="sel_ratio"):
             split_tasks(_ids(20), seed="s", sel_ratio=ratio)
 
+    @pytest.mark.parametrize("ratio", ["nan", "Infinity", "not-a-ratio"])
+    def test_rejects_invalid_decimal_sel_ratio(self, ratio):
+        with pytest.raises(ValueError, match="sel_ratio"):
+            split_tasks(_ids(20), seed="s", sel_ratio=ratio)
+
+    @pytest.mark.parametrize("ratio", ["nan", "Infinity", "not-a-ratio"])
+    def test_rejects_invalid_decimal_test_ratio(self, ratio):
+        with pytest.raises(ValueError, match="test_ratio"):
+            split_tasks(_ids(20), seed="s", test_ratio=ratio)
+
     @pytest.mark.parametrize("ratio", [-0.1, 1.0, 1.5])
     def test_rejects_out_of_range_test_ratio(self, ratio):
         with pytest.raises(ValueError, match="test_ratio"):
@@ -185,6 +229,25 @@ class TestSplitTasks:
         """Explicitly opting out of the floor is allowed; it is not the default."""
         split = split_tasks(_ids(4), seed="s", sel_ratio=0.25, min_sel=0)
         assert len(split.sel) == 1
+
+    def test_zero_test_ratio_still_reserves_no_tasks(self):
+        split = split_tasks(_ids(25), seed="s", sel_ratio="0.5", test_ratio="0.0")
+        assert len(split.sel) == 13
+        assert split.test == ()
+        assert len(split.opt) == 12
+
+    @pytest.mark.parametrize("ratio", ["1e20000000", "1e-20000000", "-1e20000000"])
+    def test_rejects_absurd_decimal_exponents_before_fraction_conversion(self, ratio):
+        with pytest.raises(ValueError, match="decimal ratio"):
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+
+    def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
+        with pytest.raises(ValueError, match="leaves no opt tasks"):
+            split_tasks(_ids(1), seed="s", sel_ratio="0.5", min_sel=0)
+
+    def test_ratio_one_is_rejected_before_rounding(self):
+        with pytest.raises(ValueError, match="sel_ratio"):
+            split_tasks(_ids(25), seed="s", sel_ratio="1.0")
 
     def test_smallest_viable_set_splits(self):
         split = split_tasks(_ids(4), seed="s", sel_ratio=0.75, min_sel=3)
@@ -911,6 +974,12 @@ class TestSplitFingerprint:
         assert (
             split_fingerprint(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
             == split.fingerprint
+        )
+
+    def test_numeric_and_string_ratios_fingerprint_identically(self):
+        ids = _ids(10)
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.4) == split_fingerprint(
+            ids, seed="s", sel_ratio="0.4"
         )
 
     def test_task_order_does_not_matter(self):

@@ -25,7 +25,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol, cast
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 from _anthropic_api import call_api, load_api_key
@@ -71,6 +71,7 @@ class APICallResult:
     error_category: str | None
     attempts: int
     tokens_estimated: bool = True
+    system_fingerprint: str | None = None
 
 
 # Match the HTTP-status hint that `_anthropic_api.call_api` puts into its
@@ -142,7 +143,60 @@ def _emit_log(record: dict[str, object]) -> None:
 Transport = Callable[[str, str, str], str]
 
 
-def _default_transport_factory() -> Transport:
+class _ProviderWithFingerprint(Protocol):
+    system_fingerprint: str | None
+
+    def complete(self, **kwargs: object) -> str: ...
+
+
+class _OpenAIProviderTransport:
+    def __init__(self, provider: _ProviderWithFingerprint, *, seed: int | None) -> None:
+        self._provider = provider
+        self._seed = seed
+        self.system_fingerprint: str | None = None
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        kwargs: dict[str, object] = {
+            "messages": [{"role": "user", "content": prompt}],
+            "system": system,
+            "model": model_id,
+            "max_tokens": 1024,
+            "temperature": 0.0,
+        }
+        if self._seed is not None:
+            kwargs["seed"] = self._seed
+        text = self._provider.complete(**kwargs)
+        fingerprint = getattr(self._provider, "system_fingerprint", None)
+        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        return text
+
+
+class _AnthropicTransport:
+    def __init__(self, api_key: str, *, seed: int | None) -> None:
+        self._api_key = api_key
+        self._seed = seed
+        self.system_fingerprint: str | None = None
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        metadata: dict[str, object] = {}
+        text = cast(
+            str,
+            call_api(
+                api_key=self._api_key,
+                messages=[{"role": "user", "content": prompt}],
+                system=system,
+                model=model_id,
+                temperature=0.0,
+                seed=self._seed,
+                metadata=metadata,
+            ),
+        )
+        fingerprint = metadata.get("system_fingerprint")
+        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        return text
+
+
+def _default_transport_factory(seed: int | None = None) -> Transport:
     """Build the production transport selected by EVAL_PROVIDER.
 
     The default Anthropic urllib path reads ANTHROPIC_API_KEY once here and
@@ -158,34 +212,10 @@ def _default_transport_factory() -> Transport:
 
     if provider and not is_default_anthropic(provider):
         selected_provider = resolve_provider(provider)
-
-        def _call_provider(prompt: str, model_id: str, system: str) -> str:
-            return selected_provider.complete(
-                messages=[{"role": "user", "content": prompt}],
-                system=system,
-                model=model_id,
-                max_tokens=1024,
-                temperature=0.0,
-            )
-
-        return _call_provider
+        return _OpenAIProviderTransport(selected_provider, seed=seed)
 
     api_key = load_api_key()
-
-    def _call(prompt: str, model_id: str, system: str) -> str:
-        # Determinism is contractual for this adapter (REQ-004 AC-3 /
-        # ADR-058 §"Experimental Design Symmetry"). Pass temperature=0
-        # explicitly here rather than relying on `call_api`'s default so
-        # a future helper change cannot silently break reproducibility.
-        return call_api(
-            api_key=api_key,
-            messages=[{"role": "user", "content": prompt}],
-            system=system,
-            model=model_id,
-            temperature=0.0,
-        )
-
-    return _call
+    return _AnthropicTransport(api_key, seed=seed)
 
 
 class AnthropicAPIAdapter:
@@ -197,6 +227,7 @@ class AnthropicAPIAdapter:
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         total_timeout_seconds: float = DEFAULT_TOTAL_TIMEOUT_SEC,
+        seed: int | None = None,
     ) -> None:
         # Lazy default: only resolve the API key when the adapter actually
         # needs the production transport. Tests inject `transport` directly.
@@ -204,10 +235,11 @@ class AnthropicAPIAdapter:
         self._sleep = sleep
         self._clock = clock
         self._total_timeout_seconds = total_timeout_seconds
+        self._seed = seed
 
     def _resolve_transport(self) -> Transport:
         if self._transport is None:
-            self._transport = _default_transport_factory()
+            self._transport = _default_transport_factory(seed=self._seed)
         return self._transport
 
     def call_model(
@@ -271,6 +303,7 @@ class AnthropicAPIAdapter:
                 error_category=category,
                 attempts=0,
                 tokens_estimated=True,
+                system_fingerprint=None,
             )
         attempt = 0
         last_category: str | None = None
@@ -307,6 +340,7 @@ class AnthropicAPIAdapter:
                     error_category=ERR_TOTAL_TIMEOUT,
                     attempts=attempt - 1,
                     tokens_estimated=True,
+                    system_fingerprint=None,
                 )
             attempt_start = self._clock()
             try:
@@ -340,6 +374,7 @@ class AnthropicAPIAdapter:
                         error_category=category,
                         attempts=attempt,
                         tokens_estimated=True,
+                        system_fingerprint=None,
                     )
                 # Transient + budget remaining → backoff and retry, but only
                 # if the next attempt + its backoff fits inside the wall
@@ -371,6 +406,7 @@ class AnthropicAPIAdapter:
                         error_category=ERR_TOTAL_TIMEOUT,
                         attempts=attempt,
                         tokens_estimated=True,
+                        system_fingerprint=None,
                     )
                 self._sleep(backoff)
                 continue
@@ -405,6 +441,7 @@ class AnthropicAPIAdapter:
                 error_category=None,
                 attempts=attempt,
                 tokens_estimated=True,
+                system_fingerprint=getattr(transport, "system_fingerprint", None),
             )
 
         # Exhausted retries on transient error without ever getting an
@@ -418,6 +455,7 @@ class AnthropicAPIAdapter:
             latency_ms=round(total_latency_ms, 2),
             error_category=last_category or ERR_UNKNOWN,
             attempts=attempt,
+            system_fingerprint=None,
         )
 
 

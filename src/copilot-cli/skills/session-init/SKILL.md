@@ -1,6 +1,6 @@
 ---
 name: session-init
-description: Create protocol-compliant JSON session logs with verification-based enforcement. Autonomous operation with auto-incremented session numbers and objective derivation from git state. Use when starting any new session. Use when you say "start a session", "create the session log". Do NOT use for mid-session protocol checks (use session).
+description: Create protocol-compliant JSON session logs with verification-based enforcement. Autonomous operation with auto-incremented session numbers and objective derivation from git state. Use when starting any new session. Use when you say "start a session", "create the session log". Do NOT use for mid-session protocol checks (use session), or to complete and validate a log at the end of a session (use session-end).
 version: 1.0.0
 license: MIT
 metadata:
