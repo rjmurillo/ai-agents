@@ -122,7 +122,7 @@ to be customer-facing, but the `skip_if_consumer_repo` gate (added #1194,
 
 ### Finding 2: Claude allow-rules do not screen the metacharacters the test hook rejects
 
-`invoke_test_auto_approval.py` is not a pure static allowlist. Before matching a
+The previously registered `invoke_test_auto_approval.py` was not a pure static allowlist. Before matching a
 runner pattern it rejects any command containing a shell metacharacter: `;`, `|`,
 `&`, `<`, `>`, `$`, backtick, newline, or carriage return
 (`DANGEROUS_METACHARACTERS`, lines 22-32). It anchors each pattern to the start of

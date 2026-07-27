@@ -109,6 +109,10 @@
     {
       "action": "Committed ADR prose batch 3",
       "result": "ADR-082 and ADR-084 references now distinguish past hook membership from current enforcement."
+    },
+    {
+      "action": "Committed ADR prose batch 4",
+      "result": "ADR-085 test auto approval reference now carries historical context."
     }
   ],
   "endingCommit": "",
