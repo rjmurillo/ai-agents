@@ -168,6 +168,17 @@ UPSTREAM_ONLY = (
 
 # A path under an upstream-only directory that names a file, not a directory.
 # The trailing extension is load-bearing: see the module docstring.
+# A URL, removed from a value before paths are looked for. A path inside a URL
+# is not a filesystem path: the reader resolves it over the network and it
+# works for them. The lookbehind already exempts the common shape, because the
+# character before the path is a slash, but a query parameter or a fragment
+# puts `=`, `?`, or `#` there instead and the boundary opens back up. Widening
+# the lookbehind to cover those would also suppress a real reference written as
+# `--config=docs/a.md`, so the URL is removed rather than the boundary widened.
+# A full URL is also what the rule's SHOULD-2 asks for when a reference really
+# is contributor-scoped, so exempting it is the intended behaviour, not a hole.
+URL = re.compile(r"\b[a-z][a-z0-9+.-]*://\S+", re.IGNORECASE)
+
 OUTWARD_FILE = re.compile(
     r"(?<![\w./-])(?:\.{1,2}/)?(?:"
     + "|".join(UPSTREAM_ONLY + ROOT_PREFIXED)
@@ -223,9 +234,17 @@ def _line_scan(lines: list[tuple[int, str]]) -> list[tuple[int, str, str]]:
 
 
 def _key_line(lines: list[tuple[int, str]], key: str) -> int:
-    """The frontmatter line that opens ``key``, or the block's first line."""
+    """The frontmatter line that opens ``key``, or the block's first line.
+
+    Comment lines are skipped. The search is deliberately unanchored, so that a
+    key inside a flow mapping still reports its own line, and that same
+    looseness would otherwise let a commented-out key claim the line number
+    belonging to the real one below it.
+    """
     pattern = re.compile(r"""["']?\b""" + re.escape(key) + r"""["']?\s*:""")
     for number, line in lines:
+        if line.lstrip().startswith("#"):
+            continue
         if pattern.search(line):
             return number
     return lines[0][0] if lines else 1
@@ -312,7 +331,7 @@ def scan_file(
     declared = declared_paths(text)
     violations: list[tuple[int, str, str]] = []
     for number, key, value in checked_values(text):
-        for reference in OUTWARD_FILE.findall(value):
+        for reference in OUTWARD_FILE.findall(URL.sub(" ", value)):
             if reference in declared:
                 continue
             if ships is not None and ships(reference):

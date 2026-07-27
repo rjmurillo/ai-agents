@@ -144,6 +144,33 @@ class TestPrecision:
         assert gate.scan_file(Path("x.md"), _frontmatter("Reads xclaude/a.md.")) == []
         assert gate.scan_file(Path("x.md"), _frontmatter("Reads .claude/a.md.")) != []
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/rjmurillo/ai-agents/wiki?page=docs/setup.md",
+            "https://example.com/wiki#docs/setup.md",
+            "https://example.com/a?x=1&y=docs/setup.md",
+            "https://github.com/rjmurillo/ai-agents/blob/main/docs/setup.md",
+        ],
+    )
+    def test_a_path_inside_a_url_is_not_a_filesystem_path(self, url: str) -> None:
+        """The reader resolves it over the network, so it works for them.
+
+        The slash form was already exempt through the boundary lookbehind. A
+        query parameter or a fragment puts an equals, a question mark, or a
+        hash before the path instead, which reopened it.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"Read more at {url}")) == []
+
+    def test_a_reference_after_an_equals_sign_is_still_a_reference(self) -> None:
+        """Pins why the URL is removed rather than the boundary widened.
+
+        Adding the equals sign to the lookbehind would pass the URL cases above
+        and silently lose this one.
+        """
+        text = _frontmatter("Run with --config=docs/a.md now.")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+
 
 class TestDeclaration:
     """The opt-out is scoped to the path it names, not to the whole file.
@@ -253,6 +280,22 @@ class TestFileDiscovery:
     def test_missing_root_is_not_an_error(self, tmp_path: Path) -> None:
         (tmp_path / ".claude").mkdir()
         assert gate.iter_markdown(tmp_path) == []
+
+    def test_the_exclusion_reads_the_repo_relative_path(self, tmp_path: Path) -> None:
+        """Kills the mutant that tests ``path.parts`` instead.
+
+        ``path.parts`` carries the absolute path, so a checkout that happens to
+        live under a directory named ``worktrees`` matches on every file and
+        the gate silently scans nothing while still exiting zero. The exclusion
+        is about this repository's own nested checkouts, so it has to be
+        measured from the repository root.
+        """
+        repo = tmp_path / "worktrees" / "ai-agents"
+        (repo / ".claude" / "skills").mkdir(parents=True)
+        (repo / ".claude" / "skills" / "real.md").write_text(
+            "---\nname: r\n---\n", encoding="utf-8"
+        )
+        assert [p.name for p in gate.iter_markdown(repo)] == ["real.md"]
 
 
 class TestCli:
@@ -482,6 +525,32 @@ class TestParserFidelity:
         with pytest.raises(yaml.YAMLError):
             yaml.safe_load(text.split("---")[1])
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+
+    def test_valid_yaml_that_is_not_a_mapping_degrades_instead_of_crashing(self) -> None:
+        """Kills the mutant that tests ``not data`` instead of the type.
+
+        A sequence is valid YAML and parses to a truthy list, so a falsiness
+        test lets it through to ``data.get`` and the gate dies with an
+        ``AttributeError`` on a file it was asked to check, taking the whole
+        run down with it. The type test sends it to the line scan instead,
+        which finds nothing here because a sequence has no key at line start.
+        Finding nothing is the right answer: a sequence is not frontmatter any
+        loader accepts, so there is no description for a consumer to misread.
+        Not dying is the property under test.
+        """
+        text = "---\n- description: Per docs/a.md.\n---\n"
+        assert isinstance(yaml.safe_load(text.split("---")[1]), list)
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_a_commented_key_does_not_claim_the_real_key_line(self) -> None:
+        """The report has to point at the line the author must edit.
+
+        ``_key_line`` searches rather than anchors, so that a key inside a flow
+        mapping still reports its own line. That same looseness let a
+        commented-out key one line above claim the number.
+        """
+        text = "---\n# description: some note\ndescription: Per docs/a.md.\n---\n"
+        assert gate.scan_file(Path("x.md"), text) == [(3, "description", "docs/a.md")]
 
     def test_the_fallback_still_reads_continuation_lines(self) -> None:
         """A wrapped description is the common shape, and the fallback owns it.
