@@ -279,18 +279,20 @@ class TestPathStartAnchor:
             "<img src=/templates/agents/x.md>",
         ],
     )
-    def test_colon_and_equals_are_not_anchors(self, text: str) -> None:
-        """These shapes are knowingly missed, and the trade is measured.
+    def test_labelled_and_attribute_contexts_count(self, text: str) -> None:
+        """A colon or equals in a named context introduces a real path.
 
-        Admitting ``:`` would count these two colon forms but would also count
-        the Windows drive letters ``C:\\templates\\`` and ``C:\\.agents\\``,
-        because a drive letter is a colon followed by a single separator.
-        Admitting ``=`` would count the unquoted HTML attribute but would also
-        count the URL query parameter ``?next=/.agents/x``. Each swaps one false
-        negative for one false positive, so neither is a net gain. The guards
-        below pin the shapes that would break (issue #3489).
+        A link reference definition and a ``path:`` label both put a colon
+        before the path; an unquoted HTML attribute puts an equals sign there.
+        CommonMark resolves all three as destinations, so each counts.
+
+        Naming the context is what makes this safe. Admitting a raw ``:`` would
+        also count the Windows drive letters ``C:\\templates\\`` and
+        ``C:\\.agents\\``; admitting a raw ``=`` would also count the URL query
+        parameter ``?next=/.agents/x``. The guards below pin those out (issue
+        #3489).
         """
-        assert cmp.count_upstream_refs(text + "\n") == 0
+        assert cmp.count_upstream_refs(text + "\n") == 1
 
     @pytest.mark.parametrize(
         "text",
@@ -298,13 +300,21 @@ class TestPathStartAnchor:
             "C:\\templates\\agents\\x.md",
             "C:\\.agents\\specs\\x.md",
             "[x](https://example.com/p?next=/.agents/x)",
+            "file:/templates/agents/x.md",
+            "https://example.com/path:/templates/agents/x.md",
+            "https://example.com/?src=/templates/agents/x.md",
         ],
     )
-    def test_shapes_that_colon_or_equals_anchors_would_break(self, text: str) -> None:
-        """Negative control for the trade recorded above.
+    def test_shapes_that_raw_colon_or_equals_anchors_would_break(self, text: str) -> None:
+        """Negative control for the contextual anchors above.
 
-        If someone adds ``:`` or ``=`` to the anchor set, these start counting
-        and this test fails, which is the intended warning.
+        Each of these carries a colon or an equals sign immediately before a
+        path-looking string, and none of them names the repository root. A
+        Windows drive letter is a single character rather than a label, a URI
+        scheme is not preceded by an anchor character, and a URL query parameter
+        has no enclosing tag. If someone replaces the contextual anchors with a
+        raw ``:`` or ``=`` in the character set, these start counting and this
+        test fails, which is the intended warning.
         """
         assert cmp.count_upstream_refs(text + "\n") == 0
 
@@ -570,3 +580,37 @@ class TestCommittedRepoHasNoDrift:
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+
+class TestBlockquoteFenceDepth:
+    """A quoted fence remembers the depth it opened at, not just that it was quoted.
+
+    Tracking only a boolean loses both directions of the question. Each case
+    below was cross-checked against CommonMark via markdown-it, which is the
+    arbiter for what is code and what is prose (issue #3489).
+    """
+
+    def test_deeper_marker_does_not_close_a_shallower_fence(self) -> None:
+        """``>>`` inside a ``>`` fence is content, not the closing marker.
+
+        Stripping every marker made the depth-2 line look like a bare closing
+        fence, which ended the block early and exposed the following code line
+        as prose. CommonMark keeps the path inside a fence token.
+        """
+        text = "> ```\n>> ```\n> /templates/agents/x.md\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_dropping_below_the_opening_depth_ends_the_fence(self) -> None:
+        """A fence opened at depth 2 ends when the document returns to depth 1.
+
+        The depth-1 line has left the blockquote the fence opened in, so it is
+        prose. Testing only for the presence of a marker kept the fence open and
+        hid it. CommonMark puts the path in an inline token.
+        """
+        text = ">> ```\n>> code\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_same_depth_marker_still_closes(self) -> None:
+        """The ordinary case keeps working: a marker at the opening depth closes."""
+        text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1

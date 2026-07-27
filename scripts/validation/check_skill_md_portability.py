@@ -113,16 +113,30 @@ from scripts.validation.portability_common import (
 # ``>`` is in the set so a tight blockquote ``>/templates/agents/x.md`` counts,
 # matching the spaced ``> /templates/agents/x.md`` that ``\s`` already accepts.
 #
-# ``:`` and ``=`` are deliberately absent even though each would fix one real
-# shape, because each also admits one. ``:`` would count ``[x]:/templates/x.md``
-# but would also make the Windows drive letters ``C:\templates\`` and
-# ``C:\.agents\`` count, since a drive letter is a colon followed by a single
-# separator. ``=`` would count ``<img src=/templates/x.md>`` but would also make
-# the URL query parameter ``?next=/.agents/x`` count. Both trade a false
-# negative for a false positive, so neither is a net gain (measured, issue
-# #3489).
+# Adding a raw ``:`` or ``=`` to that set is the obvious way to reach the three
+# shapes it misses, and it is the wrong way: a raw ``:`` makes the Windows drive
+# letters ``C:\templates\`` and ``C:\.agents\`` count, and a raw ``=`` makes the
+# URL query parameter ``?next=/.agents/x`` count. Naming the two contexts
+# instead reaches all three shapes and admits none of those, so the trade is not
+# forced (measured over nine shapes, issue #3489).
 _ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
-_BOUNDARY = _ANCHOR + r"(?:\.[\\/]|[\\/])?"
+
+# A link reference definition ``[x]:/templates/agents/x.md`` and a ``path:``
+# label both put a colon immediately before the path. Requiring the label itself
+# to sit at an anchor is what keeps drive letters and URL-embedded colons out:
+# in ``C:\templates`` the ``C`` is one character and not the literal ``path`` or
+# a bracketed label, and in ``https://x/path:/templates`` the label is preceded
+# by ``/``, which is not an anchor character.
+_LABEL_ANCHOR = _ANCHOR + r"(?:path|\[[^\]\r\n]+\]):"
+
+# An unquoted HTML attribute ``<img src=/templates/agents/x.md>`` puts an equals
+# sign immediately before the path. Requiring an open tag and a real attribute
+# name is what keeps ``?next=/.agents/x`` out: a URL query parameter has no
+# enclosing tag. The quoted form needs no rule here because ``"`` and ``'`` are
+# already anchor characters.
+_ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
+
+_BOUNDARY = rf"(?:{_ANCHOR}|{_LABEL_ANCHOR}|{_ATTR_ANCHOR})" + r"(?:\.[\\/]|[\\/])?"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
@@ -158,6 +172,37 @@ _FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 # to come off before the fence test runs.
 _BLOCKQUOTE_PREFIX_PATTERN = re.compile(r"^[ \t]{0,3}(?:>[ \t]?)+")
 
+# One blockquote marker: optional leading indent on the first, then ``>`` and an
+# optional single space that belongs to the marker rather than the content.
+_QUOTE_MARKER_PATTERN = re.compile(r"^[ \t]{0,3}>[ \t]?")
+
+
+def _quote_depth(line: str) -> int:
+    """Count the blockquote markers a line opens with."""
+    depth = 0
+    rest = line
+    while True:
+        match = _QUOTE_MARKER_PATTERN.match(rest)
+        if match is None:
+            return depth
+        depth += 1
+        rest = rest[match.end() :]
+
+
+def _strip_quote_markers(line: str, depth: int) -> str:
+    """Remove exactly ``depth`` blockquote markers from the front of a line.
+
+    Stripping exactly the opening depth, rather than every marker, is what lets
+    a deeper marker be recognised as content instead of a closing fence.
+    """
+    rest = line
+    for _ in range(depth):
+        match = _QUOTE_MARKER_PATTERN.match(rest)
+        if match is None:
+            break
+        rest = rest[match.end() :]
+    return rest
+
 _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
@@ -189,35 +234,38 @@ def _strip_code(text: str) -> str:
     code block has no lazy continuation. The line that ends the blockquote is
     then re-read at top level, so a bare ``\u0060\u0060\u0060`` there opens a new
     top-level fence rather than being treated as prose.
+
+    The opening blockquote depth is recorded, not merely the fact of being
+    quoted. Depth matters in both directions: a fence opened at depth 1 must not
+    be closed by a marker at depth 2, and a fence opened at depth 2 must end when
+    the document drops to depth 1, because that line has left the block the fence
+    opened in.
     """
     lines = text.split("\n")
     result_lines: list[str] = []
     fence_char: str | None = None
     fence_len = 0
-    fence_quoted = False
+    fence_depth = 0
 
     for line in lines:
-        if (
-            fence_char is not None
-            and fence_quoted
-            and _BLOCKQUOTE_PREFIX_PATTERN.match(line) is None
-        ):
+        if fence_char is not None and fence_depth > 0 and _quote_depth(line) < fence_depth:
             fence_char = None
             fence_len = 0
-            fence_quoted = False
+            fence_depth = 0
 
         if fence_char is None:
             match = _FENCE_OPEN_PATTERN.match(line)
-            quoted = False
+            depth = 0
             if match is None:
-                unquoted = _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1)
-                if unquoted != line:
-                    match = _FENCE_OPEN_PATTERN.match(unquoted)
-                    quoted = match is not None
+                depth = _quote_depth(line)
+                if depth:
+                    match = _FENCE_OPEN_PATTERN.match(_strip_quote_markers(line, depth))
+                    if match is None:
+                        depth = 0
             if match:
                 fence_char = match.group(1)[0]
                 fence_len = len(match.group(1))
-                fence_quoted = quoted
+                fence_depth = depth
                 result_lines.append("")
             else:
                 result_lines.append(line)
@@ -225,13 +273,11 @@ def _strip_code(text: str) -> str:
             close_pattern = re.compile(
                 r"^[ \t]{0,3}" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
             )
-            candidate = (
-                _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1) if fence_quoted else line
-            )
+            candidate = _strip_quote_markers(line, fence_depth) if fence_depth else line
             if close_pattern.match(candidate):
                 fence_char = None
                 fence_len = 0
-                fence_quoted = False
+                fence_depth = 0
                 result_lines.append("")
             else:
                 result_lines.append("")
