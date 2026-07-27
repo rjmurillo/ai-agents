@@ -114,16 +114,21 @@ _UniqueKeySafeLoader.add_constructor(
 
 
 def language_universal_forms(ext: str) -> frozenset[str]:
-    """Return the ``applyTo`` patterns that scope a rule to every file of ``ext``.
+    """Return the effective globs that scope a rule to every file of ``ext``.
 
-    A rule is part of the always-on language baseline when it applies to any
-    file of the language no matter where it lives: the universal ``**`` or
-    ``**/*`` (every file, any type) or the language-universal ``**/*.<ext>``
-    (every file of the type, any depth). The root-only ``*.<ext>`` form is
-    deliberately excluded: it scopes to top-level files only, so it is
-    situational rather than an always-on baseline.
+    A rule joins the always-on language baseline when it loads for any file of
+    the language no matter where it lives. Membership is tested against the
+    *effective* glob (see ``_vscode_effective_glob``), so these are the folded
+    forms after the harness prepends ``**/`` to relative patterns:
+
+    - ``**`` and ``**/*`` and ``*`` are the harness all-files wildcards (every
+      file of every type).
+    - ``**/*.<ext>`` is every file of the type at any depth. A relative
+      ``*.<ext>`` reaches this form via the ``**/`` prepend, so it is universal
+      too; a *scoped* relative glob such as ``src/*.<ext>`` prepends to
+      ``**/src/*.<ext>`` and stays out of this set.
     """
-    return frozenset({"**", "**/*", f"**/*{ext}"})
+    return frozenset({"**", "**/*", "*", f"**/*{ext}"})
 
 
 def _split_top_level_commas(raw: str) -> list[str]:
@@ -201,6 +206,36 @@ def _normalize_glob(pattern: str) -> str:
     return "/".join(segments)
 
 
+def _vscode_effective_glob(pattern: str) -> str:
+    """Fold an ``applyTo`` glob to the effective form the harness matches on.
+
+    Mirrors VS Code's instruction matcher, which is authoritative for the
+    ``.github/instructions`` and ``src/copilot-cli/instructions`` trees and is
+    the most permissive of the harnesses (so modeling it keeps the budget a
+    safe upper bound). Source, pinned:
+    https://github.com/microsoft/vscode/blob/018354116a88cb1264790f93663de42198a44594/src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts#L294-L310
+
+    Two rules from that matcher:
+
+    - Bare ``**``, ``**/*``, and ``*`` are all-files wildcards: a rule scoped to
+      any of them attaches even with no file open, so ``*`` is universal (not
+      root-only as raw ``minimatch`` would have it).
+    - Any other pattern that is neither absolute (``/...``) nor already
+      ``**/``-anchored gets ``**/`` prepended, so ``*.py`` means ``**/*.py`` and
+      loads for every ``.py`` at any depth, while ``src/*.py`` becomes
+      ``**/src/*.py`` and stays scoped.
+
+    After the prepend the glob is folded by ``_normalize_glob`` so equivalent
+    spellings (``**/**.py`` -> ``**/*.py``) collapse to one form.
+    """
+    p = pattern.strip()
+    if p in ("**", "**/*", "*"):
+        return p
+    if not p.startswith("/") and not p.startswith("**/"):
+        p = "**/" + p
+    return _normalize_glob(p)
+
+
 def _iter_applyto_globs(value: object) -> list[str]:
     """Flatten a parsed YAML ``applyTo`` value into raw comma-split globs.
 
@@ -258,7 +293,7 @@ def parse_applyto(text: str) -> set[str]:
 def is_language_universal(patterns: set[str], ext: str) -> bool:
     """True when any pattern scopes the rule to every file of ``ext``."""
     forms = language_universal_forms(ext)
-    return any(_normalize_glob(pattern) in forms for pattern in patterns)
+    return any(_vscode_effective_glob(pattern) in forms for pattern in patterns)
 
 
 @dataclass(frozen=True)

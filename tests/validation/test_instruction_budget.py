@@ -146,7 +146,12 @@ def test_parse_applyto_missing_key_returns_empty() -> None:
         ({"**/**/*.py"}, ".py", True),
         ({"**/**/*"}, ".py", True),
         ({"**/**"}, ".py", True),
-        ({"*.py"}, ".py", False),
+        # Relative '*.py' -> harness prepends '**/' -> '**/*.py' -> universal.
+        ({"*.py"}, ".py", True),
+        # Bare '*' is an all-files wildcard in the harness -> universal.
+        ({"*"}, ".py", True),
+        # A scoped relative glob prepends to '**/src/*.py' and stays situational.
+        ({"src/*.py"}, ".py", False),
         ({"**/*.py", "**/*.pyi"}, ".py", True),
         ({"**/*.cs"}, ".py", False),
         ({"tests/**"}, ".py", False),
@@ -160,11 +165,16 @@ def test_is_language_universal(patterns: set[str], ext: str, expected: bool) -> 
 
 
 def test_is_language_universal_is_precise_not_endswith() -> None:
-    # A directory-or-prefix glob that merely ends with '*.py' is NOT
-    # language-universal; only '**', '**/*', and '**/*.py' count. The
-    # root-only '*.py' form is situational, not an always-on baseline.
+    # A *scoped* glob that merely ends with '*.py' is NOT language-universal:
+    # the harness prepends '**/' to a relative pattern, so 'src/foo*.py' becomes
+    # '**/src/foo*.py' (only under a src/ dir) and 'foo*.py' becomes
+    # '**/foo*.py' (only basenames starting 'foo'). Neither matches every .py,
+    # so neither is an always-on baseline.
     assert ib.is_language_universal({"src/foo*.py"}, ".py") is False
-    assert ib.is_language_universal({"*.py"}, ".py") is False
+    assert ib.is_language_universal({"src/*.py"}, ".py") is False
+    assert ib.is_language_universal({"foo*.py"}, ".py") is False
+    # But a bare relative '*.py' prepends to '**/*.py' and IS universal.
+    assert ib.is_language_universal({"*.py"}, ".py") is True
 
 
 def test_is_language_universal_normalizes_equivalent_globs() -> None:
@@ -177,18 +187,22 @@ def test_is_language_universal_normalizes_equivalent_globs() -> None:
     # the doubled star to '*'), so the whole glob equals '**/*.py' == universal.
     assert ib.is_language_universal({"**/**.py"}, ".py") is True
     assert ib.is_language_universal({"**/**/*.cs"}, ".py") is False
-    # A doubled star inside the filename segment alone is root-only (no leading
-    # globstar), so it is NOT the always-on baseline, matching bare '*.py'.
-    assert ib.is_language_universal({"**.py"}, ".py") is False
-    # A bare '*' is root-only too (minimatch '*' does not cross '/'), so a rule
-    # scoped '*' does not load when editing a nested file: not always-on. This
-    # is the same deliberate decision as '*.py' above, recorded so a future
-    # "but '*' means all files" change is a conscious one, not an accident.
-    assert ib.is_language_universal({"*"}, ".py") is False
+    # '**.py' has no leading globstar, so the harness prepends '**/' ->
+    # '**/**.py' -> folds to '**/*.py' -> universal (same as bare '*.py').
+    assert ib.is_language_universal({"**.py"}, ".py") is True
+    # A bare '*' is an all-files wildcard in VS Code's matcher (it is special-
+    # cased alongside '**' and '**/*'), so a rule scoped '*' loads always-on.
+    # Source: computeAutomaticInstructions.ts#L294-L310 (pinned in the module).
+    assert ib.is_language_universal({"*"}, ".py") is True
     assert ib._normalize_glob("**/**/*.py") == "**/*.py"
     assert ib._normalize_glob("**/**.py") == "**/*.py"
     assert ib._normalize_glob("**/**") == "**"
     assert ib._normalize_glob("**.py") == "*.py"
+    # The '**/' prepend is what promotes a relative language glob to universal.
+    assert ib._vscode_effective_glob("*.py") == "**/*.py"
+    assert ib._vscode_effective_glob("**.py") == "**/*.py"
+    assert ib._vscode_effective_glob("src/*.py") == "**/src/*.py"
+    assert ib._vscode_effective_glob("*") == "*"
 
 
 # --------------------------------------------------------------------------
