@@ -38,14 +38,16 @@ import argparse
 import json
 import re
 import sys
-from importlib import import_module
 from pathlib import Path
+from typing import TypedDict
 
 import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-_realism = import_module("_trigger_realism")
-score = _realism.score
+_EVAL_DIR = Path(__file__).resolve().parent
+if str(_EVAL_DIR) not in sys.path:
+    sys.path.insert(0, str(_EVAL_DIR))
+
+from _trigger_realism import RealismReport, score  # noqa: E402
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -54,6 +56,33 @@ EXIT_EXTERNAL = 3
 _TRIGGER_SECTION = re.compile(r"^## Triggers\s*$(.*?)(?=^## |\Z)", re.M | re.S)
 _FIRST_COLUMN = re.compile(r"^\|\s*`([^`]+)`", re.M)
 _QUOTED = re.compile(r'"([^"]+)"')
+
+
+class SetReport(TypedDict):
+    """Scored result for one phrase set, as it appears in the JSON report."""
+
+    skills: int
+    measurable_phrases: int
+    excluded_phrases: int
+    observed_phrases: int
+    realism: float
+
+
+class ObservedRow(TypedDict):
+    """One phrase a real user typed, with how many prompts contained it."""
+
+    skill: str
+    phrase: str
+    occurrences: int
+
+
+class Report(TypedDict):
+    """The whole report. Serialised verbatim when --output is given."""
+
+    corpus_prompts: int
+    documented: SetReport
+    promoted: SetReport
+    observed_phrases: list[ObservedRow]
 
 
 def load_transcript_prompts(store: Path, project_filter: str) -> list[str]:
@@ -136,7 +165,7 @@ def collect_phrases(skills_dir: Path) -> tuple[dict[str, list[str]], dict[str, l
     return documented, promoted
 
 
-def build_report(skills_dir: Path, corpus: list[str]) -> dict[str, object]:
+def build_report(skills_dir: Path, corpus: list[str]) -> Report:
     """Score both phrase sets and return a JSON-serialisable report."""
     documented, promoted = collect_phrases(skills_dir)
     documented_report = score(documented, corpus)
@@ -155,7 +184,7 @@ def build_report(skills_dir: Path, corpus: list[str]) -> dict[str, object]:
     }
 
 
-def _as_dict(report: object, skill_count: int) -> dict[str, object]:
+def _as_dict(report: RealismReport, skill_count: int) -> SetReport:
     return {
         "skills": skill_count,
         "measurable_phrases": report.measurable,
@@ -165,18 +194,17 @@ def _as_dict(report: object, skill_count: int) -> dict[str, object]:
     }
 
 
-def render(report: dict[str, object]) -> str:
+def render(report: Report) -> str:
     """Return the human-readable summary."""
     lines = [
         f"Corpus: {report['corpus_prompts']} unique real prompts "
         "(word-boundary matched; slash commands and single words excluded)",
         "",
     ]
-    for key, label in (
-        ("documented", "documented in a ## Triggers table"),
-        ("promoted", "promoted into a description"),
+    for block, label in (
+        (report["documented"], "documented in a ## Triggers table"),
+        (report["promoted"], "promoted into a description"),
     ):
-        block = report[key]
         lines.append(f"{label}:")
         lines.append(
             f"  {block['observed_phrases']} of {block['measurable_phrases']} phrases "
