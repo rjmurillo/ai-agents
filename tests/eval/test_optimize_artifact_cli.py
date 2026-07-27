@@ -2695,3 +2695,62 @@ class TestTheGuardIsNotASecondDefinitionOfRedaction:
             with oa._digest_scrubbed("e" * 64):
                 raise original
         assert caught.value is original
+
+
+class TestTheReportedTailCanAlsoRefuse:
+    """`--max-p` promotes the printed McNemar tail into a gate.
+
+    A live run over the seven files in tests/evals/rule-scenarios/ scored the
+    identical rule text twice. Five of 24 tasks flipped with no input change
+    and the held-out group moved 6/10 to 7/10, so on a nondeterministic scorer
+    a strictly-greater rule accepts variance. The tail was already computed
+    and printed; before this flag it could not refuse anything.
+
+    Default stays absent: a held-out group of three cannot reach a
+    conventional floor, and a bar nothing can clear is not a gate.
+    """
+
+    def _gate(self, tmp_path, capsys, *extra):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, *extra,
+        )
+
+    def test_without_the_flag_an_insignificant_win_still_accepts(self, tmp_path, capsys):
+        code, out = self._gate(tmp_path, capsys)
+        assert out["p_value"] == pytest.approx(0.0625)
+        assert out["decision"] == "ACCEPT"
+        assert code == EXIT_OK
+
+    def test_the_same_win_is_refused_under_a_conventional_bar(self, tmp_path, capsys):
+        code, out = self._gate(tmp_path, capsys, "--max-p", "0.05")
+        assert out["decision"] == "REJECT"
+        assert code == EXIT_LOGIC
+        assert "0.0625" in out["reason"] and "0.05" in out["reason"]
+
+    def test_a_bar_the_tail_clears_still_accepts(self, tmp_path, capsys):
+        _, out = self._gate(tmp_path, capsys, "--max-p", "0.1")
+        assert out["decision"] == "ACCEPT"
+
+    def test_the_reported_tail_is_unchanged_by_the_bar(self, tmp_path, capsys):
+        """The bar decides; it must not edit the evidence it decided on."""
+        _, loose = self._gate(tmp_path, capsys, "--max-p", "1.0")
+        assert loose["p_value"] == pytest.approx(0.0625)
+
+    def test_a_refused_win_still_spends_its_consultation(self, tmp_path, capsys):
+        """The held-out group was read to compute the tail. Reading is the cost."""
+        _, out = self._gate(tmp_path, capsys, "--max-p", "0.0")
+        assert out["decision"] == "REJECT"
+        assert out["sel_consultations"] == 1
+
+    def test_a_bar_outside_the_unit_interval_is_a_config_error(self, tmp_path, capsys):
+        code, _ = self._gate(tmp_path, capsys, "--max-p", "1.5")
+        assert code == EXIT_CONFIG
+
+    def test_a_non_numeric_bar_is_refused_by_the_parser(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            self._gate(tmp_path, capsys, "--max-p", "nope")

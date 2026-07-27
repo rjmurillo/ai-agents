@@ -801,15 +801,23 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
     candidate = _score_group(candidate_results, split, _GATE_GROUP)
     gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
-    result = gate(
-        candidate,
-        incumbent,
-        sel_consultations=spent,
-        max_consultations=args.max_consultations,
-        split_fingerprint=split["fingerprint"],
-        incumbent_fingerprint=args.incumbent_fingerprint,
-        discordant_loss=loss,
-    )
+    try:
+        result = gate(
+            candidate,
+            incumbent,
+            sel_consultations=spent,
+            max_consultations=args.max_consultations,
+            split_fingerprint=split["fingerprint"],
+            incumbent_fingerprint=args.incumbent_fingerprint,
+            discordant_loss=loss,
+            p_value=p_value,
+            max_p=args.max_p,
+        )
+    except ValueError as exc:
+        # The consultation is already spent above, deliberately. A bad --max-p
+        # is caught here rather than at parse time because the unit-interval
+        # rule lives with the decision, not with the flag.
+        raise ConfigError(str(exc)) from exc
 
     _emit(
         {
@@ -818,10 +826,11 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             "candidate": result.candidate,
             "incumbent": result.incumbent,
             # Discordant pairs are the only tasks that carry evidence about the
-            # edit. p is the one-sided exact McNemar tail, reported rather than
-            # enforced: a three-task held-out group cannot reach 0.05, so
-            # enforcing a conventional floor would make the common case
-            # unpassable instead of informative.
+            # edit. p is the one-sided exact McNemar tail. It is reported
+            # always and enforced only when --max-p is set: a three-task
+            # held-out group cannot reach 0.05, so enforcing a conventional
+            # floor by default would make the common case unpassable instead
+            # of informative.
             "discordant_gain": gain,
             "discordant_loss": loss,
             "p_value": p_value,
@@ -996,6 +1005,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--incumbent-fingerprint",
         required=True,
         help="split fingerprint the incumbent was scored against; `score` reports it",
+    )
+    gate_cmd.add_argument(
+        "--max-p",
+        type=float,
+        default=None,
+        help=(
+            "largest one-sided exact McNemar tail this gate accepts; "
+            "omit on a small held-out group, where no tail can clear a "
+            "conventional floor"
+        ),
     )
     gate_cmd.set_defaults(func=cmd_gate)
 

@@ -979,3 +979,80 @@ class TestGuardRefusalValidatesItsOwnCap:
 
     def test_a_zero_spend_is_accepted(self):
         assert guard_refusal(sel_consultations=0, max_consultations=3) is None
+
+
+class TestSignificanceCanBeEnforcedNotJustReported:
+    """`max_p` turns the reported McNemar tail into a refusal.
+
+    Motivated by a live run (see scripts/eval/README.md, "What a live run
+    measured"): scoring the same rule text twice flipped 5 of 24 tasks, and
+    the held-out group moved 6/10 -> 7/10 with no input change at all. A
+    strictly-greater rule alone therefore accepts scorer variance. `p_value`
+    was already computed and printed; it just could not refuse anything.
+
+    Default stays None so a small held-out group, which cannot reach a
+    conventional floor, is still informative rather than unpassable.
+    """
+
+    def test_an_insignificant_gain_is_refused_when_a_bar_is_set(self):
+        result = gate(0.8, 0.6, p_value=0.25, max_p=0.05)
+        assert result.decision == "REJECT"
+        assert "0.25" in result.reason and "0.05" in result.reason
+
+    def test_the_same_gain_is_accepted_when_no_bar_is_set(self):
+        assert gate(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
+
+    def test_a_significant_gain_passes_the_bar(self):
+        assert gate(0.8, 0.6, p_value=0.01, max_p=0.05).decision == "ACCEPT"
+
+    def test_p_equal_to_the_bar_passes(self):
+        """The bar is a maximum, so equality is inside it, not outside."""
+        assert gate(0.8, 0.6, p_value=0.05, max_p=0.05).decision == "ACCEPT"
+
+    def test_a_bar_with_no_p_value_cannot_refuse(self):
+        """An unknown tail is not evidence of an insignificant one."""
+        assert gate(0.8, 0.6, max_p=0.05).decision == "ACCEPT"
+
+    def test_a_regression_still_outranks_the_significance_bar(self):
+        """Both refuse; the broken task is the one worth naming first."""
+        result = gate(0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05)
+        assert result.decision == "REJECT"
+        assert "regressed" in result.reason
+
+    def test_a_tie_is_still_a_tie_under_a_bar(self):
+        result = gate(0.6, 0.6, p_value=0.001, max_p=0.05)
+        assert result.decision == "REJECT"
+        assert "tie" in result.reason
+
+    @pytest.mark.parametrize("bad", [-0.1, 1.1, 2.0])
+    def test_a_bar_outside_the_unit_interval_is_refused(self, bad):
+        with pytest.raises(ValueError, match="max_p must be in"):
+            gate(0.8, 0.6, p_value=0.25, max_p=bad)
+
+    @pytest.mark.parametrize("bad", [-0.1, 1.1])
+    def test_a_p_value_outside_the_unit_interval_is_refused(self, bad):
+        with pytest.raises(ValueError, match="p_value must be in"):
+            gate(0.8, 0.6, p_value=bad, max_p=0.05)
+
+    @pytest.mark.parametrize("edge", [0.0, 1.0])
+    def test_the_unit_interval_endpoints_are_legal(self, edge):
+        gate(0.8, 0.6, p_value=edge, max_p=1.0)
+        gate(0.8, 0.6, p_value=0.0, max_p=edge)
+
+    def test_a_bar_of_zero_refuses_every_nonzero_tail(self):
+        """0.0 is a legal bar and means only a certain result passes."""
+        assert gate(0.8, 0.6, p_value=0.001, max_p=0.0).decision == "REJECT"
+        assert gate(0.8, 0.6, p_value=0.0, max_p=0.0).decision == "ACCEPT"
+
+    def test_the_bar_never_rescues_a_guard_refusal(self):
+        """A moved fingerprint is not comparable, significant or not."""
+        result = gate(
+            0.8,
+            0.6,
+            split_fingerprint="a",
+            incumbent_fingerprint="b",
+            p_value=0.0,
+            max_p=0.05,
+        )
+        assert result.decision == "REJECT"
+        assert result.compared is False

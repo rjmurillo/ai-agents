@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3468,
+    "date": "2026-07-27",
+    "branch": "feat/eval-gate-significance-bar",
+    "startingCommit": "303f918ea8",
+    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned feat/eval-gate-significance-bar; branched from origin/main so PR #3467 stays docs-only"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = feat/eval-gate-significance-bar"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from origin/main at 303f918ea8"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read and left unmodified per ADR-014"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md, .agents/governance/TESTING-RIGOR.md, and ADR-087 loaded before the change"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read scripts/eval/README.md 'A loop step' and followed its recipe verbatim rather than improvising a driver"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This checklist"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "eval/eval-held-out-gated-optimization.md gains the measured noise floor and the null-control method"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "markdownlint-cli2 run scoped to the changed Markdown"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "489 tests pass across the three optimizer test files; 100% line coverage on _optimizer_core.py, _optimizer_adapters.py, and optimize-artifact.py; ruff and mypy clean on the changed files"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Drive the loop with a live scorer",
+      "actions": [
+        "Anthropic is rate-capped until 2026-08-01, so routed through GitHub Models: EVAL_PROVIDER=github with openai/gpt-4o-mini, which scripts/eval/_providers.py already supports",
+        "Ran scripts/eval/eval-rule-activation.py live over all seven files in tests/evals/rule-scenarios/, 24 scenarios, into base-report.json",
+        "optimize-artifact.py extract --kind rule produced 24 tasks, 12 passing: real headroom rather than a saturated benchmark",
+        "split --seed live-2026-07-27 drew 14 opt and 10 sel; stdout published opt membership only, so sel stayed hidden as designed",
+        "Read the report filtered to the 14 opt ids only, printing '<HELD OUT, not read>' for the rest, to keep the optimizer role honest"
+      ],
+      "outcome": "First end-to-end run of the loop against a real model. Fingerprint 06f74397..."
+    },
+    {
+      "phase": "Make a candidate edit and gate it",
+      "actions": [
+        "Opt-visible diagnosis on .claude/rules/working-with-legacy-code.md: both visible failures scored 2.33 with the judge saying the behavior was right but 'lacks the expected vocabulary', and the rule bound its vocabulary only to 'PR descriptions and review comments'",
+        "Edited the rule: added a two-gate summary, a 'Say The Words' section binding the vocabulary to every surface, and a plain-refusal instruction for the non-activating case",
+        "Re-ran the live scorer and extracted cand.json",
+        "On the visible opt group the edit moved 6/14 to 7/14, and neither task it targeted flipped",
+        "gate returned ACCEPT: sel 0.6 to 0.8, 2 discordant gains, 0 losses, p=0.25, 1 consultation of 5"
+      ],
+      "outcome": "A held-out ACCEPT, which the loop is built to treat as the win condition."
+    },
+    {
+      "phase": "Distrust the ACCEPT and run a null control",
+      "actions": [
+        "Post-hoc, the edited rule's own four scenarios had not moved at all: S1, S2, S3 still failing, S4 still passing. All three flips came from rules the edit never touched",
+        "That is not what a real improvement looks like, so restored the rule byte-for-byte (git diff empty) and re-ran the identical scorer as a null control",
+        "5 of 24 tasks flipped with no input change; the held-out group moved 6/10 to 7/10 on its own",
+        "Both sel gains that earned the ACCEPT also flipped under the null run, so the ACCEPT was variance, confirmed rather than suspected",
+        "Gating the byte-identical no-op returned REJECT, but only because noise had broken one task and the ADR-057 no-regression clause caught it"
+      ],
+      "outcome": "The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky."
+    },
+    {
+      "phase": "Act on the measurement",
+      "actions": [
+        "The gate already computed a one-sided exact McNemar tail and printed it, but nothing could act on it; the source comment said so explicitly",
+        "TDD: 16 core tests and 7 CLI tests written first, all failing for the right reason (no such parameter, then unrecognized argument)",
+        "Added max_p to gate() and --max-p to the gate subcommand, defaulting to absent so a small held-out group stays informative rather than unpassable",
+        "Ordered the bar last among accept-path refusals so a broken task is still the finding named first",
+        "Replayed both live runs under --max-p 0.05: the false ACCEPT became a REJECT naming the 0.25 tail, and the no-op stayed refused by the regression clause"
+      ],
+      "outcome": "489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "The honest ceiling on this benchmark is n=10 held out. A one-sided exact McNemar tail cannot reach 0.05 below 5 one-directional discordant pairs, so --max-p 0.05 here refuses nearly everything. More tasks or repeated sampling per task, not a different threshold, is what buys power",
+    "Repeated sampling would change the scorer contract rather than the gate, and interacts with #3437's proposal to widen the seam to {task_id: float}. Left as a decision for @rjmurillo rather than folded in",
+    "The eval-rule-activation.py judge is the variance source worth measuring next: this run cannot separate response nondeterminism from judge nondeterminism"
+  ]
+}

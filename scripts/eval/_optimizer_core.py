@@ -594,6 +594,8 @@ def gate(
     split_fingerprint: str | None = None,
     incumbent_fingerprint: str | None = None,
     discordant_loss: int = 0,
+    p_value: float | None = None,
+    max_p: float | None = None,
 ) -> GateResult:
     """Decide whether a candidate replaces the incumbent.
 
@@ -616,9 +618,21 @@ def gate(
     weaker rule wearing the same name, and an agent driving this loop could
     set it without a human ever seeing the broken task.
 
+    ``max_p`` is the largest one-sided exact McNemar tail this gate will
+    accept, and it defaults to None because a small held-out group cannot
+    reach a conventional floor; enforcing one by default would make the common
+    case unpassable rather than informative. Set it when the group is large
+    enough that the tail carries information. A live run over 24 rule
+    scenarios scored the identical artifact twice and moved the held-out group
+    6/10 to 7/10 with no input change, so on a nondeterministic scorer a
+    strictly-greater rule alone accepts variance. ``p_value`` without
+    ``max_p`` changes nothing, and ``max_p`` without ``p_value`` refuses
+    nothing: an unknown tail is not evidence of an insignificant one.
+
     Raises:
         ValueError: on scores outside ``[0, 1]``, negative consultations, a
-            non-positive consultation cap, or a negative discordant count.
+            non-positive consultation cap, a negative discordant count, or a
+            ``p_value`` or ``max_p`` outside ``[0, 1]``.
     """
     if not 0.0 <= candidate <= 1.0:
         raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
@@ -630,6 +644,10 @@ def gate(
         raise ValueError(f"max_consultations must be positive, got {max_consultations}")
     if discordant_loss < 0:
         raise ValueError(f"discordant_loss must be non-negative, got {discordant_loss}")
+    if p_value is not None and not 0.0 <= p_value <= 1.0:
+        raise ValueError(f"p_value must be in [0, 1], got {p_value}")
+    if max_p is not None and not 0.0 <= max_p <= 1.0:
+        raise ValueError(f"max_p must be in [0, 1], got {max_p}")
 
     def _result(decision: str, reason: str, *, compared: bool = True) -> GateResult:
         return GateResult(
@@ -657,6 +675,16 @@ def gate(
                 f"candidate {candidate:.4f} beats {incumbent:.4f} overall but "
                 f"regressed {discordant_loss} held-out task(s) from pass to fail; "
                 f"a net gain does not buy back a broken task",
+            )
+        # Last, because a broken task is the finding worth naming first even
+        # when both refusals apply.
+        if max_p is not None and p_value is not None and p_value > max_p:
+            return _result(
+                "REJECT",
+                f"candidate {candidate:.4f} beats {incumbent:.4f} but the "
+                f"one-sided exact McNemar tail is {p_value:g}, above the "
+                f"{max_p:g} bar; the gain is not distinguishable from scorer "
+                f"variance at this held-out size",
             )
         return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
     if candidate == incumbent:
