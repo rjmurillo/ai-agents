@@ -123,12 +123,15 @@ def language_universal_forms(ext: str) -> frozenset[str]:
 
     - ``**`` and ``**/*`` and ``*`` are the harness all-files wildcards (every
       file of every type).
+    - ``**/*.*`` matches every file whose basename carries a dot, which every
+      file of ``ext`` does, so it is universal for the language too (it also
+      matches other dotted types, but that only widens the match).
     - ``**/*.<ext>`` is every file of the type at any depth. A relative
       ``*.<ext>`` reaches this form via the ``**/`` prepend, so it is universal
       too; a *scoped* relative glob such as ``src/*.<ext>`` prepends to
       ``**/src/*.<ext>`` and stays out of this set.
     """
-    return frozenset({"**", "**/*", "*", f"**/*{ext}"})
+    return frozenset({"**", "**/*", "*", "**/*.*", f"**/*{ext}"})
 
 
 def _split_top_level_commas(raw: str) -> list[str]:
@@ -215,25 +218,42 @@ def _vscode_effective_glob(pattern: str) -> str:
     safe upper bound). Source, pinned:
     https://github.com/microsoft/vscode/blob/018354116a88cb1264790f93663de42198a44594/src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts#L294-L310
 
-    Two rules from that matcher:
+    Rules from that matcher:
 
     - Bare ``**``, ``**/*``, and ``*`` are all-files wildcards: a rule scoped to
       any of them attaches even with no file open, so ``*`` is universal (not
       root-only as raw ``minimatch`` would have it).
+    - The harness matches against absolute file paths, so an absolute pattern is
+      anchored at the filesystem root. A leading ``/**/`` therefore spans any
+      directory prefix, the same span as the relative ``**/`` anchor, and bare
+      ``/**`` or ``/**/*`` is the all-files wildcard.
     - Any other pattern that is neither absolute (``/...``) nor already
       ``**/``-anchored gets ``**/`` prepended, so ``*.py`` means ``**/*.py`` and
       loads for every ``.py`` at any depth, while ``src/*.py`` becomes
       ``**/src/*.py`` and stays scoped.
+    - A trailing ``/**`` globstar matches zero or more trailing segments,
+      including the prefix path itself, so ``**/*.py/**`` covers the same files
+      as ``**/*.py`` and is likewise universal.
 
-    After the prepend the glob is folded by ``_normalize_glob`` so equivalent
-    spellings (``**/**.py`` -> ``**/*.py``) collapse to one form.
+    After the anchor folds the glob is passed through ``_normalize_glob`` so
+    equivalent spellings (``**/**.py`` -> ``**/*.py``) collapse to one form.
     """
     p = pattern.strip()
     if p in ("**", "**/*", "*"):
         return p
+    if p in ("/**", "/**/*"):
+        return "**"
+    if p.startswith("/**/"):
+        p = p[1:]
     if not p.startswith("/") and not p.startswith("**/"):
         p = "**/" + p
-    return _normalize_glob(p)
+    normalized = _normalize_glob(p)
+    while normalized.endswith("/**"):
+        stripped = normalized[: -len("/**")]
+        if not stripped:
+            return "**"
+        normalized = _normalize_glob(stripped)
+    return normalized
 
 
 def _iter_applyto_globs(value: object) -> list[str]:
@@ -296,6 +316,12 @@ def is_language_universal(patterns: set[str], ext: str) -> bool:
     Case-insensitive: VS Code matches ``applyTo`` globs with ``ignoreCase: true``
     (same pinned source, line 316), so ``**/*.PY`` is universal for ``.py``. Both
     the effective glob and the universal forms are case-folded before comparison.
+
+    The effective glob folds the harness anchor rules (``_vscode_effective_glob``)
+    so broad spellings reduce to a universal form: ``/**/*.py`` (absolute anchor),
+    ``**/*.py/**`` (trailing globstar), and ``**/*.*`` (any dotted basename) each
+    resolve to universal, closing the bypass where a broad glob would otherwise
+    contribute zero bytes to the always-on budget.
     """
     forms = {form.lower() for form in language_universal_forms(ext)}
     return any(_vscode_effective_glob(pattern).lower() in forms for pattern in patterns)

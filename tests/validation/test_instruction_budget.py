@@ -218,6 +218,33 @@ def test_is_language_universal_is_case_insensitive() -> None:
     assert ib.is_language_universal({"**/*.PYX"}, ".py") is False
 
 
+def test_is_language_universal_matches_broad_vscode_forms() -> None:
+    # VS Code's matcher makes several broader globs universal that an exact-form
+    # membership test would miss. Each of these loads for every .py file:
+    #  - '**/*.*' matches any dotted basename (every .py has one).
+    #  - '/**/*.py' is absolute; file paths are absolute, so it spans any dir.
+    #  - '**/*.py/**' has a trailing globstar that matches zero segments,
+    #    covering the .py file itself.
+    assert ib.is_language_universal({"**/*.*"}, ".py") is True
+    assert ib.is_language_universal({"*.*"}, ".py") is True
+    assert ib.is_language_universal({"/**/*.py"}, ".py") is True
+    assert ib.is_language_universal({"**/*.py/**"}, ".py") is True
+    # Absolute all-files and prefix wildcards fold to the all-files form.
+    assert ib.is_language_universal({"/**"}, ".py") is True
+    assert ib.is_language_universal({"/**/*"}, ".py") is True
+    # The folds must not promote a scoped glob: a bounded prefix stays scoped
+    # whether the breadth comes from a trailing globstar or an absolute anchor.
+    assert ib.is_language_universal({"src/**/*.py/**"}, ".py") is False
+    assert ib.is_language_universal({"/src/**/*.py"}, ".py") is False
+    assert ib.is_language_universal({"/src/*.py"}, ".py") is False
+    # Effective-glob folds, spelled out.
+    assert ib._vscode_effective_glob("/**/*.py") == "**/*.py"
+    assert ib._vscode_effective_glob("**/*.py/**") == "**/*.py"
+    assert ib._vscode_effective_glob("/**") == "**"
+    assert ib._vscode_effective_glob("/**/*") == "**"
+    assert ib._vscode_effective_glob("**/*.*") == "**/*.*"
+
+
 # --------------------------------------------------------------------------
 # measure_extension / evaluate (positive)
 # --------------------------------------------------------------------------
