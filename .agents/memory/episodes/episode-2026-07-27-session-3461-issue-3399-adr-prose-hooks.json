@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Added ADR prose hook reference scanning",
       "caused_by": [
-        "e016"
+        "e019"
       ],
       "leads_to": [
         "e002"
@@ -120,7 +120,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e011",
@@ -191,6 +193,40 @@
         "e015"
       ],
       "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner for review r2",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected ADR-062 and ADR-083 review r2 prose",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 211cc69f2d61",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -200,7 +236,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 6
   },
   "lessons": []

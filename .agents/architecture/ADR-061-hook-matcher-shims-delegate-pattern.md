@@ -47,7 +47,7 @@ The design produces correct shims on first generation. It does not stay correct 
 
 ### Drift evidence (PR 1763, observed 2026-05-26)
 
-PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) registers `invoke_false_completion_gate` against four matchers: `Bash`, `Bash(gh pr create*)`, `Bash(gh pr merge*)`, `Bash(git commit*)(git ci*)`. The generator produced four shim files. `diff` between them shows divergent wrapped-body content:
+PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) previously registered `invoke_false_completion_gate` against four matchers: `Bash`, `Bash(gh pr create*)`, `Bash(gh pr merge*)`, `Bash(git commit*)(git ci*)`. The generator produced four shim files. `diff` between them shows divergent wrapped-body content:
 
 | File pair | Divergence |
 |-----------|------------|
@@ -61,9 +61,9 @@ Same hook, four files, divergent gate logic. Runtime behavior depends on which m
 
 | Hook | Canonical size | Shim count | Total bytes | Amplification |
 |------|----------------|------------|-------------|---------------|
-| `invoke_false_completion_gate` (PR 1763) | 27 KB | 4 | 133 KB | 4.9x |
-| `invoke_branch_protection_guard` | 3 KB | 3 | 26 KB | 7.9x |
-| `invoke_session_log_guard` | 7 KB | 3 | 38 KB | 5.5x |
+| Historical `invoke_false_completion_gate` (PR 1763) | 27 KB | 4 | 133 KB | 4.9x |
+| Historical `invoke_branch_protection_guard` | 3 KB | 3 | 26 KB | 7.9x |
+| Historical `invoke_session_log_guard` | 7 KB | 3 | 38 KB | 5.5x |
 
 On main, only multi-matcher hooks (4 today) carry the amplification. PR 1763 and future lifecycle-hook PRs increase it.
 

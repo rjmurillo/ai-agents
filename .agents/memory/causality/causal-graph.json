@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:37:21.446445+00:00",
+  "updated": "2026-07-27T14:53:38.857613+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22068,6 +22068,33 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
       "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "142ba3369761",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner for review r2",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851533+00:00"
+    },
+    {
+      "id": "20f14b24aa18",
+      "type": "milestone",
+      "label": "milestone: Corrected ADR-062 and ADR-083 review r2 prose",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851621+00:00"
+    },
+    {
+      "id": "8a10c7238b40",
+      "type": "commit",
+      "label": "commit: Commit: 211cc69f2d61",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851708+00:00"
     }
   ],
   "patterns": [

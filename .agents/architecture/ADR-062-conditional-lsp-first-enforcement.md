@@ -48,11 +48,11 @@ Copilot logs). It found:
 - The retired Read gate fired on the hottest tool. The deleted `invoke_lsp_read_guard.py` ran on
   every Read to enforce a preference, not a safety property, and pays the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
-- The preference already has three enforcement-free carriers.
+- The preference now has two enforcement-free carriers.
   `.claude/rules/lsp-first.md` ships as context every session, Serena Init is
-  BLOCKING at session start (AGENTS.md), and #1993 re-asserts every turn. The
-  runtime block is a fourth, and most expensive, layer on a preference the first
-  three already carry.
+  BLOCKING at session start (AGENTS.md). The removed #1993 per-turn reassertion
+  hook used to be a third carrier. The runtime block was the most expensive layer
+  on a preference the remaining carriers already preserve.
 - Most of the family self-neuters in consumer repos. The guards gate on the git
   origin being `ai-agents` (`skip_if_consumer_repo`), so they no-op in any
   customer repo regardless of the block.

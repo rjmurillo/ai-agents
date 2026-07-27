@@ -64,12 +64,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Review follow-up changes are being committed atomically on fix/3399-adr-prose-hook-refs."
+        "evidence": "Review r2 changes committed atomically on fix/3399-adr-prose-hook-refs."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Red proof on origin/main ADRs with strengthened scanner: 13 failed, 273 passed. Green after fixes: uv run --frozen python -m pytest tests/hooks/test_adr_hook_claims.py -q reported 286 passed; uv run --frozen python -m pytest tests/hooks/ -q reported 719 passed; ruff passed; mypy passed; dash byte count was 0."
+        "evidence": "Review r2 RED proof before scanner fix: 6 failed, 287 passed. After scanner and ADR prose fixes: uv run --frozen python -m pytest tests/hooks/test_adr_hook_claims.py -q reported 293 passed. Full validation evidence is recorded in the PR update."
       }
     }
   },
@@ -136,9 +136,24 @@
         ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
         ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
       ]
+    },
+    {
+      "action": "Strengthened ADR prose scanner for review r2",
+      "result": "Backticked bare invoke_* basenames are scanned, bare names map to .py files for resolution and running-hook inventory, and retirement markers only suppress affirmative same-sentence or same-row context.",
+      "files": [
+        "tests/hooks/test_adr_hook_claims.py"
+      ]
+    },
+    {
+      "action": "Corrected ADR-062 and ADR-083 review r2 prose",
+      "result": "ADR-062 now states the removed #1993 reassertion no longer ships; ADR-083 no longer claims invoke_security_gate or invoke_security_commit_gate ship.",
+      "files": [
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md"
+      ]
     }
   ],
-  "endingCommit": "8c17b1d10e58",
+  "endingCommit": "211cc69f2d61",
   "nextSteps": [],
   "notes": [
     "Regex widened to catch :line-range hook references per review feedback."
