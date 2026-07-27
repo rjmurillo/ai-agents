@@ -1137,3 +1137,78 @@ fix. That is now the strongest evidence in this log for the review discipline
 itself: the defect rate per round has not fallen, but the defects have moved
 from the mechanism to its edges, and each round's finding has been smaller and
 more specific than the last.
+
+### Defect shape 29: guarding the exception, not the rule
+
+Shape 28 gave the warning back the two properties the raise path already had.
+Round twenty-two showed that the fix had bought the demonstration rather than
+the property.
+
+Shape 28's evidence was a stderr whose `write` raises errno 32, so the fix
+suppressed `OSError`. A stream closed for real raises `ValueError: I/O
+operation on closed file`, which is not an `OSError`. Closing an `io.StringIO`
+and warning through it aborted a write that had already succeeded, which is the
+outcome shape 26 and shape 28 were both written to prevent. The demonstration
+was inside the guard and the rule was outside it.
+
+The worse half was not a crash at all. `sys.stderr` is `None` in an embedded or
+windowed interpreter, and `print(file=None)` does not skip the write. It falls
+back to stdout, which is the stream carrying the JSON verdict. A caller piping
+the CLI into a parser would have received a warning spliced into its payload.
+Nothing raises, nothing logs, and the redaction is irrelevant because the leak
+is not the failure. That is a third rule the warning has to hold, and neither
+of the two earlier rounds had stated it: a diagnostic must not land on the
+stream carrying the result.
+
+The repair is stated as three named rules in the function's own docstring
+rather than as three handled cases, because the previous two rounds each
+handled the case in front of them and each left the next one open.
+
+### Defect shape 30: a coverage claim no test backed
+
+Round twenty-two also read round twenty-one's tests instead of its prose. The
+commit message, the session log, and the PR body all said the fix was covered
+"at both sites" and "under nesting". All eight of the tests drove
+`_write_atomic`. None touched the lock-cleanup warning site, and none nested a
+scrub inside another.
+
+The code was correct at both sites; the claim about the evidence was not. That
+distinction is what makes this a separate shape from the prose-versus-mechanism
+failures in shapes 21, 26, and 27. Those were documents describing a mechanism
+that did not match. This one is a document describing *the tests*, which is the
+one claim a reader cannot check by reading the code.
+
+The repair adds the two missing tests rather than removing the sentence, and
+records the correction as a new session-log phase rather than editing the false
+phase into truth. A log that silently repairs its own errors cannot be used as
+evidence about the process that produced them.
+
+### A test that could not fail, caught before it shipped
+
+The first draft of the context-isolation test used two threads and a barrier,
+and passed against the module global it was written to rule out. The reasoning
+said it must fail: the barrier forces both scopes open before either reads, so
+a shared global has been written twice and both readers see the second write.
+
+The reasoning was right about the writes and wrong about the reads. The barrier
+releases both threads, but they still run one at a time, and the second thread
+finished its `finally` restore before the first resumed. Each then read its own
+key, from a genuinely shared variable, by scheduling luck. Instrumenting the
+interleaving is what showed this; three rounds of staring at the source did
+not.
+
+Round sixteen found a test asserting a digest was absent from an already
+drained buffer. This is the same shape from a different direction: not a
+vacuous assertion, but a real assertion the runtime declined to exercise. Both
+report as covered. `copy_context` asks the same question with the scheduler
+removed, and fails against the global deterministically.
+
+The rule this adds to the mutation discipline already in use here: a test whose
+discriminating power depends on scheduling has not been shown to discriminate
+by passing once under mutation, or by failing once. It has to be made
+deterministic or deleted.
+
+Twenty-two rounds in, every round has still found a defect in the previous
+round's fix. Round twenty-two is the first to find a defect in the previous
+round's *evidence* rather than its code, which is the failure mode this log
+exists to make expensive.

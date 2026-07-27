@@ -468,7 +468,16 @@ optimizer cooperates:
   warning goes through the same redaction the raised errors do, and cannot
   itself fail: a diagnostic printed after a success must not become a new way
   to lose the work it is reporting on, and must not disclose in plain text
-  what the exception path is required to redact.
+  what the exception path is required to redact. "Cannot fail" is enforced as
+  a rule rather than as a list of the failures anyone has demonstrated: an
+  earlier version suppressed `OSError` because that is what a reviewer's
+  closed-stream demonstration raised, and a stream closed for real raises
+  `ValueError`. There is a third rule alongside those two. The warning must
+  not land on the stream carrying the verdict. `sys.stderr` can be absent in
+  an embedded or windowed interpreter, and printing to a file of `None` does
+  not skip the write, it falls back to stdout, where the JSON a caller parses
+  is. A diagnostic that corrupts the payload it is diagnosing is worse than
+  one that crashes, because nothing reports it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task
