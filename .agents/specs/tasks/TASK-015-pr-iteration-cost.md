@@ -19,6 +19,14 @@ updated: 2026-05-04
 
 # TASK-015: Implement pre-push validation hooks for PR iteration cost reduction
 
+> [!IMPORTANT]
+> **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> PR #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Nothing validates embedded count claims today: the scanner's own
+> count subsystem was also retired in PR #2853 (commit `9c88990b77`).
+
 ## Objective
 
 Implement three Claude Code PreToolUse hooks that block `git push` on markdown style violations,
@@ -161,7 +169,7 @@ returncode=1 and sample stdout.
 ### TASK-015-3: Implement `invoke_manifest_count_guard.py` and its tests
 
 **Objective**: Ship US-2. Block `git push` when marketplace.json description counts disagree
-with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` (no new script).
+with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` (no new script). <!-- orphan-ref-ignore -->
 
 **Complexity**: S (2-4 hours)
 
@@ -192,7 +200,7 @@ with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` 
 
 **Implementation Notes**
 
-The existing script at `build/scripts/validate_marketplace_counts.py` handles all count
+The existing script at `build/scripts/validate_marketplace_counts.py` handles all count <!-- orphan-ref-ignore -->
 derivation, regex parsing, and fix mode. Config lives in `templates/marketplace-counters.yaml`.
 `docs/SEMANTIC_INDEX.yaml` is NOT part of this validation; it is a semantic search index, not a
 count manifest. The hook is a thin adapter: bootstrap, detect relevant files, call the existing
@@ -288,7 +296,7 @@ parallel speed for clean merges.
 If parallel implementation is unavoidable, the documented strategy is: M2 ships first; M3
 and M4 each rebase on the merged M2 (and then M3) before pushing.
 
-M3 imports from existing `build/scripts/validate_marketplace_counts.py` (no new script).
+M3 imports from existing `build/scripts/validate_marketplace_counts.py` (no new script). <!-- orphan-ref-ignore -->
 
 ---
 
