@@ -89,7 +89,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "489 tests pass across the three optimizer test files; 100% line coverage on _optimizer_core.py, _optimizer_adapters.py, and optimize-artifact.py; ruff and mypy clean on the changed files"
+        "evidence": "508 tests pass across the three optimizer test files; 100% line coverage on _optimizer_core.py, _optimizer_adapters.py, and optimize-artifact.py; ruff and mypy clean on the changed files"
       }
     }
   },
@@ -136,7 +136,7 @@
         "Ordered the bar last among accept-path refusals so a broken task is still the finding named first",
         "Replayed both live runs under --max-p 0.05: the false ACCEPT became a REJECT naming the 0.25 tail, and the no-op stayed refused by the regression clause"
       ],
-      "outcome": "489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean."
+      "outcome": "489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean."
     },
     {
       "phase": "Round fourteen adversarial review of the significance bar",
@@ -168,7 +168,7 @@
       "outcome": "The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "bb98bf24a",
   "nextSteps": [
     "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
     "PR #3467 is green on 112 checks and blocked only on human approval.",

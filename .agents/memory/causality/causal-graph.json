@@ -320,7 +320,7 @@
     {
       "id": "81dfac4cde4c",
       "type": "milestone",
-      "label": "milestone: \u2705 **Option 1**: MUST NOT violation detection - COMPLETED",
+      "label": "milestone: ✅ **Option 1**: MUST NOT violation detection - COMPLETED",
       "episodes": [
         "episode-2026-01-05-session-316"
       ],
@@ -329,7 +329,7 @@
     {
       "id": "81eadb94d865",
       "type": "milestone",
-      "label": "milestone: \u2705 **Option 2**: All 4 CRITICAL issues - COMPLETED",
+      "label": "milestone: ✅ **Option 2**: All 4 CRITICAL issues - COMPLETED",
       "episodes": [
         "episode-2026-01-05-session-316"
       ],
@@ -338,7 +338,7 @@
     {
       "id": "d000e83be00d",
       "type": "milestone",
-      "label": "milestone: \u2705 **Option 3**: All 5 HIGH priority issues - COMPLETED",
+      "label": "milestone: ✅ **Option 3**: All 5 HIGH priority issues - COMPLETED",
       "episodes": [
         "episode-2026-01-05-session-316"
       ],
@@ -932,7 +932,7 @@
     {
       "id": "44aa8415092d",
       "type": "error",
-      "label": "error: - Catastrophic fail-open \u2192 fail-closed",
+      "label": "error: - Catastrophic fail-open → fail-closed",
       "episodes": [
         "episode-2026-01-09-session-317"
       ],
@@ -1112,7 +1112,7 @@
     {
       "id": "62d968c016dc",
       "type": "error",
-      "label": "- Catastrophic fail-open \u2192 fail-closed",
+      "label": "- Catastrophic fail-open → fail-closed",
       "episodes": [
         "episode-2026-01-09-session-317"
       ],
@@ -3164,7 +3164,7 @@
     {
       "id": "15adf37f87ec",
       "type": "milestone",
-      "label": "milestone: Lock PRD \u00a711 open questions before commit",
+      "label": "milestone: Lock PRD §11 open questions before commit",
       "episodes": [
         "episode-2026-05-10-session-1832"
       ],
@@ -3218,7 +3218,7 @@
     {
       "id": "6c85f835d337",
       "type": "milestone",
-      "label": "milestone: Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
+      "label": "milestone: Execute TASK-011: apply verdict rule per DESIGN-011 §C3",
       "episodes": [
         "episode-2026-05-10-session-1832"
       ],
@@ -21370,7 +21370,7 @@
     {
       "id": "0d025ac46b68",
       "type": "milestone",
-      "label": "milestone: The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky.",
+      "label": "milestone: The verdict on this benchmark was decided by pipeline variance, not by the edit. That variance compounds two nondeterministic stages, the response model and the judge, both gpt-4o-mini at temperature 0, which this harness cannot separate because it sets no seed and records no system_fingerprint (#3475). The real candidate got lucky; the no-op got unlucky.",
       "episodes": [
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
