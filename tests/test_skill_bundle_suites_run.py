@@ -24,9 +24,12 @@ exactly the way these 82 directories did.
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -58,25 +61,33 @@ def _suite_dirs(root: Path) -> list[Path]:
 def _run_tree(root: Path) -> subprocess.CompletedProcess[str]:
     """Run every bundle suite under one tree root in a dedicated subprocess."""
     targets = [str(p.relative_to(_REPO_ROOT)) for p in _suite_dirs(root)]
-    return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            *targets,
-            "-q",
-            "--no-header",
-            "-p",
-            "no:cacheprovider",
-        ],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=900,
-        check=False,
-    )
+    temp_root = _REPO_ROOT.parent / f".pytest-external-{_REPO_ROOT.name}" / uuid.uuid4().hex
+    env = os.environ.copy()
+    env["TMPDIR"] = str(temp_root)
+    try:
+        temp_root.mkdir(parents=True)
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                *targets,
+                "-q",
+                "--no-header",
+                "-p",
+                "no:cacheprovider",
+            ],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900,
+            check=False,
+            env=env,
+        )
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @pytest.mark.parametrize("root", _BUNDLE_TREE_ROOTS, ids=lambda p: p.as_posix())
