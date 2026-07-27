@@ -735,6 +735,41 @@ def _scrub(text: str, holdout_key: str) -> str:
     return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
 
 
+_ACTIVE_HOLDOUT_KEY: str | None = None
+
+
+def _warn(message: str) -> None:
+    """Report a loss that must not abort the caller and must not leak.
+
+    Two rules that kept being written separately and therefore kept being
+    missed at one site or the other.
+
+    It must not leak. `_digest_scrubbed` is a seam over raised exceptions, and
+    its own reasoning is that a wrapper covers the paths someone remembered
+    while a seam covers the one added next year. A diagnostic that prints and
+    returns never reaches that seam, so the next one added inherits none of
+    its protection: a twenty-first review found exactly that, at a warning
+    added in the twentieth, naming a `$EVAL_LEDGER_DIR` root in full one round
+    after the tenth review fixed the same leak at the lock warning by hand.
+    Reading the key from the active scrub rather than taking it as an argument
+    is what makes this a seam too. A caller who has no key to pass is the
+    caller most likely to be the one that leaks.
+
+    It must not fail. Every caller here is reporting something that already
+    succeeded or that is being cleaned up after, so the decision is either on
+    stdout already or about to be. `print` raises when stderr is closed or
+    broken, and both sites sit inside a region that converts `OSError` into a
+    refusal, so an unguarded warning hands back the abort it was written to
+    avoid. Losing the warning to a closed stderr costs a diagnostic; raising
+    costs a charged consultation and returns no verdict.
+    """
+    key = _ACTIVE_HOLDOUT_KEY
+    if key is not None:
+        message = _scrub(message, key)
+    with suppress(OSError):
+        print(message, file=sys.stderr)
+
+
 @contextmanager
 def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     """Keep the held-out digest out of whatever goes wrong under the ledger.
@@ -758,7 +793,17 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     same shape of defect the scrub exists to fix, one layer down. A
     `ConfigError` without the digest is re-raised as itself rather than
     rewrapped, so nothing that inspects the exception object loses it.
+
+    The key is published while the block runs so `_warn` can reach it. A
+    warning prints and returns, so it never passes through the handler below,
+    and a twenty-first review found one naming a digest-bearing ledger root in
+    full. Publishing it here rather than threading it through every signature
+    keeps the same property the handler has: the site added next year is
+    covered without being told to be.
     """
+    global _ACTIVE_HOLDOUT_KEY
+    previous = _ACTIVE_HOLDOUT_KEY
+    _ACTIVE_HOLDOUT_KEY = holdout_key
     try:
         yield
     except (ConfigError, OSError) as exc:
@@ -779,6 +824,11 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
         if isinstance(exc, ConfigError):
             raise
         raise ConfigError(text) from exc
+    finally:
+        # Restoring the previous value rather than clearing to None: the seam
+        # nests, and an inner block that cleared unconditionally would leave
+        # the outer one unprotected for the rest of its body.
+        _ACTIVE_HOLDOUT_KEY = previous
 
 
 def _ledger_path(holdout_key: str) -> Path:
@@ -843,19 +893,19 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 # would hide a lock that now blocks the next run, so it goes to
                 # stderr, named by its directory rather than by itself.
                 #
-                # Through _scrub, because naming the directory was justified in
+                # Through _warn, because naming the directory was justified in
                 # review by the claim that a directory carries no digest, and a
-                # tenth review falsified it: $EVAL_LEDGER_DIR can name one.
-                print(
-                    _scrub(
-                        f"warning: could not remove the lock under {lock.parent} "
-                        f"({exc.strerror or exc.errno}); the next gate against "
-                        f"this held-out group reports contention until it is "
-                        f"removed. Its name is withheld: the name digests the "
-                        f"membership.",
-                        holdout_key,
-                    ),
-                    file=sys.stderr,
+                # tenth review falsified it: $EVAL_LEDGER_DIR can name one. A
+                # twenty-first review then found this print unguarded: it sits
+                # in a finally after the decision is already on stdout, so a
+                # closed stderr would replace a completed comparison with a
+                # traceback about the cleanup.
+                _warn(
+                    f"warning: could not remove the lock under {lock.parent} "
+                    f"({exc.strerror or exc.errno}); the next gate against "
+                    f"this held-out group reports contention until it is "
+                    f"removed. Its name is withheld: the name digests the "
+                    f"membership."
                 )
 
 
@@ -1256,9 +1306,11 @@ def _fsync_dir(directory: Path) -> None:
     after a consultation has already been charged, so raising would spend a
     look and return no verdict: a durability fix turned into an availability
     regression. Staying silent is equally wrong, because it leaves the caller
-    believing a guarantee that did not hold. So the loss is named on stderr,
-    which the exit-code contract keeps free for exactly this while stdout
-    carries the one JSON document a caller parses.
+    believing a guarantee that did not hold. So the loss goes through
+    ``_warn``, which withholds the held-out digest a ledger root can carry and
+    cannot itself fail, onto stderr, which the exit-code contract keeps free
+    for exactly this while stdout carries the one JSON document a caller
+    parses.
 
     Windows cannot open a directory as a descriptor, so there is nothing to
     sync and ``os.replace`` is atomic there regardless. That is a skip rather
@@ -1273,11 +1325,10 @@ def _fsync_dir(directory: Path) -> None:
         finally:
             os.close(fd)
     except OSError as exc:
-        print(
+        _warn(
             f"warning: wrote and renamed into {directory}, but could not fsync the "
             f"directory ({exc}); the file is intact and its durability across a "
-            "host crash is not guaranteed",
-            file=sys.stderr,
+            "host crash is not guaranteed"
         )
 
 

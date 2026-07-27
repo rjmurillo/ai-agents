@@ -4565,3 +4565,147 @@ class TestARefusalDoesNotAdviseAnInvocationTheParserRejects:
             oa.main(["score", "--kind", "rule", "--input", "x.json", "--group", "test"])
         assert excinfo.value.code == EXIT_CONFIG
         assert "invalid choice" in capsys.readouterr().err
+
+
+class TestADiagnosticNeitherLeaksNorFails:
+    """Round twenty-one: a warning is still a way out of the process.
+
+    Round twenty stopped the directory-fsync failure from aborting a caller
+    whose consultation was already charged, by printing instead of raising.
+    That moved the failure rather than removing it. `print` itself raises when
+    stderr is closed or broken, and `_write_atomic` converts any `OSError` from
+    that region into a `ConfigError`, so the abort round twenty removed came
+    straight back one layer down.
+
+    The leak is the same shape. `_digest_scrubbed` is a seam over raised
+    exceptions, and its own docstring gives the reason: "a wrapper covers the
+    paths someone remembered; a seam covers the one added next year." A warning
+    that prints and returns never reaches that seam, so the new diagnostic
+    named a ledger directory in full, and `$EVAL_LEDGER_DIR` can carry the
+    held-out digest. The tenth review already found and fixed exactly that at
+    the lock-cleanup warning; this reintroduced it two rounds later at a site
+    the seam does not cover.
+
+    Both are one rule, and it was written down zero times: a diagnostic must
+    not leak what raised diagnostics redact, and must not fail where the code
+    it reports on already succeeded.
+    """
+
+    @staticmethod
+    def _stderr_that_refuses(monkeypatch):
+        class _Closed:
+            def write(self, _text):
+                raise OSError(32, "stderr closed")
+
+            def flush(self):
+                pass
+
+        monkeypatch.setattr(oa.sys, "stderr", _Closed())
+
+    @staticmethod
+    def _fsync_refuses(monkeypatch):
+        def _fsync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return None
+
+        monkeypatch.setattr(oa.os, "fsync", _fsync)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_broken_stderr_does_not_abort_the_write_that_succeeded(
+        self, tmp_path, monkeypatch
+    ):
+        """The exact regression round twenty fixed, one layer down."""
+        self._fsync_refuses(monkeypatch)
+        self._stderr_that_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert (tmp_path / "ledger.json").read_text(encoding="utf-8") == '{"n": 1}\n'
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_broken_stderr_is_not_reported_as_a_failed_write(
+        self, tmp_path, monkeypatch
+    ):
+        """`_write_atomic` turns any OSError from that region into ConfigError."""
+        self._fsync_refuses(monkeypatch)
+        self._stderr_that_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_withholds_a_digest_bearing_directory(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """`$EVAL_LEDGER_DIR` can name the held-out digest; the tenth review
+        found the lock warning printing one and fixed it there only."""
+        key = "b" * 64
+        root = tmp_path / f"ledger-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert key not in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_withheld_digest_is_replaced_not_dropped(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """An error naming nothing is a worse trade than the leak, so the
+        placeholder must survive where the digest was."""
+        key = "c" * 64
+        root = tmp_path / f"ledger-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_an_uppercase_digest_is_withheld_too(self, tmp_path, capsys, monkeypatch):
+        """Edge: the same case-folding the twelfth review had to add to `_scrub`."""
+        key = "d" * 64
+        root = tmp_path / f"ledger-{key.upper()}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert key.upper() not in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_still_reaches_stderr_outside_a_scrub(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Positive control: withholding must not become silence."""
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert "durab" in capsys.readouterr().err.lower()
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_scrub_does_not_outlive_its_block(self, tmp_path, capsys, monkeypatch):
+        """Negative control: a key left active would redact a later run's
+        unrelated output, and hex is common enough in these paths to matter."""
+        key = "e" * 64
+        with oa._digest_scrubbed(key):
+            pass
+        root = tmp_path / f"dir-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(root / "ledger.json", "{}\n")
+        assert key in capsys.readouterr().err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_scrub_is_cleared_when_its_block_raises(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the seam exists to catch exceptions, so the unwinding path is
+        the one that must restore state, not the falling-off-the-end path."""
+        key = "f" * 64
+        with pytest.raises(oa.ConfigError):
+            with oa._digest_scrubbed(key):
+                raise OSError(5, "nothing to do with the digest")
+        root = tmp_path / f"dir-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(root / "ledger.json", "{}\n")
+        assert key in capsys.readouterr().err
