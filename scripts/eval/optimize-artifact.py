@@ -1161,19 +1161,36 @@ def _fsync_dir(directory: Path) -> None:
     scoring exists to prevent, so a charge a crash can erase defeats the
     ordering it was written to protect.
 
+    Failure here is reported, not raised, and the split matters. Every other
+    failure in ``_write_atomic`` precedes ``os.replace`` and leaves the
+    destination untouched, so refusing costs the caller nothing. This one
+    fires after the write has already succeeded, and in the ledger's case
+    after a consultation has already been charged, so raising would spend a
+    look and return no verdict: a durability fix turned into an availability
+    regression. Staying silent is equally wrong, because it leaves the caller
+    believing a guarantee that did not hold. So the loss is named on stderr,
+    which the exit-code contract keeps free for exactly this while stdout
+    carries the one JSON document a caller parses.
+
     Windows cannot open a directory as a descriptor, so there is nothing to
     sync and ``os.replace`` is atomic there regardless. That is a skip rather
-    than a failure. A directory that opens and then refuses to sync is a
-    different case and is reported: claiming a durability guarantee that did
-    not hold is the failure shape this file keeps correcting.
+    than a warning.
     """
     if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
         return
-    fd = os.open(str(directory), os.O_RDONLY)
     try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        fd = os.open(str(directory), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        print(
+            f"warning: wrote and renamed into {directory}, but could not fsync the "
+            f"directory ({exc}); the file is intact and its durability across a "
+            "host crash is not guaranteed",
+            file=sys.stderr,
+        )
 
 
 def _write_atomic(path: Path, text: str) -> None:

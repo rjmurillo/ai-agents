@@ -4157,10 +4157,43 @@ class TestTheLedgerRenameIsMadeDurableNotJustTheBytes:
         assert order.index("dir") > order.index("replace")
 
     @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
-    def test_a_directory_that_refuses_fsync_is_a_config_error(
+    def test_a_directory_that_refuses_fsync_does_not_undo_the_write(
         self, tmp_path, capsys, monkeypatch
     ):
-        """Negative: an undurable rename is reported, not silently accepted."""
+        """The bytes and the rename already landed, so the file must stay.
+
+        Round twenty: the first version of this guard raised ConfigError here.
+        That made a durability fix into an availability regression. os.replace
+        was previously the last operation in the function, so every failure
+        path preceded the rename and left the destination untouched. Adding a
+        step after the rename created the first failure that can fire once the
+        write has already succeeded, and in the ledger's case once a
+        consultation has already been charged.
+        """
+        real = oa.os.fsync
+        target = tmp_path / "ledger.json"
+        target.write_text("{}\n", encoding="utf-8")
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(target, '{"spent": 1}\n')
+        assert target.read_text(encoding="utf-8") == '{"spent": 1}\n'
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_directory_that_refuses_fsync_does_not_abort_the_caller(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: aborting after the charge costs a look and returns none.
+
+        _write_atomic writes the ledger before the gate scores. Raising after
+        os.replace succeeds means the consultation is spent and the caller
+        gets an exception instead of a verdict, which is the one trade the
+        charge-before-scoring order exists to avoid in the other direction.
+        """
         real = oa.os.fsync
 
         def _refuse(fd):
@@ -4169,5 +4202,79 @@ class TestTheLedgerRenameIsMadeDurableNotJustTheBytes:
             return real(fd)
 
         monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_lost_guarantee_is_reported_on_stderr(self, tmp_path, capsys, monkeypatch):
+        """Not raising is not the same as not saying.
+
+        Silently continuing would leave the caller believing a durability
+        guarantee that did not hold, which is the shape this file keeps
+        correcting. stderr is the right channel: the exit-code contract
+        reserves stdout for the one JSON document a caller parses.
+        """
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        captured = capsys.readouterr()
+        assert "durab" in captured.err.lower()
+        assert captured.out == ""
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_does_not_claim_the_write_failed(self, tmp_path, capsys, monkeypatch):
+        """Negative: the write succeeded, so saying otherwise is a false claim."""
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert "could not write" not in capsys.readouterr().err
+
+    def test_a_file_fsync_failure_still_refuses(self, tmp_path, capsys, monkeypatch):
+        """Control: before the rename nothing landed, so it is still an error.
+
+        The distinction is what makes the change above a correction rather
+        than a loosening. A failure that precedes os.replace leaves the
+        destination untouched, so refusing is both honest and free.
+        """
+
+        def _refuse(fd):
+            raise OSError(5, "file fsync denied")
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
         with pytest.raises(oa.ConfigError, match="could not write"):
             oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+
+class TestARefusalDoesNotAdviseAnInvocationTheParserRejects:
+    """Round twenty: the budget refusal named a command that does not exist.
+
+    The exhausted-budget message told the operator to "report on the test
+    group". `score --group` accepts only "opt", and by design: the README
+    lists "score --group opt refuses to read any other group" as a property
+    the mechanism enforces whether or not the optimizer cooperates. Widening
+    the choice to reach the test group would hand the loop unmetered reads of
+    the one group held back as a final unbiased look, which is the opposite of
+    what the advice was reaching for.
+
+    So the advice is removed rather than implemented. The wording itself is
+    asserted in tests/test_eval_optimizer_core.py, next to the function that
+    produces it; what belongs here is the boundary that made the advice false.
+    """
+
+    def test_the_parser_still_refuses_the_group_the_message_named(self, capsys, tmp_path):
+        """Control: the enforced boundary is unchanged by this fix."""
+        with pytest.raises(SystemExit) as excinfo:
+            oa.main(["score", "--kind", "rule", "--input", "x.json", "--group", "test"])
+        assert excinfo.value.code == EXIT_CONFIG
+        assert "invalid choice" in capsys.readouterr().err

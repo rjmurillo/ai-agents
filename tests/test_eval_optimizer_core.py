@@ -1159,3 +1159,44 @@ class TestBothBarsAreLabeledInTheRefusal:
         assert "per-comparison bar of 0.05" in result.reason
         assert "0.05 family bar" in result.reason
         assert "divided across 1 consultation(s)" in result.reason
+
+
+class TestTheBudgetRefusalOnlyAdvisesMovesTheCliAllows:
+    """Round twenty: the refusal named an invocation the parser rejects.
+
+    The exhausted-budget message ended "refresh the split or report on the
+    test group". `score --group` accepts only "opt", so the second half sent
+    an operator who had just run out of budget into a dead end that the CLI's
+    own argument parser refuses statically.
+
+    The fix removes the advice rather than implementing it. Widening the
+    choice would hand the loop unmetered reads of the group held back as a
+    final unbiased look, and "score --group opt refuses to read any other
+    group" is listed in the README as a property enforced whether or not the
+    optimizer cooperates. The methodological point behind the advice is sound
+    and the tooling for a one-shot final read does not exist; that is a
+    capability gap to file, not a string to keep true by weakening an enforced
+    boundary.
+    """
+
+    def test_the_refusal_does_not_send_the_operator_to_the_test_group(self):
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "test group" not in reason
+
+    def test_the_refusal_still_names_the_count_and_the_limit(self):
+        """Control: making the advice honest must not drop the diagnosis."""
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "5" in reason
+        assert "exhausted" in reason
+
+    def test_the_refusal_still_names_a_move_the_operator_can_make(self):
+        """A refusal that diagnoses without advising leaves the loop stuck."""
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "split" in reason
+
+    def test_a_budget_with_room_left_is_still_silent(self):
+        """Control: the wording change must not make the guard fire early."""
+        assert guard_refusal(sel_consultations=4, max_consultations=5) is None

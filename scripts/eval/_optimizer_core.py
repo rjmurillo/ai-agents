@@ -579,7 +579,7 @@ def guard_refusal(
     if max_consultations is not None and sel_consultations >= max_consultations:
         return (
             f"held-out split exhausted after {sel_consultations} consultations "
-            f"(limit {max_consultations}); refresh the split or report on the test group"
+            f"(limit {max_consultations}); re-split to gate against a fresh group"
         )
 
     return None
