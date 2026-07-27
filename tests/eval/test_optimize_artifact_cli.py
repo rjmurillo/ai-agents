@@ -1438,6 +1438,27 @@ class TestConsultationLedgerIsHeldByTheGate:
         code, _ = self._gate(capsys, inc, cand, split, ledger)
         assert code == EXIT_CONFIG
 
+    @pytest.mark.parametrize("bad_bar", [1.5, -0.1, 2.0, -1])
+    def test_a_ledger_with_out_of_range_max_p_is_a_config_error(
+        self, tmp_path, capsys, bad_bar
+    ):
+        """An out-of-range max_p in the ledger is data corruption, not a gate refusal."""
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        record = json.loads(split.read_text(encoding="utf-8"))
+        holdout_key = oa._holdout_key(record)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({
+                "consultations": 0,
+                "holdout": holdout_key,
+                "max_consultations": 100,
+                "max_p": bad_bar,
+            }),
+            encoding="utf-8",
+        )
+        code, _ = self._gate(capsys, inc, cand, split, ledger)
+        assert code == EXIT_CONFIG
+
     def test_a_first_run_needs_no_existing_ledger(self, tmp_path, capsys):
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
         code, _ = self._gate(capsys, inc, cand, split, ledger)

@@ -825,6 +825,12 @@ def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) ->
         raise ConfigError(
             f"the ledger under {path.parent} needs max_p to be a number or absent"
         )
+    if recorded_bar is not None and not 0.0 <= recorded_bar <= 1.0:
+        raise ConfigError(
+            f"the ledger under {path.parent} has max_p={recorded_bar}, "
+            f"which is outside [0, 1]; this is a corrupted ledger, not a "
+            f"gate refusal"
+        )
     if recorded_bar != max_p:
         raise LedgerMismatchError(
             f"this held-out group was opened under a significance bar of "
