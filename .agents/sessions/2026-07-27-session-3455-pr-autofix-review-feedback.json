@@ -112,7 +112,7 @@
     {
       "step": 6,
       "action": "Replace 7 em-dash unicode escapes in causal-graph.json with plain hyphens",
-      "result": "Zero — remaining; compliant with repo dash policy"
+      "result": "Zero \\u2014 remaining; compliant with repo dash policy"
     },
     {
       "step": 7,
