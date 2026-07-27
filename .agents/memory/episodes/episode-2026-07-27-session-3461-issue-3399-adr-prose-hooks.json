@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Added ADR prose hook reference scanning",
       "caused_by": [
-        "e015"
+        "e016"
       ],
       "leads_to": [
         "e002"
@@ -179,6 +179,18 @@
         "e014"
       ],
       "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6b41483632d0",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -188,7 +200,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 6
   },
   "lessons": []
