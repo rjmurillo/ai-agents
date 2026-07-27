@@ -89,7 +89,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 93 passed; uv run python scripts/validation/check_skill_md_portability.py reported no drift and exited 0; uv run ruff check on both changed files passed; validate_plugin_version_bump.py --base origin/main returned OK with no bump required, because the branch touches only scripts/, tests/, .agents/ and .serena/."
+        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 96 passed; uv run python scripts/validation/check_skill_md_portability.py reported no drift and exited 0; uv run ruff check on both changed files passed; validate_plugin_version_bump.py --base origin/main returned OK with no bump required, because the branch touches only scripts/, tests/, .agents/ and .serena/."
       },
       "tasksUpdated": {
         "complete": true,
@@ -117,7 +117,7 @@
       "step": "Kept ../ excluded. An existing test asserts it. A parent-relative path does not unambiguously name the repository-root directory: where it lands depends on the referring file's own location, so it is not evidence of an upstream dependency. An earlier draft of the boundary allowed it and that test caught the regression."
     },
     {
-      "step": "Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 19 of the 93 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it."
+      "step": "Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there."
     },
     {
       "step": "Filed issue #3471 with the reproduction table before opening the PR."
