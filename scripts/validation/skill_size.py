@@ -72,21 +72,33 @@ SKILL_BYTE_WARNING: int = 12_288  # 12 KiB, progressive-disclosure trigger
 # Pattern matching staged/changed SKILL.md files
 _SKILL_MD_PATTERN: str = r"^\.claude/skills/.*/SKILL\.md$"
 
-# Git stores a symlink's *target path text* as its blob content, not the bytes
-# of the file it points to. A staged symlink SKILL.md therefore measures the
-# short link text and would slip a 30 KiB target past the ceiling, so the gate
-# rejects it (see StagedBlobError / read_staged_blob_bytes).
-_GIT_SYMLINK_MODE: str = "120000"
+# Git index modes for a *regular* file blob: 100644 (non-exec) and 100755
+# (exec). Only these carry the file's real bytes as the blob. A symlink (120000)
+# stores the target *path text* as its blob, and a gitlink/submodule (160000)
+# stores a commit id, so measuring either under-counts and would slip a large
+# target past the ceiling. The staged gate whitelists the regular modes and
+# rejects everything else (see StagedBlobError / read_staged_blob_bytes).
+_GIT_REGULAR_BLOB_MODES: frozenset[str] = frozenset({"100644", "100755"})
+
+
+class StagedDiscoveryError(RuntimeError):
+    """Staged SKILL.md discovery could not complete, so the gate fails closed.
+
+    Raised when the ``git diff --cached`` that enumerates staged files fails
+    (nonzero exit, timeout, or git missing). A pre-commit gate must not treat a
+    broken discovery as "no staged skills" (exit 0); an unknown staged set is a
+    stronger red than a known-oversize file, so this routes to exit 2.
+    """
 
 
 class StagedBlobError(RuntimeError):
     """A staged SKILL.md blob could not be certified for size measurement.
 
-    Raised in staged mode when the index blob is missing, is a symlink (git
-    stores the link target text as the blob, not the linked file's bytes, so
-    measuring it under-counts), or ``git show`` fails. The gate fails closed on
-    this rather than fall back to the working tree, which a pre-commit hook must
-    never trust for what is about to be committed.
+    Raised in staged mode when the index blob is missing, is not a regular-file
+    blob (a symlink stores the link target text, a gitlink stores a commit id,
+    so measuring either under-counts), or ``git show`` fails. The gate fails
+    closed on this rather than fall back to the working tree, which a pre-commit
+    hook must never trust for what is about to be committed.
     """
 
 
@@ -207,87 +219,125 @@ def check_skill_size(
 
 
 def get_staged_skill_files() -> list[Path]:
-    """Get staged SKILL.md files from git."""
+    """Return staged SKILL.md paths from the index; fail closed on git error.
+
+    Uses ``-z`` so paths are emitted raw and NUL-separated, immune to
+    ``core.quotePath`` (which by default octal-escapes and quotes non-ASCII
+    paths like ``.claude/skills/caf\\303\\251/SKILL.md`` and would dodge a
+    newline-split, anchored match). ``--diff-filter=ACMRT`` includes a
+    file->symlink *typechange* (status ``T``) so it is discovered and then
+    rejected by the index-mode check, rather than silently skipped.
+
+    A git command failure (nonzero exit, timeout, or missing git) raises
+    ``StagedDiscoveryError``. An empty result with a clean exit legitimately
+    means "no staged SKILL.md" and returns ``[]``; only a *failed* discovery
+    fails closed, so the common no-skills commit is not penalized.
+    """
     try:
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMRT"],
             capture_output=True,
-            text=True,
             timeout=10,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        msg = f"staged SKILL.md discovery failed ({exc}); failing closed"
+        raise StagedDiscoveryError(msg) from exc
 
     if result.returncode != 0:
-        return []
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        msg = f"staged SKILL.md discovery failed: git diff exited {result.returncode}: {stderr}"
+        raise StagedDiscoveryError(msg)
 
     files: list[Path] = []
-    for line in result.stdout.strip().split("\n"):
-        if line and re.search(_SKILL_MD_PATTERN, line):
+    for raw in result.stdout.split(b"\x00"):
+        if not raw:
+            continue
+        # surrogateescape round-trips undecodable bytes so the path re-encodes
+        # correctly when handed back to git (os/subprocess use the same codec).
+        line = raw.decode("utf-8", errors="surrogateescape")
+        if re.search(_SKILL_MD_PATTERN, line):
             files.append(Path(line))
     return files
 
 
-def _staged_index_mode(path: Path) -> str | None:
-    """Return the git index mode for ``path`` (e.g. '100644', '120000'), or None.
+def _staged_index_entry(path: Path) -> tuple[str, str]:
+    """Return the ``(mode, object_id)`` of the stage-0 index entry for ``path``.
 
-    ``git ls-files -s`` prints ``<mode> <sha> <stage>\\t<path>``; the first token
-    is the mode. None means the path has no index entry (or git is unavailable).
+    Parses ``git ls-files -s -z`` records (``<mode> <oid> <stage>\\t<path>``,
+    NUL-terminated so the path is never quoted). Only the stage-0 (non-conflict)
+    entry certifies what a commit will contain; a merge-conflicted path has only
+    stages 1/2/3 and cannot be committed, so it is treated as uncertifiable.
+
+    Raises ``StagedBlobError`` when there is no stage-0 entry (path not staged,
+    conflicted, or git unavailable) or the listing command fails.
     """
     try:
         result = subprocess.run(
-            ["git", "ls-files", "-s", "--", path.as_posix()],
+            ["git", "ls-files", "-s", "-z", "--", path.as_posix()],
             capture_output=True,
-            text=True,
             timeout=10,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        msg = f"{path.as_posix()}: git ls-files failed ({exc})"
+        raise StagedBlobError(msg) from exc
     if result.returncode != 0:
-        return None
-    out = result.stdout.strip()
-    if not out:
-        return None
-    return out.split(maxsplit=1)[0]
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        msg = f"{path.as_posix()}: git ls-files exited {result.returncode}: {stderr}"
+        raise StagedBlobError(msg)
+    for record in result.stdout.split(b"\x00"):
+        if not record:
+            continue
+        meta = record.partition(b"\t")[0]
+        parts = meta.split()
+        if len(parts) < 3:
+            continue
+        mode, oid, stage = parts[0], parts[1], parts[2]
+        if stage == b"0":
+            return mode.decode("ascii"), oid.decode("ascii")
+    msg = (
+        f"{path.as_posix()}: no stage-0 index entry (unstaged or merge-conflicted); "
+        "cannot certify staged bytes"
+    )
+    raise StagedBlobError(msg)
 
 
 def read_staged_blob_bytes(path: Path) -> bytes:
     """Return the staged (indexed) bytes for ``path``; fail closed on any doubt.
 
     A pre-commit gate must judge what will be committed, not the working tree.
-    ``git show :<path>`` reads the blob from the index, so an oversized staged
-    body cannot be masked by a shrunk (unstaged) working copy, and a staged
-    ``size-exception`` is honored while an unstaged one is ignored. The path is
-    emitted as POSIX because git indexes forward-slash paths on every platform.
+    The bytes are read from the exact index object: ``git ls-files -s`` yields
+    the staged ``(mode, oid)`` and ``git cat-file blob <oid>`` returns that
+    object's raw bytes. Reading by object id (rather than ``git show :<path>``)
+    ties the measurement to the listed entry with no path re-quoting and no
+    time-of-check/time-of-use gap between the mode check and the read.
 
-    Raises ``StagedBlobError`` when the blob cannot be certified: no index entry,
-    a symlink (git stores the link target text as the blob, which under-measures
-    a link to a large file), or a failed/timed-out ``git show``. The caller must
-    never fall back to the working tree in staged mode.
+    Raises ``StagedBlobError`` when the blob cannot be certified: no stage-0
+    entry, a non-regular mode (a symlink stores the link target text and a
+    gitlink stores a commit id, both of which under-measure the real file), or a
+    failed/timed-out git call. The caller must never fall back to the working
+    tree in staged mode.
     """
-    mode = _staged_index_mode(path)
-    if mode is None:
-        msg = f"{path.as_posix()}: no staged index entry; cannot measure staged bytes"
-        raise StagedBlobError(msg)
-    if mode == _GIT_SYMLINK_MODE:
+    mode, oid = _staged_index_entry(path)
+    if mode not in _GIT_REGULAR_BLOB_MODES:
         msg = (
-            f"{path.as_posix()}: staged entry is a symlink (mode 120000); git "
-            "stores the link target as the blob, so its size cannot certify the "
-            "linked file. Commit a real SKILL.md, not a symlink."
+            f"{path.as_posix()}: staged entry mode {mode} is not a regular file "
+            "(100644/100755). A symlink (120000) stores the link target text and a "
+            "gitlink (160000) stores a commit id, so neither blob size certifies "
+            "the SKILL.md body. Commit a real file, not a symlink or submodule."
         )
         raise StagedBlobError(msg)
     try:
         result = subprocess.run(
-            ["git", "show", f":{path.as_posix()}"],
+            ["git", "cat-file", "blob", oid],
             capture_output=True,
             timeout=10,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        msg = f"{path.as_posix()}: git show failed ({exc})"
+        msg = f"{path.as_posix()}: git cat-file failed ({exc})"
         raise StagedBlobError(msg) from exc
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace").strip()
-        msg = f"{path.as_posix()}: git show exited {result.returncode}: {stderr}"
+        msg = f"{path.as_posix()}: git cat-file exited {result.returncode}: {stderr}"
         raise StagedBlobError(msg)
     return result.stdout
 
@@ -433,11 +483,19 @@ def main(argv: list[str] | None = None) -> int:
 
     print("Validating skill prompt sizes...")
 
-    files = get_skill_files(
-        path=args.path,
-        staged_only=args.staged_only,
-        changed_files=args.changed_files,
-    )
+    try:
+        files = get_skill_files(
+            path=args.path,
+            staged_only=args.staged_only,
+            changed_files=args.changed_files,
+        )
+    except StagedDiscoveryError as exc:
+        print(f"  [FAIL] staged discovery could not complete: {exc}")
+        print(
+            "\nFailing closed: a pre-commit gate must not treat a broken staged "
+            "discovery as 'no skills to check'. Ensure git is available and retry."
+        )
+        return 2
 
     if not files:
         print("No SKILL.md files found to validate.")

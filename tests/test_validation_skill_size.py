@@ -19,7 +19,9 @@ from scripts.validation.skill_size import (
     SKILL_SIZE_LIMIT,
     SKILL_SIZE_WARNING,
     StagedBlobError,
+    StagedDiscoveryError,
     check_skill_size,
+    get_staged_skill_files,
     has_size_exception,
     main,
     read_staged_blob_bytes,
@@ -342,7 +344,8 @@ class TestStagedBlobValidation:
     oversized body, then shrink or add an exception in the worktree without
     staging, and the oversized blob would still get committed. These tests build
     a real repo and drive ``main(["--staged-only", "--ci"])`` to prove the gate
-    reads ``git show :<path>``.
+    reads the staged index object (``git ls-files -s`` + ``git cat-file blob``),
+    never the working tree.
     """
 
     @staticmethod
@@ -508,3 +511,117 @@ class TestStagedBlobValidation:
 
         monkeypatch.chdir(tmp_path)
         assert main(["--staged-only", "--ci"]) == 2
+
+    def test_staged_gitlink_skill_is_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Round-3 finding: a gitlink/submodule entry (mode 160000) stores a commit
+        # id as its "blob", not the file bytes, so measuring it under-counts. The
+        # mode whitelist (100644/100755) must reject it. Staged via cacheinfo so
+        # the test needs no real submodule and is OS-independent.
+        self._init_repo(tmp_path)
+        # A gitlink cacheinfo needs a non-null commit id; git rejects the all-zero
+        # SHA. Reuse a real commit id from an initial commit in this repo.
+        (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "seed.txt"], cwd=tmp_path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "seed"], cwd=tmp_path, check=True, capture_output=True
+        )
+        commit_sha = (
+            subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, check=True
+            )
+            .stdout.decode()
+            .strip()
+        )
+        subprocess.run(
+            [
+                "git",
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"160000,{commit_sha},.claude/skills/big/SKILL.md",
+            ],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 2
+
+    def test_typechange_to_symlink_is_discovered_and_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Round-3 finding: replacing a committed regular SKILL.md with a symlink is
+        # a typechange (git status ``T``). ``--diff-filter=ACMR`` excluded ``T``, so
+        # discovery skipped it and the gate passed (exit 0) while an oversized-target
+        # symlink was commit-ready. ``--diff-filter=ACMRT`` must discover it, and the
+        # mode whitelist must then reject it (exit 2).
+        self._init_repo(tmp_path)
+        skill = self._write_skill(tmp_path, b"---\nname: big\n---\nsmall real body")
+        self._stage_all(tmp_path)
+        subprocess.run(
+            ["git", "commit", "-qm", "add skill"], cwd=tmp_path, check=True, capture_output=True
+        )
+        # Replace the regular file with a symlink blob at the same path (typechange).
+        sha = (
+            subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                input=b"../../../some/large/target",
+                cwd=tmp_path,
+                capture_output=True,
+                check=True,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        skill.unlink()
+        subprocess.run(
+            [
+                "git",
+                "update-index",
+                "--cacheinfo",
+                f"120000,{sha},.claude/skills/big/SKILL.md",
+            ],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only", "--ci"]) == 2
+
+    def test_non_ascii_staged_path_is_discovered(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Round-3 finding: with default ``core.quotePath``, a non-ASCII path like
+        # ``café`` is emitted octal-escaped and double-quoted by a newline-split
+        # ``git diff --name-only``, so an anchored match missed it and the oversized
+        # blob dodged the gate. ``-z`` emits raw NUL-separated paths, so discovery
+        # sees it and the gate fails on the oversized staged blob.
+        self._init_repo(tmp_path)
+        skill = tmp_path / ".claude" / "skills" / "café" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_bytes(b"---\nname: cafe\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
+        self._stage_all(tmp_path)
+
+        monkeypatch.chdir(tmp_path)
+        discovered = get_staged_skill_files()
+        assert any("caf" in p.as_posix() for p in discovered)
+        assert main(["--staged-only", "--ci"]) == 1
+
+    def test_discovery_failure_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Round-3 finding: a failed ``git diff`` (nonzero/timeout/git missing) must
+        # not become an empty successful run (exit 0). It raises StagedDiscoveryError,
+        # which main routes to exit 2 (fail closed), unconditionally (no --ci).
+        def _boom() -> list[Path]:
+            raise StagedDiscoveryError("simulated git diff failure")
+
+        monkeypatch.setattr(_skill_size_mod, "get_staged_skill_files", _boom)
+        monkeypatch.chdir(tmp_path)
+        assert main(["--staged-only"]) == 2
