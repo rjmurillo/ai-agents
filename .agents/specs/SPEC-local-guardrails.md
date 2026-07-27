@@ -191,4 +191,4 @@ The following are explicitly out of scope:
 - `.github/workflows/ai-pr-quality-gate.yml` - AI Quality Gate workflow
 - `.github/prompts/pr-quality-gate-*.md` - Agent prompt files
 - `.githooks/pre-commit` - Pre-commit hook (ADR-004)
-- `scripts/Validate-SessionEnd.ps1` - Existing validation script
+- `scripts/Validate-SessionEnd.ps1` - Existing validation script <!-- orphan-ref-ignore -->
