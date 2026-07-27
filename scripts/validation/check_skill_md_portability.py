@@ -109,7 +109,19 @@ from scripts.validation.portability_common import (
 # :func:`count_upstream_refs`), so a backtick is a valid anchor character.
 # ``../`` stays excluded: it is parent-relative and does not name the repository
 # root, so where it lands depends on the referring file's own location.
-_ANCHOR = r"(?:^|(?<=[\s(\[<\"'`|,;*]))"
+#
+# ``>`` is in the set so a tight blockquote ``>/templates/agents/x.md`` counts,
+# matching the spaced ``> /templates/agents/x.md`` that ``\s`` already accepts.
+#
+# ``:`` and ``=`` are deliberately absent even though each would fix one real
+# shape, because each also admits one. ``:`` would count ``[x]:/templates/x.md``
+# but would also make the Windows drive letters ``C:\templates\`` and
+# ``C:\.agents\`` count, since a drive letter is a colon followed by a single
+# separator. ``=`` would count ``<img src=/templates/x.md>`` but would also make
+# the URL query parameter ``?next=/.agents/x`` count. Both trade a false
+# negative for a false positive, so neither is a net gain (measured, issue
+# #3489).
+_ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
 _BOUNDARY = _ANCHOR + r"(?:\.[\\/]|[\\/])?"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -172,6 +184,11 @@ def _strip_code(text: str) -> str:
     fence accepts a blockquoted closing line. Requiring the close to match the
     open's context keeps a bare ``>``-prefixed line inside a top-level fence
     from closing it early.
+
+    A blockquoted fence also ends when its blockquote ends, because a fenced
+    code block has no lazy continuation. The line that ends the blockquote is
+    then re-read at top level, so a bare ``\u0060\u0060\u0060`` there opens a new
+    top-level fence rather than being treated as prose.
     """
     lines = text.split("\n")
     result_lines: list[str] = []
@@ -180,6 +197,15 @@ def _strip_code(text: str) -> str:
     fence_quoted = False
 
     for line in lines:
+        if (
+            fence_char is not None
+            and fence_quoted
+            and _BLOCKQUOTE_PREFIX_PATTERN.match(line) is None
+        ):
+            fence_char = None
+            fence_len = 0
+            fence_quoted = False
+
         if fence_char is None:
             match = _FENCE_OPEN_PATTERN.match(line)
             quoted = False

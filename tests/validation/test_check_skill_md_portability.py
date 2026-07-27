@@ -258,6 +258,7 @@ class TestPathStartAnchor:
             '<img src="/templates/agents/x.md">',
             "`templates/agents/x.md`",
             "Prose line.\n/templates/agents/x.md",
+            ">/templates/agents/x.md",
         ],
     )
     def test_paths_at_a_real_start_of_context_count(self, text: str) -> None:
@@ -265,9 +266,47 @@ class TestPathStartAnchor:
 
         Markdown link parentheses, table pipes, HTML attribute quotes and inline
         code backticks all introduce a path without changing where it resolves
-        from, so each one still counts.
+        from, so each one still counts. A tight blockquote marker counts too, so
+        it agrees with the spaced form that whitespace already accepts.
         """
         assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]:/templates/agents/x.md",
+            "path:/templates/agents/x.md",
+            "<img src=/templates/agents/x.md>",
+        ],
+    )
+    def test_colon_and_equals_are_not_anchors(self, text: str) -> None:
+        """These shapes are knowingly missed, and the trade is measured.
+
+        Admitting ``:`` would count these two colon forms but would also count
+        the Windows drive letters ``C:\\templates\\`` and ``C:\\.agents\\``,
+        because a drive letter is a colon followed by a single separator.
+        Admitting ``=`` would count the unquoted HTML attribute but would also
+        count the URL query parameter ``?next=/.agents/x``. Each swaps one false
+        negative for one false positive, so neither is a net gain. The guards
+        below pin the shapes that would break (issue #3489).
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\specs\\x.md",
+            "[x](https://example.com/p?next=/.agents/x)",
+        ],
+    )
+    def test_shapes_that_colon_or_equals_anchors_would_break(self, text: str) -> None:
+        """Negative control for the trade recorded above.
+
+        If someone adds ``:`` or ``=`` to the anchor set, these start counting
+        and this test fails, which is the intended warning.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
 
 
 class TestBlockquotedFence:
@@ -293,6 +332,28 @@ class TestBlockquotedFence:
         end the block early and expose the rest of the example as prose.
         """
         text = "```\n> ```\n/templates/agents/x.md\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_unquoted_line_ends_a_quoted_fence(self) -> None:
+        """A fenced block has no lazy continuation, so it dies with its quote.
+
+        The unquoted line is top-level prose, not fence body, so a reference on
+        it is a real dependency and must count.
+        """
+        text = "> ```\n> code .agents/a\nplain /templates/agents/b\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_unterminated_quoted_fence_does_not_swallow_later_prose(self) -> None:
+        text = "> ```\n> code .agents/a\nreal prose /templates/agents/b\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_line_ending_a_quoted_fence_is_re_read_at_top_level(self) -> None:
+        """Ending the blockquote must not skip fence detection on that line.
+
+        The bare fence marker leaves the blockquote and opens a top-level fence,
+        so the lines after it are code and must not count.
+        """
+        text = "> ```bash\n> echo hi\n```\n> cp .agents/x .\n> ```\n"
         assert cmp.count_upstream_refs(text) == 0
 
 
