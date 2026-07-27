@@ -758,12 +758,14 @@ class TestStagedBlobValidation:
         # land in a clean repo-local .git/config. This closes the whole class,
         # bounded by git's own enumeration: a residual channel would have to be
         # a var git does not report as local (a git bug, not a test gap).
-        _local_env_vars = subprocess.run(
+        _rev_parse_result = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"],
             capture_output=True,
-            check=True,
             text=True,
-        ).stdout.split()
+        )
+        if _rev_parse_result.returncode != 0:
+            pytest.skip("git build does not support --local-env-vars")
+        _local_env_vars = _rev_parse_result.stdout.split()
         for _var in _local_env_vars:
             monkeypatch.delenv(_var, raising=False)
         _neutral_cfg = tmp_path / "hermetic-absent.gitconfig"
@@ -807,13 +809,19 @@ class TestStagedBlobValidation:
         orig_subtree = _git("rev-parse", "HEAD^{tree}:.claude/skills/big")
         new_subtree = _git("mktree", _input=f"100644 blob {small_oid}\tSKILL.md\n".encode())
         _git("replace", orig_subtree, new_subtree)
-        _git("sparse-checkout", "init", "--cone", "--sparse-index")
-        _git("sparse-checkout", "set", "keep")
+        try:
+            _git("sparse-checkout", "init", "--cone", "--sparse-index")
+            _git("sparse-checkout", "set", "keep")
+        except subprocess.CalledProcessError:
+            pytest.skip("git build does not support sparse-checkout --sparse-index")
         # Prove the sparse-index setup actually produced a sparse-directory
         # entry (mode 040000): the .claude tree is outside the "keep" cone, so
         # it must collapse to a tree entry the gate has to expand. A git build
         # that does not produce one cannot stage this attack; skip there.
-        staged = _git("ls-files", "--sparse", "--stage")
+        try:
+            staged = _git("ls-files", "--sparse", "--stage")
+        except subprocess.CalledProcessError:
+            pytest.skip("git build does not support ls-files --sparse")
         if not any(line.startswith("040000") for line in staged.splitlines()):
             pytest.skip("git build did not produce a sparse-directory index entry")
 
@@ -837,6 +845,7 @@ class TestStagedBlobValidation:
         # resolves the real indexed blob and measures the oversized bytes.
         measured = read_staged_blob_bytes(Path(skill_rel))
         assert len(measured) > SKILL_BYTE_LIMIT
+
     def test_replace_ref_head_does_not_hide_staged_skill_from_discovery(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
