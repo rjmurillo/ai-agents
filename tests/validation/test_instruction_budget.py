@@ -123,6 +123,13 @@ def test_parse_applyto_brace_form_is_language_universal() -> None:
     assert ib.is_language_universal(patterns, ".py") is True
 
 
+def test_expand_braces_strips_whitespace_around_options() -> None:
+    # Whitespace after commas in brace groups must not bleed into the expanded
+    # glob. "**/*.{py, pyi}" must produce "**/*.pyi", not "**/*. pyi".
+    assert ib.expand_braces("**/*.{py, pyi}") == ["**/*.py", "**/*.pyi"]
+    assert ib.expand_braces("**/*.{ cs , fs }") == ["**/*.cs", "**/*.fs"]
+
+
 def test_parse_applyto_missing_frontmatter_returns_empty() -> None:
     assert ib.parse_applyto("# just a heading\n\nno frontmatter\n") == set()
 

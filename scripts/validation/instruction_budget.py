@@ -204,7 +204,7 @@ def expand_braces(pattern: str) -> list[str]:
     options = _split_glob_aware(pattern[start + 1 : end], ",")
     expanded: list[str] = []
     for opt in options:
-        expanded.extend(expand_braces(prefix + opt + suffix))
+        expanded.extend(expand_braces(prefix + opt.strip() + suffix))
     return expanded
 
 
