@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:28:13.760883+00:00",
+  "updated": "2026-07-27T12:07:20.371597+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21258,6 +21258,42 @@
         "episode-2026-07-27-session-3460-decompose-change-control"
       ],
       "created": "2026-07-27T10:26:30.994200+00:00"
+    },
+    {
+      "id": "6850aee5d39b",
+      "type": "milestone",
+      "label": "milestone: Added ADR prose hook reference scanning",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365281+00:00"
+    },
+    {
+      "id": "0e559d9e3e2f",
+      "type": "milestone",
+      "label": "milestone: Corrected stale ADR prose hook references",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365378+00:00"
+    },
+    {
+      "id": "26cc38e703a3",
+      "type": "milestone",
+      "label": "milestone: ADR Review Protocol",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365462+00:00"
+    },
+    {
+      "id": "5f795771a5c2",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365545+00:00"
     }
   ],
   "patterns": [

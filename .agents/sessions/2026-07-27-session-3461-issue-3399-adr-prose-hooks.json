@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3461,
+    "date": "2026-07-27",
+    "branch": "fix/3399-adr-prose-hook-refs",
+    "startingCommit": "d1bc2f3d4a8c46e335ddbcb630fee48fc4881971",
+    "objective": "Fix issue #3399 by gating ADR prose hook references and correcting stale prose references."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena activate_project was unavailable in this harness; serena initial_instructions ran successfully before code work."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions returned the Serena manual."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/CLAUDE.md and .agents/SESSION-PROTOCOL.md for session requirements."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created .agents/sessions/2026-07-27-session-3461-issue-3399-adr-prose-hooks.json."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Verified branch fix/3399-adr-prose-hook-refs in isolated worktree."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3399-adr-prose-hook-refs, not main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3399 deliverables validated: prose scanner added, ADR prose corrected, tests and lint run."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was preserved unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No durable new convention needed memory persistence; existing ADR and tests are the source of truth."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2@0.23.1 ran on changed ADR files and reported 0 issues in 0 files due .agents exclusion."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Changes committed on fix/3399-adr-prose-hook-refs."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run --frozen python -m pytest tests/hooks/test_adr_hook_claims.py -q reported 193 passed; ruff reported all checks passed; dash byte count was 0."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Added ADR prose hook reference scanning",
+      "result": "New pytest covers resolvable prose tokens, unresolved unmarked tokens, and retired nearby tokens.",
+      "files": [
+        "tests/hooks/test_adr_hook_claims.py"
+      ]
+    },
+    {
+      "action": "Corrected stale ADR prose hook references",
+      "result": "Changed stale live-hook phrasing into current enforcement points or historical references with retirement markers.",
+      "files": [
+        ".agents/architecture/ADR-033-routing-level-enforcement-gates.md",
+        ".agents/architecture/ADR-061-hook-matcher-shims-delegate-pattern.md",
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-081-confidence-elicitation-experiment.md",
+        ".agents/architecture/ADR-082-claude-hook-group-dispatch.md",
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+      ]
+    },
+    {
+      "action": "ADR Review Protocol",
+      "result": "adr-review skill requirement documented for factual ADR prose corrections. No decision changed; evidence lives in .agents/analysis/2026-07-27-issue-3399-adr-prose-hook-reference-debate.md."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
