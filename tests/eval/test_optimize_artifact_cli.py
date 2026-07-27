@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import traceback
 from pathlib import Path
 
 import pytest
@@ -1954,3 +1956,742 @@ class TestTheGateNeverPublishesTheHoldoutKey:
 
     def test_the_key_still_separates_different_members(self):
         assert oa._holdout_key({"sel": ["a", "b"]}) != oa._holdout_key({"sel": ["a", "c"]})
+
+
+class TestAtomicWriteDoesNotDisguiseNonIOFailures:
+    """A ConfigError means the disk refused. Anything else must keep its type.
+
+    The cleanup arm catches BaseException so an interrupt still removes the
+    temp file. Converting everything it caught into ConfigError would tell a
+    caller the write failed when what actually happened was Ctrl-C, and would
+    swallow an interrupt the operator meant to be immediate.
+    """
+
+    def test_an_interrupt_propagates_unchanged(self, tmp_path, monkeypatch):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+
+        def _interrupt(src, dst):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(oa.os, "replace", _interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            oa._write_atomic(target, "after")
+        assert target.read_text(encoding="utf-8") == "before"
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_an_os_error_becomes_a_config_error(self, tmp_path, monkeypatch):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+
+        def _refuse(src, dst):
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(oa.os, "replace", _refuse)
+        with pytest.raises(oa.ConfigError, match="could not write"):
+            oa._write_atomic(target, "after")
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_a_write_that_works_replaces_the_file(self, tmp_path):
+        target = tmp_path / "artifact.md"
+        target.write_text("before", encoding="utf-8")
+        oa._write_atomic(target, "after")
+        assert target.read_text(encoding="utf-8") == "after"
+        assert list(tmp_path.iterdir()) == [target]
+
+
+class TestASplitFileMustHoldGroupsOfTaskIds:
+    """The gate indexes into every group, so a wrong shape must fail at the file.
+
+    Added by the incoming review-thread commit; these cover its branch. A
+    group holding numbers, or holding a bare string instead of a list, would
+    otherwise surface as a TypeError deep in the comparison, long after the
+    file that caused it went out of scope.
+    """
+
+    def _split_with(self, tmp_path, groups):
+        record = {"opt": ["a"], "sel": ["b"], "test": [],
+                  "seed": "s", "sel_ratio": 0.4, "test_ratio": 0.0,
+                  "fingerprint": "x" * 64}
+        record.update(groups)
+        path = tmp_path / "bad.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        return path
+
+    @pytest.mark.parametrize("groups", [
+        {"opt": "a"},
+        {"sel": [1, 2]},
+        {"test": [None]},
+        {"opt": {"a": True}},
+    ])
+    def test_a_group_that_is_not_a_list_of_strings_is_refused(
+        self, tmp_path, capsys, groups
+    ):
+        split = self._split_with(tmp_path, groups)
+        inc = _write(tmp_path, "inc.json", {"a": True, "b": True})
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", inc,
+                         "--split", split, "--max-consultations", "2",
+                         "--incumbent-fingerprint", "x" * 64)
+        assert code == EXIT_CONFIG
+        assert "must be a list of strings" in out["error"]
+
+    def test_a_well_formed_split_passes_the_shape_check(self, tmp_path, capsys):
+        """The negative cases must not be passing for an unrelated reason."""
+        split = self._split_with(tmp_path, {})
+        assert "must be a list of strings" not in json.dumps(
+            _run(capsys, "gate", "--incumbent",
+                 _write(tmp_path, "i.json", {"a": True, "b": True}),
+                 "--candidate", _write(tmp_path, "c.json", {"a": True, "b": True}),
+                 "--split", split, "--max-consultations", "2",
+                 "--incumbent-fingerprint", "x" * 64)[1]
+        )
+
+
+class TestNoLedgerFailureLeaksTheDigest:
+    """The explicit messages were redacted; the generic ones still carried it.
+
+    A sixth adversarial review (gpt-5.6-sol, 2026-07-26) found that redacting
+    the three hand-written errors left every other way of failing on a ledger
+    path intact: `_read_json` interpolates the file it could not parse, the
+    atomic write interpolates the file it could not replace, and `os.open`
+    raises with the lock's name for any errno but EEXIST. All three names end
+    in the digest. The fix is one scrub at the exception seam rather than
+    three sanitized wrappers, because a wrapper covers the paths someone
+    remembered and a seam covers the ones added later.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, capsys, inc, split, record):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", inc,
+            "--split", split, "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        )
+
+    def test_an_unparseable_ledger_does_not_leak_the_digest(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text("{not json")
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_an_unparseable_ledger_still_says_it_could_not_be_read(self, tmp_path, capsys):
+        """Scrubbing that erases the diagnosis is worse than the leak."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        ledger = oa._ledger_path(oa._holdout_key(record))
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text("{not json")
+        _, out = self._gate(capsys, inc, split, record)
+        assert "not valid JSON" in out["error"] and "ledger" in out["error"]
+
+    def test_an_unwritable_ledger_does_not_leak_the_digest(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+
+        def _deny(path, _text):
+            raise OSError(28, "No space left on device", str(path))
+
+        monkeypatch.setattr(oa, "_write_atomic", _deny)
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_a_lock_cleanup_failure_does_not_leak(self, tmp_path, capsys, monkeypatch):
+        """The unlink in the finally block names the lock, and the lock is the digest.
+
+        Before round 7 this escaped as an uncaught PermissionError, since main
+        catches ConfigError and not OSError. Round 9 then stopped it reaching
+        main at all, because release runs after the decision is emitted and a
+        second document on stdout breaks every reader of the first. So the
+        assertions here are on the leak, which is the invariant, and both
+        streams are checked; the exit code and the stream split belong to
+        TestCleanupFailureDoesNotRewriteTheDecision.
+        """
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        real_unlink = Path.unlink
+
+        def _boom(self, missing_ok=False):
+            if self.suffix == ".lock":
+                raise OSError(13, "Permission denied", str(self))
+            return real_unlink(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", _boom)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        captured = capsys.readouterr()
+        text = captured.out + captured.err
+        assert code != EXIT_CONFIG
+        assert key not in text
+        for task in record["sel"]:
+            assert task not in text
+
+    def test_a_lock_that_fails_for_any_other_reason_does_not_leak(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """os.open raises for more than EEXIST, and the name is the digest."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+
+        def _deny(path, *args, **kwargs):
+            raise PermissionError(13, "Permission denied", str(path))
+
+        monkeypatch.setattr(oa.os, "open", _deny)
+        code, out = self._gate(capsys, inc, split, record)
+        assert code == EXIT_CONFIG and key not in json.dumps(out)
+
+    def test_the_scrub_leaves_messages_without_the_digest_alone(self):
+        with pytest.raises(oa.ConfigError, match="plain trouble"):
+            with oa._digest_scrubbed("a" * 64):
+                raise oa.ConfigError("plain trouble")
+
+    def test_the_scrub_replaces_the_digest_wherever_it_appears(self):
+        key = "a" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise oa.ConfigError(f"could not read /x/{key}.ledger")
+        assert key not in str(caught.value) and "/x/" in str(caught.value)
+
+    def test_the_scrub_passes_a_clean_block_through(self):
+        with oa._digest_scrubbed("a" * 64):
+            pass
+
+
+class TestLedgerFailuresKeepTheJsonErrorContract:
+    """A scrub that re-raises a raw OSError breaks the promise it protects.
+
+    An eighth review (Copilot, PR #3458) found that `_digest_scrubbed` re-raised
+    `OSError` untouched whenever the message did not contain the digest, and
+    `main` catches `ConfigError`, `AdapterError`, and `ValueError` but not
+    `OSError`. So the failures that name a path stayed inside the contract while
+    the failures that do not, an `os.write` that runs out of space or an
+    `os.close` that hits EIO, escaped as an uncaught traceback.
+
+    That is the same defect the scrub was added to fix, one layer down: the
+    handled paths are the ones somebody enumerated. The seam now converts every
+    `OSError` it sees, and redacts the digest only when the message carries it,
+    so the two concerns stay separate.
+    """
+
+    def test_an_oserror_without_the_digest_still_emits_json(self, capsys):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("a" * 64):
+                raise OSError(28, "No space left on device")
+        assert "No space left on device" in str(caught.value)
+
+    def test_the_json_contract_holds_end_to_end_for_a_pathless_oserror(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        record = json.loads(split.read_text())
+
+        def _boom(_handle, _payload):
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(oa.os, "write", _boom)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        out = capsys.readouterr().out
+        assert code == oa.EXIT_CONFIG
+        payload = json.loads(out)
+        assert payload["type"] == "ConfigError"
+        assert "No space left on device" in payload["error"]
+
+    def test_an_oserror_carrying_the_digest_is_still_redacted(self, capsys):
+        key = "b" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, f"Permission denied: /state/{key}.lock")
+        assert key not in str(caught.value)
+        assert "<held-out group>" in str(caught.value)
+
+    def test_a_config_error_without_the_digest_is_reraised_as_itself(self, capsys):
+        original = oa.ConfigError("the split file is not JSON")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("c" * 64):
+                raise original
+        assert caught.value is original
+
+    def test_a_ledger_mismatch_passes_through_the_seam_untouched(self, capsys):
+        with pytest.raises(oa.LedgerMismatchError):
+            with oa._digest_scrubbed("c" * 64):
+                raise oa.LedgerMismatchError("the cap moved")
+
+    def test_a_non_oserror_passes_through_untouched(self, capsys):
+        with pytest.raises(KeyboardInterrupt):
+            with oa._digest_scrubbed("d" * 64):
+                raise KeyboardInterrupt
+
+
+class TestTheSeamLeaksNothingThroughTheCauseChain:
+    """A scrubbed message with an unscrubbed `__cause__` is not scrubbed.
+
+    A ninth review (gemini-3.1-pro-preview, 2026-07-26) found the redaction
+    handing the digest straight back: `raise ConfigError(scrubbed) from exc`
+    sets `__cause__` to the original, and a printed traceback walks the chain.
+    The contention branch was worse, because its message withholds the lock
+    name on purpose and then attached the `FileExistsError` that spells it out.
+
+    The chain is severed exactly where it carries the digest. Where the message
+    never had it, `from exc` stays, because the original raise site is worth
+    keeping and there is nothing there to leak.
+    """
+
+    def _traceback(self, exc):
+        return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+    def test_a_scrubbed_oserror_leaks_nothing_through_the_chain(self):
+        key = "a" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(2, "No such file", f"/state/{key}.lock")
+        assert key not in self._traceback(caught.value)
+
+    def test_lock_contention_leaks_nothing_through_the_chain(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "ledgers"))
+        key = "b" * 64
+        root = oa._ledger_root()
+        root.mkdir(parents=True, exist_ok=True)
+        (root / f"{key}.lock").write_text("999")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._ledger_held(key):
+                pass
+        assert key not in self._traceback(caught.value)
+
+    def test_a_pathless_oserror_keeps_its_cause_for_debugging(self):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("c" * 64):
+                raise OSError(28, "No space left on device")
+        assert isinstance(caught.value.__cause__, OSError)
+
+
+class TestCleanupFailureDoesNotRewriteTheDecision:
+    """The gate had already answered; removing the lock is bookkeeping.
+
+    The same ninth review found that an unlink failure in the `finally` reached
+    `main` after `_emit` had printed the decision, so stdout carried two JSON
+    documents and a successful comparison returned the config-failure exit
+    code. The module docstring promises a caller can read a field instead of
+    guessing from the exit code, and two documents break every reader of it.
+
+    Swallowing it silently would hide a lock that now blocks the next run, so
+    the failure goes to stderr and the decision keeps stdout to itself.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, inc, split, record):
+        return oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+
+    def _break_unlink(self, monkeypatch):
+        original = Path.unlink
+
+        def refuse(self, missing_ok=False):
+            if str(self).endswith(".lock"):
+                raise OSError(13, "Permission denied", str(self))
+            return original(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", refuse)
+
+    def test_stdout_still_holds_exactly_one_document(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["decision"] in {"ACCEPT", "REJECT"}
+
+    def test_the_decision_keeps_its_exit_code(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        code = self._gate(inc, split, record)
+        assert code != oa.EXIT_CONFIG
+
+    def test_the_stale_lock_is_reported_on_stderr(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        assert "Permission denied" in capsys.readouterr().err
+
+    def test_the_warning_withholds_the_digest(self, tmp_path, capsys, monkeypatch):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        self._break_unlink(monkeypatch)
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.err
+        assert key not in captured.out
+
+    def test_a_clean_release_says_nothing(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._gate(inc, split, record)
+        assert capsys.readouterr().err == ""
+
+
+class TestTheLedgerRootIsNotOutsideTheSeam:
+    """One line in `_ledger_held` sat outside the scrub, and it was the first one.
+
+    A tenth review found `lock.parent.mkdir(...)` above the `with` rather than
+    inside it. That has two costs and only the second one needs a contrived
+    setup.
+
+    The first is the round-8 contract defect, unfixed at this line. `mkdir` on a
+    ledger root the process cannot create raises `PermissionError`, `main`
+    catches `(ConfigError, AdapterError, ValueError)` and not `OSError`, so the
+    caller piping stdout through a JSON reader gets a traceback instead of the
+    error document the module docstring promises. A read-only home or a
+    sandboxed runner reaches this with no help from anyone.
+
+    The second is the leak. `$EVAL_LEDGER_DIR` can name a directory that
+    contains the digest, and both the `mkdir` traceback and the release warning
+    render that directory. A caller who set that variable already knows the
+    digest, so this leaks to someone holding the secret. It is fixed anyway,
+    because the standing rule from nine rounds is that a path by which the
+    withheld thing is readable is not withholding it, and because the release
+    warning was justified in review by the claim that a directory carries no
+    digest. That justification was wrong, which is reason enough.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, inc, split, record):
+        return oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+
+    def _break(self, monkeypatch, method):
+        original = getattr(Path, method)
+
+        def refuse(self, *args, **kwargs):
+            if method == "mkdir" or str(self).endswith(".lock"):
+                raise PermissionError(13, "Permission denied", str(self))
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, method, refuse)
+
+    def test_an_unwritable_ledger_root_keeps_the_json_contract(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """No digest anywhere. The contract still has to hold."""
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "plain"))
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break(monkeypatch, "mkdir")
+        code = self._gate(inc, split, record)
+        payload = json.loads(capsys.readouterr().out)
+        assert code == EXIT_CONFIG
+        assert payload["type"] == "ConfigError"
+
+    def test_a_digest_bearing_root_is_scrubbed_from_the_mkdir_failure(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / f"root-{key}"))
+        self._break(monkeypatch, "mkdir")
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.out + captured.err
+
+    def test_a_digest_bearing_root_is_scrubbed_from_the_release_warning(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / f"root-{key}"))
+        self._break(monkeypatch, "unlink")
+        self._gate(inc, split, record)
+        captured = capsys.readouterr()
+        assert key not in captured.out + captured.err
+        assert "<held-out group>" in captured.err
+
+    def test_a_plain_root_is_still_named_so_the_lock_can_be_cleared(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Redaction that redacts everything is not redaction, it is silence."""
+        root = tmp_path / "plain"
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(root))
+        inc, split, record = self._fixture(tmp_path, capsys)
+        self._break(monkeypatch, "unlink")
+        self._gate(inc, split, record)
+        assert str(root) in capsys.readouterr().err
+
+
+class TestOneDefinitionOfHowWeRedact:
+    """The release warning was a second, hand-written redaction site, and it was wrong.
+
+    Two rounds in a row found a redaction defect at a site that had been
+    written by hand rather than routed through the seam. The rule the code now
+    states once is the rule every site gets.
+    """
+
+    def test_a_digest_in_the_text_is_replaced(self):
+        assert oa._scrub("under /x/abc123/y", "abc123") == "under /x/<held-out group>/y"
+
+    def test_text_without_the_digest_is_returned_unchanged(self):
+        assert oa._scrub("under /x/y", "abc123") == "under /x/y"
+
+    def test_every_occurrence_is_replaced_not_only_the_first(self):
+        out = oa._scrub("abc123 and abc123", "abc123")
+        assert "abc123" not in out
+        assert out.count("<held-out group>") == 2
+
+    def test_empty_text_is_not_a_special_case(self):
+        assert oa._scrub("", "abc123") == ""
+
+
+class TestTheRootResolvesInsideTheContract:
+    """An eleventh review found the seam's first line had moved, not vanished.
+
+    Round 10 pulled `lock.parent.mkdir(...)` inside `_digest_scrubbed` and left
+    `_ledger_root()` on the line above it. `Path.home()` raises `RuntimeError`
+    when `$HOME` is unset and the uid has no passwd entry, which is an ordinary
+    container running as a numeric user, and it happens on the DEFAULT
+    configuration: `_ledger_root` consults home only when neither
+    `$EVAL_LEDGER_DIR` nor `$XDG_STATE_HOME` is set.
+
+    `main` catches `(ConfigError, AdapterError, ValueError)`, so that escaped as
+    a traceback where the module docstring promises a JSON error document. The
+    conversion belongs in `_ledger_root` rather than at either call site,
+    because the failure is there and both callers need it.
+    """
+
+    @staticmethod
+    def _no_home(monkeypatch):
+        monkeypatch.delenv("EVAL_LEDGER_DIR", raising=False)
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.setattr(
+            Path, "home",
+            staticmethod(lambda: (_ for _ in ()).throw(RuntimeError("no home"))),
+        )
+
+    def test_an_unresolvable_home_is_a_config_error_not_a_runtime_error(self, monkeypatch):
+        self._no_home(monkeypatch)
+        with pytest.raises(oa.ConfigError) as caught:
+            oa._ledger_root()
+        assert "EVAL_LEDGER_DIR" in str(caught.value)
+
+    def test_the_gate_still_emits_one_json_document(self, tmp_path, capsys, monkeypatch):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        record = json.loads(split.read_text())
+        self._no_home(monkeypatch)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        assert code == EXIT_CONFIG
+        assert json.loads(capsys.readouterr().out)["type"] == "ConfigError"
+
+    def test_an_explicit_root_never_consults_home(self, tmp_path, monkeypatch):
+        self._no_home(monkeypatch)
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "explicit"))
+        assert oa._ledger_root() == tmp_path / "explicit"
+
+    def test_xdg_state_home_also_never_consults_home(self, tmp_path, monkeypatch):
+        self._no_home(monkeypatch)
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg"))
+        assert oa._ledger_root().is_relative_to(tmp_path / "xdg")
+
+
+class TestTheLockDescriptorIsAlwaysReleased:
+    """The write and the close were in one try, so a failed write skipped the close.
+
+    `os.write` on a full disk jumped straight to the `finally`, which unlinks
+    the lock and never closes the descriptor. A one-shot CLI exits and the
+    kernel reclaims it, so the practical cost is small; the reason to fix it is
+    that `main` is importable and the module is used from tests, where the leak
+    accumulates across a session.
+    """
+
+    def _fd_state(self, monkeypatch, tmp_path, fail_write):
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "root"))
+        seen = {}
+        real_open = oa.os.open
+
+        def spy(*args, **kwargs):
+            seen["fd"] = real_open(*args, **kwargs)
+            return seen["fd"]
+
+        monkeypatch.setattr(oa.os, "open", spy)
+        if fail_write:
+            monkeypatch.setattr(
+                oa.os, "write",
+                lambda *a, **k: (_ for _ in ()).throw(OSError(28, "No space left")),
+            )
+        return seen
+
+    @staticmethod
+    def _is_open(fd):
+        try:
+            os.fstat(fd)
+        except OSError:
+            return False
+        return True
+
+    def test_a_failed_write_still_closes_the_descriptor(self, tmp_path, monkeypatch):
+        seen = self._fd_state(monkeypatch, tmp_path, fail_write=True)
+        with pytest.raises(oa.ConfigError):
+            with oa._ledger_held("d" * 64):
+                pass
+        assert self._is_open(seen["fd"]) is False
+
+    def test_the_normal_path_closes_it_exactly_once(self, tmp_path, monkeypatch):
+        seen = self._fd_state(monkeypatch, tmp_path, fail_write=False)
+        with oa._ledger_held("e" * 64):
+            pass
+        assert self._is_open(seen["fd"]) is False
+
+
+class TestRedactionIsNotCaseSensitive:
+    """A hex digest has an uppercase spelling, and a path can carry either.
+
+    Only reachable when the caller put the digest in `$EVAL_LEDGER_DIR`, which
+    means the caller already knows it, so this is not a confidentiality bypass.
+    It is fixed because the stated property is that the key is never printed,
+    and hex is the one alphabet where case-insensitive matching carries no
+    folding surprises.
+    """
+
+    def test_an_uppercase_digest_is_replaced(self):
+        key = "f" * 60 + "abcd"
+        assert key.upper() not in oa._scrub(f"/root-{key.upper()}/x", key)
+
+    def test_a_mixed_case_digest_is_replaced(self):
+        key = "abcdef" + "0" * 58
+        mixed = "AbCdEf" + "0" * 58
+        assert mixed not in oa._scrub(f"/root-{mixed}/x", key)
+
+    def test_the_lowercase_case_still_works(self):
+        key = "a" * 64
+        assert oa._scrub(f"/root-{key}/x", key) == "/root-<held-out group>/x"
+
+    def test_unrelated_text_is_untouched(self):
+        assert oa._scrub("/root/ABCDEF/x", "a" * 64) == "/root/ABCDEF/x"
+
+
+class TestTheGuardIsNotASecondDefinitionOfRedaction:
+    """A twelfth review found the round-11 fix applied to only half the pair.
+
+    Round 11 made `_scrub` case-insensitive and left the call site that decides
+    whether to call it reading `if holdout_key in text`, which is case
+    sensitive. So an uppercase digest failed the guard, skipped the scrub the
+    round-11 fix had just corrected, and printed whole.
+
+    That is the recurring shape once more, in its twelfth spelling: two places
+    answer "does this text carry the key" and only one of them was fixed. The
+    round-11 tests asserted on `_scrub` directly, which is why four passing
+    tests said the case bug was closed while the CLI still printed the digest.
+    Testing the function that changed is not testing the property that matters.
+
+    Fixed by deleting the second definition rather than teaching it to fold
+    case: `_scrub` returning a different string is the answer to both questions,
+    so there is nothing left to keep in step.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate_denied(self, monkeypatch, tmp_path, capsys, spell):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv(oa._LEDGER_DIR_ENV, str(tmp_path / f"denied-{spell(key)}"))
+        monkeypatch.setattr(
+            Path,
+            "mkdir",
+            lambda self, *a, **k: (_ for _ in ()).throw(
+                PermissionError(13, "Permission denied", str(self))
+            ),
+        )
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        return key, code, capsys.readouterr()
+
+    def test_an_uppercase_digest_does_not_reach_stdout(self, tmp_path, monkeypatch, capsys):
+        key, code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.upper)
+        assert code == oa.EXIT_CONFIG
+        assert key.upper() not in out.out
+        assert key.upper() not in out.err
+
+    def test_an_uppercase_digest_still_leaves_a_readable_error(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _key, _code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.upper)
+        payload = json.loads(out.out)
+        assert payload["type"] == "ConfigError"
+        assert oa._HELD_OUT_PLACEHOLDER in payload["error"]
+
+    def test_a_lowercase_digest_does_not_reach_stdout(self, tmp_path, monkeypatch, capsys):
+        key, code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.lower)
+        assert code == oa.EXIT_CONFIG
+        assert key not in out.out
+        assert key not in out.err
+
+    def test_the_seam_scrubs_an_uppercase_digest_in_an_oserror(self):
+        key = "b" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, "denied", f"/root-{key.upper()}/x")
+        assert key.upper() not in str(caught.value)
+        assert oa._HELD_OUT_PLACEHOLDER in str(caught.value)
+
+    def test_the_seam_scrubs_a_mixed_case_digest(self):
+        key = "abcdef" + "0" * 58
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise oa.ConfigError(f"/root-{'AbCdEf' + '0' * 58}/x")
+        assert "AbCdEf" not in str(caught.value)
+
+    def test_a_scrubbed_error_still_breaks_the_cause_chain(self):
+        key = "c" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, "denied", f"/root-{key.upper()}/x")
+        assert caught.value.__cause__ is None
+
+    def test_an_error_without_the_digest_keeps_its_message(self):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("d" * 64):
+                raise OSError(28, "No space left on device")
+        assert "No space left on device" in str(caught.value)
+
+    def test_a_config_error_without_the_digest_is_reraised_as_itself(self):
+        original = oa.ConfigError("nothing secret here")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("e" * 64):
+                raise original
+        assert caught.value is original
