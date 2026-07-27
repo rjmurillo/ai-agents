@@ -117,7 +117,7 @@
       "step": "Kept ../ excluded. An existing test asserts it. A parent-relative path does not unambiguously name the repository-root directory: where it lands depends on the referring file's own location, so it is not evidence of an upstream dependency. An earlier draft of the boundary allowed it and that test caught the regression."
     },
     {
-      "step": "Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 19 of the 93 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it."
+      "step": "Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it."
     },
     {
       "step": "Filed issue #3471 with the reproduction table before opening the PR."
