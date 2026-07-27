@@ -3,7 +3,7 @@
   "session": {
     "number": 3422,
     "date": "2026-07-26",
-    "branch": "fix/eval-holdout-gate-digest-leak",
+    "branch": "docs/eval-holdout-gate-round-13",
     "startingCommit": "2b3bf6dd5",
     "objective": "Give the eval harness a held-out-gated optimization loop for agents, rules, and hooks (issue #3422)"
   },
@@ -52,7 +52,7 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "feat/eval-holdout-gated-optimizer at session start; rebased to fix/eval-holdout-gate-digest-leak after PR #3430 squash-merged and deleted the original"
+        "Evidence": "feat/eval-holdout-gated-optimizer at session start; rebased to fix/eval-holdout-gate-digest-leak after PR #3430 squash-merged and deleted the original; cut docs/eval-holdout-gate-round-13 off origin/main after PR #3458 squash-merged mid-session and deleted that branch too. git branch --show-current confirms docs/eval-holdout-gate-round-13."
       },
       "notOnMain": {
         "level": "MUST",
@@ -250,9 +250,26 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T12:05:00Z",
+      "action": "Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "outcome": "It probed path-bearing OSErrors through a read-only XDG_STATE_HOME and a directory planted at the ledger path, pathless OSErrors, internal ConfigError propagation, and types outside the catch tuple. Its claim was that the last branch keeps __cause__ but main renders only str(exc). Re-verified rather than accepted: constructed an exception whose __str__ hides a path it still carries, and the key appears in neither str() nor the rendered traceback, because traceback rendering also goes through __str__, so the seam and the renderer read the same surface. Confirmed main formats no traceback and that OSError.__str__ renders filename2 as well as filename. Stopping the review loop at thirteen: the marginal round now returns ACCEPT and the accepting model is the same family that rejected in round 9.",
+      "artifacts": [
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T12:30:00Z",
+      "action": "Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "outcome": "A push failed with a remote ref-lock error; the retry reported [new branch], which meant the branch had been deleted rather than that the push was transiently unlucky. PR #3458 merged at 09:26Z as 4b854ad2b with head 7686d85d5, so everything through round 12 is in main and the retry had resurrected a merged PR's branch. Verified main carries the round-12 fix, its tests, and the round-12 debate log. Cherry-picked the round-13 docs commit onto a branch off the new main and deleted the resurrected branch.",
+      "artifacts": [
+        ".agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json"
+      ]
     }
   ],
-  "endingCommit": "ff16b4dc8",
+  "endingCommit": "e9f28051d",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",

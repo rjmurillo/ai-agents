@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-27-session-3467-pr-autofix-review-feedback",
+  "session": "2026-07-27-session-3467-pr-autofix-review-feedback",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified round-13 evidence claims against source",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 341682152a",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

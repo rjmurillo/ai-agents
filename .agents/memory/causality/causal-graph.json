@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:28:13.760883+00:00",
+  "updated": "2026-07-27T11:58:41.235955+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20079,50 +20079,40 @@
       "created": "2026-07-27T01:45:53.050088+00:00"
     },
     {
-      "id": "67ded865ef9c",
+      "id": "fcb6f96ff092",
       "type": "milestone",
-      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159793+00:00"
-    },
-    {
-      "id": "f2d7d47e373c",
-      "type": "milestone",
-      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159876+00:00"
-    },
-    {
-      "id": "8483b7aa02d2",
-      "type": "milestone",
-      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159951+00:00"
-    },
-    {
-      "id": "c2dd9c2d885d",
-      "type": "milestone",
-      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160023+00:00"
-    },
-    {
-      "id": "6e5bea63d2be",
-      "type": "commit",
-      "label": "commit: Commit: 19d4a761",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:09:55.160095+00:00"
+      "created": "2026-07-27T04:45:13.317091+00:00"
+    },
+    {
+      "id": "d9a52f8e4422",
+      "type": "milestone",
+      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317207+00:00"
+    },
+    {
+      "id": "99e8b9814264",
+      "type": "milestone",
+      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317283+00:00"
+    },
+    {
+      "id": "f45b7eb16607",
+      "type": "milestone",
+      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317373+00:00"
     },
     {
       "id": "740e7f0c9204",
@@ -20133,25 +20123,6 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:09:55.160168+00:00"
-    },
-    {
-      "id": "d39c4dcdb31a",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160242+00:00"
-    },
-    {
-      "id": "22a60c38150d",
-      "type": "commit",
-      "label": "commit: Commit: 9f1df6b3",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:24:15.154595+00:00"
     },
     {
       "id": "dc2a616055e1",
@@ -20224,6 +20195,16 @@
       "created": "2026-07-27T04:24:15.155119+00:00"
     },
     {
+      "id": "6e5bea63d2be",
+      "type": "commit",
+      "label": "commit: Commit: 19d4a761",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:09:55.160095+00:00"
+    },
+    {
       "id": "3c207343a40b",
       "type": "commit",
       "label": "commit: Commit: 1bf125d7",
@@ -20232,6 +20213,52 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155191+00:00"
+    },
+    {
+      "id": "22a60c38150d",
+      "type": "commit",
+      "label": "commit: Commit: 9f1df6b3",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:24:15.154595+00:00"
+    },
+    {
+      "id": "e0f161010107",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.318386+00:00"
+    },
+    {
+      "id": "2d5d7edffe7e",
+      "type": "milestone",
+      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294867+00:00"
+    },
+    {
+      "id": "8a2cea8f7bc4",
+      "type": "milestone",
+      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294953+00:00"
+    },
+    {
+      "id": "59384feeea81",
+      "type": "commit",
+      "label": "commit: Commit: c40fc2b3",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:14:10.574057+00:00"
     },
     {
       "id": "6eafa0686f54",
@@ -20322,6 +20349,60 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:49:49.793110+00:00"
+    },
+    {
+      "id": "3be75c7c8f0d",
+      "type": "milestone",
+      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:34:46.577440+00:00"
+    },
+    {
+      "id": "67ded865ef9c",
+      "type": "milestone",
+      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159793+00:00"
+    },
+    {
+      "id": "f2d7d47e373c",
+      "type": "milestone",
+      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159876+00:00"
+    },
+    {
+      "id": "8483b7aa02d2",
+      "type": "milestone",
+      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159951+00:00"
+    },
+    {
+      "id": "c2dd9c2d885d",
+      "type": "milestone",
+      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160023+00:00"
+    },
+    {
+      "id": "d39c4dcdb31a",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160242+00:00"
     },
     {
       "id": "e17a5f8f0260",
@@ -20421,393 +20502,6 @@
         "episode-2026-07-26-session-3402-plugin-self-containment"
       ],
       "created": "2026-07-27T05:58:30.440248+00:00"
-    },
-    {
-      "id": "f5403a9d8bc2",
-      "type": "milestone",
-      "label": "milestone: Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:03:00.851155+00:00"
-    },
-    {
-      "id": "ae8f2b9ec423",
-      "type": "outcome",
-      "label": "Outcome: success - Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:03:00.851375+00:00"
-    },
-    {
-      "id": "933fec69327e",
-      "type": "milestone",
-      "label": "milestone: 32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:18:05.661182+00:00"
-    },
-    {
-      "id": "f53bd8ad8060",
-      "type": "milestone",
-      "label": "milestone: Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:18:05.661269+00:00"
-    },
-    {
-      "id": "aae8c7b5ba8a",
-      "type": "milestone",
-      "label": "milestone: One hypothesis falsified with evidence, one live defect located",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181276+00:00"
-    },
-    {
-      "id": "8e1642c95a7a",
-      "type": "milestone",
-      "label": "milestone: 49 findings to 28, 95 tests passing. The 26 remaining script_path findings are true orphans and are left for a separate change",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181363+00:00"
-    },
-    {
-      "id": "e6828041bf3e",
-      "type": "milestone",
-      "label": "milestone: Silent routing failure removed from every copy of the orchestrator",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181439+00:00"
-    },
-    {
-      "id": "775850fa4689",
-      "type": "milestone",
-      "label": "milestone: The boundary is now binding knowledge in the rule tree and the memory graph rather than tacit",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181512+00:00"
-    },
-    {
-      "id": "37c45808bd76",
-      "type": "milestone",
-      "label": "milestone: uv run resolves the pinned Python 3.14.6 again; tests run under uv rather than falling back to system python3",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181584+00:00"
-    },
-    {
-      "id": "b5c5fbf72b89",
-      "type": "outcome",
-      "label": "Outcome: success - Audit knowledge encoded in .claude/ and .serena/memories/ against the wiki concept notes, then ship atomic fixes for what the audit proves wrong",
-      "episodes": [
-        "episode-2026-07-26-session-3401-knowledge-audit"
-      ],
-      "created": "2026-07-27T07:19:01.181666+00:00"
-    },
-    {
-      "id": "a7be1facfbe5",
-      "type": "milestone",
-      "label": "milestone: The reviewer was right and the docstring example was unreachable, measured rather than assumed",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255143+00:00"
-    },
-    {
-      "id": "3591c93fb552",
-      "type": "milestone",
-      "label": "milestone: The regex is correct; only the docstring needed the fix, which kept the change to documentation and tests",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255238+00:00"
-    },
-    {
-      "id": "1bede0be40a8",
-      "type": "milestone",
-      "label": "milestone: 99 tests pass and the next reader cannot widen the extractors to quoted values without breaking a test that explains why",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255317+00:00"
-    },
-    {
-      "id": "e82ef856ded1",
-      "type": "milestone",
-      "label": "milestone: Four tests now pin the boundary; the cross-check proves they are independent rather than two statements of the same property",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255392+00:00"
-    },
-    {
-      "id": "c512c84b8d83",
-      "type": "commit",
-      "label": "commit: Commit: cdcd59947f",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255467+00:00"
-    },
-    {
-      "id": "f155e6305544",
-      "type": "outcome",
-      "label": "Outcome: success - Correct the orphan-ref-validator type-claim docstring, which offered an example that never reaches the code path it illustrates, and pin the real boundary with tests",
-      "episodes": [
-        "episode-2026-07-26-session-3446-type-claim-docstring"
-      ],
-      "created": "2026-07-27T07:19:01.255543+00:00"
-    },
-    {
-      "id": "93d01d0f3058",
-      "type": "milestone",
-      "label": "milestone: 30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:59:30.214276+00:00"
-    },
-    {
-      "id": "29e938496ef6",
-      "type": "milestone",
-      "label": "milestone: Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T07:59:30.214364+00:00"
-    },
-    {
-      "id": "734655ae5e70",
-      "type": "milestone",
-      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
-      "episodes": [
-        "episode-2026-03-09-session-1195"
-      ],
-      "created": "2026-07-27T08:26:30.320554+00:00"
-    },
-    {
-      "id": "9b951132455c",
-      "type": "decision",
-      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.324116+00:00"
-    },
-    {
-      "id": "dbf92401f9f0",
-      "type": "decision",
-      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.324207+00:00"
-    },
-    {
-      "id": "a521a8822e11",
-      "type": "milestone",
-      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.324334+00:00"
-    },
-    {
-      "id": "2ebc20812a9e",
-      "type": "decision",
-      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.324825+00:00"
-    },
-    {
-      "id": "1d01daa399d3",
-      "type": "milestone",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.324903+00:00"
-    },
-    {
-      "id": "dfbe42de5fde",
-      "type": "decision",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-07-27T08:26:30.325159+00:00"
-    },
-    {
-      "id": "fcb6f96ff092",
-      "type": "milestone",
-      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317091+00:00"
-    },
-    {
-      "id": "d9a52f8e4422",
-      "type": "milestone",
-      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317207+00:00"
-    },
-    {
-      "id": "99e8b9814264",
-      "type": "milestone",
-      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317283+00:00"
-    },
-    {
-      "id": "f45b7eb16607",
-      "type": "milestone",
-      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317373+00:00"
-    },
-    {
-      "id": "e0f161010107",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.318386+00:00"
-    },
-    {
-      "id": "2d5d7edffe7e",
-      "type": "milestone",
-      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294867+00:00"
-    },
-    {
-      "id": "8a2cea8f7bc4",
-      "type": "milestone",
-      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294953+00:00"
-    },
-    {
-      "id": "59384feeea81",
-      "type": "commit",
-      "label": "commit: Commit: c40fc2b3",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:14:10.574057+00:00"
-    },
-    {
-      "id": "3be75c7c8f0d",
-      "type": "milestone",
-      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:34:46.577440+00:00"
-    },
-    {
-      "id": "8d52070b8994",
-      "type": "milestone",
-      "label": "milestone: Merge origin/main into branch to resolve CONFLICTING merge state",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217489+00:00"
-    },
-    {
-      "id": "36aa41385306",
-      "type": "milestone",
-      "label": "milestone: Fix 4 table column issues: move orphan-ref-ignore directive inside last cell (TASK-005 line 432, DESIGN-015 line 289, DESIGN-009 line 42, DESIGN-005 line 383)",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217579+00:00"
-    },
-    {
-      "id": "c6c2be840d6a",
-      "type": "milestone",
-      "label": "milestone: Correct memory guidance on table directive placement in orphan-ref-validator-implementation memory",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217668+00:00"
-    },
-    {
-      "id": "b6fdf3594505",
-      "type": "milestone",
-      "label": "milestone: Fix 7 blockquote heading issues: prefix bare #2187 with PR to avoid H1 parsing (REQ-003, REQ-015, REQ-009, DESIGN-009, DESIGN-015, TASK-009, TASK-015)",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217741+00:00"
-    },
-    {
-      "id": "79ec4254903d",
-      "type": "milestone",
-      "label": "milestone: Add ERROR to Gate 5 Output contract in test.md and src/copilot-cli/skills/test/SKILL.md",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217814+00:00"
-    },
-    {
-      "id": "6bc87a81726a",
-      "type": "milestone",
-      "label": "milestone: Replace 7 em-dash unicode escapes in causal-graph.json with plain hyphens",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217887+00:00"
-    },
-    {
-      "id": "dfd328746907",
-      "type": "commit",
-      "label": "commit: Commit: 62fb792ce9",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.217959+00:00"
-    },
-    {
-      "id": "42022e0f729f",
-      "type": "outcome",
-      "label": "Outcome: success - Address 15 review threads from copilot-pull-request-reviewer on PR #3455: fix table column overflow, blockquote heading rendering, Gate 5 output contract, and em-dash policy violations",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:34:54.218033+00:00"
-    },
-    {
-      "id": "2c0630c251af",
-      "type": "milestone",
-      "label": "milestone: Revert em-dash edits in causal-graph.json (generated file with content-addressable IDs)",
-      "episodes": [
-        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T09:37:21.374246+00:00"
     },
     {
       "id": "0100c10367bc",
@@ -21143,6 +20837,348 @@
       "created": "2026-07-27T09:04:44.443947+00:00"
     },
     {
+      "id": "c84e7ed0eeb4",
+      "type": "milestone",
+      "label": "milestone: Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:23:34.232554+00:00"
+    },
+    {
+      "id": "9007876af7b1",
+      "type": "commit",
+      "label": "commit: Commit: 7686d85d5",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:23:34.232695+00:00"
+    },
+    {
+      "id": "215adbcb0b09",
+      "type": "milestone",
+      "label": "milestone: Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:35:07.622472+00:00"
+    },
+    {
+      "id": "4bb9e115c196",
+      "type": "commit",
+      "label": "commit: Commit: e9f28051d",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:35:07.622558+00:00"
+    },
+    {
+      "id": "f5403a9d8bc2",
+      "type": "milestone",
+      "label": "milestone: Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851155+00:00"
+    },
+    {
+      "id": "ae8f2b9ec423",
+      "type": "outcome",
+      "label": "Outcome: success - Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:03:00.851375+00:00"
+    },
+    {
+      "id": "933fec69327e",
+      "type": "milestone",
+      "label": "milestone: 32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:18:05.661182+00:00"
+    },
+    {
+      "id": "f53bd8ad8060",
+      "type": "milestone",
+      "label": "milestone: Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:18:05.661269+00:00"
+    },
+    {
+      "id": "aae8c7b5ba8a",
+      "type": "milestone",
+      "label": "milestone: One hypothesis falsified with evidence, one live defect located",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181276+00:00"
+    },
+    {
+      "id": "8e1642c95a7a",
+      "type": "milestone",
+      "label": "milestone: 49 findings to 28, 95 tests passing. The 26 remaining script_path findings are true orphans and are left for a separate change",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181363+00:00"
+    },
+    {
+      "id": "e6828041bf3e",
+      "type": "milestone",
+      "label": "milestone: Silent routing failure removed from every copy of the orchestrator",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181439+00:00"
+    },
+    {
+      "id": "775850fa4689",
+      "type": "milestone",
+      "label": "milestone: The boundary is now binding knowledge in the rule tree and the memory graph rather than tacit",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181512+00:00"
+    },
+    {
+      "id": "37c45808bd76",
+      "type": "milestone",
+      "label": "milestone: uv run resolves the pinned Python 3.14.6 again; tests run under uv rather than falling back to system python3",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181584+00:00"
+    },
+    {
+      "id": "b5c5fbf72b89",
+      "type": "outcome",
+      "label": "Outcome: success - Audit knowledge encoded in .claude/ and .serena/memories/ against the wiki concept notes, then ship atomic fixes for what the audit proves wrong",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T07:19:01.181666+00:00"
+    },
+    {
+      "id": "a7be1facfbe5",
+      "type": "milestone",
+      "label": "milestone: The reviewer was right and the docstring example was unreachable, measured rather than assumed",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255143+00:00"
+    },
+    {
+      "id": "3591c93fb552",
+      "type": "milestone",
+      "label": "milestone: The regex is correct; only the docstring needed the fix, which kept the change to documentation and tests",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255238+00:00"
+    },
+    {
+      "id": "1bede0be40a8",
+      "type": "milestone",
+      "label": "milestone: 99 tests pass and the next reader cannot widen the extractors to quoted values without breaking a test that explains why",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255317+00:00"
+    },
+    {
+      "id": "e82ef856ded1",
+      "type": "milestone",
+      "label": "milestone: Four tests now pin the boundary; the cross-check proves they are independent rather than two statements of the same property",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255392+00:00"
+    },
+    {
+      "id": "c512c84b8d83",
+      "type": "commit",
+      "label": "commit: Commit: cdcd59947f",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255467+00:00"
+    },
+    {
+      "id": "f155e6305544",
+      "type": "outcome",
+      "label": "Outcome: success - Correct the orphan-ref-validator type-claim docstring, which offered an example that never reaches the code path it illustrates, and pin the real boundary with tests",
+      "episodes": [
+        "episode-2026-07-26-session-3446-type-claim-docstring"
+      ],
+      "created": "2026-07-27T07:19:01.255543+00:00"
+    },
+    {
+      "id": "93d01d0f3058",
+      "type": "milestone",
+      "label": "milestone: 30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:59:30.214276+00:00"
+    },
+    {
+      "id": "29e938496ef6",
+      "type": "milestone",
+      "label": "milestone: Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T07:59:30.214364+00:00"
+    },
+    {
+      "id": "734655ae5e70",
+      "type": "milestone",
+      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-07-27T08:26:30.320554+00:00"
+    },
+    {
+      "id": "9b951132455c",
+      "type": "decision",
+      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.324116+00:00"
+    },
+    {
+      "id": "dbf92401f9f0",
+      "type": "decision",
+      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.324207+00:00"
+    },
+    {
+      "id": "a521a8822e11",
+      "type": "milestone",
+      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.324334+00:00"
+    },
+    {
+      "id": "2ebc20812a9e",
+      "type": "decision",
+      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.324825+00:00"
+    },
+    {
+      "id": "1d01daa399d3",
+      "type": "milestone",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.324903+00:00"
+    },
+    {
+      "id": "dfbe42de5fde",
+      "type": "decision",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:26:30.325159+00:00"
+    },
+    {
+      "id": "8d52070b8994",
+      "type": "milestone",
+      "label": "milestone: Merge origin/main into branch to resolve CONFLICTING merge state",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217489+00:00"
+    },
+    {
+      "id": "36aa41385306",
+      "type": "milestone",
+      "label": "milestone: Fix 4 table column issues: move orphan-ref-ignore directive inside last cell (TASK-005 line 432, DESIGN-015 line 289, DESIGN-009 line 42, DESIGN-005 line 383)",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217579+00:00"
+    },
+    {
+      "id": "c6c2be840d6a",
+      "type": "milestone",
+      "label": "milestone: Correct memory guidance on table directive placement in orphan-ref-validator-implementation memory",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217668+00:00"
+    },
+    {
+      "id": "b6fdf3594505",
+      "type": "milestone",
+      "label": "milestone: Fix 7 blockquote heading issues: prefix bare #2187 with PR to avoid H1 parsing (REQ-003, REQ-015, REQ-009, DESIGN-009, DESIGN-015, TASK-009, TASK-015)",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217741+00:00"
+    },
+    {
+      "id": "79ec4254903d",
+      "type": "milestone",
+      "label": "milestone: Add ERROR to Gate 5 Output contract in test.md and src/copilot-cli/skills/test/SKILL.md",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217814+00:00"
+    },
+    {
+      "id": "6bc87a81726a",
+      "type": "milestone",
+      "label": "milestone: Replace 7 em-dash unicode escapes in causal-graph.json with plain hyphens",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217887+00:00"
+    },
+    {
+      "id": "dfd328746907",
+      "type": "commit",
+      "label": "commit: Commit: 62fb792ce9",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.217959+00:00"
+    },
+    {
+      "id": "42022e0f729f",
+      "type": "outcome",
+      "label": "Outcome: success - Address 15 review threads from copilot-pull-request-reviewer on PR #3455: fix table column overflow, blockquote heading rendering, Gate 5 output contract, and em-dash policy violations",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:34:54.218033+00:00"
+    },
+    {
+      "id": "2c0630c251af",
+      "type": "milestone",
+      "label": "milestone: Revert em-dash edits in causal-graph.json (generated file with content-addressable IDs)",
+      "episodes": [
+        "episode-2026-07-27-session-3455-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T09:37:21.374246+00:00"
+    },
+    {
       "id": "1534598d564c",
       "type": "commit",
       "label": "commit: Commit: df5bb158c4dda1be25b9b2cd96f68b91c1326bb8",
@@ -21258,6 +21294,168 @@
         "episode-2026-07-27-session-3460-decompose-change-control"
       ],
       "created": "2026-07-27T10:26:30.994200+00:00"
+    },
+    {
+      "id": "0c971adbbd46",
+      "type": "milestone",
+      "label": "milestone: Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736393+00:00"
+    },
+    {
+      "id": "a974ddb659de",
+      "type": "milestone",
+      "label": "milestone: Verified round-13 evidence claims against source",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736491+00:00"
+    },
+    {
+      "id": "0453f68fca0d",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736575+00:00"
+    },
+    {
+      "id": "705ec2515c5c",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736662+00:00"
+    },
+    {
+      "id": "0bfd6d378543",
+      "type": "commit",
+      "label": "commit: Commit: 341682152a",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:58:41.229748+00:00"
+    },
+    {
+      "id": "e4909911a66e",
+      "type": "milestone",
+      "label": "milestone: Confirmed the defect against the code on main rather than against my own notes. Called count_upstream_refs from a copy of main's module on nine path shapes: four that should count returned 0, five that should not count returned 1.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.982925+00:00"
+    },
+    {
+      "id": "a189a9c4fe25",
+      "type": "milestone",
+      "label": "milestone: Traced the cause. PR #3463 fixed a genuine mid-path defect by adding a bare lookbehind to the two templates patterns; the lookbehind also rejects the leading slash of an absolute path. The three legacy patterns were never touched and carry the mirror-image defect.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983014+00:00"
+    },
+    {
+      "id": "8f844dcc7e59",
+      "type": "milestone",
+      "label": "milestone: Replaced all five ad hoc prefixes with one shared _BOUNDARY constant that optionally consumes a leading separator or ./ before applying the lookbehind.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983092+00:00"
+    },
+    {
+      "id": "4eb8ffbbe6c1",
+      "type": "milestone",
+      "label": "milestone: Kept ../ excluded. An existing test asserts it, because a parent-relative path resolves outside the repo root. An earlier draft of the boundary allowed it and that test caught the regression.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983168+00:00"
+    },
+    {
+      "id": "59bb4c288d76",
+      "type": "milestone",
+      "label": "milestone: Exercised 41 path shapes through the real count_upstream_refs API with zero failures, then added 13 test cases and proved 9 of them fail against the previous regex.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983243+00:00"
+    },
+    {
+      "id": "61553d74d318",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3471 with the reproduction table before opening the PR.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983317+00:00"
+    },
+    {
+      "id": "676a89c7673d",
+      "type": "outcome",
+      "label": "Outcome: success - Fix the UPSTREAM_PATTERNS boundary in check_skill_md_portability.py, which misses absolute upstream paths and matches inside longer paths and URLs. Refs #3471.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983397+00:00"
+    },
+    {
+      "id": "52c636ceb911",
+      "type": "commit",
+      "label": "commit: Commit: 661f2e665",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:52.463490+00:00"
+    },
+    {
+      "id": "6990eee806b1",
+      "type": "milestone",
+      "label": "milestone: Replaced all five ad hoc prefixes with one shared boundary constant. The first revision consumed an optional leading separator and then applied a negative lookbehind, which admitted any character outside that set: ~/, C:\\, ${ROOT}/, %ROOT%\\, file:///, // and a #/ URL fragment all counted as repository-root references. Adversarial review caught it. The boundary now uses a positive start-of-context anchor that names the characters a path may follow.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835484+00:00"
+    },
+    {
+      "id": "ace45f85d93a",
+      "type": "milestone",
+      "label": "milestone: Kept ../ excluded. An existing test asserts it. A parent-relative path does not unambiguously name the repository-root directory: where it lands depends on the referring file's own location, so it is not evidence of an upstream dependency. An earlier draft of the boundary allowed it and that test caught the regression.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835572+00:00"
+    },
+    {
+      "id": "0cbea555e251",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 19 of the 93 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835667+00:00"
+    },
+    {
+      "id": "806a3d68968c",
+      "type": "milestone",
+      "label": "milestone: Stripped fenced code that opens inside a blockquote. The anchor change made a GitHub admonition example count as prose. A close is only accepted in the context its open was found in, so a >-prefixed backtick line cannot end a top-level fence early.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835759+00:00"
+    },
+    {
+      "id": "56138010c902",
+      "type": "milestone",
+      "label": "milestone: Verified the reviewer's second finding before acting on it. Bare directory references that end at a word boundary are missed, but they return 0 at base commit 303f918ea as well, so the gap predates this branch. Filed as issue #3482 and left out of scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T11:25:54.835838+00:00"
     }
   ],
   "patterns": [
