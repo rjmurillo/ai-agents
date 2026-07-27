@@ -456,8 +456,11 @@ def _holdout_key(split: dict[str, Any]) -> str:
     accepted rather than reopened.
     """
     sel = sorted(str(task_id) for task_id in _group_ids(split, _GATE_GROUP))
-    digest = hashlib.sha256("\x00".join(sel).encode("utf-8")).hexdigest()
-    return digest
+    # JSON rather than a NUL join: joining is not injective when an id may
+    # itself contain the separator, and ["a", "b\0c"] would key the same
+    # budget as ["a\0b", "c"].
+    canonical = json.dumps(sel, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _ledger_path(holdout_key: str) -> Path:
@@ -484,9 +487,12 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
         handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError as exc:
         raise ConfigError(
-            f"another gate holds {lock}; consultations against one split are "
-            f"serialized so a concurrent pair cannot spend one budget twice. "
-            f"Remove the file if no gate is running."
+            f"another gate holds a lock under {lock.parent}; consultations "
+            f"against one held-out group are serialized so a concurrent pair "
+            f"cannot spend one budget twice. Remove the lock file there if no "
+            f"gate is running. Its name is withheld: the name digests the "
+            f"held-out membership, and an unsalted digest of a set the caller "
+            f"can enumerate is that set."
         ) from exc
     try:
         os.write(handle, str(os.getpid()).encode("utf-8"))
@@ -515,25 +521,32 @@ def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
         return 0
     data = _read_json(path)
     if not isinstance(data, Mapping):
-        raise ConfigError(f"{path} must hold a JSON object")
+        raise ConfigError(f"the ledger under {path.parent} must hold a JSON object")
     spent = data.get("consultations")
     if not isinstance(spent, int) or isinstance(spent, bool) or spent < 0:
-        raise ConfigError(f"{path} consultations must be a non-negative integer")
+        raise ConfigError(
+            f"the ledger under {path.parent} needs consultations to be a "
+            f"non-negative integer"
+        )
     recorded_cap = data.get("max_consultations")
     if not isinstance(recorded_cap, int) or isinstance(recorded_cap, bool) or recorded_cap < 1:
-        raise ConfigError(f"{path} max_consultations must be a positive integer")
+        raise ConfigError(
+            f"the ledger under {path.parent} needs max_consultations to be a "
+            f"positive integer"
+        )
     recorded = data.get("holdout")
     if recorded != holdout_key:
         raise LedgerMismatchError(
-            f"ledger {path} records held-out group {recorded} but this split "
-            f"holds out {holdout_key}; a ledger under another group's name is "
-            f"a moved or edited file, not a redraw"
+            f"the ledger under {path.parent} records a different held-out "
+            f"group than this split holds out; a ledger under another group's "
+            f"name is a moved or edited file, not a redraw. Neither group is "
+            f"named here, because the name digests its membership"
         )
     if recorded_cap != cap:
         raise LedgerMismatchError(
-            f"ledger {path} was opened with a cap of {recorded_cap} and this "
-            f"invocation asks for {cap}; the budget for a held-out group is "
-            f"fixed when the run starts, so re-split to change it"
+            f"this held-out group was opened with a cap of {recorded_cap} and "
+            f"this invocation asks for {cap}; the budget for a held-out group "
+            f"is fixed when the run starts, so re-split to change it"
         )
     return spent
 

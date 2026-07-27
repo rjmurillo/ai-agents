@@ -1863,3 +1863,96 @@ class TestTheIncumbentFingerprintIsRequired:
                          "--split", split, "--max-consultations", "3",
                          "--incumbent-fingerprint", scored["fingerprint"])
         assert code == EXIT_OK and out["compared"] is True
+
+
+class TestTheGateNeverPublishesTheHoldoutKey:
+    """The key digests the held-out membership, so printing it is printing them.
+
+    A fifth adversarial review (gpt-5.6-sol, 2026-07-26) found the digest in
+    three error paths. It is an unsalted sha256 over a set the caller can
+    enumerate: the universe is the caller's own results file, `opt` and the
+    two group sizes are published, so a caller hashes every subset of the
+    complement of the right size and matches. Whenever a test group exists the
+    complement is not the held-out group, and that reversal is the only way to
+    tell the two apart.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate(self, capsys, inc, cand, split, record, cap="2"):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", cap,
+            "--incumbent-fingerprint", record["fingerprint"],
+        )
+
+    def test_lock_contention_does_not_publish_the_key(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        lock = oa._ledger_root() / f"{key}.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.touch()
+        code, out = self._gate(capsys, inc, inc, split, record)
+        assert code == EXIT_CONFIG and "another gate" in out["error"]
+        assert key not in json.dumps(out)
+
+    def test_lock_contention_still_says_where_to_look(self, tmp_path, capsys):
+        """Redaction that hides the directory turns a stale lock into a puzzle."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        lock = oa._ledger_root() / f"{oa._holdout_key(record)}.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.touch()
+        _, out = self._gate(capsys, inc, inc, split, record)
+        assert str(oa._ledger_root()) in out["error"]
+
+    def test_a_ledger_under_another_group_does_not_publish_either_key(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({"consultations": 0, "holdout": "f" * 64, "max_consultations": 2})
+        )
+        code, out = self._gate(capsys, inc, inc, split, record)
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+        assert key not in json.dumps(out) and "f" * 64 not in json.dumps(out)
+
+    def test_a_cap_mismatch_does_not_publish_the_key(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        self._gate(capsys, inc, inc, split, record, cap="2")
+        code, out = self._gate(capsys, inc, inc, split, record, cap="5")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+        assert "cap of 2" in out["reason"] and key not in json.dumps(out)
+
+    def test_a_malformed_ledger_does_not_publish_the_key(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(json.dumps({"consultations": -1, "holdout": key, "max_consultations": 2}))
+        code, out = self._gate(capsys, inc, inc, split, record)
+        assert code == EXIT_CONFIG
+        assert key not in json.dumps(out)
+
+    def test_the_decision_block_does_not_publish_the_key(self, tmp_path, capsys):
+        """The ordinary success path is the one a caller reads every time."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, inc, split, record)
+        assert oa._holdout_key(record) not in json.dumps(out)
+
+    def test_the_key_separates_ids_that_contain_a_null_byte(self):
+        """Joining on NUL is not injective when an id may contain one."""
+        assert oa._holdout_key({"sel": ["a", "b\x00c"]}) != oa._holdout_key(
+            {"sel": ["a\x00b", "c"]}
+        )
+
+    def test_the_key_still_ignores_the_order_it_is_given(self):
+        assert oa._holdout_key({"sel": ["b", "a"]}) == oa._holdout_key({"sel": ["a", "b"]})
+
+    def test_the_key_still_separates_different_members(self):
+        assert oa._holdout_key({"sel": ["a", "b"]}) != oa._holdout_key({"sel": ["a", "c"]})
