@@ -37,7 +37,7 @@ the first draft made.
 | 12 | gpt-5.6-sol | REJECT |
 | 13 | gemini-3.1-pro-preview | ACCEPT |
 
-No round returned ACCEPT. Every finding was verified at source before being
+Twelve consecutive rounds returned REJECT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
 The ADR is recorded with its defeats visible because twelve consecutive
 falsifications are evidence about the claim, not noise to be smoothed over.

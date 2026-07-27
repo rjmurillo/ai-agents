@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:28:13.760883+00:00",
+  "updated": "2026-07-27T11:35:50.742310+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21294,6 +21294,42 @@
         "episode-2026-07-27-session-3460-decompose-change-control"
       ],
       "created": "2026-07-27T10:26:30.994200+00:00"
+    },
+    {
+      "id": "0c971adbbd46",
+      "type": "milestone",
+      "label": "milestone: Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736393+00:00"
+    },
+    {
+      "id": "a974ddb659de",
+      "type": "milestone",
+      "label": "milestone: Verified round-13 evidence claims against source",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736491+00:00"
+    },
+    {
+      "id": "0453f68fca0d",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736575+00:00"
+    },
+    {
+      "id": "705ec2515c5c",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736662+00:00"
     }
   ],
   "patterns": [
