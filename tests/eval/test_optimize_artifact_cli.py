@@ -4755,9 +4755,9 @@ class TestADiagnosticNeitherLeaksNorFails:
         diagnostic rather than the caller. It should cost neither. The
         `ContextVar` carries `default=None`, and one declared without a
         default raises `LookupError` from `get()` outside a set scope, which
-        the guard would swallow into silence. Dropping the argument fails six
-        tests and five of them report a missing warning, which points at the
-        stream rather than at the declaration. This one names it.
+        the guard would swallow into silence. The other tests that fail
+        without it report a missing warning, which points at the stream rather
+        than at the declaration. This one names the declaration.
         """
         assert oa._ACTIVE_HOLDOUT_KEY.get() is None
 

@@ -761,11 +761,18 @@ def _warn(message: str) -> None:
     expression out there, and the sixth answer is that the question was
     avoidable: the key is read where it is used, under the guard, so nothing
     about `_ACTIVE_HOLDOUT_KEY` has to hold for the caller to survive. It is
-    still declared with `default=None`, which now buys a printed diagnostic
-    rather than an unaborted caller: dropping it used to abort the caller and
-    fail thirteen tests, and now loses the warning and fails six. What
-    remains outside is the guard's own construction, which no docstring can
-    promise against a caller who reassigns this module's globals. Everything
+    still declared with `default=None`, which after the move buys a printed
+    diagnostic rather than an unaborted caller. What remains outside is the
+    guard's own construction, which no docstring can promise against a caller
+    who reassigns this module's globals.
+
+    One reason this paragraph is shorter than the argument that produced it.
+    It was wrong in four consecutive rounds, each time immediately after being
+    corrected, and the corrections were not careless: it asserted a count of
+    the expressions out here, a line distance to a declaration, and a number
+    of tests, and every one of those rotted. A sentence that can be falsified
+    by adding a test is a liability in a docstring, so the counts are in the
+    review log where they are dated. Everything
     that can do work is inside the guard, including the redaction. Writing the
     opposite down is what exposed it: a redaction that raises would leave the
     message unprinted either way, so suppressing costs a diagnostic and
