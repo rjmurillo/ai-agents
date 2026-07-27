@@ -125,6 +125,10 @@
     {
       "action": "Committed single plan closeout",
       "result": "Abandoned req-008 findings note because REQ-017 superseded it."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Abandoned SPEC-005 bundle plan because issue #3424 tracks the stale registry replacement."
     }
   ],
   "endingCommit": "",
