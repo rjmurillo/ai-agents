@@ -87,18 +87,7 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
 | Copilot dispatcher | Active `gate` handles one PreToolUse shim; active `observe` handles one PostToolUse shim; dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
 
-The rationale for the split: guards that assert an invariant on shipped
-artifacts must fail loud. A silent exit 0 disabled a hook for 33 days in #2205.
-Observer and lifecycle behavior follows the host event contract instead of a
-repository-wide exit policy. Older ADRs (008, 033, 035) still carry blanket
-fail-open language; ADR-066 and ADR-071 own the released-artifact direction.
-SessionStart hooks cannot block regardless.
-
-The dispatcher (ADR-068) originated in Copilot CLI 1.0.57-era matcher and
-timeout behavior. Copilot CLI 1.0.72-1 honors supported matchers and fails open
-on timeout, but one dispatcher per event remains the compatibility fallback and
-single-producer boundary for PermissionRequest translation. Harness details are
-owned by `agent-harness-reference`.
+Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs 008/033/035 still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
 ### Phase 4: Understand the memory architecture
 
@@ -145,18 +134,16 @@ belong to `ai-agents-generation-and-release`.
 
 ### Phase 7: Account for the known-weak points
 
-State these plainly when working near them; do not design as if they were sound.
+State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each is in `references/weak-points.md`.
 
-| Weak point | Evidence (as of 2026-07-03) | Consequence |
-|---|---|---|
-| Hook sources serve different consumers | `.claude/settings.json` has 3 events and 4 groups; `.claude/hooks/hooks.json` has 2 events and 2 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
-| `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
-| Stale docs contradict reality | `CONTRIBUTING.md:155` said the removed PowerShell Generate-Agents command until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist outside `.venv/` (ADR-042). `GENERATOR-FILES.md` lists `src/claude/` as a `generate_agents.py` output ("`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML)"), but `generate_agents.py` contains no `src/claude` write and no claude platform YAML exists | Following docs verbatim fails; quote the canonical source when correcting (FM-9) |
-| ruff is advisory in CI | `pytest.yml` comments around lines 107-119, issue #2194 style backlog | Lint debt accumulates invisibly; only syntax parsing blocks |
-| Skill tests split by location | `pyproject.toml:41` `testpaths = ["tests"]`; `.claude/skills/<name>/tests/` NOT collected by default; `tests/skills/<name>/` is | Green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`) |
-| Proposed-ADR ambiguity | ADR-062/066/068/069/072 all read Proposed while their hooks, dispatcher, or doctrine are live | Status field is not a reliable "is this binding" signal; check enforcement, not status |
-| EVENT telemetry consumer is thin | `push_guard_base.py` emits `EVENT=` lines; `guard-maturity` skill and `build/scripts/{aggregate_guard_intercepts,classify_guard_maturity}.py` consume, but no always-on pipeline is evident in-repo | Telemetry may be written and never read; verify before citing intercept ratios |
-| Retro-cited SHAs unresolvable locally | full history is present (`git rev-list --count HEAD` = ~1471 as of 2026-07-03) but retro-cited short SHAs (`ddb76e0`, `01e76615a`) fail `git cat-file -t` | Archaeology still routes through retros and memories as primary sources, not git log |
+- **Hook sources serve different consumers**: do not force parity; verify repository-only vs vendored before editing either source.
+- **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
+- **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
+- **ruff is advisory in CI**: lint debt accumulates invisibly; only syntax parsing blocks.
+- **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
+- **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
+- **EVENT telemetry consumer is thin**: telemetry may be written and never read; verify before citing intercept ratios.
+- **Retro-cited SHAs unresolvable locally**: archaeology routes through retros and memories as primary sources, not git log.
 
 ## Anti-Patterns
 
@@ -180,27 +167,6 @@ Before relying on or amending this contract:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Volatile facts are date-stamped inline. Sources and re-verification commands:
+Verified 2026-07-03 against the working tree. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
-| Claim | Source | Re-verify |
-|---|---|---|
-| Asymmetric seam, "No code moves on this ADR alone" | `.agents/architecture/ADR-072-jtbd-plugin-architecture.md` (Status, "the seam is asymmetric" section) | `grep -n "asymmetric" .agents/architecture/ADR-072-*.md` |
-| Generator inventory, 7 generators | `build/scripts/build_all.py:426` GENERATORS; `.agents/governance/GENERATOR-FILES.md` | `grep -n -A8 "^GENERATORS" build/scripts/build_all.py` |
-| REQ-003-010 no-write invariant | `build/scripts/build_all.py:962` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
-| src/claude manual sync | `templates/README.md:131`; ADR-036 Accepted | `grep -n "MANUAL" templates/README.md` |
-| lib sync pairs | `scripts/sync_plugin_lib.py:27` SYNC_PAIRS | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Local 3 events / 4 groups; vendored 2 events / 2 groups; generated 2 events / 2 registrations | `.claude/settings.json`, `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json` | `python3 -c "import json; from pathlib import Path; [print(p, len((d:=json.loads(Path(p).read_text()))['hooks']), sum(map(len,d['hooks'].values()))) for p in ('.claude/settings.json','.claude/hooks/hooks.json','src/copilot-cli/hooks/hooks.json')]"` |
-| Per-event hook failure policy | `agent-harness-reference`; ADR-071 | Read the reference's exit and failure matrices |
-| Fail-closed reversal, #2205 rationale | `.agents/architecture/ADR-066-*.md`, ADR-071 (Accepted) | `grep -n -A2 "## Status" .agents/architecture/ADR-066*.md .agents/architecture/ADR-071*.md` |
-| Dispatcher modes and current inventory | generated manifests; ADR-068 | `find src/copilot-cli/hooks -name _manifest.json -print -exec cat {} \;` |
-| Skill vs subagent latency 5-20ms vs 100-200ms | `.agents/architecture/ADR-030-skills-pattern-superiority.md:31` | `grep -n "100-200ms" .agents/architecture/ADR-030*.md` |
-| Memory sync direction | `scripts/memory_sync/sync_engine.py` module docstring | `head -8 scripts/memory_sync/sync_engine.py` |
-| Explicit correction and topical-memory retrieval | `memory` and `memory-search` skills; retained hook files are unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
-| Plugin names/versions, marketplaces, npm CLI | the three `.claude-plugin/plugin.json` files, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`, `packages/ai-agents-cli/package.json` | `find . -name plugin.json -not -path "*/node_modules/*"` then read each |
-| Stale CONTRIBUTING pwsh commands | `CONTRIBUTING.md:155`; no repo `.ps1` files | `grep -n "pwsh" CONTRIBUTING.md; find . -name "*.ps1" -not -path "./.venv/*"` |
-| ruff advisory | `.github/workflows/pytest.yml` (comments near lines 107-119, issue #2194) | `grep -n -i "ruff" .github/workflows/pytest.yml` |
-| testpaths exclude skill tests | `pyproject.toml:41` | `grep -n "testpaths" pyproject.toml` |
-| Verification-based enforcement doctrine | `.agents/SESSION-PROTOCOL.md:30` | `grep -n "verification-based" .agents/SESSION-PROTOCOL.md` |
-| Full history (~1471 commits) with unresolvable retro-cited SHAs | local clone state | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect "Not a valid object name") |
-
-Maintenance rule: when any row above fails its re-verify command, fix THIS file in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.
+Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.
