@@ -272,7 +272,9 @@ class TestCheckSkillSizeBytes:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
-    def test_oversized_passes_locally(self, tmp_path: Path, monkeypatch: object) -> None:
+    def test_oversized_passes_locally(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("CI", raising=False)
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
