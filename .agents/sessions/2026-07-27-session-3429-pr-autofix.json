@@ -105,8 +105,8 @@
     {
       "phase": "Review",
       "actions": [
-        "Addressed PRRT_kwDOQoWRls6T8Wg5: rewrote 'predating this lifecycle' to 'whose work has shipped' in .agents/plans/README.md",
-        "Addressed PRRT_kwDOQoWRls6T8WhV: set episode metrics.files_changed from 3 to 0 to match extractor output"
+        "Addressed PRRT_kwDOQoWRls6T8Wg5: rewrote \"predating this lifecycle\" to \"whose work has shipped\" in .agents/plans/README.md",
+        "Addressed PRRT_kwDOQoWRls6T8WhV: set metrics.files_changed from 3 to 0 in episode-2026-07-26-session-3423 (the parent session episode, not this one) to match extractor output"
       ]
     }
   ],
