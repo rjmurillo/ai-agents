@@ -141,7 +141,7 @@ Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `
 | Agent drift | VALIDATION PASSED | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
 | Plugin lib drift | in sync | Green |
-| Guard maturity | 4 guards, all Budding, 0 intercepts | Feed not wired |
+| Guard maturity | 3 guards, all Budding, 0 intercepts | Feed not wired |
 | Commit count | 0 on main | Green |
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.
