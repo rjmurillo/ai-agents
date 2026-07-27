@@ -3,9 +3,9 @@
 Covers:
 - aggregate() verdict outcomes (PASS, FAIL_THRESHOLD, FAIL_NO_DELTA,
   FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES)
-- _load_scenarios_file() rule_path validation: must resolve under
-  .claude/rules/ with a .md suffix; rejects path traversal, repo-internal
-  exfiltration paths, and non-rule files.
+- _load_scenarios_file() target validation: rule paths must resolve under
+  .claude/rules/ and skill references must resolve under one skill's
+  references/ directory.
 - best_mechanism selection excludes baseline so a high-baseline / low-rule
   scenario does not silently pass.
 """
@@ -178,7 +178,7 @@ class TestLoadScenariosFile:
         f.write_text(
             json.dumps(
                 {
-                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
                     "scenarios": {"id": "S1"},
                 }
             ),
@@ -191,7 +191,7 @@ class TestLoadScenariosFile:
         f.write_text(
             json.dumps(
                 {
-                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
                     "scenarios": [{"input": "test"}],
                 }
             ),
@@ -204,7 +204,7 @@ class TestLoadScenariosFile:
         f.write_text(
             json.dumps(
                 {
-                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
                     "scenarios": [{"id": "S1"}],
                 }
             ),
@@ -217,7 +217,7 @@ class TestLoadScenariosFile:
         f.write_text(
             json.dumps(
                 {
-                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
                     "scenarios": ["S1"],
                 }
             ),
@@ -273,15 +273,15 @@ class TestLoadScenariosFile:
 
     def test_accepts_valid_rule_under_rules_dir(self, tmp_path: Path):
         # Use an actual rule file shipping in this repo as the target.
-        target = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
+        target = REPO_ROOT / ".claude" / "rules" / "unified-software-engineering.md"
         if not target.is_file():
-            pytest.skip("working-with-legacy-code.md not present in this checkout")
+            pytest.skip("unified-software-engineering.md not present in this checkout")
         f = tmp_path / "ok.json"
         f.write_text(
             json.dumps(
                 {
-                    "rule_path": ".claude/rules/working-with-legacy-code.md",
-                    "rule_id": "working-with-legacy-code",
+                    "rule_path": ".claude/rules/unified-software-engineering.md",
+                    "rule_id": "unified-software-engineering",
                     "scenarios": [],
                 }
             ),
@@ -289,9 +289,105 @@ class TestLoadScenariosFile:
         )
         result = eval_mod._load_scenarios_file(str(f))
         assert isinstance(result, tuple)
-        scenarios_data, rule_path = result
-        assert scenarios_data["rule_id"] == "working-with-legacy-code"
+        scenarios_data, target_paths = result
+        rule_path, reference_path = target_paths
+        assert scenarios_data["rule_id"] == "unified-software-engineering"
         assert rule_path.is_file()
+        assert reference_path is None
+
+    def test_accepts_valid_software_engineering_skill_reference(self, tmp_path: Path):
+        f = tmp_path / "skill.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library/"
+                        "references/working-with-legacy-code.md"
+                    ),
+                    "rule_id": "working-with-legacy-code",
+                    "scenarios": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = eval_mod._load_scenarios_file(str(f))
+
+        assert isinstance(result, tuple)
+        _, target_paths = result
+        skill_path, reference_path = target_paths
+        assert skill_path.name == "SKILL.md"
+        assert reference_path is not None
+        assert reference_path.name == "working-with-legacy-code.md"
+
+    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path):
+        f = tmp_path / "bad_skill_ref.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": ".claude/skills/autoplan/SKILL.md",
+                    "scenarios": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+
+def _assert_fixture_routes_to_library(rule_id: str) -> None:
+    fixture = REPO_ROOT / "tests" / "evals" / "rule-scenarios" / f"{rule_id}.json"
+    loaded = eval_mod._load_scenarios_file(str(fixture))
+    assert isinstance(loaded, tuple)
+    data, target_paths = loaded
+    skill_path, reference_path = target_paths
+    assert data["rule_id"] == rule_id
+    expected_skill = (
+        REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
+    )
+    assert skill_path == expected_skill
+    assert reference_path == (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "software-engineering-library"
+        / "references"
+        / f"{rule_id}.md"
+    )
+
+
+def test_activation_fixture_routes_clean_architecture_to_library():
+    _assert_fixture_routes_to_library("clean-architecture")
+
+
+def test_activation_fixture_routes_domain_driven_design_to_library():
+    _assert_fixture_routes_to_library("domain-driven-design")
+
+
+def test_activation_fixture_routes_enterprise_patterns_to_library():
+    _assert_fixture_routes_to_library("enterprise-patterns")
+
+
+def test_activation_fixture_routes_refactoring_to_library():
+    _assert_fixture_routes_to_library("refactoring")
+
+
+def test_activation_fixture_routes_working_with_legacy_code_to_library():
+    _assert_fixture_routes_to_library("working-with-legacy-code")
+
+
+def test_activation_fixture_routes_data_intensive_applications_to_library():
+    _assert_fixture_routes_to_library("data-intensive-applications")
+
+
+def test_activation_fixture_routes_release_it_to_library():
+    _assert_fixture_routes_to_library("release-it")
+
+
+def test_activation_fixture_routes_philosophy_of_software_design_to_library():
+    _assert_fixture_routes_to_library("philosophy-of-software-design")
 
 
 # ---------------------------------------------------------------------------

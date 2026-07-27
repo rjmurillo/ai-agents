@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/refactoring.md",
   "rule_id": "refactoring",
   "scenarios": [
     {
@@ -51,5 +50,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Net-new behavior change, not a behavior-preserving structural change. Refactoring rule should not activate."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/refactoring.md"
 }
