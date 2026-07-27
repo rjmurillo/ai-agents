@@ -188,21 +188,33 @@ def _run_suppression_push(
     repo_root: Path,
     diff_text: str,
     changed_paths: tuple[str, ...] = ("pkg/module.py",),
+    *,
+    base: str | None = None,
+    diff_without_no_renames: str | None = None,
 ) -> int:
     head = "a" * 40
     remote = "b" * 40
-    base = "c" * 40
-    expected_range = f"{base}..{head}"
+    resolved_base = "c" * 40 if base is None else base
+    empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    expected_range = f"{resolved_base or empty_tree}..{head}"
     monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
-    monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: base)
+    monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: resolved_base)
 
     def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
-        if args[:4] == ["diff", "--name-only", "--diff-filter=ACMRT", "-z"]:
-            assert args[4] == expected_range
+        if args[:2] == ["ls-tree", "-r"]:
+            assert args[-1] == head
             return _completed("\0".join(changed_paths) + "\0")
-        if args[:4] == ["diff", "--unified=0", "--no-color", expected_range]:
-            assert args[4] == "--"
-            assert tuple(args[5:]) == changed_paths
+        if args[:3] == ["diff", "--name-only", "--diff-filter=ACMRT"]:
+            assert expected_range in args
+            return _completed("\0".join(changed_paths) + "\0")
+        if "diff" in args and "--unified=0" in args:
+            if args[3] == head:
+                return _completed("")
+            assert expected_range in args
+            if "--no-renames" not in args and diff_without_no_renames is not None:
+                return _completed(diff_without_no_renames)
+            separator = args.index("--")
+            assert tuple(args[separator + 1 :]) == changed_paths
             return _completed(diff_text)
         raise AssertionError(f"unexpected git call: {args!r}")
 
@@ -264,24 +276,87 @@ new file mode 100644
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
-    def test_no_base_range_spec_fails_open(self, tmp_path, monkeypatch):
-        """When resolve_push_update cannot compute a base, range_spec has no '..'."""
-        head = "a" * 40
-        remote = "0" * 40  # zero SHA = new branch
-        monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
-        monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: None)
+    def test_added_plus_plus_line_with_nosec_is_blocked(self, tmp_path, monkeypatch, capsys):
+        suppression = "# no" "sec"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -1,0 +4 @@
++++counter  {suppression}
+"""
 
-        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
-            if args[:4] == ["ls-tree", "-r", "-z", "--name-only"]:
-                return _completed("pkg/module.py\0")
-            if args[:4] == ["diff", "--unified=0", "--no-color", head]:
-                raise AssertionError("should not reach diff with bare SHA")
-            return _completed("")
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:4" in capsys.readouterr().err
 
-        monkeypatch.setattr(policy, "_run_git", _run_git)
-        stdin = io.StringIO(f"refs/heads/new-branch {head} refs/heads/new-branch {remote}\n")
-        # Fails open: no violations reported because diff is unreliable
-        assert policy.check_pushed_suppressions(stdin, tmp_path) == 0
+    def test_no_prefix_diff_with_nosec_addition_is_blocked(self, tmp_path, monkeypatch, capsys):
+        suppression = "# no" "sec"
+        diff = f"""diff --git pkg/module.py pkg/module.py
+--- pkg/module.py
++++ pkg/module.py
+@@ -1,0 +3 @@
++value = call()  {suppression}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:3" in capsys.readouterr().err
+
+    def test_rename_into_scanned_suffix_with_existing_suppression_is_blocked(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        suppression = "# no" "sec"
+        rename_only_diff = """diff --git a/pkg/payload.txt b/pkg/payload.py
+similarity index 100%
+rename from pkg/payload.txt
+rename to pkg/payload.py
+"""
+        no_rename_diff = f"""diff --git a/pkg/payload.txt b/pkg/payload.py
+deleted file mode 100644
+--- a/pkg/payload.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-value = call()
+diff --git a/pkg/payload.py b/pkg/payload.py
+new file mode 100644
+--- /dev/null
++++ b/pkg/payload.py
+@@ -0,0 +1 @@
++value = call()  {suppression}
+"""
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                no_rename_diff,
+                ("pkg/payload.py",),
+                diff_without_no_renames=rename_only_diff,
+            )
+            == 1
+        )
+        assert "pkg/payload.py:1" in capsys.readouterr().err
+
+    def test_new_branch_without_merge_base_scans_empty_tree_to_head(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        suppression = "# type" ": ignore[arg-type]"
+        empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+        diff = f"""diff --git a/source.py b/source.py
+new file mode 100644
+--- /dev/null
++++ b/source.py
+@@ -0,0 +1 @@
++value = call()  {suppression}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("source.py",), base="") == 1
+        err = capsys.readouterr().err
+        assert f"{empty_tree}.." in err or "source.py:1" in err
 
 
 class TestAdrReviewPolicyMergeScope:
@@ -299,30 +374,58 @@ class TestAdrReviewPolicyMergeScope:
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
     def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
-        adr_path = ".agents/architecture/ADR-120-reviewed-on-main.md"
+        path = ".agents/architecture/ADR-120-reviewed-on-main.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"main adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
         monkeypatch.setattr(
-            policy, "_paths_on_merge_head", lambda paths, root: {adr_path}
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: ["main-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: b"main adr",
+            raising=False,
         )
 
-        result = policy.check_adr_review_policy([adr_path], tmp_path)
+        result = policy.check_adr_review_policy(
+            [path],
+            tmp_path,
+        )
 
         assert result == 0
 
-    def test_merge_in_progress_with_branch_authored_adr_is_still_gated(
+    def test_merge_in_progress_with_branch_authored_adr_is_gated(
         self,
         tmp_path,
         monkeypatch,
         capsys,
     ):
+        path = ".agents/architecture/ADR-999-branch-authored-during-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
-        monkeypatch.setattr(policy, "_paths_on_merge_head", lambda paths, root: set())
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: b"branch adr")
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: ["main-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: b"main adr",
+            raising=False,
+        )
         monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
 
         result = policy.check_adr_review_policy(
-            [".agents/architecture/ADR-999-branch-authored-during-merge.md"],
+            [path],
             tmp_path,
         )
 

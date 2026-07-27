@@ -742,8 +742,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     if not gated_paths:
         return 0
     if _merge_in_progress(repo_root):
-        from_main = _paths_on_merge_head(gated_paths, repo_root)
-        gated_paths = [p for p in gated_paths if p not in from_main]
+        gated_paths = _merge_authored_adr_paths(gated_paths, repo_root)
         if not gated_paths:
             return 0
 
@@ -770,6 +769,62 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
         return 1
     return 0
+
+
+def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
+    parent_commits = _approved_merge_head_commits(repo_root)
+    authored: list[str] = []
+    for path in paths:
+        staged_blob = _read_index_blob(repo_root, path)
+        if staged_blob is None:
+            authored.append(path)
+            continue
+        if _read_head_blob(repo_root, path) == staged_blob:
+            continue
+        if any(
+            _read_commit_blob_bytes(repo_root, parent, path) == staged_blob
+            for parent in parent_commits
+        ):
+            continue
+        authored.append(path)
+    return authored
+
+
+def _approved_merge_head_commits(repo_root: Path) -> list[str]:
+    return [
+        commit
+        for commit in _merge_head_commits(repo_root)
+        if _commit_is_origin_main_ancestor(repo_root, commit)
+    ]
+
+
+def _merge_head_commits(repo_root: Path) -> list[str]:
+    result = _run_git(repo_root, ["rev-parse", "--git-path", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return []
+    merge_head = Path(result.stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = repo_root / merge_head
+    try:
+        return [
+            line.strip()
+            for line in merge_head.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except OSError:
+        return []
+
+
+def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
+    result = _run_git(repo_root, ["merge-base", "--is-ancestor", commit, "origin/main"])
+    return result.returncode == 0
+
+
+def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
+    result = _run_git(repo_root, ["show", f"{commit}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.encode("utf-8")
 
 
 def _session_has_retrospective_evidence(session_log: Path) -> bool:
@@ -1518,10 +1573,13 @@ MYPY_RATCHET_DEFAULT_BASE = "origin/main"
 # absent in this repo's config but tolerated. Only ``error`` severity blocks;
 # ``note`` lines are advisory and ignored.
 MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
-# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file; the
-# ``+c,d`` field of each hunk header is the changed-line span (post-image).
-DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.+)$")
+# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file with
+# stable prefixes; the optional prefix keeps parser tests honest against
+# diff.noprefix drift. The ``+c,d`` field of each hunk header is the changed-line
+# span (post-image).
+DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
+EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 
 def _normalize_ratchet_path(path: str) -> str:
@@ -1795,14 +1853,21 @@ def _added_suppression_violations(
     scan_paths = [path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES]
     if not scan_paths:
         return []
-    if ".." not in update.range_spec:
-        # No base available; `git diff <sha>` would compare against the
-        # working tree, not against a parent commit.  Fail open: the SHA
-        # gate at push time remains the hard safety boundary.
-        return []
     result = _run_git(
         repo_root,
-        ["diff", "--unified=0", "--no-color", update.range_spec, "--", *scan_paths],
+        [
+            "-c",
+            "diff.noprefix=false",
+            "diff",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--no-renames",
+            "--unified=0",
+            "--no-color",
+            update.range_spec,
+            "--",
+            *scan_paths,
+        ],
     )
     if result.returncode != 0:
         _print_process_output(result)
@@ -1814,19 +1879,26 @@ def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     violations: list[str] = []
     current_path: str | None = None
     current_line: int | None = None
+    in_hunk = False
     for line in diff_text.splitlines():
-        file_match = DIFF_ADDED_FILE_RE.match(line)
-        if file_match is not None:
+        if line.startswith("diff --git "):
+            current_path = None
+            current_line = None
+            in_hunk = False
+            continue
+        file_match = None if in_hunk else DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None and file_match.group("path") != "/dev/null":
             current_path = _normalize_ratchet_path(file_match.group("path"))
             current_line = None
             continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is not None:
             current_line = int(hunk_match.group("start"))
+            in_hunk = True
             continue
-        if current_path is None or current_line is None or line.startswith("\\"):
+        if not in_hunk or current_path is None or current_line is None or line.startswith("\\"):
             continue
-        if line.startswith("+") and not line.startswith("+++"):
+        if line.startswith("+"):
             if SECURITY_SUPPRESSION_RE.search(line[1:]):
                 violations.append(f"{head[:12]}:{current_path}:{current_line}")
             current_line += 1
@@ -1849,6 +1921,7 @@ def _changed_commit_paths(
             "diff",
             "--name-only",
             "--diff-filter=ACMRT",
+            "--no-renames",
             "-z",
             update.range_spec,
         ],
@@ -2489,7 +2562,8 @@ def resolve_push_update(push_ref: PushRef, repo_root: Path) -> PushUpdate:
     if base is None and not push_ref.is_new:
         base = push_ref.remote_sha
     plugin_base = base or "origin/main"
-    range_spec = f"{base}..{push_ref.local_sha}" if base else push_ref.local_sha
+    diff_base = base or EMPTY_TREE_SHA
+    range_spec = f"{diff_base}..{push_ref.local_sha}"
     destination = _branch_name(push_ref.remote_ref)
     return PushUpdate(
         source=push_ref,
