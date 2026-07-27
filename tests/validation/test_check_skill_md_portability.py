@@ -58,6 +58,43 @@ class TestCountUpstreamRefs:
         text = "Run .claude/skills/memory/scripts/search_memory.py here.\n"
         assert cmp.count_upstream_refs(text) == 0
 
+    def test_counts_templates_agents_and_platforms(self) -> None:
+        # Both hold generator inputs that never ship in the plugin, so a
+        # consumer following either reference lands on nothing (issue #3459).
+        text = (
+            "Canonical source: `templates/agents/security.shared.md`. "
+            "Event mapping: `templates/platforms/copilot-cli.yaml`.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_counts_templates_windows_separators_and_mixed_case(self) -> None:
+        text = "See TEMPLATES\\AGENTS\\x.md and templates\\Platforms\\y.yaml.\n"
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_does_not_count_bare_templates_dir(self) -> None:
+        # Bare templates/ is overloaded: a Flask or Django render directory and
+        # a file-relative asset directory bundled inside a skill both use it,
+        # and both resolve consumer-side. Only the agents/ and platforms/
+        # segments name upstream-only generator inputs.
+        text = (
+            "Render from templates/ at request time, and the bundled "
+            "templates/report.md ships beside this skill.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_does_not_count_templates_nested_under_another_dir(self) -> None:
+        text = "The file assets/templates/foo.md ships with the skill.\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_does_not_count_hyphenated_or_glued_templates(self) -> None:
+        # A URL segment like awesome-templates/agents/ and a glued word like
+        # mytemplates/agents/ are not the repo-root templates/ directory.
+        text = (
+            "See https://example.com/awesome-templates/agents/x and the "
+            "mytemplates/agents/y file.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
 
 class TestCodeBlockAndInlineHandling:
     def test_ignores_fenced_code_blocks(self) -> None:

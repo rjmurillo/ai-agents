@@ -80,11 +80,27 @@ from scripts.validation.portability_common import (
 # ``.claude/skills/`` resolves through the install root, so it is not an
 # upstream-only dependency. ``.agents/``, ``.claude/lib/``, and
 # ``.claude/review-axes/`` have no consumer-side analogue.
+#
+# ``templates/agents/`` and ``templates/platforms/`` hold the agent sources and
+# platform manifests the generators read. Neither ships in the plugin, so a
+# consumer following such a reference lands on nothing. Both are matched by
+# their second segment rather than a bare ``templates/`` prefix, because bare
+# ``templates/`` also names a Flask or Django template directory, a
+# file-relative asset directory bundled inside a skill, and a substring of
+# unrelated URLs (issue #3459).
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
     re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
     re.compile(
         r"(?<![\\\w.])\.claude[\\/]+review-axes(?:[\\/]+|['\"]|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![\\\w.-])templates[\\/]+agents(?:[\\/]+|['\"]|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![\\\w.-])templates[\\/]+platforms(?:[\\/]+|['\"]|$)",
         re.IGNORECASE,
     ),
 )
