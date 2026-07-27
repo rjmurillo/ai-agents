@@ -11,6 +11,10 @@ metadata:
 
 # Security Review
 
+<!-- vendor-portability: cites `templates/agents/security.shared.md` as the canonical
+source of this content, which the canonical-source-mirror rule requires.
+The path is upstream-only provenance, not a runtime dependency. Issue #3459. -->
+
 This skill carries the same security-review knowledge the `security` agent
 carries in its subagent system prompt, delivered instead as content read into
 the parent's context and reasoned over inline. It is the `skill` form-factor

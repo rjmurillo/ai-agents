@@ -21150,6 +21150,78 @@
         "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
       ],
       "created": "2026-07-27T09:40:56.261899+00:00"
+    },
+    {
+      "id": "fa8c918f8fa0",
+      "type": "milestone",
+      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.811965+00:00"
+    },
+    {
+      "id": "fae5e4dee3ee",
+      "type": "milestone",
+      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812053+00:00"
+    },
+    {
+      "id": "8425e192230d",
+      "type": "milestone",
+      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812129+00:00"
+    },
+    {
+      "id": "0c4b2ecdcdbe",
+      "type": "milestone",
+      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812203+00:00"
+    },
+    {
+      "id": "442eb62cfbff",
+      "type": "milestone",
+      "label": "milestone: Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812276+00:00"
+    },
+    {
+      "id": "c7388b1a8df4",
+      "type": "commit",
+      "label": "commit: Commit: ac9a29da8",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812349+00:00"
+    },
+    {
+      "id": "5bff97ce7760",
+      "type": "outcome",
+      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812423+00:00"
+    },
+    {
+      "id": "de932fb4f79c",
+      "type": "milestone",
+      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:34:27.612874+00:00"
     }
   ],
   "patterns": [
