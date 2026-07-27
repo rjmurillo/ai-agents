@@ -53,3 +53,50 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 - 8f34b6a4: M1 spec ignore directives + denylist refactor
 - 0d08807c: MCP architecture spec ignore directives
 - 8e545bd3: marketplace count fix + /build wiring + REQ-002/INTERVIEW-1884 ignores
+
+## Handling Orphans in Stale Specs (2026-07-27, issue #3450)
+
+The gate returned `CRITICAL_FAIL` on clean `main` with 32 findings across 12 files
+in `.agents/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
+contributor regardless of what their PR touched. All 32 pointed at entities that
+were deliberately deleted with no successor:
+
+| Entity | Refs | Removed by |
+| --- | --- | --- |
+| `build/scripts/validate_marketplace_counts.py` | 24 | #2187, `2043c39863` |
+| `scripts/validation/bundle_registry.py` | 4 | #3432, `9b121ec6e8` |
+| `scripts/Validate-Traceability.ps1` | 1 | #1141, `efa406e9ab` |
+| `scripts/Validate-SessionEnd.ps1` | 1 | #610, `a4c58192a5` |
+| skill names `session-qa-eligibility`, `session-migration` | 2 | folded into `session` |
+
+**The trap.** The obvious fix is to append `<!-- orphan-ref-ignore -->` to each
+line and call them historical. An adversarial review caught that this is wrong for
+a large share of them. The specs carry `status: draft`, `todo`, and `in-progress`,
+and many of the flagged lines are imperative rather than narrative: "Create
+`scripts/validation/bundle_registry.py`", "MUST import from", "shall replace the
+hard-coded `PLUGIN_COUNTERS` dict", "THE SYSTEM SHALL invoke the existing
+validator". Those are live contracts against deleted code. Silencing them hides a
+real defect permanently, and also blinds that line to any future orphan.
+
+Verify a suspected-dead instruction before deciding. All three were confirmed
+unimplementable: `COUNT_PATTERN` and `LABEL_MAP` never landed in
+`patterns.py`, `tests/test_command_bundles.py` and `BUNDLE_REGISTRY` are gone,
+and `PLUGIN_COUNTERS` matches nothing in the tree.
+
+**What was done instead.** Each affected spec got a dated `> [!IMPORTANT]`
+retirement note after its H1 naming the removed dependency, the PR, and the
+commit, and stating the instructions below are no longer actionable. The line
+directives stay, but they now sit under a banner that tells the reader the truth.
+That satisfies `.agents/critique/001-fix-validate-sessionend-references-critique.md`
+(do not rewrite historical records into anachronism) without leaving a live
+contract pointing at a deleted file. Adding an annotation is not anachronism;
+rewriting the original prose would be.
+
+**Line scope, not file scope.** SKILL.md lists file scope on an active spec as an
+anti-pattern because it masks real orphans. Base-tree precedent at `d544eaa60a`
+was 25 line-scope and 22 file-scope directives.
+
+**Directive mechanics worth remembering.** Line scope skips every reference on its
+line, so one directive covers a line carrying two findings. File scope must appear
+in the first 50 lines or it silently fails. Appending the directive after a table
+row's closing pipe works: GFM discards the excess cell, so nothing renders.

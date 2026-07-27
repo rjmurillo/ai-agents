@@ -16,6 +16,13 @@ updated: 2026-05-04
 
 # DESIGN-015: Pre-push validation hooks for PR iteration cost reduction
 
+> [!IMPORTANT]
+> **Retired dependency.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Count claims are now scanned by the `orphan-ref-validator` skill.
+
 ## Requirements Addressed
 
 - REQ-005-US1: Block markdown style violations pre-push (AC-1, AC-2, AC-3, AC-3a)

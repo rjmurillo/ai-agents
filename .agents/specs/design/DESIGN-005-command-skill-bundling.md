@@ -14,6 +14,13 @@ updated: 2026-05-05
 
 # DESIGN-005: Bundle Dedicated Skills into Lifecycle Commands
 
+> [!IMPORTANT]
+> **Retired dependency.** `scripts/validation/bundle_registry.py` and <!-- orphan-ref-ignore -->
+> `tests/test_command_bundles.py` were removed in #3432 (commit `9b121ec6e8`) when the <!-- orphan-ref-ignore -->
+> command-bundle coverage check was deleted as dead code. Text below that creates or
+> imports either file is no longer actionable. It is kept as a record of the plan as
+> written.
+
 ## Requirements Addressed
 
 - REQ-005 AC-1 through AC-14: all fourteen acceptance criteria are satisfied by edits to seven command files plus two supporting artifacts (test file and pre_pr.py check).
