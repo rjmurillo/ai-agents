@@ -1,0 +1,159 @@
+{
+  "id": "episode-2026-07-27-session-3435-refile-agent-slim-evals",
+  "session": "2026-07-27-session-3435-refile-agent-slim-evals",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All 33 files are eval outputs. No genuine planning JSON was left behind.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The eval system of record now contains the agent-slimming outputs without JSON byte changes.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Artifact integrity checks passed before final validation.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branch is ready for documentation and session-log commits, then push and PR creation.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c1186bbf6",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 977d5568a",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7ce1ef95d",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e898ab722",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0d4ff0275",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 032d1c73a",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d1aa0a2aa",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 33
+  },
+  "lessons": []
+}

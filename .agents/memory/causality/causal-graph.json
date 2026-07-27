@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:58:41.235955+00:00",
+  "updated": "2026-07-27T12:39:05.463321+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21456,6 +21456,123 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "cfdc4a24bbfd",
+      "type": "milestone",
+      "label": "milestone: Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456565+00:00"
+    },
+    {
+      "id": "d2dabb36d649",
+      "type": "milestone",
+      "label": "milestone: All 33 files are eval outputs. No genuine planning JSON was left behind.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456666+00:00"
+    },
+    {
+      "id": "a40e7874d46a",
+      "type": "milestone",
+      "label": "milestone: The eval system of record now contains the agent-slimming outputs without JSON byte changes.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456747+00:00"
+    },
+    {
+      "id": "f1b7526d4293",
+      "type": "milestone",
+      "label": "milestone: Artifact integrity checks passed before final validation.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456822+00:00"
+    },
+    {
+      "id": "3d84d690720f",
+      "type": "milestone",
+      "label": "milestone: Branch is ready for documentation and session-log commits, then push and PR creation.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456897+00:00"
+    },
+    {
+      "id": "9a14322ed7b1",
+      "type": "commit",
+      "label": "commit: Commit: c1186bbf6",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456972+00:00"
+    },
+    {
+      "id": "8cbbf4a2e573",
+      "type": "commit",
+      "label": "commit: Commit: 977d5568a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457046+00:00"
+    },
+    {
+      "id": "a32309cbb296",
+      "type": "commit",
+      "label": "commit: Commit: 7ce1ef95d",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457120+00:00"
+    },
+    {
+      "id": "5a6bbfcd1daa",
+      "type": "commit",
+      "label": "commit: Commit: e898ab722",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457194+00:00"
+    },
+    {
+      "id": "3c0cd5d8f07f",
+      "type": "commit",
+      "label": "commit: Commit: 0d4ff0275",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457271+00:00"
+    },
+    {
+      "id": "0920ab5571a6",
+      "type": "commit",
+      "label": "commit: Commit: 032d1c73a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457345+00:00"
+    },
+    {
+      "id": "7041bb3cd2c4",
+      "type": "commit",
+      "label": "commit: Commit: d1aa0a2aa",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457418+00:00"
+    },
+    {
+      "id": "ce274bd75127",
+      "type": "outcome",
+      "label": "Outcome: success - Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457493+00:00"
     }
   ],
   "patterns": [
