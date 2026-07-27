@@ -152,6 +152,20 @@
         "Added the confounded-variance disclosure to the ADR and debate log: the measured movement is the pipeline's, not the judge's, and this harness cannot separate them."
       ],
       "outcome": "Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c."
+    },
+    {
+      "phase": "Attack the rule finding with data already in the repository",
+      "actions": [
+        "The rule-path noise finding rested on one benchmark and one replication, which is thin enough to be worth attacking. Checked whether any committed artifact already disagreed with it before spending on another run.",
+        "Found the architect spike holds two runs of claude-sonnet-4-6 against the same eight fixtures, both reports tracked at evals/architect-spike/reports/. Five of eight fixtures scored differently between them.",
+        "Ran the full extract, split, gate loop on that pair. This also live-validates the agent path end to end, which had previously only been exercised against a single report.",
+        "Default configuration returned ACCEPT on a pure null control: held-out 0.0 to 0.667, two discordant gains, no losses, p=0.25. No edit, no artifact change, two runs of the same model.",
+        "Verified --max-p 0.05 over a five-consultation budget refuses the same comparison at the corrected 0.01, and that adding the bar late to a group opened without one is refused. The ledger pinning works on real artifacts, not just fixtures.",
+        "Measured the same same-model comparison on the other two spikes: critic three of eight, high-level-advisor four of eight, twelve of twenty-four across the three. Weighted these lower in the writeup because one report in each of those pairs is untracked spike output.",
+        "Corrected my own earlier reading in the debate log. I had recorded the rule run's REJECT as the design working. It was luck: requirement 4 fires when noise breaks something and is silent when noise falls one way. Filed as defect shape 16.",
+        "Added the operational warning to the README, the ADR validation status, and the debate log: the default configuration accepts null controls on the rule and agent paths, and only the deterministic hook path is safe to read at face value."
+      ],
+      "outcome": "The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed."
     }
   ],
   "endingCommit": "",

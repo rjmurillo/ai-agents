@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:02:17.730623+00:00",
+  "updated": "2026-07-27T11:30:19.340440+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21420,6 +21420,15 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T11:02:17.724848+00:00"
+    },
+    {
+      "id": "b7aaff722e33",
+      "type": "milestone",
+      "label": "milestone: The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T11:30:19.334442+00:00"
     }
   ],
   "patterns": [

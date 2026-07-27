@@ -639,6 +639,62 @@ error rate. One replication cannot put an interval on any of them. It is
 enough to establish that the noise is larger than the effect being measured,
 which is the only claim made here.
 
+### The same control on the agent path, where nothing rescued it
+
+The rule result above could be one benchmark's problem. It is not, and checking
+cost nothing: the architect spike already holds two runs of the same model
+against the same eight fixtures, both tracked at
+`evals/architect-spike/reports/`. Five of eight fixtures scored differently
+between the two runs. At the default pass threshold one run passes five and the
+other passes two.
+
+Gating the lower as incumbent against the higher as candidate, with no
+significance bar, which is the default:
+
+```text
+decision: ACCEPT   held-out 0.0000 -> 0.6667
+discordant_gain: 2   discordant_loss: 0   p_value: 0.25
+```
+
+No edit was made. The two runs differ only in having been run twice.
+
+The rule run was refused in the same situation because the noise also broke a
+third task and the no-regression rule caught it. That was luck. It required the
+noise to fall both ways. Here it fell one way and nothing stopped it. The
+no-regression rule protects against a regression; it does not protect against
+variance, because variance need not be symmetric.
+
+`--max-p 0.05` over a five-consultation budget refuses this comparison at the
+corrected 0.01 bar. It is the only mechanism here that does.
+
+The same comparison moves three of eight fixtures on the critic spike and four
+of eight on high-level-advisor, twelve of twenty-four across the three, though
+one report in each of those two pairs is untracked spike output rather than
+committed evidence. Read the architect pair as the reproducible result. Against
+thirteen of twenty-four on the rule benchmark, two unrelated benchmarks both
+move about half their tasks when nothing changes.
+
+### What this means for running the loop
+
+> **The default configuration accepts null controls on two of the three paths.**
+> `gate` without `--max-p` guards against an optimizing agent gaming its own
+> benchmark. It does not guard against the benchmark being noisy. Those are
+> different threats and only the first is closed by default.
+
+Practical consequences, until repeated sampling lands:
+
+- Against `rule_results` or `agent_results`, run a null control alongside any
+  accept before citing it, and pass `--max-p`. Restore the artifact
+  byte-for-byte, re-run the identical scorer, gate the result. If the no-op
+  earns an accept, or gains the same tasks the real edit gained, the loop is
+  measuring its own variance.
+- If the tasks that moved are not the tasks your edit touched, that is the
+  cheap early signal. Both live findings here showed it before the control was
+  run.
+- Against `pytest_results` neither applies. That path is deterministic, so a
+  repeated run of the same suite against the same tree gives the same mapping,
+  and an accept there means what it says.
+
 **What changed as a result.** `--max-p` was added so the exact tail the gate
 already computed can refuse. Replaying both runs under `--max-p 0.05` turns
 the false accept into a reject that names the 0.25 tail. It defaults to absent

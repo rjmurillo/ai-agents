@@ -464,3 +464,69 @@ missing `seed` parameter in `_providers.py` is noted and unfixed: passing it is
 best-effort on OpenAI's side and would not make the harness deterministic, but
 not passing it means the harness is not attempting the one cheap thing that
 might reduce the noise floor it just measured. Filed as #3475.
+
+## The agent path, and the luck that hid the problem
+
+The rule finding rested on one benchmark and one replication. That is thin
+enough to be worth attacking, so I attacked it with data already in the
+repository rather than more eval spend.
+
+The architect spike holds two runs of `claude-sonnet-4-6` against the same eight
+fixtures, both tracked at `evals/architect-spike/reports/`. Five of eight
+fixtures scored differently between them. At the default pass threshold one run
+passes five fixtures and the other passes two.
+
+Gating the lower as incumbent against the higher as candidate, default
+configuration, no significance bar:
+
+```text
+decision: ACCEPT   held-out 0.0000 -> 0.6667
+discordant_gain: 2   discordant_loss: 0   p_value: 0.25
+held out: A002 False -> True, A007 False -> True, A006 False -> False
+```
+
+No edit. No artifact. An ACCEPT.
+
+### Defect shape 16: a protection against regression is not a protection against variance
+
+The rule run was saved by requirement 4, the no-pass-to-fail clause. I recorded
+that at the time as the design working. Re-reading it against this result, that
+was luck and I should have said so. Requirement 4 fires when noise happens to
+break something. It is silent when noise happens to fall one way, and noise is
+under no obligation to be symmetric. On the rule path it broke a third task and
+the gate refused. Here it did not and the gate accepted.
+
+This is the most useful thing the agent run produced, because it is a correction
+to my own earlier reading rather than a new external finding. A control that
+holds on the sample you looked at, for a reason that does not generalize, is the
+same failure mode as every defect in the fourteen rounds above. I had it in the
+conclusions column instead of the defect column.
+
+`--max-p 0.05` over a five-consultation budget refuses the same comparison at
+the corrected 0.01. It is the only thing in the design that does.
+
+### The noise floor is not one benchmark's problem
+
+Same same-model, same-fixture comparison on the other two spikes: critic moves
+three of eight, high-level-advisor four of eight. Twelve of twenty-four across
+the three agents, against thirteen of twenty-four on the rule benchmark.
+
+Weight those unequally. Both architect reports are tracked, so that pair is
+reproducible from a clean clone. The critic and high-level-advisor pairs each
+have one side that is untracked spike output, so they corroborate rather than
+prove.
+
+Even discounted, the shape holds: two unrelated benchmarks, different artifacts,
+different scorers, different model families, both moving about half their tasks
+when nothing changes. The rule result was not one eval having a bad day.
+
+### What this cost
+
+Nothing. No API calls, no eval spend. The evidence was sitting in the repository
+the whole time, in two report files committed months ago. The cheapest
+adversarial review available was re-reading data already on disk against a claim
+made later, and it produced a sharper correction than either paid reviewer in
+round fourteen.
+
+Worth generalizing: before spending on a new run to test a claim, check whether
+some existing artifact already disagrees with it.

@@ -609,9 +609,15 @@ Honest statement of what has and has not been exercised against real data.
 - **Agent path**: validated against a real report,
   `evals/analyst-spike/reports/20260528T050708Z-91be1106/report.json`, 24
   fixtures. Baseline 15/24 against agent 13/24; the decision correctly refused
-  a real regression.
+  a real regression. A null control on the agent path was run on 2026-07-27 and
+  is recorded below; it is the reason this ADR now says the default
+  configuration is not safe to run unattended on either path.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
-  node ids extracted.
+  node ids extracted. No null control has been run on the hook path, and none
+  is needed for the same reason: `pytest_results` is deterministic, so a
+  repeated run of the same suite against the same tree produces the same
+  mapping. The hook path is the only one of the three where an ACCEPT means
+  what it says.
 - **Rule path**: validated end to end against live judge output on 2026-07-27.
   Anthropic remained rate-capped, so the run routed through GitHub Models
   (`EVAL_PROVIDER=github`, `openai/gpt-4o-mini`), which `scripts/eval/_providers.py`
@@ -663,10 +669,71 @@ in these reports attributes the movement to one stage or the other. The
 0.49-point mean is the variance of the pipeline. Whether a judge held fixed
 would show less is untested here.
 
+### The agent path fails the same control, and nothing rescues it
+
+The rule finding could have been read as one benchmark's problem. It is not.
+
+The architect spike holds two runs of the same model, `claude-sonnet-4-6`,
+against the same eight fixtures, and both reports are tracked in this
+repository at `evals/architect-spike/reports/`. Nothing distinguishes them but
+the run. Five of the eight fixtures scored differently. Extracted at the
+default pass threshold, one run passes five fixtures and the other passes two.
+
+Gating the lower run as incumbent against the higher as candidate, with no
+significance bar, which is the default configuration:
+
+```text
+decision: ACCEPT   held-out 0.0000 -> 0.6667
+discordant_gain: 2   discordant_loss: 0   p_value: 0.25
+```
+
+Two held-out fixtures flipped fail to pass because the model was run twice.
+There was no edit. There was no artifact. The gate accepted it.
+
+This is worse than the rule result, and the difference is the point. On the
+rule path the same noise also broke a third task, and requirement 4, no
+pass-to-fail transition accepted on an aggregate gain, refused the run. That
+refusal was luck. It depended on the noise being two-directional. Here the
+noise happened to fall one way and nothing stood in front of it. Requirement 4
+is a real protection against a real regression and it is not a protection
+against variance, because variance is under no obligation to be symmetric.
+
+With `--max-p 0.05` and a five-consultation budget, the same comparison
+refuses: p=0.5 against the corrected 0.01 bar. The flag is the only thing in
+the design that refuses this run.
+
+Two smaller confirmations came from the same data. Adding `--max-p` to the
+group that had already been opened without it is refused, which is the ledger
+pinning working on real artifacts rather than fixtures. And the same
+same-model, same-fixture comparison on the critic spike moves three of eight
+fixtures and on the high-level-advisor spike four of eight, for twelve of
+twenty-four across the three. Those two carry less weight than the architect
+pair because one report in each of their pairs is untracked spike output rather
+than committed evidence, so treat the architect pair as the reproducible result
+and the other two as corroboration.
+
+Twelve of twenty-four on the agent benchmark against thirteen of twenty-four on
+the rule benchmark is the useful number. Two unrelated benchmarks, different
+artifacts, different scorers, different models, and both move about half their
+tasks when nothing changes. The noise floor is not a property of one eval.
+
+### What follows for anyone running this loop
+
+The default configuration accepts null controls on two of the three paths. Say
+that plainly rather than burying it: `optimize-artifact.py gate` with no
+`--max-p` is a guard against an optimizing agent gaming its own benchmark, and
+it is not a guard against the benchmark being noisy. Those are different
+threats and only the first one is closed by default.
+
+Until requirement 6 lands, a run of this loop against `rule_results` or
+`agent_results` is worth citing only alongside a null control, and `--max-p`
+should be supplied. The hook path needs neither, because it is deterministic.
+
 The ADR stays proposed. The rule path is now live-validated, but requirement 6
 below is the reason it cannot yet move: a single-sample scorer at this
 benchmark size cannot distinguish an edit from noise, and that is a property of
-the benchmark rather than of the gate.
+the benchmark rather than of the gate. The agent null control above makes that
+a measured claim on two benchmarks rather than an inference from one.
 
 ## References
 
