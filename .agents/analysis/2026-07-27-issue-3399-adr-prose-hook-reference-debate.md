@@ -1,5 +1,7 @@
 # Issue #3399 ADR prose hook reference debate log
 
+> **Note**: This is an issue-level analysis note for #3399, not a formal ADR debate log (those reside in `.agents/critique/` per adr-review convention).
+
 ## Scope
 
 ADR Review Protocol evidence for ADR-008, ADR-033, ADR-047, ADR-057, ADR-061, ADR-062, ADR-081, ADR-082, ADR-083, ADR-084, and ADR-085.

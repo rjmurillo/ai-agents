@@ -157,5 +157,6 @@
   "nextSteps": [],
   "notes": [
     "Regex widened to catch :line-range hook references per review feedback."
-  ]
+  ],
+  "workNotes": " | Added clarification note to analysis file per Copilot convention feedback."
 }
