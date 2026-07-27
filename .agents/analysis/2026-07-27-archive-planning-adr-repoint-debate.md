@@ -6,11 +6,11 @@ Multi-agent adr-review of link repoints in three architecture documents during t
 - ADRs: ADR-006, ADR-061, ADR-063
 - Trigger: chore(planning) archive 110 finished planning artifacts (PR #3442, issue #3431)
 - Rounds: 1 (consensus reached)
-- Scope: reference path updates only (`.agents/plans/active/` to `.agents/archive/plans/`)
+- Scope: reference path updates in ADRs (`.agents/planning/` to `.agents/archive/planning/`, `.agents/plans/active/` to `.agents/archive/plans/`)
 
 ## Context
 
-The archive operation moved 110 finished planning artifacts from `.agents/plans/active/` to `.agents/archive/plans/`. Three ADR files contained references to moved plans and required link repoints to maintain navigability.
+The archive operation moved 110 finished planning artifacts from `.agents/planning/` to `.agents/archive/planning/`. Execution plans moved separately from `.agents/plans/active/` to `.agents/archive/plans/`. Three ADR files contained references to moved plans and required link repoints to maintain navigability.
 
 ### Changes Under Review
 

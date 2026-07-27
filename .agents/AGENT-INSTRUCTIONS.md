@@ -50,7 +50,7 @@ Before starting work, complete these steps IN ORDER:
 |----------|---------|----------------|
 | `AGENT-INSTRUCTIONS.md` | How to execute work (this file) | Rarely - only if process changes |
 | `AGENT-SYSTEM.md` | Agent catalog and workflows | When agents added/modified |
-| `planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
+| `archive/planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
 | `HANDOFF.md` | Session-to-session context | At END of every session |
 | `sessions/*.md` | Detailed session logs | Throughout session |
 | `governance/*.md` | Standards and protocols | When governance changes |

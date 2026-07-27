@@ -181,6 +181,14 @@
         "Re-checked every issue this change cites. Issue 3424, filed during the first phase, was closed as completed by pull request 3432 on main. Confirmed no document on this branch still claims it is open: the only two mentions are the generated causal graph and this dated session log"
       ],
       "outcome": "Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130."
+    },
+    {
+      "phase": "Post-review fix",
+      "actions": [
+        "Fixed Document Hierarchy table in AGENT-INSTRUCTIONS.md: planning/ -> archive/planning/",
+        "Corrected debate log scope line and context paragraph to distinguish planning/ from plans/active/ archive paths",
+        "Addressed Copilot reviewer comments on PR #3442"
+      ]
     }
   ],
   "endingCommit": "c40fc2b3",
