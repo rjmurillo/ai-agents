@@ -248,26 +248,30 @@ precision and recall on 40 prompts he wrote himself, then 27 percent precision
 on 86 prompts mined from his own transcripts. Same classifier, same author. The
 only variable was who wrote the prompts.
 
-The same collapse is measurable here. Run:
+The same *provenance* condition is measurable here. Run:
 
 ```bash
 uv run python scripts/eval/eval-trigger-phrase-realism.py
 ```
 
-It reads real prompts from the local Claude Code transcript store, matches on
-word boundaries, and reports what fraction of documented phrases a user has
-ever actually typed. Measured against 640 unique real prompts at `4850af73f`:
+It reads operator-typed prompts from the local Claude Code transcript store,
+matches on word boundaries, and reports what fraction of documented phrases a
+user has ever actually typed. On this repository the answer is a low
+single-digit to low double-digit percentage: the large majority of documented
+trigger phrases have never been typed by anyone.
 
-| Phrase set | Ever said | Share |
-|---|---|---|
-| Documented in a `## Triggers` table | 22 of 212 | 10.4% |
-| Promoted into a description | 8 of 140 | 5.7% |
+**This is a lexical-provenance diagnostic, not a routing measurement.** It does
+not execute the router and reports no precision, recall, or activation rate. It
+cannot tell you the practitioner's collapse reproduces here, because a phrase
+nobody typed verbatim can still route correctly under semantic matching. What
+it establishes is narrower and still useful: these phrases were **authored
+rather than observed**, which is the precondition his classifier failed under.
 
-Read that as evidence about provenance, not about the router. The router is a
-model doing semantic matching, so a phrase nobody typed verbatim can still
-route correctly. What the number establishes is that these phrases were
-**authored rather than observed**, which is exactly the condition under which
-the practitioner's classifier collapsed.
+The exact percentage is deliberately not quoted here. It moves with corpus
+scope, time window, and parser version. One measured run varied from 0 to 12.9
+percent across single-project scopes. Treat the rule below as qualitative and
+record any specific figure in a dated artifact that names its corpus dates,
+project scope, commit, and parser version.
 
 Two rules follow.
 
@@ -306,7 +310,10 @@ Before marking skill complete:
 - [ ] Description has action verb
 - [ ] Description includes trigger keywords (how users will search)
 - [ ] Trigger phrases checked against the observed set from
-      `scripts/eval/eval-trigger-phrase-realism.py`, not invented
+      `scripts/eval/eval-trigger-phrase-realism.py`, not invented. If no local
+      transcript corpus is available, record the phrase set as
+      "unvalidated: no independent corpus available" and do not substitute
+      self-authored prompts
 - [ ] Description has "Use when" or equivalent
 - [ ] Description mentions outcome
 - [ ] Body has trigger table/list

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T14:18:25.347455+00:00",
+  "updated": "2026-07-27T15:16:12.557966+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21789,6 +21789,78 @@
         "episode-2026-07-27-session-3509-trigger-phrase-realism"
       ],
       "created": "2026-07-27T14:18:25.341930+00:00"
+    },
+    {
+      "id": "1828778aa99d",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol returned five Critical findings against the eval. Verified each premise independently before acting rather than complying on trust.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.551737+00:00"
+    },
+    {
+      "id": "877b8a1fbd7a",
+      "type": "milestone",
+      "label": "milestone: CONFIRMED Critical 1: the 640-prompt corpus was 68.3 percent machine-authored. 437 of 640 unique entries carried isSidechain or agentId, meaning an agent wrote them for a subagent. The eval built to detect a closed loop was running inside one. Fixed by excluding those entries in _user_text; corpus is now 203 operator-typed prompts.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.551824+00:00"
+    },
+    {
+      "id": "ca7eb9428d6f",
+      "type": "milestone",
+      "label": "milestone: CONFIRMED Critical 2: the denominator read only Markdown table rows while the standard permits a trigger 'table or list', so it saw 212 of 422 documented phrases. Descriptions were read for double quotes only, missing backticked phrases. Fixed with _TABLE_CELL plus _LIST_ITEM and _QUOTED plus _BACKTICKED.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.551901+00:00"
+    },
+    {
+      "id": "5b6b770b7fba",
+      "type": "milestone",
+      "label": "milestone: CONFIRMED Critical 3: the slash-command negative control was fake. Both fixtures were single words, so the single-word rule caught them and deleting the slash rule still passed 54 of 54. Replaced with a multiword form; mutation-testing now fails 4 tests when the rule is removed.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.551977+00:00"
+    },
+    {
+      "id": "9a4a2d5f14da",
+      "type": "milestone",
+      "label": "milestone: Re-measured after both fixes: 17 of 422 documented (4.0%) and 8 of 226 promoted (3.5%) against 203 prompts. Both originally published figures (10.4% and 5.7%) were wrong.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.552053+00:00"
+    },
+    {
+      "id": "cb08e0f3f47d",
+      "type": "milestone",
+      "label": "milestone: CONFIRMED Critical 4 and 5: removed the 'same collapse is measurable here' routing overclaim and the fixed percentages from the governance standard, since the figure ranged 0 to 12.9 percent across project scopes. The standard now states a qualitative rule and labels the eval a lexical-provenance diagnostic that never executes the router.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.552131+00:00"
+    },
+    {
+      "id": "a4eb8c02b255",
+      "type": "milestone",
+      "label": "milestone: Fixed the Major finding (checklist unsatisfiable without a private transcript store) and the Minor immutability finding (frozen dataclass held a mutable hits dict; now MappingProxyType with a regression test).",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.552207+00:00"
+    },
+    {
+      "id": "13ccbebee6a7",
+      "type": "milestone",
+      "label": "milestone: Final verification: 794 tests pass in tests/eval, ruff clean, mypy clean, helper coverage 100 percent, CLI 99 percent with only the sys.path and __main__ guards uncovered.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T15:16:12.552282+00:00"
     }
   ],
   "patterns": [

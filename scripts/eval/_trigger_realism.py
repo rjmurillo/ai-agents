@@ -23,8 +23,9 @@ wrong in a specific, documented way:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 
 
 def is_measurable_phrase(phrase: str) -> bool:
@@ -56,7 +57,9 @@ class RealismReport:
     measurable: int
     observed: int
     excluded: int
-    hits: dict[tuple[str, str], int]
+    # Read-only: a mutable mapping on a frozen report could be edited to
+    # diverge from the stored ``observed`` and ``realism`` values.
+    hits: Mapping[tuple[str, str], int]
 
     @property
     def realism(self) -> float:
@@ -89,5 +92,8 @@ def score(
             if occurrences:
                 hits[(skill, phrase)] = occurrences
     return RealismReport(
-        measurable=measurable, observed=len(hits), excluded=excluded, hits=hits
+        measurable=measurable,
+        observed=len(hits),
+        excluded=excluded,
+        hits=MappingProxyType(hits),
     )

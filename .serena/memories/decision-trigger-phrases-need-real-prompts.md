@@ -25,22 +25,38 @@ variable was who wrote the prompts.
 ## Evidence
 
 Built `scripts/eval/eval-trigger-phrase-realism.py`, which mines the local
-Claude Code transcript store and matches on word boundaries. Against 640 unique
-real user prompts extracted from 480 transcripts at commit `4850af73f`:
+Claude Code transcript store and matches on word boundaries. Against 203 unique
+operator-typed prompts extracted from 480 transcripts:
 
-- documented in a `## Triggers` table: 22 of 212 phrases ever said (10.4%)
-- promoted into a description: 8 of 140 phrases ever said (5.7%)
+- documented in a `## Triggers` section: 17 of 422 phrases ever said (4.0%)
+- promoted into a description: 8 of 226 phrases ever said (3.5%)
+
+Treat those percentages as a snapshot, not a constant. They move with corpus
+scope, time window, and parser version, and a single-project scope moved the
+promoted figure between 0 and 12.9 percent. The durable finding is the shape,
+the large majority of documented phrases have never been typed, not the digits.
+
+**The first version of this measurement was wrong twice over, and an adversarial
+review on a second model caught both.** The corpus counted 640 prompts, but 437
+of them (68.3%) were `isSidechain` entries, prompts an agent wrote for a
+subagent. They carry the `user` role but nobody typed them, so the eval designed
+to detect a closed loop was itself running inside one. Separately the parser read
+only Markdown table rows, while the standard permits a trigger "table or list",
+so it saw 212 of 422 documented phrases. Both defects are fixed and each now
+carries a negative-control test.
 
 The phrases that do occur are conversational and lifecycle-shaped: `complete
 session`, `create session log`, `start new session`, `your call`, `handle it`,
 `do it`, `security review`, `threat model`. The ones that never occur are
 formal technical constructions.
 
-Read this as evidence about provenance, not about the router. The router is a
-model doing semantic matching, so a phrase nobody typed verbatim can still
-route correctly. What the number establishes is that the phrases were authored
-rather than observed, which is exactly the condition under which the
-practitioner's classifier collapsed.
+Read this as evidence about provenance, not about the router. This is a
+lexical-provenance diagnostic: it never executes the router and reports no
+precision, recall, or activation rate. A phrase nobody typed verbatim can still
+route correctly under semantic matching, so this does not show the
+practitioner's collapse reproduces here. What it establishes is narrower, that
+the phrases were authored rather than observed, which is the precondition his
+classifier failed under.
 
 ## Decision
 

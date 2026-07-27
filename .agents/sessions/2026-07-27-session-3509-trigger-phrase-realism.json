@@ -130,6 +130,30 @@
     },
     {
       "step": "Kept the hyphenated CLI filename against an advisory taste-lint error. Measured the convention rather than guessing: scripts/eval holds 16 hyphenated CLI entry points against 2 snake_case ones, and 5 or more existing test files load the hyphenated ones through importlib spec_from_file_location, which is the pattern this test uses. Renaming would diverge from the dominant convention to satisfy an advisory check that would flag all 16 siblings identically. Flagged in the PR body rather than resolved silently."
+    },
+    {
+      "step": "Adversarial review on gpt-5.6-sol returned five Critical findings against the eval. Verified each premise independently before acting rather than complying on trust."
+    },
+    {
+      "step": "CONFIRMED Critical 1: the 640-prompt corpus was 68.3 percent machine-authored. 437 of 640 unique entries carried isSidechain or agentId, meaning an agent wrote them for a subagent. The eval built to detect a closed loop was running inside one. Fixed by excluding those entries in _user_text; corpus is now 203 operator-typed prompts."
+    },
+    {
+      "step": "CONFIRMED Critical 2: the denominator read only Markdown table rows while the standard permits a trigger 'table or list', so it saw 212 of 422 documented phrases. Descriptions were read for double quotes only, missing backticked phrases. Fixed with _TABLE_CELL plus _LIST_ITEM and _QUOTED plus _BACKTICKED."
+    },
+    {
+      "step": "CONFIRMED Critical 3: the slash-command negative control was fake. Both fixtures were single words, so the single-word rule caught them and deleting the slash rule still passed 54 of 54. Replaced with a multiword form; mutation-testing now fails 4 tests when the rule is removed."
+    },
+    {
+      "step": "Re-measured after both fixes: 17 of 422 documented (4.0%) and 8 of 226 promoted (3.5%) against 203 prompts. Both originally published figures (10.4% and 5.7%) were wrong."
+    },
+    {
+      "step": "CONFIRMED Critical 4 and 5: removed the 'same collapse is measurable here' routing overclaim and the fixed percentages from the governance standard, since the figure ranged 0 to 12.9 percent across project scopes. The standard now states a qualitative rule and labels the eval a lexical-provenance diagnostic that never executes the router."
+    },
+    {
+      "step": "Fixed the Major finding (checklist unsatisfiable without a private transcript store) and the Minor immutability finding (frozen dataclass held a mutable hits dict; now MappingProxyType with a regression test)."
+    },
+    {
+      "step": "Final verification: 794 tests pass in tests/eval, ruff clean, mypy clean, helper coverage 100 percent, CLI 99 percent with only the sys.path and __main__ guards uncovered."
     }
   ],
   "filesModified": [

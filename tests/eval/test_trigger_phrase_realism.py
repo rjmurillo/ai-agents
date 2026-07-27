@@ -84,6 +84,12 @@ class TestIsMeasurablePhrase:
         # measures the dispatcher rather than the phrase.
         assert not realism.is_measurable_phrase("/session-init")
 
+    def test_a_multiword_slash_command_is_not_measurable(self):
+        # A single-word slash command is also rejected by the single-word rule,
+        # so it cannot prove the slash rule exists. This multiword form is
+        # rejected only by the slash rule, so deleting that rule fails here.
+        assert not realism.is_measurable_phrase("/review BRANCH_OR_PR")
+
     def test_a_single_word_is_not_measurable(self):
         assert not realism.is_measurable_phrase("analyze")
 
@@ -120,12 +126,14 @@ class TestScore:
         assert report.realism == pytest.approx(0.5)
 
     def test_excluded_phrases_stay_out_of_the_denominator(self):
-        report = realism.score({"a": ["/slash", "one", "start new session"]}, ["x"])
+        report = realism.score(
+            {"a": ["/review BRANCH_OR_PR", "one", "start new session"]}, ["x"]
+        )
         assert report.measurable == 1
         assert report.excluded == 2
 
     def test_realism_is_zero_when_nothing_is_measurable(self):
-        report = realism.score({"a": ["/slash"]}, ["anything"])
+        report = realism.score({"a": ["/review BRANCH_OR_PR"]}, ["anything"])
         assert report.measurable == 0
         assert report.realism == 0.0
 
@@ -133,6 +141,14 @@ class TestScore:
         report = realism.score({"a": ["start new session"]}, [])
         assert report.observed == 0
         assert report.realism == 0.0
+
+    def test_hits_cannot_be_mutated_after_scoring(self):
+        # frozen=True does not protect a mutable field. Without a read-only
+        # mapping, hits could be edited to disagree with observed and realism.
+        report = realism.score({"a": ["start new session"]}, ["start new session"])
+        with pytest.raises(TypeError):
+            report.hits[("b", "injected")] = 1  # type: ignore[index]
+        assert report.observed == 1
 
     def test_hits_are_keyed_by_skill_and_phrase(self):
         report = realism.score({"skill-a": ["start new session"]}, ["start new session"])
@@ -155,6 +171,42 @@ class TestUserTextExtraction:
 
     def test_a_plain_string_user_message_is_returned(self):
         line = self._line({"type": "user", "message": {"content": "  fix the bug  "}})
+        assert cli._user_text(line) == "fix the bug"
+
+    def test_a_sidechain_entry_is_excluded(self):
+        # Sidechain entries are prompts an agent wrote for a subagent. They
+        # carry the user role but nobody typed them, so admitting them would
+        # score the phrases against machine-authored text.
+        line = self._line(
+            {
+                "type": "user",
+                "isSidechain": True,
+                "message": {"content": "fix the bug"},
+            }
+        )
+        assert cli._user_text(line) is None
+
+    def test_an_agent_authored_entry_is_excluded(self):
+        line = self._line(
+            {
+                "type": "user",
+                "agentId": "explore-1",
+                "message": {"content": "fix the bug"},
+            }
+        )
+        assert cli._user_text(line) is None
+
+    def test_an_explicit_non_sidechain_entry_is_kept(self):
+        # Negative control for the two exclusions above: a falsey flag must
+        # not remove a genuine operator prompt.
+        line = self._line(
+            {
+                "type": "user",
+                "isSidechain": False,
+                "agentId": None,
+                "message": {"content": "fix the bug"},
+            }
+        )
         assert cli._user_text(line) == "fix the bug"
 
     def test_text_blocks_are_joined(self):
@@ -278,8 +330,31 @@ class TestCollectPhrases:
             tmp_path, "alpha", '"say this" to run it', ["say this", "or this"]
         )
         documented, promoted = cli.collect_phrases(tmp_path)
-        assert documented == {"alpha": ["say this", "or this"]}
+        # Phrases are de-duplicated, so the order is sorted rather than source.
+        assert documented == {"alpha": ["or this", "say this"]}
         assert promoted == {"alpha": ["say this"]}
+
+    def test_a_trigger_list_is_read_as_well_as_a_table(self, tmp_path):
+        # The standard permits "table or list"; a table-only reader would
+        # silently drop every list-format phrase and halve the denominator.
+        d = tmp_path / "alpha"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\ndescription: 'x'\n---\n\n"
+            "## Triggers\n\n- `from a list` runs it\n1. `numbered too` runs it\n"
+        )
+        documented, _ = cli.collect_phrases(tmp_path)
+        assert documented == {"alpha": ["from a list", "numbered too"]}
+
+    def test_a_backticked_description_phrase_is_promoted(self, tmp_path):
+        d = tmp_path / "alpha"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\ndescription: 'run `do the thing` now'\n---\n\n"
+            "## Triggers\n\n| `do the thing` |\n"
+        )
+        _, promoted = cli.collect_phrases(tmp_path)
+        assert promoted == {"alpha": ["do the thing"]}
 
     def test_a_skill_with_no_trigger_table_is_absent_from_documented(self, tmp_path):
         self._skill(tmp_path, "alpha", "no quoted phrases here")

@@ -54,8 +54,13 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 _TRIGGER_SECTION = re.compile(r"^## Triggers\s*$(.*?)(?=^## |\Z)", re.M | re.S)
-_FIRST_COLUMN = re.compile(r"^\|\s*`([^`]+)`", re.M)
+# The standard permits a trigger "table or list", so both shapes must be read.
+# A table-only reader silently halves the denominator.
+_TABLE_CELL = re.compile(r"^\|\s*`([^`]+)`", re.M)
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+`([^`]+)`", re.M)
+# Descriptions carry phrases in double quotes or backticks; both are promoted.
 _QUOTED = re.compile(r'"([^"]+)"')
+_BACKTICKED = re.compile(r"`([^`]+)`")
 
 
 class SetReport(TypedDict):
@@ -107,12 +112,21 @@ def load_transcript_prompts(store: Path, project_filter: str) -> list[str]:
 
 
 def _user_text(line: str) -> str | None:
-    """Return the user-typed text of one transcript line, or None."""
+    """Return the operator-typed text of one transcript line, or None.
+
+    Sidechain entries are prompts an agent wrote for a subagent, not text a
+    human typed. They share the ``user`` role, and on this store they are the
+    majority of that role, so admitting them would benchmark the phrases
+    against machine-authored text. That is the exact closed loop this eval
+    exists to detect, so they are excluded.
+    """
     try:
         entry = json.loads(line)
     except (ValueError, TypeError):
         return None
     if not isinstance(entry, dict) or entry.get("type") != "user":
+        return None
+    if entry.get("isSidechain") or entry.get("agentId"):
         return None
     message = entry.get("message")
     content = message.get("content") if isinstance(message, dict) else None
@@ -135,9 +149,10 @@ def _user_text(line: str) -> str | None:
 def collect_phrases(skills_dir: Path) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     """Return each skill's documented table phrases and its promoted phrases.
 
-    Table phrases come from the first column of the ``## Triggers`` table.
-    Promoted phrases are the double-quoted spans in the description, which is
-    the only one of the two the router ever sees.
+    Documented phrases come from the ``## Triggers`` section, which the
+    standard permits to be a table or a list, so both shapes are read.
+    Promoted phrases are the quoted and backticked spans in the description,
+    which is the only one of the two the router ever sees.
     """
     documented: dict[str, list[str]] = {}
     promoted: dict[str, list[str]] = {}
@@ -156,10 +171,15 @@ def collect_phrases(skills_dir: Path) -> tuple[dict[str, list[str]], dict[str, l
         name = skill_md.parent.name
         section = _TRIGGER_SECTION.search(body)
         if section:
-            phrases = [p.strip() for p in _FIRST_COLUMN.findall(section.group(1))]
+            raw = _TABLE_CELL.findall(section.group(1)) + _LIST_ITEM.findall(
+                section.group(1)
+            )
+            phrases = sorted({p.strip() for p in raw})
             if phrases:
                 documented[name] = phrases
-        quoted = _QUOTED.findall(description)
+        quoted = sorted(
+            {p.strip() for p in _QUOTED.findall(description) + _BACKTICKED.findall(description)}
+        )
         if quoted:
             promoted[name] = quoted
     return documented, promoted

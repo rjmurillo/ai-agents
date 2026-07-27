@@ -108,6 +108,102 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review on gpt-5.6-sol returned five Critical findings against the eval. Verified each premise independently before acting rather than complying on trust.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CONFIRMED Critical 1: the 640-prompt corpus was 68.3 percent machine-authored. 437 of 640 unique entries carried isSidechain or agentId, meaning an agent wrote them for a subagent. The eval built to detect a closed loop was running inside one. Fixed by excluding those entries in _user_text; corpus is now 203 operator-typed prompts.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CONFIRMED Critical 2: the denominator read only Markdown table rows while the standard permits a trigger 'table or list', so it saw 212 of 422 documented phrases. Descriptions were read for double quotes only, missing backticked phrases. Fixed with _TABLE_CELL plus _LIST_ITEM and _QUOTED plus _BACKTICKED.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CONFIRMED Critical 3: the slash-command negative control was fake. Both fixtures were single words, so the single-word rule caught them and deleting the slash rule still passed 54 of 54. Replaced with a multiword form; mutation-testing now fails 4 tests when the rule is removed.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured after both fixes: 17 of 422 documented (4.0%) and 8 of 226 promoted (3.5%) against 203 prompts. Both originally published figures (10.4% and 5.7%) were wrong.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CONFIRMED Critical 4 and 5: removed the 'same collapse is measurable here' routing overclaim and the fixed percentages from the governance standard, since the figure ranged 0 to 12.9 percent across project scopes. The standard now states a qualitative rule and labels the eval a lexical-provenance diagnostic that never executes the router.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the Major finding (checklist unsatisfiable without a private transcript store) and the Minor immutability finding (frozen dataclass held a mutable hits dict; now MappingProxyType with a regression test).",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Final verification: 794 tests pass in tests/eval, ruff clean, mypy clean, helper coverage 100 percent, CLI 99 percent with only the sys.path and __main__ guards uncovered.",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": []
     }
   ],
@@ -117,7 +213,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 0,
-    "files_changed": 4
+    "files_changed": 7
   },
   "lessons": []
 }
