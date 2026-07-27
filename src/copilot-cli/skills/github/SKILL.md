@@ -1,9 +1,7 @@
 ---
 name: github
 version: 4.0.0
-description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
-  using Python scripts with structured output and error handling. Use when working
-  with pull requests, issues, review comments, CI checks, or milestones instead of raw gh.
+description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges) using Python scripts with structured output and error handling. Use when working with pull requests, issues, review comments, CI checks, or milestones instead of raw gh. Use when you say "create a PR", "respond to review comments", or "check CI status".
 license: MIT
 metadata:
   domains:
