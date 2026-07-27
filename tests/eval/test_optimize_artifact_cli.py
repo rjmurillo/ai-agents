@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import io
 import json
 import os
 import stat
 import sys
 import traceback
+from contextvars import copy_context
 from pathlib import Path
 
 import pytest
@@ -4709,3 +4711,109 @@ class TestADiagnosticNeitherLeaksNorFails:
         self._fsync_refuses(monkeypatch)
         oa._write_atomic(root / "ledger.json", "{}\n")
         assert key in capsys.readouterr().err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_stream_closed_for_real_does_not_abort_the_write(self, tmp_path, monkeypatch):
+        """A closed Python stream raises ValueError, not OSError.
+
+        Round twenty-one demonstrated the crash with a double whose `write`
+        raised `OSError(32)`, and the guard was written to the demonstration
+        rather than to the class. A genuinely closed stream raises
+        `ValueError: I/O operation on closed file`, which walks straight
+        through an `OSError`-only suppression into the same abort.
+        """
+        stream = io.StringIO()
+        stream.close()
+        monkeypatch.setattr(sys, "stderr", stream)
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_warning_never_lands_on_the_stream_carrying_the_verdict(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """`print(file=None)` writes to stdout, and stdout carries the payload.
+
+        `sys.stderr` is `None` under a pythonw-style launcher and after a
+        harness detaches it. Passing that through as the `file` argument does
+        not silence the warning, it redirects it onto the one stream whose
+        every byte the caller parses as JSON.
+        """
+        monkeypatch.setattr(sys, "stderr", None)
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert capsys.readouterr().out == ""
+
+    def test_the_lock_cleanup_warning_withholds_the_digest(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: the leak claim said 'both sites' and tested one.
+
+        Round twenty-one reported it had covered the leak and the crash at
+        both warning sites. It had not; all eight tests drove `_write_atomic`.
+        A twenty-second review read the tests rather than the prose.
+        """
+        monkeypatch.setattr(oa, "_ledger_root", lambda: tmp_path)
+        key = "d" * 64
+
+        def _refuse(self, **kwargs):
+            raise OSError(13, f"cannot unlink {self}")
+
+        with oa._ledger_held(key):
+            monkeypatch.setattr(Path, "unlink", _refuse)
+        monkeypatch.undo()
+        err = capsys.readouterr().err
+        assert key not in err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_an_inner_scrub_restores_the_outer_key_and_not_none(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the claim was 'key restore under nesting', which had no test.
+
+        `_ledger_held` scrubs for the whole lock lifecycle and the contention
+        branch nests a second scrub inside it, so nesting is not hypothetical
+        here. Clearing on the inner exit rather than restoring the outer key
+        would unprotect the rest of the outer block, and every existing test
+        would still pass because none of them nests.
+        """
+        outer = "a" * 64
+        inner = "b" * 64
+        with oa._digest_scrubbed(outer):
+            with oa._digest_scrubbed(inner):
+                pass
+            root = tmp_path / f"dir-{outer}"
+            root.mkdir()
+            self._fsync_refuses(monkeypatch)
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert outer not in err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    def test_a_scrub_set_in_another_context_cannot_overwrite_this_one(self):
+        """Edge: two live scopes at once, which one shared global cannot hold.
+
+        A twenty-second review ran two scopes concurrently against the module
+        global this replaced and got a key disclosed under the wrong scope and
+        a stale key left active after both had exited.
+
+        No threads here, deliberately. The first draft of this test used two
+        and passed against the very global it exists to rule out: the barrier
+        releases both, but they still run one at a time, and the second thread
+        finished its restore before the first resumed, so each read its own
+        key by scheduling luck. A test that passes against the mutation is
+        worth less than no test, because it also reports as covered.
+        `copy_context` asks the same question with the scheduler removed.
+        """
+        outer = "a" * 64
+        inner = "b" * 64
+
+        def abandon_a_key_without_restoring_it():
+            oa._ACTIVE_HOLDOUT_KEY.set(inner)
+
+        with oa._digest_scrubbed(outer):
+            copy_context().run(abandon_a_key_without_restoring_it)
+            assert oa._ACTIVE_HOLDOUT_KEY.get() == outer
+        assert oa._ACTIVE_HOLDOUT_KEY.get() is None

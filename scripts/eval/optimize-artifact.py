@@ -48,6 +48,7 @@ import sys
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -735,7 +736,9 @@ def _scrub(text: str, holdout_key: str) -> str:
     return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
 
 
-_ACTIVE_HOLDOUT_KEY: str | None = None
+_ACTIVE_HOLDOUT_KEY: ContextVar[str | None] = ContextVar(
+    "_ACTIVE_HOLDOUT_KEY", default=None
+)
 
 
 def _warn(message: str) -> None:
@@ -757,17 +760,31 @@ def _warn(message: str) -> None:
 
     It must not fail. Every caller here is reporting something that already
     succeeded or that is being cleaned up after, so the decision is either on
-    stdout already or about to be. `print` raises when stderr is closed or
-    broken, and both sites sit inside a region that converts `OSError` into a
-    refusal, so an unguarded warning hands back the abort it was written to
-    avoid. Losing the warning to a closed stderr costs a diagnostic; raising
-    costs a charged consultation and returns no verdict.
+    stdout already or about to be. Both sites sit inside a region that
+    converts `OSError` into a refusal, so an unguarded warning hands back the
+    abort it was written to avoid. Losing the warning to a broken stream costs
+    a diagnostic; raising costs a charged consultation and returns no verdict.
+    So the write suppresses `Exception` and not `OSError`: a twenty-first
+    review demonstrated the crash with a double whose `write` raised
+    `OSError(32)`, the guard was written to that demonstration, and a
+    twenty-second review closed a real stream and got `ValueError: I/O
+    operation on closed file` straight through it. Guarding the exception a
+    reviewer happened to raise is not the same as guarding the rule.
+
+    It must not land on stdout. `sys.stderr` is `None` under a pythonw-style
+    launcher and after a harness detaches it, and `print(file=None)` does not
+    silence the line, it redirects it to `sys.stdout`, which carries the JSON
+    verdict the caller parses. A diagnostic that corrupts the payload is worse
+    than one that is lost, so a missing stream drops the message.
     """
-    key = _ACTIVE_HOLDOUT_KEY
+    key = _ACTIVE_HOLDOUT_KEY.get()
     if key is not None:
         message = _scrub(message, key)
-    with suppress(OSError):
-        print(message, file=sys.stderr)
+    stream = sys.stderr
+    if stream is None:
+        return
+    with suppress(Exception):
+        print(message, file=stream)
 
 
 @contextmanager
@@ -801,9 +818,7 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     keeps the same property the handler has: the site added next year is
     covered without being told to be.
     """
-    global _ACTIVE_HOLDOUT_KEY
-    previous = _ACTIVE_HOLDOUT_KEY
-    _ACTIVE_HOLDOUT_KEY = holdout_key
+    token = _ACTIVE_HOLDOUT_KEY.set(holdout_key)
     try:
         yield
     except (ConfigError, OSError) as exc:
@@ -825,10 +840,20 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
             raise
         raise ConfigError(text) from exc
     finally:
-        # Restoring the previous value rather than clearing to None: the seam
-        # nests, and an inner block that cleared unconditionally would leave
-        # the outer one unprotected for the rest of its body.
-        _ACTIVE_HOLDOUT_KEY = previous
+        # Restoring the previous value rather than clearing: the seam nests,
+        # and an inner block that cleared unconditionally would leave the
+        # outer one unprotected for the rest of its body.
+        #
+        # A `ContextVar` token rather than a module global and a saved
+        # variable. A twenty-second review ran two scopes concurrently and got
+        # both a disclosed key and a stale one left active after both had
+        # exited, because a global is shared by every thread that reads it. A
+        # context variable is not. What a token does not fix is unwinding two
+        # scopes in one context in the order they were entered rather than the
+        # reverse, which leaves the first one's value behind; nothing here can
+        # do that, because both scopes are `with` statements and a `with`
+        # statement unwinds last-entered-first.
+        _ACTIVE_HOLDOUT_KEY.reset(token)
 
 
 def _ledger_path(holdout_key: str) -> Path:
