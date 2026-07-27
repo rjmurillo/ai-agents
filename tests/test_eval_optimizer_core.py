@@ -75,6 +75,11 @@ class TestSplitTasks:
         assert len(split.sel) == 4
         assert len(split.opt) == 6
 
+    def test_inexact_float_text_rounds_half_up_from_decimal_ratio(self):
+        split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
+        assert len(split.sel) == 15
+        assert len(split.opt) == 10
+
     def test_is_deterministic_across_calls(self):
         a = split_tasks(_ids(20), seed="seed-1", sel_ratio=0.3)
         b = split_tasks(_ids(20), seed="seed-1", sel_ratio=0.3)
@@ -150,6 +155,11 @@ class TestSplitTasks:
         with pytest.raises(ValueError, match="sel_ratio"):
             split_tasks(_ids(20), seed="s", sel_ratio=ratio)
 
+    @pytest.mark.parametrize("ratio", ["nan", "Infinity", "not-a-ratio"])
+    def test_rejects_invalid_decimal_sel_ratio(self, ratio):
+        with pytest.raises(ValueError, match="sel_ratio"):
+            split_tasks(_ids(20), seed="s", sel_ratio=ratio)
+
     @pytest.mark.parametrize("ratio", [-0.1, 1.0, 1.5])
     def test_rejects_out_of_range_test_ratio(self, ratio):
         with pytest.raises(ValueError, match="test_ratio"):
@@ -185,6 +195,20 @@ class TestSplitTasks:
         """Explicitly opting out of the floor is allowed; it is not the default."""
         split = split_tasks(_ids(4), seed="s", sel_ratio=0.25, min_sel=0)
         assert len(split.sel) == 1
+
+    def test_zero_test_ratio_still_reserves_no_tasks(self):
+        split = split_tasks(_ids(25), seed="s", sel_ratio="0.5", test_ratio="0.0")
+        assert len(split.sel) == 13
+        assert split.test == ()
+        assert len(split.opt) == 12
+
+    def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
+        with pytest.raises(ValueError, match="leaves no opt tasks"):
+            split_tasks(_ids(1), seed="s", sel_ratio="0.5", min_sel=0)
+
+    def test_ratio_one_is_rejected_before_rounding(self):
+        with pytest.raises(ValueError, match="sel_ratio"):
+            split_tasks(_ids(25), seed="s", sel_ratio="1.0")
 
     def test_smallest_viable_set_splits(self):
         split = split_tasks(_ids(4), seed="s", sel_ratio=0.75, min_sel=3)

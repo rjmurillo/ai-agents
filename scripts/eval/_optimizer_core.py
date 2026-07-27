@@ -46,6 +46,7 @@ import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 __all__ = [
     "AmbiguousAnchorError",
@@ -76,6 +77,7 @@ FENCE_END = "<!-- SLOW_UPDATE_END -->"
 _ANCHORED_OPS = frozenset({"insert_after", "replace", "delete"})
 _TEXT_OPS = frozenset({"append", "insert_after", "replace"})
 _VALID_OPS = frozenset({"append", "insert_after", "replace", "delete"})
+Ratio = float | str
 
 
 class SplitTooSmallError(ValueError):
@@ -154,17 +156,27 @@ class GateResult:
     compared: bool = True
 
 
-def _round_half_up(value: float) -> int:
+def _ratio_decimal(name: str, value: Ratio) -> Decimal:
+    try:
+        ratio = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError(f"{name} must be a decimal ratio, got {value}") from exc
+    if not ratio.is_finite():
+        raise ValueError(f"{name} must be a finite decimal ratio, got {value}")
+    return ratio
+
+
+def _round_half_up(value: Decimal) -> int:
     """Round halves away from zero, avoiding banker's rounding surprises."""
-    return math.floor(value + 0.5)
+    return int(value.to_integral_value(rounding=ROUND_HALF_UP))
 
 
 def split_tasks(
     task_ids: Sequence[str],
     *,
     seed: str,
-    sel_ratio: float = 0.4,
-    test_ratio: float = 0.0,
+    sel_ratio: Ratio = 0.4,
+    test_ratio: Ratio = 0.0,
     min_sel: int = 3,
 ) -> TaskSplit:
     """Partition ``task_ids`` into optimize, held-out, and reserve groups.
@@ -187,13 +199,15 @@ def split_tasks(
         raise ValueError("split_tasks requires at least one task id")
     if not seed or not seed.strip():
         raise ValueError("split_tasks requires a non-empty seed")
-    if not 0.0 < sel_ratio < 1.0:
+    sel_decimal = _ratio_decimal("sel_ratio", sel_ratio)
+    test_decimal = _ratio_decimal("test_ratio", test_ratio)
+    if not Decimal("0") < sel_decimal < Decimal("1"):
         raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
-    if not 0.0 <= test_ratio < 1.0:
+    if not Decimal("0") <= test_decimal < Decimal("1"):
         raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
     if min_sel < 0:
         raise ValueError(f"min_sel must be non-negative, got {min_sel}")
-    if sel_ratio + test_ratio >= 1.0:
+    if sel_decimal + test_decimal >= Decimal("1"):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
             f"got {sel_ratio} + {test_ratio}"
@@ -215,8 +229,8 @@ def split_tasks(
         raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
 
     total = len(cleaned)
-    n_sel = _round_half_up(total * sel_ratio)
-    n_test = _round_half_up(total * test_ratio)
+    n_sel = _round_half_up(Decimal(total) * sel_decimal)
+    n_test = _round_half_up(Decimal(total) * test_decimal)
     if total - n_sel - n_test < 1:
         raise ValueError(
             f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
@@ -251,8 +265,8 @@ def split_fingerprint(
     task_ids: Iterable[str],
     *,
     seed: str,
-    sel_ratio: float,
-    test_ratio: float = 0.0,
+    sel_ratio: Ratio,
+    test_ratio: Ratio = 0.0,
 ) -> str:
     """Hash the inputs that determine a split.
 

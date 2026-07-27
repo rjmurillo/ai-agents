@@ -1222,8 +1222,18 @@ class TestSplitFileIsSelfValidating:
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
                         "--sel-ratio", "0.4", "--test-ratio", "0.2")
-        assert split["sel_ratio"] == 0.4
-        assert split["test_ratio"] == 0.2
+        assert split["sel_ratio"] == "0.4"
+        assert split["test_ratio"] == "0.2"
+
+    def test_split_uses_raw_decimal_ratio_text_for_half_up_rounding(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.58", "--min-sel", "0")
+        assert len(split["sel"]) == 15
+        assert len(split["opt"]) == 10
+        assert split["sel_ratio"] == "0.58"
 
 
 class TestMalformedInputsAreConfigErrors:

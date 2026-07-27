@@ -210,8 +210,8 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         redrawn = split_tasks(
             tasks,
             seed=str(split["seed"]),
-            sel_ratio=float(split["sel_ratio"]),
-            test_ratio=float(split["test_ratio"]),
+            sel_ratio=str(split["sel_ratio"]),
+            test_ratio=str(split["test_ratio"]),
             min_sel=int(split.get("min_sel", 3)),
         )
     except (TypeError, ValueError) as exc:
@@ -950,8 +950,8 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="file the gate reads; holds the full split including held-out ids",
     )
-    split.add_argument("--sel-ratio", type=float, default=0.4)
-    split.add_argument("--test-ratio", type=float, default=0.0)
+    split.add_argument("--sel-ratio", default="0.4")
+    split.add_argument("--test-ratio", default="0.0")
     split.add_argument("--min-sel", type=int, default=3)
     split.set_defaults(func=cmd_split)
 
