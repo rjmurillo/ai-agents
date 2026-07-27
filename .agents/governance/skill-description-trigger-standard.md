@@ -254,24 +254,50 @@ The same *provenance* condition is measurable here. Run:
 uv run python scripts/eval/eval-trigger-phrase-realism.py
 ```
 
-It reads operator-typed prompts from the local Claude Code transcript store,
-matches on word boundaries, and reports what fraction of documented phrases a
-user has ever actually typed. On this repository the answer is a low
-single-digit to low double-digit percentage: the large majority of documented
-trigger phrases have never been typed by anyone.
+It reads operator-typed prompts from two local stores, the Claude Code
+transcript store and the Copilot CLI session store, matches on word boundaries,
+and reports what fraction of documented phrases a user has ever actually typed.
+
+**The bare percentage is not the result. The ratio against a negative control
+is.** A low operator score on its own is ambiguous, because a broken matcher
+produces one too. So the eval scores the identical phrase set against the
+machine-authored half of the same transcripts: sidechain, meta, and
+agent-authored turns. Agents read the skill documentation, so if the phrases
+are matchable at all they will appear there.
+
+They do. Both halves, same phrases, same matcher, one variable:
+
+| Corpus | Prompts | Documented phrases matched |
+| --- | --- | --- |
+| Operator-typed | 286 | 3 of 428 (0.7%) |
+| Machine-authored control | 612 | 28 of 428 (6.5%) |
+
+The 9x gap is the finding. Twenty-seven documented phrases appear **only** in
+machine-authored text, among them `complete session`, `finalize session`,
+`review this ADR`, and `prose self-check`. Those are verbatim documented
+triggers, written into subagent prompts by agents that had read the docs. The
+phrases circulate inside the loop that defined them and do not cross into
+operator language.
 
 **This is a lexical-provenance diagnostic, not a routing measurement.** It does
 not execute the router and reports no precision, recall, or activation rate. It
 cannot tell you the practitioner's collapse reproduces here, because a phrase
 nobody typed verbatim can still route correctly under semantic matching. What
-it establishes is narrower and still useful: these phrases were **authored
-rather than observed**, which is the precondition his classifier failed under.
+it establishes is narrower and still useful: these phrases are **unobserved in
+this corpus**, which is the precondition his classifier failed under.
 
-The exact percentage is deliberately not quoted here. It moves with corpus
-scope, time window, and parser version. One measured run varied from 0 to 12.9
-percent across single-project scopes. Treat the rule below as qualitative and
-record any specific figure in a dated artifact that names its corpus dates,
-project scope, commit, and parser version.
+Any specific figure moves with corpus scope, time window, and parser version,
+so record one only in a dated artifact naming its corpus dates, project scope,
+commit, and parser version. Prefer citing the control ratio over the bare
+percentage: it is the statistic that survives a change of corpus, because both
+halves move together.
+
+The corpus itself is a load-bearing part of the measurement, not an input
+detail. This eval reported three different wrong numbers before it reported a
+right one, each time because the corpus was contaminated and the tooling was
+trusted without being checked. Ahead of citing any figure it produces, read the
+Provenance section of `scripts/eval/_trigger_realism.py` and confirm the run
+cleared the minimum-corpus guard.
 
 Two rules follow.
 

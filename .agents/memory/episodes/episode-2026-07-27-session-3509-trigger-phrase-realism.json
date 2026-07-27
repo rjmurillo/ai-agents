@@ -4,7 +4,18 @@
   "timestamp": "2026-07-27T00:00:00+00:00",
   "outcome": "success",
   "task": "Open the closed loop in trigger-phrase validation. Every check in the trigger standard scores a phrase the author wrote against a rule the author wrote, which cannot measure whether anyone would ever type the phrase. Build an eval that mines real prompts from the local transcript store, measure the gap, and encode the resulting convention.",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "design",
+      "context": "FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "chosen": "FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -203,6 +214,90 @@
       "content": "Final verification: 794 tests pass in tests/eval, ruff clean, mypy clean, helper coverage 100 percent, CLI 99 percent with only the sys.path and __main__ guards uncovered.",
       "caused_by": [
         "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CORRECTION, third measurement defect. A second adversarial review (gpt-5.6-terra) found the 203-prompt corpus was still contaminated. Verified independently and found it worse than reported: the transcript store carries a ground-truth promptSource field the eval never read. Of accepted entries, 213 were isMeta, 95 were promptSource='system', and only 26 were promptSource='typed'. Excluding meta and sidechain left 163 unique texts of which 154 began with '<'; the 9 prose survivors were mostly compaction boilerplate. The real Claude operator corpus was about 26 prompts. The figures recorded earlier in this log (203 prompts, 17 of 422, 8 of 226) are superseded.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the corpus that actually exists. ~/.copilot/session-store.db records turns.user_message as the human turn by construction. 3461 turns across 1711 sessions over three months; scoped to this repo and excluding synthetic turns, 439 unique operator prompts, 17x the usable Claude corpus. Added as a second source, opened read-only so a measurement cannot mutate a live store.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added MINIMUM_CORPUS = 200 with a derivation: a phrase used in 1 percent of prompts appears at least once in 200 prompts with probability 1 - 0.99**200, about 0.87. Below that a zero reading and a small non-zero reading are indistinguishable, so the CLI exits 3 rather than publish an uninterpretable percentage. The old 26-prompt corpus fails this guard; the 286-prompt dual-source corpus clears it.",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Promoted the machine-authored half to a first-class negative control. Scoring the identical phrase set against agent-written text disambiguates a low operator score from a broken matcher. Result: operator 3 of 428 (0.7 percent) against control 28 of 428 (6.5 percent), a 9x gap with the same phrases and the same matcher. 27 documented phrases appear only in machine text, among them 'complete session', 'finalize session', 'review this ADR', 'prose self-check'. Agents write documented triggers into subagent prompts because agents read the docs.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified mechanically that no prompt text reaches the report or stdout from either source. Ran against the real stores and confirmed all 19 strings in the JSON trace to either the schema or the skills tree. Made it a permanent regression guard: three tests plant a known secret in each store and assert it never appears in the report or the summary, plus a negative control asserting every report string is traceable.",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Test suite rebuilt for the rework: 91 tests, helper coverage 100 percent, CLI 99 percent with only the sys.path guard and __main__ uncovered. Mutation-tested all six new rules (read-only SQLite mode, MINIMUM_CORPUS guard, non-mapping frontmatter guard, sqlite3.Error classification, OSError classification, synthetic-prefix rule); all six caught. Pinned --session-store at an absent path in every CLI test so the suite never reads the developer's private store.",
+      "caused_by": [
+        "e023"
       ],
       "leads_to": []
     }

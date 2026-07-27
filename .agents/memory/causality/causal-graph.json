@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T15:16:12.557966+00:00",
+  "updated": "2026-07-27T16:03:58.039743+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21861,6 +21861,294 @@
         "episode-2026-07-27-session-3509-trigger-phrase-realism"
       ],
       "created": "2026-07-27T15:16:12.552282+00:00"
+    },
+    {
+      "id": "f77839577813",
+      "type": "decision",
+      "label": "design: FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.027926+00:00"
+    },
+    {
+      "id": "6cd50fa27076",
+      "type": "milestone",
+      "label": "milestone: CORRECTION, third measurement defect. A second adversarial review (gpt-5.6-terra) found the 203-prompt corpus was still contaminated. Verified independently and found it worse than reported: the transcript store carries a ground-truth promptSource field the eval never read. Of accepted entries, 213 were isMeta, 95 were promptSource='system', and only 26 were promptSource='typed'. Excluding meta and sidechain left 163 unique texts of which 154 began with '<'; the 9 prose survivors were mostly compaction boilerplate. The real Claude operator corpus was about 26 prompts. The figures recorded earlier in this log (203 prompts, 17 of 422, 8 of 226) are superseded.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029293+00:00"
+    },
+    {
+      "id": "bd0309da35c2",
+      "type": "milestone",
+      "label": "milestone: FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029372+00:00"
+    },
+    {
+      "id": "bd1c5a0d9b64",
+      "type": "milestone",
+      "label": "milestone: Found the corpus that actually exists. ~/.copilot/session-store.db records turns.user_message as the human turn by construction. 3461 turns across 1711 sessions over three months; scoped to this repo and excluding synthetic turns, 439 unique operator prompts, 17x the usable Claude corpus. Added as a second source, opened read-only so a measurement cannot mutate a live store.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029449+00:00"
+    },
+    {
+      "id": "54585473afb6",
+      "type": "milestone",
+      "label": "milestone: Added MINIMUM_CORPUS = 200 with a derivation: a phrase used in 1 percent of prompts appears at least once in 200 prompts with probability 1 - 0.99**200, about 0.87. Below that a zero reading and a small non-zero reading are indistinguishable, so the CLI exits 3 rather than publish an uninterpretable percentage. The old 26-prompt corpus fails this guard; the 286-prompt dual-source corpus clears it.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029527+00:00"
+    },
+    {
+      "id": "d70d7d3fc0ed",
+      "type": "milestone",
+      "label": "milestone: Promoted the machine-authored half to a first-class negative control. Scoring the identical phrase set against agent-written text disambiguates a low operator score from a broken matcher. Result: operator 3 of 428 (0.7 percent) against control 28 of 428 (6.5 percent), a 9x gap with the same phrases and the same matcher. 27 documented phrases appear only in machine text, among them 'complete session', 'finalize session', 'review this ADR', 'prose self-check'. Agents write documented triggers into subagent prompts because agents read the docs.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029604+00:00"
+    },
+    {
+      "id": "c1b97296053d",
+      "type": "milestone",
+      "label": "milestone: Verified mechanically that no prompt text reaches the report or stdout from either source. Ran against the real stores and confirmed all 19 strings in the JSON trace to either the schema or the skills tree. Made it a permanent regression guard: three tests plant a known secret in each store and assert it never appears in the report or the summary, plus a negative control asserting every report string is traceable.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029687+00:00"
+    },
+    {
+      "id": "4e79ebf6e3a5",
+      "type": "milestone",
+      "label": "milestone: Test suite rebuilt for the rework: 91 tests, helper coverage 100 percent, CLI 99 percent with only the sys.path guard and __main__ uncovered. Mutation-tested all six new rules (read-only SQLite mode, MINIMUM_CORPUS guard, non-mapping frontmatter guard, sqlite3.Error classification, OSError classification, synthetic-prefix rule); all six caught. Pinned --session-store at an absent path in every CLI test so the suite never reads the developer's private store.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.029763+00:00"
+    },
+    {
+      "id": "bde3550eaf41",
+      "type": "decision",
+      "label": "FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030036+00:00"
+    },
+    {
+      "id": "aff870ec2f4c",
+      "type": "milestone",
+      "label": "Read the wiki concept Skill Triggering Failure Modes and found it indicts the repo's own trigger standard. A practitioner's skill-activation classifier scored 93 percent precision and recall on 40 prompts he wrote, then 27 percent precision on 86 prompts mined from his own transcripts. Same classifier, same author; the only variable was who wrote the prompts. The repo standard cites this concept twice, but only for the over-triggering half. Nothing in the pipeline consults a prompt the author did not write.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030114+00:00"
+    },
+    {
+      "id": "95f253419030",
+      "type": "milestone",
+      "label": "Built a prompt extractor against the local Claude Code transcript store and got 66 turns from 480 transcript files. Did not report the number. 66 from 480 is implausible, so I treated it as a defect report against my own extractor rather than a finding. Root cause was a 600-character cap I had added without measuring the distribution: real prompt length is p50 1,820 characters, p90 8,175, max 107,478. The corrected extractor yields 640 unique real prompts.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030275+00:00"
+    },
+    {
+      "id": "d81e58e1b86b",
+      "type": "milestone",
+      "label": "Scored the phrases and got `analyze` at 60 occurrences. Did not report that either. Every one of the 60 was a match inside ordinary prose, because the scorer used bare substring matching. This is exactly the failure the wiki documents: every incorrect hard block in the practitioner's hook traced to a pattern matching inside a word. Fixed with a (?<!\\w) and (?!\\w) anchor pair. Both measurement errors produced numbers that looked reportable, and neither was caught by a test, a lint, or a reviewer.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030434+00:00"
+    },
+    {
+      "id": "0dfdc99bbd8d",
+      "type": "milestone",
+      "label": "Split the tool so the rules are testable. scripts/eval/_trigger_realism.py holds the pure matching and scoring helpers with no filesystem access; the hyphenated CLI holds transcript reading, phrase collection, rendering, and exit codes. The module docstring records why each matching rule exists and cites the wiki concept, so a future reader cannot delete the anchoring as noise.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030597+00:00"
+    },
+    {
+      "id": "e5329345386e",
+      "type": "milestone",
+      "label": "Ran the eval for the first time against 640 prompts. Documented in a ## Triggers table: 22 of 212 measurable phrases ever said, 10.4 percent. Promoted into a description: 8 of 140, 5.7 percent. The promoted denominator is 140 here against origin/main; it is 176 on the branch for PR #3497, which promotes more phrases, and the ad-hoc run there reported 4.5 percent. Both are correct; the denominators differ because the corpus of promoted phrases differs. Any citation of this number must name which tree it was measured against.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030764+00:00"
+    },
+    {
+      "id": "02d5e6c883c4",
+      "type": "milestone",
+      "label": "Wrote 54 tests to the TESTING-RIGOR bar. Both exclusion rules carry an explicit negative control asserting the naive alternative would have been wrong: word_boundary_match must reject `analyze` inside `analyzer` and `review` inside `reviewer`, and is_measurable_phrase must reject a slash command and a single word. Also covered regex metacharacters matched literally, an empty phrase never matching, score counting excluded phrases rather than dropping them so the denominator stays reconstructable, realism returning 0.0 on both an empty phrase set and an empty corpus, every excluded transcript entry shape, malformed JSON and malformed YAML, an unreadable transcript, and all three CLI exit codes.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.030933+00:00"
+    },
+    {
+      "id": "d147e52e0d12",
+      "type": "milestone",
+      "label": "Closed the four uncovered branches that the first coverage run reported rather than accepting 96 percent: an unreadable transcript, a non-user line inside an otherwise valid transcript, a ## Triggers section with no backticked first column, and a run with no --output path. Final: 100 percent branch coverage on the pure helpers, 99 percent overall, the only miss being the unreachable __main__ guard.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031090+00:00"
+    },
+    {
+      "id": "8fad0eeff64e",
+      "type": "milestone",
+      "label": "Added the Independent-Distribution Validation section to Part 4 of the standard, a checklist line, and a References entry. The section states explicitly what the number does not claim: the router is a model doing semantic matching, so a phrase nobody typed verbatim can still route correctly. The finding is about provenance, not routing quality. This framing matters because the strongest counter-argument to the work is that literal occurrence understates a semantic router, and the standard would be dishonest if it let a reader conclude otherwise.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031250+00:00"
+    },
+    {
+      "id": "95392ac361bc",
+      "type": "milestone",
+      "label": "Kept the hyphenated CLI filename against an advisory taste-lint error. Measured the convention rather than guessing: scripts/eval holds 16 hyphenated CLI entry points against 2 snake_case ones, and 5 or more existing test files load the hyphenated ones through importlib spec_from_file_location, which is the pattern this test uses. Renaming would diverge from the dominant convention to satisfy an advisory check that would flag all 16 siblings identically. Flagged in the PR body rather than resolved silently.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031407+00:00"
+    },
+    {
+      "id": "b5a1394d6ac5",
+      "type": "milestone",
+      "label": "Adversarial review on gpt-5.6-sol returned five Critical findings against the eval. Verified each premise independently before acting rather than complying on trust.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031564+00:00"
+    },
+    {
+      "id": "442a23deca9c",
+      "type": "milestone",
+      "label": "CONFIRMED Critical 1: the 640-prompt corpus was 68.3 percent machine-authored. 437 of 640 unique entries carried isSidechain or agentId, meaning an agent wrote them for a subagent. The eval built to detect a closed loop was running inside one. Fixed by excluding those entries in _user_text; corpus is now 203 operator-typed prompts.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031734+00:00"
+    },
+    {
+      "id": "c2c1cdf3675a",
+      "type": "milestone",
+      "label": "CONFIRMED Critical 2: the denominator read only Markdown table rows while the standard permits a trigger 'table or list', so it saw 212 of 422 documented phrases. Descriptions were read for double quotes only, missing backticked phrases. Fixed with _TABLE_CELL plus _LIST_ITEM and _QUOTED plus _BACKTICKED.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.031892+00:00"
+    },
+    {
+      "id": "7dbd15a03a0f",
+      "type": "milestone",
+      "label": "CONFIRMED Critical 3: the slash-command negative control was fake. Both fixtures were single words, so the single-word rule caught them and deleting the slash rule still passed 54 of 54. Replaced with a multiword form; mutation-testing now fails 4 tests when the rule is removed.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032049+00:00"
+    },
+    {
+      "id": "566e788f871e",
+      "type": "milestone",
+      "label": "CONFIRMED Critical 4 and 5: removed the 'same collapse is measurable here' routing overclaim and the fixed percentages from the governance standard, since the figure ranged 0 to 12.9 percent across project scopes. The standard now states a qualitative rule and labels the eval a lexical-provenance diagnostic that never executes the router.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032209+00:00"
+    },
+    {
+      "id": "157514e51133",
+      "type": "milestone",
+      "label": "Fixed the Major finding (checklist unsatisfiable without a private transcript store) and the Minor immutability finding (frozen dataclass held a mutable hits dict; now MappingProxyType with a regression test).",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032367+00:00"
+    },
+    {
+      "id": "4f8c76c7d71b",
+      "type": "milestone",
+      "label": "Final verification: 794 tests pass in tests/eval, ruff clean, mypy clean, helper coverage 100 percent, CLI 99 percent with only the sys.path and __main__ guards uncovered.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032524+00:00"
+    },
+    {
+      "id": "60083fd8b52e",
+      "type": "milestone",
+      "label": "CORRECTION, third measurement defect. A second adversarial review (gpt-5.6-terra) found the 203-prompt corpus was still contaminated. Verified independently and found it worse than reported: the transcript store carries a ground-truth promptSource field the eval never read. Of accepted entries, 213 were isMeta, 95 were promptSource='system', and only 26 were promptSource='typed'. Excluding meta and sidechain left 163 unique texts of which 154 began with '<'; the 9 prose survivors were mostly compaction boilerplate. The real Claude operator corpus was about 26 prompts. The figures recorded earlier in this log (203 prompts, 17 of 422, 8 of 226) are superseded.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032690+00:00"
+    },
+    {
+      "id": "ffd14d51e6d9",
+      "type": "milestone",
+      "label": "FALSIFIED the reviewer's proposed fix before adopting it. The review recommended accepting only entries with explicit promptSource='typed'. That field is present on only 120 of 3331 non-meta user entries and the labelled and unlabelled sets span identical dates (2026-06-23 to 2026-07-26), so its absence is sparsity, not a schema boundary. An acceptance rule keyed on it over-filters. Kept the diagnosis, rejected the remedy; provenance filtering is rejection-based.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.032848+00:00"
+    },
+    {
+      "id": "9dde64e5a6b2",
+      "type": "milestone",
+      "label": "Found the corpus that actually exists. ~/.copilot/session-store.db records turns.user_message as the human turn by construction. 3461 turns across 1711 sessions over three months; scoped to this repo and excluding synthetic turns, 439 unique operator prompts, 17x the usable Claude corpus. Added as a second source, opened read-only so a measurement cannot mutate a live store.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.033009+00:00"
+    },
+    {
+      "id": "c9e8db451ed0",
+      "type": "milestone",
+      "label": "Added MINIMUM_CORPUS = 200 with a derivation: a phrase used in 1 percent of prompts appears at least once in 200 prompts with probability 1 - 0.99**200, about 0.87. Below that a zero reading and a small non-zero reading are indistinguishable, so the CLI exits 3 rather than publish an uninterpretable percentage. The old 26-prompt corpus fails this guard; the 286-prompt dual-source corpus clears it.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.033179+00:00"
+    },
+    {
+      "id": "53bbfa9e1762",
+      "type": "milestone",
+      "label": "Promoted the machine-authored half to a first-class negative control. Scoring the identical phrase set against agent-written text disambiguates a low operator score from a broken matcher. Result: operator 3 of 428 (0.7 percent) against control 28 of 428 (6.5 percent), a 9x gap with the same phrases and the same matcher. 27 documented phrases appear only in machine text, among them 'complete session', 'finalize session', 'review this ADR', 'prose self-check'. Agents write documented triggers into subagent prompts because agents read the docs.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.033339+00:00"
+    },
+    {
+      "id": "9d442a6c0d18",
+      "type": "milestone",
+      "label": "Verified mechanically that no prompt text reaches the report or stdout from either source. Ran against the real stores and confirmed all 19 strings in the JSON trace to either the schema or the skills tree. Made it a permanent regression guard: three tests plant a known secret in each store and assert it never appears in the report or the summary, plus a negative control asserting every report string is traceable.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.033496+00:00"
+    },
+    {
+      "id": "a8eb95d37e73",
+      "type": "milestone",
+      "label": "Test suite rebuilt for the rework: 91 tests, helper coverage 100 percent, CLI 99 percent with only the sys.path guard and __main__ uncovered. Mutation-tested all six new rules (read-only SQLite mode, MINIMUM_CORPUS guard, non-mapping frontmatter guard, sqlite3.Error classification, OSError classification, synthetic-prefix rule); all six caught. Pinned --session-store at an absent path in every CLI test so the suite never reads the developer's private store.",
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "created": "2026-07-27T16:03:58.033662+00:00"
     }
   ],
   "patterns": [
@@ -21954,7 +22242,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 169,
+      "occurrences": 170,
       "created": "2026-06-02T04:20:23.788446+00:00",
       "id": "44cf38dbd357",
       "contributions": {
@@ -22126,13 +22414,15 @@
         "episode-2026-01-01-sequence-001": 1.0,
         "episode-2026-04-27-session-1761": 1.0,
         "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter": 1.0,
-        "episode-2026-07-03-session-2605-fix-ai-review-model-auto": 1.0
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto": 1.0,
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 1.0
       },
       "episodes": [
         "episode-2026-01-01-sequence-001",
         "episode-2026-04-27-session-1761",
         "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter",
-        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto",
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
       ]
     },
     {
@@ -26257,6 +26547,328 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
       },
       "created": "2026-07-27T12:43:51.820258+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "aff870ec2f4c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030122+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "95f253419030",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030283+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "d81e58e1b86b",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030440+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "0dfdc99bbd8d",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030605+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "e5329345386e",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030772+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "02d5e6c883c4",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.030939+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "d147e52e0d12",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031096+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "8fad0eeff64e",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031256+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "95392ac361bc",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031413+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "b5a1394d6ac5",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031570+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "442a23deca9c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031740+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "c2c1cdf3675a",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.031898+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "7dbd15a03a0f",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032055+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "566e788f871e",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032215+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "157514e51133",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032373+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "4f8c76c7d71b",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032530+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "60083fd8b52e",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032696+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "ffd14d51e6d9",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.032856+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "9dde64e5a6b2",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.033017+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "c9e8db451ed0",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.033186+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "53bbfa9e1762",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.033345+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "9d442a6c0d18",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.033503+00:00"
+    },
+    {
+      "source": "bde3550eaf41",
+      "target": "a8eb95d37e73",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3509-trigger-phrase-realism"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3509-trigger-phrase-realism": 0.6
+      },
+      "created": "2026-07-27T16:03:58.033668+00:00"
     }
   ]
 }

@@ -24,38 +24,40 @@ variable was who wrote the prompts.
 
 ## Evidence
 
-Built `scripts/eval/eval-trigger-phrase-realism.py`, which mines the local
-Claude Code transcript store and matches on word boundaries. Against 203 unique
-operator-typed prompts extracted from 480 transcripts:
+Built `scripts/eval/eval-trigger-phrase-realism.py`, which reads two local
+prompt stores and matches on word boundaries.
 
-- documented in a `## Triggers` section: 17 of 422 phrases ever said (4.0%)
-- promoted into a description: 8 of 226 phrases ever said (3.5%)
+**The bare percentage is not the result. The ratio against a negative control
+is.** A low operator score on its own is ambiguous, because a broken matcher
+produces one too. So the eval scores the identical phrase set against the
+machine-authored half of the same transcripts: sidechain, meta, and
+agent-authored turns. Agents read the skill documentation, so if the phrases
+are matchable at all they will appear there. They do:
 
-Treat those percentages as a snapshot, not a constant. They move with corpus
-scope, time window, and parser version, and a single-project scope moved the
-promoted figure between 0 and 12.9 percent. The durable finding is the shape,
-the large majority of documented phrases have never been typed, not the digits.
+| Corpus | Prompts | Documented phrases matched |
+| --- | --- | --- |
+| Operator-typed | 286 | 3 of 428 (0.7%) |
+| Machine-authored control | 612 | 28 of 428 (6.5%) |
 
-**The first version of this measurement was wrong twice over, and an adversarial
-review on a second model caught both.** The corpus counted 640 prompts, but 437
-of them (68.3%) were `isSidechain` entries, prompts an agent wrote for a
-subagent. They carry the `user` role but nobody typed them, so the eval designed
-to detect a closed loop was itself running inside one. Separately the parser read
-only Markdown table rows, while the standard permits a trigger "table or list",
-so it saw 212 of 422 documented phrases. Both defects are fixed and each now
-carries a negative-control test.
+Same phrases, same matcher, one variable: who wrote the text. Twenty-seven
+documented phrases appear **only** in machine-authored text, among them
+`complete session`, `finalize session`, `initialize session`, `fill the retro`,
+`review this ADR`, `handle it`, and `prose self-check`. Those are verbatim
+documented triggers, written into subagent prompts by agents that had read the
+docs. The phrases circulate inside the loop that defined them.
 
-The phrases that do occur are conversational and lifecycle-shaped: `complete
-session`, `create session log`, `start new session`, `your call`, `handle it`,
-`do it`, `security review`, `threat model`. The ones that never occur are
-formal technical constructions.
+Three phrases survive in operator text: `chaos engineering` (19x),
+`create a PR`, `retro fill`.
+
+Cite the ratio, not the percentage. Both halves move together when the corpus
+changes, so the ratio is the statistic that survives.
 
 Read this as evidence about provenance, not about the router. This is a
 lexical-provenance diagnostic: it never executes the router and reports no
 precision, recall, or activation rate. A phrase nobody typed verbatim can still
 route correctly under semantic matching, so this does not show the
 practitioner's collapse reproduces here. What it establishes is narrower, that
-the phrases were authored rather than observed, which is the precondition his
+the phrases are unobserved in this corpus, which is the precondition his
 classifier failed under.
 
 ## Decision
@@ -69,8 +71,9 @@ that substitution would defeat its purpose.
 
 ## The measurement lesson that generalises
 
-I got my own measurement wrong twice, and caught both only by disbelieving the
-number rather than by any check.
+This eval reported three different wrong numbers before it reported a right
+one. Every failure was a corpus defect the code could not see, and every one
+was caught by disbelieving a number rather than by a test, a lint, or a gate.
 
 1. A 600-character cap in the first extractor silently dropped roughly 95
    percent of the corpus, yielding 66 turns from 480 transcript files. The tell
@@ -82,10 +85,55 @@ number rather than by any check.
    practitioner's hook traced to a pattern matching inside a word. Fixed with
    `(?<!\w)...(?!\w)`.
 
-Both errors produced a number that looked reportable. Neither was caught by a
-test, a lint, or a reviewer. The general rule: when a measurement is the whole
-point of the work, verify the measurement tooling before you trust its output,
-and treat an implausible magnitude as a defect report against your own code.
+3. The corpus was 95 percent synthetic and nobody noticed for two rounds.
+   The transcript format carries a ground-truth `promptSource` field the eval
+   never read. Of the entries it accepted, 213 were `isMeta`, 95 were
+   `promptSource='system'`, and only 26 were `promptSource='typed'`. After
+   excluding meta and sidechain, 154 of 163 unique texts began with `<`, and
+   the 9 remaining prose entries were mostly compaction boilerplate. The real
+   Claude operator corpus was about 26 prompts, not 203.
+
+Both errors produced a number that looked reportable. The general rule: when a
+measurement is the whole point of the work, verify the measurement tooling
+before you trust its output, and treat an implausible magnitude as a defect
+report against your own code.
+
+**And verify the reviewer's premise too.** The review that caught defect 3 also
+proposed the fix: accept only entries with explicit `promptSource='typed'`.
+That fix is wrong. The field is present on only 120 of 3,331 non-meta user
+entries, and the labelled and unlabelled sets span identical dates
+(2026-06-23 to 2026-07-26). It is sparsity, not a schema boundary, so absence
+is not evidence and an acceptance rule keyed on it over-filters to nothing.
+The correct design is rejection-based: reject known non-human flags and
+sources, keep the unlabelled majority. Complying with a correct diagnosis does
+not oblige you to accept its proposed remedy.
+
+## Where the operator corpus actually lives
+
+The Claude transcript store is not it. After provenance filtering it yields
+about 26 usable operator prompts, below any threshold that supports a
+percentage.
+
+`~/.copilot/session-store.db` is the real corpus. SQLite; `turns.user_message`
+is the human turn **by construction**, so provenance there is structural rather
+than inferred from heuristics. Join `turns` to `sessions` on `sessions.id` and
+filter `sessions.repository`. Totals at time of writing: 3,461 turns across
+1,711 sessions over three months; scoped to this repo and excluding
+`<`-prefixed synthetic turns, 439 unique operator prompts, 17x the usable
+Claude corpus.
+
+Open it read-only, `sqlite3.connect(f"file:{path}?mode=ro", uri=True)`, so a
+measurement can never mutate a live store. The per-session `session.db` files
+under `~/.copilot/session-state/<uuid>/` are a different thing and have no
+`turns` table.
+
+## Minimum corpus, with a derivation
+
+A phrase used in 1 percent of prompts appears at least once in 200 prompts with
+probability `1 - 0.99**200`, about 0.87. Below that a zero reading and a small
+non-zero reading are indistinguishable. `MINIMUM_CORPUS = 200` and the CLI
+exits 3 rather than publish an uninterpretable percentage. The old Claude-only
+corpus of 26 fails this guard; the dual-source corpus of 286 clears it.
 
 ## Transcript store format (needed to reproduce)
 
