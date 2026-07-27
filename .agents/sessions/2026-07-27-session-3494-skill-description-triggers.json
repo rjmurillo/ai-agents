@@ -133,14 +133,28 @@
     },
     {
       "step": "Final cost, measured on the 11 that landed: 1,102 bytes added to the permanently loaded description block, roughly 276 tokens."
+    },
+    {
+      "step": "Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator."
+    },
+    {
+      "step": "Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent."
+    },
+    {
+      "step": "Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed."
+    },
+    {
+      "step": "Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims."
+    },
+    {
+      "step": "Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "#3496 tracks the observability and taste-lints structural errors that blocked their description fix, and carries the two sentences to land once fixed.",
-    "The remaining 8 zero-match skills (chestertons-fence, context-gather, reflect, security-detection, security-scan, session, session-init, session-log-fixer) already carry quoted phrases that differ from their documented tables. Reconciling the two lists is a separate change.",
-    "No validator enforces trigger presence. skill_frontmatter.py validate_description checks only non-empty, 1024 characters, and absence of angle brackets, so this drift can recur. A check_skill_trigger_coverage.py with a shrinking baseline would pin it.",
-    "No eval measures whether the promoted phrases improve routing. The claim here is conformance to a documented standard, not a measured routing gain.",
-    "The skillforge hook only inspects staged files, so the repo-wide count of skills already failing its structure checks is unknown. Worth measuring before sizing #3496."
+    "19 skills still have no genuine quoted user phrase from their own trigger table. #3496 covers two of them that cannot be edited until their structural errors are fixed.",
+    "#3496 tracks the observability and taste-lints structural failures, independently reproduced by the reviewer against unmodified main.",
+    "No validator enforces trigger-phrase coverage, so this can regress. A shrinking baseline in the shape of skill_portability_baseline.json would hold the line.",
+    "The strict and loose predicates differ by 10 skills corpus-wide. Any future claim about coverage should state which one it used."
   ]
 }

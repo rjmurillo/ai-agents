@@ -33,15 +33,16 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 # GitHub Models inference endpoint (OpenAI-compatible). Verified 2026-06:
 # https://models.github.ai/inference with a GitHub PAT as the bearer token.
 GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
 
 if TYPE_CHECKING:  # imported lazily at runtime; typed here for the client factory
+    from anthropic.types import MessageParam
     from openai import OpenAI
 
 
@@ -49,6 +50,7 @@ class EvalProvider(Protocol):
     """Strategy interface. One method: text in, text out, normalized errors."""
 
     name: str
+    system_fingerprint: str | None
 
     def complete(
         self,
@@ -58,6 +60,7 @@ class EvalProvider(Protocol):
         model: str,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        seed: int | None = None,
     ) -> str:
         """Return assistant text. Raise RuntimeError on any failure."""
         ...
@@ -173,6 +176,7 @@ class _OpenAICompatibleProvider:
         self._provider_label = provider_label
         self._key_names = key_names
         self._base_url = base_url
+        self.system_fingerprint: str | None = None
 
     def _client(self) -> OpenAI:
         try:
@@ -201,8 +205,10 @@ class _OpenAICompatibleProvider:
         model: str,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        seed: int | None = None,
     ) -> str:
         client = self._client()
+        self.system_fingerprint = None
         full_messages: list[dict[str, str]] = []
         if system:
             full_messages.append({"role": "system", "content": system})
@@ -215,6 +221,8 @@ class _OpenAICompatibleProvider:
         else:
             create_kwargs["max_tokens"] = max_tokens
             create_kwargs["temperature"] = temperature
+        if seed is not None:
+            create_kwargs["seed"] = seed
         try:
             resp = client.chat.completions.create(**create_kwargs)
         except Exception as exc:  # noqa: BLE001 - normalize then re-raise
@@ -230,6 +238,8 @@ class _OpenAICompatibleProvider:
             raise RuntimeError(
                 f"{self._provider_label} API returned non-text content for model {model}."
             )
+        fingerprint = getattr(resp, "system_fingerprint", None)
+        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
         return content
 
 
@@ -243,6 +253,7 @@ class _AnthropicSDKProvider:
 
     name = "anthropic-sdk"
     _provider_label = "Anthropic"
+    system_fingerprint: str | None = None
 
     def complete(
         self,
@@ -252,6 +263,7 @@ class _AnthropicSDKProvider:
         model: str,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        seed: int | None = None,
     ) -> str:
         try:
             from anthropic import Anthropic
@@ -262,12 +274,13 @@ class _AnthropicSDKProvider:
             ) from exc
         api_key = _read_env_key(["ANTHROPIC_API_KEY"])
         client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
+        anthropic_messages = cast("Iterable[MessageParam]", messages)
         try:
             resp = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
                 system=system or "",
-                messages=messages,
+                messages=anthropic_messages,
                 temperature=temperature,
             )
         except Exception as exc:  # noqa: BLE001 - normalize then re-raise

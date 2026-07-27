@@ -21564,6 +21564,249 @@
         "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
       "created": "2026-07-27T13:16:42.512510+00:00"
+    },
+    {
+      "id": "c71da9963354",
+      "type": "milestone",
+      "label": "milestone: Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.789887+00:00"
+    },
+    {
+      "id": "5dd79bb3e1e3",
+      "type": "milestone",
+      "label": "milestone: Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.789975+00:00"
+    },
+    {
+      "id": "8a1d210a7471",
+      "type": "milestone",
+      "label": "milestone: Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790054+00:00"
+    },
+    {
+      "id": "b9fd3a72f7a0",
+      "type": "milestone",
+      "label": "milestone: Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790133+00:00"
+    },
+    {
+      "id": "db6ff31d3dba",
+      "type": "milestone",
+      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790209+00:00"
+    },
+    {
+      "id": "d6cb2653c4d1",
+      "type": "milestone",
+      "label": "milestone: Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790284+00:00"
+    },
+    {
+      "id": "4b9e3c39be98",
+      "type": "outcome",
+      "label": "Outcome: success - Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790359+00:00"
+    },
+    {
+      "id": "b555fd025f7b",
+      "type": "decision",
+      "label": "recovery: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.193373+00:00"
+    },
+    {
+      "id": "575cf347691a",
+      "type": "milestone",
+      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.193936+00:00"
+    },
+    {
+      "id": "a0517c9b1743",
+      "type": "milestone",
+      "label": "milestone: Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194018+00:00"
+    },
+    {
+      "id": "f9340323fdc1",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194097+00:00"
+    },
+    {
+      "id": "41229488c916",
+      "type": "milestone",
+      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194176+00:00"
+    },
+    {
+      "id": "1ace54b3d8e1",
+      "type": "decision",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194438+00:00"
+    },
+    {
+      "id": "18999928d683",
+      "type": "milestone",
+      "label": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194525+00:00"
+    },
+    {
+      "id": "f2e1fa9b338c",
+      "type": "milestone",
+      "label": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194706+00:00"
+    },
+    {
+      "id": "c247cf23409c",
+      "type": "milestone",
+      "label": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194869+00:00"
+    },
+    {
+      "id": "30522784ce2b",
+      "type": "milestone",
+      "label": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195032+00:00"
+    },
+    {
+      "id": "bbe14da4f47d",
+      "type": "milestone",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195192+00:00"
+    },
+    {
+      "id": "b8e7470d3dea",
+      "type": "milestone",
+      "label": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195355+00:00"
+    },
+    {
+      "id": "f4fe6633f53d",
+      "type": "milestone",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195515+00:00"
+    },
+    {
+      "id": "e2b33bfd32ff",
+      "type": "milestone",
+      "label": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195685+00:00"
+    },
+    {
+      "id": "9d2f52558392",
+      "type": "milestone",
+      "label": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195847+00:00"
+    },
+    {
+      "id": "2a05f360f556",
+      "type": "milestone",
+      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.196007+00:00"
+    },
+    {
+      "id": "521419055a2b",
+      "type": "milestone",
+      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818108+00:00"
+    },
+    {
+      "id": "636303e9a180",
+      "type": "milestone",
+      "label": "milestone: Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818198+00:00"
+    },
+    {
+      "id": "6b453cb88caa",
+      "type": "milestone",
+      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820086+00:00"
+    },
+    {
+      "id": "7cfbfe3e3448",
+      "type": "milestone",
+      "label": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820251+00:00"
     }
   ],
   "patterns": [
@@ -22158,7 +22401,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 19,
+      "occurrences": 20,
       "created": "2026-07-04T06:31:50.952133+00:00",
       "id": "471934685dd8",
       "contributions": {
@@ -22180,11 +22423,13 @@
         "\u0000legacy:15": 1.0,
         "\u0000legacy:16": 1.0,
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 1.0,
-        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge": 1.0
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge": 1.0,
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 1.0
       },
       "episodes": [
         "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata",
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ]
     },
     {
@@ -25790,6 +26035,174 @@
         "episode-2026-04-27-session-1761": 0.6
       },
       "created": "2026-07-27T08:26:30.325239+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "18999928d683",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.194535+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "f2e1fa9b338c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.194714+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "c247cf23409c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.194876+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "30522784ce2b",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195038+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "bbe14da4f47d",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195200+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "b8e7470d3dea",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195361+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "f4fe6633f53d",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195521+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "e2b33bfd32ff",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195691+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "9d2f52558392",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.195853+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "2a05f360f556",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T11:56:11.196012+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "6b453cb88caa",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T12:43:51.820096+00:00"
+    },
+    {
+      "source": "1ace54b3d8e1",
+      "target": "7cfbfe3e3448",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
+      },
+      "created": "2026-07-27T12:43:51.820258+00:00"
     }
   ]
 }

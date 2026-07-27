@@ -55,6 +55,20 @@ def _raise_boom(*_args, **_kwargs):
     raise RuntimeError("boom")
 
 
+def _legacy_split_fingerprint(task_ids, *, seed, sel_ratio, test_ratio=0.0):
+    payload = json.dumps(
+        {
+            "seed": seed,
+            "tasks": sorted(task_ids),
+            "sel_ratio": sel_ratio,
+            "test_ratio": test_ratio,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return oa.hashlib.sha256(payload.encode()).hexdigest()
+
+
 @pytest.fixture(autouse=True)
 def _isolated_ledger_root(tmp_path_factory, monkeypatch):
     """Point the consultation ledgers at this test's own directory.
@@ -207,6 +221,127 @@ class TestExtract:
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
         assert out == {"S1": True}
+
+    def test_rule_extract_refuses_errored_mechanism(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "error": "model timeout",
+                            "scores": {
+                                "activation_score": 0,
+                                "citation_score": 0,
+                                "behavior_score": 0,
+                            },
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_refuses_empty_scores(self, tmp_path, capsys):
+        """Missing or empty scores block is degraded (fail closed)."""
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {},
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_refuses_missing_scores(self, tmp_path, capsys):
+        """None scores block is degraded (fail closed)."""
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {}
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_clean_report_succeeds(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S2",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 4,
+                                "behavior_score": 5,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_OK
+        assert out == {"S2": True}
+
+    def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
+        envelope = {
+            "rules": {
+                "refactoring": {
+                    "summary": {"verdict": "FAIL_JUDGE_ERRORS"},
+                    "scenarios": [
+                        {
+                            "id": "S3",
+                            "negative_case": False,
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 0,
+                                        "citation_score": 0,
+                                        "behavior_score": 0,
+                                        "judge_failed": True,
+                                    }
+                                }
+                            },
+                        }
+                    ],
+                }
+            }
+        }
+        path = _write(tmp_path, "rules.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "refactoring::S3" in out["error"]
 
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
         """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
@@ -1152,6 +1287,52 @@ class TestSplitFileIsSelfValidating:
         assert code == 0
         assert out["decision"] == "ACCEPT"
 
+    def test_an_untampered_legacy_numeric_ratio_split_gates_normally(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
+    def test_legacy_numeric_fingerprint_does_not_alias_precise_string_ratio(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["sel_ratio"] = "0.40000000000000000000000000000000001"
+        split["test_ratio"] = "0.0"
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
+
+    def test_string_schema_ratio_split_round_trips_without_legacy_float_fallback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.5", "--min-sel", "0")
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
     def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
         """The union is unchanged, so only recomputation catches this."""
         inc, cand, split = self._setup(tmp_path, capsys)
@@ -1165,6 +1346,26 @@ class TestSplitFileIsSelfValidating:
         assert out["decision"] == "REJECT"
         assert "fingerprint" in out["reason"]
         assert "score" not in out and "candidate" not in out
+
+    def test_a_task_moved_in_legacy_numeric_ratio_split_is_refused(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        moved = split["opt"][0]
+        split["opt"] = [t for t in split["opt"] if t != moved]
+        split["sel"] = [*split["sel"], moved]
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
 
     def test_an_added_task_is_refused(self, tmp_path, capsys):
         inc, cand, split = self._setup(tmp_path, capsys)
@@ -1218,12 +1419,42 @@ class TestSplitFileIsSelfValidating:
                        "--split", path)
         assert code == EXIT_CONFIG
 
+    @pytest.mark.parametrize("ratio", ["1/0", "1/2"])
+    def test_split_rejects_non_decimal_ratio_syntax_without_traceback(
+        self, tmp_path, capsys, ratio
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "decimal ratio" in out["error"]
+
+    @pytest.mark.parametrize("ratio", ["1e20000000", "1e-20000000", "-1e20000000"])
+    def test_split_rejects_absurd_decimal_exponents_without_traceback(
+        self, tmp_path, capsys, ratio
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "decimal ratio" in out["error"]
+
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
                         "--sel-ratio", "0.4", "--test-ratio", "0.2")
-        assert split["sel_ratio"] == 0.4
-        assert split["test_ratio"] == 0.2
+        assert split["sel_ratio"] == "0.4"
+        assert split["test_ratio"] == "0.2"
+
+    def test_split_uses_raw_decimal_ratio_text_for_half_up_rounding(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.58", "--min-sel", "0")
+        assert len(split["sel"]) == 15
+        assert len(split["opt"]) == 10
+        assert split["sel_ratio"] == "0.58"
 
 
 class TestMalformedInputsAreConfigErrors:

@@ -1067,7 +1067,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter = _StubAdapter(results)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
 
         rc = cli_main([
             "--agent",
@@ -1117,7 +1117,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter1 = _StubAdapter(list(all_six))
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T130000Z-cafebabe"
         rc = cli_main([
             "--agent",
@@ -1135,7 +1135,7 @@ class TestRunnerLiveLoop:
         # Resume: adapter should not be called at all because all 6 triples
         # are already completed.
         adapter2 = _StubAdapter([])  # empty: any call would IndexError
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
         rc2 = cli_main([
             "--agent",
             "security",
@@ -1170,7 +1170,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter = _StubAdapter(all_errors)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1700,6 +1700,23 @@ class TestReportWriter:
             assert key in payload, f"missing field: {key}"
         assert payload["schemaVersion"] == 1
         assert payload["recommendation"] is None  # T4-7 fills in
+        assert payload["system_fingerprints"] == []
+
+    def test_report_json_includes_system_fingerprints(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="r-fp",
+            model_id="gpt-4o",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+            system_fingerprints=["fp-a"],
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["system_fingerprints"] == ["fp-a"]
+        assert "fp-a" in md_path.read_text(encoding="utf-8")
 
     def test_report_md_contains_required_sections(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
@@ -1761,7 +1778,7 @@ class TestRunnerEndToEndReport:
                 for _ in range(6)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1782,6 +1799,44 @@ class TestRunnerEndToEndReport:
         payload = json.loads(report_json.read_text(encoding="utf-8"))
         assert payload["schemaVersion"] == 1
         assert payload["recommendation"] is None
+
+    def test_e2e_writes_system_fingerprint_to_report(self, tmp_path, monkeypatch):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                    system_fingerprint="fp-3475",
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+        ])
+        assert rc == 0
+
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        report_json = next(reports_root.iterdir()) / "report.json"
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["system_fingerprints"] == ["fp-3475"]
 
     def test_e2e_include_skill_writes_form_factor_report(
         self, tmp_path, monkeypatch
@@ -1809,7 +1864,7 @@ class TestRunnerEndToEndReport:
                 for _ in range(9)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1901,7 +1956,7 @@ class TestRunnerFreshRunMode:
         first.write_record(_make_record())
 
         adapter = _StubAdapter([])  # any call IndexErrors → proves no calls
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -2207,7 +2262,7 @@ class TestResumeSkipLogging:
                 for _ in range(6)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T160000Z-skiplog0"
         rc = cli_main([
             "--agent",
@@ -2224,7 +2279,7 @@ class TestResumeSkipLogging:
 
         # Phase 2: resume; every triple is already complete → 6 skips.
         adapter2 = _StubAdapter([])
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
         rc2 = cli_main([
             "--agent",
             "security",
@@ -2584,7 +2639,7 @@ class TestPerFixtureHaltThreshold:
             for _ in range(29)
         ]
         adapter = _StubAdapter(results)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent", "security",
             "--fixtures", str(fixtures_dir),
