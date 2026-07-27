@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -61,6 +63,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Both findings were accurate and both are fixed. 2 files changed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -69,7 +81,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 5
+    "files_changed": 7
   },
   "lessons": []
 }

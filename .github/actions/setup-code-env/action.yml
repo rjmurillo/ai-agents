@@ -135,7 +135,13 @@ runs:
     # merge and manufacture conflicts a dev machine resolves cleanly. The
     # installer is stdlib only and idempotent, so it needs no project
     # environment and is safe to re-run.
+    #
+    # Gated on enable-python because both the installer and the driver it
+    # registers invoke a bare python3. Registering the driver without a working
+    # interpreter would be worse than skipping: a driver that fails to run is
+    # not a loud error, it is a silent fall back to the text merge.
     - name: Register git merge drivers
+      if: inputs.enable-python == 'true'
       shell: bash
       run: |
         python3 scripts/maintenance/install_merge_drivers.py

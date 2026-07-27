@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:54:36.962104+00:00",
+  "updated": "2026-07-27T14:10:47.227445+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21753,6 +21753,15 @@
         "episode-2026-07-27-session-3502-register-merge-drivers"
       ],
       "created": "2026-07-27T13:54:36.955547+00:00"
+    },
+    {
+      "id": "948a2dd67066",
+      "type": "milestone",
+      "label": "milestone: Both findings were accurate and both are fixed. 2 files changed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-register-merge-drivers"
+      ],
+      "created": "2026-07-27T14:10:47.221314+00:00"
     }
   ],
   "patterns": [

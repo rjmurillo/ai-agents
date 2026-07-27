@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "SHOULD",
-        "evidence": "No markdown authored in this change; the diff is two YAML files"
+        "evidence": "No markdown authored in this change; the diff carries YAML and JSON only"
       },
       "changesCommitted": {
         "complete": true,
@@ -144,6 +144,16 @@
         "yaml.safe_load parsed both files and actionlint reported clean"
       ],
       "outcome": "Runner-side merges now behave identically to a dev machine, proven by a negative control and a positive case on the same commit pair. 2 files changed."
+    },
+    {
+      "phase": "Address bot review findings",
+      "actions": [
+        "Copilot flagged that the new setup-code-env step calls python3 unconditionally while the action advertises enable-python false; verified against the input contract at action.yml line 16, which defaults true but is documented as optional",
+        "Gated the step on inputs.enable-python == 'true', matching the existing Enable git hooks step, because both the installer and the driver it registers invoke a bare python3 and a driver that cannot run degrades silently to the text merge",
+        "Copilot flagged that a session-log evidence string claimed the diff was two YAML files while the PR also carries session and memory JSON; corrected the string",
+        "Confirmed the maintenance workflow needs no equivalent guard: it already calls python3 directly for the resolver and does not use the setup action"
+      ],
+      "outcome": "Both findings were accurate and both are fixed. 2 files changed."
     }
   ],
   "endingCommit": "add12a90",
