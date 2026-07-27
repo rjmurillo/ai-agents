@@ -40,6 +40,7 @@ module runs and prints its own plain-text usage to stderr.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -406,28 +407,46 @@ def _ledger_root() -> Path:
     return Path(state) / "ai-agents-eval" / "ledgers"
 
 
-def _ledger_path(fingerprint: str) -> Path:
-    """Where the budget for this split lives.
+def _holdout_key(split: dict[str, Any]) -> str:
+    """The identity of the held-out group itself, which is what a budget counts.
 
-    Keyed by fingerprint, not by pathname. Two earlier versions keyed it on
-    something the caller passed: first `--ledger` directly, then the `--split`
-    path it was derived from. Both reset the same way, because a missing ledger
-    starts at zero, so copying the split under a second name bought a second
-    budget.
+    Three earlier versions keyed the ledger on something upstream of the group:
+    `--ledger` directly, then the `--split` path, then the split fingerprint.
+    Each one admitted a different input that reached the same held-out tasks
+    under a new key, and a missing ledger starts at zero, so each was a reset.
 
-    Content keying is also the semantically right answer, not just the one that
-    closes the hole. A consultation spends against a held-out *group*, and the
-    fingerprint is what identifies that group: same seed, same task ids, same
-    ratios, same group, whatever the file is called or wherever it sits. Two
-    runs sharing a split share the selection pressure on it, so they share the
-    budget. A genuinely fresh budget comes from a fresh split, which is a new
-    seed and a new fingerprint.
+    The fingerprint was the closest miss. It covers the seed, the task ids, and
+    the ratios, which are the *inputs* to the selection rather than its result,
+    and the group sizes are rounded. Adversarial review (gpt-5.6-sol,
+    2026-07-26) reproduced it: ten tasks at sel_ratio 0.40 and 0.41 both round
+    to four held out and select the identical four tasks, but fingerprint the
+    differently, so the same group got two budgets.
+
+    Keying on the sorted membership removes the whole class. Any two splits
+    that hold out the same tasks share the budget those tasks have already
+    paid, whatever produced them. Sorting rather than preserving rank order is
+    deliberate: the ranking is a function of the seed, and two seeds that
+    happen to hold out the same set are still selecting on the same set.
+
+    No corpus namespace is mixed in, though a collision is possible in
+    principle: two unrelated eval sets whose task ids and held-out membership
+    both coincide would share a budget. A namespace would have to come from the
+    caller, and a caller-supplied key is the exact defect this function exists
+    to close. Sharing is the conservative direction, so the collision is
+    accepted rather than reopened.
     """
-    return _ledger_root() / f"{fingerprint}.ledger"
+    sel = sorted(str(task_id) for task_id in _group_ids(split, _GATE_GROUP))
+    digest = hashlib.sha256("\x00".join(sel).encode("utf-8")).hexdigest()
+    return digest
+
+
+def _ledger_path(holdout_key: str) -> Path:
+    """Where the budget for one held-out group lives."""
+    return _ledger_root() / f"{holdout_key}.ledger"
 
 
 @contextmanager
-def _ledger_held(fingerprint: str) -> Iterator[None]:
+def _ledger_held(holdout_key: str) -> Iterator[None]:
     """Serialize the read, compare, and write of one ledger.
 
     Without this, two gates started together both read the same count, both
@@ -439,7 +458,7 @@ def _ledger_held(fingerprint: str) -> Iterator[None]:
     A stale lock left by a killed process is reported rather than broken, since
     guessing that the holder is gone is how a lock becomes advisory.
     """
-    lock = _ledger_root() / f"{fingerprint}.lock"
+    lock = _ledger_root() / f"{holdout_key}.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -457,7 +476,7 @@ def _ledger_held(fingerprint: str) -> Iterator[None]:
         lock.unlink(missing_ok=True)
 
 
-def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
+def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
     """Return the consultations already spent against this split.
 
     The count lives here rather than on the command line because a budget the
@@ -467,9 +486,10 @@ def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
     that hit the budget could raise it and carry on, which is the defect the
     ledger was written to close wearing a different hat.
 
-    The ledger is bound to the split fingerprint so an old ledger cannot be
-    paired with a fresh split, which would reset the count by redrawing rather
-    than by editing a number.
+    The ledger records the held-out key it was opened under. That is the same
+    value its filename carries, so the check catches a ledger moved or renamed
+    into another group's place rather than an honest redraw: a genuinely new
+    held-out group has a different key and therefore its own file.
     """
     if not path.exists():
         return 0
@@ -482,12 +502,12 @@ def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
     recorded_cap = data.get("max_consultations")
     if not isinstance(recorded_cap, int) or isinstance(recorded_cap, bool) or recorded_cap < 1:
         raise ConfigError(f"{path} max_consultations must be a positive integer")
-    recorded = data.get("fingerprint")
-    if recorded != fingerprint:
+    recorded = data.get("holdout")
+    if recorded != holdout_key:
         raise LedgerMismatchError(
-            f"ledger {path} records fingerprint {recorded} but this split is "
-            f"{fingerprint}; a ledger and a split that disagree mean the split "
-            f"was redrawn mid-run"
+            f"ledger {path} records held-out group {recorded} but this split "
+            f"holds out {holdout_key}; a ledger under another group's name is "
+            f"a moved or edited file, not a redraw"
         )
     if recorded_cap != cap:
         raise LedgerMismatchError(
@@ -498,9 +518,9 @@ def _read_ledger(path: Path, fingerprint: str, cap: int) -> int:
     return spent
 
 
-def _write_ledger(path: Path, fingerprint: str, spent: int, cap: int) -> None:
+def _write_ledger(path: Path, holdout_key: str, spent: int, cap: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"consultations": spent, "fingerprint": fingerprint, "max_consultations": cap}
+    payload = {"consultations": spent, "holdout": holdout_key, "max_consultations": cap}
     _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
@@ -542,15 +562,16 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # The lock spans read, compare, and write. A drifted split never reaches it
     # because that refusal reads no ledger and spends nothing.
-    with _ledger_held(split["fingerprint"]):
+    with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
 
 
 def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     """Spend at most one consultation and report what it bought."""
-    ledger = _ledger_path(split["fingerprint"])
+    holdout_key = _holdout_key(split)
+    ledger = _ledger_path(holdout_key)
     try:
-        spent = _read_ledger(ledger, split["fingerprint"], args.max_consultations)
+        spent = _read_ledger(ledger, holdout_key, args.max_consultations)
     except LedgerMismatchError as exc:
         _emit({"decision": "REJECT", "reason": str(exc), "compared": False})
         return EXIT_LOGIC
@@ -593,7 +614,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # the gate writes it rather than telling the caller what to pass next.
     spent_after = spent + (1 if result.compared else 0)
     if result.compared:
-        _write_ledger(ledger, split["fingerprint"], spent_after, args.max_consultations)
+        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
 
     _emit(
         {
