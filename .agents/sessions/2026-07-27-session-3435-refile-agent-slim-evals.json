@@ -1,0 +1,171 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3435,
+    "date": "2026-07-27",
+    "branch": "chore/3435-refile-agent-slim-evals",
+    "startingCommit": "a0b322fdb",
+    "objective": "Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned chore/3435-refile-agent-slim-evals"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and repository rule context loaded by the harness; evals/README.md and SESSION-PROTOCOL.md read this session"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Fetched origin/main and created worktree from origin/main at a0b322fdb"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is chore/3435-refile-agent-slim-evals"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions and serena-read_memory returned successfully; activate_project was unavailable in this Copilot MCP surface"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "memoryIndexRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-read_memory memory-index.md returned successfully"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote eval/agent-slimming-legacy-results-location.md with the new evals path and provenance note"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 passed for eval markdown under repo config; npx -p markdownlint-cli markdownlint passed for all five changed markdown files including .agents paths"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Rebased atomic commits on current origin/main: 31b993c42 chore(evals): rehome 20260411 agent slimming results; 89409bd60 chore(evals): rehome baseline agent slimming results; 549102934 chore(evals): rehome critic and explainer slimming results; 1bb576b9e chore(evals): rehome implementer and issue-review results; fa7669ffe chore(evals): rehome planner and skillbook results; cb53ef0d7 chore(evals): rehome verify and spot-check results; 069318da9 chore(evals): rehome remaining spot-check results; 8d9712744 chore(evals): update archive eval pointers; b791f3391 chore(evals): point quality report to eval outputs; c2234c9fe chore(evals): add agent slimming eval manifest. This follow-up session-log evidence commit records the final list."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "After rebase, validate_session_json passed, pre_pr.py returned RESULT: All validations passed, markdownlint passed, JSON byte identity and parse checks passed, and plugin path diff was empty."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; this was an artifact re-home with no implementation failure"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Issue and convention retrieval",
+      "actions": [
+        "Read issue #3435 with comments via gh issue view --comments and --json",
+        "Read evals/README.md and DESIGN-004 persistence layout",
+        "Read .agents/archive/planning/README.md and SPEC-agent-consolidation.md"
+      ],
+      "outcome": "Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs."
+    },
+    {
+      "phase": "Artifact classification",
+      "actions": [
+        "git ls-files found exactly 33 JSON files under .agents/archive/planning/",
+        "JSON key summary showed eval result structures: assessment_type, model, agents_assessed, total_prompts, dimensions, results, or skill eval results with kill_gate",
+        "git log --follow traced 28 files to PR #1617 on 2026-04-12 and 5 files to PR #1614 on 2026-04-11"
+      ],
+      "outcome": "All 33 files are eval outputs. No genuine planning JSON was left behind."
+    },
+    {
+      "phase": "Re-home artifacts",
+      "actions": [
+        "Moved 5 PR #1614 outputs to evals/agent-slimming-spike/reports/20260411T000000Z-9685367b/",
+        "Moved 28 PR #1617 outputs to evals/agent-slimming-spike/reports/20260412T000000Z-4aa87f2f/",
+        "Added evals/agent-slimming-spike/README.md with provenance, layout, and file inventory",
+        "Updated evals/README.md and archived planning docs so readers resolve to the new eval location"
+      ],
+      "outcome": "The eval system of record now contains the agent-slimming outputs without JSON byte changes."
+    },
+    {
+      "phase": "Validation",
+      "actions": [
+        "Validated all 33 moved JSON files parse as JSON",
+        "Compared sha256 of each moved file against git show HEAD:old-path and confirmed byte identity",
+        "Checked changed markdown for U+2014 and U+2013 bytes",
+        "Confirmed no .claude, src/copilot-cli, or plugin.json paths are in the diff"
+      ],
+      "outcome": "Artifact integrity checks passed before final validation."
+    },
+    {
+      "phase": "Commit preparation",
+      "actions": [
+        "Created seven atomic JSON re-home commits with five or fewer moved files each",
+        "Ran pre_pr.py successfully after the file moves and documentation updates"
+      ],
+      "outcome": "Branch is ready for documentation and session-log commits, then push and PR creation."
+    },
+    {
+      "phase": "Quality report pointer",
+      "actions": [
+        "Updated the archived quality-results.md narrative report to point to the evals machine-readable outputs"
+      ],
+      "outcome": "Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/."
+    },
+    {
+      "phase": "Rebase and final evidence",
+      "actions": [
+        "Rebased branch onto current origin/main after origin/main advanced during the session",
+        "Verified logical file count per commit stayed at five or fewer",
+        "Confirmed .claude, src/copilot-cli, and plugin.json paths are untouched by the branch diff"
+      ],
+      "outcome": "Branch is current with origin/main and remains within the requested scope."
+    }
+  ],
+  "filesChanged": {
+    "movedJsonCount": 33,
+    "markdownUpdated": [
+      ".agents/archive/planning/README.md",
+      ".agents/archive/planning/SPEC-agent-consolidation.md",
+      ".agents/archive/planning/quality-results.md",
+      "evals/README.md",
+      "evals/agent-slimming-spike/README.md"
+    ],
+    "sessionLog": ".agents/sessions/2026-07-27-session-3435-refile-agent-slim-evals.json"
+  }
+}
