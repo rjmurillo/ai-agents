@@ -132,6 +132,15 @@
         ".agents/specs/tasks/TASK-015-pr-iteration-cost.md"
       ],
       "status": "complete"
+    },
+    {
+      "action": "fix-gate4-error-verdict",
+      "description": "Added VERDICT: ERROR to Gate 4 rejection criteria in build commands",
+      "files": [
+        ".claude/commands/build.md",
+        "src/copilot-cli/skills/build/SKILL.md"
+      ],
+      "status": "complete"
     }
   ],
   "endingCommit": "62fb792ce9",

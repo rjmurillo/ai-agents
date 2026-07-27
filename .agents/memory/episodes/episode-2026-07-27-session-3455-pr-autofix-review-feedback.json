@@ -108,6 +108,18 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-gate4-error-verdict",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     }
   ],
