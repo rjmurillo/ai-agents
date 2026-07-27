@@ -128,6 +128,11 @@
       "phase": "Traceability",
       "summary": "Classified traceability failures before fixing.",
       "evidence": "TASK-009 and TASK-a02 were parser false positives. TASK-014 had stale frontmatter and body references to REQ-004 and DESIGN-004."
+    },
+    {
+      "phase": "Document",
+      "summary": "Documented that hook_contracts.py was already wired and that the retired consistency protocol now delegates to the live planning validator.",
+      "evidence": "hook_contracts.py exits 0 over 12 entries through .github/workflows/hook-contract-check.yml; build/scripts/validate_planning_artifacts.py exits 0 over the current planning tree."
     }
   ],
   "endingCommit": "",

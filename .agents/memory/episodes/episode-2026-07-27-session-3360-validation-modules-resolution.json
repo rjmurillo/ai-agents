@@ -48,6 +48,18 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Documented that hook_contracts.py was already wired and that the retired consistency protocol now delegates to the live planning validator.",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     }
   ],

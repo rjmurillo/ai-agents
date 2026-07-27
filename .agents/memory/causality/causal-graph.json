@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T15:37:52.292113+00:00",
+  "updated": "2026-07-27T15:43:50.680029+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21978,6 +21978,15 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution"
       ],
       "created": "2026-07-27T15:37:52.286375+00:00"
+    },
+    {
+      "id": "4a7139c424fd",
+      "type": "milestone",
+      "label": "milestone: Documented that hook_contracts.py was already wired and that the retired consistency protocol now delegates to the live planning validator.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:43:50.673731+00:00"
     }
   ],
   "patterns": [
