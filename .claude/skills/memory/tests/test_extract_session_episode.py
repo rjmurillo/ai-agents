@@ -446,6 +446,76 @@ def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
     }
 
 
+def _real_3459_log() -> dict:
+    return {
+        "session": {
+            "number": 3459,
+            "date": "2026-07-27",
+            "branch": "fix/skill-md-templates-portability",
+            "startingCommit": "98caa0e54d",
+            "objective": (
+                "Close the templates/ gap in check_skill_md_portability.py so shipped "
+                "SKILL.md files cannot point at generator inputs that never ship with the plugin"
+            ),
+        },
+        "protocolCompliance": {
+            "sessionStart": {},
+            "sessionEnd": {
+                "checklistComplete": _gate(True),
+                "changesCommitted": _gate(True),
+                "validationPassed": _gate(True),
+            },
+        },
+        "workLog": [
+            {
+                "phase": "Measure the gap",
+                "actions": [
+                    "Read UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py",
+                    "Checked each skill for a vendor-portability marker",
+                ],
+                "outcome": (
+                    "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 "
+                    "with the evidence before writing code"
+                ),
+            },
+            {
+                "phase": "Extend the patterns and prove they are load-bearing",
+                "actions": ["Added two patterns scoped to the second segment"],
+                "outcome": (
+                    "Patterns verified to fire on the true positives and stay silent on "
+                    "the four negative shapes"
+                ),
+            },
+            {
+                "phase": "Declare the three offenders",
+                "actions": ["Regenerated the Copilot mirror"],
+                "outcome": (
+                    "Validator stays at baseline 0 with the wider patterns in force, so "
+                    "the ratchet tightens without grandfathering anything"
+                ),
+            },
+            {
+                "phase": "Adversarial review remediation",
+                "actions": ["Verified the regex through the validator itself"],
+                "outcome": (
+                    "Regex verified through the validator itself, not only in isolation. "
+                    "55 tests pass, ruff clean, ratchet reports zero refs across zero files."
+                ),
+            },
+            {
+                "phase": "Remove bundled memory artifacts per review feedback",
+                "actions": ["Hook regeneration is by design"],
+                "outcome": (
+                    "Hooks regenerate memory artifacts from the session file on every commit; "
+                    "files remain as auto-generated derivatives of this session log"
+                ),
+            },
+        ],
+        "endingCommit": "ac9a29da8",
+        "nextSteps": [],
+    }
+
+
 class TestLooksLikeJsonSession:
     def test_detects_json_session(self):
         content = json.dumps(_json_log([{"task": "t", "outcome": "o", "evidence": "e"}]))
@@ -535,9 +605,7 @@ class TestJsonEvents:
 
 class TestCausalEventLinks:
     def test_real_3459_pre_code_milestone_is_not_caused_by_final_commit(self):
-        session_log = Path(".agents/sessions/2026-07-27-session-3459-templates-portability.json")
-        data = json.loads(session_log.read_text(encoding="utf-8"))
-        bundle = extract_from_json(data)
+        bundle = extract_from_json(_real_3459_log())
         _link_sequential_events(bundle["events"])
 
         commit = next(e for e in bundle["events"] if e["type"] == "commit")
@@ -620,7 +688,8 @@ class TestCausalEventLinks:
     def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ):
-        session_log = Path(".agents/sessions/2026-07-27-session-3459-templates-portability.json")
+        session_log = tmp_path / "2026-07-27-session-3459-templates-portability.json"
+        session_log.write_text(json.dumps(_real_3459_log()), encoding="utf-8")
         output_dir = tmp_path / "episodes"
 
         rc = main([str(session_log), "--output-path", str(output_dir)])
