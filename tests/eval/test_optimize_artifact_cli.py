@@ -6395,3 +6395,175 @@ class TestACrashOnAHugeNumberIsNotARejectVerdict:
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == 0
         assert out["results"] == {"C1": True}
+
+
+class TestCleanupCannotSpeakOverTheFailureItCleansUpAfter:
+    """The same defect the lock's close fix closed, at the two sites it missed.
+
+    Round 33 gave the lock a `_close_quietly`, whose whole argument is that
+    POSIX frees the descriptor even when close reports an error, so the news
+    is unactionable and reporting it replaces a cause an operator can use.
+    That argument is about `os.close` in cleanup, not about the lock, and two
+    other calls in this module were doing the same thing:
+
+    - `_write_atomic` closes the descriptor by hand when `os.fdopen` fails to
+      take ownership of it. A close error there propagates from inside the
+      handler and pre-empts the original failure, so a non-`OSError` cause
+      arrives as a `ConfigError` naming the close.
+    - `_fsync_dir` closes the directory descriptor in a `finally` wrapped by a
+      single `except OSError`. When the fsync fails and the close then fails
+      too, the warning names the close. Worse on the success path: the fsync
+      already worked, the replace already happened, and an escaping close
+      error reaches `_write_atomic`'s handler and reports a completed write as
+      a failed one.
+
+    Both are one word: call the helper that was written for this. The
+    enumeration behind that claim is four `os.close` sites in the module. Two
+    were already safe, one suppressed and one deliberately converted while no
+    primary failure is pending. These are the other two.
+    """
+
+    def _fail_close_on_ours(self, monkeypatch, errno_=5, message="secondary close"):
+        """Fail close for descriptors this module opened, and no others.
+
+        Patching `os.close` wholesale takes pytest's capture plumbing with it.
+        """
+        ours = set()
+        real_open, real_close = oa.os.open, oa.os.close
+
+        def spy_open(*args, **kwargs):
+            fd = real_open(*args, **kwargs)
+            ours.add(fd)
+            return fd
+
+        def spy_close(fd):
+            if fd in ours:
+                ours.discard(fd)
+                real_close(fd)
+                raise OSError(errno_, message)
+            real_close(fd)
+
+        monkeypatch.setattr(oa.os, "open", spy_open)
+        monkeypatch.setattr(oa.os, "close", spy_close)
+
+    # --- _write_atomic, the fdopen cleanup --------------------------------
+
+    def test_a_non_oserror_primary_survives_a_failing_cleanup_close(
+        self, tmp_path, monkeypatch
+    ):
+        """`fdopen` can fail for reasons that are not I/O at all.
+
+        The primary must reach the caller as itself. Converting it into a
+        `ConfigError` about the close reports the wrong layer and the wrong
+        cause.
+        """
+        self._fail_close_on_ours(monkeypatch)
+        monkeypatch.setattr(
+            oa.os,
+            "fdopen",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("primary")),
+        )
+        with pytest.raises(RuntimeError, match="primary"):
+            oa._write_atomic(tmp_path / "out.json", "{}")
+
+    def test_the_cleanup_error_is_not_the_one_reported(self, tmp_path, monkeypatch):
+        self._fail_close_on_ours(monkeypatch, message="secondary close")
+        monkeypatch.setattr(
+            oa.os,
+            "fdopen",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("primary")),
+        )
+        with pytest.raises(RuntimeError) as caught:
+            oa._write_atomic(tmp_path / "out.json", "{}")
+        assert "secondary close" not in str(caught.value)
+
+    def test_an_oserror_primary_still_becomes_a_config_error(
+        self, tmp_path, monkeypatch
+    ):
+        """Control: the conversion this module promises must still happen."""
+        self._fail_close_on_ours(monkeypatch)
+        monkeypatch.setattr(
+            oa.os,
+            "fdopen",
+            lambda *a, **k: (_ for _ in ()).throw(OSError(28, "primary no space")),
+        )
+        with pytest.raises(oa.ConfigError, match="primary no space"):
+            oa._write_atomic(tmp_path / "out.json", "{}")
+
+    def test_the_descriptor_is_still_released(self, tmp_path, monkeypatch):
+        """Quiet is not skipped. A leak would trade one defect for another."""
+        closed = []
+        real_close = oa.os.close
+        monkeypatch.setattr(
+            oa.os,
+            "close",
+            lambda fd: (closed.append(fd), real_close(fd), None)[-1],
+        )
+        monkeypatch.setattr(
+            oa.os,
+            "fdopen",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("primary")),
+        )
+        with pytest.raises(RuntimeError):
+            oa._write_atomic(tmp_path / "out.json", "{}")
+        assert closed, "cleanup must still close the descriptor it owns"
+
+    # --- _fsync_dir, the directory descriptor -----------------------------
+
+    def _fail_dir_fsync(self, monkeypatch, errno_=28, message="primary no space"):
+        """Fail fsync for directory descriptors only.
+
+        `_write_atomic` fsyncs the file too, and failing that one would test a
+        different branch.
+        """
+        real_fsync = oa.os.fsync
+
+        def spy(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(errno_, message)
+            return real_fsync(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", spy)
+
+    def test_the_warning_names_the_fsync_not_the_close(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        self._fail_dir_fsync(monkeypatch)
+        self._fail_close_on_ours(monkeypatch, message="secondary close")
+        oa._write_atomic(tmp_path / "out.json", "{}")
+        err = capsys.readouterr().err
+        assert "primary no space" in err
+        assert "secondary close" not in err
+
+    def test_a_directory_fsync_failure_is_still_only_a_warning(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Control: the write completed, so this must not become an error."""
+        self._fail_dir_fsync(monkeypatch)
+        self._fail_close_on_ours(monkeypatch)
+        target = tmp_path / "out.json"
+        oa._write_atomic(target, '{"a": 1}')
+        assert target.read_text(encoding="utf-8") == '{"a": 1}'
+        assert "could not fsync the directory" in capsys.readouterr().err
+
+    def test_a_close_failure_alone_does_not_fail_a_completed_write(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The success path. Nothing is pending, so the close has no news.
+
+        Before the fix this error escaped `_fsync_dir` into `_write_atomic`'s
+        handler, which reported a write that had already been replaced onto
+        disk as a write that failed.
+        """
+        self._fail_close_on_ours(monkeypatch, message="secondary close")
+        target = tmp_path / "out.json"
+        oa._write_atomic(target, '{"a": 1}')
+        assert target.read_text(encoding="utf-8") == '{"a": 1}'
+        assert "secondary close" not in capsys.readouterr().err
+
+    def test_an_ordinary_write_is_unchanged(self, tmp_path, capsys):
+        """Control: no injection at all."""
+        target = tmp_path / "out.json"
+        oa._write_atomic(target, '{"a": 1}')
+        assert target.read_text(encoding="utf-8") == '{"a": 1}'
+        assert capsys.readouterr().err == ""

@@ -1565,7 +1565,14 @@ def _fsync_dir(directory: Path) -> None:
         try:
             os.fsync(fd)
         finally:
-            os.close(fd)
+            # Quietly, for two reasons that point the same way. On the failure
+            # path the fsync is the actionable cause and a raising close would
+            # replace it, so the warning would name the wrong call. On the
+            # success path the guarantee already held and the replace already
+            # happened, and this runs inside `_write_atomic`'s try, so an
+            # escaping close error would report a completed write as a failed
+            # one. Either way the descriptor is freed regardless.
+            _close_quietly(fd)
     except OSError as exc:
         _warn(
             f"warning: wrote and renamed into {directory}, but could not fsync the "
@@ -1607,7 +1614,13 @@ def _write_atomic(path: Path, text: str) -> None:
             # comment that used to sit in the handler below claimed this was
             # already done. It was not: no call closed the descriptor, so this
             # path leaked one while the comment said otherwise.
-            os.close(fd)
+            #
+            # Quietly, because a primary failure is already in flight and this
+            # runs inside its handler. A raising close would propagate instead
+            # of the cause, and `fdopen` can fail for reasons that are not I/O
+            # at all, so the caller would get a `ConfigError` about the close
+            # standing in for something that was never an `OSError`.
+            _close_quietly(fd)
             raise
         with handle:
             handle.write(text)
