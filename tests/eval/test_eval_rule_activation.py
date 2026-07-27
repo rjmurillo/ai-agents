@@ -136,6 +136,30 @@ class TestAggregateVerdicts:
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
 
+class TestScoreResponseJudgeShape:
+    @pytest.mark.parametrize(
+        "judge_json",
+        [
+            "{}",
+            '{"activation_score": 5, "citation_score": "5", "behavior_score": 5}',
+            '{"activation_score": 5, "citation_score": 5}',
+        ],
+    )
+    def test_malformed_judge_score_object_sets_judge_failed(
+        self, monkeypatch, judge_json
+    ):
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_json)
+
+        scores = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+        assert scores["judge_failed"] is True
+        assert scores["activation_score"] == 0
+
+
 # ---------------------------------------------------------------------------
 # _load_scenarios_file() path validation
 # ---------------------------------------------------------------------------

@@ -198,6 +198,20 @@ class TestExtract:
         assert code == EXIT_OK
         assert out == {"C1": True}
 
+    def test_agent_report_refuses_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": 1,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "degraded agent report" in out["error"]
+        assert "error_count=1" in out["error"]
+
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
             tmp_path,
@@ -343,6 +357,33 @@ class TestExtract:
         assert code == EXIT_CONFIG
         assert "refactoring::S3" in out["error"]
 
+    @pytest.mark.parametrize(
+        "scores",
+        [
+            {},
+            {"activation_score": 5, "citation_score": 5},
+            {"activation_score": 5, "citation_score": "5", "behavior_score": 5},
+        ],
+    )
+    def test_rule_extract_refuses_malformed_judge_scores(
+        self, tmp_path, capsys, scores
+    ):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S4",
+                    "negative_case": False,
+                    "mechanisms": {"full": {"scores": scores}},
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S4" in out["error"]
+
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
         """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
         scenarios = _write(
@@ -353,7 +394,15 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                        "mechanisms": {
+                            "full": {
+                                "scores": {
+                                    "activation_score": 1,
+                                    "citation_score": 1,
+                                    "behavior_score": 1,
+                                }
+                            }
+                        },
                     }
                 ]
             },
