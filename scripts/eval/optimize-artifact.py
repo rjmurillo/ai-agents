@@ -1634,7 +1634,7 @@ def _write_atomic(path: Path, text: str) -> None:
 
 def _read_buffer(path: Path) -> list[dict[str, Any]]:
     if _absent(path):
-        # A first run has no ledger yet. Treating that as empty keeps the loop
+        # A first run has no buffer yet. Treating that as empty keeps the loop
         # from needing a separate init step. `_absent` rather than `exists`,
         # because a buffer that cannot be read is not one with nothing in it.
         return []
