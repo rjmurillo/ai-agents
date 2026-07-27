@@ -11,9 +11,6 @@ metadata:
 
 # Negotiation Skill
 
-<!-- vendor-portability: cites `templates/agents/negotiation.shared.md` as the canonical
-source of the companion agent, which `.claude/rules/canonical-source-mirror.md` requires.
-The path is upstream-only provenance, not a runtime dependency. Issue #3459. -->
 
 Codifies deal intelligence behavior. Use when reviewing any offer or
 designing how an agentic system should analyze and counter-propose.
@@ -120,7 +117,7 @@ Output is acceptable when ALL of the following hold:
   domain better.
 - **Agent integration**: when wiring the skill into an agentic
   system, include `model_tier: opus` (or equivalent senior tier) in
-  the agent template. See `templates/agents/negotiation.shared.md`.
+  the agent template.
 
 ## References
 
