@@ -110,6 +110,15 @@ _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
     r"Verification[ \t]+Report",
 )
 
+_CHANGE_CLAIM_SECTION_NAMES: tuple[str, ...] = (
+    r"Changes",
+    r"Per[- \t]?file[ \t]+changes",
+    r"Files[ \t]+Changed",
+    r"Changed[ \t]+Files",
+)
+
+_CHANGE_CLAIM_SCOPED_PATTERN_INDEXES: frozenset[int] = frozenset({0, 3, 4})
+
 # Section-name PREFIXES whose file mentions are proof or scope references, never
 # change claims. Matched as a prefix at a word boundary, so ANY suffix is
 # absorbed. This kills the exact-name treadmill for Evidence and Out-of-Scope
@@ -176,7 +185,7 @@ _INLINE_CITATION_PATTERN = re.compile(
     r"(?i)"
     r"\b(?:see|per|e\.g\.|e\.g|eg\.|for example|as in|for instance"
     r"|as documented in|referenced by|defined in|introduced in"
-    r"|cf\.|compare)"
+    r"|reference path|cf\.|compare)"
     r"[: \t(]*"
     r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
 )
@@ -472,16 +481,42 @@ def _strip_informational_sections(description: str) -> str:
     return text
 
 
+def _change_claim_regions(cleaned: str) -> list[tuple[int, int]]:
+    """Return spans for H2 sections that carry explicit change claims."""
+    change_claim_pattern = (
+        r"^##\s+(?:" + "|".join(_CHANGE_CLAIM_SECTION_NAMES) + r")\s*$.*?(?=^#{1,2}(?!#)|\Z)"
+    )
+    return [
+        (match.start(), match.end())
+        for match in re.finditer(
+            change_claim_pattern,
+            cleaned,
+            flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,
+        )
+    ]
+
+
+def _is_in_change_claim_region(position: int, regions: list[tuple[int, int]]) -> bool:
+    return any(start <= position < end for start, end in regions)
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text."""
     if not description:
         return []
 
     cleaned = _strip_informational_sections(description)
+    change_claim_regions = _change_claim_regions(cleaned)
 
     mentioned: list[str] = []
-    for pattern in FILE_MENTION_PATTERNS:
+    for pattern_index, pattern in enumerate(FILE_MENTION_PATTERNS):
         for match in pattern.finditer(cleaned):
+            scoped_pattern = pattern_index in _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
+            outside_claim_region = not _is_in_change_claim_region(
+                match.start(), change_claim_regions
+            )
+            if scoped_pattern and outside_claim_region:
+                continue
             raw = match.group(1)
             # Skip command-like strings (file paths never contain spaces)
             if " " in raw.strip():
@@ -595,12 +630,11 @@ def validate_pr_description(
                     message=(
                         "Description claims this file was changed, "
                         "but it's not in the PR diff. "
-                        "If this is a reference (not a change claim), silence it by "
-                        "one of: (a) wrap the path in a fenced code block (```), "
-                        "(b) place it inside a GitHub admonition (> [!NOTE]), or "
-                        "(c) move the citation under a contextual H2 heading "
-                        "(## References, ## Related Files, ## See Also, ## Notes, "
-                        "## Background, ## Evidence, ## Out of Scope). "
+                        "Inline-backtick file paths outside `## Changes` / "
+                        "`## Per-file changes` / `## Files Changed` / "
+                        "`## Changed Files` are informational. Move the path "
+                        "under one of those headings, use a bullet (`- path.ext`) "
+                        "or bold (`**path.ext**`), or wrap it in a code fence. "
                         f"For unrecoverable cases, apply the "
                         f"'{DEFAULT_BYPASS_LABEL}' label to the PR."
                     ),
