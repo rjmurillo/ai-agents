@@ -44,6 +44,7 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
+| `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, hooks, and prompts. Splits tasks, bounds the edit budget, applies patches, and accepts an edit only on data withheld from the author. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 
 ## End-to-End Delivery Eval
@@ -260,6 +261,127 @@ Output is a JSON artifact (`--output`, default under
 cost, the winner, `recall_delta`, `ci95`, `cohens_d`, `best_candidate_*`, and
 the `decision`/`reason`.
 
+## Held-Out-Gated Optimization
+
+`optimize-artifact.py` adds the piece the rest of this directory is missing: a
+gate that accepts an edit only on data the author could not read while making
+it.
+
+Every other evaluator here scores an artifact against its whole eval set.
+`eval-prompt-change.py` compares a prompt before and after an edit on the same
+scenarios the author was reading. `eval-agent-vs-baseline.py` scores an agent
+against every fixture in its spike directory while the author reads the
+failures and rewrites the prompt. Both fit the test set, so an improvement they
+report may be memorization rather than a better artifact.
+
+This tool splits the task ids into three groups and keeps them apart:
+
+| Group | Who sees it | Purpose |
+|-------|-------------|---------|
+| `opt` | The optimizing agent | Read failures here, propose edits from them. |
+| `sel` | The gate only | Decides accept or reject. Never shown to the author. |
+| `test` | Nobody, until the end | Final unbiased number after the loop stops. |
+
+The split is a deterministic function of the seed and the task-id set, so it
+reproduces on any machine and does not depend on input order. Ratios pick exact
+counts rather than hash buckets: bucketing can hand a ten-fixture set a
+one-fixture gate, which measures nothing.
+
+### Subcommands
+
+| Subcommand | Purpose |
+|------------|---------|
+| `extract` | Convert an existing scorer's output to `{task_id: bool}`. |
+| `split` | Partition task ids into `opt`, `sel`, and `test`. |
+| `budget` | Edits allowed at this step, cosine-decayed from `max` to `min`. |
+| `score` | Fraction of one group passing. |
+| `apply` | Apply bounded patches to an artifact file. |
+| `gate` | Decide whether the candidate replaces the incumbent. |
+| `buffer-check` | Has this edit already been rejected? |
+| `buffer-add` | Record a rejected edit so it is not re-proposed. |
+
+### Covering agents, rules, and hooks
+
+`extract` is what carries the discipline past skills. Each artifact class
+already has a scorer; each reports in its own shape, and `extract` converges
+them on the one shape the gate reads.
+
+| `--kind` | Input | Task id |
+|----------|-------|---------|
+| `agent` | An agent eval `report.json` | Fixture id |
+| `rule` | `eval-rule-activation.py` scenario output | Scenario id |
+| `hook` | `pytest --junitxml` output | Test node id |
+
+Adapters fail closed. A fixture the variant never ran, a scenario whose judge
+errored, and a skipped test all score as failures rather than being dropped.
+Dropping a task shrinks the denominator, which raises the score, so a silent
+omission would read as an improvement.
+
+`--kind rule` scores negative cases inverted, so a rule that fires when it
+should stay quiet loses. `eval-rule-activation.py` collects negative cases into
+their own summary but its verdict never reads them.
+
+### A loop step
+
+```bash
+OA=scripts/eval/optimize-artifact.py
+
+# Baseline the incumbent and fix the split once.
+uv run --frozen python "$OA" extract --kind agent --input report.json > base.json
+uv run --frozen python "$OA" split --results base.json --seed run-7 > split.json
+FP=$(python3 -c "import json;print(json.load(open('split.json'))['fingerprint'])")
+
+# Per step: check the budget, reject a repeat, apply, rescore, gate.
+uv run --frozen python "$OA" budget --step 3 --total 12
+uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json || exit 0
+uv run --frozen python "$OA" apply --file target.md --patches p.json --budget 3
+
+# Rerun the real scorer here, then extract it to cand.json.
+uv run --frozen python "$OA" gate --incumbent base.json --candidate cand.json \
+    --split split.json --incumbent-fingerprint "$FP"
+```
+
+On reject, revert the file and run `buffer-add` so the same edit is not
+re-proposed. On accept, the candidate becomes the incumbent.
+
+### What the gate refuses
+
+A strictly-greater held-out score is the only way to earn an accept. A tie is a
+reject, because an edit that did not move the held-out score is churn and churn
+on an artifact costs review attention forever.
+
+Three further refusals close holes that open once a loop runs many steps:
+
+- **Moved split.** The split fingerprint covers the seed, the task-id set, and
+  the ratios. If it changes, the gate refuses instead of comparing. This blocks
+  the cheapest cheat available: an edit loses, so add fixtures and re-roll.
+- **Exhausted consultations.** Gating N times against one `sel` group selects
+  on it N times. Pass `--consultations` and `--max-consultations` to cap it. The
+  count only advances when scores were actually weighed, so a refusal on a moved
+  fingerprint costs nothing.
+- **Protected sections.** Text between `<!-- SLOW_UPDATE_START -->` and
+  `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
+  fence marker in their text are rejected too, since one could otherwise open a
+  fence over the rest of the file or close an existing one.
+
+### Exit codes
+
+Per ADR-035. A reject is exit 1 because it is a decision a shell loop branches
+on, not a crash. Every path prints JSON, so a caller that needs to tell a reject
+from a broken input reads `decision` rather than inferring from the code.
+
+| Code | Meaning |
+|------|---------|
+| 0 | Accept, novel patch, or plain success |
+| 1 | Reject, already-rejected patch, or a refused patch |
+| 2 | Bad arguments, unreadable input, or malformed data |
+
+### Scope
+
+This tool makes no API calls. It decides; the scorers it wraps do the spending.
+That is why `--dry-run` applies only to `apply`, and why the whole decision path
+is unit-tested without eval budget.
+
 ## Scenario File Format
 
 See `examples/example-scenarios.json` for a working template.
@@ -293,7 +415,7 @@ Convention: for a prompt at `path/to/name.md`, name the scenario file `name-scen
 
 ## Flags
 
-All scripts support `--dry-run` (validate inputs, no API calls) and `--output FILE` (write JSON results).
+All scripts that call the API support `--dry-run` (validate inputs, no API calls) and `--output FILE` (write JSON results). `optimize-artifact.py` makes no API calls; its `--dry-run` is scoped to the `apply` subcommand.
 
 | Flag | Scripts | Purpose |
 |------|---------|---------|
