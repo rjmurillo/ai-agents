@@ -175,8 +175,8 @@ def _ratio_fraction(name: str, value: Ratio) -> Fraction:
     return Fraction(decimal)
 
 
-def _canonical_ratio(value: Ratio) -> str:
-    ratio = _ratio_fraction("ratio", value)
+def _canonical_ratio(value: Ratio, *, name: str = "ratio") -> str:
+    ratio = _ratio_fraction(name, value)
     return f"{ratio.numerator}/{ratio.denominator}"
 
 
@@ -297,8 +297,8 @@ def split_fingerprint(
         {
             "seed": seed,
             "tasks": sorted(task_ids),
-            "sel_ratio": _canonical_ratio(sel_ratio),
-            "test_ratio": _canonical_ratio(test_ratio),
+            "sel_ratio": _canonical_ratio(sel_ratio, name="sel_ratio"),
+            "test_ratio": _canonical_ratio(test_ratio, name="test_ratio"),
         },
         sort_keys=True,
         separators=(",", ":"),

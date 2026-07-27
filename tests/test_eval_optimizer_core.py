@@ -82,7 +82,7 @@ class TestSplitTasks:
         assert len(split.sel) == 4
         assert len(split.opt) == 6
 
-    def test_inexact_float_text_rounds_half_up_from_decimal_ratio(self):
+    def test_string_ratio_rounds_half_up_via_decimal_parsing(self):
         split = split_tasks(_ids(25), seed="s", sel_ratio="0.58", min_sel=0)
         assert len(split.sel) == 15
         assert len(split.opt) == 10
@@ -188,6 +188,11 @@ class TestSplitTasks:
     def test_rejects_invalid_decimal_sel_ratio(self, ratio):
         with pytest.raises(ValueError, match="sel_ratio"):
             split_tasks(_ids(20), seed="s", sel_ratio=ratio)
+
+    @pytest.mark.parametrize("ratio", ["nan", "Infinity", "not-a-ratio"])
+    def test_rejects_invalid_decimal_test_ratio(self, ratio):
+        with pytest.raises(ValueError, match="test_ratio"):
+            split_tasks(_ids(20), seed="s", test_ratio=ratio)
 
     @pytest.mark.parametrize("ratio", [-0.1, 1.0, 1.5])
     def test_rejects_out_of_range_test_ratio(self, ratio):

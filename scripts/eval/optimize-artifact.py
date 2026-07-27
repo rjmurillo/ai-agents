@@ -223,10 +223,10 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
             compatible_fingerprints.add(
                 _legacy_numeric_split_fingerprint(
-                tasks,
-                seed=seed,
-                sel_ratio=float(raw_sel_ratio),
-                test_ratio=float(raw_test_ratio),
+                    tasks,
+                    seed=seed,
+                    sel_ratio=float(raw_sel_ratio),
+                    test_ratio=float(raw_test_ratio),
                 )
             )
     except (TypeError, ValueError) as exc:
