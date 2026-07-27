@@ -44,6 +44,16 @@ _SIBLING_FILE_NAMESPACES: tuple[tuple[tuple[str, ...], bool], ...] = (
 _SKILL_REFERENCE_DIR = "references"
 
 
+def skills_dir(repo_root: Path) -> Path:
+    """Return the skill catalog directory inside ``repo_root``.
+
+    Single source of truth for the catalog location. ``repo_root`` is the
+    scanned repository (the consumer's cwd), never this script's own install
+    root, so the path stays correct in a vendored plugin.
+    """
+    return repo_root / ".claude" / "skills"
+
+
 def enumerate_skills(repo_root: Path) -> set[str] | None:
     """Return the set of skill names found at ``.claude/skills/<name>/SKILL.md``.
 
@@ -51,12 +61,12 @@ def enumerate_skills(repo_root: Path) -> set[str] | None:
     directory so callers can distinguish "no directory" (undeterminable)
     from "directory with zero skills" (deterministic count of zero).
     """
-    skills_dir = repo_root / ".claude" / "skills"
-    if not skills_dir.exists() or not skills_dir.is_dir():
+    catalog = skills_dir(repo_root)
+    if not catalog.exists() or not catalog.is_dir():
         return None
     return {
         d.name
-        for d in skills_dir.iterdir()
+        for d in catalog.iterdir()
         if d.is_dir() and (d / "SKILL.md").exists()
     }
 
@@ -80,9 +90,9 @@ def enumerate_sibling_artifacts(repo_root: Path) -> frozenset[str]:
         globber = directory.rglob if recursive else directory.glob
         names.update(p.stem for p in globber("*.md") if p.is_file())
 
-    skills_dir = repo_root / ".claude" / "skills"
-    if skills_dir.is_dir():
-        for skill_dir in skills_dir.iterdir():
+    catalog = skills_dir(repo_root)
+    if catalog.is_dir():
+        for skill_dir in catalog.iterdir():
             references = skill_dir / _SKILL_REFERENCE_DIR
             if not references.is_dir():
                 continue

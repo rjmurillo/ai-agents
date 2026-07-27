@@ -95,6 +95,11 @@ def write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def skill_dir(repo: Path, name: str) -> Path:
+    """Locate a skill directory the fixture created, without restating the layout."""
+    return next(p.parent for p in repo.rglob("SKILL.md") if p.parent.name == name)
+
+
 # ---------- extractor unit tests ----------
 
 
@@ -1043,7 +1048,7 @@ def sibling_repo(fake_repo: Path) -> Path:
     """Extend fake_repo with one artifact in each sibling namespace."""
     write(fake_repo / ".claude" / "commands" / "ship-it.md", "# command\n")
     write(
-        fake_repo / ".claude" / "skills" / "alpha-skill" / "references" / "decision-rigor.md",
+        skill_dir(fake_repo, "alpha-skill") / "references" / "decision-rigor.md",
         "# review axis\n",
     )
     write(
@@ -1068,8 +1073,8 @@ def test_enumerate_sibling_artifacts_empty_when_namespaces_absent(tmp_path):
     ["agent-one", "ship-it", "decision-rigor", "testing-002-test-first"],
 )
 def test_sibling_namespace_reference_yields_no_finding(sibling_repo, token, capsys):
-    write(sibling_repo / ".agents" / "specs" / "s.md", f"Mentions `{token}` in prose.\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    write(sibling_repo / "notes" / "s.md", f"Mentions `{token}` in prose.\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
 
@@ -1077,10 +1082,10 @@ def test_sibling_namespace_reference_yields_no_finding(sibling_repo, token, caps
 def test_sibling_resolution_does_not_mask_a_real_orphan(sibling_repo, capsys):
     """Negative control: resolution must not suppress a genuinely dead skill."""
     write(
-        sibling_repo / ".agents" / "specs" / "s.md",
+        sibling_repo / "notes" / "s.md",
         "Live `alpha-skill`, agent `agent-one`, dead `ghost-skill`.\n",
     )
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     out = capsys.readouterr().out
     assert rc == 1
     assert "ghost-skill" in out
@@ -1099,8 +1104,8 @@ def test_check_skill_refs_defaults_to_previous_behavior():
 @pytest.mark.parametrize("token", ["keep-as-agent", "context-fork-skill", "co-change-checklist"])
 def test_classification_verdict_literals_are_denylisted(fake_repo, token, capsys):
     """REQ-011/TASK-011 verdict enums and spec section templates are not skills."""
-    write(fake_repo / ".agents" / "specs" / "s.md", f"Set `verdict = {token}` here.\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(fake_repo)])
+    write(fake_repo / "notes" / "s.md", f"Set `verdict = {token}` here.\n")
+    rc = main(["--targets", "notes", "--repo-root", str(fake_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
 
@@ -1113,8 +1118,8 @@ def test_typed_skill_reference_does_not_resolve_to_a_sibling(sibling_repo, capsy
     first cut of sibling resolution got wrong: it traded a false positive for
     a wrong pass.
     """
-    write(sibling_repo / ".agents" / "specs" / "s.md", "Use the `agent-one` skill.\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    write(sibling_repo / "notes" / "s.md", "Use the `agent-one` skill.\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     out = capsys.readouterr().out
     assert rc == 1
     assert "agent-one" in out
@@ -1132,8 +1137,8 @@ def test_typed_skill_reference_does_not_resolve_to_a_sibling(sibling_repo, capsy
 )
 def test_type_claim_shapes_all_force_strict_resolution(sibling_repo, prose, capsys):
     """Every shape that asserts skill-ness must bypass sibling resolution."""
-    write(sibling_repo / ".agents" / "specs" / "s.md", prose + "\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    write(sibling_repo / "notes" / "s.md", prose + "\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 1
     assert "decision-rigor" in capsys.readouterr().out
 
@@ -1152,8 +1157,8 @@ def test_plural_skills_prose_is_not_a_type_claim(sibling_repo, prose, capsys):
     Treating it as a type claim turns the /build gate red on sentences that
     name no artifact at all.
     """
-    write(sibling_repo / ".agents" / "specs" / "s.md", prose + "\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    write(sibling_repo / "notes" / "s.md", prose + "\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
 
@@ -1165,15 +1170,15 @@ def test_type_claim_is_honored_without_any_sibling_namespace(fake_repo, capsys):
     would silently drop the check in exactly the install shape the fallback
     was written for.
     """
-    write(fake_repo / ".agents" / "specs" / "s.md", "Invoke the `ghost` skill.\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(fake_repo)])
+    write(fake_repo / "notes" / "s.md", "Invoke the `ghost` skill.\n")
+    rc = main(["--targets", "notes", "--repo-root", str(fake_repo)])
     assert rc == 1
     assert "ghost" in capsys.readouterr().out
 
 
 def test_type_claim_on_a_living_skill_still_passes(sibling_repo, capsys):
     """Strict resolution must not flag a typed reference to a real skill."""
-    write(sibling_repo / ".agents" / "specs" / "s.md", "Use the `alpha-skill` skill.\n")
-    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    write(sibling_repo / "notes" / "s.md", "Use the `alpha-skill` skill.\n")
+    rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
