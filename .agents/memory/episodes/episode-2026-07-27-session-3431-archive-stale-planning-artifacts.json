@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
       "caused_by": [
-        "e015"
+        "e018"
       ],
       "leads_to": [
         "e002"
@@ -181,7 +181,7 @@
         "e014"
       ],
       "leads_to": [
-        "e001"
+        "e018"
       ]
     },
     {
@@ -205,6 +205,18 @@
         "e016"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c40fc2b3",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -212,7 +224,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 110
   },
   "lessons": []

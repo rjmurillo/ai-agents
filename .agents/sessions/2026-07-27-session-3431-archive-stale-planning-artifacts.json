@@ -172,7 +172,7 @@
       "outcome": "Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c40fc2b3",
   "nextSteps": [
     "Re-run build/scripts/validate_planning_artifacts.py and scripts/validation/pre_pr.py",
     "Open the PR against #3431 and confirm CI is green"
