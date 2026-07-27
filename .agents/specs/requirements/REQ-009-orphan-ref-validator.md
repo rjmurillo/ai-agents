@@ -17,6 +17,14 @@ author: richard
 
 # REQ-009: Orphan-Ref Validator Skill
 
+> [!IMPORTANT]
+> **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> PR #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Nothing validates embedded count claims today: the scanner's own
+> count subsystem was also retired in PR #2853 (commit `9c88990b77`).
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality
@@ -29,13 +37,13 @@ Bot reviewers (copilot, coderabbit, cursor, devin) flag orphan refs at `/pr-qual
 
 ### Q3 Desperate Specificity
 
-M2 PR (#1946 session-qa-eligibility fold), the next planned PR. Spec/plan files for M2 reference `session`, `session-qa-eligibility`, `session-migration` skills, all of which mutate during M2 execution. Without pre-commit detection, M2 will repeat PR #1942's iteration cost.
+M2 PR (#1946 session-qa-eligibility fold), the next planned PR. Spec/plan files for M2 reference `session`, `session-qa-eligibility`, `session-migration` skills, all of which mutate during M2 execution. Without pre-commit detection, M2 will repeat PR #1942's iteration cost. <!-- orphan-ref-ignore -->
 
 ### Q4 Narrowest Wedge
 
 Original wedge: skill detecting skill-name orphan refs in plugin manifest + skill descriptions only (subset of AC2 + AC4). 4-6 hours implementation.
 
-**Wedge revision (documented at /spec critic 9c, then expanded again during PR #1979 review)**: PR1 ships all eight ACs (AC1 through AC8). AC4 emission is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; orphan-ref-validator extracts claims via regex but emits no Findings (deduplication, not divergence). The opt-in `--enforce-counts` single-plugin emission path and the `/test` Gate 5 wiring are tracked in the "PR2 follow-up" section below; they are not ACs of PR1.
+**Wedge revision (documented at /spec critic 9c, then expanded again during PR #1979 review)**: PR1 ships all eight ACs (AC1 through AC8). AC4 emission is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; orphan-ref-validator extracts claims via regex but emits no Findings (deduplication, not divergence). The opt-in `--enforce-counts` single-plugin emission path and the `/test` Gate 5 wiring are tracked in the "PR2 follow-up" section below; they are not ACs of PR1. <!-- orphan-ref-ignore -->
 
 ### Q5 Observation
 
@@ -62,7 +70,7 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 - [ ] REQ-009-AC1: WHEN `/build` ships, THE SYSTEM SHALL provide `.claude/skills/orphan-ref-validator/` with `SKILL.md` (frontmatter + body, ≤500 lines), `.claude/skills/orphan-ref-validator/scripts/scan.py`, and `.claude/skills/orphan-ref-validator/tests/test_scan.py`, SO THAT the skill is discoverable, executable, and testable.
 - [ ] REQ-009-AC2: WHEN a scan target file mentions a backticked kebab-case identifier matching `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen) absent from `.claude/skills/`, THE SYSTEM SHALL emit `Finding(kind=skill_name, severity=critical, file, line)`, SO THAT skill-description staleness is detected. Single-token names (no hyphens) and trailing-hyphen tokens are not matched. <!-- orphan-ref-ignore -->
 - [ ] REQ-009-AC3: WHEN a scan target references a script path matching `(build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py` absent on disk, THE SYSTEM SHALL emit `Finding(kind=script_path, severity=critical, file, line)`, SO THAT unenforceable AC strings are detected.
-- [ ] REQ-009-AC4: WHEN plugin manifest count claims (matching the canonical `COUNT_PATTERN` from `build/scripts/validate_marketplace_counts.py`: `"<N> agent[s]"`, `"<N> slash command[s]"`, `"<N> lifecycle hook[s]"`, `"<N> reusable skill[s]"`, plus `"<N> specialized agent definition[s]"` / `"<N> agent definition[s]"`) appear in plugin or marketplace manifests, THE SYSTEM SHALL extract them via `extract_count_claims` so the regex shape and label map mirror canonical byte-for-byte. **Emission of `Finding(kind=count_claim)` is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`.** PR1 ships extraction only; an opt-in `--enforce-counts` flag (`scan_file(enforce_counts=True)`) is reserved for PR2 single-plugin enforcement. The canonical's YAML-driven per-plugin source-dir resolution and `--fix` path are not duplicated here.
+- [ ] REQ-009-AC4: WHEN plugin manifest count claims (matching the canonical `COUNT_PATTERN` from `build/scripts/validate_marketplace_counts.py`: `"<N> agent[s]"`, `"<N> slash command[s]"`, `"<N> lifecycle hook[s]"`, `"<N> reusable skill[s]"`, plus `"<N> specialized agent definition[s]"` / `"<N> agent definition[s]"`) appear in plugin or marketplace manifests, THE SYSTEM SHALL extract them via `extract_count_claims` so the regex shape and label map mirror canonical byte-for-byte. **Emission of `Finding(kind=count_claim)` is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`.** PR1 ships extraction only; an opt-in `--enforce-counts` flag (`scan_file(enforce_counts=True)`) is reserved for PR2 single-plugin enforcement. The canonical's YAML-driven per-plugin source-dir resolution and `--fix` path are not duplicated here. <!-- orphan-ref-ignore -->
 - [ ] REQ-009-AC5: WHEN scan completes, THE SYSTEM SHALL emit ADR-056 envelope `{Success, Data: {findings, verdict, counts}, Error, Metadata}` to stdout followed by a final line `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` (where `ERROR` accompanies exit code 2 configuration failures and a populated `Error` block per the skill-output schema), SO THAT downstream gates parse machine-readable output.
 - [ ] REQ-009-AC6: WHEN a target path is absent (vendored-install scenario where `.agents/`, `.serena/`, `.github/` may not exist), THE SYSTEM SHALL log INFO `skipping <path>: not present` and continue, NOT raise, SO THAT the skill survives vendored deployment.
 - [ ] REQ-009-AC7: WHEN `/build` runs Mandatory Exit Gates, THE SYSTEM SHALL invoke `orphan-ref-validator` and block on CRITICAL_FAIL, SO THAT orphans cannot pass `/build`.
@@ -73,7 +81,7 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 These items are intentionally out of scope for PR1 and are tracked as PR2 work in `TASK-009`:
 
 - `/test` Gate 5 (DX) wiring: when `/test` runs Gate 5, invoke `orphan-ref-validator` and surface findings in the test summary. PR2 will add the wiring to `.claude/commands/test.md`.
-- `--enforce-counts` opt-in flag: PR1 ships count_claim regex extraction only; emission is delegated to `build/scripts/validate_marketplace_counts.py`. PR2 will add a single-plugin enforcement path under `--enforce-counts` for consumers that want orphan-ref-validator to emit `Finding(kind=count_claim)` directly.
+- `--enforce-counts` opt-in flag: PR1 ships count_claim regex extraction only; emission is delegated to `build/scripts/validate_marketplace_counts.py`. PR2 will add a single-plugin enforcement path under `--enforce-counts` for consumers that want orphan-ref-validator to emit `Finding(kind=count_claim)` directly. <!-- orphan-ref-ignore -->
 
 ## Rationale
 
@@ -86,7 +94,7 @@ These items are intentionally out of scope for PR1 and are tracked as PR2 work i
 - ADR-056 (skill output envelope) -- required envelope shape.
 - ADR-035 (exit codes) -- 0/1/2 standardization.
 - ADR-042 (Python-first) -- scan.py is Python.
-- `build/scripts/validate_marketplace_counts.py` -- existing reference for count-claim parsing patterns.
+- `build/scripts/validate_marketplace_counts.py` -- existing reference for count-claim parsing patterns. <!-- orphan-ref-ignore -->
 - `build/scripts/validate_plugin_manifests.py` -- existing reference for manifest enumeration patterns.
 
 ## Deferred
