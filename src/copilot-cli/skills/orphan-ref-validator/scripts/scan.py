@@ -50,6 +50,7 @@ OPT_IN_SKILL_TARGETS = (
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from counts import (
+        enumerate_sibling_artifacts,
         enumerate_skills,
     )
     from envelope import (
@@ -66,10 +67,12 @@ if __package__ in (None, ""):
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
+        extract_typed_skill_refs,
     )
     from walking import walk_targets
 else:
     from .counts import (
+        enumerate_sibling_artifacts,
         enumerate_skills,
     )
     from .envelope import (
@@ -86,6 +89,7 @@ else:
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
+        extract_typed_skill_refs,
     )
     from .walking import walk_targets
 
@@ -118,6 +122,7 @@ def scan_file(
     repo_root: Path,
     known_skills: set[str],
     skill_catalog_present: bool = True,
+    sibling_names: frozenset[str] | None = None,
 ) -> tuple[list[Finding], int]:
     """Scan one file. Returns findings and count of refs checked.
 
@@ -127,6 +132,11 @@ def scan_file(
 
     ``skill_catalog_present`` distinguishes "no skills directory exists"
     (warn) from "empty catalog" (critical).
+
+    ``sibling_names`` holds non-skill artifact names (agents, commands,
+    review axes, Serena memories) that a backticked token may legally
+    reference; see ``enumerate_sibling_artifacts``. Defaults to empty so
+    existing callers keep the previous behavior.
     """
     findings: list[Finding] = []
     refs_checked = 0
@@ -144,7 +154,7 @@ def scan_file(
         return findings, refs_checked
 
     skill_findings, skill_refs = _check_skill_refs(
-        text, rel, known_skills, skill_catalog_present
+        text, rel, known_skills, skill_catalog_present, sibling_names
     )
     findings.extend(skill_findings)
     refs_checked += skill_refs
@@ -163,7 +173,11 @@ def scan_file(
 
 
 def _check_skill_refs(
-    text: str, rel: str, known_skills: set[str], skill_catalog_present: bool
+    text: str,
+    rel: str,
+    known_skills: set[str],
+    skill_catalog_present: bool,
+    sibling_names: frozenset[str] | None = None,
 ) -> tuple[list[Finding], int]:
     """Emit skill_name findings for orphaned skill references.
 
@@ -177,23 +191,43 @@ def _check_skill_refs(
       absent). Arbitrary backticked English words are ignored, so widening
       detection to no-hyphen names does not flood false positives (issue
       #2679).
+
+    A token that resolves in ``sibling_names`` names a real non-skill
+    artifact (agent, slash command, review axis, Serena memory) and is not
+    an orphan. Without that check the scanner reported prose mentions of
+    ``decision-rigor`` (a review axis) and
+    ``testing-002-test-first-development`` (a memory) as deleted skills, and
+    the only remedy was appending each token to ``KEBAB_DENYLIST`` by hand.
+    Resolution replaces that unbounded denylist with a bounded lookup.
+
+    Sibling resolution applies only to references that make no type claim.
+    When the prose explicitly calls the token a skill ("the ``ship`` skill",
+    ``skill="ship"``), REQ-009 AC-2 governs and the token must resolve
+    against ``.claude/skills/`` alone: a same-named agent or memory does not
+    make the sentence true. Skipping that distinction would trade a false
+    positive for a wrong pass.
     """
     findings: list[Finding] = []
     refs_checked = 0
+    siblings = sibling_names if sibling_names is not None else frozenset()
+    typed = extract_typed_skill_refs(text)
     for lineno, ref in extract_skill_refs(text):
         if _is_known_kebab_word(ref):
             continue
         refs_checked += 1
         if ref in known_skills:
             continue
+        if ref in siblings and (lineno, ref) not in typed:
+            continue
         findings.append(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     for lineno, ref in extract_single_word_skill_refs(text):
-        if ref in known_skills:
+        is_typed = (lineno, ref) in typed
+        if ref in known_skills or (ref in siblings and not is_typed):
             refs_checked += 1
             continue
-        if not _is_known_single_word_skill(ref):
+        if not is_typed and not _is_known_single_word_skill(ref):
             continue
         refs_checked += 1
         findings.append(
@@ -443,6 +477,7 @@ def scan(
     skills = enumerate_skills(repo_root)
     skill_catalog_present = skills is not None
     known_skills: set[str] = skills if skills is not None else set()
+    sibling_names = enumerate_sibling_artifacts(repo_root)
     result = ScanResult()
     for target in targets:
         expanded = _expand_target(target, repo_root)
@@ -470,6 +505,7 @@ def scan(
                     repo_root,
                     known_skills,
                     skill_catalog_present=skill_catalog_present,
+                    sibling_names=sibling_names,
                 )
                 if baseline:
                     findings = _suppress_baselined(findings, baseline)
