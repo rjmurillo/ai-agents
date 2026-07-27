@@ -208,6 +208,85 @@ class TestExtract:
         assert code == EXIT_OK
         assert out == {"S1": True}
 
+    def test_rule_extract_refuses_errored_mechanism(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "error": "model timeout",
+                            "scores": {
+                                "activation_score": 0,
+                                "citation_score": 0,
+                                "behavior_score": 0,
+                            },
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_clean_report_succeeds(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S2",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 4,
+                                "behavior_score": 5,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_OK
+        assert out == {"S2": True}
+
+    def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
+        envelope = {
+            "rules": {
+                "refactoring": {
+                    "summary": {"verdict": "FAIL_JUDGE_ERRORS"},
+                    "scenarios": [
+                        {
+                            "id": "S3",
+                            "negative_case": False,
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 0,
+                                        "citation_score": 0,
+                                        "behavior_score": 0,
+                                        "judge_failed": True,
+                                    }
+                                }
+                            },
+                        }
+                    ],
+                }
+            }
+        }
+        path = _write(tmp_path, "rules.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "refactoring::S3" in out["error"]
+
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
         """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
         scenarios = _write(
