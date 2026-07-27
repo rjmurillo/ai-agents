@@ -96,6 +96,18 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Remove em-dash from causal-graph node label",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": []
     }
   ],

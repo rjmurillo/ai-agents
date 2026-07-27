@@ -127,6 +127,10 @@
     {
       "task": "Repair causal-graph node IDs after merge from main",
       "outcome": "scripts/maintenance/repair_causal_graph_ids.py repaired 6 stale node IDs and folded 6 duplicates. Test test_every_node_carries_an_id_derived_from_its_own_content now passes."
+    },
+    {
+      "task": "Remove em-dash from causal-graph node label",
+      "outcome": "Replaced Unicode em-dash (U+2014) with hyphen in one node label, repaired 7 node IDs. Repo dash-prohibition gate satisfied."
     }
   ],
   "endingCommit": "0fd7210a81",

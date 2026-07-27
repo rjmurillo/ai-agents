@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T04:14:10.334578+00:00",
+  "updated": "2026-07-27T04:49:49.798423+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -1596,9 +1596,9 @@
       "created": "2026-06-02T04:20:23.791178+00:00"
     },
     {
-      "id": "734655ae5e70",
+      "id": "980a6a1b929d",
       "type": "milestone",
-      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
+      "label": "milestone: Assessed worktree  - partial changes already applied from prior session attempt",
       "episodes": [
         "episode-2026-03-09-session-1195"
       ],
@@ -2010,9 +2010,9 @@
       "created": "2026-06-02T04:20:23.791886+00:00"
     },
     {
-      "id": "9b951132455c",
+      "id": "ec1507b9ce0c",
       "type": "decision",
-      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2028,9 +2028,9 @@
       "created": "2026-06-02T04:20:23.791963+00:00"
     },
     {
-      "id": "dbf92401f9f0",
+      "id": "3d95ae6a68bc",
       "type": "decision",
-      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2082,9 +2082,9 @@
       "created": "2026-06-02T04:20:23.792022+00:00"
     },
     {
-      "id": "a521a8822e11",
+      "id": "adca69679015",
       "type": "milestone",
-      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2145,18 +2145,18 @@
       "created": "2026-06-02T04:20:23.792092+00:00"
     },
     {
-      "id": "2ebc20812a9e",
+      "id": "59a0afea2e4c",
       "type": "decision",
-      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
       "created": "2026-06-02T04:20:23.792454+00:00"
     },
     {
-      "id": "1d01daa399d3",
+      "id": "156510390f6c",
       "type": "milestone",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2199,9 +2199,9 @@
       "created": "2026-06-02T04:20:23.792550+00:00"
     },
     {
-      "id": "dfbe42de5fde",
+      "id": "28cf7727026e",
       "type": "decision",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -20599,6 +20599,15 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:14:10.328915+00:00"
+    },
+    {
+      "id": "b95a155891d7",
+      "type": "milestone",
+      "label": "milestone: Remove em-dash from causal-graph node label",
+      "episodes": [
+        "episode-2026-07-26-session-2615"
+      ],
+      "created": "2026-07-27T04:49:49.793110+00:00"
     }
   ],
   "patterns": [
@@ -23793,8 +23802,8 @@
       ]
     },
     {
-      "source": "2ebc20812a9e",
-      "target": "1d01daa399d3",
+      "source": "59a0afea2e4c",
+      "target": "156510390f6c",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
@@ -23890,7 +23899,7 @@
     },
     {
       "source": "c2f50a8595d5",
-      "target": "1d01daa399d3",
+      "target": "156510390f6c",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
@@ -24067,8 +24076,8 @@
       ]
     },
     {
-      "source": "dfbe42de5fde",
-      "target": "1d01daa399d3",
+      "source": "28cf7727026e",
+      "target": "156510390f6c",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
