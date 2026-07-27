@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:16:42.518057+00:00",
+  "updated": "2026-07-27T16:42:17.467551+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22023,6 +22023,60 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "d95b860f8416",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461342+00:00"
+    },
+    {
+      "id": "607d6b95bac4",
+      "type": "milestone",
+      "label": "milestone: Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461431+00:00"
+    },
+    {
+      "id": "994ee588e9ed",
+      "type": "milestone",
+      "label": "milestone: Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461513+00:00"
+    },
+    {
+      "id": "5ff42ce513f2",
+      "type": "milestone",
+      "label": "milestone: Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461591+00:00"
+    },
+    {
+      "id": "ebe3e828f792",
+      "type": "milestone",
+      "label": "milestone: Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461675+00:00"
+    },
+    {
+      "id": "089005f392df",
+      "type": "commit",
+      "label": "commit: Commit: 3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461754+00:00"
     }
   ],
   "patterns": [

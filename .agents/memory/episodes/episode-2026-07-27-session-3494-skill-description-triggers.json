@@ -83,7 +83,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "test",
       "content": "Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
-      "caused_by": [],
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -132,7 +134,77 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140.",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
     }
   ],
   "metrics": {
@@ -140,7 +212,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []

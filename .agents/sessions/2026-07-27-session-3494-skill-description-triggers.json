@@ -79,17 +79,17 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "npx markdownlint-cli2 run scoped to the changed files reported 'Summary: 0 issues in 0 files'; the one changed Markdown file is under .serena/, which .markdownlint-cli2.yaml excludes"
+        "evidence": "markdownlint-cli2 over the 24 changed Markdown files linted zero of them. .markdownlint-cli2.yaml excludes .claude/skills/** and src/copilot-cli/skills/** outright, so every file this branch touches is outside the linter's scope. Read the '0 issues in 0 files' summary as 'not covered', not as 'passed'."
       },
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Five commits on this branch: fix(validation): anchor upstream path patterns at a real boundary; docs(session): log the portability boundary fix and its decision memory; docs(session): record the ending commit for session 3471; docs(session): correct new-test-case counts to the measured values; fix(validation): anchor upstream path matching to a real start of context. Verified with git rev-list --count $(git merge-base origin/main HEAD)..HEAD, which returns 5."
+        "evidence": "Twelve skills promoted to the trigger-phrase standard, each mirrored to src/copilot-cli, plus both plugin manifests bumped to 0.6.141. git diff --name-only origin/main...HEAD lists 28 files: 24 SKILL.md, 2 plugin.json, 2 session-record files."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 93 passed; uv run python scripts/validation/check_skill_md_portability.py reported no drift and exited 0; uv run ruff check on both changed files passed; validate_plugin_version_bump.py --base origin/main returned OK with no bump required, because the branch touches only scripts/, tests/, .agents/ and .serena/."
+        "evidence": "Measured on this branch, not carried over from another session. build/scripts/validate_plugin_version_bump.py --base origin/main exited 0 with 'plugin-version-bump: OK'. A bump WAS required here, because the branch touches the .claude/ and src/copilot-cli/ plugin roots; both manifests moved to 0.6.141. check_skill_md_portability.py exited 0, no drift. check_skill_md_exec_portability.py exited 0, 290 grandfathered invocations across 66 files against a baseline of 306."
       },
       "tasksUpdated": {
         "complete": true,
@@ -150,7 +150,7 @@
       "step": "Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
   "nextSteps": [
     "19 skills still have no genuine quoted user phrase from their own trigger table. #3496 covers two of them that cannot be edited until their structural errors are fixed.",
     "#3496 tracks the observability and taste-lints structural failures, independently reproduced by the reviewer against unmodified main.",
