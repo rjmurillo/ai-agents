@@ -24,4 +24,4 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | ADR-006 amendment scope and conditions | `.agents/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .agents/architecture/ADR-006-thin-workflows-testable-modules.md` |
 | Hook-install check rationale | `scripts/validation/checks_plugin.py:127-134` | `grep -n "def validate_git_hooks_installed" scripts/validation/checks_plugin.py` |
 
-Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires a `.claude/.claude-plugin/plugin.json` bump.
+Maintenance rule: any edit to a cited source line number, plugin version, or ADR status invalidates the matching row. Re-run the re-verify command and update the row in the same commit. This file is plugin content; editing it requires bumping both `.claude/.claude-plugin/plugin.json` and `src/copilot-cli/.claude-plugin/plugin.json` (parity enforced by `build/scripts/validate_plugin_version_bump.py`).
