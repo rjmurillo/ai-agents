@@ -105,6 +105,10 @@
     {
       "action": "Committed ADR prose batch 2",
       "result": "ADR-062 and ADR-081 stale hook names now carry retirement context."
+    },
+    {
+      "action": "Committed ADR prose batch 3",
+      "result": "ADR-082 and ADR-084 references now distinguish past hook membership from current enforcement."
     }
   ],
   "endingCommit": "",

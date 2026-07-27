@@ -207,7 +207,7 @@ Negative, accepted:
   dedupe, not a security boundary: project hook configuration is trusted code
   that can already execute arbitrary commands. The coverage-invariant test
   protects this publishing repo, not consumers or forks.
-- Consumers still receive `invoke_session_start_memory_first.py` through
+- Consumers previously received `invoke_session_start_memory_first.py` through
   the plugin (membership frozen here); pruning it for consumers is a
   follow-up plugin change.
 - Group membership exists on three surfaces (dispatch manifest, settings,

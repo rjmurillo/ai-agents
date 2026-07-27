@@ -60,6 +60,18 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR prose batch 3",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": []
     }
   ],
