@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-27-session-3449-orphan-ref-historical-directives",
+  "session": "2026-07-27-session-3449-orphan-ref-historical-directives",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Turn the orphan-ref shipping gate green without hiding a real defect: annotate the specs whose dependencies were retired, rather than rewriting their history or silently silencing live contracts",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: df5bb158c4dda1be25b9b2cd96f68b91c1326bb8",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 24
+  },
+  "lessons": []
+}

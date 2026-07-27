@@ -19,5 +19,5 @@ Created `scripts/traceability/TraceabilityCache.psm1` with:
 ## Files Changed
 
 - `scripts/traceability/TraceabilityCache.psm1` (new)
-- `scripts/Validate-Traceability.ps1` (modified)
+- `scripts/Validate-Traceability.ps1` (modified) <!-- orphan-ref-ignore -->
 - `tests/Validate-Traceability.Tests.ps1` (new)
