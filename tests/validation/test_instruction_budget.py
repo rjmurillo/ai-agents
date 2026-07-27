@@ -101,6 +101,15 @@ def test_parse_applyto_duplicate_key_raises() -> None:
         ib.parse_applyto(text)
 
 
+def test_parse_applyto_unhashable_key_raises() -> None:
+    # A YAML complex key ('? [a, b]') builds an unhashable dict key. The strict
+    # loader must surface that as a config error (exit 2), not let a raw
+    # 'key in mapping' membership test raise an uncaught TypeError (exit 1).
+    text = "---\napplyTo: '**/*.py'\n? [a, b]\n: c\n---\nbody\n"
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib.parse_applyto(text)
+
+
 def test_parse_applyto_expands_brace_group() -> None:
     # A leading '**' forces quoting in YAML, so the realistic brace form is
     # quoted; an unquoted '**/*.{...}' is invalid YAML the harness would reject.
@@ -171,6 +180,11 @@ def test_is_language_universal_normalizes_equivalent_globs() -> None:
     # A doubled star inside the filename segment alone is root-only (no leading
     # globstar), so it is NOT the always-on baseline, matching bare '*.py'.
     assert ib.is_language_universal({"**.py"}, ".py") is False
+    # A bare '*' is root-only too (minimatch '*' does not cross '/'), so a rule
+    # scoped '*' does not load when editing a nested file: not always-on. This
+    # is the same deliberate decision as '*.py' above, recorded so a future
+    # "but '*' means all files" change is a conscious one, not an accident.
+    assert ib.is_language_universal({"*"}, ".py") is False
     assert ib._normalize_glob("**/**/*.py") == "**/*.py"
     assert ib._normalize_glob("**/**.py") == "**/*.py"
     assert ib._normalize_glob("**/**") == "**"

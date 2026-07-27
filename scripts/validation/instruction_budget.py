@@ -37,6 +37,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Hashable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,6 +93,13 @@ def _construct_unique_mapping(
     mapping: dict[object, object] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
+        # SafeLoader.construct_mapping rejects an unhashable key (a YAML complex
+        # key such as ``? [a, b]``) with a ConstructorError; the raw ``key in
+        # mapping`` below would instead raise an uncaught TypeError and escape as
+        # exit 1. Guard it so malformed frontmatter fails closed as exit 2.
+        if not isinstance(key, Hashable):
+            msg = f"unhashable key in frontmatter: {key!r}"
+            raise UnsupportedApplyToError(msg)
         if key in mapping:
             msg = f"duplicate key {key!r} in frontmatter"
             raise UnsupportedApplyToError(msg)
