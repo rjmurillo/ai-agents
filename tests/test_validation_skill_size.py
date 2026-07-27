@@ -729,21 +729,39 @@ class TestStagedBlobValidation:
         # decoy; the cat-file (already --no-replace-objects) then reads the
         # decoy's small bytes -> under-count (exit 0). ``ls-files`` must also run
         # with --no-replace-objects. Reproduced on git 2.43.
+        # Make this test's git environment hermetic so no inherited
+        # configuration can disable replace refs and turn the setup guard's
+        # skip into a silent mask over a real regression. git honors
+        # refs/replace/ unless replace is disabled, and replace can be disabled
+        # through several channels that each outrank or redirect repo-local
+        # config:
+        #   - GIT_NO_REPLACE_OBJECTS: disables replace outright.
+        #   - GIT_CONFIG_PARAMETERS and the GIT_CONFIG_COUNT/KEY_*/VALUE_* trio:
+        #     command-scope (-c) config injection that outranks repo-local
+        #     core.useReplaceRefs. Clearing GIT_CONFIG_COUNT neutralizes the
+        #     indexed trio (git reads only up to COUNT).
+        #   - GIT_CONFIG: redirects the ``git config`` write below so it never
+        #     reaches repo-local .git/config.
+        #   - GIT_REPLACE_REF_BASE: moves where replace refs are read from, so a
+        #     later read would not honor the decoy ``git replace`` written here.
+        #   - core.useReplaceRefs=false in global or system config.
+        # Clear every env channel and redirect global/system config at a
+        # nonexistent file (git reads a missing config as empty); git then falls
+        # back to its default of replace enabled, and the repo-local write below
+        # reinforces it. Sanitize before _init_repo so its identity writes also
+        # land in repo-local .git/config rather than a redirected file.
+        for _var in (
+            "GIT_NO_REPLACE_OBJECTS",
+            "GIT_CONFIG_PARAMETERS",
+            "GIT_CONFIG_COUNT",
+            "GIT_CONFIG",
+            "GIT_REPLACE_REF_BASE",
+        ):
+            monkeypatch.delenv(_var, raising=False)
+        _neutral_cfg = tmp_path / "hermetic-absent.gitconfig"
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(_neutral_cfg))
+        monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(_neutral_cfg))
         self._init_repo(tmp_path)
-        # Harden the environment so an inherited replace-disabling setting
-        # cannot make the setup guard below skip on a capable git build and
-        # silently mask a regression. Three inheritance channels can force
-        # replace refs off and each outranks or bypasses repo-local config:
-        #   - GIT_NO_REPLACE_OBJECTS (env): disables replace outright.
-        #   - core.useReplaceRefs=false in global/system config: repo-local
-        #     core.useReplaceRefs=true (set below) overrides it.
-        #   - command-scope config injection via GIT_CONFIG_PARAMETERS or the
-        #     GIT_CONFIG_COUNT/KEY_*/VALUE_* trio: these are applied at -c
-        #     precedence and would override the repo-local setting, so drop
-        #     them. Clearing GIT_CONFIG_COUNT neutralizes the indexed trio.
-        monkeypatch.delenv("GIT_NO_REPLACE_OBJECTS", raising=False)
-        monkeypatch.delenv("GIT_CONFIG_PARAMETERS", raising=False)
-        monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
         subprocess.run(
             ["git", "config", "core.useReplaceRefs", "true"],
             cwd=tmp_path,
