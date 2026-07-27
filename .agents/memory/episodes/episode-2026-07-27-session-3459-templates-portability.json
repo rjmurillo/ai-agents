@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-07-27-session-3459-templates-portability",
+  "session": "2026-07-27-session-3459-templates-portability",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Patterns verified to fire on the true positives and stay silent on the four negative shapes",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ac9a29da8",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
