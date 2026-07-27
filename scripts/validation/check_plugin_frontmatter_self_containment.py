@@ -7,10 +7,37 @@ Why this exists separately from ``check_skill_md_portability.py``:
   ``.claude/skills``. Three of the four surfaces the plugin-self-containment
   rule names are outside its scan (``.claude/commands``, ``src/claude``,
   ``src/copilot-cli``), and its pattern set does not include ``docs/``. A
-  ``docs/`` reference added to a shipped frontmatter description in
-  ``.claude/skills`` therefore passed every gate in this repo. That happened:
-  PR #3497 introduced ``docs/agent-metrics.md`` into the ``metrics``
-  description two PRs after the rule shipped in #3443.
+  ``docs/`` reference in a shipped frontmatter description therefore passes
+  every gate in this repository, wherever it sits. Two were sitting in the
+  tree, both far older than the rule that forbids them. ``docs/agent-metrics.md``
+  arrived with the first commit of ``.claude/skills/metrics/SKILL.md``
+  (``625e224ab3``, #255, 2025-12-27) and ``docs/autonomous-pr-monitor.md`` with
+  the ``pr-autofix`` rename (``c70fb06eb5``, #2138, 2026-05-30). The rule
+  forbidding both shipped on 2026-07-26 in #3443 with no validator, so neither
+  moved. Check provenance against the source file, never the generated mirror:
+  the mirror's history begins when the generator first wrote it, which dates
+  the copy rather than the claim.
+
+Measured precision, and the cost of being wrong:
+
+  The gate has no baseline, so a false positive hard-blocks a legitimate
+  change. That claim was tested rather than asserted. Replaying this check
+  over every historical version of every Markdown file in all three plugin
+  roots, 3,687 blobs reachable from ``git rev-list --objects --all``, produces
+  four distinct references and no others: ``docs/autonomous-pr-monitor.md``,
+  ``docs/agent-metrics.md``, ``.agents/governance/golden-principles.md``
+  (declared), and ``scripts/incoherence.py`` in a deprecated skill. All four
+  are real. None resolves for a consumer. Across the 3,909 Markdown files in
+  the current tree the gate reports nothing at all.
+
+  The known theoretical false positive is a description that names a consumer
+  artifact the skill writes rather than reads, such as
+  ``.github/workflows/ci.yml``. The extension test cannot tell those apart
+  from an upstream dependency. That shape has never appeared in a shipped
+  frontmatter in this repository's history, which is why the check is absolute
+  instead of baselined. If one lands, the remedy is a ``vendor-portability``
+  marker naming that path, and a second marker vocabulary is worth adding only
+  once the case is real rather than imagined.
 
 Why frontmatter, and only frontmatter:
 
@@ -18,7 +45,7 @@ Why frontmatter, and only frontmatter:
   whether or not the skill is ever invoked. Body prose is read only on
   invocation. A dangling path in a description is therefore the most-read and
   least-useful kind: the consumer sees it constantly and can never resolve it.
-  Body prose is a far larger surface (1,215 references across 237 files at the
+  Body prose is a far larger surface (2,554 references across 347 files by
   time of writing) that needs per-file classification against the rule's
   three-kind table, so it stays with the existing ratchet and with review.
 
@@ -42,8 +69,16 @@ What counts as a violation:
 
 Opt-out:
 
-  The same ``<!-- vendor-portability: ... -->`` marker the sibling validators
-  honor. A file that legitimately depends on upstream paths declares it.
+  A ``<!-- vendor-portability: ... -->`` marker suppresses a frontmatter
+  reference only when the marker itself names that path. The sibling
+  validators read the marker as a whole-file switch, and for frontmatter that
+  is demonstrably wrong: ``.claude/skills/metrics/SKILL.md`` carries one
+  written about the consumer's ``.agents/`` artifacts, and a whole-file reading
+  lets it silence the unrelated ``docs/agent-metrics.md`` sitting in its own
+  description. The rule states the general form: a whole-file declaration
+  "would also hide a later real regression in the same file". Scoping the
+  opt-out to the path it names keeps the hatch specific and makes it say what
+  it is buying.
 
 No baseline. The surface is four files, two of which are declared, so the
 honest starting point is zero and staying there. A baseline on a surface this
@@ -60,6 +95,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 PLUGIN_ROOTS = (".claude", "src/claude", "src/copilot-cli")
@@ -81,10 +117,12 @@ UPSTREAM_ONLY = (
 # A path under an upstream-only directory that names a file, not a directory.
 # The trailing extension is load-bearing: see the module docstring.
 OUTWARD_FILE = re.compile(
-    r"(?<![\w./-])(?:" + "|".join(UPSTREAM_ONLY) + r")/[\w./-]*\w\.[A-Za-z0-9]{1,5}(?![\w/])"
+    r"(?<![\w./-])(?:\.{1,2}/)?(?:"
+    + "|".join(UPSTREAM_ONLY)
+    + r")/[\w./-]*\w\.[A-Za-z][A-Za-z0-9]{0,4}(?![\w/])"
 )
 
-DECLARATION = re.compile(r"<!--\s*vendor-portability:", re.IGNORECASE)
+DECLARATION = re.compile(r"<!--\s*vendor-portability:(.*?)-->", re.IGNORECASE | re.DOTALL)
 
 # Frontmatter keys whose values reach the consumer before invocation.
 CHECKED_KEYS = ("description", "name")
@@ -131,13 +169,52 @@ def checked_values(text: str) -> list[tuple[int, str, str]]:
     return found
 
 
-def scan_file(path: Path, text: str) -> list[tuple[int, str, str]]:
+def declared_paths(text: str) -> set[str]:
+    """Paths named inside this file's ``vendor-portability`` markers.
+
+    Scoping the opt-out to the paths it names is the difference between an
+    escape hatch and a blanket. A marker written about one dependency must not
+    silence an unrelated one that lands in the same file later.
+    """
+    declared: set[str] = set()
+    for body in DECLARATION.findall(text):
+        declared.update(OUTWARD_FILE.findall(body))
+    return declared
+
+
+def root_shipper(repo_root: Path, root: str) -> Callable[[str], bool]:
+    """True for references that resolve inside the plugin root that ships them.
+
+    Self-containment is a property of a path relative to its own plugin root,
+    not of the directory name. ``src/copilot-cli`` ships its own ``docs/``
+    directory, so ``docs/copilot-instructions.md`` resolves for that plugin's
+    consumer and must not be flagged, while the same string under ``.claude``
+    points at nothing the consumer installed.
+    """
+
+    base = repo_root / root
+
+    def ships(reference: str) -> bool:
+        candidate = reference[2:] if reference.startswith("./") else reference
+        if ".." in candidate.split("/"):
+            return False
+        return (base / candidate).exists()
+
+    return ships
+
+
+def scan_file(
+    path: Path, text: str, ships: Callable[[str], bool] | None = None
+) -> list[tuple[int, str, str]]:
     """Return ``(line_number, key, reference)`` violations for one file."""
-    if DECLARATION.search(text):
-        return []
+    declared = declared_paths(text)
     violations: list[tuple[int, str, str]] = []
     for number, key, value in checked_values(text):
         for reference in OUTWARD_FILE.findall(value):
+            if reference in declared:
+                continue
+            if ships is not None and ships(reference):
+                continue
             violations.append((number, key, reference))
     return violations
 
@@ -160,6 +237,15 @@ def iter_markdown(root: Path) -> list[Path]:
                 continue
             found.append(path)
     return sorted(found)
+
+
+def owning_root(path: Path, repo_root: Path) -> str | None:
+    """The plugin root that ships ``path``, or ``None`` if it is outside them."""
+    relative = path.relative_to(repo_root).as_posix()
+    for name in PLUGIN_ROOTS:
+        if relative.startswith(f"{name}/"):
+            return name
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -188,7 +274,9 @@ def main(argv: list[str] | None = None) -> int:
         except OSError as error:
             print(f"Could not read {path}: {error}", file=sys.stderr)
             return EXIT_CONFIG
-        for number, key, reference in scan_file(path, text):
+        root_name = owning_root(path, root)
+        ships = root_shipper(root, root_name) if root_name else None
+        for number, key, reference in scan_file(path, text, ships):
             violations.append((path, number, key, reference))
 
     if not violations:

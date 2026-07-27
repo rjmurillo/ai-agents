@@ -127,19 +127,65 @@ class TestPrecision:
 
 
 class TestDeclaration:
-    def test_declaration_suppresses_the_file(self) -> None:
-        text = "<!-- vendor-portability: contributor-facing -->\n" + _frontmatter(
-            "Per docs/a.md."
+    """The opt-out is scoped to the path it names, not to the whole file.
+
+    The sibling validators treat the marker as a file-wide switch. That is the
+    hole this class pins: ``.claude/skills/metrics/SKILL.md`` carries a marker
+    written about the consumer's ``.agents/`` artifacts, and a file-wide
+    reading let it silence an unrelated ``docs/agent-metrics.md`` sitting in
+    its own description.
+
+    Every marker in the real tree sits in the body, below the frontmatter, so
+    these fixtures put it there. A marker on line 1 would displace the opening
+    ``---`` and leave the file with no frontmatter to check at all, which is a
+    different property, pinned in ``TestFrontmatterParsing``.
+    """
+
+    @staticmethod
+    def _with_marker(description: str, marker: str) -> str:
+        return _frontmatter(description) + f"\n<!-- vendor-portability: {marker} -->\n"
+
+    def test_declaration_naming_the_path_suppresses_it(self) -> None:
+        text = self._with_marker("Per docs/a.md.", "needs docs/a.md upstream")
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_declaration_naming_a_different_path_does_not_suppress(self) -> None:
+        """The regression. A marker about one dependency must not cover another."""
+        text = self._with_marker("Per docs/agent-metrics.md.", "writes .agents/metrics/out.md")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == [
+            "docs/agent-metrics.md"
+        ]
+
+    def test_declaration_suppresses_only_the_named_path(self) -> None:
+        text = self._with_marker("Per docs/a.md and docs/b.md.", "needs docs/a.md")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/b.md"]
+
+    def test_declaration_is_case_insensitive(self) -> None:
+        text = _frontmatter("Per docs/a.md.") + "\n<!-- Vendor-Portability: docs/a.md -->\n"
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_multi_line_declaration_is_read_whole(self) -> None:
+        """Real markers wrap across lines; a line-scoped regex would miss the path."""
+        text = _frontmatter("Enforces .agents/governance/golden-principles.md.") + (
+            "\n<!-- vendor-portability: declared. This skill enforces the rules\n"
+            "     defined in .agents/governance/golden-principles.md upstream. -->\n"
         )
         assert gate.scan_file(Path("x.md"), text) == []
 
-    def test_declaration_is_case_insensitive(self) -> None:
-        text = "<!-- Vendor-Portability: x -->\n" + _frontmatter("Per docs/a.md.")
-        assert gate.scan_file(Path("x.md"), text) == []
+    def test_a_marker_naming_nothing_suppresses_nothing(self) -> None:
+        text = self._with_marker("Per docs/a.md.", "contributor-facing")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
 
-    def test_declaration_below_the_frontmatter_still_counts(self) -> None:
-        text = _frontmatter("Per docs/a.md.") + "\n<!-- vendor-portability: real -->\n"
-        assert gate.scan_file(Path("x.md"), text) == []
+    def test_declared_paths_collects_across_multiple_markers(self) -> None:
+        text = "<!-- vendor-portability: docs/a.md -->\n<!-- vendor-portability: docs/b.md -->\n"
+        assert gate.declared_paths(text) == {"docs/a.md", "docs/b.md"}
+
+    def test_the_two_real_declared_files_stay_silent(self) -> None:
+        """golden-principles declares the exact path its description names."""
+        root = Path(__file__).resolve().parents[2]
+        for mirror in (".claude", "src/copilot-cli"):
+            path = root / mirror / "skills" / "golden-principles" / "SKILL.md"
+            assert gate.scan_file(path, path.read_text(encoding="utf-8")) == []
 
 
 class TestFrontmatterParsing:
@@ -152,6 +198,12 @@ class TestFrontmatterParsing:
 
     def test_empty_file(self) -> None:
         assert gate.frontmatter_lines("") == []
+
+    def test_a_leading_comment_displaces_the_frontmatter(self) -> None:
+        """A file whose first line is not `---` has no frontmatter to check."""
+        text = "<!-- vendor-portability: x -->\n---\ndescription: Per docs/a.md.\n---\n"
+        assert gate.frontmatter_lines(text) == []
+        assert gate.scan_file(Path("x.md"), text) == []
 
     def test_second_fence_closes_the_block(self) -> None:
         text = "---\ndescription: a\n---\nbody\n---\ndescription: docs/b.md\n"
@@ -212,3 +264,146 @@ class TestCli:
         """The gate ships at zero. This is the ratchet."""
         root = Path(__file__).resolve().parents[2]
         assert gate.main(["--repo-root", str(root)]) == 0
+
+
+class TestRootAwareness:
+    """A path is outward relative to the root that ships the file naming it.
+
+    ``src/copilot-cli`` ships its own ``docs/`` directory. Treating the
+    directory name as upstream-only, rather than resolving it against the
+    owning root, would reject a description that resolves perfectly well for
+    that plugin's consumer. The gate has no baseline, so a false positive here
+    hard-blocks a legitimate change.
+    """
+
+    def test_the_copilot_root_really_does_ship_a_docs_directory(self) -> None:
+        """Pins the premise. If this file moves, the exemption below is wrong."""
+        root = Path(__file__).resolve().parents[2]
+        assert (root / "src/copilot-cli/docs/copilot-instructions.md").is_file()
+
+    def test_a_reference_that_ships_in_its_own_root_is_clean(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        text = _frontmatter("Per docs/copilot-instructions.md.")
+        ships = gate.root_shipper(root, "src/copilot-cli")
+        assert gate.scan_file(Path("x.md"), text, ships) == []
+
+    def test_the_same_reference_under_a_root_without_it_is_flagged(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        text = _frontmatter("Per docs/copilot-instructions.md.")
+        ships = gate.root_shipper(root, ".claude")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text, ships)] == [
+            "docs/copilot-instructions.md"
+        ]
+
+    def test_a_traversal_never_counts_as_shipped(self, tmp_path: Path) -> None:
+        """`root/../docs/a.md` exists on disk but is outside the plugin root."""
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "a.md").write_text("x", encoding="utf-8")
+        (tmp_path / ".claude").mkdir()
+        ships = gate.root_shipper(tmp_path, ".claude")
+        assert ships("../docs/a.md") is False
+
+    def test_a_dot_slash_prefix_still_resolves(self, tmp_path: Path) -> None:
+        (tmp_path / ".claude" / "docs").mkdir(parents=True)
+        (tmp_path / ".claude" / "docs" / "a.md").write_text("x", encoding="utf-8")
+        ships = gate.root_shipper(tmp_path, ".claude")
+        assert ships("./docs/a.md") is True
+        assert ships("docs/b.md") is False
+
+    def test_owning_root_maps_each_root_and_rejects_outsiders(self) -> None:
+        root = Path("/repo")
+        for name in gate.PLUGIN_ROOTS:
+            assert gate.owning_root(root / name / "skills" / "x" / "SKILL.md", root) == name
+        assert gate.owning_root(root / "templates" / "agents" / "x.md", root) is None
+
+    def test_plugin_roots_are_pinned(self) -> None:
+        """Losing a root silently halves the gate; the tuple is the contract."""
+        assert gate.PLUGIN_ROOTS == (".claude", "src/claude", "src/copilot-cli")
+
+
+class TestReferenceShapes:
+    """Regex precision cases found by adversarial review."""
+
+    def test_a_version_directory_is_not_a_file(self) -> None:
+        assert gate.OUTWARD_FILE.findall("docs/v1.2.3") == []
+
+    def test_a_numeric_suffix_is_not_an_extension(self) -> None:
+        assert gate.OUTWARD_FILE.findall("build/artifact.2") == []
+
+    def test_relative_prefixes_are_caught(self) -> None:
+        assert gate.OUTWARD_FILE.findall("../docs/a.md") == ["../docs/a.md"]
+        assert gate.OUTWARD_FILE.findall("./docs/a.md") == ["./docs/a.md"]
+
+    def test_a_url_path_is_still_ignored(self) -> None:
+        assert gate.OUTWARD_FILE.findall("https://example.com/docs/a.md") == []
+
+    def test_a_traversal_in_frontmatter_is_a_violation(self) -> None:
+        text = _frontmatter("Read ../docs/a.md first.")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["../docs/a.md"]
+
+
+class TestParserFidelity:
+    """The line parser must agree with a real YAML load on the whole corpus.
+
+    The parser is hand-rolled on purpose: two shipped SkillForge templates
+    carry placeholder syntax that ``yaml.safe_load`` rejects outright, so a
+    strict loader would fail on files the line parser reads fine. The risk of
+    hand-rolling is a YAML shape the line parser misreads, such as a quoted key
+    or a flow mapping. This test is that guard: it fails the day such a shape
+    lands, without importing the loader's fragility into the gate.
+    """
+
+    def test_line_parser_agrees_with_yaml_across_the_tree(self) -> None:
+        import yaml
+
+        root = Path(__file__).resolve().parents[2]
+        disagreements: list[tuple[str, str]] = []
+        for path in gate.iter_markdown(root):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            lines = gate.frontmatter_lines(text)
+            if not lines:
+                continue
+            try:
+                loaded = yaml.safe_load("\n".join(line for _, line in lines))
+            except yaml.YAMLError:
+                continue
+            if not isinstance(loaded, dict):
+                continue
+            mine: dict[str, str] = {}
+            for _, key, value in gate.checked_values(text):
+                mine[key] = f"{mine.get(key, '')} {value}".strip()
+            for key in gate.CHECKED_KEYS:
+                real = loaded.get(key)
+                if not isinstance(real, str):
+                    continue
+                if set(gate.OUTWARD_FILE.findall(real)) != set(
+                    gate.OUTWARD_FILE.findall(mine.get(key, ""))
+                ):
+                    disagreements.append((str(path.relative_to(root)), key))
+        assert disagreements == []
+
+    def test_main_resolves_references_against_the_owning_root(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """End to end, so the CLI cannot quietly stop passing the shipper.
+
+        Unit tests hand ``scan_file`` a shipper directly, which leaves the
+        wiring in ``main`` untested. Dropping that one line reintroduces the
+        false positive this class exists to prevent, and every unit test stays
+        green. This is the test that goes red.
+        """
+        shipped = tmp_path / "src/copilot-cli"
+        (shipped / "docs").mkdir(parents=True)
+        (shipped / "docs" / "guide.md").write_text("x", encoding="utf-8")
+        (shipped / "skills").mkdir()
+        (shipped / "skills" / "a.md").write_text(
+            _frontmatter("Per docs/guide.md."), encoding="utf-8"
+        )
+        assert gate.main(["--repo-root", str(tmp_path)]) == 0
+
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".claude" / "b.md").write_text(
+            _frontmatter("Per docs/guide.md."), encoding="utf-8"
+        )
+        assert gate.main(["--repo-root", str(tmp_path)]) == 1
+        assert "docs/guide.md" in capsys.readouterr().err
