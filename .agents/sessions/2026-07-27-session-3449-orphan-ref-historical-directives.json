@@ -160,7 +160,7 @@
   "nextSteps": [
     "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against a script that no longer exists (issue #3449)",
     "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only",
-    "The episode extractor counts commits by regexing the session log for SHA-shaped tokens, so a multi-SHA line counts as one; the metric under-reports",
+    "The episode extractor short-circuits on endingCommit: _collect_shas calls _SHA_RE.findall on that field first and returns immediately once it has anything, so the workLog fallback never runs and the episode records exactly one commit however many the session made. Verified by calling _collect_shas on this log, which returns a single SHA while the branch carries many. No count is stated here because any figure would change with the commit that records it",
     "endingCommit records the last content commit on this branch. The commit that writes the field necessarily follows it, and the PR squash-merges, so neither SHA reaches main"
   ]
 }

@@ -10,9 +10,9 @@
       "id": "e001",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
+      "content": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
       "caused_by": [
-        "e019"
+        "e006"
       ],
       "leads_to": [
         "e002"
@@ -22,7 +22,7 @@
       "id": "e002",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Rewriting the specs would introduce anachronism the repo has already ruled against, and the correction a reader needs is already in current documentation",
+      "content": "Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
       "caused_by": [
         "e001"
       ],
@@ -34,7 +34,7 @@
       "id": "e003",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
       "caused_by": [
         "e002"
       ],
@@ -46,186 +46,30 @@
       "id": "e004",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7.",
+      "content": "Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
       "caused_by": [
         "e003"
       ],
       "leads_to": [
-        "e006"
+        "e005"
       ]
     },
     {
       "id": "e005",
       "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: e0d5390dd7938c308c9a26c2fec67619c582b651",
-      "caused_by": [],
-      "leads_to": [
-        "e012"
-      ]
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and two skill names were folded into `session`",
-      "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e007"
-      ]
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Rewriting the original prose would introduce anachronism the repo has already ruled against, but the repo does have a convention for marking a spec superseded, which is annotation rather than rewriting",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [
-        "e008"
-      ]
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": [
-        "e009"
-      ]
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e010"
-      ]
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "32 findings on 30 distinct lines across 12 files, every one traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator, and of the two skill names, session-qa-eligibility was folded into `session` while session-migration was sunset in #2359 (commit 59e6587c46)",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": [
-        "e011"
-      ]
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change",
       "caused_by": [
-        "e010"
-      ],
-      "leads_to": [
-        "e015"
-      ]
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 08b04883360aba99511f48b42e8e5e6940825afe",
-      "caused_by": [
-        "e005"
-      ],
-      "leads_to": [
-        "e013"
-      ]
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 104f52ffee4e911d4008b53befe8ea773fbcbeda",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e014"
-      ]
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: cdb72ba7680721fe814dd317adde7ab43fe6efd1",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e016"
-      ]
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs no longer resolve",
-      "caused_by": [
-        "e011"
-      ],
-      "leads_to": [
-        "e017"
-      ]
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 7b1bbb2381972aa6562c5bb242cf0ebaf0c215d1",
-      "caused_by": [
-        "e014"
-      ],
-      "leads_to": [
-        "e019"
-      ]
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed. Landed as three commits. The branch has since been rebased onto origin/main, so those original SHAs are no longer reachable from it. The objects still exist, so git show resolves them",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": [
-        "e018"
-      ]
-    },
-    {
-      "id": "e018",
-      "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Added a dated retirement note after the H1 of ten of the thirteen affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file",
-      "caused_by": [
-        "e017"
+        "e004"
       ],
       "leads_to": []
     },
     {
-      "id": "e019",
+      "id": "e006",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 1bba5b3cef0f214c83de2337cc5cbb230479caef",
-      "caused_by": [
-        "e016"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e001"
       ]
@@ -236,7 +80,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 1,
     "files_changed": 24
   },
   "lessons": []
