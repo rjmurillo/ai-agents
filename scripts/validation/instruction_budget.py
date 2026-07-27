@@ -291,9 +291,14 @@ def parse_applyto(text: str) -> set[str]:
 
 
 def is_language_universal(patterns: set[str], ext: str) -> bool:
-    """True when any pattern scopes the rule to every file of ``ext``."""
-    forms = language_universal_forms(ext)
-    return any(_vscode_effective_glob(pattern) in forms for pattern in patterns)
+    """True when any pattern scopes the rule to every file of ``ext``.
+
+    Case-insensitive: VS Code matches ``applyTo`` globs with ``ignoreCase: true``
+    (same pinned source, line 316), so ``**/*.PY`` is universal for ``.py``. Both
+    the effective glob and the universal forms are case-folded before comparison.
+    """
+    forms = {form.lower() for form in language_universal_forms(ext)}
+    return any(_vscode_effective_glob(pattern).lower() in forms for pattern in patterns)
 
 
 @dataclass(frozen=True)

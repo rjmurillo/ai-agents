@@ -205,6 +205,19 @@ def test_is_language_universal_normalizes_equivalent_globs() -> None:
     assert ib._vscode_effective_glob("*") == "*"
 
 
+def test_is_language_universal_is_case_insensitive() -> None:
+    # VS Code matches applyTo globs with { ignoreCase: true }, so an uppercase
+    # or mixed-case extension spelling still loads for every file of the type.
+    # computeAutomaticInstructions.ts line 316 (pinned in the module).
+    assert ib.is_language_universal({"**/*.PY"}, ".py") is True
+    assert ib.is_language_universal({"*.Py"}, ".py") is True
+    assert ib.is_language_universal({"**/*.PS1"}, ".ps1") is True
+    # Case folding does not promote a scoped glob: '**/src/*.py' is still scoped.
+    assert ib.is_language_universal({"SRC/*.py"}, ".py") is False
+    # Nor does it collide across distinct extensions.
+    assert ib.is_language_universal({"**/*.PYX"}, ".py") is False
+
+
 # --------------------------------------------------------------------------
 # measure_extension / evaluate (positive)
 # --------------------------------------------------------------------------
