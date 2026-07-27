@@ -938,10 +938,10 @@ class TestGate:
             {f"t{i}": True for i in range(10)},
         )
         truncated = _write(tmp_path, "trunc.json", {"t0": True})
-        code, _out = _run_gate(
+        code, out = _run_gate(
             capsys, tmp_path, "--incumbent", inc, "--candidate", truncated, "--split", split_path
         )
-        assert code == EXIT_CONFIG
+        assert (code, out["decision"], out["compared"]) == (EXIT_LOGIC, "REJECT", False)
 
     def test_malformed_split_is_a_config_error(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
@@ -1438,13 +1438,13 @@ class TestConsultationLedgerIsHeldByTheGate:
         assert not ledger.exists()
         assert out["error"]
 
-    def test_a_result_missing_a_held_out_task_is_a_config_error(self, tmp_path, capsys):
+    def test_a_result_missing_a_held_out_task_refuses_without_naming_it(self, tmp_path, capsys):
         """The gate cannot score a held-out task the run never reported.
 
         Distinct from a truncated file: this one parses, covers every task the
         optimizer could see, and is short only on the group the optimizer is
-        not allowed to look at. Reporting it as a config error keeps a partial
-        run from reading as a real verdict.
+        not allowed to look at. It refuses rather than producing a verdict, it
+        does not say which task is missing, and it costs a consultation.
         """
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
         partition = json.loads(split.read_text(encoding="utf-8"))
@@ -1453,9 +1453,9 @@ class TestConsultationLedgerIsHeldByTheGate:
                  if k != dropped}
         short_path = _write(tmp_path, "short.json", short)
         code, out = self._gate(capsys, inc, short_path, split, ledger)
-        assert code == EXIT_CONFIG
-        assert dropped in out["error"]
-        assert not ledger.exists()
+        assert (code, out["decision"], out["compared"]) == (EXIT_LOGIC, "REJECT", False)
+        assert dropped not in json.dumps(out)
+        assert ledger.exists()
 
 
 class TestTheBudgetCapIsPinnedByTheLedger:
@@ -1723,6 +1723,105 @@ class TestOneGateAtATimePerSplit:
                          "--split", split, "--max-consultations", "3",
                          "--incumbent-fingerprint", fingerprint)
         assert (code, out["decision"]) == (EXIT_OK, "REJECT")
+
+
+class TestTheGateNeverNamesAHeldOutTask:
+    """An error message that lists what is missing lists the held-out group.
+
+    `score` and `mcnemar_exact` both report which task ids they could not find,
+    which is the right message everywhere except here: the ids they would name
+    are the held-out ones. A fourth adversarial review (gpt-5.6-sol,
+    2026-07-26) found that a candidate results file with no keys at all printed
+    the whole membership in a single error, before the ledger advanced, so the
+    reveal was also free. The gate now answers one bit and charges for it.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        split = tmp_path / "split.json"
+        record = json.loads(split.read_text(encoding="utf-8"))
+        return inc, split, record
+
+    def _gate(self, capsys, inc, cand, split, record, cap=5):
+        return _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                    "--split", split, "--max-consultations", str(cap),
+                    "--incumbent-fingerprint", record["fingerprint"])
+
+    def test_an_empty_candidate_reveals_no_membership(self, tmp_path, capsys):
+        """The reported attack: ask for everything by supplying nothing."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        empty = _write(tmp_path, "empty.json", {})
+        code, out = self._gate(capsys, inc, empty, split, record)
+        assert (code, out["compared"]) == (EXIT_LOGIC, False)
+        assert not any(task_id in json.dumps(out) for task_id in record["sel"])
+
+    def test_the_refusal_costs_a_consultation(self, tmp_path, capsys):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        empty = _write(tmp_path, "empty.json", {})
+        _, out = self._gate(capsys, inc, empty, split, record)
+        assert out["sel_consultations"] == 1
+
+    def test_probing_exhausts_the_budget(self, tmp_path, capsys):
+        """A membership oracle has to be expensive, not just quiet."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        empty = _write(tmp_path, "empty.json", {})
+        for _ in range(2):
+            self._gate(capsys, inc, empty, split, record, cap=2)
+        code, out = self._gate(capsys, inc, empty, split, record, cap=2)
+        assert (code, out["compared"]) == (EXIT_LOGIC, False)
+        assert "exhausted" in out["reason"]
+
+    def test_a_missing_incumbent_result_refuses_the_same_way(self, tmp_path, capsys):
+        """Both sides are read against the held-out group, so both must redact."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        short = _write(tmp_path, "short-inc.json",
+                       {k: v for k, v in json.loads(Path(inc).read_text(encoding="utf-8")).items()
+                        if k != record["sel"][0]})
+        code, out = self._gate(capsys, short, cand, split, record)
+        assert (code, out["compared"]) == (EXIT_LOGIC, False)
+        assert record["sel"][0] not in json.dumps(out)
+
+    def test_a_non_bool_result_is_refused_before_the_split_is_consulted(self, tmp_path, capsys):
+        """`score` would name the offending task, and that id can be held out.
+
+        It never gets there: `_read_results` rejects a non-boolean at the file
+        boundary, and the ids it echoes are the caller's own keys from the
+        caller's own file, so nothing about the split is disclosed. The check
+        lands before the reserve, so a malformed file of one's own costs no
+        budget. `_covers_holdout` keeps its own type check anyway; a predicate
+        that trusts its caller is one refactor away from leaking again.
+        """
+        inc, split, record = self._fixture(tmp_path, capsys)
+        poisoned = {f"t{i}": True for i in range(12)}
+        poisoned[record["sel"][0]] = "yes"
+        cand = _write(tmp_path, "poison.json", poisoned)
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert code == EXIT_CONFIG and "non-boolean" in out["error"]
+        assert not oa._ledger_path(oa._holdout_key(record)).exists()
+
+    def test_full_coverage_still_compares(self, tmp_path, capsys):
+        """The redaction must not swallow the ordinary path."""
+        inc, split, record = self._fixture(tmp_path, capsys)
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert (code, out["compared"]) == (EXIT_OK, True)
+
+    def test_the_predicate_accepts_a_complete_boolean_mapping(self):
+        assert oa._covers_holdout({"a": True, "b": False}, ["a", "b"])
+
+    def test_the_predicate_rejects_a_missing_task(self):
+        assert not oa._covers_holdout({"a": True}, ["a", "b"])
+
+    def test_the_predicate_rejects_a_non_boolean(self):
+        assert not oa._covers_holdout({"a": True, "b": 1}, ["a", "b"])
+
+    def test_the_predicate_accepts_an_empty_requirement(self):
+        """No held-out ids means nothing to cover; the split guard rejects that
+        case earlier, so this only pins the predicate as total."""
+        assert oa._covers_holdout({}, [])
 
 
 class TestTheIncumbentFingerprintIsRequired:

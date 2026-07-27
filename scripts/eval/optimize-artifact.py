@@ -122,6 +122,26 @@ def _read_text(path: Path) -> str:
         raise ConfigError(f"could not read {path}: {exc}") from exc
 
 
+def _covers_holdout(results: Mapping[str, Any], sel_ids: list[str]) -> bool:
+    """Whether these results carry a usable verdict for every held-out task.
+
+    The gate asks this instead of letting `score` and `mcnemar_exact` report
+    what is missing, because both name the offending task ids, and the ids they
+    would name are held-out ids. A fourth adversarial review (gpt-5.6-sol,
+    2026-07-26) found the consequence: a candidate results file with no keys at
+    all printed the entire held-out membership in one error message, and the
+    error arrived before the ledger advanced, so it cost nothing.
+
+    The answer is one bit on purpose. A count would be an oracle: `split`
+    already publishes the held-out size, so "three of five missing" tells a
+    caller how many of the keys it chose to omit were held out, and a few
+    chosen omissions recover the membership. One bit, charged a consultation,
+    is the least informative answer that still tells an honest caller what to
+    fix.
+    """
+    return all(isinstance(results.get(task_id), bool) for task_id in sel_ids)
+
+
 def _read_results(path: Path) -> dict[str, bool]:
     data = _read_json(path)
     if not isinstance(data, dict):
@@ -596,6 +616,35 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     incumbent_results = _read_results(args.incumbent)
     candidate_results = _read_results(args.candidate)
     sel_ids = _group_ids(split, _GATE_GROUP)
+
+    # Charge before reading the group, not after reaching a verdict. Two things
+    # made the old order wrong. A crash between scoring and the write left the
+    # held-out group read and the consultation unrecorded, so a retry got the
+    # comparison for free. And any refusal decided after scoring was equally
+    # free, which is what made the reveal below worth buying.
+    spent_after = spent + 1
+    _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
+
+    if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
+        candidate_results, sel_ids
+    ):
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    "the results do not cover the held-out group; score both "
+                    "artifacts over the whole task set and gate again. Which "
+                    "tasks are missing is withheld: naming them would publish "
+                    "the membership the group exists to withhold."
+                ),
+                "sel_consultations": spent_after,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
     incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
     candidate = _score_group(candidate_results, split, _GATE_GROUP)
     gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
@@ -608,13 +657,6 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         incumbent_fingerprint=args.incumbent_fingerprint,
         discordant_loss=loss,
     )
-
-    # A refusal that never weighed the scores costs the held-out split
-    # nothing, so it does not advance the counter. Everything else does, and
-    # the gate writes it rather than telling the caller what to pass next.
-    spent_after = spent + (1 if result.compared else 0)
-    if result.compared:
-        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
 
     _emit(
         {
