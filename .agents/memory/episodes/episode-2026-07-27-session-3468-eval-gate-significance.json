@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
       "caused_by": [
-        "e007"
+        "e014"
       ],
       "leads_to": [
         "e002"
@@ -85,18 +85,126 @@
         "e005"
       ],
       "leads_to": [
-        "e001"
+        "e017"
       ]
     },
     {
       "id": "e008",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed.",
+      "content": "Reported that the rule-path finding was independently corroborated on the agent benchmark: twelve of twenty-four agent fixtures moving on identical input. RETRACTED the same day and withdrawn in full. The two runs disagree on fixture_set_sha, so the corpus changed alongside the prompt and the comparison was confounded, not a null control. No valid agent-path null control exists in the repository. What survives: the rule path has a live null control, and the hook path needs none because pytest results are deterministic.",
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output.",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e8f3cb0fe8871786efaeb82225d72d0c49906348",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e014"
+      ]
     }
   ],
   "metrics": {
@@ -104,7 +212,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

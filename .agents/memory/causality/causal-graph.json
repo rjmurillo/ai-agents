@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:58:41.235955+00:00",
+  "updated": "2026-07-27T13:49:37.585355+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20927,15 +20927,6 @@
       "created": "2026-07-27T10:31:21.417766+00:00"
     },
     {
-      "id": "4ed9fa285113",
-      "type": "milestone",
-      "label": "milestone: The verdict on this benchmark was decided by pipeline variance, not by the edit. That variance compounds two nondeterministic stages, the response model and the judge, both gpt-4o-mini at temperature 0, which this harness cannot separate because it sets no seed and records no system_fingerprint (#3475). The real candidate got lucky; the no-op got unlucky.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.417846+00:00"
-    },
-    {
       "id": "d5c4e859e43d",
       "type": "milestone",
       "label": "milestone: 489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean.",
@@ -20979,15 +20970,6 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T11:02:17.724848+00:00"
-    },
-    {
-      "id": "b7aaff722e33",
-      "type": "milestone",
-      "label": "milestone: The rule-path finding is independently corroborated on an unrelated benchmark with different artifacts, scorers, and model family: twelve of twenty-four agent fixtures move on identical input against thirteen of twenty-four rule tasks. The agent path is now live-validated end to end. Cost zero eval spend; the evidence was already committed.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T11:30:19.334442+00:00"
     },
     {
       "id": "c84e7ed0eeb4",
@@ -21537,6 +21519,105 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "0d025ac46b68",
+      "type": "milestone",
+      "label": "milestone: The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778406+00:00"
+    },
+    {
+      "id": "0434da2798b6",
+      "type": "milestone",
+      "label": "milestone: 489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778867+00:00"
+    },
+    {
+      "id": "66a6b6a81c15",
+      "type": "milestone",
+      "label": "milestone: WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778948+00:00"
+    },
+    {
+      "id": "70ac449ed2f2",
+      "type": "milestone",
+      "label": "milestone: All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779026+00:00"
+    },
+    {
+      "id": "80a248cd0a52",
+      "type": "milestone",
+      "label": "milestone: A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779103+00:00"
+    },
+    {
+      "id": "1ae8871d9198",
+      "type": "milestone",
+      "label": "milestone: 1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779181+00:00"
+    },
+    {
+      "id": "4b694bdbe893",
+      "type": "test",
+      "label": "test: ['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779258+00:00"
+    },
+    {
+      "id": "8c6db17b7b83",
+      "type": "milestone",
+      "label": "milestone: Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779334+00:00"
+    },
+    {
+      "id": "aaccea3a96a6",
+      "type": "milestone",
+      "label": "milestone: Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779413+00:00"
+    },
+    {
+      "id": "26799f652879",
+      "type": "commit",
+      "label": "commit: Commit: e8f3cb0fe8871786efaeb82225d72d0c49906348",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779489+00:00"
+    },
+    {
+      "id": "8ebcd100cf51",
+      "type": "milestone",
+      "label": "milestone: Reported that the rule-path finding was independently corroborated on the agent benchmark: twelve of twenty-four agent fixtures moving on identical input. RETRACTED the same day and withdrawn in full. The two runs disagree on fixture_set_sha, so the corpus changed alongside the prompt and the comparison was confounded, not a null control. No valid agent-path null control exists in the repository. What survives: the rule path has a live null control, and the hook path needs none because pytest results are deterministic.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:49:37.578432+00:00"
     }
   ],
   "patterns": [

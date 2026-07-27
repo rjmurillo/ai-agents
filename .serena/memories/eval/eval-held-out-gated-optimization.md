@@ -103,3 +103,17 @@ The ADR reviewer's headline finding was false. It claimed the null-control flips
 **A finding can be wrong about what happened and right about what can happen.** Verify a confident review against data before acting on it, and when the mechanism is real but did not fire, file it (#3474) rather than folding it in or dismissing it. Accepting every finding is not reviewing, and neither is dismissing the ones that turn out to be misattributed.
 
 Evidence: PR #3478, branch `feat/eval-gate-significance-bar`, commits `684060149` and `a5791784c`, session log `.agents/sessions/2026-07-27-session-3468-eval-gate-significance.json`.
+
+## Round eighteen: a retraction that stopped at the source document
+
+Two PR review threads found the agent-path claim this session had already retracted still being asserted, in full, by the generated memory tier: `.agents/memory/episodes/episode-2026-07-27-*.json` and `.agents/memory/causality/causal-graph.json`. The session log, the README, and ADR-087 all carried the retraction. The artifacts below them had captured the claim before it was withdrawn and then never regenerated.
+
+The cause is worth remembering because it is a workaround with an invisible blast radius. Every commit this session used `SKIP_AUTOFIX=1`, adopted because lefthook's `stage_fixed: true` drags working-tree modifications into the staged set and breaks atomic commits. That same flag skips `extract-session-episodes` and `update-causal-graph`, the two hooks whose job is keeping derived memory consistent with the session log. The name describes the mechanism, not what is lost.
+
+**Regeneration could not fix it, and checking that mattered more than the fix.** The hook invokes the extractor with `--preserve`, which merges a fresh extraction over the existing file and never drops an event whose text is no longer derivable from the source; re-running it confirmed the stale event survived untouched. `--force` does rebuild from the session log and does remove the claim, but it drops four events recording later work and renumbers the rest. Regenerating would have destroyed more truth than it restored, so the single stale event was corrected in place and the extractor re-run to prove `--preserve` carries a correction forward rather than reverting it.
+
+Three durable rules. A retraction is complete when every artifact repeating the claim repeats the retraction, not when the source document does; derived tiers are where withdrawn claims keep living because nobody re-reads them. A convenience flag that skips a class of hooks deserves an inventory of what it skips before it becomes a habit. And an append-only generator cannot retract anything by regeneration alone, so wherever `--preserve` is the standing invocation, the artifact needs a correction path that is not "run it again."
+
+A smaller finding from the same round corrects round fourteen. The significance refusal named both the family bar and the Bonferroni-corrected per-comparison bar, and the test asserted both numbers appear in the reason. Both did appear; neither was labeled, and the sentence read as though a word were missing. **Asserting that a value appears in a message does not assert the message is legible.** The test now pins the labels, the arithmetic, and the family-of-one edge where both numbers are equal and the division still has to be visible.
+
+Evidence: PR #3478, commits on `feat/eval-gate-significance-bar`, session log phase "Round 18: closing five unresolved PR review threads".

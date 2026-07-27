@@ -257,7 +257,7 @@
       "outcome": "Five review threads closed, and the highest-priority pair were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. The generalizable lesson is that a retraction is not complete when the source document carries it, only when every derived artifact does, and that SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. A second lesson from the refusal message: asserting that both numbers appear in a sentence does not test that a reader can tell which is which."
     }
   ],
-  "endingCommit": "e8f3cb0fe8871786efaeb82225d72d0c49906348",
+  "endingCommit": "c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
   "nextSteps": [
     "Push feat/eval-gate-significance-bar and open a PR referencing #3422.",
     "PR #3467 is green on 112 checks and blocked only on human approval.",
