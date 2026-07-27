@@ -338,9 +338,23 @@
         "Verified: 1388 pass across the optimizer suites, 100 percent on all three modules, no warnings, ruff clean, mypy clean.",
         "Documented as defect shapes 31 (the docstring found the bug the reviewer did not) and 32 (a proposed fix is a claim like any other) in the debate log."
       ]
+    },
+    {
+      "phase": "Round 24: the last expression nobody guarded",
+      "actions": [
+        "Sent round 24 to the idle round-23 reviewer via write_agent rather than starting a fresh agent, reporting the outcome of its previous finding first: the finding was taken, its proposed patch was measured and rejected because CPython refcount-collects the abandoned generator and runs the finally the test needed left undone, and its proposed mutation broke attribute access rather than behavior. Scoped it read-only to 437923b10 and a541a88cd, named the three recurring reviewer failure modes, and said plainly that a clean verdict would be read as signal rather than as a failure to find something.",
+        "It returned a clean verdict on both commits and answered all three questions asked: _warn holds its three rules, _digest_scrubbed's finally restores correctly on every synchronous path, and the copy_context test does discriminate, which it confirmed by building its own API-preserving module global and watching the test fail against it. It then filed one Nit.",
+        "The Nit was real and under-labelled. sys.stderr is an attribute lookup, and stream = sys.stderr sat outside the suppression guard, so a harness that deletes the attribute rather than blanking it raises AttributeError from the line whose only job is to decide whether the guard runs. That abort lands after the rename it reports on has already succeeded, which is the same regression class rounds 20 through 23 each closed at a different site.",
+        "Reproduced it before believing it, as a red test: monkeypatch.delattr(sys, 'stderr') through _fsync_refuses into _write_atomic gives AttributeError: module 'sys' has no attribute 'stderr' at line 791, with the ledger already renamed.",
+        "Fixed with getattr(sys, 'stderr', None), which adds no control flow: the missing attribute routes into the None branch that already existed and was already tested, so one expression becomes total and no second branch is introduced. This is why it was taken rather than filed under the rule against error handling for unreachable paths; it is the difference between a partial and a total read of a value the function already branches on, not a new guard.",
+        "Corrected the docstring in the same change. It claimed only the stream check sat outside the guard while the stream read sat outside it too, making the sentence false for the second time in two rounds by the same mechanism as shape 31.",
+        "Verified: mutation M7 restores the partial read and fails exactly one test of 380 in the CLI file. 1389 pass across the optimizer suites, up one from the new test. Coverage stays 100% on all three modules and the statement count of optimize-artifact.py does not move, because the change replaced an expression rather than adding a line. Ruff and mypy clean.",
+        "Independently re-verified the two prior mutations at HEAD before this change: M5 (ContextVar swapped for an API-preserving module global) fails exactly one test with the cross-context overwrite it exists to catch, and M6 (redaction moved back outside the guard) fails exactly one different test with the redactor's RuntimeError escaping to the caller. Source restored byte-identical after each.",
+        "Committed as a33c5c089. Documented as defect shape 33, which is narrower than the four rounds before it: each of those moved a statement into the guard, while this one is about an expression that was never a candidate for moving because it reads as a fetch rather than as work."
+      ]
     }
   ],
-  "endingCommit": "9985e001c",
+  "endingCommit": "a33c5c089",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

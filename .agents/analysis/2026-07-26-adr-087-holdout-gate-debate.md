@@ -1265,3 +1265,45 @@ a scope entered in one context cannot be exited in another. Nothing in this CLI
 can reach it, since every scope is a plain `with` in straight-line synchronous
 code, so `_digest_scrubbed` discloses it next to the non-LIFO limitation it
 already disclosed rather than guarding a path no call site has.
+
+### Defect shape 33: the last expression nobody guarded
+
+Four rounds in a row fixed the same rule at a different site. Round twenty found
+a warning that aborted the write it was reporting on. Round twenty-one found the
+guard was written to the exception the reviewer had raised rather than the class
+of exceptions the rule covers. Round twenty-two found the same abort at the
+second warning site and a stream whose `None` value redirected the diagnostic
+onto the stream carrying the verdict. Round twenty-three moved the redaction
+inside the guard after the sentence justifying its exclusion turned out false.
+
+Round twenty-four found the abort still reachable, through the one expression
+none of the four had looked at: the read of the stream itself. `sys.stderr` is
+an attribute lookup. A harness that deletes it rather than blanking it raises
+`AttributeError` before the guard is entered, from a line whose whole job was to
+decide whether the guard should run, and it raises after the rename it is
+reporting about has already succeeded.
+
+The shape is narrower than "the guard was too small" and worth naming
+separately. Each earlier round moved a statement into the guard. This one is
+about an expression that was never a candidate for moving, because it reads as
+a fetch rather than as work. Every reviewer, and the author, read
+`stream = sys.stderr` as retrieving a value. It is a call into `sys.__dict__`
+that can fail, and the docstring asserting that only the *check* sat outside the
+guard is what makes the omission legible: the *read* sat outside it too, and the
+sentence was false for a second time in two rounds by the same mechanism as
+shape 31.
+
+The repair adds no control flow. `getattr(sys, "stderr", None)` routes the
+missing attribute into the `None` branch that already existed and was already
+tested, so one expression becomes total and nothing new has to be maintained.
+That is the reason to take it rather than file it. This repository's rules
+forbid error handling for unreachable paths, and a deleted `sys.stderr` is
+close to unreachable. But this is not error handling: it is the difference
+between a partial and a total read of a value the function already branches on.
+
+Two things about the round are worth keeping. The finding arrived labelled Nit,
+attached to an otherwise clean verdict, from the same reviewer whose previous
+patch had been measured and rejected; severity labels from reviewers are
+estimates about importance, not about correctness, and this one was
+under-labelled. And it was reproduced before it was believed, which took one
+test and produced the red half of the fix for free.
