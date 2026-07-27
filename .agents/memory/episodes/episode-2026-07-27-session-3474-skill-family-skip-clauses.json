@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-27-session-3474-skill-family-skip-clauses",
+  "session": "2026-07-27-session-3474-skill-family-skip-clauses",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T10:26:31.002178+00:00",
+  "updated": "2026-07-27T11:03:30.796287+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21366,6 +21366,69 @@
         "episode-2026-07-27-session-3460-decompose-change-control"
       ],
       "created": "2026-07-27T10:26:30.994200+00:00"
+    },
+    {
+      "id": "c71da9963354",
+      "type": "milestone",
+      "label": "milestone: Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.789887+00:00"
+    },
+    {
+      "id": "5dd79bb3e1e3",
+      "type": "milestone",
+      "label": "milestone: Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.789975+00:00"
+    },
+    {
+      "id": "8a1d210a7471",
+      "type": "milestone",
+      "label": "milestone: Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790054+00:00"
+    },
+    {
+      "id": "b9fd3a72f7a0",
+      "type": "milestone",
+      "label": "milestone: Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790133+00:00"
+    },
+    {
+      "id": "db6ff31d3dba",
+      "type": "milestone",
+      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790209+00:00"
+    },
+    {
+      "id": "d6cb2653c4d1",
+      "type": "milestone",
+      "label": "milestone: Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790284+00:00"
+    },
+    {
+      "id": "4b9e3c39be98",
+      "type": "outcome",
+      "label": "Outcome: success - Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:03:30.790359+00:00"
     }
   ],
   "patterns": [
