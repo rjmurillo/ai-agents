@@ -21,7 +21,7 @@ What holds now: count and cap are recorded at the first decision in `<split>.led
 
 ## Framing that must not be softened
 
-Seven adversarial rounds, every one of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
+Ten adversarial rounds, every one of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
 
 > A consultation-budgeted comparison over a public benchmark, relying on a cooperating optimizer not to inspect accessible task definitions or result files. It is not yet held-out validation of unseen tasks.
 
@@ -39,4 +39,14 @@ The reflex to resist: "the loop cannot edit toward a group it cannot name" is ba
 - `mcnemar_exact` is reported, never enforced. A single discordant gain yields `p_value: 0.5` and still ACCEPTs, because a three-task held-out group cannot reach 0.05 and enforcing a conventional floor would make the common case unpassable.
 - Only `rule_results` is single-shot against an LLM judge; `agent_results` reduces over runs and `pytest_results` is deterministic. Noise arithmetic that treats all three as single-shot overstates spurious rejection (#3445).
 
-Evidence: issue #3422, PR #3430, branch `feat/eval-holdout-gated-optimizer`, ADR-087, session log `.agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.
+## The rule that generalizes past this file
+
+Ten rounds, nine of them the same shape: any part of a budget the caller can restate, or move by renaming something else, is not part of the budget; and any path by which the withheld thing is readable is not withholding it. The last three rounds are the useful ones to remember, because each found a defect inside the previous round's fix:
+
+- Round 8: a pathless `OSError` fell past a redaction branch that was also the branch converting it to a type `main` catches, so it escaped as a traceback.
+- Round 9: a redacted message chained the unredacted original with `raise ... from exc`, and `__cause__` is exactly where a printed traceback goes. Separately, cleanup in a `finally` ran after the decision was on stdout, so a failure there printed a second JSON document and overwrote a successful exit code.
+- Round 10: the first line of the lock helper, `lock.parent.mkdir(...)`, sat one line above the scrub covering everything below it. A seam is only a seam from its first line.
+
+Two operational lessons worth more than the defect list. First, a workaround that stops a symptom appearing in tests is not a finding closed: the round-9 double-document bug had already been seen while writing round-7 tests and recorded as a test-harness quirk. Second, hand-written redaction sites are where rounds 9 and 10 both found defects, which is why redaction now has one definition, `_scrub`, rather than a `.replace` per site.
+
+Evidence: issue #3422, PR #3430, PR #3458, branch `fix/eval-holdout-gate-digest-leak`, ADR-087, debate log `.agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md`, session log `.agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.

@@ -218,9 +218,19 @@
         "scripts/eval/optimize-artifact.py",
         "tests/eval/test_optimize_artifact_cli.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T09:55:00Z",
+      "action": "Ran a tenth adversarial round (gpt-5.6-terra) with explicit permission to return ACCEPT, then fixed the finding it returned",
+      "outcome": "REJECT again, one finding with two legs, both reproduced by execution. The mkdir of the ledger root sat one line above the scrub that covers everything below it. The weaker leg is a leak only when $EVAL_LEDGER_DIR itself names the digest, which means the caller already knows it. The stronger leg needs no digest: an unwritable ledger root raised PermissionError past main's handler list, so a read-only home got a traceback where the docstring promises a JSON error document. That is the round-eight defect still live at the one unprotected line. Fix moves the mkdir inside the seam and gives redaction one definition, _scrub, used by the seam and by the round-nine warning, which was a second hand-written redaction site and was wrong. 448 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "4e2284053",
+  "endingCommit": "1ed89118d",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",

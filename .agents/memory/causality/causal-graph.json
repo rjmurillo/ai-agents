@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:22:20.888124+00:00",
+  "updated": "2026-07-27T08:38:18.609291+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21130,6 +21130,24 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T08:22:20.882220+00:00"
+    },
+    {
+      "id": "bc54b6618ea1",
+      "type": "milestone",
+      "label": "milestone: Ran a tenth adversarial round (gpt-5.6-terra) with explicit permission to return ACCEPT, then fixed the finding it returned",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:38:18.603393+00:00"
+    },
+    {
+      "id": "098d2909e45d",
+      "type": "commit",
+      "label": "commit: Commit: 1ed89118d",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:38:18.603479+00:00"
     }
   ],
   "patterns": [
