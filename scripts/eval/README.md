@@ -332,17 +332,21 @@ them on the one shape the gate reads.
 ```json
 {
   "schema": "optimizer-results/1",
-  "corpus": "26136df314d6ba1f...",
+  "corpus": "26136df314d6c7b57fb85b8557440ac61d49c8728529f3040b930c8ff7ca02ef",
   "results": {"A001": true, "A002": false}
 }
 ```
 
 `corpus` answers "which task set was this scored against", as the producer's
 sha256 hex digest of that set, and `gate` refuses a pair that does not agree on
-it. `split` pins the value it was drawn from so the answer cannot be stripped
-back out. Only the agent path has a source for it today, so the other two write
-`null` and the gate reports the comparison as unverified rather than pretending
-it checked. A bare `{task_id: bool}` file still reads, as an unknown corpus.
+it. The reader accepts exactly sixty-four lowercase hex characters, or `null`;
+a truncated, upper-case, or otherwise short value is a config error and exits
+2, because a value that is not a whole digest cannot be compared and would
+report a verified match it never made. `split` pins the value it was drawn from
+so the answer cannot be stripped back out. Only the agent path has a source for
+it today, so the other two write `null` and the gate reports the comparison as
+unverified rather than pretending it checked. A bare `{task_id: bool}` file
+still reads, as an unknown corpus.
 
 Adapters fail closed. A fixture the variant never ran, a scenario whose judge
 errored, and a skipped test all score as failures rather than being dropped.
