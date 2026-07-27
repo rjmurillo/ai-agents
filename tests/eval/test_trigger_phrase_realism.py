@@ -15,6 +15,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -146,8 +147,9 @@ class TestScore:
         # frozen=True does not protect a mutable field. Without a read-only
         # mapping, hits could be edited to disagree with observed and realism.
         report = realism.score({"a": ["start new session"]}, ["start new session"])
+        hits: Any = report.hits
         with pytest.raises(TypeError):
-            report.hits[("b", "injected")] = 1  # type: ignore[index]
+            hits[("b", "injected")] = 1
         assert report.observed == 1
 
     def test_hits_are_keyed_by_skill_and_phrase(self):
