@@ -645,3 +645,66 @@ class TestBlockquoteFenceDepth:
         """The ordinary case keeps working: a marker at the opening depth closes."""
         text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
         assert cmp.count_upstream_refs(text) == 1
+
+
+class TestAstCodeStripping:
+    """Regressions locking the #3499 AST rewrite of ``_strip_code``.
+
+    Each case was a disagreement between the old line scanner and the CommonMark
+    AST over the full repo corpus. The AST verdict is correct in every one; these
+    tests would fail against the old scanner and pass against the AST walk.
+    """
+
+    def test_indented_code_block_path_does_not_count(self) -> None:
+        """A path inside an indented code block is code, not a runtime directive.
+
+        The old line scanner stripped only fenced blocks, so this counted; the
+        AST classifies the indented block as code and it no longer counts.
+        """
+        text = "Prose /templates/agents/a.md\n\n    code /templates/agents/b.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_fence_indented_in_nested_list_does_not_count(self) -> None:
+        """A fence aligned to a nested list sits past 3-space indent.
+
+        The old ``[ \\t]{0,3}`` fence regex missed it and counted the example
+        command; the AST resolves the list-relative indent and strips it.
+        """
+        text = "- outer:\n  - inner:\n    ```bash\n    cp .agents/x .\n    ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_prose_after_nested_fence_example_counts(self) -> None:
+        """A stray closing fence must not swallow real prose to end of document.
+
+        The old scanner opened a phantom fence at the extra ``` and hid every
+        later reference; the AST ends the block at the list-item boundary, so the
+        following prose reference counts.
+        """
+        text = (
+            "1. example:\n"
+            "   ```markdown\n"
+            "   ### H\n"
+            "   ```python\n"
+            "   code\n"
+            "   ```\n"
+            "   ```\n"
+            "\n"
+            "2. real: write to .agents/analysis/x.md\n"
+        )
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_indented_code_drift_not_flagged_exit_zero(self, tmp_path: Path) -> None:
+        """End-to-end: a reference confined to indented code is not drift.
+
+        Under the old scanner this file counted 1 and, against an empty baseline,
+        the CLI exited 1. The AST counts 0, so the CLI exits 0.
+        """
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 0

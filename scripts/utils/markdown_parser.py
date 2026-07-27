@@ -52,6 +52,43 @@ def _create_parser() -> MarkdownIt:
     return MarkdownIt("commonmark").enable("table")
 
 
+# Block token types whose source lines are code, not prose. ``fence`` covers
+# ```` ``` ```` and ``~~~`` blocks; ``code_block`` covers indented code. Both
+# are resolved by the CommonMark parser, which tracks fence termination,
+# blockquote depth, and list-relative indentation that a line-based scanner
+# gets wrong.
+_CODE_BLOCK_TOKEN_TYPES = frozenset({"fence", "code_block"})
+
+
+def blank_code_block_lines(markdown: str) -> str:
+    """Return ``markdown`` with fenced and indented code block lines blanked.
+
+    Every source line that CommonMark attributes to a fenced or indented code
+    block, including the fence marker lines, is replaced by an empty string.
+    Line count and every non-code line are preserved, so a caller that matches
+    against the result keeps stable line numbers.
+
+    Inline code spans are left intact; strip those separately when needed.
+
+    The parser is the single shared instance from :func:`_create_parser`; this
+    does not create a second ``MarkdownIt``. Any exception the parser raises
+    propagates to the caller, which must not treat a parse failure as clean
+    prose. Failing closed here is deliberate: a silent empty return would let
+    an unparseable file bypass the portability gate.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    lines = markdown.split("\n")
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in _CODE_BLOCK_TOKEN_TYPES or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+    return "\n".join(lines)
+
+
 def parse_tables(markdown: str) -> list[ParsedTable]:
     """Extract all tables from Markdown content using AST parsing.
 

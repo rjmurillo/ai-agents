@@ -57,6 +57,7 @@ import re
 import sys
 from pathlib import Path
 
+from scripts.utils.markdown_parser import blank_code_block_lines
 from scripts.validation.portability_common import (
     build_portability_parser,
     write_baseline,
@@ -175,40 +176,6 @@ _MARKER_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Regex to detect a fenced code block opening line (CommonMark: 0-3 spaces indent allowed).
-_FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
-
-# One blockquote marker: optional leading indent on the first, then ``>`` and an
-# optional single space that belongs to the marker rather than the content.
-_QUOTE_MARKER_PATTERN = re.compile(r"^[ \t]{0,3}>[ \t]?")
-
-
-def _quote_depth(line: str) -> int:
-    """Count the blockquote markers a line opens with."""
-    depth = 0
-    rest = line
-    while True:
-        match = _QUOTE_MARKER_PATTERN.match(rest)
-        if match is None:
-            return depth
-        depth += 1
-        rest = rest[match.end() :]
-
-
-def _strip_quote_markers(line: str, depth: int) -> str:
-    """Remove exactly ``depth`` blockquote markers from the front of a line.
-
-    Stripping exactly the opening depth, rather than every marker, is what lets
-    a deeper marker be recognised as content instead of a closing fence.
-    """
-    rest = line
-    for _ in range(depth):
-        match = _QUOTE_MARKER_PATTERN.match(rest)
-        if match is None:
-            break
-        rest = rest[match.end() :]
-    return rest
-
 _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
@@ -224,71 +191,25 @@ def has_portability_marker(text: str) -> bool:
 
 
 def _strip_code(text: str) -> str:
-    """Remove fenced code blocks, leaving prose and inline code spans.
+    """Remove fenced and indented code blocks, leaving prose and inline code.
 
-    Uses line-by-line processing to correctly handle nested fence examples
-    (e.g., a code block that itself contains triple-backtick lines).
-    A closing fence must use the same character and be at least as long
-    as the opening fence, per CommonMark spec.
+    Delegates to the shared CommonMark parser via
+    :func:`blank_code_block_lines`, so fence termination, blockquote depth, and
+    list-relative indentation are resolved by the reference implementation
+    instead of a hand-rolled line scanner. Every code line, including fence
+    markers, becomes empty, so line numbers are preserved for downstream
+    matching.
 
-    A fence that opens inside a blockquote is stripped too, and only such a
-    fence accepts a blockquoted closing line. Requiring the close to match the
-    open's context keeps a bare ``>``-prefixed line inside a top-level fence
-    from closing it early.
+    Indented code blocks are now stripped too. The previous line-based scanner
+    saw only fenced blocks, so a path inside an indented example counted as a
+    runtime reference; CommonMark classifies that indented block as code and it
+    no longer counts (issue #3499).
 
-    A blockquoted fence also ends when its blockquote ends, because a fenced
-    code block has no lazy continuation. The line that ends the blockquote is
-    then re-read at top level, so a bare ``\u0060\u0060\u0060`` there opens a new
-    top-level fence rather than being treated as prose.
-
-    The opening blockquote depth is recorded, not merely the fact of being
-    quoted. Depth matters in both directions: a fence opened at depth 1 must not
-    be closed by a marker at depth 2, and a fence opened at depth 2 must end when
-    the document drops to depth 1, because that line has left the block the fence
-    opened in.
+    Inline code spans are kept; :func:`_strip_inline_code` removes those.
+    A parser failure propagates rather than returning clean prose, so an
+    unparseable file cannot slip past the gate.
     """
-    lines = text.split("\n")
-    result_lines: list[str] = []
-    fence_char: str | None = None
-    fence_len = 0
-    fence_depth = 0
-
-    for line in lines:
-        if fence_char is not None and fence_depth > 0 and _quote_depth(line) < fence_depth:
-            fence_char = None
-            fence_len = 0
-            fence_depth = 0
-
-        if fence_char is None:
-            match = _FENCE_OPEN_PATTERN.match(line)
-            depth = 0
-            if match is None:
-                depth = _quote_depth(line)
-                if depth:
-                    match = _FENCE_OPEN_PATTERN.match(_strip_quote_markers(line, depth))
-                    if match is None:
-                        depth = 0
-            if match:
-                fence_char = match.group(1)[0]
-                fence_len = len(match.group(1))
-                fence_depth = depth
-                result_lines.append("")
-            else:
-                result_lines.append(line)
-        else:
-            close_pattern = re.compile(
-                r"^[ \t]{0,3}" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
-            )
-            candidate = _strip_quote_markers(line, fence_depth) if fence_depth else line
-            if close_pattern.match(candidate):
-                fence_char = None
-                fence_len = 0
-                fence_depth = 0
-                result_lines.append("")
-            else:
-                result_lines.append("")
-
-    return "\n".join(result_lines)
+    return blank_code_block_lines(text)
 
 
 def _strip_inline_code(text: str) -> str:

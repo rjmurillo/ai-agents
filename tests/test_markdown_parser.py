@@ -12,6 +12,7 @@ from scripts.utils.markdown_parser import (
     ParsedTable,
     Section,
     TableRow,
+    blank_code_block_lines,
     find_checklist_item,
     find_section,
     parse_sections,
@@ -310,3 +311,96 @@ class TestDataclasses:
         assert s.level == 2
         assert s.title == "Test"
         assert s.body == "Content"
+
+
+class TestBlankCodeBlockLines:
+    """AST-based code stripping for the portability validator (issue #3499)."""
+
+    def test_blanks_fenced_block_keeps_prose(self):
+        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
+        out = blank_code_block_lines(text).split("\n")
+        assert out[0] == "keep /a"
+        assert out[1] == ""
+        assert out[2] == ""
+        assert out[3] == ""
+        assert out[4] == "keep /c"
+
+    def test_blanks_indented_code_block(self):
+        # A 4-space indent after a blank line is an indented code block. The old
+        # line scanner never stripped these; the AST does (the #3499 fix).
+        text = "prose\n\n    indented /b\n"
+        out = blank_code_block_lines(text)
+        assert "indented /b" not in out
+        assert "prose" in out
+
+    def test_blanks_tilde_fence(self):
+        text = "~~~\ndrop /b\n~~~\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_blanks_fence_inside_blockquote(self):
+        text = "> ```\n> drop /b\n> ```\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_blanks_fence_indented_beyond_three_spaces_in_list(self):
+        # A fence aligned to a doubly-nested list lands at 4-space indent, which
+        # the old ``[ \t]{0,3}`` fence regex could not match. The AST resolves
+        # the list-relative indent and strips it.
+        text = "- outer:\n  - inner:\n    ```bash\n    drop /b\n    ```\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_keeps_inline_code_span(self):
+        # Inline spans are not block code; the caller strips those separately.
+        text = "see `keep /a` here\n"
+        assert "keep /a" in blank_code_block_lines(text)
+
+    def test_keeps_html_block(self):
+        # HTML blocks are not stripped, so an unquoted ``src=`` attribute path
+        # stays visible to the scanner.
+        text = "<img src=/keep/a>\n"
+        assert "/keep/a" in blank_code_block_lines(text)
+
+    def test_keeps_prose_after_nested_fence_example(self):
+        # A stray closing fence inside a nested example must not open a phantom
+        # block that swallows real prose past the list-item boundary.
+        text = (
+            "1. example:\n"
+            "   ```markdown\n"
+            "   ### H\n"
+            "   ```python\n"
+            "   code\n"
+            "   ```\n"
+            "   ```\n"
+            "\n"
+            "2. real prose /keep/a\n"
+        )
+        assert "/keep/a" in blank_code_block_lines(text)
+
+    def test_preserves_line_count(self):
+        text = "a\n```\nb\nc\n```\nd\n"
+        assert len(blank_code_block_lines(text).split("\n")) == len(text.split("\n"))
+
+    def test_unterminated_fence_blanks_to_end(self):
+        text = "```\ndrop /a\ndrop /b\n"
+        out = blank_code_block_lines(text)
+        assert "drop /a" not in out
+        assert "drop /b" not in out
+
+    def test_empty_string_returns_empty(self):
+        assert blank_code_block_lines("") == ""
+
+    def test_no_code_is_returned_unchanged(self):
+        text = "just prose /a and more\n"
+        assert blank_code_block_lines(text) == text
+
+    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
+        # Fail closed: a parser failure must raise, never return clean prose that
+        # would let an unparseable file slip past the gate.
+        import scripts.utils.markdown_parser as mp
+
+        class _Boom:
+            def parse(self, _text):
+                raise ValueError("boom")
+
+        monkeypatch.setattr(mp, "_create_parser", lambda: _Boom())
+        with pytest.raises(ValueError, match="boom"):
+            mp.blank_code_block_lines("anything")
