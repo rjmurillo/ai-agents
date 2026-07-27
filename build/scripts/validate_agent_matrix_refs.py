@@ -93,6 +93,15 @@ convention changes and the patterns quietly stop matching while the validator
 keeps exiting 0. Every one of these was reachable in review: bolding the header
 and wrapping a name in backticks both hid a phantom row from the first version.
 
+A CONFIGURED TREE THAT IS ABSENT FROM THE CHECKOUT IS A CONFIGURATION ERROR, not
+a tree to skip. ``scan`` still tolerates a missing directory so tests can build
+partial fixtures, but ``main`` refuses to run. The distinction matters because
+the two gates that execute this code fire on different paths: the workflow that
+runs this script covers every agent tree, while the workflow that runs the test
+suite fires only on Python changes. A markdown-only deletion of an agent tree
+therefore reaches the script without ever reaching the test, and a citation into
+the deleted tree would pass by omission.
+
 The guard deliberately does not require every scanned tree to carry a matrix. A
 tree holding only agent definitions and no routing table is a valid state, so
 that rule would fire on correct repositories.
@@ -100,7 +109,7 @@ that rule would fire on correct repositories.
 EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
   0 - Success: every cited agent name resolves within its own tree
   1 - Violations found, or the scan degenerated (no matrices, or a parse gap)
-  2 - Configuration error: no configured tree yields any agent file
+  2 - Configuration error: a configured tree is absent, or no tree yields agents
 """
 
 from __future__ import annotations
@@ -505,6 +514,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
+
+    missing = [tree for tree, _ in AGENT_TREES if not (repo_root / tree).is_dir()]
+    if missing:
+        print(
+            "CONFIG ERROR: configured agent tree(s) absent from the checkout: "
+            + ", ".join(str(tree) for tree in missing)
+            + ". A tree that is not scanned cannot be checked, so a citation "
+            "into it would pass by omission. Either restore the tree or remove "
+            "it from AGENT_TREES.",
+            file=sys.stderr,
+        )
+        return 2
 
     result = scan(repo_root)
     if not any(result.agents_by_tree.values()):

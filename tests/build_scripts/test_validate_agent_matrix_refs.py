@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -56,31 +57,6 @@ BOLD_MATRIX = """\
 | **implementer** | Code | sonnet | Design open |
 """
 
-PLAIN_MATRIX = """\
-### Support Agents
-
-| Agent | File | Role |
-|-------|------|------|
-| skillbook | `skillbook.md` | Skill management |
-| explainer | `explainer.md` | Docs |
-"""
-
-BACKTICK_MATRIX = """\
-### Coded Names
-
-| Agent | Role |
-|-------|------|
-| `analyst` | Research |
-"""
-
-BOLD_HEADER_MATRIX = """\
-### Bold Header
-
-| **Agent** | Role |
-|-----------|------|
-| **analyst** | Research |
-"""
-
 
 def _suffix_for(tree: str) -> str:
     """Return the configured filename suffix for a tree, by path string."""
@@ -94,6 +70,8 @@ def _repo(
     tmp_path: Path,
     files: dict[str, str],
     agents_by_tree: dict[str, list[str]],
+    *,
+    complete: bool = False,
 ) -> Path:
     """Build a throwaway repo.
 
@@ -101,8 +79,20 @@ def _repo(
     ships. Each name is written using that tree's own suffix, because the
     suffix is what the validator strips to derive a name. Each file carries
     agent frontmatter, because a suffix match alone no longer counts. A tree
-    absent from the mapping is not created at all, which the validator skips.
+    absent from the mapping is not created at all, which ``scan`` skips.
+
+    Pass ``complete=True`` for any test that calls ``main``. ``main`` refuses to
+    run against a checkout missing a configured tree, so a partial fixture would
+    exit 2 before reaching the behavior under test. Trees the caller did not
+    name are backfilled with a single unrelated agent, which is what a real
+    checkout looks like: every tree present, most of them irrelevant to the
+    matrix being examined.
     """
+    if complete:
+        agents_by_tree = {
+            **{tree: ["filler"] for tree in EXPECTED_TREES},
+            **agents_by_tree,
+        }
     for tree, names in agents_by_tree.items():
         suffix = _suffix_for(tree)
         directory = tmp_path / tree
@@ -123,172 +113,30 @@ def _canonical_file(name: str) -> str:
     return f"{CANONICAL}/{name}{_suffix_for(CANONICAL)}"
 
 
-class TestParseMatrixRows:
-    """Row extraction from markdown."""
+def _has_agent_frontmatter(path: Path) -> bool:
+    """Independent oracle for agent membership, used only by the real-repo test.
 
-    def test_bold_names_parse(self):
-        rows, _ = vamr.parse_matrix_rows(BOLD_MATRIX)
-        assert [name for name, _ in rows] == ["analyst", "implementer"]
-
-    def test_plain_names_parse(self):
-        rows, _ = vamr.parse_matrix_rows(PLAIN_MATRIX)
-        assert [name for name, _ in rows] == ["skillbook", "explainer"]
-
-    def test_backtick_wrapped_names_parse(self):
-        """A code-formatted name is still a routing target, not a comment.
-
-        Leaving it unparsed is how a phantom row hid from the first version of
-        this validator: the file produced other rows, so no gap was visible.
-        """
-        rows, unparsed = vamr.parse_matrix_rows(BACKTICK_MATRIX)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert unparsed == []
-
-    def test_bold_header_is_recognized(self):
-        """A bolded header must not drop the whole table out of the scan."""
-        rows, _ = vamr.parse_matrix_rows(BOLD_HEADER_MATRIX)
-        assert [name for name, _ in rows] == ["analyst"]
-
-    def test_backtick_header_is_recognized(self):
-        """Header emphasis is independent of row emphasis and needs its own test.
-
-        Round two of adversarial review showed that deleting backtick support
-        from the header pattern still passed the whole suite: every fixture
-        that carried a backtick carried it in a row, never in the header cell.
-        """
-        text = "| `Agent` | Role |\n|-------|------|\n| **analyst** | Research |\n"
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-
-    def test_italic_header_is_recognized(self):
-        text = "| *Agent* | Role |\n|-------|------|\n| **analyst** | Research |\n"
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-
-    def test_italic_names_parse(self):
-        """Single-asterisk emphasis is valid GFM and names a real routing target.
-
-        Without it the row lands in ``unparsed`` and trips the degeneracy guard,
-        which is a false positive on a file that renders correctly.
-        """
-        text = "| Agent | Role |\n|---|---|\n| *analyst* | Research |\n"
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert unparsed == []
-
-    def test_underscore_emphasis_parses(self):
-        text = "| Agent | Role |\n|---|---|\n| __analyst__ | Research |\n"
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert unparsed == []
-
-    @pytest.mark.parametrize("indent", ["", " ", "  ", "   "])
-    def test_tables_indented_up_to_three_spaces_are_scanned(self, indent):
-        """GFM renders a table indented up to three spaces; four makes a code block.
-
-        A column-zero-anchored pattern is invisible to a table a reader can see.
-        Round two of adversarial review hid a phantom row in a two-space-indented
-        matrix and the validator exited zero.
-        """
-        text = (
-            f"{indent}| Agent | Role |\n"
-            f"{indent}|-------|------|\n"
-            f"{indent}| **analyst** | Research |\n"
-        )
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert unparsed == []
-
-    def test_four_space_indent_is_a_code_block_and_is_not_scanned(self):
-        """Four spaces is an indented code block in GFM, so it renders as text."""
-        text = "    | Agent | Role |\n    |-------|------|\n    | **analyst** | Research |\n"
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert rows == []
-        assert unparsed == []
-
-    def test_over_indented_line_ends_the_table_without_a_parse_gap(self):
-        """The continuation and row patterns must tolerate the same indent.
-
-        If the continuation pattern were the more permissive of the two, a
-        four-space line would be pulled into the table, fail to match a row and
-        fail to match a separator, and be reported as a parse gap. That is a
-        false positive on a file that renders correctly, and it trips the
-        degeneracy guard, which exits non-zero.
-        """
-        text = (
-            "| Agent | Role |\n"
-            "|-------|------|\n"
-            "| **analyst** | Research |\n"
-            "    | **memory** | Over-indented |\n"
-        )
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert unparsed == []
-
-    def test_indented_table_ends_at_a_non_table_line(self):
-        """Indent support must not swallow prose that follows the table."""
-        text = (
-            "  | Agent | Role |\n"
-            "  |-------|------|\n"
-            "  | **analyst** | Research |\n"
-            "  Some indented prose.\n"
-            "  | notatable | x |\n"
-        )
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-
-    def test_line_numbers_are_one_based(self):
-        rows, _ = vamr.parse_matrix_rows(BOLD_MATRIX)
-        assert rows[0][1] == 5
-        assert BOLD_MATRIX.splitlines()[4].startswith("| **analyst**")
-
-    def test_multiple_matrices_in_one_file_all_parse(self):
-        rows, _ = vamr.parse_matrix_rows(BOLD_MATRIX + "\n" + PLAIN_MATRIX)
-        assert [name for name, _ in rows] == [
-            "analyst",
-            "implementer",
-            "skillbook",
-            "explainer",
-        ]
-
-    def test_table_ends_at_first_non_pipe_line(self):
-        text = BOLD_MATRIX + "\nSome prose.\n\n| notatable | x |\n"
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst", "implementer"]
-
-    def test_rows_outside_a_matrix_are_ignored(self):
-        text = "| Tool | Purpose |\n|------|---------|\n| ripgrep | search |\n"
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert rows == []
-        assert unparsed == []
-
-    def test_separator_row_is_not_treated_as_data(self):
-        rows, unparsed = vamr.parse_matrix_rows(BOLD_MATRIX)
-        assert len(rows) == 2
-        assert unparsed == []
-
-    def test_unparsed_data_row_is_reported_not_skipped(self):
-        text = (
-            "| Agent | Role |\n"
-            "|-------|------|\n"
-            "| **analyst** | Research |\n"
-            "| TODO fill this in | Unknown |\n"
-        )
-        rows, unparsed = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["analyst"]
-        assert len(unparsed) == 1
-        assert unparsed[0][0] == 4
-
-    def test_dotted_and_underscored_names_parse(self):
-        text = "| Agent | Role |\n|---|---|\n| pr-comment-responder.prompt | x |\n"
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert [name for name, _ in rows] == ["pr-comment-responder.prompt"]
-
-    @pytest.mark.parametrize("cell", ["|  |", "| \t |"])
-    def test_blank_first_cells_do_not_yield_a_name(self, cell):
-        text = f"| Agent | Role |\n|---|---|\n{cell} x |\n"
-        rows, _ = vamr.parse_matrix_rows(text)
-        assert rows == []
+    Deliberately implemented a different way from the module under test: a line
+    scan for the two fences plus a real YAML parse, rather than a string prefix
+    test, a regex search for the closing fence, and a regex search for the key.
+    An oracle that reuses the implementation cannot disagree with it, so it
+    proves nothing.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return False
+    if not lines or lines[0].strip() != "---":
+        return False
+    for index in range(1, len(lines)):
+        if lines[index].strip() != "---":
+            continue
+        try:
+            block = yaml.safe_load("\n".join(lines[1:index]))
+        except yaml.YAMLError:
+            return False
+        return isinstance(block, dict) and "description" in block
+    return False
 
 
 class TestKnownAgents:
@@ -374,6 +222,29 @@ class TestKnownAgents:
         )
         assert vamr.known_agents(tmp_path, ".md") == set()
 
+    @pytest.mark.parametrize(
+        "closing",
+        ["---not-a-closing-fence", "----", "--- trailing prose", "---\tx"],
+    )
+    def test_a_partial_line_does_not_close_the_frontmatter_block(self, tmp_path, closing):
+        """The closing fence must be a line holding nothing but three hyphens.
+
+        A substring search for a newline followed by three hyphens accepted
+        ``---not-a-closing-fence``, so a malformed document presented itself as
+        an agent and a matrix row citing its stem passed.
+        """
+        (tmp_path / "malformed.md").write_text(
+            f"---\ndescription: not an agent\n{closing}\n\n# Doc\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_a_closing_fence_with_trailing_whitespace_still_closes(self, tmp_path):
+        """Trailing spaces on the fence line are invisible and must not exclude."""
+        (tmp_path / "analyst.md").write_text(
+            "---\ndescription: An agent.\n---  \n\n# Analyst\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
     def test_directory_matching_the_suffix_is_excluded(self, tmp_path):
         """A directory named ``foo.md`` cannot be read, so it cannot be an agent."""
         (tmp_path / "bogus.md").mkdir()
@@ -457,7 +328,15 @@ class TestPerTreeResolution:
             _canonical_file("planner"),
         }
 
-    def test_absent_tree_is_skipped_not_failed(self, tmp_path):
+    def test_absent_tree_is_skipped_by_scan_so_fixtures_can_be_partial(self, tmp_path):
+        """``scan`` tolerates a missing tree; ``main`` is where that is refused.
+
+        Every fixture in this suite builds one or two trees rather than all six,
+        so the tolerance has to live somewhere. Keeping it in ``scan`` and the
+        refusal in ``main`` means a real run cannot pass by omission while the
+        tests stay small. The refusal is pinned by
+        ``TestMainCli.test_missing_configured_tree_exits_two``.
+        """
         repo = _repo(
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
@@ -560,6 +439,7 @@ class TestAntiVacuousGuards:
             tmp_path,
             {f"{CANONICAL}/notes.md": "# Notes\n"},
             {CANONICAL: ["analyst"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
         assert "ERROR" in capsys.readouterr().out
@@ -569,6 +449,7 @@ class TestAntiVacuousGuards:
             tmp_path,
             {".claude/agents/orchestrator.md": BOLD_MATRIX},
             {CANONICAL: ["analyst"], ".claude/agents": ["analyst", "implementer"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
 
@@ -581,18 +462,25 @@ class TestAntiVacuousGuards:
                 _canonical_file("planner"): text,
             },
             {CANONICAL: ["analyst", "implementer", "orchestrator", "planner"]},
+            complete=True,
         )
         result = vamr.scan(repo)
         assert vamr.violations(result) == []
         assert vamr.main(["--repo-root", str(repo)]) == 1
 
     def test_empty_tree_fails_the_cli_even_with_no_violations(self, tmp_path):
+        """A tree present but yielding no agents is degenerate, not clean.
+
+        The tree is named explicitly with an empty roster so the backfill leaves
+        it empty. Its only file carries a suffix the tree does not use, which is
+        what a suffix-convention change looks like from the validator's side.
+        """
         repo = _repo(
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
-            {CANONICAL: ["analyst", "implementer"]},
+            {CANONICAL: ["analyst", "implementer"], ".claude/agents": []},
+            complete=True,
         )
-        (repo / ".claude" / "agents").mkdir(parents=True)
         (repo / ".claude" / "agents" / "README.rst").write_text("x", encoding="utf-8")
         assert vamr.violations(vamr.scan(repo)) == []
         assert vamr.main(["--repo-root", str(repo)]) == 1
@@ -606,6 +494,7 @@ class TestMainCli:
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
             {CANONICAL: ["analyst", "implementer"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 0
 
@@ -614,6 +503,7 @@ class TestMainCli:
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
             {CANONICAL: ["analyst"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
 
@@ -635,6 +525,7 @@ class TestMainCli:
             tmp_path,
             {_canonical_file("orchestrator"): indented},
             {CANONICAL: ["analyst"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
         assert "'memory' is not shipped" in capsys.readouterr().out
@@ -660,21 +551,55 @@ class TestMainCli:
                 f"{_suffix_for(CANONICAL)}": "# Template\n\nProse.\n",
             },
             {CANONICAL: ["analyst"]},
+            complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
         assert "'claude-instructions.template' is not shipped" in capsys.readouterr().out
 
     def test_no_agents_anywhere_exits_two(self, tmp_path, capsys):
-        """No roster at all is a configuration error, not a flood of violations."""
-        repo = _repo(tmp_path, {f"{CANONICAL}/notes.md": "# Notes\n"}, {CANONICAL: []})
+        """No roster at all is a configuration error, not a flood of violations.
+
+        Every configured tree is present but empty, so this exercises the empty
+        roster rather than the absent-tree refusal that precedes it.
+        """
+        repo = _repo(
+            tmp_path,
+            {f"{CANONICAL}/notes.md": "# Notes\n"},
+            {tree: [] for tree in EXPECTED_TREES},
+        )
         assert vamr.main(["--repo-root", str(repo)]) == 2
-        assert "CONFIG ERROR" in capsys.readouterr().err
+        assert "no configured tree yields any agent file" in capsys.readouterr().err
+
+    def test_missing_configured_tree_exits_two(self, tmp_path, capsys):
+        """An absent tree is a configuration error, not a tree to skip.
+
+        The two gates that run this code fire on different paths. The workflow
+        that invokes this script covers every agent tree, while the workflow
+        that runs the test suite fires only on Python changes. Deleting an agent
+        tree is a markdown-only change, so it reaches the script without ever
+        reaching the filesystem test in ``TestRealRepository``. If ``main``
+        skipped the absent tree, every citation into it would pass by omission.
+        """
+        repo = _repo(
+            tmp_path,
+            {_canonical_file("orchestrator"): BOLD_MATRIX},
+            {CANONICAL: ["analyst", "implementer"]},
+            complete=True,
+        )
+        dropped = ".github/agents"
+        for path in sorted((repo / dropped).iterdir()):
+            path.unlink()
+        (repo / dropped).rmdir()
+
+        assert vamr.main(["--repo-root", str(repo)]) == 2
+        assert dropped in capsys.readouterr().err
 
     def test_violation_names_the_agent_the_site_and_the_tree(self, tmp_path, capsys):
         repo = _repo(
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
             {CANONICAL: ["analyst"]},
+            complete=True,
         )
         vamr.main(["--repo-root", str(repo)])
         out = capsys.readouterr().out
@@ -687,6 +612,7 @@ class TestMainCli:
             tmp_path,
             {_canonical_file("orchestrator"): BOLD_MATRIX},
             {CANONICAL: ["analyst", "implementer"]},
+            complete=True,
         )
         vamr.main(["--repo-root", str(repo)])
         out = capsys.readouterr().out
@@ -725,13 +651,17 @@ class TestRealRepository:
         result = vamr.scan(REPO_ROOT)
         assert {str(tree) for tree in result.trees_scanned} == EXPECTED_TREES
 
-    def test_no_tree_admits_a_non_agent_document(self):
+    def test_the_four_documented_sibling_documents_stay_out_of_the_roster(self):
         """The frontmatter rule must hold against the real trees, not a fixture.
 
         These four documents live beside agents in trees whose suffix is a bare
         ``.md``. Suffix matching alone admitted all four, and only three of them
         are uppercase, so the case rule that preceded this could not have caught
         ``claude-instructions.template``.
+
+        This is the named-regression check. The complete check, over every file
+        rather than four names, is
+        ``test_every_roster_matches_an_independent_frontmatter_oracle``.
         """
         result = vamr.scan(REPO_ROOT)
         leaked = {
@@ -741,6 +671,31 @@ class TestRealRepository:
             if name in {"AGENTS", "CLAUDE", "README", "claude-instructions.template"}
         }
         assert not leaked, f"non-agent documents in the roster: {leaked}"
+
+    def test_every_roster_matches_an_independent_frontmatter_oracle(self):
+        """Check every suffix-matching file, not a list of names known to leak.
+
+        A named list only proves the four documents someone already found are
+        excluded. It says nothing about the fifth. This walks every file in
+        every tree and compares roster membership against an oracle written a
+        different way: a line scan plus a real YAML parse, rather than the
+        module's regexes. Agreement on all 179 suffix-matching files is what
+        makes the membership rule a rule rather than a denylist.
+        """
+        result = vamr.scan(REPO_ROOT)
+        checked = 0
+        disagreements = []
+        for tree, suffix in vamr.AGENT_TREES:
+            roster = result.agents_by_tree[tree]
+            for path in sorted((REPO_ROOT / tree).glob(f"*{suffix}")):
+                name = path.name[: -len(suffix)]
+                if not name:
+                    continue
+                checked += 1
+                if (name in roster) != _has_agent_frontmatter(path):
+                    disagreements.append(str(path.relative_to(REPO_ROOT)))
+        assert not disagreements, f"roster disagrees with the oracle on: {disagreements}"
+        assert checked >= 175, f"oracle only examined {checked} files"
 
     def test_every_configured_tree_yields_agents(self):
         """Guard against a suffix that stops matching what a tree ships.
