@@ -138,7 +138,8 @@
         "The reviewer flagged that the specs carry status draft, todo, and in-progress, and that many flagged lines are imperative: Create bundle_registry.py, MUST import from, shall replace the hard-coded PLUGIN_COUNTERS dict, THE SYSTEM SHALL invoke",
         "Verified the reviewer rather than trusting it: COUNT_PATTERN and LABEL_MAP are absent from patterns.py, tests/test_command_bundles.py and BUNDLE_REGISTRY no longer exist, and PLUGIN_COUNTERS matches nothing in the tree, so all three instructions are unimplementable as written",
         "Also verified two false claims in the first draft of this log: the precedent counts were 25 and 22, not 39 and 29, and the 32 findings sit on 30 lines, not 32",
-        "Annotated the design and task tiers: TASK-009 line 70 tells an implementer to mirror COUNT_PATTERN and LABEL_MAP byte-for-byte from the deleted script, and patterns.py confirms neither ever landed, so the instruction is unreachable rather than merely stale"
+        "Annotated the design and task tiers: TASK-009 line 70 tells an implementer to mirror COUNT_PATTERN and LABEL_MAP byte-for-byte from the deleted script, and patterns.py confirms neither ever landed, so the instruction is unreachable rather than merely stale",
+        "Annotated SPEC-005 last: TASK-005 is status todo and says Create scripts/validation/bundle_registry.py and MUST import from it, but git shows that file created in 7310d0c9c4 then deleted in #3432 with tests/test_command_bundles.py, and BUNDLE_REGISTRY matches nothing in the tree today"
       ],
       "outcome": "Added a dated retirement note after the H1 of the nine affected specs naming the removed dependency, the PR, and the commit, and stating the instructions below are no longer actionable. The directives now sit under a banner that tells the reader the truth instead of hiding a live contract pointing at a deleted file"
     }
