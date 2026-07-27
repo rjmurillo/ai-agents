@@ -1187,6 +1187,75 @@ class TestRunnerLiveLoop:
         assert rc2 == 0
         assert adapter2.call_count == 0
 
+    def test_resume_accepts_legacy_v1_records_with_default_seed(
+        self, tmp_path, monkeypatch
+    ):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-resume-v1")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        run_id = "20260503T130000Z-v1compat"
+        adapter1 = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: ok",
+                    tokens_in=10,
+                    tokens_out=5,
+                    latency_ms=5.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--run-id",
+            run_id,
+        ])
+        assert rc == 0
+
+        runs_jsonl = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "runs"
+            / run_id
+            / "runs.jsonl"
+        )
+        legacy_lines = []
+        for line in runs_jsonl.read_text(encoding="utf-8").splitlines():
+            payload = json.loads(line)
+            payload["schemaVersion"] = 1
+            payload.pop("seed", None)
+            payload.pop("system_fingerprint", None)
+            legacy_lines.append(json.dumps(payload))
+        runs_jsonl.write_text("\n".join(legacy_lines) + "\n", encoding="utf-8")
+
+        adapter2 = _StubAdapter([])
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
+        rc2 = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--resume",
+            run_id,
+        ])
+        assert rc2 == 0
+        assert adapter2.call_count == 0
+
     def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-err")

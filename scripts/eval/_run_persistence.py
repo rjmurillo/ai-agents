@@ -212,6 +212,12 @@ class RunPersistence:
                         f"{RUN_RECORD_SCHEMA_VERSION})"
                     )
                 existing_seed = payload.get("seed")
+                if (
+                    schema_version == 1
+                    and "seed" not in payload
+                    and self._seed in (None, 0)
+                ):
+                    existing_seed = self._seed
                 if self._resume and existing_seed != self._seed:
                     raise RunSeedMismatchError(
                         f"{self._jsonl_path}: line {line_no} has seed="
