@@ -5,6 +5,7 @@ description: Fix session protocol validation failures in GitHub Actions. Use whe
   "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol
   Validation workflow. With deterministic validation, failures show exact missing
   requirements directly in Job Summary - no artifact downloads needed.
+  Do NOT use to complete a session log locally before commit (use session-end).
 version: 3.0.0
 license: MIT
 metadata:
