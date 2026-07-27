@@ -816,10 +816,15 @@ a hypothesis, and run the null control before believing it.
 ### Refusing an incomparable pair
 
 `split` records the corpus of the results it was drawn from, and `gate` refuses
-when the split and the two results files name more than one corpus between
-them, counting a declared corpus beside an undeclared one as a disagreement.
-Undeclared everywhere is not one, and is reported as `corpus_verified: false`
-rather than refused, because the rule and hook paths declare no corpus at all:
+when the split's pin and the two results files name more than one corpus
+between them. A results file that names no corpus says so, as `"corpus": null`,
+and that counts as a value like any other, so a known corpus beside a null one
+is a disagreement. A split with no `corpus` key at all names nothing and is
+dropped before counting, which is why a pinless split beside two files agreeing
+on one corpus is not refused. Null everywhere is one value rather than two, so
+it is reported as `corpus_verified: false` instead of refused, which is what
+keeps the gate usable on the rule and hook paths that publish no corpus
+identity:
 
 ```text
 decision: REJECT   compared: false   consultations: 0

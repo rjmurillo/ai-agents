@@ -362,11 +362,12 @@
         "The behaviour already had a test. The parametrised truth table pins (UNPINNED, None, None) to False, so the code was correct and only the prose drifted. No test was added, because adding one would duplicate a case already covered rather than close a gap.",
         "Corrected both documents to state the rule the code enforces, and said in the ADR that the earlier wording read as refusing the all-unknown case. This is the same defect class the log calls shape 25, a claim stated more strongly than it holds, arriving this time from a bot reviewer rather than from the author.",
         "Merged origin/main, which had moved four commits and reported CONFLICTING on the generated causal graph. Resolved by regenerating rather than by hand; the regenerated file matched the merge result exactly, so the merge was already correct. 1389 pass after the merge, ruff clean.",
-        "Grepped for the old wording rather than trusting the two threads to be exhaustive, and found a third copy of the same overstatement in the operator README that neither thread named. Corrected it in the same shape. A bot reviewer reports what it read, not what it did not read, so a finding about prose is a reason to search for the prose elsewhere."
+        "Grepped for the old wording rather than trusting the two threads to be exhaustive, and found a third copy of the same overstatement in the operator README that neither thread named. Corrected it in the same shape. A bot reviewer reports what it read, not what it did not read, so a finding about prose is a reason to search for the prose elsewhere.",
+        "Then found a precision bug in that fix. The README correction said a declared corpus beside an undeclared one is a disagreement, and undeclared reads as the absent split key, which is exactly the case that is NOT a conflict. The ADR survived the same wording only because a neighbouring paragraph disambiguates it; the README had no such neighbour. Rewrote it to name the two absences separately: a results file says null, which counts as a value, while a split with no corpus key names nothing and is dropped before counting. Verified all six resulting claims against _corpus_conflict directly, zero mismatches."
       ]
     }
   ],
-  "endingCommit": "22b43856a",
+  "endingCommit": "1009eb761",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
