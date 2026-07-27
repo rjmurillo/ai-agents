@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3459,
+    "date": "2026-07-27",
+    "branch": "fix/skill-md-templates-portability",
+    "startingCommit": "0e23a56a40",
+    "objective": "Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/skill-md-templates-portability"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and .claude/rules/plugin-self-containment.md loaded; the latter is the rule this validator gap leaves unenforced for the templates/ path family"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from origin/main at 0e23a56a40"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read at session start and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/skill-md-templates-portability"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Enumerated every SKILL.md referencing templates/agents/ or templates/platforms/ with git grep, then checked each for an existing vendor-portability marker. Thirteen files reference those paths; ten were already declared"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This checklist"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No new durable knowledge: the plugin self-containment rule already records the principle, and this change is its enforcement for one path family"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "markdownlint-cli2 ran via the pre-commit hook on the three changed SKILL.md files"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Atomic commits, each five files or fewer, with source and generated mirror paired"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py reports 33 passed; ruff check clean; run_plugin_version_bump_ci.py reports plugin-version-bump: OK"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Issue #3459 filed with the evidence before any code changed"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Change is a single-validator extension with no cross-cutting lesson beyond what issue #3459 records"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Measure the gap",
+      "actions": [
+        "Read UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py: it covers .agents/, .claude/lib/, and .claude/review-axes/",
+        "git grep -l -E 'templates/(agents|platforms)/' over .claude/skills/**/SKILL.md returned 13 files",
+        "Checked each for a vendor-portability marker: 10 declared, 3 not (autoplan, negotiation, security-review)",
+        "Ran the validator: 'No Markdown vendor-portability drift. 0 grandfathered refs across 0 files (baseline 0)', so the ratchet is at its tightest and this path family is invisible to it"
+      ],
+      "outcome": "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code"
+    },
+    {
+      "phase": "Extend the patterns and prove they are load-bearing",
+      "actions": [
+        "Added two patterns scoped to the second segment, templates/agents/ and templates/platforms/, rather than a bare templates/ prefix",
+        "Chose the narrow scope because bare templates/ also names a Flask or Django render directory, a file-relative asset directory bundled inside a skill, and a substring of unrelated URLs, and all three resolve consumer-side",
+        "Extended the lookbehind character class with a hyphen so a URL segment like awesome-templates/agents/ does not match",
+        "Ran a ten-case table over the compiled patterns covering both new families, Windows separators, mixed case, and five negatives; all ten matched expectation",
+        "Negative control on the real validator: removed the marker from negotiation/SKILL.md and confirmed the validator reports DRIFT, then restored it and confirmed a clean run"
+      ],
+      "outcome": "Patterns verified to fire on the true positives and stay silent on the four negative shapes"
+    },
+    {
+      "phase": "Declare the three offenders",
+      "actions": [
+        "Added a vendor-portability marker to autoplan, negotiation, and security-review rather than deleting their references",
+        "Chose declaration over deletion because all three cite templates/ for provenance, which .claude/rules/canonical-source-mirror.md requires them to do",
+        "Regenerated the Copilot mirror with build/scripts/build_all.py and confirmed the marker survived generation in all three mirrored files",
+        "Bumped .claude and src/copilot-cli manifests to 0.6.133, above main's 0.6.131 and above the 0.6.132 claimed by open PR #3448"
+      ],
+      "outcome": "Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything"
+    }
+  ],
+  "endingCommit": "0e23a56a40",
+  "nextSteps": [
+    "If a future skill takes a real runtime dependency on templates/, the marker is the wrong answer: the content has to move into the plugin root instead, per .claude/rules/plugin-self-containment.md",
+    "check_skill_portability.py is the script-file companion to this validator and was not examined for the same gap"
+  ]
+}

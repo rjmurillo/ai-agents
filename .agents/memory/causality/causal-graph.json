@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T06:00:12.157256+00:00",
+  "updated": "2026-07-27T08:08:42.964371+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20851,6 +20851,42 @@
         "episode-2026-07-26-session-3402-plugin-self-containment"
       ],
       "created": "2026-07-27T05:58:30.440248+00:00"
+    },
+    {
+      "id": "fa8c918f8fa0",
+      "type": "milestone",
+      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T08:08:42.958420+00:00"
+    },
+    {
+      "id": "fae5e4dee3ee",
+      "type": "milestone",
+      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T08:08:42.958508+00:00"
+    },
+    {
+      "id": "8425e192230d",
+      "type": "milestone",
+      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T08:08:42.958583+00:00"
+    },
+    {
+      "id": "5bff97ce7760",
+      "type": "outcome",
+      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T08:08:42.958663+00:00"
     }
   ],
   "patterns": [
