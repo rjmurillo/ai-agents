@@ -3,7 +3,7 @@
   "session": {
     "number": 3422,
     "date": "2026-07-26",
-    "branch": "fix/eval-holdout-gate-digest-leak",
+    "branch": "docs/eval-holdout-gate-round-13",
     "startingCommit": "2b3bf6dd5",
     "objective": "Give the eval harness a held-out-gated optimization loop for agents, rules, and hooks (issue #3422)"
   },
@@ -52,7 +52,7 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "feat/eval-holdout-gated-optimizer at session start; rebased to fix/eval-holdout-gate-digest-leak after PR #3430 squash-merged and deleted the original"
+        "Evidence": "feat/eval-holdout-gated-optimizer at session start; rebased to fix/eval-holdout-gate-digest-leak after PR #3430 squash-merged and deleted the original; cut docs/eval-holdout-gate-round-13 off origin/main after PR #3458 squash-merged mid-session and deleted that branch too. git branch --show-current confirms docs/eval-holdout-gate-round-13."
       },
       "notOnMain": {
         "level": "MUST",
@@ -259,9 +259,17 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T12:30:00Z",
+      "action": "Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "outcome": "A push failed with a remote ref-lock error; the retry reported [new branch], which meant the branch had been deleted rather than that the push was transiently unlucky. PR #3458 merged at 09:26Z as 4b854ad2b with head 7686d85d5, so everything through round 12 is in main and the retry had resurrected a merged PR's branch. Verified main carries the round-12 fix, its tests, and the round-12 debate log. Cherry-picked the round-13 docs commit onto a branch off the new main and deleted the resurrected branch.",
+      "artifacts": [
+        ".agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json"
+      ]
     }
   ],
-  "endingCommit": "7686d85d5",
+  "endingCommit": "e9f28051d",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",

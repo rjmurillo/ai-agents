@@ -108,7 +108,7 @@
       "type": "test",
       "content": "356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01.",
       "caused_by": [
-        "e038"
+        "e040"
       ],
       "leads_to": [
         "e001"
@@ -444,7 +444,9 @@
       "caused_by": [
         "e035"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e039"
+      ]
     },
     {
       "id": "e038",
@@ -453,6 +455,28 @@
       "content": "Commit: 7686d85d5",
       "caused_by": [
         "e036"
+      ],
+      "leads_to": [
+        "e040"
+      ]
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "caused_by": [
+        "e037"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e9f28051d",
+      "caused_by": [
+        "e038"
       ],
       "leads_to": [
         "e009"
@@ -464,7 +488,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 5
   },
   "lessons": []
