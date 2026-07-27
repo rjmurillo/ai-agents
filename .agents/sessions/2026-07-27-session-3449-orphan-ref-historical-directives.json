@@ -129,10 +129,10 @@
         "Counted existing precedent with git ls-files: 39 line-scope directives and 29 file-scope already in the tree, four of them in the files being fixed",
         "Chose line scope because the skill's own anti-pattern list warns that file scope on a spec masks real orphans, and these specs stay in the scan"
       ],
-      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS"
+      "outcome": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e0d5390dd7938c308c9a26c2fec67619c582b651",
   "nextSteps": [
     "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against build/scripts/validate_marketplace_counts.py, which no longer exists",
     "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only"

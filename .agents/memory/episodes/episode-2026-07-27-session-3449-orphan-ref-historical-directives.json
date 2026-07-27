@@ -11,7 +11,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -36,7 +38,29 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7.",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e0d5390dd7938c308c9a26c2fec67619c582b651",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -44,7 +68,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 12
   },
   "lessons": []

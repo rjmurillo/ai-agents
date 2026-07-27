@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T06:44:16.027374+00:00",
+  "updated": "2026-07-27T06:46:52.815564+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20887,6 +20887,24 @@
         "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
       ],
       "created": "2026-07-27T06:44:16.021444+00:00"
+    },
+    {
+      "id": "0c972bc27fd7",
+      "type": "milestone",
+      "label": "milestone: 30 directives across 12 files, verified by diff to be pure suffix appends with no prose changed, and the gate now prints VERDICT: PASS. Landed as 89bfb7a398, 34051e14e8, and e0d5390dd7.",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T06:46:52.809915+00:00"
+    },
+    {
+      "id": "b3404d555a22",
+      "type": "commit",
+      "label": "commit: Commit: e0d5390dd7938c308c9a26c2fec67619c582b651",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T06:46:52.810012+00:00"
     }
   ],
   "patterns": [
