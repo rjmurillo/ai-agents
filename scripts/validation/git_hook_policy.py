@@ -532,8 +532,13 @@ def _is_linked_worktree(repo_root: Path) -> bool:
 def _is_committed_here(repo_root: Path, path: Path) -> bool:
     """Return True when ``path`` exists in the current checkout's ``HEAD``.
 
-    A committed session log was written before this session started. An
-    untracked one is a live claim about what the developer is doing now.
+    In a linked worktree, presence in HEAD indicates the file arrived with
+    the checkout rather than being created in the working tree during this
+    session.  The proxy is imperfect: a log committed during the current
+    session would also satisfy this test.  The guard is acceptable because
+    the worktree exemption only fires in combination with
+    ``_is_linked_worktree``, and linked-worktree users do not typically
+    commit session logs to their feature branch mid-session.
     """
     try:
         relative = path.relative_to(repo_root).as_posix()
@@ -889,12 +894,13 @@ def check_branch_context(repo_root: Path) -> int:
     from issue #682 still blocks.
 
     A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
-    checkout of some branch's history, so a log sitting there names whatever
-    that branch last recorded and says nothing about the developer's current
-    work. Blocking on it forced ``--no-verify`` on every worktree commit, which
-    disabled every other hook to silence this one (issue #3408). The exemption
-    is limited to logs committed in the worktree's own ``HEAD``: a log written
-    in the worktree today is untracked, so a real mismatch there still blocks.
+    checkout of some branch's history, so a log present in ``HEAD`` names
+    whatever that branch last recorded and says nothing about the developer's
+    current work. Blocking on it forced ``--no-verify`` on every worktree
+    commit, which disabled every other hook to silence this one (issue #3408).
+    The exemption is limited to logs present in the worktree's own ``HEAD``
+    (the ``_is_committed_here`` probe): a log that exists only as an untracked
+    working-tree file is a live claim, so a real mismatch there still blocks.
     """
     try:
         if _merge_in_progress(repo_root):
