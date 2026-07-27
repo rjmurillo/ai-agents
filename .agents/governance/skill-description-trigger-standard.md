@@ -236,6 +236,60 @@ The SkillForge validator (`.claude/skills/SkillForge/scripts/validate-skill.py`)
 
 **Note**: Validator checks WORD COUNT (10+ words), not character count. 150-250 chars is recommended for readability but not enforced.
 
+### Independent-Distribution Validation
+
+Every check above scores a phrase you wrote against a rule you wrote. That is a
+closed loop, and a closed loop cannot tell you whether anyone would ever type
+the phrase.
+
+The wiki concept `Skill Triggering Failure Modes` records what happens when the
+loop is opened. A practitioner's skill-activation classifier scored 93 percent
+precision and recall on 40 prompts he wrote himself, then 27 percent precision
+on 86 prompts mined from his own transcripts. Same classifier, same author. The
+only variable was who wrote the prompts.
+
+The same collapse is measurable here. Run:
+
+```bash
+uv run python scripts/eval/eval-trigger-phrase-realism.py
+```
+
+It reads real prompts from the local Claude Code transcript store, matches on
+word boundaries, and reports what fraction of documented phrases a user has
+ever actually typed. Measured against 640 unique real prompts at `4850af73f`:
+
+| Phrase set | Ever said | Share |
+|---|---|---|
+| Documented in a `## Triggers` table | 22 of 212 | 10.4% |
+| Promoted into a description | 8 of 140 | 5.7% |
+
+Read that as evidence about provenance, not about the router. The router is a
+model doing semantic matching, so a phrase nobody typed verbatim can still
+route correctly. What the number establishes is that these phrases were
+**authored rather than observed**, which is exactly the condition under which
+the practitioner's classifier collapsed.
+
+Two rules follow.
+
+1. **Prefer an observed phrase to an invented one.** When a real prompt exists
+   for the behaviour, use its wording. The eval prints every phrase a user has
+   said, so the observed set is the first place to look.
+2. **Never benchmark trigger phrases on prompts you wrote.** A self-authored
+   benchmark measures your own consistency. If no transcript corpus is
+   available, say the phrase set is unvalidated; do not substitute authored
+   prompts. The eval refuses that substitution deliberately and exits 3.
+
+Two matching rules in the eval are load-bearing and worth reusing in any
+successor tool:
+
+- **Anchor on word boundaries.** A bare substring test counted `analyze` 60
+  times in this corpus, every one of them inside ordinary prose. The wiki
+  records the same failure: every incorrect hard block in the practitioner's
+  hook traced to a pattern matching inside a word.
+- **Exclude slash commands and single words.** A slash command is dispatched by
+  name and never consults a description, so counting it measures the
+  dispatcher. A single word collides with prose and inflates the score.
+
 ### Security Requirements
 
 Trigger phrases MUST use character whitelist: `[a-zA-Z0-9 \-:,.'"]`
@@ -251,6 +305,8 @@ Before marking skill complete:
 
 - [ ] Description has action verb
 - [ ] Description includes trigger keywords (how users will search)
+- [ ] Trigger phrases checked against the observed set from
+      `scripts/eval/eval-trigger-phrase-realism.py`, not invented
 - [ ] Description has "Use when" or equivalent
 - [ ] Description mentions outcome
 - [ ] Body has trigger table/list
@@ -297,7 +353,8 @@ Before marking skill complete:
 ## References
 
 - [Skill Description Trigger Review](../analysis/skill-description-trigger-review.md) - 28-skill analysis
-- `Skill Triggering Failure Modes` (wiki: Agent Instruction Patterns) - Over-triggering remediation backing the SKIP clause requirement
+- `Skill Triggering Failure Modes` (wiki: Agent Instruction Patterns) - Over-triggering remediation backing the SKIP clause requirement, and the 93 percent to 27 percent collapse backing Independent-Distribution Validation
+- [`scripts/eval/eval-trigger-phrase-realism.py`](../../scripts/eval/eval-trigger-phrase-realism.py) - Measures documented phrases against real transcript prompts
 - [SkillForge Specification](../../.claude/skills/SkillForge/SKILL.md) - Skill creation framework
 - [Session 372](../sessions/2026-01-03-session-372.json) - Standard creation session
 - [ADR Review Debate Log](../critique/skill-description-trigger-standard-debate-log.md) - P0 issues addressed

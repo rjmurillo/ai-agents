@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-27-session-3509-trigger-phrase-realism",
+  "session": "2026-07-27-session-3509-trigger-phrase-realism",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Open the closed loop in trigger-phrase validation. Every check in the trigger standard scores a phrase the author wrote against a rule the author wrote, which cannot measure whether anyone would ever type the phrase. Build an eval that mines real prompts from the local transcript store, measure the gap, and encode the resulting convention.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the wiki concept Skill Triggering Failure Modes and found it indicts the repo's own trigger standard. A practitioner's skill-activation classifier scored 93 percent precision and recall on 40 prompts he wrote, then 27 percent precision on 86 prompts mined from his own transcripts. Same classifier, same author; the only variable was who wrote the prompts. The repo standard cites this concept twice, but only for the over-triggering half. Nothing in the pipeline consults a prompt the author did not write.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built a prompt extractor against the local Claude Code transcript store and got 66 turns from 480 transcript files. Did not report the number. 66 from 480 is implausible, so I treated it as a defect report against my own extractor rather than a finding. Root cause was a 600-character cap I had added without measuring the distribution: real prompt length is p50 1,820 characters, p90 8,175, max 107,478. The corrected extractor yields 640 unique real prompts.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scored the phrases and got `analyze` at 60 occurrences. Did not report that either. Every one of the 60 was a match inside ordinary prose, because the scorer used bare substring matching. This is exactly the failure the wiki documents: every incorrect hard block in the practitioner's hook traced to a pattern matching inside a word. Fixed with a (?<!\\w) and (?!\\w) anchor pair. Both measurement errors produced numbers that looked reportable, and neither was caught by a test, a lint, or a reviewer.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the tool so the rules are testable. scripts/eval/_trigger_realism.py holds the pure matching and scoring helpers with no filesystem access; the hyphenated CLI holds transcript reading, phrase collection, rendering, and exit codes. The module docstring records why each matching rule exists and cites the wiki concept, so a future reader cannot delete the anchoring as noise.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the eval for the first time against 640 prompts. Documented in a ## Triggers table: 22 of 212 measurable phrases ever said, 10.4 percent. Promoted into a description: 8 of 140, 5.7 percent. The promoted denominator is 140 here against origin/main; it is 176 on the branch for PR #3497, which promotes more phrases, and the ad-hoc run there reported 4.5 percent. Both are correct; the denominators differ because the corpus of promoted phrases differs. Any citation of this number must name which tree it was measured against.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 54 tests to the TESTING-RIGOR bar. Both exclusion rules carry an explicit negative control asserting the naive alternative would have been wrong: word_boundary_match must reject `analyze` inside `analyzer` and `review` inside `reviewer`, and is_measurable_phrase must reject a slash command and a single word. Also covered regex metacharacters matched literally, an empty phrase never matching, score counting excluded phrases rather than dropping them so the denominator stays reconstructable, realism returning 0.0 on both an empty phrase set and an empty corpus, every excluded transcript entry shape, malformed JSON and malformed YAML, an unreadable transcript, and all three CLI exit codes.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the four uncovered branches that the first coverage run reported rather than accepting 96 percent: an unreadable transcript, a non-user line inside an otherwise valid transcript, a ## Triggers section with no backticked first column, and a run with no --output path. Final: 100 percent branch coverage on the pure helpers, 99 percent overall, the only miss being the unreachable __main__ guard.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the Independent-Distribution Validation section to Part 4 of the standard, a checklist line, and a References entry. The section states explicitly what the number does not claim: the router is a model doing semantic matching, so a phrase nobody typed verbatim can still route correctly. The finding is about provenance, not routing quality. This framing matters because the strongest counter-argument to the work is that literal occurrence understates a semantic router, and the standard would be dishonest if it let a reader conclude otherwise.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kept the hyphenated CLI filename against an advisory taste-lint error. Measured the convention rather than guessing: scripts/eval holds 16 hyphenated CLI entry points against 2 snake_case ones, and 5 or more existing test files load the hyphenated ones through importlib spec_from_file_location, which is the pattern this test uses. Renaming would diverge from the dominant convention to satisfy an advisory check that would flag all 16 siblings identically. Flagged in the PR body rather than resolved silently.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

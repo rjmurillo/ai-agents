@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3509,
+    "date": "2026-07-27",
+    "branch": "feat/trigger-phrase-realism",
+    "startingCommit": "4850af73f",
+    "objective": "Open the closed loop in trigger-phrase validation. Every check in the trigger standard scores a phrase the author wrote against a rule the author wrote, which cannot measure whether anyone would ever type the phrase. Build an eval that mines real prompts from the local transcript store, measure the gap, and encode the resulting convention."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree /tmp/wttrig created on branch feat/trigger-phrase-realism from origin/main at 4850af73f before any edit"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries, .claude/rules/universal.md, and .agents/governance/TESTING-RIGOR.md applied this session"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status clean at branch creation; net diff versus origin/main is exactly the six files listed in filesModified"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = feat/trigger-phrase-realism"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project and initial_instructions both returned success at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Checked scripts/eval for an existing realism measurement before building one; none existed. Reused the established spec_from_file_location test-loader pattern rather than inventing one."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".serena/memories/decision-trigger-phrases-need-real-prompts.md records the closed-loop finding, both measurement errors I made and caught by disbelief, and the transcript store format needed to reproduce."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 excludes .agents/** and .serena/**, so a scoped run on both changed markdown files reports 0 files, 0 issues. Verified by running it directly."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three commits: eval plus tests, standard plus memory plus this log, then any review remediation."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "54 new tests pass. Branch coverage 100 percent on scripts/eval/_trigger_realism.py and 99 percent overall, the only miss being the __main__ guard. tests/eval full suite 787 passed, no regression. ruff check clean on all three Python files. 0 em-dash or en-dash bytes in all changed files. No plugin root touched, so no manifest bump is required."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3509 filed with the measurement and the proposed fix before this branch was pushed."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; the durable lessons are already recorded in the Serena decision memory rather than split across two artifacts."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read the wiki concept Skill Triggering Failure Modes and found it indicts the repo's own trigger standard. A practitioner's skill-activation classifier scored 93 percent precision and recall on 40 prompts he wrote, then 27 percent precision on 86 prompts mined from his own transcripts. Same classifier, same author; the only variable was who wrote the prompts. The repo standard cites this concept twice, but only for the over-triggering half. Nothing in the pipeline consults a prompt the author did not write."
+    },
+    {
+      "step": "Built a prompt extractor against the local Claude Code transcript store and got 66 turns from 480 transcript files. Did not report the number. 66 from 480 is implausible, so I treated it as a defect report against my own extractor rather than a finding. Root cause was a 600-character cap I had added without measuring the distribution: real prompt length is p50 1,820 characters, p90 8,175, max 107,478. The corrected extractor yields 640 unique real prompts."
+    },
+    {
+      "step": "Scored the phrases and got `analyze` at 60 occurrences. Did not report that either. Every one of the 60 was a match inside ordinary prose, because the scorer used bare substring matching. This is exactly the failure the wiki documents: every incorrect hard block in the practitioner's hook traced to a pattern matching inside a word. Fixed with a (?<!\\w) and (?!\\w) anchor pair. Both measurement errors produced numbers that looked reportable, and neither was caught by a test, a lint, or a reviewer."
+    },
+    {
+      "step": "Split the tool so the rules are testable. scripts/eval/_trigger_realism.py holds the pure matching and scoring helpers with no filesystem access; the hyphenated CLI holds transcript reading, phrase collection, rendering, and exit codes. The module docstring records why each matching rule exists and cites the wiki concept, so a future reader cannot delete the anchoring as noise."
+    },
+    {
+      "step": "Ran the eval for the first time against 640 prompts. Documented in a ## Triggers table: 22 of 212 measurable phrases ever said, 10.4 percent. Promoted into a description: 8 of 140, 5.7 percent. The promoted denominator is 140 here against origin/main; it is 176 on the branch for PR #3497, which promotes more phrases, and the ad-hoc run there reported 4.5 percent. Both are correct; the denominators differ because the corpus of promoted phrases differs. Any citation of this number must name which tree it was measured against."
+    },
+    {
+      "step": "Wrote 54 tests to the TESTING-RIGOR bar. Both exclusion rules carry an explicit negative control asserting the naive alternative would have been wrong: word_boundary_match must reject `analyze` inside `analyzer` and `review` inside `reviewer`, and is_measurable_phrase must reject a slash command and a single word. Also covered regex metacharacters matched literally, an empty phrase never matching, score counting excluded phrases rather than dropping them so the denominator stays reconstructable, realism returning 0.0 on both an empty phrase set and an empty corpus, every excluded transcript entry shape, malformed JSON and malformed YAML, an unreadable transcript, and all three CLI exit codes."
+    },
+    {
+      "step": "Closed the four uncovered branches that the first coverage run reported rather than accepting 96 percent: an unreadable transcript, a non-user line inside an otherwise valid transcript, a ## Triggers section with no backticked first column, and a run with no --output path. Final: 100 percent branch coverage on the pure helpers, 99 percent overall, the only miss being the unreachable __main__ guard."
+    },
+    {
+      "step": "Added the Independent-Distribution Validation section to Part 4 of the standard, a checklist line, and a References entry. The section states explicitly what the number does not claim: the router is a model doing semantic matching, so a phrase nobody typed verbatim can still route correctly. The finding is about provenance, not routing quality. This framing matters because the strongest counter-argument to the work is that literal occurrence understates a semantic router, and the standard would be dishonest if it let a reader conclude otherwise."
+    },
+    {
+      "step": "Kept the hyphenated CLI filename against an advisory taste-lint error. Measured the convention rather than guessing: scripts/eval holds 16 hyphenated CLI entry points against 2 snake_case ones, and 5 or more existing test files load the hyphenated ones through importlib spec_from_file_location, which is the pattern this test uses. Renaming would diverge from the dominant convention to satisfy an advisory check that would flag all 16 siblings identically. Flagged in the PR body rather than resolved silently."
+    }
+  ],
+  "filesModified": [
+    "scripts/eval/_trigger_realism.py",
+    "scripts/eval/eval-trigger-phrase-realism.py",
+    "tests/eval/test_trigger_phrase_realism.py",
+    ".agents/governance/skill-description-trigger-standard.md",
+    ".serena/memories/decision-trigger-phrases-need-real-prompts.md",
+    ".agents/sessions/2026-07-27-session-3509-trigger-phrase-realism.json"
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "The 5.7 percent figure is measured against origin/main. PR #3497 promotes more phrases, so the denominator there is 176 and the figure is 4.5 percent. Re-measure after #3497 merges and update the standard's table if the number moves materially.",
+    "Whether 640 prompts is a large enough corpus for the promoted figure to be stable is untested. The absolute count of observed promoted phrases is 8, which is small enough that a handful of new transcripts could move the percentage several points.",
+    "The corpus comes from one operator's local transcripts and includes autopilot-driven sessions. It is a real distribution but not a representative one; a second operator's store would test that.",
+    "Excluding slash commands is defensible for measuring description-based routing but does discard real usage. A follow-up could report both figures side by side.",
+    "endingCommit is left empty because the review-remediation commit is not written when this log is committed."
+  ]
+}
