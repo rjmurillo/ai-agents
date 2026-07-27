@@ -1,6 +1,6 @@
 ---
 name: using-forgetful-memory
-description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring. Guidance only. Do NOT use to run a search (use memory).
+description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring. Guidance only. Do NOT use to run a search (use memory) or for LSP symbol navigation guidance (use using-serena-symbols).
 license: MIT
 metadata:
 version: 1.0.0
