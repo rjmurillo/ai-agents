@@ -1696,3 +1696,65 @@ both. A single-variable fuzz under-reported the class by half. The enumeration
 was right where the sampling was wrong, which is the same lesson as shape 39
 from the opposite direction: there, running confirmed what reading found; here,
 reading corrected what running missed.
+
+## Shape 41: a crash that borrowed the exit code of a real verdict
+
+Round thirty was pointed at the argument and input boundary, the one surface
+twenty-nine rounds of internal review had not systematically covered, and was
+told to enumerate rather than sample. It returned a per-argument verdict for
+every subcommand and every JSON field, confirmed that nothing between the
+ledger write and the printed verdict can fail for a reason other than a
+deliberate refusal, confirmed no input reaches an unsound ACCEPT, and found two
+defects.
+
+The first was reported as a crash: `buffer-add` and `buffer-check` pass patches
+straight to `patch_fingerprint` without the field check `apply_patches` runs, so
+a patch whose `text` is a number dies with an `AttributeError` out of
+`_normalize_newlines`. That is true, and it is not the interesting part.
+
+`buffer-check` returns exit 1 to mean the edit has been tried before. An
+uncaught exception also leaves the process at 1. The README publishes the loop
+that reads it:
+
+```
+case $? in
+  0) ;;
+  1) continue ;;
+  *) exit 2 ;;
+esac
+```
+
+So the crash did not stop the loop. It took the branch labelled "already
+rejected, skip it" and the loop moved on, having silently skipped an edit it
+never evaluated. The README's own comment states the contract the code broke:
+"Exit 1 means this edit was already rejected, so skip it. Exit 2 means the
+command itself failed and the loop must stop rather than treat a typo in a path
+as a clean finish." The document was right and the code was wrong, which is now
+the third time in four rounds that the fix was to make the code agree with prose
+that already existed. A crash is bounded when its exit code means nothing. This
+one collided with a verdict, so it produced a wrong answer instead of no answer.
+
+The guard went into `patch_fingerprint` rather than into the two commands that
+were reported. Every path that can crash routes through that function,
+including `buffer_contains`, and a caller added later would need it too. Fixing
+the two named callers would have left the shared function still assuming fields
+it never checked. `_check_patch_fields` already ruled this class is a named
+refusal, and its docstring says the point is that "the CLI can report it as a
+shape problem", naming the CLI rather than one command; one of three entry
+points honored it.
+
+The second finding is the same taxonomy as shape 39, one layer out. `cmd_apply`
+wraps `apply_patches` in `except ValueError` under a comment that names exactly
+what the block is for: "A refused patch is a decision the loop branches on, not
+a crash." A negative `--budget` raises `ValueError` from inside that call, so an
+operator's argument error was published as `applied: 0`, telling the loop its
+candidate proposed an unusable edit when the candidate did nothing. The check
+now sits ahead of the try and answers with a `ConfigError`, matching how a
+negative `--min-sel` has always been answered.
+
+Both were falsified separately. M15 drops the fingerprint guard and turns five
+red. M16 drops the budget check and turns one red. Four of the ten tests are
+controls: a genuinely seen patch still reports seen at exit 1, an unseen one
+still reports unseen at exit 0, a patch that genuinely cannot apply still
+reports `applied: 0`, and a budget of zero is still a budget error rather than
+an argument error, since the bar is negative rather than falsy.

@@ -5346,3 +5346,115 @@ class TestNumbersTooLargeToComputeWithNeverReachTheLedger:
         with pytest.raises(SystemExit) as excinfo:
             _run(capsys, "budget", "--step", "1", "--total", "not-a-number")
         assert excinfo.value.code == EXIT_CONFIG
+
+
+class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
+    """A crash in the buffer commands does not merely lose a document.
+
+    `buffer-check` returns EXIT_LOGIC to mean the patch has been tried before,
+    which is the answer that tells the loop to skip it. An uncaught exception
+    also leaves the process at 1, so a malformed patch reported as a crash is
+    indistinguishable from a patch the buffer has genuinely seen. The loop
+    skips an edit it never evaluated.
+
+    `_check_patch_fields` already rules that a wrong-typed field is a named
+    refusal rather than a fault, and its docstring says the point is that "the
+    CLI can report it as a shape problem". `apply_patches` calls it; the two
+    commands that fingerprint patches did not, so the same patch got a clean
+    refusal from one command and a traceback from the other two.
+    """
+
+    def test_buffer_check_refuses_a_patch_whose_text_is_not_a_string(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "PatchShapeError"
+        assert "text must be a string" in out["error"]
+        assert "seen" not in out
+
+    def test_buffer_check_refusal_does_not_borrow_the_code_that_means_seen(
+        self, tmp_path, capsys
+    ):
+        """The regression that matters: EXIT_LOGIC here reads as 'already tried'."""
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
+        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert code != EXIT_LOGIC
+
+    def test_buffer_add_refuses_a_patch_whose_op_is_not_a_string(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": 7, "text": "x"}])
+        code, out = _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "PatchShapeError"
+        assert "op must be a string" in out["error"]
+
+    def test_a_refused_patch_is_never_written_to_the_buffer(self, tmp_path, capsys):
+        """A patch that cannot be fingerprinted must not enter the ban list."""
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert not buffer.exists()
+
+    def test_an_anchor_of_the_wrong_type_is_refused_too(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "replace", "anchor": [], "text": "x"}])
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert code == EXIT_CONFIG
+        assert "anchor must be a string" in out["error"]
+
+    def test_a_seen_patch_still_reports_seen(self, tmp_path, capsys):
+        """Control: the code EXIT_LOGIC still means what it meant."""
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert code == EXIT_LOGIC
+        assert out["seen"] is True
+
+    def test_an_unseen_patch_still_reports_unseen(self, tmp_path, capsys):
+        """Control: a well-formed patch is unaffected by the new check."""
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+
+class TestABadBudgetIsAnOperatorErrorNotAPatchRefusal:
+    """`cmd_apply` catches ValueError to report a patch the loop can branch on.
+
+    Its comment names what the block is for: "A refused patch is a decision the
+    loop branches on, not a crash." A negative `--budget` is neither. It is an
+    operator argument error, and reporting it as `applied: 0` tells the caller
+    the candidate proposed an unusable edit when the candidate did nothing
+    wrong. The tool already answers a negative `--min-sel` with a ConfigError.
+    """
+
+    def test_a_negative_budget_is_a_config_error(self, tmp_path, capsys):
+        doc = tmp_path / "d.txt"
+        doc.write_text("hello\n", encoding="utf-8")
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(capsys, "apply", "--file", doc, "--patches", patches, "--budget", "-1")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "applied" not in out
+
+    def test_the_refused_document_is_still_a_refusal(self, tmp_path, capsys):
+        """Control: a patch that genuinely cannot apply still reports applied 0."""
+        doc = tmp_path / "d.txt"
+        doc.write_text("hello\n", encoding="utf-8")
+        patches = _write(tmp_path, "p.json", [{"op": "replace", "anchor": "nope", "text": "x"}])
+        code, out = _run(capsys, "apply", "--file", doc, "--patches", patches, "--budget", "5")
+        assert code == EXIT_LOGIC
+        assert out["applied"] == 0
+
+    def test_a_zero_budget_is_not_an_error(self, tmp_path, capsys):
+        """Control: the bar is negative, not falsy."""
+        doc = tmp_path / "d.txt"
+        doc.write_text("hello\n", encoding="utf-8")
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(capsys, "apply", "--file", doc, "--patches", patches, "--budget", "0")
+        assert code == EXIT_LOGIC
+        assert out["type"] == "BudgetExceededError"

@@ -785,10 +785,20 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     again.
 
     Raises:
-        ValueError: when ``patches`` is empty.
+        ValueError: when ``patches`` is empty, or when a patch field is not
+            the type the fingerprint assumes.
     """
     if not patches:
         raise ValueError("patch_fingerprint requires at least one patch")
+    for patch in patches:
+        # The same guard `apply_patches` runs, for the same reason. Both are
+        # public entry points fed agent-authored JSON, and both reach
+        # `_normalize_newlines`, so a number where a string belongs raised an
+        # AttributeError out of one and a named refusal out of the other. The
+        # check sits here rather than in the two buffer commands because every
+        # path that can crash routes through this function, including
+        # `buffer_contains`, and a caller added later would need it too.
+        _check_patch_fields(patch)
 
     canonical = [
         [

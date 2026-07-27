@@ -490,9 +490,28 @@
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json",
         ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
+    },
+    {
+      "phase": "The crash that took the branch marked skip",
+      "actions": [
+        "Ran round 30 on gemini-3.1-pro-preview, a fifth model family, pointed at the argument and input boundary: the one surface twenty-nine rounds of internal review had not systematically covered. Demanded enumeration rather than sampling, per-claim VERIFIED BY RUNNING / READING / NOT CHECKED labels, and a trace of every path between the ledger write and the printed verdict. It returned a per-argument verdict for every subcommand and JSON field, confirmed nothing after the charge can fail for a reason other than a deliberate refusal, confirmed no input reaches an unsound ACCEPT, and found two defects.",
+        "Verified both by running and found the first materially worse than reported. Round 30 called it a crash: buffer-add and buffer-check hand patches to patch_fingerprint without the field check apply_patches runs, so a non-string text dies with AttributeError. The part it missed is that buffer-check returns exit 1 to mean the edit was already tried, and an uncaught exception also exits 1. Measured both: a genuinely seen patch exits 1, and the crash exits 1. The README publishes the loop that reads it, and its case statement maps 1 to continue, so the crash did not stop the loop, it took the branch marked skip and moved on past an edit it never evaluated. A crash is bounded when its exit code means nothing; this one collided with a verdict, so it produced a wrong answer rather than no answer.",
+        "Put the guard in patch_fingerprint rather than in the two commands reported. Every crashing path routes through that function, including buffer_contains, so fixing the named callers would have left the shared function still assuming fields it never checked. _check_patch_fields already ruled the class is a named refusal and its docstring says the CLI can report it, naming the CLI rather than one command; one of three entry points honored it.",
+        "Second finding is shape 39 one layer out: cmd_apply's except ValueError sits under a comment naming what it is for, a refused patch the loop branches on, and a negative --budget raises ValueError from inside apply_patches, so an operator's argument error was published as applied 0. Moved the check ahead of the try as a ConfigError, matching how a negative --min-sel has always been answered.",
+        "Checked the README and left it unchanged for the third time in four rounds. Its comment already said exit 1 means this edit was already rejected and exit 2 means the command itself failed and the loop must stop. The document was right and the code was wrong.",
+        "TDD: 6 red for the right reasons, 4 controls green, then both fixes. Falsified in halves, M15 drops the fingerprint guard and turns five red, M16 drops the budget check and turns one red. Full suite 1423 pass, 100% statement coverage on all three eval modules, ruff and mypy clean.",
+        "Also triaged and resolved a bot thread on the Serena memory whose inline envelope example was not parseable JSON; fixed by mirroring the README's already-correct document, the third time a reviewer flagged the one file it read while a sibling tree was already right."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_core.py",
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "db48b1c65",
+  "endingCommit": "a9154fc2d",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

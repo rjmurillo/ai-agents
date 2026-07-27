@@ -657,6 +657,14 @@ def cmd_score(args: argparse.Namespace) -> int:
 def cmd_apply(args: argparse.Namespace) -> int:
     document = _read_text(args.file)
     patches = _read_patches(args.patches)
+    if args.budget < 0:
+        # Checked ahead of the try, because the block below reports what it
+        # catches as a refused patch and a negative budget is not one. Left to
+        # fall through, an operator's argument error was published as
+        # `applied: 0`, which tells the loop its candidate proposed an
+        # unusable edit when the candidate did nothing. A negative `--min-sel`
+        # is already a config error; this matches it.
+        raise ConfigError(f"--budget must be non-negative, got {args.budget}")
     try:
         updated = apply_patches(document, patches, budget=args.budget)
     except ValueError as exc:
