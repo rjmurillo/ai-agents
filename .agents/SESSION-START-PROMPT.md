@@ -5,7 +5,7 @@ Read the contents of the `.agents` directory before starting work:
 1. **FIRST**: Read `.agents/AGENT-SYSTEM.md` - agent catalog and protocols
 2. **SECOND**: Read `.agents/AGENT-INSTRUCTIONS.md` - task execution protocol
 3. **THIRD**: Read `.agents/HANDOFF.md` - previous session context
-4. **FOURTH**: Read `.agents/planning/enhancement-PROJECT-PLAN.md` - project phases and tasks
+4. **FOURTH**: Read `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - project phases and tasks
 
 ## Project Context
 

@@ -37,7 +37,7 @@ Before starting work, complete these steps IN ORDER:
 
 - [ ] Read this file completely
 - [ ] Read `.agents/AGENT-SYSTEM.md` for agent catalog
-- [ ] Read `.agents/planning/enhancement-PROJECT-PLAN.md` for current project
+- [ ] Read `.agents/archive/planning/enhancement-PROJECT-PLAN.md` for current project
 - [ ] Check `.agents/HANDOFF.md` for previous session notes
 - [ ] Identify your assigned phase and tasks
 - [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
@@ -50,7 +50,7 @@ Before starting work, complete these steps IN ORDER:
 |----------|---------|----------------|
 | `AGENT-INSTRUCTIONS.md` | How to execute work (this file) | Rarely - only if process changes |
 | `AGENT-SYSTEM.md` | Agent catalog and workflows | When agents added/modified |
-| `planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
+| `archive/planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
 | `HANDOFF.md` | Session-to-session context | At END of every session |
 | `sessions/*.md` | Detailed session logs | Throughout session |
 | `governance/*.md` | Standards and protocols | When governance changes |
@@ -452,7 +452,7 @@ If you need context, read these files in order:
 
 1. `.agents/AGENT-INSTRUCTIONS.md` - Process instructions (this file)
 2. `.agents/AGENT-SYSTEM.md` - Agent catalog and workflows
-3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master project plan
+3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master project plan
 4. `.agents/HANDOFF.md` - Previous session context
 5. `.agents/sessions/YYYY-MM-DD-session-NN.json` - Last session details
 ```

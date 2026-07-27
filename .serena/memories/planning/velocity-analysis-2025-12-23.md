@@ -36,7 +36,7 @@
 
 ## Implementation Plan
 
-See `.agents/planning/2025-12-23-velocity-improvement-plan.md`
+See `.agents/archive/planning/2025-12-23-velocity-improvement-plan.md`
 
 ## Skills Applied
 

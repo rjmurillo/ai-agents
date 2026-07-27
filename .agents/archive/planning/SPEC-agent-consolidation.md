@@ -44,7 +44,7 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 - **Slim target set**: 11 agents (explainer, implementer, issue-feature-review, roadmap, milestone-planner, spec-generator, analyst, context-retrieval, critic, orchestrator, skillbook)
 - **Size**: 230KB → 71KB (**69% reduction**). Measured with `wc -c` against `.claude/agents/<name>.md` before/after slim.
 - **Average score**: 4.24 → 4.57 across all 23 agents (+0.33). Delta across the 11 slim targets: +1.20.
-- Source of truth for deltas: `.agents/planning/agent-baseline-results.json` (before) and `.agents/planning/agent-post-review-results.json` (after).
+- Source of truth for deltas: `.agents/archive/planning/agent-baseline-results.json` (before) and `.agents/archive/planning/agent-post-review-results.json` (after).
 
 Any number that does not match this section is stale.
 

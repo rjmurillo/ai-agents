@@ -63,7 +63,7 @@
 |git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (287)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
-|cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1250)
+|cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
 
 [External Tools]
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)
@@ -73,7 +73,7 @@
 
 [Governance]
 |governance agent consolidation design principle overlap: [governance/governance-001-8question-agent-interview-94](governance/governance-001-8question-agent-interview-94.md) (172), [governance/governance-002-five-consolidation-triggers-90](governance/governance-002-five-consolidation-triggers-90.md) (156)
-|process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1570)
+|process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1571)
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
