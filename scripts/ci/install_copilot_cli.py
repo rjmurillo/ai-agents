@@ -13,7 +13,7 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
-COPILOT_VERSION = "1.0.63"
+DEFAULT_COPILOT_VERSION = "1.0.63"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,15 +40,16 @@ def append_line(path: Path, line: str) -> None:
 def install_copilot_cli(
     *,
     output_path: Path,
+    copilot_version: str = DEFAULT_COPILOT_VERSION,
     runner: Callable[[Sequence[str]], CommandResult] = run_command,
     which: Callable[[str], str | None] = shutil.which,
 ) -> int:
-    print(f"Installing GitHub Copilot CLI@{COPILOT_VERSION}...")
-    install_result = runner(["npm", "install", "-g", f"@github/copilot@{COPILOT_VERSION}"])
+    print(f"Installing GitHub Copilot CLI@{copilot_version}...")
+    install_result = runner(["npm", "install", "-g", f"@github/copilot@{copilot_version}"])
     print(install_result.stdout, end="")
     print(install_result.stderr, end="", file=sys.stderr)
     if install_result.returncode != 0:
-        print(f"::error::Failed to install GitHub Copilot CLI@{COPILOT_VERSION}")
+        print(f"::error::Failed to install GitHub Copilot CLI@{copilot_version}")
         return EXIT_LOGIC
 
     print("Verifying installation...")
@@ -63,9 +64,9 @@ def install_copilot_cli(
     version = version_full.splitlines()[0] if version_full.splitlines() else "unknown"
     append_line(output_path, f"copilot_version={version}")
 
-    if COPILOT_VERSION not in version:
+    if copilot_version not in version:
         print(
-            f"::warning::Expected version {COPILOT_VERSION} but got {version}. "
+            f"::warning::Expected version {copilot_version} but got {version}. "
             "Binary may have auto-updated."
         )
         print("::warning::See ADR-044 for auto-update bypass details.")
@@ -81,7 +82,10 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
     if not output_file:
         print("error: GITHUB_OUTPUT is required", file=sys.stderr)
         return EXIT_CONFIG
-    return install_copilot_cli(output_path=Path(output_file))
+    return install_copilot_cli(
+        output_path=Path(output_file),
+        copilot_version=resolved_env.get("COPILOT_VERSION", DEFAULT_COPILOT_VERSION),
+    )
 
 
 if __name__ == "__main__":

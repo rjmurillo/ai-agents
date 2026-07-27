@@ -153,7 +153,9 @@ runs:
     - name: Install GitHub Copilot CLI
       id: install
       shell: bash
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/install_copilot_cli.py"
+      run: |
+        export COPILOT_VERSION="1.0.63"
+        python3 "$GITHUB_WORKSPACE/scripts/ci/install_copilot_cli.py"
 
     - name: Verify GitHub authentication
       if: inputs.enable-diagnostics == 'true'
