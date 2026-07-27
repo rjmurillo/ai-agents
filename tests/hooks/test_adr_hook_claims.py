@@ -44,7 +44,7 @@ HOOK_SEARCH_ROOTS = (
 # hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
 # so both have to resolve.
 _HOOK_PATH_RE = re.compile(r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)`")
-_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)`")
+_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)(?::\d[\d-]*)?`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
 _RETIRED_RE = re.compile(
     r"\b(?:amended|deleted|deregistered|dropped|no longer|previously|removed|"
@@ -221,3 +221,7 @@ class TestWhatCountsAsAProseClaim:
             "This historical paragraph still names `invoke_deleted_gate.py`.\n"
         )
         assert _prose_claims(text) == []
+
+    def test_a_line_range_suffix_is_stripped_and_the_reference_is_still_captured(self):
+        text = "See `invoke_serena_reassertion.py:38-41` for the guard.\n"
+        assert _prose_claims(text) == [(1, "invoke_serena_reassertion.py")]

@@ -116,5 +116,8 @@
     }
   ],
   "endingCommit": "22c786aff6aa249b640309157526f4119afe1f74",
-  "nextSteps": []
+  "nextSteps": [],
+  "notes": [
+    "Regex widened to catch :line-range hook references per review feedback."
+  ]
 }

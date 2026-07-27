@@ -361,7 +361,7 @@ here.
 
 ## Relationship to Prior ADRs
 
-- **#1993 hook (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
+- **#1993 hook, now retired (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
   Serena activation state because a UserPromptSubmit hook "cannot observe whether
   Serena MCP tools were called this turn, and no other hook writes a
   Serena-activation marker file. Inventing that state would couple two components
@@ -428,7 +428,7 @@ bump plugin.json; full validation; PR.
 - github.com/nesaminua/claude-code-lsp-enforcement-kit (MIT, v2.3.2): adapted source.
 - GitHub Docs: Copilot CLI LSP servers + hooks (auto-LSP, permissionDecision).
 - Claude Code native LSP tool (v2.0.74+): tier-2 fallback.
-- `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
+- `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent, retired).
 - `.claude/rules/canonical-source-mirror.md`; `.claude/rules/release-it.md`; ADR-006; ADR-035; ADR-042; ADR-008; ADR-033.
 
 ---
