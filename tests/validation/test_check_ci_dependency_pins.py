@@ -95,6 +95,21 @@ class TestDeclaredConstraints:
         path = _pyproject(tmp_path, '[project]\nname="x"\ndependencies=["!!!", "pytest>=9"]\n')
         assert set(gate.declared_constraints(path)) == {"pytest"}
 
+    def test_a_mixed_list_keeps_its_strings_rather_than_being_dropped(self, tmp_path):
+        """PEP 735 groups mix requirement strings with include-group tables.
+
+        This repo's own [dependency-groups] lint is one. Rejecting the whole
+        list on the first non-string would silently un-guard every requirement
+        beside it, which is the outcome this gate exists to prevent.
+        """
+        path = _pyproject(
+            tmp_path,
+            '[project]\nname="x"\ndependencies=["pytest>=9"]\n'
+            "[dependency-groups]\n"
+            'lint=["ruff>=0.15.16", {include-group="dev"}, 7]\n',
+        )
+        assert set(gate.declared_constraints(path)) == {"pytest", "ruff"}
+
     @pytest.mark.parametrize(
         "body",
         [

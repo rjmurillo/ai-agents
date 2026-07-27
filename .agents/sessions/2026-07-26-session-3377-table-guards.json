@@ -79,12 +79,12 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "No markdown changed on this branch; scoped lint has nothing to run."
+        "evidence": "One markdown file changed: .serena/memories/decision-requirement-typeerror-not-invalidrequirement.md. Ran scoped markdownlint-cli2 on it; the repo config excludes .serena/**, so it reported 'Linting: 0 files, 0 issues'. Nothing to fix, and the exclusion is why."
       },
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Two commits: 2c86e7b395 (table guards) and acb78c20bb (import-order tests). Head is acb78c20bbc2a893e1623f4199d6580468f96df0."
+        "evidence": "Commits on the branch, newest first: 2676ac5a37 docs(session): repoint endingCommit at a commit that is on the branch; 64d23ae67b docs(session): record the table-guard reland and the packaging finding; f22ebf0079 test(validation): pin the skip-before-import order in the pin gate; 687eb5b43e fix(validation): read every dependency table through one pair of guards. SHAs are post-rebase; the pre-rebase values recorded earlier named commits reachable only from the reflog."
       },
       "validationPassed": {
         "complete": true,
@@ -125,10 +125,10 @@
       "outcome": "Two tests block the import via sys.modules and assert MissingScriptSkip; a third runs a tree that does exist so a guard which skipped everything would fail. Moving the import back above the check turns both skip tests red with ModuleNotFoundError."
     }
   ],
-  "endingCommit": "f22ebf0079",
+  "endingCommit": "2676ac5a37",
   "nextSteps": [
     "Open the PR for fix/3377-table-guards and check it before any long push; three PRs merged mid-push this session.",
     "Fix the _HOOK_PATH_RE comment wording on PR #3397.",
-    "The endingCommit above names the last code commit on the branch; the session log commit that carries this file follows it."
+    "endingCommit names the newest commit on the branch at the time this log was last corrected; a later review-fix commit may follow it."
   ]
 }

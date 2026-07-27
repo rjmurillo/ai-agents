@@ -120,15 +120,24 @@ class Violation:
 
 
 def _requirement_strings(value: object) -> list[str]:
-    """Return the requirement strings in ``value``; nothing if it is not a list of them.
+    """Return the requirement strings in ``value``, dropping anything else.
 
-    pyproject is hand-authored TOML and this function runs inside a gate that
-    reports a verdict, so a malformed table must produce a result rather than a
-    traceback. Anything that is not a list of strings contributes no
-    constraints, which is the same outcome an unparseable requirement gets in
-    ``declared_constraints`` below. Note the shape ``Requirement()`` cannot
-    defend against on its own: a non-string argument raises ``TypeError``, not
-    ``InvalidRequirement``, so it would escape the handler there.
+    Filtering is per item, not all or nothing, and that is load bearing rather
+    than lenient. A PEP 735 dependency group legitimately mixes requirement
+    strings with ``{include-group = ...}`` tables, so this repo's own
+    ``[dependency-groups] lint`` reads ``["ruff>=...", {include-group = "dev"}]``.
+    Rejecting the whole list on the first non-string would silently un-guard
+    ruff, which is the failure this gate exists to prevent: a section that
+    declares nothing and a section the gate refused to read are indistinguishable
+    in the verdict.
+
+    A ``value`` that is not a list at all contributes nothing, because there is
+    no item to salvage. pyproject is hand-authored TOML and this function runs
+    inside a gate that reports a verdict, so a malformed table must produce a
+    result rather than a traceback, the same outcome an unparseable requirement
+    gets in ``declared_constraints`` below. Note the shape ``Requirement()``
+    cannot defend against on its own: a non-string argument raises ``TypeError``,
+    not ``InvalidRequirement``, so it would escape the handler there.
     """
     if not isinstance(value, list):
         return []
