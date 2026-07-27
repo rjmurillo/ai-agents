@@ -41,6 +41,7 @@ from checks_spec import (  # noqa: E402
     validate_canonical_citations,
     validate_model_pins,
     validate_orchestrator_citations,
+    validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_shells,
     validate_spec_contradiction,
@@ -229,6 +230,16 @@ def run_all_validations(
         "Skill Shell Detection",
         state,
         lambda: validate_skill_shells(repo_root),
+    )
+
+    # 3.767 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
+    # when a rule or skill has no activation scenario and is not baselined, or
+    # when a scenario points at a deleted artifact. Fail-closed on any config
+    # or structural fault so an unmeasured artifact never reads as clean.
+    run_validation(
+        "Rule Activation Coverage",
+        state,
+        lambda: validate_rule_activation_coverage(repo_root),
     )
 
     # 3.77 Sync Registry Provenance (Issue #1909)
