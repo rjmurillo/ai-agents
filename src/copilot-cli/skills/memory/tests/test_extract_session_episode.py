@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -285,7 +286,7 @@ class TestGetSessionOutcome:
 class TestMainFunction:
     """Tests for the main CLI entry point."""
 
-    def test_extract_episode(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_extract_episode(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         session_file = tmp_path / "2026-01-15-session-001.md"
         session_file.write_text(SAMPLE_SESSION_LOG)
 
@@ -389,7 +390,7 @@ class TestMainFunction:
         )
 
     def test_force_and_preserve_are_mutually_exclusive(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         session_file = tmp_path / "2026-01-15-session-002.md"
         session_file.write_text(SAMPLE_SESSION_LOG)
@@ -401,7 +402,7 @@ class TestMainFunction:
                 "--preserve",
             ])
 
-    def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         session_file = tmp_path / "session-001.md"
         session_file.write_text("# Simple session\n**Status**: Done\n")
 
@@ -418,11 +419,11 @@ class TestMainFunction:
         assert "session" in episode
 
 
-def _gate(complete: bool) -> dict:
+def _gate(complete: bool) -> dict[str, object]:
     return {"level": "MUST", "Complete": complete, "Evidence": "x"}
 
 
-def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
+def _json_log(work_log: list[dict[str, Any]], *, end_complete: bool = True) -> dict[str, Any]:
     gate = _gate(end_complete)
     return {
         "session": {
@@ -446,7 +447,7 @@ def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
     }
 
 
-def _real_3459_log() -> dict:
+def _real_3459_log() -> dict[str, Any]:
     return {
         "session": {
             "number": 3459,
@@ -686,8 +687,8 @@ class TestCausalEventLinks:
         assert all(e["leads_to"] == [] for e in events)
 
     def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ):
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         session_log = tmp_path / "2026-07-27-session-3459-templates-portability.json"
         session_log.write_text(json.dumps(_real_3459_log()), encoding="utf-8")
         output_dir = tmp_path / "episodes"
