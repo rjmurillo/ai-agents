@@ -130,6 +130,57 @@ def test_expand_braces_strips_whitespace_around_options() -> None:
     assert ib.expand_braces("**/*.{ cs , fs }") == ["**/*.cs", "**/*.fs"]
 
 
+def test_split_brace_options_keeps_empty_options() -> None:
+    # Unlike path splitting, brace options must preserve empty alternatives:
+    # an empty option is a real "substitute nothing" branch in VS Code.
+    assert ib._split_brace_options("") == [""]
+    assert ib._split_brace_options("x,") == ["x", ""]
+    assert ib._split_brace_options(",x") == ["", "x"]
+    # A comma inside a nested group does not split the outer option.
+    assert ib._split_brace_options("a,{b,c},d") == ["a", "{b,c}", "d"]
+
+
+def test_expand_braces_empty_group_folds_to_nothing() -> None:
+    # VS Code compiles ``{}`` as an empty substitution, so ``p{}y`` is ``py``.
+    # A splitter that dropped the empty option would erase the pattern entirely
+    # (scoring it 0 bytes) and under-count the budget.
+    assert ib.expand_braces("**/*.p{}y") == ["**/*.py"]
+
+
+def test_expand_braces_keeps_trailing_empty_option() -> None:
+    # ``py{x,}`` yields both ``pyx`` and the universal ``py``; dropping the
+    # trailing empty would hide the universal glob from the gate.
+    assert ib.expand_braces("**/*.py{x,}") == ["**/*.pyx", "**/*.py"]
+
+
+def test_empty_brace_group_is_language_universal() -> None:
+    # A future rule spelled with an empty brace group must still be caught.
+    patterns = ib.parse_applyto("---\napplyTo: '**/*.p{}y'\n---\nbody\n")
+    assert ib.is_language_universal(patterns, ".py") is True
+
+
+def test_trailing_empty_brace_option_is_language_universal() -> None:
+    # The universal ``**/*.py`` branch hides behind the trailing empty option.
+    patterns = ib.parse_applyto("---\napplyTo: '**/*.py{x,}'\n---\nbody\n")
+    assert ib.is_language_universal(patterns, ".py") is True
+
+
+def test_glob_to_regex_char_class_fails_closed() -> None:
+    # ``**/*.[p]y`` equals ``**/*.py`` under the harness (universal), but the
+    # compiler does not model brackets. Treating ``[`` as a literal would
+    # under-count (the one unsafe direction), so it fails closed instead.
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib._glob_to_regex("**/*.[p]y")
+
+
+def test_char_class_applyto_fails_closed() -> None:
+    # End to end: a rule whose ``applyTo`` uses a character class raises rather
+    # than risk silently dodging the always-on budget ceiling.
+    patterns = ib.parse_applyto("---\napplyTo: '**/*.[p]y'\n---\nbody\n")
+    with pytest.raises(ib.UnsupportedApplyToError):
+        ib.is_language_universal(patterns, ".py")
+
+
 def test_parse_applyto_missing_frontmatter_returns_empty() -> None:
     assert ib.parse_applyto("# just a heading\n\nno frontmatter\n") == set()
 

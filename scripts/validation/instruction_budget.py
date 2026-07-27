@@ -179,6 +179,40 @@ def _split_glob_aware(pattern: str, split_char: str) -> list[str]:
     return segments
 
 
+def _split_brace_options(content: str) -> list[str]:
+    """Split brace-group content on top-level commas, keeping every option.
+
+    Distinct from ``_split_glob_aware``, which drops a trailing empty segment
+    (correct for path and scope splitting). A brace alternative list must
+    preserve empty options, because an empty alternative is a real "substitute
+    nothing" branch in VS Code's brace expansion: ``{}`` -> [''] (so ``p{}y``
+    folds to ``py``) and ``{x,}`` -> ['x', ''] (so ``py{x,}`` yields ``pyx`` and
+    the universal ``py``). Dropping either empty would erase a universal glob and
+    under-count the budget. A comma inside a nested ``{...}`` or ``[...]`` group
+    does not split.
+    """
+    options: list[str] = []
+    depth_brace = 0
+    depth_bracket = 0
+    current: list[str] = []
+    for char in content:
+        if char == "," and depth_brace == 0 and depth_bracket == 0:
+            options.append("".join(current))
+            current = []
+            continue
+        if char == "{":
+            depth_brace += 1
+        elif char == "}":
+            depth_brace -= 1
+        elif char == "[":
+            depth_bracket += 1
+        elif char == "]":
+            depth_bracket -= 1
+        current.append(char)
+    options.append("".join(current))
+    return options
+
+
 def expand_braces(pattern: str) -> list[str]:
     """Expand a glob brace group into its alternatives.
 
@@ -201,7 +235,7 @@ def expand_braces(pattern: str) -> list[str]:
     if end == -1:
         return [pattern]
     prefix, suffix = pattern[:start], pattern[end + 1 :]
-    options = _split_glob_aware(pattern[start + 1 : end], ",")
+    options = _split_brace_options(pattern[start + 1 : end])
     expanded: list[str] = []
     for opt in options:
         expanded.extend(expand_braces(prefix + opt.strip() + suffix))
@@ -238,13 +272,22 @@ def _vscode_effective_glob(pattern: str) -> str:
 # translation diverged from the harness at separator edges: the dropped
 # mandatory ``/`` before a non-terminal ``**`` let ``/*/**/*.py`` match a root
 # file ``/probe.py``. Porting VS Code's own segment walker ends that class of
-# drift. Two simplifications are safe here: braces are already expanded by
-# ``expand_braces`` before a pattern reaches this compiler, and ``[...]``
-# character classes are treated as literal text rather than parsed. A char
-# class is scoped by construction (it constrains a character), so it can never
-# match the diverse probe set and is correctly classified non-universal for the
-# upper-bound budget without bracket parsing; treating ``[`` literally only ever
-# makes the regex more restrictive, never falsely universal.
+# drift. Braces are already expanded by ``expand_braces`` before a pattern
+# reaches this compiler, so only ``*``, ``?``, and ``**`` need translating.
+# Character classes (``[...]``) are the one glob construct this compiler does
+# not model, and it fails closed on them. Dear future maintainer: an earlier
+# revision treated ``[`` as a literal, reasoning a class is "scoped by
+# construction" and can only over-restrict. That was wrong. ``[p]`` pins its
+# character, so ``**/*.[p]y`` equals ``**/*.py`` and IS universal under the
+# harness, but the literal-``[`` regex ``\[p\]y`` matches nothing and scores the
+# rule non-universal -> the budget UNDER-counts (the one unsafe direction, it
+# lets an always-loaded rule dodge the ceiling). Parsing brackets faithfully
+# (ranges, negation, leading ``]``) is fragile, so instead any ``applyTo`` glob
+# containing ``[`` raises ``UnsupportedApplyToError`` (exit 2). No repo rule uses
+# a bracket class, so this blocks nothing today; a future author who needs one
+# expands it into comma or brace alternatives (``*.[ch]`` -> ``*.c, *.h``).
+# Fail-closed can only over-block (a scoped rule reddens the gate, never dodges
+# it), keeping the budget an honest upper bound without a bracket parser.
 _GLOB_STAR = "**"
 _PATH_REGEX = r"[/\\]"  # any path separator (slash or backslash)
 _NO_PATH_REGEX = r"[^/\\]"  # any non-separator character
@@ -304,6 +347,14 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
     *matching* diverse probe paths instead of enumerating glob spellings.
     """
     segments = _split_glob_aware(pattern, "/")
+    if "[" in pattern:
+        msg = (
+            f"applyTo glob {pattern!r} uses a character class ('['); the budget "
+            "gate does not model bracket expressions and fails closed rather than "
+            "risk under-counting a universal pattern. Expand the class into comma "
+            "or brace alternatives (e.g. '*.[ch]' -> '*.c, *.h')."
+        )
+        raise UnsupportedApplyToError(msg)
     if segments and all(segment == _GLOB_STAR for segment in segments):
         return re.compile("^.*$", re.IGNORECASE)
     body: list[str] = []
