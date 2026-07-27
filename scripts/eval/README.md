@@ -44,7 +44,7 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
-| `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds the edit budget, applies patches, and accepts an edit only on data withheld from the author. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
+| `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 
 ## End-to-End Delivery Eval
@@ -264,8 +264,10 @@ the `decision`/`reason`.
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a
-gate that accepts an edit only on data the author could not read while making
-it.
+bound on how many times an edit may be measured against a group before the
+measurement stops meaning anything. Every other evaluator here scores an
+artifact against its whole eval set and reports the number, so an author who
+edits until that number rises has fitted the eval and has no way to know it.
 
 Every other evaluator here scores an artifact against its whole eval set.
 `eval-prompt-change.py` compares a prompt before and after an edit on the same
@@ -279,8 +281,8 @@ This tool splits the task ids into three groups and keeps them apart:
 | Group | Who sees it | Purpose | Default share |
 |-------|-------------|---------|---------------|
 | `opt` | The optimizing agent | Read failures here, propose edits from them. | The remainder, 0.6 |
-| `sel` | The gate only | Decides accept or reject. Never shown to the author. | 0.4 |
-| `test` | Nobody, until the end | Final unbiased number after the loop stops. | 0.0, opt in with `--test-ratio` |
+| `sel` | The gate | Decides accept or reject. Each decision spends one consultation from a fixed budget. | 0.4 |
+| `test` | Nothing yet | Reserved for a final report. **No command scores it**, so today it only shrinks `opt` and `sel`. See ADR-087 Open Requirement 7. | 0.0, opt in with `--test-ratio` |
 
 `--test-ratio` defaults to zero, so out of the box you get two groups and an
 empty `test`. That is a concession to this repo's real fixture counts: most
@@ -383,19 +385,63 @@ reading is not a gate.
 
 ### What the seam does and does not protect
 
-`split` writes the full partition to the `--out` file the gate reads, and
-prints only the optimize ids, the held-out sizes, and the fingerprint. `score`
-reads the optimize group and nothing else. Together those keep the held-out
-answers off the optimizer's stdout and keep every held-out read inside a gate
-decision that spends a consultation.
+Read this before citing a run of this loop as evidence.
 
-This is a discipline control, not a security boundary. The split file sits on
-the same disk as everything else, so an optimizer determined to read it can.
-What the seam removes is the accidental path: reading held-out failures
-because they were printed, or scoring against them because the command
-offered it. Binding the split to state the optimizer cannot reach needs a
-trusted controller, which this does not have. Do not cite a run of this loop
-as evidence against an adversarial optimizer.
+**What it is.** A consultation-budgeted comparison over a public benchmark,
+relying on a cooperating optimizer not to inspect task definitions and result
+files it can already reach. **It is not held-out validation of unseen tasks.**
+
+Three things make that the honest description rather than an overcautious one:
+
+- **`extract` emits every task's outcome, uncharged.** It takes `--kind`,
+  `--input`, and scoring flags. It takes no group argument, so the mapping it
+  writes covers `opt`, `sel`, and `test` alike. The documented workflow has the
+  optimizer run `extract` itself to build `base.json` and `cand.json`, which
+  means held-out outcomes are already in the optimizer's own files before the
+  gate is called. Only `score --group` is group-aware, and nothing forces the
+  loop through it.
+- **Task ids resolve to readable definitions that carry their own grading
+  criteria.** `evals/analyst-spike/fixtures/F001.json` holds the input, the
+  expected verdict, and the regex the scorer asserts.
+  `tests/evals/rule-scenarios/clean-architecture.json` holds the expected
+  vocabulary. `tests/hooks/test_dash_guard.py` is the assertion. So naming a
+  held-out task is enough to hand-tune for it, and `split` publishes the
+  optimize ids by design, from which the complement follows by subtraction.
+- **The gate returns diagnostics, not a verdict alone.** Its payload carries
+  both scores, both discordant counts, and the p-value. The ledger bounds how
+  many times you may ask, not how much each answer tells you.
+
+**What is actually enforced by the mechanism**, and holds whether or not the
+optimizer cooperates:
+
+- The consultation count, its cap, its storage path, and the key it is stored
+  under are derived from the held-out membership, with two stated exceptions.
+  The path's *root* comes from `$EVAL_LEDGER_DIR`, `$XDG_STATE_HOME`, or the
+  home directory, and only the filename inside it is membership-derived. The
+  cap's *first* value comes from `--max-consultations`, after which it is
+  pinned and a later change is refused. So what cannot be moved by a caller
+  argument is a budget already in progress; a first invocation still chooses
+  its own cap, and an operator with filesystem access can relocate or delete
+  the root.
+- Concurrent gates against one split serialize on a lock, so a parallel pair
+  cannot spend one budget twice.
+- The split record is structurally tamper-evident, in two parts because
+  neither alone suffices. The fingerprint covers the split's *inputs* (seed,
+  task-id set, ratios), which catches an added or removed task but not a task
+  moved between groups, since the union it hashes is unchanged by a move. The
+  gate also redraws the split from those recorded inputs and compares
+  memberships, which catches the move. Both run on every gate.
+- `score --group opt` refuses to read any other group.
+
+**What that combination buys.** An author who is trying to improve an artifact,
+rather than to defeat the gate, gets a number that has been asked for a bounded
+number of times and cannot silently become a number asked a hundred times. That
+is the failure this directory actually had. Dwork's reusable holdout
+(arXiv:1506.02629) gives the stronger guarantee, but assumes the analyst reaches
+the holdout only through the mechanism. Closing that gap needs a trusted
+controller that owns task definitions, scoring, and result files, and hands the
+optimizer only the optimize group. See ADR-087 Open Requirement 1. Until then,
+do not cite a run of this loop as evidence against an adversarial optimizer.
 
 Four further refusals close holes that open once a loop runs many steps:
 
@@ -427,11 +473,11 @@ Four further refusals close holes that open once a loop runs many steps:
   Any two splits that hold out the same tasks share the budget those tasks have
   already spent, whatever ratio or seed produced them. Redrawing with a new seed
   usually does hold out different tasks, and that is a genuinely new group with
-  its own budget; the gate is counting selection pressure on a set of tasks, not
-  on a file.
+  its own budget; the gate is counting gate comparisons against a set of tasks,
+  not against a file.
 
-  A consultation is charged when the held-out group is read, not when a verdict
-  comes back. A refusal decided from bookkeeping alone (an exhausted budget, a
+  A consultation is reserved before the held-out group is read and before the
+  results are checked for coverage, not when a verdict comes back. A refusal decided from bookkeeping alone (an exhausted budget, a
   stale incumbent fingerprint, a drifted split) reads nothing and costs nothing.
   Everything past that point costs one, including a results file that turns out
   not to cover the group, and including a process killed mid-comparison. Two
@@ -445,16 +491,23 @@ Four further refusals close holes that open once a loop runs many steps:
   answers one bit. Not a count: `split` publishes the held-out size, so a count
   would tell a caller how many of the keys it chose to omit were held out.
 
-  None of that hides the held-out task list, and it is not meant to. `split`
-  publishes `opt` because the loop cannot edit toward a group it cannot name,
-  the universe is your own results file, and with no test group drawn (the
-  default) the held-out group is what is left after subtracting one from the
-  other. Knowing which tasks are withheld is the point. What does not cross back
-  is how the artifact scores on them: `score` refuses any group but `opt`, the
-  gate answers one accept or reject bit, and the budget caps how many such bits
-  one group can emit. The redaction earns its keep when a test group exists,
-  because there the complement is two groups and the published sizes do not say
-  which task is in which.
+  None of that hides the held-out task list, and it cannot. `split` publishes
+  `opt` in full, the universe is your own results file, and with no test group
+  drawn (the default) the held-out group is the complement by plain
+  subtraction. The redaction is worth keeping for the case where a test group
+  exists, since there the complement spans two groups and the published sizes
+  do not say which task is in which. It is not worth describing as a boundary.
+
+  Held-out outcomes do not stay behind that line either. `score --group` is
+  group-aware, but `extract` is not, and the workflow above has the optimizer
+  run `extract` itself. What the budget bounds is how many times an edit may be
+  compared against the held-out group through the gate, which is the loop's
+  own **gate comparisons** against that group. It is not a bound on total
+  selection pressure, and the difference matters: `extract` and `score` reach
+  results without touching the ledger, so an optimizer that inspects its own
+  files applies pressure the count never sees. Closing that needs #3452 and a
+  controller. Gate comparisons are the quantity multiple-comparison correction
+  is about, and it is the one this mechanism actually holds.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight

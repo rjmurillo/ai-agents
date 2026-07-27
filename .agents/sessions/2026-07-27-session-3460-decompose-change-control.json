@@ -1,0 +1,10 @@
+{
+  "session_id": "2026-07-27-session-3460",
+  "date": "2026-07-27",
+  "branch": "chore/3421-decompose-change-control",
+  "objective": "Decompose ai-agents-change-control SKILL.md per progressive disclosure, fix CI, resolve review threads",
+  "issue_refs": ["#3421", "#3460"],
+  "tools_used": ["adr-review skill", "check_pr_live_state.py", "pr_autofix_lease.py"],
+  "outcome": "SKILL.md decomposed to 15.5KB with references/, all review threads resolved, CI green",
+  "notes": "ADR-087 imported via merge from main (already reviewed in session 3422). ADR Review Protocol satisfied by the merge base review."
+}
