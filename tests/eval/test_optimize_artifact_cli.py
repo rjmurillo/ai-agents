@@ -2596,3 +2596,102 @@ class TestRedactionIsNotCaseSensitive:
 
     def test_unrelated_text_is_untouched(self):
         assert oa._scrub("/root/ABCDEF/x", "a" * 64) == "/root/ABCDEF/x"
+
+
+class TestTheGuardIsNotASecondDefinitionOfRedaction:
+    """A twelfth review found the round-11 fix applied to only half the pair.
+
+    Round 11 made `_scrub` case-insensitive and left the call site that decides
+    whether to call it reading `if holdout_key in text`, which is case
+    sensitive. So an uppercase digest failed the guard, skipped the scrub the
+    round-11 fix had just corrected, and printed whole.
+
+    That is the recurring shape once more, in its twelfth spelling: two places
+    answer "does this text carry the key" and only one of them was fixed. The
+    round-11 tests asserted on `_scrub` directly, which is why four passing
+    tests said the case bug was closed while the CLI still printed the digest.
+    Testing the function that changed is not testing the property that matters.
+
+    Fixed by deleting the second definition rather than teaching it to fold
+    case: `_scrub` returning a different string is the answer to both questions,
+    so there is nothing left to keep in step.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        split = tmp_path / "split.json"
+        _run(capsys, "split", "--results", inc, "--seed", "s", "--out", split)
+        return inc, split, json.loads(split.read_text())
+
+    def _gate_denied(self, monkeypatch, tmp_path, capsys, spell):
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        monkeypatch.setenv(oa._LEDGER_DIR_ENV, str(tmp_path / f"denied-{spell(key)}"))
+        monkeypatch.setattr(
+            Path,
+            "mkdir",
+            lambda self, *a, **k: (_ for _ in ()).throw(
+                PermissionError(13, "Permission denied", str(self))
+            ),
+        )
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        return key, code, capsys.readouterr()
+
+    def test_an_uppercase_digest_does_not_reach_stdout(self, tmp_path, monkeypatch, capsys):
+        key, code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.upper)
+        assert code == oa.EXIT_CONFIG
+        assert key.upper() not in out.out
+        assert key.upper() not in out.err
+
+    def test_an_uppercase_digest_still_leaves_a_readable_error(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _key, _code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.upper)
+        payload = json.loads(out.out)
+        assert payload["type"] == "ConfigError"
+        assert oa._HELD_OUT_PLACEHOLDER in payload["error"]
+
+    def test_a_lowercase_digest_does_not_reach_stdout(self, tmp_path, monkeypatch, capsys):
+        key, code, out = self._gate_denied(monkeypatch, tmp_path, capsys, str.lower)
+        assert code == oa.EXIT_CONFIG
+        assert key not in out.out
+        assert key not in out.err
+
+    def test_the_seam_scrubs_an_uppercase_digest_in_an_oserror(self):
+        key = "b" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, "denied", f"/root-{key.upper()}/x")
+        assert key.upper() not in str(caught.value)
+        assert oa._HELD_OUT_PLACEHOLDER in str(caught.value)
+
+    def test_the_seam_scrubs_a_mixed_case_digest(self):
+        key = "abcdef" + "0" * 58
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise oa.ConfigError(f"/root-{'AbCdEf' + '0' * 58}/x")
+        assert "AbCdEf" not in str(caught.value)
+
+    def test_a_scrubbed_error_still_breaks_the_cause_chain(self):
+        key = "c" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                raise OSError(13, "denied", f"/root-{key.upper()}/x")
+        assert caught.value.__cause__ is None
+
+    def test_an_error_without_the_digest_keeps_its_message(self):
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("d" * 64):
+                raise OSError(28, "No space left on device")
+        assert "No space left on device" in str(caught.value)
+
+    def test_a_config_error_without_the_digest_is_reraised_as_itself(self):
+        original = oa.ConfigError("nothing secret here")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed("e" * 64):
+                raise original
+        assert caught.value is original

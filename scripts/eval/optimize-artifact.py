@@ -535,12 +535,19 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
         yield
     except (ConfigError, OSError) as exc:
         text = str(exc)
-        if holdout_key in text:
+        # `_scrub` decides whether the digest is here, rather than a separate
+        # `holdout_key in text`. A twelfth review found that guard reading case
+        # sensitively one round after `_scrub` learned to fold case, so an
+        # uppercase digest failed the test, skipped the scrub, and printed
+        # whole. Two answers to one question is what keeps going wrong; asking
+        # `_scrub` leaves nothing to keep in step.
+        scrubbed = _scrub(text, holdout_key)
+        if scrubbed != text:
             # `from None`, not `from exc`. Chaining would set __cause__ to the
             # exception whose message is the reason this branch exists, and a
             # printed traceback walks the chain. Round 9 found the redaction
             # handing the digest straight back that way.
-            raise ConfigError(_scrub(text, holdout_key)) from None
+            raise ConfigError(scrubbed) from None
         if isinstance(exc, ConfigError):
             raise
         raise ConfigError(text) from exc
