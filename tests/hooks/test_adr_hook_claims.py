@@ -48,13 +48,20 @@ HOOK_SEARCH_ROOTS = (
 # hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
 # so both have to resolve.
 _HOOK_PATH_RE = re.compile(
-    r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)(?::\d+(?:-\d+)?)?`"
+    r"`([^`]*?(?:(?:hooks/)?[A-Za-z]\w*/)?invoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`"
 )
-_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)(?::\d+(?:-\d+)?)?`")
+_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*\binvoke_[\w.-]+(?:\.py)?)(?::\d+(?:-\d+)?)?`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
+_RETIREMENT_WORDS = (
+    r"deleted|deregistered|dropped|historical|no longer|previously|"
+    r"removed|replaced|retired|superseded"
+)
 _RETIRED_RE = re.compile(
-    r"\b(?:deleted|deregistered|dropped|historical|no longer|previously|removed|"
-    r"replaced|retired|superseded)\b",
+    rf"\b(?:{_RETIREMENT_WORDS})\b",
+    re.IGNORECASE,
+)
+_NEGATED_RETIRED_RE = re.compile(
+    rf"\b(?:never|not)\s+(?:{_RETIREMENT_WORDS})\b",
     re.IGNORECASE,
 )
 _LIVE_REGISTRATION_RE = re.compile(
@@ -124,25 +131,39 @@ def _hook_references(text: str) -> list[tuple[int, str, str]]:
         if line_end == -1:
             line_end = len(text)
         line = text[line_start:line_end]
-        context = line if line.lstrip().startswith("|") else _sentence_context(text, match)
+        context = line if line.lstrip().startswith("|") else _prose_context(text, match)
         found.append((line_number, match.group(1), context))
     return found
 
 
-def _sentence_context(text: str, match: re.Match[str]) -> str:
-    starts = [marker.start() for marker in re.finditer(r"[.?!](?=\s|$)", text[: match.start()])]
+def _prose_context(text: str, match: re.Match[str]) -> str:
+    paragraph_start = text.rfind("\n\n", 0, match.start())
+    paragraph_start = 0 if paragraph_start == -1 else paragraph_start + 2
+    paragraph_end = text.find("\n\n", match.end())
+    paragraph_end = len(text) if paragraph_end == -1 else paragraph_end
+    paragraph = text[paragraph_start:paragraph_end]
+    return _sentence_context(
+        paragraph,
+        match.start() - paragraph_start,
+        match.end() - paragraph_start,
+    )
+
+
+def _sentence_context(text: str, start_offset: int, end_offset: int) -> str:
+    starts = [marker.start() for marker in re.finditer(r"[.?!](?=\s|$)", text[:start_offset])]
     start = starts[-1] if starts else -1
     end_candidates = [
         marker.start()
-        for marker in re.finditer(r"[.?!](?=\s|$)", text[match.end() :])
+        for marker in re.finditer(r"[.?!](?=\s|$)", text[end_offset:])
     ]
-    end_candidates = [match.end() + position for position in end_candidates]
+    end_candidates = [end_offset + position for position in end_candidates]
     end = min(end_candidates) + 1 if end_candidates else len(text)
     return text[start + 1 : end]
 
 
 def _has_retirement_marker(context: str) -> bool:
-    return _RETIRED_RE.search(context) is not None
+    affirmative_context = _NEGATED_RETIRED_RE.sub("", context)
+    return _RETIRED_RE.search(affirmative_context) is not None
 
 
 @cache
@@ -155,7 +176,8 @@ def _repo_basename_exists(basename: str) -> bool:
 
 
 def _names_running_hook(hook_path: str) -> bool:
-    return Path(hook_path).name in DISPATCH_GROUPS_PARITY._every_running_basename()
+    basename = Path(_candidate_hook_paths(hook_path)[0]).name
+    return basename in DISPATCH_GROUPS_PARITY._every_running_basename()
 
 
 def _claims_live_registration(context: str) -> bool:
@@ -165,14 +187,30 @@ def _claims_live_registration(context: str) -> bool:
 def _resolves(hook_path: str) -> bool:
     # removeprefix, not lstrip: lstrip takes a character set, so lstrip("./")
     # eats the leading dot of ".claude/hooks/..." and the path stops resolving.
+    candidates = _candidate_hook_paths(hook_path)
+    for candidate in candidates:
+        if (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file():
+            return True
+        if "/" in candidate and any((root / candidate).is_file() for root in HOOK_SEARCH_ROOTS):
+            return True
+        if "/" not in candidate and (
+            any(root.joinpath(candidate).is_file() for root in HOOK_SEARCH_ROOTS)
+            or any(
+                path.is_file()
+                for root in HOOK_SEARCH_ROOTS
+                for path in root.glob(f"*/{candidate}")
+            )
+            or _repo_basename_exists(candidate)
+        ):
+            return True
+    return False
+
+
+def _candidate_hook_paths(hook_path: str) -> list[str]:
     candidate = re.sub(r":\d+(?:-\d+)?$", "", hook_path.removeprefix("./"))
-    if (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file():
-        return True
-    if "/" in candidate:
-        return any((root / candidate).is_file() for root in HOOK_SEARCH_ROOTS)
-    return any(root.joinpath(candidate).is_file() for root in HOOK_SEARCH_ROOTS) or any(
-        path.is_file() for root in HOOK_SEARCH_ROOTS for path in root.glob(f"*/{candidate}")
-    ) or _repo_basename_exists(candidate)
+    if candidate.endswith(".py"):
+        return [candidate]
+    return [f"{candidate}.py", candidate]
 
 
 @pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
@@ -268,6 +306,10 @@ class TestWhatCountsAsAClaim:
         row = "| C | `.claude/hooks/SessionStart/invoke_context_loader.py` | S | Implemented |\n"
         assert _claims(row) == [(1, ".claude/hooks/SessionStart/invoke_context_loader.py")]
 
+    def test_an_implemented_row_naming_a_bare_hook_is_a_claim(self):
+        row = "| Security | `invoke_deleted_gate` | PreToolUse | Implemented |\n"
+        assert _claims(row) == [(1, "invoke_deleted_gate")]
+
 
 class TestPathResolution:
     def test_a_hooks_root_relative_path_resolves(self):
@@ -295,6 +337,10 @@ class TestWhatCountsAsAProseClaim:
         text = "The `invoke_deleted_gate.py` hook still enforces this policy.\n"
         assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
 
+    def test_an_unresolved_bare_prose_token_is_a_claim(self):
+        text = "The `invoke_deleted_gate` hook still enforces this policy.\n"
+        assert _prose_claims(text) == [(1, "invoke_deleted_gate")]
+
     def test_an_unresolved_token_with_same_sentence_retirement_marker_is_suppressed(self):
         text = (
             "The retired hook `invoke_deleted_gate.py` used to enforce this policy.\n"
@@ -308,9 +354,24 @@ class TestWhatCountsAsAProseClaim:
         )
         assert _prose_claims(text) == [(2, "invoke_deleted_gate.py")]
 
+    def test_a_removed_heading_does_not_suppress_a_later_stale_claim(self):
+        text = (
+            "## Removed\n\n"
+            "The `invoke_deleted_gate.py` hook still enforces this policy.\n"
+        )
+        assert _prose_claims(text) == [(3, "invoke_deleted_gate.py")]
+
+    def test_a_negated_retirement_marker_does_not_suppress_a_stale_claim(self):
+        text = "This hook was never removed: `invoke_deleted_gate.py` still enforces this policy.\n"
+        assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
+
     def test_a_table_row_reference_without_retirement_marker_is_a_claim(self):
         row = "| Gate | `invoke_deleted_gate.py:66-95` | Direct | Medium |\n"
         assert _prose_claims(row) == [(1, "invoke_deleted_gate.py")]
+
+    def test_a_table_row_bare_reference_without_retirement_marker_is_a_claim(self):
+        row = "| Gate | `invoke_deleted_gate` | Direct | Medium |\n"
+        assert _prose_claims(row) == [(1, "invoke_deleted_gate")]
 
     def test_a_table_row_reference_with_retirement_marker_is_suppressed(self):
         row = "| Gate | `invoke_deleted_gate.py:66-95` | Historical, removed | Medium |\n"
@@ -323,6 +384,11 @@ class TestWhatCountsAsAProseClaim:
         context = "The `invoke_context_loader.py` hook still runs."
         assert _claims_live_registration(context)
         assert _names_running_hook("invoke_context_loader.py")
+
+    def test_live_registration_claim_maps_bare_name_to_dispatch_inventory(self):
+        context = "The `invoke_context_loader` hook still runs."
+        assert _claims_live_registration(context)
+        assert _names_running_hook("invoke_context_loader")
 
     def test_a_line_range_suffix_is_stripped_and_the_reference_is_still_captured(self):
         text = "See `invoke_serena_reassertion.py:38-41` for the guard.\n"
