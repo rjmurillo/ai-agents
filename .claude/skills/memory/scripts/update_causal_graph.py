@@ -904,9 +904,9 @@ def main(argv: list[str] | None = None) -> int:
             node = add_causal_node(graph, "decision", node_label, episode_id)
             _record_add(stats, "nodes", node)
             if args.dry_run:
-                msg = _dry_add_message("node", node_label, node)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("node", node_label, node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Add event nodes
         for event in episode.get("events", []):
@@ -917,9 +917,9 @@ def main(argv: list[str] | None = None) -> int:
             node = add_causal_node(graph, node_type, node_label, episode_id)
             _record_add(stats, "nodes", node)
             if args.dry_run:
-                msg = _dry_add_message("node", node_label, node)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("node", node_label, node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Add outcome node
         outcome_label = f"Outcome: {episode.get('outcome', 'unknown')} - {episode.get('task', '')}"
@@ -928,9 +928,9 @@ def main(argv: list[str] | None = None) -> int:
         outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
         _record_add(stats, "nodes", outcome_node)
         if args.dry_run:
-            msg = _dry_add_message("node", outcome_label, outcome_node)
-            if msg:
-                print(msg, file=sys.stderr)
+            dry_msg = _dry_add_message("node", outcome_label, outcome_node)
+            if dry_msg:
+                print(dry_msg, file=sys.stderr)
 
         # Build and add causal chains
         chains = build_causal_chains(episode)
@@ -945,19 +945,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             _record_add(stats, "nodes", from_node)
             if args.dry_run:
-                msg = _dry_add_message("node", chain["from_label"], from_node)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("node", chain["from_label"], from_node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
             to_node = add_causal_node(
                 graph, chain["to_type"], chain["to_label"], episode_id,
             )
             _record_add(stats, "nodes", to_node)
             if args.dry_run:
-                msg = _dry_add_message("node", chain["to_label"], to_node)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("node", chain["to_label"], to_node)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
+            if from_node is None or to_node is None:
+                continue
             edge = add_causal_edge(
                 graph, from_node["id"], to_node["id"],
                 chain["edge_type"], chain["weight"], episode_id,
@@ -968,9 +970,9 @@ def main(argv: list[str] | None = None) -> int:
                     f"{chain['from_label']} --[{chain['edge_type']}]--> "
                     f"{chain['to_label']}"
                 )
-                msg = _dry_add_message("edge", edge_desc, edge)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("edge", edge_desc, edge)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Extract and add patterns
         patterns = get_decision_patterns(episode)
@@ -983,9 +985,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             _record_add(stats, "patterns", p)
             if args.dry_run:
-                msg = _dry_add_message("pattern", pat["name"], p)
-                if msg:
-                    print(msg, file=sys.stderr)
+                dry_msg = _dry_add_message("pattern", pat["name"], p)
+                if dry_msg:
+                    print(dry_msg, file=sys.stderr)
 
         # Retract contributions this episode no longer makes (edit-shrink).
         touched: dict[str, set[Any]] = {
