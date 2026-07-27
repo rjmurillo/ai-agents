@@ -1329,3 +1329,47 @@ class TestEveryCommittedEpisodeReachesTheGraph:
         """A typo in the path would make the check above vacuously pass."""
         assert self.EPISODES.is_dir()
         assert len(self._episode_ids()) >= 1
+
+
+class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
+    """Episode ``type`` is an open set, so the writer has to close it.
+
+    ``update_episode_graph`` reads ``event.get("type", "unknown")``. An episode
+    missing that key used to write an ``unknown`` node that no schema enum
+    could ever cover, and the graph accumulated 3392 such violations without a
+    single failure (#3356). Losing one row from a malformed episode, loudly, is
+    the better trade.
+    """
+
+    def test_a_type_outside_the_accepted_set_is_not_added(self) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        result = update_causal_graph.add_causal_node(
+            graph, "unknown", "orphan label", "ep-1"
+        )
+
+        assert result is None
+        assert graph["nodes"] == []
+
+    def test_the_refusal_names_the_type_and_the_label(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        update_causal_graph.add_causal_node(graph, "event", "a label", "ep-1")
+
+        captured = capsys.readouterr()
+        assert "event" in captured.err
+        assert "a label" in captured.err
+
+    def test_every_accepted_type_is_still_written(self) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        for node_type in sorted(update_causal_graph.NODE_TYPES):
+            added = update_causal_graph.add_causal_node(
+                graph, node_type, f"label for {node_type}", "ep-1"
+            )
+            assert added is not None, node_type
+
+        assert len(graph["nodes"]) == len(update_causal_graph.NODE_TYPES)
+
