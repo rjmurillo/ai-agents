@@ -1212,3 +1212,56 @@ Twenty-two rounds in, every round has still found a defect in the previous
 round's fix. Round twenty-two is the first to find a defect in the previous
 round's *evidence* rather than its code, which is the failure mode this log
 exists to make expensive.
+
+### Defect shape 31: the docstring found the bug the reviewer did not
+
+Round twenty-two's `_warn` fix left `_scrub` outside the suppression and the
+`print` inside it. Four reviewers had looked at that function by then and none
+flagged it. Writing the sentence that justified the split is what broke it: the
+draft said a redaction that fails must fail loudly rather than leak, and neither
+half survived being written down.
+
+A redaction that raises leaves the message unprinted either way, because the
+exception skips the `print` with `message` still bound to its unscrubbed value.
+So the split bought no leak protection. What it bought was a `_warn` that raises
+from inside `_fsync_dir` after a rename has already succeeded, which is the
+abort shapes 26, 28 and 29 were each spent removing, reintroduced by the fix
+for shape 29.
+
+The lesson is narrow and worth keeping. Prose that merely restates the code
+catches nothing; prose that has to justify a choice will sometimes fail to, and
+that failure is a finding. Three of the four rules `_warn` now states were
+discovered by a reviewer. The fourth was discovered by trying to write down why
+the third was implemented the way it was.
+
+### Defect shape 32: a proposed fix is a claim like any other
+
+Round twenty-three raised one Optional finding and it was structurally right:
+the context-isolation test drove the `ContextVar` directly, so it exercised the
+standard library rather than this module's scope. Its proposed repair, abandoning
+a generator mid-scope through the public API, does not discriminate as written.
+CPython drops the generator's last reference when the helper returns, closes it,
+and runs the very `finally` the test needs left undone, so the test passes
+against the module global it exists to rule out.
+
+The review's mutation was weaker than it appeared for the same reason its fix
+was: rebinding the module attribute to `None` breaks attribute access rather
+than behavior, so every test touching the variable raises `AttributeError`. That
+is not evidence about sharing. A mutation has to preserve the API and change
+only the property under test, which is why the mutation used here is a
+hand-rolled class with `get`, `set` and `reset`.
+
+Both halves were settled by running them, in the same review round, against the
+same two implementations. This log has three entries now about claims that were
+argued rather than measured (shape 20's error contract, round twenty's
+`OverflowError`, and this one). Two of the three came from reviewers and one
+from the author, which is roughly the ratio of who writes claims here.
+
+Taking the finding and rejecting its patch also surfaced something neither party
+was looking for. Closing the abandoned generator from outside its context makes
+`reset` refuse a foreign token with `ValueError`, which pytest reports as an
+unraisable-exception warning. A token has a limitation the module global did not:
+a scope entered in one context cannot be exited in another. Nothing in this CLI
+can reach it, since every scope is a plain `with` in straight-line synchronous
+code, so `_digest_scrubbed` discloses it next to the non-LIFO limitation it
+already disclosed rather than guarding a path no call site has.

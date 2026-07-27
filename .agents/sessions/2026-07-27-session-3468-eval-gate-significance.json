@@ -324,9 +324,23 @@
         "Verified: 15560 pass across the repo suite, 100 percent on all three optimizer modules (optimize-artifact.py 561 statements, _optimizer_core.py 281, _optimizer_adapters.py 89). ruff clean, mypy clean.",
         "Documented as defect shapes 29 (guarding the exception, not the rule) and 30 (a coverage claim no test backed) in the debate log, plus a note on the test that could not fail. README's durability bullet now states the third rule and why the OSError guard was too narrow."
       ]
+    },
+    {
+      "phase": "Round 23, and the bug the docstring found on its own",
+      "actions": [
+        "While writing the three-rule docstring for _warn, the sentence justifying why _scrub sat outside the suppression turned out to be false in both halves. A redaction that raises leaves the message unprinted either way, because the exception skips the print with the message still bound to its unscrubbed value, so excluding it bought no leak protection. What it bought was a _warn that raises from inside _fsync_dir after a rename had already succeeded, which is the abort rounds 20, 21 and 22 were each spent removing, reintroduced by the fix for round 22. Moved the redaction inside the guard, added a test with _scrub monkeypatched to raise, and verified the reverse arrangement fails it.",
+        "Ran round 23 on gemini-3.1-pro-preview, read-only, scoped to the two round-22 commits, with the three prior failure modes named including the new one about trusting prose over test bodies.",
+        "It confirmed by running: the suppress(Exception) boundary lets KeyboardInterrupt and SystemExit through as intended; snapshotting sys.stderr is the right primitive rather than reading it twice; reset(token) is correct under out-of-order exits and generator suspension; LedgerMismatchError does not leak the key through path.parent, which resolves to the ledger root and excludes the digest-bearing filename; and three of the new tests discriminate under its own mutations.",
+        "It raised one Optional finding, structurally right and taken: the context-isolation test drove the ContextVar directly, so it tested the standard library rather than this module's scope.",
+        "Its proposed repair does not discriminate as written, which measurement showed and reading would not have. Abandoning a generator mid-scope only abandons it while something holds a reference; CPython drops the last one when the helper returns, closes the generator, and runs the very finally the test needs left undone. Measured both variants against both implementations: as proposed, the global mutation passes; holding the reference, it fails.",
+        "The review's own mutation was also weaker than it looked. Rebinding the module attribute to None breaks attribute access rather than behavior, so any test touching the variable raises AttributeError rather than failing an assertion. A mutation has to preserve the API and change only the property under test.",
+        "Taking the finding surfaced a limitation neither party was looking for. Closing the abandoned generator from outside its context makes reset refuse a foreign token with ValueError, which pytest reports as an unraisable-exception warning. A token has a constraint the module global did not: a scope entered in one context cannot be exited in another. Every scope in this CLI is a plain with in straight-line synchronous code, so _digest_scrubbed discloses it beside the non-LIFO limitation rather than guarding a path no call site can reach. The test closes its generator inside the context that opened it.",
+        "Verified: 1388 pass across the optimizer suites, 100 percent on all three modules, no warnings, ruff clean, mypy clean.",
+        "Documented as defect shapes 31 (the docstring found the bug the reviewer did not) and 32 (a proposed fix is a claim like any other) in the debate log."
+      ]
     }
   ],
-  "endingCommit": "2c710b998",
+  "endingCommit": "a541a88cd",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
