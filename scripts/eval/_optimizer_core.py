@@ -583,7 +583,6 @@ def gate(
     split_fingerprint: str | None = None,
     incumbent_fingerprint: str | None = None,
     discordant_loss: int = 0,
-    allow_regressions: bool = False,
 ) -> GateResult:
     """Decide whether a candidate replaces the incumbent.
 
@@ -599,9 +598,12 @@ def gate(
     ``discordant_loss`` is the number of held-out tasks that passed before the
     edit and fail after it. A net gain can still contain one, and ADR-057
     blocks every pass-to-fail transition rather than netting it against a gain,
-    so by default one broken task rejects the edit however good the aggregate
-    looks. ``allow_regressions`` opts out for callers who genuinely want the
-    aggregate verdict.
+    so one broken task rejects the edit however good the aggregate looks.
+
+    There is deliberately no override. ADR-057 states that its gate "has no
+    mechanism to accept a justified regression"; a bypass here would be a
+    weaker rule wearing the same name, and an agent driving this loop could
+    set it without a human ever seeing the broken task.
 
     Raises:
         ValueError: on scores outside ``[0, 1]``, negative consultations, a
@@ -638,7 +640,7 @@ def gate(
         return _result("REJECT", refusal, compared=False)
 
     if candidate > incumbent:
-        if discordant_loss and not allow_regressions:
+        if discordant_loss:
             return _result(
                 "REJECT",
                 f"candidate {candidate:.4f} beats {incumbent:.4f} overall but "

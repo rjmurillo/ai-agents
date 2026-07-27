@@ -685,9 +685,17 @@ class TestGateRegressionGuard:
         """The scores were weighed, so the consultation was spent."""
         assert gate(0.8, 0.6, discordant_loss=1).compared is True
 
-    def test_allowing_regressions_restores_the_aggregate_verdict(self):
-        result = gate(0.8, 0.6, discordant_loss=1, allow_regressions=True)
-        assert result.decision == "ACCEPT"
+    def test_there_is_no_override_for_a_broken_task(self):
+        """This test used to assert an `allow_regressions` bypass existed.
+
+        ADR-057 says its gate "has no mechanism to accept a justified
+        regression". A bypass here was a weaker rule wearing the same name,
+        and an agent driving the loop could set it with no human ever seeing
+        the broken task. The parameter is gone; a net gain never buys one.
+        """
+        with pytest.raises(TypeError):
+            gate(0.8, 0.6, discordant_loss=1, allow_regressions=True)
+        assert gate(0.8, 0.6, discordant_loss=1).decision == "REJECT"
 
     def test_the_fingerprint_guard_still_wins_over_the_regression_guard(self):
         result = gate(

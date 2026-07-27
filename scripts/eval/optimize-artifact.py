@@ -276,16 +276,30 @@ def cmd_split(args: argparse.Namespace) -> int:
         )
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+    record = {
+        "opt": list(result.opt),
+        "sel": list(result.sel),
+        "test": list(result.test),
+        "fingerprint": result.fingerprint,
+        "seed": args.seed,
+        "sel_ratio": args.sel_ratio,
+        "test_ratio": args.test_ratio,
+        "min_sel": args.min_sel,
+    }
+    _write_atomic(args.out, json.dumps(record, indent=2, sort_keys=True) + "\n")
+    # The full record goes to the file the gate reads. Stdout, which is what
+    # the optimizing agent sees, gets the optimize ids and the sizes and
+    # fingerprint it needs to verify the split was not redrawn. Publishing
+    # held-out membership here would make the withholding nominal: an agent
+    # could read the answers it is being measured against for free.
     _emit(
         {
             "opt": list(result.opt),
-            "sel": list(result.sel),
-            "test": list(result.test),
+            "n_sel": len(result.sel),
+            "n_test": len(result.test),
             "fingerprint": result.fingerprint,
             "seed": args.seed,
-            "sel_ratio": args.sel_ratio,
-            "test_ratio": args.test_ratio,
-            "min_sel": args.min_sel,
+            "split": str(args.out),
         }
     )
     return EXIT_OK
@@ -404,7 +418,6 @@ def cmd_gate(args: argparse.Namespace) -> int:
             split_fingerprint=split["fingerprint"],
             incumbent_fingerprint=args.incumbent_fingerprint,
             discordant_loss=loss,
-            allow_regressions=args.allow_regressions,
         )
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
@@ -532,6 +545,12 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--results", type=Path, help="extract output; task ids are its keys")
     source.add_argument("--tasks", type=Path, help="newline-delimited task ids")
     split.add_argument("--seed", required=True)
+    split.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="file the gate reads; holds the full split including held-out ids",
+    )
     split.add_argument("--sel-ratio", type=float, default=0.4)
     split.add_argument("--test-ratio", type=float, default=0.0)
     split.add_argument("--min-sel", type=int, default=3)
@@ -547,7 +566,11 @@ def build_parser() -> argparse.ArgumentParser:
     score_cmd = sub.add_parser("score", help="fraction of one split group passing")
     score_cmd.add_argument("--results", type=Path, required=True)
     score_cmd.add_argument("--split", type=Path, required=True)
-    score_cmd.add_argument("--group", default="sel", choices=_GROUPS)
+    # Only the optimize group. The gate scores the selection group itself,
+    # inside a decision that consumes a consultation. A free-standing score on
+    # a held-out group is exactly the unmetered read the budget exists to
+    # count, so the flag does not offer one.
+    score_cmd.add_argument("--group", default="opt", choices=("opt",))
     score_cmd.set_defaults(func=cmd_score)
 
     apply_cmd = sub.add_parser("apply", help="apply bounded patches to an artifact")
@@ -566,11 +589,6 @@ def build_parser() -> argparse.ArgumentParser:
     gate_cmd.add_argument("--consultations", type=int, default=0)
     gate_cmd.add_argument("--max-consultations", type=int, default=None)
     gate_cmd.add_argument("--incumbent-fingerprint", default=None)
-    gate_cmd.add_argument(
-        "--allow-regressions",
-        action="store_true",
-        help="accept a net gain that still breaks a passing held-out task",
-    )
     gate_cmd.set_defaults(func=cmd_gate)
 
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")

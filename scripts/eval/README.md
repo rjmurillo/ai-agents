@@ -345,12 +345,22 @@ OA=scripts/eval/optimize-artifact.py
 
 # Baseline the incumbent and fix the split once.
 uv run --frozen python "$OA" extract --kind agent --input report.json > base.json
-uv run --frozen python "$OA" split --results base.json --seed run-7 > split.json
-FP=$(python3 -c "import json;print(json.load(open('split.json'))['fingerprint'])")
+FP=$(uv run --frozen python "$OA" split --results base.json --seed run-7 \
+    --out split.json | python3 -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
 
 # Per step: check the budget, reject a repeat, apply, rescore, gate.
 uv run --frozen python "$OA" budget --step 3 --total 12
-uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json || exit 0
+
+# Exit 1 means this edit was already rejected, so skip it. Exit 2 means the
+# command itself failed and the loop must stop rather than treat a typo in a
+# path as a clean finish.
+uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json
+case $? in
+  0) ;;
+  1) continue ;;
+  *) exit 2 ;;
+esac
+
 uv run --frozen python "$OA" apply --file target.md --patches p.json --budget 3
 
 # Rerun the real scorer here, then extract it to cand.json.
@@ -371,12 +381,31 @@ The gate reads `sel` and only `sel`. There is no flag to point it at another
 group, because a gate that can be aimed at the group the author has been
 reading is not a gate.
 
+### What the seam does and does not protect
+
+`split` writes the full partition to the `--out` file the gate reads, and
+prints only the optimize ids, the held-out sizes, and the fingerprint. `score`
+reads the optimize group and nothing else. Together those keep the held-out
+answers off the optimizer's stdout and keep every held-out read inside a gate
+decision that spends a consultation.
+
+This is a discipline control, not a security boundary. The split file sits on
+the same disk as everything else, so an optimizer determined to read it can.
+What the seam removes is the accidental path: reading held-out failures
+because they were printed, or scoring against them because the command
+offered it. Binding the split to state the optimizer cannot reach needs a
+trusted controller, which this does not have. Do not cite a run of this loop
+as evidence against an adversarial optimizer.
+
 Four further refusals close holes that open once a loop runs many steps:
 
 - **A broken held-out task.** An aggregate win can still contain a task that
   passed before the edit and fails after it. ADR-057 blocks every pass-to-fail
   transition rather than netting it against a gain, so one broken task rejects
-  the edit however good the aggregate looks. `--allow-regressions` opts out.
+  the edit however good the aggregate looks. There is no override flag: ADR-057
+  states its gate "has no mechanism to accept a justified regression", and a
+  bypass here would be a weaker rule under the same name that an agent driving
+  the loop could set without a human seeing the broken task.
 - **Moved split.** The split fingerprint covers the seed, the task-id set, and
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.

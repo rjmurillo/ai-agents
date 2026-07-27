@@ -50,6 +50,19 @@ def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
     return code, (json.loads(out) if out else {})
 
 
+def _split(capsys, tmp_path, *args, name="split.json"):
+    """Run `split` and return the full record from the file the gate reads.
+
+    Stdout deliberately redacts held-out membership, so any test that needs
+    the whole split has to read it the way the gate does.
+    """
+    path = tmp_path / name
+    code, stdout = _run(capsys, "split", *args, "--out", path)
+    if code != EXIT_OK:
+        return code, stdout
+    return code, json.loads(path.read_text(encoding="utf-8"))
+
+
 def _boom(*_args, **_kwargs):
     raise OSError("disk full")
 
@@ -282,50 +295,53 @@ class TestExtractRealRuleEnvelope:
 class TestSplit:
     def test_partitions_every_task(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(6, 4))
-        code, out = _run(capsys, "split", "--results", results, "--seed", "s1")
+        code, out = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         assert code == EXIT_OK
         assert sorted(out["opt"] + out["sel"] + out["test"]) == sorted(_results(6, 4))
         assert out["fingerprint"]
 
     def test_is_deterministic_for_a_seed(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(6, 4))
-        _, first = _run(capsys, "split", "--results", results, "--seed", "s1")
-        _, second = _run(capsys, "split", "--results", results, "--seed", "s1")
+        _, first = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        _, second = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         assert first == second
 
     def test_seed_changes_the_split(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(6, 4))
-        _, first = _run(capsys, "split", "--results", results, "--seed", "s1")
-        _, second = _run(capsys, "split", "--results", results, "--seed", "s2")
+        _, first = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        _, second = _split(capsys, tmp_path, "--results", results, "--seed", "s2")
         assert first["fingerprint"] != second["fingerprint"]
 
     def test_reads_a_plain_task_id_list(self, tmp_path, capsys):
         tasks = tmp_path / "ids.txt"
         tasks.write_text("\n".join(f"t{i}" for i in range(10)) + "\n", encoding="utf-8")
-        code, out = _run(capsys, "split", "--tasks", tasks, "--seed", "s1")
+        code, out = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "s1")
         assert code == EXIT_OK
         assert len(out["opt"] + out["sel"] + out["test"]) == 10
 
     def test_blank_lines_in_a_task_list_are_ignored(self, tmp_path, capsys):
         tasks = tmp_path / "ids.txt"
         tasks.write_text("t0\n\n  \nt1\nt2\nt3\nt4\nt5\nt6\nt7\n", encoding="utf-8")
-        code, out = _run(capsys, "split", "--tasks", tasks, "--seed", "s1")
+        code, out = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "s1")
         assert code == EXIT_OK
         assert len(out["opt"] + out["sel"] + out["test"]) == 8
 
     def test_too_few_tasks_is_a_config_error(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(2, 0))
-        code, _ = _run(capsys, "split", "--results", results, "--seed", "s1")
+        code, _ = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         assert code == EXIT_CONFIG
 
     def test_requires_a_task_source(self, capsys):
         with pytest.raises(SystemExit):
-            oa.main(["split", "--seed", "s1"])
+            oa.main(["split", "--seed", "s1", "--out", "x.json"])
 
     def test_rejects_both_task_sources(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(6, 4))
         with pytest.raises(SystemExit):
-            oa.main(["split", "--results", str(results), "--tasks", "x", "--seed", "s"])
+            oa.main(
+                ["split", "--results", str(results), "--tasks", "x", "--seed", "s",
+                 "--out", "x.json"]
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -376,16 +392,22 @@ class TestBudget:
 
 class TestScore:
     def _split_file(self, tmp_path, capsys, results_path) -> Path:
-        _, split = _run(capsys, "split", "--results", results_path, "--seed", "s1")
-        return _write(tmp_path, "split.json", split)
+        _split(capsys, tmp_path, "--results", results_path, "--seed", "s1")
+        return tmp_path / "split.json"
 
-    def test_scores_the_sel_group_by_default(self, tmp_path, capsys):
+    def test_scores_the_optimize_group_by_default(self, tmp_path, capsys):
+        """This test used to assert a default of `sel`, which was the hole.
+
+        A free-standing unmetered score on the held-out group hands the
+        optimizer the answer the gate is supposed to charge a consultation
+        for. `opt` is the only group this command will read.
+        """
         results = _write(tmp_path, "r.json", _results(10, 0))
         split = self._split_file(tmp_path, capsys, results)
         code, out = _run(capsys, "score", "--results", results, "--split", split)
         assert code == EXIT_OK
         assert out["score"] == 1.0
-        assert out["group"] == "sel"
+        assert out["group"] == "opt"
         assert out["n"] > 0
 
     def test_scores_a_named_group(self, tmp_path, capsys):
@@ -506,7 +528,7 @@ class TestGateHoldsOutOnly:
     def _setup(self, tmp_path, capsys, incumbent: dict, candidate: dict):
         inc = _write(tmp_path, "inc.json", incumbent)
         cand = _write(tmp_path, "cand.json", candidate)
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         return inc, cand, _write(tmp_path, "split.json", split)
 
     def test_the_group_flag_is_gone(self, tmp_path, capsys):
@@ -554,7 +576,7 @@ class TestGateRefusalCostsNothing:
     def _setup(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         return inc, cand, _write(tmp_path, "split.json", split), split
 
     def test_an_exhausted_budget_withholds_the_scores(self, tmp_path, capsys):
@@ -629,7 +651,7 @@ class TestGateReportsPairedEvidence:
     def _gate(self, tmp_path, capsys, incumbent: dict, candidate: dict):
         inc = _write(tmp_path, "inc.json", incumbent)
         cand = _write(tmp_path, "cand.json", candidate)
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
         return _run(
             capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
@@ -656,7 +678,7 @@ class TestGateReportsPairedEvidence:
     def test_a_refusal_reports_no_paired_evidence(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
         _, out = _run(
             capsys,
@@ -677,7 +699,7 @@ class TestGate:
     def _setup(self, tmp_path, capsys, incumbent: dict, candidate: dict):
         inc = _write(tmp_path, "inc.json", incumbent)
         cand = _write(tmp_path, "cand.json", candidate)
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         return inc, cand, _write(tmp_path, "split.json", split), split
 
     def test_accepts_a_strict_improvement(self, tmp_path, capsys):
@@ -720,7 +742,7 @@ class TestGate:
     def test_scores_the_held_out_group_not_the_optimize_group(self, tmp_path, capsys):
         """The candidate wins only on opt tasks, so the gate must reject it."""
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
         candidate = {t: True for t in split["opt"]}
         candidate.update({t: False for t in split["sel"] + split["test"]})
@@ -989,12 +1011,12 @@ class TestMalformedInputs:
 
     def test_results_must_be_an_object(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", ["t0", "t1"])
-        code, _ = _run(capsys, "split", "--results", results, "--seed", "s1")
+        code, _ = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         assert code == EXIT_CONFIG
 
     def test_results_must_be_boolean_valued(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", {"t0": 1, "t1": "yes"})
-        code, _ = _run(capsys, "split", "--results", results, "--seed", "s1")
+        code, _ = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         assert code == EXIT_CONFIG
 
     def test_empty_patch_array_is_a_config_error(self, tmp_path, capsys):
@@ -1012,7 +1034,7 @@ class TestMalformedInputs:
 
     def test_negative_consultations_is_a_config_error(self, tmp_path, capsys):
         results = _write(tmp_path, "r.json", _results(10, 0))
-        _, split = _run(capsys, "split", "--results", results, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
         code, _ = _run(
             capsys,
@@ -1050,7 +1072,7 @@ class TestSplitFileIsSelfValidating:
     def _setup(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         return inc, cand, split
 
     def test_an_untampered_split_gates_normally(self, tmp_path, capsys):
@@ -1129,7 +1151,7 @@ class TestSplitFileIsSelfValidating:
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
-        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1",
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
                         "--sel-ratio", "0.4", "--test-ratio", "0.2")
         assert split["sel_ratio"] == 0.4
         assert split["test_ratio"] == 0.2
@@ -1199,3 +1221,65 @@ class TestApplyWritesAtomically:
         monkeypatch.setattr(oa.os, "replace", _boom)
         _run(capsys, "apply", "--file", target, "--patches", patches, "--budget", "1")
         assert sorted(p.name for p in tmp_path.iterdir()) == ["artifact.md", "p.json"]
+
+
+class TestHeldOutGroupsAreNotReadable:
+    """The optimizer-facing surface must not hand back what the gate withholds.
+
+    An adversarial review (gpt-5.6-sol, 2026-07-26) found the withholding was
+    nominal: `split` printed every selection and test id, and `score` defaulted
+    to the selection group and accepted the test group, unmetered. An agent
+    could read the held-out answers for free and never touch the consultation
+    budget. A hash around openly published data is not withholding.
+    """
+
+    def _tasks(self, tmp_path):
+        return _write(tmp_path, "res.json", {f"t{i}": True for i in range(10)})
+
+    def test_split_prints_optimize_ids_but_not_held_out_ids(self, tmp_path, capsys):
+        out_path = tmp_path / "split.json"
+        code, out = _run(capsys, "split", "--results", self._tasks(tmp_path),
+                         "--seed", "s", "--out", out_path)
+        assert code == 0
+        assert out["opt"], "the optimizer needs to know what it may work on"
+        assert "sel" not in out and "test" not in out
+
+    def test_split_reports_held_out_sizes_without_membership(self, tmp_path, capsys):
+        out_path = tmp_path / "split.json"
+        _, out = _run(capsys, "split", "--results", self._tasks(tmp_path),
+                      "--seed", "s", "--out", out_path)
+        assert out["n_sel"] == 4 and out["n_test"] == 0
+
+    def test_the_full_split_still_reaches_the_gate_through_the_file(
+        self, tmp_path, capsys
+    ):
+        out_path = tmp_path / "split.json"
+        _run(capsys, "split", "--results", self._tasks(tmp_path), "--seed", "s",
+             "--out", out_path)
+        written = json.loads(out_path.read_text(encoding="utf-8"))
+        assert len(written["sel"]) == 4
+        assert written["fingerprint"]
+
+    def test_score_refuses_the_selection_group(self, tmp_path, capsys):
+        out_path = tmp_path / "split.json"
+        _run(capsys, "split", "--results", self._tasks(tmp_path), "--seed", "s",
+             "--out", out_path)
+        with pytest.raises(SystemExit):
+            _run(capsys, "score", "--results", self._tasks(tmp_path),
+                 "--split", out_path, "--group", "sel")
+
+    def test_score_refuses_the_test_group(self, tmp_path, capsys):
+        out_path = tmp_path / "split.json"
+        _run(capsys, "split", "--results", self._tasks(tmp_path), "--seed", "s",
+             "--out", out_path)
+        with pytest.raises(SystemExit):
+            _run(capsys, "score", "--results", self._tasks(tmp_path),
+                 "--split", out_path, "--group", "test")
+
+    def test_score_still_reads_the_optimize_group(self, tmp_path, capsys):
+        out_path = tmp_path / "split.json"
+        _run(capsys, "split", "--results", self._tasks(tmp_path), "--seed", "s",
+             "--out", out_path)
+        code, out = _run(capsys, "score", "--results", self._tasks(tmp_path),
+                         "--split", out_path)
+        assert code == 0 and out["group"] == "opt" and out["score"] == 1.0
