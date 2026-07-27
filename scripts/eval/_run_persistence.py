@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from _eval_agent_types import (
-    SCHEMA_VERSION,
+    RUN_RECORD_SCHEMA_VERSION,
     AssertionKind,
     AssertionResult,
     RunRecord,
@@ -74,9 +74,14 @@ class RunDirectoryNotFreshError(Exception):
     only safe under explicit `--resume`."""
 
 
+class RunSeedMismatchError(Exception):
+    """Raised when resume attempts to mix records written with another seed."""
+
+
 # Public to make the format obvious at the call site and to give tests a
 # stable name to reference.
 RUNS_FILENAME = "runs.jsonl"
+SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS = {1, RUN_RECORD_SCHEMA_VERSION}
 
 
 def _record_key(record: RunRecord) -> tuple[str, str, int]:
@@ -106,21 +111,22 @@ def _parse_record(line: str) -> RunRecord | None:
     Re-hydrates `AssertionResult` from the nested dicts so downstream
     consumers (the report aggregator) can call `.passed` directly.
 
-    Raises `SchemaVersionError` on incompatible `schemaVersion`. A resume
-    against an older or newer record set MUST fail fast rather than seed
-    the writer with rows that violate the current schema invariants.
+    Raises `SchemaVersionError` on incompatible `schemaVersion`. Version 1 is
+    read for compatibility and normalized with v2 optional provenance defaults.
     """
     line = line.strip()
     if not line:
         return None
     payload = json.loads(line)
     schema_version = payload.pop("schemaVersion", None)
-    if schema_version != SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
         raise SchemaVersionError(
             f"unsupported schemaVersion={schema_version!r} on record "
-            f"(supported: {SCHEMA_VERSION})"
+            f"(supported: {RUN_RECORD_SCHEMA_VERSION})"
         )
     payload["schema_version"] = schema_version
+    payload.setdefault("system_fingerprint", None)
+    payload.setdefault("seed", None)
     raw_assertions = payload.get("assertions", []) or []
     payload["assertions"] = [
         AssertionResult(
@@ -144,9 +150,12 @@ class _Counters:
 class RunPersistence:
     """JSONL writer with idempotency guard. DESIGN-004 §5.5."""
 
-    def __init__(self, run_dir: Path, *, resume: bool = False) -> None:
+    def __init__(
+        self, run_dir: Path, *, resume: bool = False, seed: int | None = None
+    ) -> None:
         self._run_dir = run_dir
         self._resume = resume
+        self._seed = seed
         self._jsonl_path = run_dir / RUNS_FILENAME
         # All triples that already exist on disk, regardless of outcome.
         self._seen: set[tuple[str, str, int]] = set()
@@ -196,11 +205,17 @@ class RunPersistence:
                 # `_seen`/`_completed` get seeded with rows whose shape
                 # the writer would otherwise accept.
                 schema_version = payload.get("schemaVersion")
-                if schema_version != SCHEMA_VERSION:
+                if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
                     raise SchemaVersionError(
                         f"{self._jsonl_path}: line {line_no} has "
                         f"schemaVersion={schema_version!r} (supported: "
-                        f"{SCHEMA_VERSION})"
+                        f"{RUN_RECORD_SCHEMA_VERSION})"
+                    )
+                existing_seed = payload.get("seed")
+                if self._resume and existing_seed != self._seed:
+                    raise RunSeedMismatchError(
+                        f"{self._jsonl_path}: line {line_no} has seed="
+                        f"{existing_seed!r}, current seed={self._seed!r}"
                     )
                 identity_fields = ("fixture_id", "variant", "run_index")
                 key = tuple(payload.get(name) for name in identity_fields)
@@ -264,10 +279,10 @@ class RunPersistence:
         `outcome="error"` is replaced in place: the errored line is
         removed and the new record is appended.
         """
-        if record.schema_version != SCHEMA_VERSION:
+        if record.schema_version != RUN_RECORD_SCHEMA_VERSION:
             raise SchemaVersionError(
                 f"unsupported schemaVersion={record.schema_version} "
-                f"(supported: {SCHEMA_VERSION})"
+                f"(supported: {RUN_RECORD_SCHEMA_VERSION})"
             )
         key = _record_key(record)
         if key in self._seen:
