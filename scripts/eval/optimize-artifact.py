@@ -58,10 +58,14 @@ from _optimizer_core import (  # noqa: E402
     buffer_contains,
     edit_budget,
     gate,
+    guard_refusal,
+    mcnemar_exact,
     patch_fingerprint,
     score,
     split_tasks,
 )
+
+_GATE_GROUP = "sel"
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -141,17 +145,50 @@ def _read_split(path: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
-    # eval-rule-activation.py writes either a bare scenario array or an object
-    # wrapping one, depending on whether the caller asked for the summary.
+def _rule_scenarios(payload: object) -> list:
+    """Pull scenarios from a bare array or a 'scenarios' wrapper."""
     scenarios = payload.get("scenarios") if isinstance(payload, dict) else payload
     if not isinstance(scenarios, list):
         raise ConfigError("rule input must be a scenario array or an object with 'scenarios'")
+    return scenarios
+
+
+def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str, bool]:
+    """Extract the multi-rule shape eval-rule-activation.py --output writes.
+
+    Scenario ids restart at S1 inside every rule, so they are namespaced as
+    `<rule>::<scenario-id>`. A live run over the seven scenario files in
+    tests/evals/rule-scenarios/ produced 24 scenarios carrying only 4 distinct
+    ids; merging them raw would silently drop 20 tasks, and a smaller
+    denominator reads as a higher score.
+    """
+    if not isinstance(rules, Mapping) or not rules:
+        raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
+    out: dict[str, bool] = {}
+    for name, entry in rules.items():
+        if not isinstance(entry, Mapping) or "scenarios" not in entry:
+            raise ConfigError(f"rule {name!r} has no 'scenarios' list")
+        scored: dict[str, bool] = rule_results(
+            _rule_scenarios(entry), args.mechanism, min_score=args.min_score
+        )
+        for sid, passed in scored.items():
+            out[f"{name}::{sid}"] = passed
+    return out
+
+
+def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
+    # eval-rule-activation.py --output writes {"rules": {name: {...}}}. A bare
+    # scenario array and a {"scenarios": [...]} wrapper are also accepted so a
+    # caller can gate one rule without the envelope.
+    if isinstance(payload, dict) and "rules" in payload:
+        return _extract_rules_envelope(payload["rules"], args)
     # Annotated locals here and below: the sibling modules are imported by
     # path (this file is a hyphenated script), so mypy resolves them as Any
     # under ignore_missing_imports. The annotation restates the contract the
     # tests already enforce.
-    extracted: dict[str, bool] = rule_results(scenarios, args.mechanism, min_score=args.min_score)
+    extracted: dict[str, bool] = rule_results(
+        _rule_scenarios(payload), args.mechanism, min_score=args.min_score
+    )
     return extracted
 
 
@@ -219,6 +256,11 @@ def cmd_budget(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _group_ids(split: dict[str, Any], group: str) -> list[str]:
+    ids: list[str] = list(split[group])
+    return ids
+
+
 def _score_group(results: dict[str, bool], split: dict[str, Any], group: str) -> float:
     try:
         fraction: float = score(results, split[group])
@@ -265,9 +307,36 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def cmd_gate(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
-    incumbent = _score_group(_read_results(args.incumbent), split, args.group)
-    candidate = _score_group(_read_results(args.candidate), split, args.group)
+
+    # Guards first, scoring second. Both refusals are decidable from
+    # bookkeeping alone, and scoring before asking would read the held-out
+    # group to produce a verdict that says the held-out group must not be read.
+    refusal = guard_refusal(
+        sel_consultations=args.consultations,
+        max_consultations=args.max_consultations,
+        split_fingerprint=split["fingerprint"],
+        incumbent_fingerprint=args.incumbent_fingerprint,
+    )
+    if refusal is not None:
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": refusal,
+                "sel_consultations": args.consultations,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
+    incumbent_results = _read_results(args.incumbent)
+    candidate_results = _read_results(args.candidate)
+    sel_ids = _group_ids(split, _GATE_GROUP)
+    incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
+    candidate = _score_group(candidate_results, split, _GATE_GROUP)
     try:
+        gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
         result = gate(
             candidate,
             incumbent,
@@ -275,6 +344,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
             max_consultations=args.max_consultations,
             split_fingerprint=split["fingerprint"],
             incumbent_fingerprint=args.incumbent_fingerprint,
+            discordant_loss=loss,
+            allow_regressions=args.allow_regressions,
         )
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
@@ -284,12 +355,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "reason": result.reason,
             "candidate": result.candidate,
             "incumbent": result.incumbent,
+            # Discordant pairs are the only tasks that carry evidence about the
+            # edit. p is the one-sided exact McNemar tail, reported rather than
+            # enforced: a three-task held-out group cannot reach 0.05, so
+            # enforcing a conventional floor would make the common case
+            # unpassable instead of informative.
+            "discordant_gain": gain,
+            "discordant_loss": loss,
+            "p_value": p_value,
             # What to pass as --consultations next time. A refusal that never
             # weighed the scores costs the held-out split nothing, so it does
             # not advance the counter.
             "sel_consultations": args.consultations + (1 if result.compared else 0),
             "compared": result.compared,
-            "group": args.group,
+            "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
         }
     )
@@ -398,10 +477,16 @@ def build_parser() -> argparse.ArgumentParser:
     gate_cmd.add_argument("--incumbent", type=Path, required=True)
     gate_cmd.add_argument("--candidate", type=Path, required=True)
     gate_cmd.add_argument("--split", type=Path, required=True)
-    gate_cmd.add_argument("--group", default="sel", choices=_GROUPS)
+    # No --group. A gate reads the held-out group by definition, and offering
+    # the choice let a caller gate on the group it had already optimized against.
     gate_cmd.add_argument("--consultations", type=int, default=0)
     gate_cmd.add_argument("--max-consultations", type=int, default=None)
     gate_cmd.add_argument("--incumbent-fingerprint", default=None)
+    gate_cmd.add_argument(
+        "--allow-regressions",
+        action="store_true",
+        help="accept a net gain that still breaks a passing held-out task",
+    )
     gate_cmd.set_defaults(func=cmd_gate)
 
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")

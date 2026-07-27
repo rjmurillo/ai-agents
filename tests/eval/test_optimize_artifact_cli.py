@@ -124,7 +124,7 @@ class TestExtract:
         assert out == {"S1": True}
 
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
-        """eval-rule-activation.py nests scenarios under a top-level key."""
+        """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
         scenarios = _write(
             tmp_path,
             "scen.json",
@@ -178,6 +178,95 @@ class TestExtract:
     def test_non_array_rule_input_is_a_config_error(self, tmp_path, capsys):
         scenarios = _write(tmp_path, "scen.json", {"scenarios": "not a list"})
         code, _ = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+
+
+class TestExtractRealRuleEnvelope:
+    """The shape eval-rule-activation.py --output actually writes.
+
+    Verified against a live run over tests/evals/rule-scenarios/*.json: the
+    file is {"rules": {<rule-name>: {"rule_path", "scenarios", "summary"}}}.
+    Scenario ids restart at S1 inside every rule, so 24 real scenarios carry
+    only 4 distinct ids and must be namespaced before they can be task ids.
+    """
+
+    @staticmethod
+    def _scenario(sid: str, score: int) -> dict:
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {
+                "full": {
+                    "scores": {
+                        "activation_score": score,
+                        "citation_score": score,
+                        "behavior_score": score,
+                    }
+                }
+            },
+        }
+
+    def _envelope(self) -> dict:
+        return {
+            "rules": {
+                "clean-architecture": {
+                    "rule_path": ".claude/rules/clean-architecture.md",
+                    "scenarios": [self._scenario("S1", 5), self._scenario("S2", 1)],
+                    "summary": {"verdict": "PASS"},
+                },
+                "refactoring": {
+                    "rule_path": ".claude/rules/refactoring.md",
+                    "scenarios": [self._scenario("S1", 1)],
+                    "summary": {"verdict": "PASS"},
+                },
+            }
+        }
+
+    def test_accepts_the_rules_envelope(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope())
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert len(out) == 3
+
+    def test_namespaces_scenario_ids_by_rule(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", self._envelope())
+        _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert out == {
+            "clean-architecture::S1": True,
+            "clean-architecture::S2": False,
+            "refactoring::S1": False,
+        }
+
+    def test_a_single_rule_is_namespaced_too(self, tmp_path, capsys):
+        """Namespacing must not depend on how many rules the file holds.
+
+        If it did, adding a second rule would rewrite every existing task id
+        and move the split fingerprint, which the gate refuses to compare.
+        """
+        envelope = {"rules": {"refactoring": {"scenarios": [self._scenario("S1", 5)]}}}
+        path = _write(tmp_path, "rules.json", envelope)
+        _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert out == {"refactoring::S1": True}
+
+    def test_a_non_mapping_rules_value_is_a_config_error(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", {"rules": ["not", "a", "mapping"]})
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_a_rule_entry_without_scenarios_is_a_config_error(self, tmp_path, capsys):
+        """Fail closed. Skipping the rule would shrink the denominator."""
+        path = _write(tmp_path, "rules.json", {"rules": {"refactoring": {"summary": {}}}})
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_a_non_mapping_rule_entry_is_a_config_error(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", {"rules": {"refactoring": "oops"}})
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_an_empty_rules_envelope_is_a_config_error(self, tmp_path, capsys):
+        path = _write(tmp_path, "rules.json", {"rules": {}})
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
         assert code == EXIT_CONFIG
 
 
@@ -399,6 +488,185 @@ class TestApply:
 # ---------------------------------------------------------------------------
 # gate
 # ---------------------------------------------------------------------------
+
+
+class TestGateHoldsOutOnly:
+    """The gate must read sel and nothing else.
+
+    The PR claimed gating on the optimize group was impossible to express, but
+    --group was wired straight through to the scorer, so `gate --group opt`
+    scored the visible group and reported a verdict. The flag is gone; sel is
+    the only group a gate can read.
+    """
+
+    def _setup(self, tmp_path, capsys, incumbent: dict, candidate: dict):
+        inc = _write(tmp_path, "inc.json", incumbent)
+        cand = _write(tmp_path, "cand.json", candidate)
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        return inc, cand, _write(tmp_path, "split.json", split)
+
+    def test_the_group_flag_is_gone(self, tmp_path, capsys):
+        inc, cand, split_path = self._setup(
+            tmp_path,
+            capsys,
+            {f"t{i}": False for i in range(10)},
+            {f"t{i}": True for i in range(10)},
+        )
+        with pytest.raises(SystemExit):
+            _run(
+                capsys,
+                "gate",
+                "--incumbent",
+                inc,
+                "--candidate",
+                cand,
+                "--split",
+                split_path,
+                "--group",
+                "opt",
+            )
+
+    def test_the_verdict_names_the_group_it_read(self, tmp_path, capsys):
+        inc, cand, split_path = self._setup(
+            tmp_path,
+            capsys,
+            {f"t{i}": False for i in range(10)},
+            {f"t{i}": True for i in range(10)},
+        )
+        _, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        )
+        assert out["group"] == "sel"
+
+
+class TestGateRefusalCostsNothing:
+    """A refused comparison must not report the held-out scores.
+
+    Scoring ran before the guards, so a call refused for an exhausted budget
+    still printed both sel scores. That hands over the number the budget exists
+    to ration, and it is free: the caller is told not to advance its counter.
+    """
+
+    def _setup(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        return inc, cand, _write(tmp_path, "split.json", split), split
+
+    def test_an_exhausted_budget_withholds_the_scores(self, tmp_path, capsys):
+        inc, cand, split_path, _ = self._setup(tmp_path, capsys)
+        code, out = _run(
+            capsys,
+            "gate",
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--consultations",
+            "3",
+            "--max-consultations",
+            "3",
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert "candidate" not in out
+        assert "incumbent" not in out
+
+    def test_a_moved_fingerprint_withholds_the_scores(self, tmp_path, capsys):
+        inc, cand, split_path, _ = self._setup(tmp_path, capsys)
+        code, out = _run(
+            capsys,
+            "gate",
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--incumbent-fingerprint",
+            "stale",
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert "candidate" not in out
+
+    def test_a_refusal_still_reports_the_decision_and_reason(self, tmp_path, capsys):
+        inc, cand, split_path, _ = self._setup(tmp_path, capsys)
+        _, out = _run(
+            capsys,
+            "gate",
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--incumbent-fingerprint",
+            "stale",
+        )
+        assert out["decision"] == "REJECT"
+        assert "fingerprint" in out["reason"]
+
+    def test_a_permitted_call_still_reports_the_scores(self, tmp_path, capsys):
+        inc, cand, split_path, _ = self._setup(tmp_path, capsys)
+        _, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        )
+        assert out["compared"] is True
+        assert out["candidate"] == 1.0
+        assert out["incumbent"] == 0.0
+
+
+class TestGateReportsPairedEvidence:
+    """Every compared verdict carries the discordant counts and an exact p."""
+
+    def _gate(self, tmp_path, capsys, incumbent: dict, candidate: dict):
+        inc = _write(tmp_path, "inc.json", incumbent)
+        cand = _write(tmp_path, "cand.json", candidate)
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        split_path = _write(tmp_path, "split.json", split)
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        )
+
+    def test_a_clean_win_reports_gains_and_no_losses(self, tmp_path, capsys):
+        _, out = self._gate(
+            tmp_path,
+            capsys,
+            {f"t{i}": False for i in range(10)},
+            {f"t{i}": True for i in range(10)},
+        )
+        assert out["discordant_gain"] == 4
+        assert out["discordant_loss"] == 0
+        assert out["p_value"] == pytest.approx(0.0625)
+
+    def test_no_movement_reports_a_p_of_one(self, tmp_path, capsys):
+        same = {f"t{i}": True for i in range(10)}
+        _, out = self._gate(tmp_path, capsys, same, dict(same))
+        assert out["discordant_gain"] == 0
+        assert out["discordant_loss"] == 0
+        assert out["p_value"] == 1.0
+
+    def test_a_refusal_reports_no_paired_evidence(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _run(capsys, "split", "--results", inc, "--seed", "s1")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run(
+            capsys,
+            "gate",
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--incumbent-fingerprint",
+            "stale",
+        )
+        assert "p_value" not in out
 
 
 class TestGate:
@@ -628,13 +896,26 @@ class TestBuffer:
         assert code == EXIT_LOGIC
         assert out["seen"] is True
 
-    def test_reflowed_patch_still_matches(self, tmp_path, capsys):
-        """Whitespace-only rewording must not smuggle a rejected edit back in."""
+    def test_a_reflowed_patch_is_a_different_edit(self, tmp_path, capsys):
+        """Whitespace is content: a newline in patch text splits one line into two.
+
+        Treating the reflow as the same edit let one rejection permanently ban
+        an edit that was never tried, and the buffer has no expiry.
+        """
         buffer = tmp_path / "b.json"
         original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha beta"}])
         reflowed = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha   \n beta"}])
         _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
         code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", reflowed)
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_only_line_endings_are_normalized(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha\r\nbeta"}])
+        same = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha\nbeta"}])
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
+        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", same)
         assert code == EXIT_LOGIC
         assert out["seen"] is True
 

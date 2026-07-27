@@ -62,6 +62,7 @@ __all__ = [
     "buffer_contains",
     "edit_budget",
     "gate",
+    "guard_refusal",
     "mcnemar_exact",
     "patch_fingerprint",
     "score",
@@ -517,6 +518,39 @@ def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
     return sum(1 for task_id in unique if results[task_id]) / len(unique)
 
 
+def guard_refusal(
+    *,
+    sel_consultations: int = 0,
+    max_consultations: int | None = None,
+    split_fingerprint: str | None = None,
+    incumbent_fingerprint: str | None = None,
+) -> str | None:
+    """Return why a comparison must not happen, or None when it may.
+
+    Split out of ``gate`` so a caller can ask before it scores anything. Both
+    refusals are decidable from bookkeeping alone, and a caller that scores
+    first has already read the held-out group: the refusal then costs exactly
+    what it was meant to prevent.
+    """
+    if (
+        split_fingerprint is not None
+        and incumbent_fingerprint is not None
+        and split_fingerprint != incumbent_fingerprint
+    ):
+        return (
+            "split fingerprint moved since the incumbent was scored; re-baseline "
+            "on the current eval set before gating"
+        )
+
+    if max_consultations is not None and sel_consultations >= max_consultations:
+        return (
+            f"held-out split exhausted after {sel_consultations} consultations "
+            f"(limit {max_consultations}); refresh the split or report on the test group"
+        )
+
+    return None
+
+
 def gate(
     candidate: float,
     incumbent: float,
@@ -571,25 +605,14 @@ def gate(
             compared=compared,
         )
 
-    if (
-        split_fingerprint is not None
-        and incumbent_fingerprint is not None
-        and split_fingerprint != incumbent_fingerprint
-    ):
-        return _result(
-            "REJECT",
-            "split fingerprint moved since the incumbent was scored; re-baseline "
-            "on the current eval set before gating",
-            compared=False,
-        )
-
-    if max_consultations is not None and sel_consultations >= max_consultations:
-        return _result(
-            "REJECT",
-            f"held-out split exhausted after {sel_consultations} consultations "
-            f"(limit {max_consultations}); refresh the split or report on the test group",
-            compared=False,
-        )
+    refusal = guard_refusal(
+        sel_consultations=sel_consultations,
+        max_consultations=max_consultations,
+        split_fingerprint=split_fingerprint,
+        incumbent_fingerprint=incumbent_fingerprint,
+    )
+    if refusal is not None:
+        return _result("REJECT", refusal, compared=False)
 
     if candidate > incumbent:
         if discordant_loss and not allow_regressions:

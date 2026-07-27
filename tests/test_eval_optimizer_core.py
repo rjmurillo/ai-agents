@@ -33,6 +33,7 @@ from _optimizer_core import (  # noqa: E402
     buffer_contains,
     edit_budget,
     gate,
+    guard_refusal,
     mcnemar_exact,
     patch_fingerprint,
     score,
@@ -607,6 +608,47 @@ class TestScore:
 # ---------------------------------------------------------------------------
 # gate
 # ---------------------------------------------------------------------------
+
+
+class TestGuardRefusal:
+    """The two refusals a caller can decide before spending the held-out group.
+
+    A gate that scores first and refuses second has already read the sel group,
+    which is the exact cost the refusal exists to avoid. Asking first makes the
+    refusal free.
+    """
+
+    def test_a_clean_call_is_permitted(self):
+        assert guard_refusal(sel_consultations=1, max_consultations=5) is None
+
+    def test_no_bookkeeping_at_all_is_permitted(self):
+        assert guard_refusal() is None
+
+    def test_a_moved_fingerprint_refuses(self):
+        reason = guard_refusal(split_fingerprint="a", incumbent_fingerprint="b")
+        assert reason is not None
+        assert "fingerprint" in reason
+
+    def test_matching_fingerprints_are_permitted(self):
+        assert guard_refusal(split_fingerprint="a", incumbent_fingerprint="a") is None
+
+    def test_an_unknown_incumbent_fingerprint_cannot_refuse(self):
+        assert guard_refusal(split_fingerprint="a", incumbent_fingerprint=None) is None
+
+    def test_an_exhausted_budget_refuses(self):
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "exhausted" in reason
+
+    def test_the_fingerprint_check_runs_first(self):
+        reason = guard_refusal(
+            sel_consultations=9,
+            max_consultations=1,
+            split_fingerprint="a",
+            incumbent_fingerprint="b",
+        )
+        assert reason is not None
+        assert "fingerprint" in reason
 
 
 class TestGateRegressionGuard:
