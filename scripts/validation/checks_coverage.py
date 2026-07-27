@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Review-marker and command-bundle coverage gates for the pre-PR runner.
+"""Review-marker coverage gate for the pre-PR runner.
 
-Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Groups the two
-advisory-by-default gates that report on the SHA-bound ``/review`` marker and
-on each lifecycle command invoking its bundled skills.
+Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Holds the
+advisory-by-default gate that reports on the SHA-bound ``/review`` marker.
 
-Behavior-preserving move: each function is identical to its previous definition
-in ``pre_pr.py``. ``pre_pr`` re-exports these names so existing imports keep
+Behavior-preserving move: the function is identical to its previous definition
+in ``pre_pr.py``. ``pre_pr`` re-exports the name so existing imports keep
 working.
 """
 
@@ -34,8 +33,7 @@ def validate_review_marker(repo_root: Path) -> bool:
     would break normal iteration.
 
     Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (returns False when
-    HEAD has no binding marker). Mirrors the advisory/enforced pattern used by
-    ``validate_command_bundle_coverage`` (``BUNDLE_CHECK_ENFORCED``).
+    HEAD has no binding marker).
     """
     enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
 
@@ -66,63 +64,3 @@ def validate_review_marker(repo_root: Path) -> bool:
         "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
     )
     return True
-
-
-def validate_command_bundle_coverage(repo_root: Path) -> bool:
-    """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
-
-    Reads the canonical BUNDLE_REGISTRY from
-    ``scripts/validation/bundle_registry.py`` and verifies that each
-    ``.claude/commands/<file>`` contains the expected
-    ``Skill(skill="...")`` invocation.
-
-    Default behavior is **advisory** (returns True regardless of missing
-    invocations; emits WARN findings). Set
-    ``BUNDLE_CHECK_ENFORCED=1`` to escalate to BLOCKING (returns False
-    on any missing invocation). Per SPEC-005 AC-14 and Q3 resolution.
-    """
-    enforced = os.environ.get("BUNDLE_CHECK_ENFORCED", "").lower() in ("1", "true")
-
-    # Sibling module under scripts/validation/. Dedupe the path entry so
-    # repeated calls to this check do not accumulate sys.path entries.
-    registry_dir = str(repo_root / "scripts" / "validation")
-    if registry_dir not in sys.path:
-        sys.path.insert(0, registry_dir)
-    try:
-        from bundle_registry import BUNDLE_REGISTRY, expected_skill_invocation
-    except ImportError as exc:
-        # Per SPEC-005 Q3: default is advisory. An import failure in advisory
-        # mode must not block pre_pr; in enforced mode it is a hard fail.
-        if enforced:
-            print(f"[FAIL] Could not import bundle_registry: {exc}")
-            return False
-        print(f"[WARN] Could not import bundle_registry (advisory skip): {exc}")
-        return True
-
-    commands_dir = repo_root / ".claude" / "commands"
-
-    missing: list[tuple[str, str]] = []
-    for command_file, skill in BUNDLE_REGISTRY:
-        path = commands_dir / command_file
-        if not path.exists():
-            missing.append((command_file, skill))
-            continue
-        text = path.read_text(encoding="utf-8")
-        if expected_skill_invocation(skill) not in text:
-            missing.append((command_file, skill))
-
-    if not missing:
-        print(f"[PASS] All {len(BUNDLE_REGISTRY)} bundle invocations present")
-        return True
-
-    label = "FAIL" if enforced else "WARN"
-    mode = "blocking" if enforced else "advisory"
-    print(f"[{label}] {len(missing)} bundle invocation(s) missing ({mode}):")
-    for cmd, skill in missing:
-        print(f"  - {cmd}: missing Skill(skill=\"{skill}\")")
-    if not enforced:
-        print(
-            "  Note: advisory only (default). Set BUNDLE_CHECK_ENFORCED=1 "
-            "to make this BLOCKING. See SPEC-005 AC-14."
-        )
-    return not enforced
