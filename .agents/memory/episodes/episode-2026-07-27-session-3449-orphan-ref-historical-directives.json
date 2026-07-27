@@ -12,6 +12,18 @@
       "type": "milestone",
       "content": "Every orphan traced to a deliberate deletion: #2187 retired the count validator, #3432 removed the bundle registry as dead code, #1141 migrated the traceability script to Python, #610 renamed the session-end validator",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewriting the specs would introduce anachronism the repo has already ruled against, and the correction a reader needs is already in current documentation",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],

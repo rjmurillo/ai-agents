@@ -67,7 +67,7 @@ PR2 total: ~1.25h.
 
 ### TASK-009-03: Implement count-claim detection (AC4 partial - extraction only)
 
-- Mirror canonical `COUNT_PATTERN` and `LABEL_MAP` from `build/scripts/validate_marketplace_counts.py` byte-for-byte in `patterns.py` (matches `specialized agent definition`, `agent definition`, `agent`, `slash command`, `lifecycle hook`, `reusable skill` with optional plural).
+- Mirror canonical `COUNT_PATTERN` and `LABEL_MAP` from `build/scripts/validate_marketplace_counts.py` byte-for-byte in `patterns.py` (matches `specialized agent definition`, `agent definition`, `agent`, `slash command`, `lifecycle hook`, `reusable skill` with optional plural). <!-- orphan-ref-ignore -->
 - Detection only in PR1: `extract_count_claims` yields `(lineno, count, canonical_label)` triples; emission of `Finding(kind=count_claim)` is delegated to the canonical validator per `.claude/rules/canonical-source-mirror.md`. The canonical reads `templates/marketplace-counters.yaml` for per-plugin `sourceDir` and `exclude` lists and supports `--fix`; orphan-ref-validator does not duplicate that surface.
 - An opt-in `--enforce-counts` flag (`scan_file(enforce_counts=True)`) is reserved for PR2 single-plugin enforcement.
 - Acceptance: extractor emits the canonical labels; no `count_claim` findings emitted in default mode; `tests/test_validate_marketplace_counts.py` continues to enforce counts at the canonical seam.
