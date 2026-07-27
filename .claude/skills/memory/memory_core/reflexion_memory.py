@@ -21,13 +21,19 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
-import re
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import jsonschema
+
+# A graph that has drifted produces thousands of errors; a message that long is
+# unreadable in a hook's stderr and truncated by most log sinks.
+_MAX_REPORTED_SCHEMA_ERRORS = 20
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,29 @@ EPISODE_SCHEMA_FILE = SCHEMAS_PATH / "episode.schema.json"
 CAUSAL_GRAPH_SCHEMA_FILE = SCHEMAS_PATH / "causal-graph.schema.json"
 
 
+def _live_writer() -> Any:
+    """Load the live causal-graph writer so identity is defined in one place.
+
+    ``scripts/update_causal_graph.py`` runs on every session-log commit and owns
+    this file. This module last wrote to it on 2026-02-10. Two writers with two
+    identity schemes is what #3356 is about, so the retired one borrows the live
+    one's rather than keeping a second copy that can drift.
+
+    Loaded by path rather than by package name because the live writer is a
+    standalone script invoked from a git hook, and reaching it must not depend
+    on how this package happened to get onto ``sys.path``. The dependency points
+    this way, never the other, so nothing here can slow down or break the hook.
+    """
+    source = _SKILL_ROOT / "scripts" / "update_causal_graph.py"
+    spec = importlib.util.spec_from_file_location("_causal_writer", source)
+    if spec is None or spec.loader is None:  # pragma: no cover - unreachable
+        msg = f"Cannot load the causal graph writer from '{source}'"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 # ---------------------------------------------------------------------------
 # Private functions
 # ---------------------------------------------------------------------------
@@ -60,7 +89,15 @@ def _validate_schema(
 ) -> None:
     """Validate data against a JSON Schema.
 
-    Performs basic structural validation: required fields, types, enums, patterns.
+    Every constraint the schema states is checked, including the ones inside
+    array items. The hand-rolled predecessor checked only top-level ``required``
+    presence and top-level property types, so it passed a causal graph carrying
+    3392 real node and pattern violations while reporting success (#3356). A
+    validator that reports success over data it never descended into is worse
+    than none, because it gets cited as evidence the data is well formed.
+
+    ``jsonschema`` is already a project dependency, so there was never a cost
+    argument for the shorter path.
 
     Args:
         data: The data dict to validate.
@@ -80,7 +117,10 @@ def _validate_schema(
         raise FileNotFoundError(msg)
 
     try:
-        json_str = json.dumps(data, default=str)
+        # Round-tripping normalizes values the schema cannot describe (datetimes
+        # become strings) so validation sees what a later reader would read back
+        # off disk rather than the in-memory objects.
+        parsed = json.loads(json.dumps(data, default=str))
     except (TypeError, ValueError) as exc:
         msg = f"Failed to serialize {data_type} to JSON: {exc}"
         raise ValueError(msg) from exc
@@ -91,42 +131,23 @@ def _validate_schema(
         msg = f"Failed to read schema file '{schema_file}': {exc}"
         raise ValueError(msg) from exc
 
-    # Basic structural validation
-    parsed = json.loads(json_str)
-    errors: list[str] = []
-
-    required = schema.get("required", [])
-    for field_name in required:
-        if field_name not in parsed:
-            errors.append(f"Missing required field: '{field_name}'")
-
-    properties = schema.get("properties", {})
-    for field_name, field_schema in properties.items():
-        if field_name not in parsed:
-            continue
-        val = parsed[field_name]
-        expected = field_schema.get("type")
-        if expected == "string" and val is not None and not isinstance(val, str):
-            errors.append(
-                f"Field '{field_name}' should be string, got {type(val).__name__}"
-            )
-        elif expected == "array" and not isinstance(val, list):
-            errors.append(
-                f"Field '{field_name}' should be array, got {type(val).__name__}"
-            )
-        elif expected == "object" and not isinstance(val, dict):
-            errors.append(
-                f"Field '{field_name}' should be object, got {type(val).__name__}"
-            )
-        elif expected == "number" and not isinstance(val, (int, float)):
-            errors.append(
-                f"Field '{field_name}' should be number, got {type(val).__name__}"
-            )
-
+    validator = jsonschema.Draft7Validator(schema)
+    errors = [
+        f"{'/'.join(str(part) for part in error.absolute_path) or '<root>'}: "
+        f"{error.message}"
+        for error in sorted(validator.iter_errors(parsed), key=str)
+    ]
     if errors:
+        shown = errors[:_MAX_REPORTED_SCHEMA_ERRORS]
+        suffix = (
+            f"; and {len(errors) - len(shown)} more"
+            if len(errors) > len(shown)
+            else ""
+        )
         msg = (
             f"Invalid {data_type} - JSON Schema validation failed: "
-            + "; ".join(errors)
+            + "; ".join(shown)
+            + suffix
         )
         raise ValueError(msg)
 
@@ -198,42 +219,21 @@ def _save_causal_graph(
         raise OSError(msg) from exc
 
 
-def _get_next_node_id(graph: dict[str, Any]) -> str:
-    """Get the next available node ID."""
-    nodes = graph.get("nodes") or []
-    if not nodes:
-        return "n001"
+def _next_node_id(node_type: str, label: str) -> str:
+    """Derive a node id the way the live writer does.
 
-    ids: list[int] = []
-    for node in nodes:
-        node_id = node.get("id", "") if isinstance(node, dict) else ""
-        match = re.match(r"^n(\d+)$", str(node_id))
-        if match:
-            ids.append(int(match.group(1)))
-
-    if not ids:
-        return "n001"
-
-    return f"n{max(ids) + 1:03d}"
+    Sequential ``n001`` ids used to be allocated here. They made identity depend
+    on insertion order, so the same decision recorded twice got two ids, and the
+    live writer's content-derived ids collided with nothing this produced.
+    """
+    generate_node_id: Any = _live_writer().generate_node_id
+    return str(generate_node_id(node_type, label))
 
 
-def _get_next_pattern_id(graph: dict[str, Any]) -> str:
-    """Get the next available pattern ID."""
-    patterns = graph.get("patterns") or []
-    if not patterns:
-        return "p001"
-
-    ids: list[int] = []
-    for pattern in patterns:
-        pattern_id = pattern.get("id", "") if isinstance(pattern, dict) else ""
-        match = re.match(r"^p(\d+)$", str(pattern_id))
-        if match:
-            ids.append(int(match.group(1)))
-
-    if not ids:
-        return "p001"
-
-    return f"p{max(ids) + 1:03d}"
+def _next_pattern_id(name: str) -> str:
+    """Derive a pattern id the way the live writer does. See `_next_node_id`."""
+    generate_pattern_id: Any = _live_writer().generate_pattern_id
+    return str(generate_pattern_id(name))
 
 
 # ---------------------------------------------------------------------------
@@ -466,7 +466,7 @@ def add_causal_node(
     Raises:
         ValueError: If node_type is invalid.
     """
-    valid_types = ("decision", "event", "outcome", "pattern", "error")
+    valid_types = tuple(sorted(_live_writer().NODE_TYPES))
     if node_type not in valid_types:
         msg = f"Invalid node type: {node_type}. Must be one of {valid_types}."
         raise ValueError(msg)
@@ -492,7 +492,7 @@ def add_causal_node(
         node_episodes = [episode_id]
 
     node: dict[str, Any] = {
-        "id": _get_next_node_id(graph),
+        "id": _next_node_id(node_type, label),
         "type": node_type,
         "label": label,
         "episodes": node_episodes,
@@ -694,7 +694,7 @@ def add_pattern(
 
     # Create new pattern
     pattern: dict[str, Any] = {
-        "id": _get_next_pattern_id(graph),
+        "id": _next_pattern_id(name),
         "name": name,
         "description": description,
         "trigger": trigger,

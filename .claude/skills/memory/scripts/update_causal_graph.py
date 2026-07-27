@@ -117,6 +117,20 @@ def generate_node_id(node_type: str, label: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:12]
 
 
+# The closed set of node types this writer may emit, and the authoritative
+# source for the ``type`` enum in
+# ``.claude/skills/memory/resources/schemas/causal-graph.schema.json``. A test
+# asserts the two stay equal, so widening one without the other fails the build
+# rather than drifting silently (#3356).
+#
+# Four come from the episode extractor (milestone, commit, test, error), two
+# this module adds itself (decision, outcome), and ``artifact`` is carried by a
+# single legacy row that a narrower enum would make unrepresentable.
+NODE_TYPES = frozenset(
+    {"milestone", "commit", "test", "error", "decision", "outcome", "artifact"}
+)
+
+
 def generate_pattern_id(name: str) -> str:
     """Generate a deterministic pattern ID from its name.
 
@@ -139,7 +153,22 @@ def add_causal_node(
     label: str,
     episode_id: str,
 ) -> dict[str, Any] | None:
-    """Add a node to the causal graph. Returns the node or None if duplicate."""
+    """Add a node to the causal graph. Returns the node or None if duplicate.
+
+    A type outside ``NODE_TYPES`` is refused rather than written. The type
+    reaching here comes from ``event.get("type")`` in an episode file, which is
+    an open set: nothing upstream constrains it. Writing whatever arrives is how
+    the file came to violate its own schema thousands of times over (#3356),
+    and a schema-violating row is worse than a missing one, because the schema
+    is what the next reader trusts.
+    """
+    if node_type not in NODE_TYPES:
+        print(
+            f"  [SKIP] node type '{node_type}' is not one of "
+            f"{sorted(NODE_TYPES)}: {label}",
+            file=sys.stderr,
+        )
+        return None
     node_id = generate_node_id(node_type, label)
 
     # Check for existing node
