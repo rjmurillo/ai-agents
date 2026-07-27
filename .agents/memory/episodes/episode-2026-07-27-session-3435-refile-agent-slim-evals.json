@@ -62,7 +62,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e006",
@@ -145,6 +147,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

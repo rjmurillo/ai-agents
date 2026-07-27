@@ -139,6 +139,13 @@
         "Ran pre_pr.py successfully after the file moves and documentation updates"
       ],
       "outcome": "Branch is ready for documentation and session-log commits, then push and PR creation."
+    },
+    {
+      "phase": "Quality report pointer",
+      "actions": [
+        "Updated the archived quality-results.md narrative report to point to the evals machine-readable outputs"
+      ],
+      "outcome": "Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/."
     }
   ],
   "filesChanged": {

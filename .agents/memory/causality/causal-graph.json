@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:39:05.463321+00:00",
+  "updated": "2026-07-27T12:44:25.277391+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21573,6 +21573,15 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:39:05.457493+00:00"
+    },
+    {
+      "id": "5a584c6746e6",
+      "type": "milestone",
+      "label": "milestone: Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:44:25.271725+00:00"
     }
   ],
   "patterns": [
