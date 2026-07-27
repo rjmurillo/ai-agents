@@ -222,6 +222,95 @@ def test_ac3_broad_existing_ps1_yields_no_finding(fake_repo):
     assert [f for f in result.findings if f.kind == "script_path"] == []
 
 
+class TestTestsScriptRefs:
+    """Issue #3456: backticked script refs under tests/ use the existing
+    script_path syntax and must resolve against the working tree."""
+
+    def test_missing_tests_script_path_yields_critical_finding(self, fake_repo):
+        target = fake_repo / "docs" / "spec.md"
+        write(target, "Run `tests/hooks/missing.py` for the guard.\n")
+        result = scan([target], fake_repo)
+        script_findings = [f for f in result.findings if f.kind == "script_path"]
+        assert len(script_findings) == 1
+        assert script_findings[0].referenced_entity == "tests/hooks/missing.py"
+        assert script_findings[0].severity == "critical"
+        assert result.verdict == "CRITICAL_FAIL"
+
+    def test_existing_tests_script_path_yields_no_finding(self, fake_repo):
+        target = fake_repo / "docs" / "spec.md"
+        write(fake_repo / "tests" / "hooks" / "real.py", "# real test helper\n")
+        write(target, "Run `tests/hooks/real.py` for the guard.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "script_path"] == []
+        assert result.verdict == "PASS"
+
+    def test_cli_exits_one_for_missing_tests_script_ref(self, fake_repo, capsys):
+        target = fake_repo / "docs" / "spec.md"
+        write(target, "Run `tests/hooks/missing.py` for the guard.\n")
+        rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+        assert rc == 1
+        assert "VERDICT: CRITICAL_FAIL" in capsys.readouterr().out
+
+    def test_cli_exits_zero_for_existing_tests_script_ref(self, fake_repo, capsys):
+        target = fake_repo / "docs" / "spec.md"
+        write(fake_repo / "tests" / "hooks" / "real.py", "# real test helper\n")
+        write(target, "Run `tests/hooks/real.py` for the guard.\n")
+        rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+        assert rc == 0
+        assert "VERDICT: PASS" in capsys.readouterr().out
+
+    def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
+        target = fake_repo / "tests" / "contracts" / "orphan_refs.md"
+        write(target, "Run `tests/hooks/missing.py` for the guard.\n")
+        rc = main(["--repo-root", str(fake_repo)])
+        assert rc == 1
+        assert "tests/hooks/missing.py" in capsys.readouterr().out
+
+    def test_fixture_bad_path_uses_explicit_line_ignore(self, fake_repo):
+        fixture = fake_repo / "tests" / "hooks" / "fixtures" / "bad-paths.md"
+        write(
+            fixture,
+            "Intentional negative fixture: `tests/hooks/missing.py` "
+            "<!-- orphan-ref-ignore -->\n",
+        )
+        result = scan([fake_repo / "tests"], fake_repo)
+        assert [f for f in result.findings if f.kind == "script_path"] == []
+        assert result.verdict == "PASS"
+
+    def test_fenced_code_block_tests_script_ref_is_checked(self, fake_repo):
+        target = fake_repo / "docs" / "spec.md"
+        write(
+            target,
+            "```text\n"
+            "Run `tests/hooks/missing.py`\n"
+            "```\n",
+        )
+        result = scan([target], fake_repo)
+        assert {f.referenced_entity for f in result.findings} == {
+            "tests/hooks/missing.py"
+        }
+        assert result.verdict == "CRITICAL_FAIL"
+
+    def test_commented_out_tests_script_ref_is_checked(self, fake_repo):
+        target = fake_repo / "docs" / "spec.md"
+        write(target, "<!-- Removed command `tests/hooks/missing.py` -->\n")
+        result = scan([target], fake_repo)
+        assert {f.referenced_entity for f in result.findings} == {
+            "tests/hooks/missing.py"
+        }
+        assert result.verdict == "CRITICAL_FAIL"
+
+    def test_tests_script_glob_is_not_reference_syntax(self):
+        assert list(extract_script_refs("Run `tests/hooks/*.py`.\n")) == []
+
+    def test_empty_tests_tree_yields_pass(self, fake_repo):
+        (fake_repo / "tests").mkdir()
+        result = scan([fake_repo / "tests"], fake_repo)
+        assert result.findings == []
+        assert result.files_scanned == 0
+        assert result.verdict == "PASS"
+
+
 # ---------- AC5: envelope + verdict ----------
 
 
