@@ -107,7 +107,7 @@ A source edit to `.claude/hooks/<Event>/invoke_X.py` regenerates exactly one fil
 ### What Currently Exists
 
 - **Structure being changed**: per-matcher inline-body shim, written by `build/scripts/generate_hooks.py::inject_shim` (line 474). Each shim is a self-contained Python module.
-- **When introduced**: REQ-003 M5-T2 (matcher shim injector), captured in `.agents/plans/active/req-003-multi-tool-artifact-build.md:79`. The plan explicitly anticipates this alternative at M7-T3.
+- **When introduced**: REQ-003 M5-T2 (matcher shim injector), captured in `.agents/archive/plans/req-003-multi-tool-artifact-build.md:79`. The plan explicitly anticipates this alternative at M7-T3.
 - **Original author and context**: REQ-003-007 author chose inline-body to keep shim files self-contained, removing any runtime import dependency in the install tree. Per the plan, the alternative was captured as a fallback.
 
 ### Historical Rationale
@@ -219,7 +219,7 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 ## References
 
 - `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md` step 5 (REQ-003-007). Source of the inline-body mandate.
-- `.agents/plans/active/req-003-multi-tool-artifact-build.md:79,114`. M5-T2 implementation task; M7-T3 captures one-body-many-matchers as the alternative.
+- `.agents/archive/plans/req-003-multi-tool-artifact-build.md:79,114`. M5-T2 implementation task; M7-T3 captures one-body-many-matchers as the alternative.
 - `build/scripts/generate_hooks.py`. Current generator implementation.
 - `.claude/rules/pragmatic-programmer.md`. DRY at the knowledge level.
 - `.claude/rules/canonical-source-mirror.md`. Mirror claims must match canonical.

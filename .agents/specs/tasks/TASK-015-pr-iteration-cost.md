@@ -27,7 +27,7 @@ sequence (M1, then M2, then M3, then M4) because all three appended hooks modify
 `.claude/hooks/hooks.json` and parallel branches would collide on that file.
 
 For full milestone exit criteria, dependency graph, risk register, and pre-mortem mitigations
-that this task list inherits, see `.agents/plans/active/PLAN-1884-pr-iteration-cost.md`.
+that this task list inherits, see `.agents/archive/plans/PLAN-1884-pr-iteration-cost.md`.
 
 ## In Scope
 

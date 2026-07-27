@@ -60,7 +60,7 @@ density improvement, cross-referencing, token counting).
 ### Why Change Now
 
 The skill-catalog triage
-(`.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`, Tier 2
+(`.agents/archive/plans/PLAN-skill-catalog-triage-action-slate.md`, Tier 2
 DECOMPOSE row 6) classifies `memory` as DECOMPOSE and marks M3 implementation
 blocked on this ADR. AGENTS.md lists architecture changes and new ADRs under
 "Ask First" and marks ADR Review as BLOCKING for ADR edits. A decomposition of
@@ -127,7 +127,7 @@ the accepted decision record for the first decomposition phase.
   decompose into per-tier skills or move bulk to passive context with a thin
   router. This ADR adopts the thin-router half of that recommendation and
   selects operation as the split axis over tier.
-- `.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`, Tier 2
+- `.agents/archive/plans/PLAN-skill-catalog-triage-action-slate.md`, Tier 2
   DECOMPOSE row 6 and the M3 milestone: records that M3 implementation is
   blocked on this ADR and that the ADR must precede the spec.
 - `ADR-007-memory-first-architecture.md`: declares memory-first and the
@@ -292,7 +292,7 @@ the adr-review debate gate.
   collisions surfaced during adr-review (the gate ADR is now ADR-070)
 - `.agents/analysis/skill-triage-2026-05-09.md`: finding F2 (143.6 KB size,
   +2.83 eval delta) and F4 (memory cluster table), the measurement driver
-- `.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`: Tier 2
+- `.agents/archive/plans/PLAN-skill-catalog-triage-action-slate.md`: Tier 2
   DECOMPOSE row 6 and the M3 milestone (blocked on this ADR)
 - `.claude/skills/memory/SKILL.md`: the skill being decomposed
 - AGENTS.md: the "Ask First" rule for architecture changes and new ADRs, plus
