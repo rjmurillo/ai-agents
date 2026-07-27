@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Eleven commits. Nine hold four or fewer authored files plus the session log and hook-generated memory artifacts that the commit policy requires in the same staged set; one holds six, over the five-file ceiling, because the Serena memory was staged alongside five spec files. The PR squash-merges, so main takes a single commit"
+        "evidence": "Every commit holds four or fewer authored files plus the session log and hook-generated memory artifacts that the commit policy requires in the same staged set, except one that holds six because the Serena memory was staged alongside five spec files. No exact commit count is recorded here: review rounds keep appending correction commits, so any number written down goes stale. The PR squash-merges, so main takes a single commit"
       },
       "validationPassed": {
         "complete": true,
