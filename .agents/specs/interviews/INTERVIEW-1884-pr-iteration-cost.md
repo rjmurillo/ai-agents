@@ -38,7 +38,7 @@ validation left so these classes cannot be pushed.
 - **US-1: Block markdown style violations pre-push.** CONFIRMED. PreToolUse hook runs
   markdownlint on changed `.md` files in the changeset before `git push`.
 - **US-2: Block marketplace count drift pre-push.** CONFIRMED. Pre-push validator invokes the
-  existing `build/scripts/validate_marketplace_counts.py` against `.claude-plugin/marketplace.json`.
+  existing `build/scripts/validate_marketplace_counts.py` against `.claude-plugin/marketplace.json`. <!-- orphan-ref-ignore -->
   Counts are embedded in plugin description strings; the existing validator parses them via
   regex against filesystem-derived counts using `templates/marketplace-counters.yaml`.
   `docs/SEMANTIC_INDEX.yaml` is NOT in scope (it is a semantic search index, not a count
@@ -69,7 +69,7 @@ validation left so these classes cannot be pushed.
   hook startup; fail-open when missing.
 - **git diff**: source of changeset file list. Use `git diff --name-only @{push}..HEAD` with
   `origin/main...HEAD` fallback (per ADR-043).
-- **Existing `build/scripts/validate_marketplace_counts.py`**: the manifest count guard imports
+- **Existing `build/scripts/validate_marketplace_counts.py`**: the manifest count guard imports <!-- orphan-ref-ignore -->
   this and translates exit codes; the script is unmodified.
 - **Q3 CONFIRMED**: Claude Code PreToolUse hooks only. Rationale: 100% of high-iteration PRs in
   the RCA window were agent-authored. Git pre-push hook is not auto-installed and is out of

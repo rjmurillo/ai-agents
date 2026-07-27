@@ -17,6 +17,14 @@ updated: 2026-05-04
 
 # REQ-015: Reduce PR iteration cost via pre-push validation
 
+> [!IMPORTANT]
+> **Retired dependency, annotated 2026-07-27.** `build/scripts/validate_marketplace_counts.py` was removed in <!-- orphan-ref-ignore -->
+> PR #2187 (commit `2043c39863`) when embedded manifest count claims and the count
+> validator were retired together. Text below that creates, imports, generalizes, or
+> invokes that script is no longer actionable. It is kept as a record of the plan as
+> written. Nothing validates embedded count claims today: the scanner's own
+> count subsystem was also retired in PR #2853 (commit `9c88990b77`).
+
 ## Problem
 
 Agent-authored PRs in this repo burn 10 to 22 commits and 3 to 6 review rounds because three classes of mechanical errors (markdown style violations, manifest count drift, session log placeholders) are caught in CI or review rather than at push time. Block these at push time and they cannot reach review.
@@ -62,12 +70,12 @@ Markdown style violations are purely mechanical. CI already catches them, but at
 **Requirement Statement**
 
 WHEN an agent invokes `git push` AND any file in the changeset matches `templates/agents/*.md`, `.claude/skills/*/SKILL.md`, `.claude/commands/*.md`, or `.claude-plugin/marketplace.json`
-THE SYSTEM SHALL invoke the existing `build/scripts/validate_marketplace_counts.py` validator (function `validate_known_marketplaces`) and block on any reported count mismatch
+THE SYSTEM SHALL invoke the existing `build/scripts/validate_marketplace_counts.py` validator (function `validate_known_marketplaces`) and block on any reported count mismatch <!-- orphan-ref-ignore -->
 SO THAT manifest count drift cannot reach CI.
 
 **Context**
 
-Agents adding or removing skills, agents, or commands frequently forget to update the embedded counts in `.claude-plugin/marketplace.json` plugin descriptions. The counts live as numbers in description strings (for example, "24 specialized agent definitions"). The existing CI workflow `validate-marketplace-counts.yml` runs `build/scripts/validate_marketplace_counts.py`, which parses the descriptions via regex and compares against filesystem-derived counts using `templates/marketplace-counters.yaml`. CI catches drift, but only after multiple commits. This requirement wires the same validator to a pre-push hook so the inconsistency is visible before the first CI run.
+Agents adding or removing skills, agents, or commands frequently forget to update the embedded counts in `.claude-plugin/marketplace.json` plugin descriptions. The counts live as numbers in description strings (for example, "24 specialized agent definitions"). The existing CI workflow `validate-marketplace-counts.yml` runs `build/scripts/validate_marketplace_counts.py`, which parses the descriptions via regex and compares against filesystem-derived counts using `templates/marketplace-counters.yaml`. CI catches drift, but only after multiple commits. This requirement wires the same validator to a pre-push hook so the inconsistency is visible before the first CI run. <!-- orphan-ref-ignore -->
 
 `docs/SEMANTIC_INDEX.yaml` is NOT in scope: it is a semantic search index, not a count manifest, and has no agent/skill/command count fields.
 
@@ -85,7 +93,7 @@ Agents adding or removing skills, agents, or commands frequently forget to updat
 - [ ] AC-4: WHEN an agent invokes `git push` AND any file in the changeset matches `templates/agents/*.md`, `.claude/skills/*/SKILL.md`, `.claude/commands/*.md`, or `.claude-plugin/marketplace.json` THE SYSTEM SHALL invoke `build/scripts/validate_marketplace_counts.validate_known_marketplaces(repo_root=project_dir)` and capture its return code and stdout.
 - [ ] AC-5: WHEN the validator returns non-zero (mismatch or config error) THE SYSTEM SHALL block the push, print the captured stdout as violation lines, and append the hint "Run `python3 build/scripts/validate_marketplace_counts.py --fix` to auto-correct" SO THAT the agent can fix the manifest in one edit.
 - [ ] AC-8 (partial): WHEN no manifest-affecting files are in the changeset THE SYSTEM SHALL exit zero immediately without invoking the validator.
-- [ ] AC-9: The existing `build/scripts/validate_marketplace_counts.py` is the canonical count validator. Running it directly (`python3 build/scripts/validate_marketplace_counts.py`) prints derived counts and any mismatches; `--fix` auto-corrects the descriptions. No new derivation script is created by this spec.
+- [ ] AC-9: The existing `build/scripts/validate_marketplace_counts.py` is the canonical count validator. Running it directly (`python3 build/scripts/validate_marketplace_counts.py`) prints derived counts and any mismatches; `--fix` auto-corrects the descriptions. No new derivation script is created by this spec. <!-- orphan-ref-ignore -->
 
 **Rationale**
 
@@ -93,7 +101,7 @@ Counts are mechanical projections. Their value at push time must equal the files
 
 **Dependencies**
 
-- `build/scripts/validate_marketplace_counts.py` (existing)
+- `build/scripts/validate_marketplace_counts.py` (existing) <!-- orphan-ref-ignore -->
 - `templates/marketplace-counters.yaml` (existing config)
 - `git diff --name-only @{push}..HEAD` for change detection
 
