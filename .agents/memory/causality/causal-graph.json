@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T16:14:05.209811+00:00",
+  "updated": "2026-07-27T16:48:35.685598+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21978,6 +21978,33 @@
         "episode-2026-07-27-session-3475-memory-causal-order"
       ],
       "created": "2026-07-27T16:14:05.204285+00:00"
+    },
+    {
+      "id": "87e25b954ab0",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679346+00:00"
+    },
+    {
+      "id": "ea3c9ed5124f",
+      "type": "commit",
+      "label": "commit: Commit: 735cc876f7",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679435+00:00"
+    },
+    {
+      "id": "fbee51fcb51f",
+      "type": "commit",
+      "label": "commit: Commit: 4de79677af",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679513+00:00"
     }
   ],
   "patterns": [

@@ -79,7 +79,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Commits f633ad31c9 and bb2d29e1c4 created for code, tests, mirrors, and plugin manifests; this session log commit follows"
+        "evidence": "Commits f633ad31c9, bb2d29e1c4, 4de79677af, and 735cc876f7 created for code, tests, mirrors, plugin manifests, and session artifacts; this metadata refresh follows."
       },
       "markdownLintRun": {
         "complete": true,
@@ -115,9 +115,18 @@
         "Ran Claude and Copilot memory extractor tests separately because their conftest modules collide in one pytest process"
       ],
       "outcome": "Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed"
+    },
+    {
+      "phase": "Full validation and root tests",
+      "actions": [
+        "Updated tests/skills/memory/test_extract_session_episode.py so the repository-level suite expects sparse rank-only edges",
+        "Removed upstream-path references from mirrored skill tests by embedding the real 3459 fixture data",
+        "Ran tests/ with pytest and pre_pr.py after the adjustment"
+      ],
+      "outcome": "uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed"
     }
   ],
-  "endingCommit": "bb2d29e1c4",
+  "endingCommit": "735cc876f7",
   "nextSteps": [
     "Do not regenerate existing .agents/memory/episodes artifacts in this PR; they are historical generated records and rewriting them would alter memory history. The code fix prevents new rank-only false edges."
   ]
