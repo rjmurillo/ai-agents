@@ -149,7 +149,7 @@ hooks. Concretely, the bar is five rules:
   ADR was written, only the previously registered
   `invoke_security_gate.py` was consumer-effective: it was not
   `skip_if_consumer_repo` gated and ran on consumer Write/Edit.
-  the historical `invoke_security_commit_gate.py` was `skip_if_consumer_repo` gated, so it did
+  The historical `invoke_security_commit_gate.py` was `skip_if_consumer_repo` gated, so it did
   not run in consumer repos; whether it should was the #3197/#3219
   security-rebuild question, not this ROI bar. Genuine security controls remain
   subject to the bar's mechanical rules (rule 5's docstring requirement applies

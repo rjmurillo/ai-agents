@@ -183,6 +183,7 @@
     "Review r3 replaced regex widening with tokenization independent of Markdown decoration.",
     "ADR-083 now records a governance gap instead of weakening the accepted security-control requirement.",
     "ADR correction commits are split to satisfy the five-file atomic commit limit.",
-    "ADR-083 is committed separately with this session log so the ADR gate sees session evidence."
+    "ADR-083 is committed separately with this session log so the ADR gate sees session evidence.",
+    "Remote branch added a convention note to the analysis file and fixed ADR-084 capitalization."
   ]
 }
