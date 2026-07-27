@@ -234,6 +234,48 @@ class TestExtract:
         assert "degraded rule report" in out["error"]
         assert "S1" in out["error"]
 
+    def test_rule_extract_refuses_empty_scores(self, tmp_path, capsys):
+        """Missing or empty scores block is degraded (fail closed)."""
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {},
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_refuses_missing_scores(self, tmp_path, capsys):
+        """None scores block is degraded (fail closed)."""
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {}
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
     def test_rule_extract_clean_report_succeeds(self, tmp_path, capsys):
         scenarios = _write(
             tmp_path,

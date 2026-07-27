@@ -256,6 +256,9 @@ def _rule_degraded_scenario_ids(
         scores = mech_data.get("scores")
         if isinstance(scores, Mapping) and scores.get("judge_failed"):
             degraded.append(task_id)
+        elif not isinstance(scores, Mapping) or not scores:
+            # Missing or empty scores: scoring never completed. Fail closed.
+            degraded.append(task_id)
     return degraded
 
 
@@ -267,7 +270,7 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     raise ConfigError(
         "refusing to extract degraded rule report: "
         f"{len(task_ids)} scenario(s) have missing mechanism output, mechanism "
-        f"errors, or judge failures: {shown}{suffix}"
+        f"errors, missing scores, or judge failures: {shown}{suffix}"
     )
 
 
