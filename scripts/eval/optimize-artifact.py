@@ -104,6 +104,12 @@ def _read_json(path: Path) -> object:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise ConfigError(f"no such file: {path}") from exc
+    except UnicodeDecodeError as exc:
+        # UnicodeDecodeError subclasses ValueError, so `main` caught it and the
+        # loop kept running, but the error document named the decoder's class
+        # instead of ConfigError. `_read_text` already wraps it; two readers of
+        # the same bytes reported the same failure two ways.
+        raise ConfigError(f"{path} is not valid UTF-8: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
     except RecursionError as exc:
@@ -941,6 +947,13 @@ def _corpus_refusal() -> dict[str, object]:
     The preflight reads headers and the gate reads bodies. Two call sites
     phrasing the same refusal would let the caller tell which read caught it,
     and would drift the moment one of them is edited.
+
+    The gate's copy briefly added `sel_consultations`, which broke the first
+    property by key set alone. It was also the wrong number to report there.
+    `_guard` runs before the recheck, so an exhausted budget has already
+    refused by then, and prior ledger spend cannot change what the caller must
+    do next. Both sites report `consultations: 0` instead, which is the one
+    claim each can make honestly: this run charged nothing.
     """
     return {
         "decision": "REJECT",
@@ -1003,7 +1016,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # agree, and the gap between them was a window a file could change in.
     pin = split.get("corpus", _UNPINNED)
     if _corpus_conflict(pin, incumbent_file.corpus, candidate_file.corpus):
-        _emit(_corpus_refusal() | {"sel_consultations": spent})
+        _emit(_corpus_refusal())
         return EXIT_LOGIC
 
     incumbent_results = incumbent_file.results
@@ -1126,7 +1139,15 @@ def _write_atomic(path: Path, text: str) -> None:
     except OSError:
         mode = None
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    try:
+        fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    except OSError as exc:
+        # This call sat outside the block below, which is the only place that
+        # turns a write failure into a ConfigError. A missing or unwritable
+        # parent therefore left the CLI as a traceback on stderr rather than
+        # one JSON document on stdout, and `split --out` into a directory that
+        # does not exist is an ordinary caller mistake, not a crash.
+        raise ConfigError(f"could not write {path}: {exc}") from exc
     tmp = Path(tmp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:

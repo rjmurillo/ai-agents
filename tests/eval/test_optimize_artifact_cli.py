@@ -3612,8 +3612,16 @@ class TestTheCorpusIsRecheckedAgainstWhatWasActuallyScored:
     def test_the_recheck_refuses_before_the_consultation_is_charged(
         self, tmp_path, capsys, monkeypatch
     ):
+        """Round seventeen strengthened this.
+
+        It read `sel_consultations`, which reports prior ledger spend and was
+        therefore zero here whether or not this run charged. The claim worth
+        making is that no ledger exists at all afterward.
+        """
         _, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_ONE)
-        assert out["sel_consultations"] == 0
+        assert out["consultations"] == 0
+        record = json.loads((tmp_path / "split.json").read_text(encoding="utf-8"))
+        assert not oa._ledger_path(oa._holdout_key(record)).exists()
 
     def test_an_honest_preflight_still_compares(self, tmp_path, capsys, monkeypatch):
         code, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_TWO)
@@ -3697,4 +3705,168 @@ class TestAParserFailureNeverPreemptsTheLedger:
         )
         assert code == EXIT_LOGIC
         assert "consultation" in out["reason"]
+        assert out["compared"] is False
+
+
+class TestEveryWriteFailurePrintsOneJsonDocument:
+    """Round seventeen: `mkstemp` sat outside the block that wraps `OSError`.
+
+    `_write_atomic` carries two promises. The artifact is never left half
+    written, and a failure prints one JSON document like every other failure
+    the CLI reports. The temp file was created before the `try` that turns
+    `OSError` into `ConfigError`, so a missing or unwritable parent escaped as
+    a raw traceback and a caller parsing stdout as JSON crashed on it.
+    """
+
+    def _tasks(self, tmp_path, n: int = 30):
+        path = tmp_path / "tasks.txt"
+        path.write_text("\n".join(f"t{i}" for i in range(n)) + "\n", encoding="utf-8")
+        return path
+
+    def _split_into(self, tmp_path, capsys, out):
+        return _run(
+            capsys, "split", "--tasks", self._tasks(tmp_path), "--seed", "w", "--out", out
+        )
+
+    def test_a_missing_parent_directory_is_a_config_error(self, tmp_path, capsys):
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "absent" / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_write_and_the_path(self, tmp_path, capsys):
+        target = tmp_path / "absent" / "split.json"
+        _, out = self._split_into(tmp_path, capsys, target)
+        assert "could not write" in out["error"]
+        assert str(target) in out["error"]
+
+    def test_a_parent_that_refuses_the_temp_file_is_a_config_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        def _refuse(*_args, **_kwargs):
+            raise OSError(13, "permission denied")
+
+        monkeypatch.setattr(oa.tempfile, "mkstemp", _refuse)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_non_io_failure_from_mkstemp_still_escapes(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: the new arm must not swallow unrelated failures."""
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(oa.tempfile, "mkstemp", _boom)
+        with pytest.raises(RuntimeError, match="boom"):
+            self._split_into(tmp_path, capsys, tmp_path / "split.json")
+
+    def test_a_writable_parent_still_writes_the_split(self, tmp_path, capsys):
+        """Positive control: the wrapping did not break the normal path."""
+        target = tmp_path / "split.json"
+        code, _ = self._split_into(tmp_path, capsys, target)
+        assert code == EXIT_OK
+        assert json.loads(target.read_text(encoding="utf-8"))["sel"]
+
+
+class TestABinaryFileIsAConfigErrorWhereverItIsRead:
+    """Round seventeen: `_read_json` let `UnicodeDecodeError` through by name.
+
+    `_read_text` wraps it because it subclasses `ValueError` rather than
+    `OSError`, so the `OSError` arm never caught it. `_read_json` reads text
+    the same way and did not, so one reader called a binary artifact a config
+    problem and the other reported the decoder's own class instead. The error
+    document is part of the contract, so the two readers have to agree.
+    """
+
+    def _split_from(self, tmp_path, capsys, name, blob: bytes):
+        path = tmp_path / name
+        path.write_bytes(blob)
+        return _run(
+            capsys, "split", "--results", path, "--seed", "u", "--out", tmp_path / "o.json"
+        )
+
+    def test_invalid_utf8_is_a_config_error(self, tmp_path, capsys):
+        code, out = self._split_from(tmp_path, capsys, "bad.json", b"\xff\xfe\x00{")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_utf8_the_way_the_text_reader_does(self, tmp_path, capsys):
+        _, out = self._split_from(tmp_path, capsys, "bad.json", b"\xff\xfe\x00{")
+        assert "is not valid UTF-8" in out["error"]
+
+    def test_valid_utf8_that_is_not_json_still_reports_json(self, tmp_path, capsys):
+        """Edge: the two failures are different and must stay distinguishable."""
+        _, out = self._split_from(tmp_path, capsys, "bad.json", b"not json at all")
+        assert out["type"] == "ConfigError"
+        assert "is not valid JSON" in out["error"]
+
+    def test_valid_utf8_json_still_parses(self, tmp_path, capsys):
+        """Positive control."""
+        blob = json.dumps({f"t{i}": True for i in range(30)}).encode("utf-8")
+        code, _ = self._split_from(tmp_path, capsys, "good.json", blob)
+        assert code == EXIT_OK
+
+
+class TestBothCorpusChecksSpeakWithOneVoice:
+    """Round seventeen: the recheck carried a key the preflight did not.
+
+    `_corpus_refusal` says in its own docstring that two call sites phrasing
+    the same refusal would let the caller tell which read caught it. The
+    recheck then emitted `_corpus_refusal() | {"sel_consultations": spent}`,
+    so the key set alone answered the question the docstring said it must not.
+    Reporting the ledger there was also the wrong fact to add: `_guard` runs
+    first, so budget is never exhausted by the time the recheck fires, and the
+    only honest number both call sites share is that this run charged nothing.
+    """
+
+    def _pair(self, tmp_path, capsys):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "voice")
+        split_path = _write(tmp_path, "split.json", split)
+        return ("--incumbent", inc, "--candidate", cand, "--split", split_path)
+
+    def _both(self, tmp_path, capsys, monkeypatch):
+        argv = self._pair(tmp_path, capsys)
+        _, early = _run_gate(capsys, tmp_path, *argv, cap=5)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        _, late = _run_gate(capsys, tmp_path, *argv, cap=5)
+        return early, late
+
+    def test_the_two_refusals_are_one_document(self, tmp_path, capsys, monkeypatch):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert early == late
+
+    def test_neither_refusal_reports_the_ledger(self, tmp_path, capsys, monkeypatch):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert "sel_consultations" not in early
+        assert "sel_consultations" not in late
+
+    def test_both_report_that_this_run_charged_nothing(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert early["consultations"] == 0
+        assert late["consultations"] == 0
+
+    def test_the_patched_run_really_reaches_the_second_check(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: with an agreeing preflight the bodies must be read.
+
+        Without this the comparison above could be two preflight refusals, and
+        the identity it asserts would hold for a reason that proves nothing.
+        """
+        argv = self._pair(tmp_path, capsys)
+        seen: list[Path] = []
+        real = oa._read_results
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        monkeypatch.setattr(
+            oa, "_read_results", lambda p: (seen.append(Path(p)), real(p))[1]
+        )
+        code, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert len(seen) == 2
+        assert code == EXIT_LOGIC
         assert out["compared"] is False
