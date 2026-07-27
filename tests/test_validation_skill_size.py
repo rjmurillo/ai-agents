@@ -745,11 +745,19 @@ class TestStagedBlobValidation:
         #   - GIT_REPLACE_REF_BASE: moves where replace refs are read from, so a
         #     later read would not honor the decoy ``git replace`` written here.
         #   - core.useReplaceRefs=false in global or system config.
-        # Clear every env channel and redirect global/system config at a
-        # nonexistent file (git reads a missing config as empty); git then falls
-        # back to its default of replace enabled, and the repo-local write below
-        # reinforces it. Sanitize before _init_repo so its identity writes also
-        # land in repo-local .git/config rather than a redirected file.
+        #   - GIT_TEMPLATE_DIR (or init.templateDir): a template seeds the new
+        #     repo's .git/config, so a template config carrying an [include]
+        #     directive can pull in core.useReplaceRefs=false that outranks the
+        #     repo-local write below. Point it at an empty dir so init seeds
+        #     nothing.
+        # Clear every env channel, disable system config outright
+        # (GIT_CONFIG_NOSYSTEM), redirect global/system config at a nonexistent
+        # file (git reads a missing config as empty), and init from an empty
+        # template; git then falls back to its default of replace enabled, and
+        # the repo-local write below reinforces it. Sanitize before _init_repo
+        # so its identity writes and any template expansion also land in a clean
+        # repo-local .git/config. Together these neutralize the whole class of
+        # config-inheritance channels, not just the individually named ones.
         for _var in (
             "GIT_NO_REPLACE_OBJECTS",
             "GIT_CONFIG_PARAMETERS",
@@ -759,8 +767,12 @@ class TestStagedBlobValidation:
         ):
             monkeypatch.delenv(_var, raising=False)
         _neutral_cfg = tmp_path / "hermetic-absent.gitconfig"
+        _empty_template = tmp_path / "hermetic-empty-template"
+        _empty_template.mkdir()
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(_neutral_cfg))
         monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(_neutral_cfg))
+        monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+        monkeypatch.setenv("GIT_TEMPLATE_DIR", str(_empty_template))
         self._init_repo(tmp_path)
         subprocess.run(
             ["git", "config", "core.useReplaceRefs", "true"],
