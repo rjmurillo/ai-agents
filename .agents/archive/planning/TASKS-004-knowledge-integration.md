@@ -2,7 +2,7 @@
 
 ## Source
 
-- Plan: `.agents/planning/004-knowledge-integration-plan.md`
+- Plan: `.agents/archive/planning/004-knowledge-integration-plan.md`
 
 ## Summary
 

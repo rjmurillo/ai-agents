@@ -2,7 +2,7 @@
 
 ## Source
 
-- PRD: `.agents/planning/prd-agent-consolidation.md`
+- PRD: `.agents/archive/planning/prd-agent-consolidation.md`
 - Epic: `.agents/roadmap/epic-agent-consolidation.md`
 
 ## Summary

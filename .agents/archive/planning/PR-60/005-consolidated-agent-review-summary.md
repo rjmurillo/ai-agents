@@ -394,8 +394,8 @@ gh issue edit 123 --add-label $labels              # EXECUTES: bug; curl attacke
 - **High-Level-Advisor Verdict**: High-level-advisor agent output
 - **Security Review**: `.agents/security/SR-PR60-implementation-review.md`
 - **QA Review**: `.agents/qa/PR60-EXTREME-SCRUTINY-REVIEW.md`
-- **Remediation Plan**: `.agents/planning/PR-60/002-pr-60-remediation-plan.md`
-- **Gap Analysis**: `.agents/planning/PR-60/001-pr-60-review-gap-analysis.md`
+- **Remediation Plan**: `.agents/archive/planning/PR-60/002-pr-60-remediation-plan.md`
+- **Gap Analysis**: `.agents/archive/planning/PR-60/001-pr-60-review-gap-analysis.md`
 
 ---
 

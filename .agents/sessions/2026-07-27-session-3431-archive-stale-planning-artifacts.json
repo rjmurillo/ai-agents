@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3431,
+    "date": "2026-07-27",
+    "branch": "chore/archive-stale-planning-artifacts",
+    "startingCommit": "8d5e5d16",
+    "objective": "Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned chore/archive-stale-execution-plans, then branched from origin/main to chore/archive-stale-planning-artifacts before the first git mv"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries and .claude/rules/universal.md read this session; Python-first and no-delete honored"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from origin/main at 8d5e5d16; only pre-existing modification was .serena/project.yml, left unstaged"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = chore/archive-stale-planning-artifacts"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions and serena-read_memory both returned successfully; serena-* tools live this session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Used .claude/skills/github/scripts/issue/new_issue.py to file #3431 rather than raw gh issue create, per the skill-first rule"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena-read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote decision-plans-archive-not-completed this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 run scoped to the changed markdown files: 0 issues in 0 files (5 linted; .agents/** is excluded by .markdownlint-cli2.jsonc). PostToolUse auto-lint also ran on each write."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits on chore/archive-stale-execution-plans as of this log: ae8be1c0, f2094108, c74c8b07, 0809412c, 50860bf0, 53f220e9, 48c2b938, 3f40fac7, 19d4a761, 1bf125d7, 9f1df6b3. Any later commit on the branch addresses review feedback."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run python scripts/validation/pre_pr.py returned 'RESULT: All validations passed'. Two gates failed on the first run and were fixed: Em/en-dash Prohibition (165 pre-existing U+2014/U+2013 bytes in two archived plans entered the branch diff via git mv; the scan reads git show HEAD:<path>, so the fix had to be committed before it cleared) and Lefthook Installed (local git hooks were absent; installed with uv run --frozen lefthook install --reset-hooks-path)."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issues #3424, #3425, #3426 opened for the residual work found during triage"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; this was a documentation triage pass with no implementation failure to analyze"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Establish the staleness signal",
+      "actions": [
+        "Read .agents/planning/INDEX.md: dated 2026-01-23, declares Current Milestone v0.3.0",
+        "Queried GitHub milestones: 0.2.0 closed with 344, 0.3.0 closed with 139, v0.3.1 zero open of 54, v0.4.0 zero open of 14, v0.5.0 zero open of 16, Future zero open of 71",
+        "Rejected filesystem mtime as a signal: every file reads 2026-07-17, the checkout date",
+        "Traced the 11 files dated 2026-07-21 to bulk commit 2f661d9f, the Lefthook migration PR #3259, not real work"
+      ],
+      "outcome": "INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues."
+    },
+    {
+      "phase": "Verify every document mechanically",
+      "actions": [
+        "Extracted all issue and PR references from the 78 markdown documents: 235 distinct numbers",
+        "Queried every one through the GitHub GraphQL API in batches of 60",
+        "Result: resolved 235 of 235, OPEN items 0",
+        "Confirmed deliverables independently: zero .ps1 files in repo code, so the v0.3.1 PowerShell migration is finished; 54 skills carry references/ directories"
+      ],
+      "outcome": "Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied."
+    },
+    {
+      "phase": "Check for live coupling before moving anything",
+      "actions": [
+        "Found five live consumers of .agents/planning/: validate-planning-artifacts.yml, two lefthook hooks, ai-spec-validation.yml, artifact-insight-scanner.yml",
+        "Captured a validator baseline: exit 0, SUCCESS, 57 planning documents, 12 advisory notes",
+        "Read validate_planning_artifacts.py line 383: returns 0 when no documents are found, so emptying the directory does not fail the gate",
+        "Read artifact-insight-scanner.yml line 77: guards find with 2>/dev/null || true and handles a zero count",
+        "Confirmed .github/PULL_REQUEST_TEMPLATE.md instructs feature authors to create specs in .agents/planning/, so the directory itself must survive"
+      ],
+      "outcome": "Both gates return 0 on an empty directory. The directory stays; only its stale contents move."
+    },
+    {
+      "phase": "Resolve the carried-forward open questions",
+      "actions": [
+        "Diffed .agents/planning/PR-60/ against .agents/archive/pr-60-*: the two sets are distinct documents, not duplicates",
+        "Checked whether the 33 JSON files are referenced anywhere outside the directory: zero hits",
+        "Confirmed references/ beat resources/ 54 to 2 on disk, so SPEC-knowledge-integration.md mandates a convention the repo abandoned",
+        "Inspected the two surviving resources/ directories: planner is the documented anomaly, memory/resources/schemas holds JSON schemas rather than doc references"
+      ],
+      "outcome": "No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue."
+    },
+    {
+      "phase": "Execute the archive",
+      "actions": [
+        "git mv 110 files from .agents/planning/ to .agents/archive/planning/, preserving the subdirectory tree",
+        "Archived the superseded index as .agents/archive/planning/INDEX-2026-01-23.md rather than overwriting it",
+        "Wrote .agents/archive/planning/README.md recording the verification method and a per-cluster verdict with evidence",
+        "Rewrote .agents/planning/INDEX.md to describe the live purpose, the gates that run against the directory, and the retirement convention",
+        "Repointed 14 live documents at the new paths and left dated records under analysis, critique, qa, retrospective, security, and roadmap untouched",
+        "Bumped .claude and src/copilot-cli plugin manifests to 0.6.129 because two SKILL.md files changed in both trees"
+      ],
+      "outcome": "110 files archived. .agents/planning/ holds only a current index. Nothing deleted."
+    },
+    {
+      "phase": "ADR review debate",
+      "actions": [
+        "Invoked the adr-review skill because the change edits eight files under .agents/architecture/ and .agents/SESSION-PROTOCOL.md, which fires the adr-review-policy pre-commit gate",
+        "Ran all six mandated roles: architect, critic, independent-thinker, security, analyst, and high-level-advisor. Declined to write the gate trigger string into this log without running the review, which would have fabricated evidence",
+        "Re-derived every checkable finding rather than accepting it on assertion: a link scanner over 977 files, a second scanner over the 79 archived markdown files, a direct listing of packages/, and GitHub close-reason queries for issues 51 and 739",
+        "Fixed two P0 defects the debate surfaced: ADR-026 had its display text repointed but its markdown link target left broken, and .agents/SESSION-PROTOCOL.md carried a SHOULD-read of a finished plan inside a BLOCKING phase",
+        "Fixed six P1 findings: ADR-006 and ADR-017 links missed, 21 stale paths across 15 Serena memory files, 30 references between archived documents, overclaimed Complete labels in the archive index, a cluster count of 4 that was really 2, and an issue citation that overclaimed its scope",
+        "Repointed 74 references across 37 files as a result. Both scanners now report zero broken references",
+        "Filed issue 3435 for the 33 eval JSONs, which the contrarian showed were misfiled from the start rather than retired, and added a scope note to issue 3426",
+        "Wrote the debate log to .agents/critique/issue-3431-planning-archive-debate-log.md with per-agent votes, contested points, and the dissent carried forward"
+      ],
+      "outcome": "Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed."
+    },
+    {
+      "phase": "Merge main and re-bump the plugin manifests",
+      "actions": [
+        "Opened pull request 3442. GitHub reported CONFLICTING while a local merge-tree of the same two commits reported clean, so only 12 checks ran instead of the usual full suite: GitHub could not build the merge ref",
+        "Diagnosed the cause rather than force-pushing blind. The generated causal graph under .agents/memory/causality/ is declared with a custom merge driver in .gitattributes. That driver is configured on this machine and is not available to GitHub server side, so a file both branches touch resolves locally and conflicts remotely",
+        "Merged origin/main into the branch locally, where the driver runs, instead of rebasing. A rebase would have required a force push, which the universal rules prohibit on a shared branch",
+        "Main had itself shipped plugin version 0.6.129 while this branch was in review, so the branch bump was no longer strictly greater than base. Bumped both manifests to 0.6.130 to satisfy the parity gate",
+        "Re-checked every issue this change cites. Issue 3424, filed during the first phase, was closed as completed by pull request 3432 on main. Confirmed no document on this branch still claims it is open: the only two mentions are the generated causal graph and this dated session log"
+      ],
+      "outcome": "Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130."
+    },
+    {
+      "phase": "Post-review fix",
+      "actions": [
+        "Fixed Document Hierarchy table in AGENT-INSTRUCTIONS.md: planning/ -> archive/planning/",
+        "Corrected debate log scope line and context paragraph to distinguish planning/ from plans/active/ archive paths",
+        "Addressed Copilot reviewer comments on PR #3442"
+      ]
+    }
+  ],
+  "endingCommit": "c40fc2b3",
+  "nextSteps": [
+    "Re-run build/scripts/validate_planning_artifacts.py and scripts/validation/pre_pr.py",
+    "Open the PR against #3431 and confirm CI is green"
+  ]
+}

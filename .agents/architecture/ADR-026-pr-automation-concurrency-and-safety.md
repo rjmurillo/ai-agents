@@ -311,5 +311,5 @@ Use `Measure-WorkflowCoalescing.ps1` to track:
 ## References
 
 - Security Analysis: [`.agents/security/SR-002-pr-automation-security-review.md`](../security/SR-002-pr-automation-security-review.md)
-- Implementation Plan: [`.agents/planning/pr-automation-implementation-plan.md`](../planning/pr-automation-implementation-plan.md)
+- Implementation Plan: [`.agents/archive/planning/pr-automation-implementation-plan.md`](../archive/planning/pr-automation-implementation-plan.md)
 - DevOps Review: [`.agents/devops/pr-automation-script-review.md`](../devops/pr-automation-script-review.md)

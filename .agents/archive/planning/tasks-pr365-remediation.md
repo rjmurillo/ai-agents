@@ -2,7 +2,7 @@
 
 ## Source
 
-- PRD: `.agents/planning/PRD-pr365-remediation.md`
+- PRD: `.agents/archive/planning/PRD-pr365-remediation.md`
 - Issue: #356 (fix(memory): Rename legacy skill- prefix files)
 - PR: #365 (fix(memory): rename skill- prefix files and add naming validation)
 
@@ -418,7 +418,7 @@ Before marking remediation complete, verify:
 
 ## Related Documents
 
-- **PRD**: `.agents/planning/PRD-pr365-remediation.md`
+- **PRD**: `.agents/archive/planning/PRD-pr365-remediation.md`
 - **Gap Analysis**: `.agents/qa/PR-402/2025-12-26-gap-diagnostics.md` (Gap 5)
 - **Issue #356**: https://github.com/rjmurillo/ai-agents/issues/356
 - **PR #365**: https://github.com/rjmurillo/ai-agents/pull/365

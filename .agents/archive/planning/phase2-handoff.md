@@ -385,7 +385,7 @@ graph LR
 |----------|----------|
 | Remediation Plan | `.agents/planning/pr43-remediation-plan.md` |
 | Phase 1 Completion Summary | `.agents/planning/phase1-completion-summary.md` |
-| Phase 1 Handoff | `.agents/planning/phase1-handoff-remediation-pr43.md` |
+| Phase 1 Handoff | `.agents/archive/planning/phase1-handoff-remediation-pr43.md` |
 | Root Cause Analysis | `.agents/retrospective/pr43-coderabbit-root-cause-analysis.md` |
 | Gap Analysis | `.agents/analysis/pr43-gap-analysis.md` |
 

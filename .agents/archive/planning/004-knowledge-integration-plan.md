@@ -94,7 +94,7 @@ pattern: SKILL.md contains path references, agent reads on demand.
 - [ ] Resources/ auto-loading verified (M0 probe test passes)
 - [ ] 6 domain-specific prompts per skill (30 total) documented
 - [ ] Baseline responses captured and scored on a 1-5 rubric (accuracy, depth, specificity)
-- [ ] Rubric with anchor examples for each score level documented at `.agents/planning/quality-rubric.md`
+- [ ] Rubric with anchor examples for each score level documented at `.agents/archive/planning/quality-rubric.md`
 - [ ] Summarization methodology defined: prompt template, model, quality checklist
 
 **Acceptance Criteria**:
@@ -151,7 +151,7 @@ pattern: SKILL.md contains path references, agent reads on demand.
 **Deliverables**:
 - [ ] 30 after-injection responses captured and scored with same rubric
 - [ ] Per-skill delta documented (before vs after)
-- [ ] Quality improvement report at `.agents/planning/quality-results.md`
+- [ ] Quality improvement report at `.agents/archive/planning/quality-results.md`
 
 **Kill gate criteria** (heuristic evaluation, not statistical test):
 - [ ] PROCEED: at least 4 of 5 skills show median improvement >= 0.5 with no skill regressing

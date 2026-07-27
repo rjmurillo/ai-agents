@@ -867,7 +867,7 @@ python -m memory_enhancement verify memory-index
 |-------|-------|---------------|--------|
 | **#751** (P0) | `AGENTS.md`, `.claude/agents/context-retrieval.md`, `.claude/skills/memory/SKILL.md` | Decision matrix in AGENTS.md, all interfaces cross-reference it | [Haiku-Ready](#751-haiku-ready-implementation-option-a-decision-matrix) |
 | **#734** (P1) | `.claude/skills/memory/scripts/MemoryRouter.psm1` (lines 35-40, config) | `Measure-Command { Search-Memory "test" -LexicalOnly }` < 20ms | [Haiku-Ready](#734-haiku-ready-implementation-memory-router-optimization) |
-| **#747** (P1) | `scripts/Sync-MemoryToForgetful.ps1`, `Test-MemoryFreshness.ps1`, `lefthook.yml` | `Test-MemoryFreshness.ps1` returns no stale entries | Plan: `.agents/planning/phase2b-memory-sync-strategy.md` |
+| **#747** (P1) | `scripts/Sync-MemoryToForgetful.ps1`, `Test-MemoryFreshness.ps1`, `lefthook.yml` | `Test-MemoryFreshness.ps1` returns no stale entries | Plan: `.agents/archive/planning/phase2b-memory-sync-strategy.md` |
 | **#731** (P1) | `.claude/agents/skillbook.md`, `.claude/agents/memory.md`, `.claude/agents/retrospective.md` | `grep -c "mcp__serena__\|cloudmcp" .claude/agents/*.md` = 0 | Blocked by #751, #734 |
 
 ##### #751 Haiku-Ready Implementation (Option A: Decision Matrix)
@@ -2016,7 +2016,7 @@ graph TD
    - **Agents**: Memory, QA, DevOps
    - **Dependencies**: [#751](https://github.com/rjmurillo/ai-agents/issues/751) (Memory fragmentation)
    - **Deliverables**: Bidirectional sync protocol, conflict resolution, CI validation
-   - **Plan**: `.agents/planning/phase2b-memory-sync-strategy.md`
+   - **Plan**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
    - **Timeline**: 5 milestones, 3-week timeline
 
 8. **[#731](https://github.com/rjmurillo/ai-agents/issues/731)** - Update agent prompts to use Memory Router interface (ADR-037)
@@ -2192,7 +2192,7 @@ graph TD
 
 #### PRD-2: Workflow Orchestration Enhancement (DEFERRED)
 
-**Location**: `.agents/planning/prd-workflow-orchestration-enhancement.md`
+**Location**: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
 **Version**: 1.0
 **Date**: 2026-01-03
 **Epic**: [#739](https://github.com/rjmurillo/ai-agents/issues/739)
@@ -2215,7 +2215,7 @@ graph TD
 
 #### PRD-3: Agent Orchestration MCP (DEFERRED)
 
-**Location**: `.agents/planning/PRD-agent-orchestration-mcp.md`
+**Location**: `.agents/archive/planning/PRD-agent-orchestration-mcp.md`
 **Status**: ⚠️ DEFERRED TO FUTURE
 **Version**: 0.1.0
 **Created**: 2025-12-21
@@ -2242,7 +2242,7 @@ graph TD
 
 #### PRD-4: Session State MCP
 
-**Location**: `.agents/planning/PRD-session-state-mcp.md`
+**Location**: `.agents/archive/planning/PRD-session-state-mcp.md`
 **Related Issues**: [#219](https://github.com/rjmurillo/ai-agents/issues/219), [#582](https://github.com/rjmurillo/ai-agents/issues/582), [#583](https://github.com/rjmurillo/ai-agents/issues/583), [#584](https://github.com/rjmurillo/ai-agents/issues/584)
 **Status**: ⚠️ DEFERRED TO FUTURE
 
@@ -2250,7 +2250,7 @@ graph TD
 
 #### PRD-5: Skill Catalog MCP
 
-**Location**: `.agents/planning/PRD-skill-catalog-mcp.md`
+**Location**: `.agents/archive/planning/PRD-skill-catalog-mcp.md`
 **Related Issues**: [#220](https://github.com/rjmurillo/ai-agents/issues/220), [#585](https://github.com/rjmurillo/ai-agents/issues/585)-[#590](https://github.com/rjmurillo/ai-agents/issues/590)
 **Status**: ⚠️ DEFERRED TO FUTURE
 
@@ -2348,7 +2348,7 @@ graph TD
 ### Planning Documents
 
 **Current v0.3.0**:
-- **Master Plan** (this document): `.agents/planning/v0.3.0/PLAN.md` - Single source of truth
+- **Master Plan** (this document): `.agents/archive/planning/v0.3.0/PLAN.md` - Single source of truth
 
 > **Note**: All supporting analysis has been consolidated into this PLAN.md document.
 > The scope change history, MCP deferral rationale, and issue inventory are all included
@@ -2368,11 +2368,11 @@ graph TD
 - **Memory Enhancement Layer**: `.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
 
 **Deferred to Future**:
-- **Workflow Orchestration**: `.agents/planning/prd-workflow-orchestration-enhancement.md`
-- **Agent Orchestration MCP**: `.agents/planning/PRD-agent-orchestration-mcp.md`
-- **Session State MCP**: `.agents/planning/PRD-session-state-mcp.md`
-- **Skill Catalog MCP**: `.agents/planning/PRD-skill-catalog-mcp.md`
-- **Memory Sync Strategy**: `.agents/planning/phase2b-memory-sync-strategy.md`
+- **Workflow Orchestration**: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
+- **Agent Orchestration MCP**: `.agents/archive/planning/PRD-agent-orchestration-mcp.md`
+- **Session State MCP**: `.agents/archive/planning/PRD-session-state-mcp.md`
+- **Skill Catalog MCP**: `.agents/archive/planning/PRD-skill-catalog-mcp.md`
+- **Memory Sync Strategy**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 
 ### Architecture Decisions
 
@@ -3046,7 +3046,7 @@ After v0.3.0 ships, retrospective agent measures:
 
 **Epic [#739](https://github.com/rjmurillo/ai-agents/issues/739) - Workflow Orchestration Enhancement**:
 - **Dependencies**: Agent Orchestration MCP Phase 1 (ADR-013), Session State MCP Phase 1 (ADR-011)
-- **PRD**: `.agents/planning/prd-workflow-orchestration-enhancement.md`
+- **PRD**: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
 - **Success Metrics** (deferred):
   - Workflow discovery time: <1 min (from ~5 min baseline)
   - Multi-agent coordination errors: <5% (from ~30% baseline)
