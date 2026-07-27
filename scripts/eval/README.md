@@ -477,7 +477,13 @@ optimizer cooperates:
   an embedded or windowed interpreter, and printing to a file of `None` does
   not skip the write, it falls back to stdout, where the JSON a caller parses
   is. A diagnostic that corrupts the payload it is diagnosing is worse than
-  one that crashes, because nothing reports it.
+  one that crashes, because nothing reports it. "Absent" covers two cases and
+  for four rounds the code handled one. A harness can blank the attribute or
+  delete it, and the second turns reading it into an `AttributeError` raised
+  before the suppression is even entered, from the line whose only job is to
+  decide whether to warn. Reading it with `getattr` routes that case into the
+  `None` branch already there, which enforces the no-abort rule at the last
+  expression standing outside the guard without adding a second branch to it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task

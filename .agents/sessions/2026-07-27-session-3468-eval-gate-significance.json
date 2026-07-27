@@ -350,11 +350,12 @@
         "Corrected the docstring in the same change. It claimed only the stream check sat outside the guard while the stream read sat outside it too, making the sentence false for the second time in two rounds by the same mechanism as shape 31.",
         "Verified: mutation M7 restores the partial read and fails exactly one test of 380 in the CLI file. 1389 pass across the optimizer suites, up one from the new test. Coverage stays 100% on all three modules and the statement count of optimize-artifact.py does not move, because the change replaced an expression rather than adding a line. Ruff and mypy clean.",
         "Independently re-verified the two prior mutations at HEAD before this change: M5 (ContextVar swapped for an API-preserving module global) fails exactly one test with the cross-context overwrite it exists to catch, and M6 (redaction moved back outside the guard) fails exactly one different test with the redactor's RuntimeError escaping to the caller. Source restored byte-identical after each.",
-        "Committed as a33c5c089. Documented as defect shape 33, which is narrower than the four rounds before it: each of those moved a statement into the guard, while this one is about an expression that was never a candidate for moving because it reads as a fetch rather than as work."
+        "Committed as a33c5c089. Documented as defect shape 33, which is narrower than the four rounds before it: each of those moved a statement into the guard, while this one is about an expression that was never a candidate for moving because it reads as a fetch rather than as work.",
+        "Amended the operator doc's durability bullet, which said sys.stderr can be absent and described only the blanked case. Absent covers two cases and the deleted one raises from the read rather than redirecting the write, so the bullet now names both."
       ]
     }
   ],
-  "endingCommit": "a33c5c089",
+  "endingCommit": "7d8a015a3",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
