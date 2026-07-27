@@ -84,6 +84,27 @@ class TestOutwardDetection:
         """
         assert gate.scan_file(Path("x.md"), _frontmatter(value)) != []
 
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "Reads docs/a.md,docs/b.md now.",
+            "Reads `docs/a.md``docs/b.md` now.",
+            "Reads docs/a.md docs/b.md now.",
+            "Reads (docs/a.md)(docs/b.md) now.",
+        ],
+    )
+    def test_two_references_sharing_one_separator_are_both_found(self, value: str) -> None:
+        """The boundary is consumed, so the closing guard must not be.
+
+        A scan does not revisit a character an earlier match consumed. With
+        two references separated by exactly one character, that character is
+        the second match's opening boundary, so consuming it at the end of the
+        first match loses the second reference entirely. The trailing guard is
+        a zero-width lookahead for that reason.
+        """
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), _frontmatter(value))]
+        assert refs == ["docs/a.md", "docs/b.md"]
+
     def test_an_absolute_path_is_still_a_path(self) -> None:
         """A leading slash does not make the target ship.
 
