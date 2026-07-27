@@ -26,8 +26,12 @@ edit, and it is why the marker and not the path is what makes a row a claim.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+from bisect import bisect_right
+from functools import cache
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -43,14 +47,34 @@ HOOK_SEARCH_ROOTS = (
 # directory (`Stop/invoke_x.py`), optionally prefixed by the repo-relative
 # hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
 # so both have to resolve.
-_HOOK_PATH_RE = re.compile(r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)`")
-_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)`")
+_HOOK_PATH_RE = re.compile(
+    r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)(?::\d+(?:-\d+)?)?`"
+)
+_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)(?::\d+(?:-\d+)?)?`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
 _RETIRED_RE = re.compile(
-    r"\b(?:amended|deleted|deregistered|dropped|no longer|previously|removed|"
+    r"\b(?:deleted|deregistered|dropped|historical|no longer|previously|removed|"
     r"replaced|retired|superseded)\b",
     re.IGNORECASE,
 )
+_LIVE_REGISTRATION_RE = re.compile(
+    r"\b(?:consumer-effective|enforce[sd]?|registered|registration|run(?:s|ning)?)\b"
+    r"|\bstill\s+(?:exists|registered|runs|enforces)\b",
+    re.IGNORECASE,
+)
+
+
+def _load_dispatch_groups_parity() -> ModuleType:
+    path = Path(__file__).with_name("test_dispatch_groups_parity.py")
+    spec = importlib.util.spec_from_file_location("test_dispatch_groups_parity", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+DISPATCH_GROUPS_PARITY = _load_dispatch_groups_parity()
 
 
 def _adr_files() -> list[Path]:
@@ -80,36 +104,75 @@ def _claims(text: str) -> list[tuple[int, str]]:
 
 
 def _prose_claims(text: str) -> list[tuple[int, str]]:
-    """(line number, hook token) for prose claims that are not retired nearby."""
-    found: list[tuple[int, str]] = []
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line.lstrip().startswith("|"):
-            continue
-        if _has_nearby_retirement_marker(lines, index):
-            continue
-        for match in _BACKTICKED_INVOKE_RE.finditer(line):
-            found.append((index + 1, match.group(1)))
+    """(line number, hook token) for references without same-context retirement."""
+    return [
+        (number, path)
+        for number, path, context in _hook_references(text)
+        if not _has_retirement_marker(context)
+    ]
+
+
+def _hook_references(text: str) -> list[tuple[int, str, str]]:
+    line_starts = [0]
+    for match in re.finditer(r"\n", text):
+        line_starts.append(match.end())
+    found: list[tuple[int, str, str]] = []
+    for match in _BACKTICKED_INVOKE_RE.finditer(text):
+        line_number = bisect_right(line_starts, match.start())
+        line_start = line_starts[line_number - 1]
+        line_end = text.find("\n", match.start())
+        if line_end == -1:
+            line_end = len(text)
+        line = text[line_start:line_end]
+        context = line if line.lstrip().startswith("|") else _sentence_context(text, match)
+        found.append((line_number, match.group(1), context))
     return found
 
 
-def _has_nearby_retirement_marker(lines: list[str], index: int) -> bool:
-    start = max(0, index - 3)
-    end = min(len(lines), index + 4)
-    return any(_RETIRED_RE.search(line) for line in lines[start:end])
+def _sentence_context(text: str, match: re.Match[str]) -> str:
+    starts = [marker.start() for marker in re.finditer(r"[.?!](?=\s|$)", text[: match.start()])]
+    start = starts[-1] if starts else -1
+    end_candidates = [
+        marker.start()
+        for marker in re.finditer(r"[.?!](?=\s|$)", text[match.end() :])
+    ]
+    end_candidates = [match.end() + position for position in end_candidates]
+    end = min(end_candidates) + 1 if end_candidates else len(text)
+    return text[start + 1 : end]
+
+
+def _has_retirement_marker(context: str) -> bool:
+    return _RETIRED_RE.search(context) is not None
+
+
+@cache
+def _repo_basename_exists(basename: str) -> bool:
+    ignored_parts = {".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "node_modules"}
+    return any(
+        path.is_file() and not (set(path.relative_to(PROJECT_ROOT).parts) & ignored_parts)
+        for path in PROJECT_ROOT.rglob(basename)
+    )
+
+
+def _names_running_hook(hook_path: str) -> bool:
+    return Path(hook_path).name in DISPATCH_GROUPS_PARITY._every_running_basename()
+
+
+def _claims_live_registration(context: str) -> bool:
+    return _LIVE_REGISTRATION_RE.search(context) is not None
 
 
 def _resolves(hook_path: str) -> bool:
     # removeprefix, not lstrip: lstrip takes a character set, so lstrip("./")
     # eats the leading dot of ".claude/hooks/..." and the path stops resolving.
-    candidate = hook_path.removeprefix("./")
+    candidate = re.sub(r":\d+(?:-\d+)?$", "", hook_path.removeprefix("./"))
     if (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file():
         return True
     if "/" in candidate:
         return any((root / candidate).is_file() for root in HOOK_SEARCH_ROOTS)
     return any(root.joinpath(candidate).is_file() for root in HOOK_SEARCH_ROOTS) or any(
         path.is_file() for root in HOOK_SEARCH_ROOTS for path in root.glob(f"*/{candidate}")
-    )
+    ) or _repo_basename_exists(candidate)
 
 
 @pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
@@ -135,9 +198,26 @@ def test_no_adr_prose_names_a_hook_that_is_absent_without_retirement_marker(adr:
         if not _resolves(path)
     ]
     assert not missing, (
-        "ADR prose names a hook file that is not in the tree without a nearby "
-        f"retirement marker: {missing}. Either name the current enforcement point "
-        "or mark the reference as historical within three lines."
+        "ADR prose names a hook file that is not in the tree without a same-sentence "
+        f"or same-row retirement marker: {missing}. Either name the current "
+        "enforcement point or mark the reference as historical in that sentence or row."
+    )
+
+
+@pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
+def test_no_adr_prose_claims_an_unregistered_hook_is_live(adr: Path) -> None:
+    missing = []
+    for number, path, context in _hook_references(adr.read_text(encoding="utf-8")):
+        if (
+            not _has_retirement_marker(context)
+            and _claims_live_registration(context)
+            and not _names_running_hook(path)
+        ):
+            missing.append(f"{adr.name}:{number} claims `{path}` is live")
+    assert not missing, (
+        "ADR prose claims a hook is live but the hook is not in dispatch_groups "
+        f"or direct settings: {missing}. Either name the current enforcement point "
+        "or mark the hook reference as historical in the same sentence or row."
     )
 
 
@@ -215,9 +295,31 @@ class TestWhatCountsAsAProseClaim:
         text = "The `invoke_deleted_gate.py` hook still enforces this policy.\n"
         assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
 
-    def test_an_unresolved_token_with_a_nearby_retirement_marker_is_suppressed(self):
+    def test_an_unresolved_token_with_same_sentence_retirement_marker_is_suppressed(self):
         text = (
-            "The hook was retired by #3184.\n"
-            "This historical paragraph still names `invoke_deleted_gate.py`.\n"
+            "The retired hook `invoke_deleted_gate.py` used to enforce this policy.\n"
         )
         assert _prose_claims(text) == []
+
+    def test_an_unresolved_token_with_only_nearby_retirement_marker_is_a_claim(self):
+        text = (
+            "The hook was retired by #3184.\n"
+            "This paragraph still names `invoke_deleted_gate.py`.\n"
+        )
+        assert _prose_claims(text) == [(2, "invoke_deleted_gate.py")]
+
+    def test_a_table_row_reference_without_retirement_marker_is_a_claim(self):
+        row = "| Gate | `invoke_deleted_gate.py:66-95` | Direct | Medium |\n"
+        assert _prose_claims(row) == [(1, "invoke_deleted_gate.py")]
+
+    def test_a_table_row_reference_with_retirement_marker_is_suppressed(self):
+        row = "| Gate | `invoke_deleted_gate.py:66-95` | Historical, removed | Medium |\n"
+        assert _prose_claims(row) == []
+
+    def test_line_range_suffix_is_ignored_for_resolution(self):
+        assert _resolves("invoke_context_loader.py:1-2")
+
+    def test_live_registration_claim_uses_dispatch_inventory(self):
+        context = "The `invoke_context_loader.py` hook still runs."
+        assert _claims_live_registration(context)
+        assert _names_running_hook("invoke_context_loader.py")
