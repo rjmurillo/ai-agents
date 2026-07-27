@@ -142,7 +142,10 @@ Consequences. Withholding is the goal; a counted budget is what the current
 mechanism delivers, and it is what the requirements below can honestly
 demand.
 
-Four requirements follow.
+Five requirements follow. They are numbered 1 through 5 and are referred to
+elsewhere in this document as Decision Requirement 1 through Decision
+Requirement 5, to keep them distinct from the separately numbered list under
+Open Requirements.
 
 ### 1. The decision group is fixed before the first edit
 
@@ -207,6 +210,16 @@ derived from task contents or from trusted corpus provenance would work; it
 needs a seam that carries one. Sharing is the conservative direction, so the
 collision is accepted until that seam exists.
 
+Decision Requirement 5 put a corpus identity into the seam, and the ledger key
+deliberately does not use it. Adding it would split budgets rather than merge
+them, and a caller who strips the envelope back to a bare mapping would land on
+a different key with the same held-out tasks. That is a budget reset reachable
+by editing an input, which is the defect rounds one through five closed five
+times. The key stays keyed on membership alone: over-sharing a budget is safe,
+resetting one is not. That same strip is refused at the gate instead, which is
+the right layer for it: a refusal belongs where the comparison is decided, not
+in the name of the file that counts it.
+
 The key is a digest, and a digest of a set the caller can enumerate is that
 set. It is therefore kept out of error output. A fifth round found it in three
 hand-written lock and ledger messages; a sixth found the three fixes had missed
@@ -261,6 +274,100 @@ regression." An earlier draft of this ADR provided an opt-out flag, described
 as something a human would pass. It was not human-only, nothing distinguished a
 human caller from the agent driving the loop, and it would have been a weaker
 rule than the ADR it claimed to source from. It has been removed.
+
+### 5. A comparison whose declared corpora disagree is refused
+
+`split` records the corpus of the results it was drawn from, and both results
+files declare the corpus they were scored against. When those three name more
+than one corpus between them, the comparison is refused before the ledger is
+touched: it would measure the corpus change alongside the edit. A known corpus
+beside an unknown one counts as a disagreement, which is what closes the strip
+bypass described below.
+
+Unknown everywhere does not. The rule and hook paths publish no corpus identity
+at all, so refusing there would disable the gate for two of the three artifact
+classes in order to guard a case it cannot detect on them anyway. That case is
+reported as `corpus_verified: false` rather than refused, which is the
+difference between a check that passed and a check that never ran. An earlier
+draft of this section said the three must name one corpus, which reads as
+refusing the all-unknown case and is stronger than what the code does.
+
+This requirement exists because the omission had already cost something. On
+2026-07-27 two runs of the same agent were gated against each other and read as
+a null control. They agreed on `model_id` and on `agent_prompt_sha` and
+disagreed on `fixture_set_sha`; all eight fixture files had changed between
+them. The accept was published across four files before the mismatch was found.
+The retraction is in Validation Status.
+
+Six properties, each answering a specific failure the earlier rounds taught:
+
+- **The refusal is free and cannot be masked.** It is decidable from three
+  header fields, so it sits beside the split-drift refusal and ahead of the
+  ledger. A mismatched pair is unusable at any budget, so charging for it would
+  sell a consultation that can never be spent, and ordering it behind the budget
+  check would tell an operator to buy budget for a comparison that can never be
+  valid. This is the same ordering rule the out-of-range `--max-p` check
+  follows. The preflight reads headers only and answers unknown to every content
+  problem, so the converse also holds: a malformed verdict mapping cannot answer
+  in place of the ledger, and the full read happens after the guards.
+- **A results envelope cannot delete the refusal.** The first cut compared the two files
+  against each other and refused only when both declared a corpus and the two
+  disagreed, which left the refusal reachable by omission. Stripping the
+  envelope off either side, which is what every consumer written before the
+  envelope did, turned a known mismatch into two unknowns, and two unknowns have
+  nothing to disagree about. The pin moves the value into the baseline
+  commitment so no results file can delete it, and one known corpus beside an
+  unknown one counts as a conflict, because a pair scored on one corpus does not
+  have one side that forgot.
+- **Deleting the split's pin is reported, not refused.** Removing the `corpus`
+  key leaves two agreeing results files and nothing to contradict them, so the
+  conflict rule finds no disagreement. Refusing that shape would refuse every
+  `--tasks` split and both artifact classes that pin nothing, so the verdict
+  carries `corpus_pinned` instead: `true` means the split named the corpus both
+  results carry, `false` means only the two results were checked against each
+  other. A sixteenth review found the earlier wording claiming this case was
+  refused when it was not.
+- **What was scored is what was checked.** The preflight reads headers; the
+  comparison is scored from a second, full read. Only the second is
+  authoritative, so the conflict rule runs again against the loaded values
+  before a consultation is charged. Two reads of one path that never have to
+  agree leave a window between them. Both checks emit the same document: a
+  seventeenth review found the gate's copy carrying the ledger's prior spend,
+  which let the key set alone say which read caught the mismatch and reported a
+  number the caller cannot act on, since the budget guard has already run.
+- **The refusal names nothing.** No task ids, no holdout key. A caller cannot
+  turn repeated mismatches into a probe of the held-out group. The preflight runs
+  under the same digest scrubber as the ledger paths.
+- **Unknown everywhere is reported, not refused.** Only the agent path publishes
+  a corpus identity today. Refusing unknown on all three would disable the gate
+  for rules and hooks to guard a case it cannot detect there anyway, so the
+  verdict carries `corpus_verified`, where `false` means the check never ran. A
+  real mismatch never reaches a verdict.
+
+A corpus identity is validated as 64 lowercase hex characters, the form
+`hexdigest()` emits. An unchecked string reports a verified match on values that
+identify nothing: two reports both carrying `fixture_set_sha: ""` compared as
+verified until a fifteenth review pointed at it.
+
+The bound is worth stating in the decision rather than leaving it to be
+discovered. The split file is caller-supplied and its corpus pin is outside the
+fingerprint, so a caller who edits the split can still push an
+incomparable pair through: delete the pin, and two results scored on one corpus
+compare against a split drawn from another. The verdict reports
+`corpus_pinned: false` when that happens; nothing refuses it. Closing it needs
+authenticated provenance, which this design does not have and does not claim. The requirement
+defends against omission, which is the failure that occurred.
+
+Task ids do not substitute, which is the reason the requirement is about corpus
+contents rather than key sets. All eight fixture ids matched across those two
+runs while all eight files differed. Identity of the keys says nothing about
+identity of what the keys point at.
+
+The requirement is bounded by what the scorers publish. `fixture_set_sha` is a
+trusted source in the sense that requirement 12 asks for: it is computed by the
+scorer from the fixture contents, not supplied by the caller being budgeted.
+Neither the rule path nor the hook path publishes an equivalent, so open
+requirement 12 stays open for them.
 
 ### What the mechanism protects against, and what it does not
 
@@ -330,13 +437,40 @@ write to. That is named under Open Requirements rather than claimed here.
 
 ### What this does not require
 
-- It does not require a p-value threshold. Paired evidence (McNemar's exact
-  test on the discordant counts) is reported on every compared decision and
-  enforced on none. At the group sizes this repository actually has, three
-  discordant tasks cannot produce a p below 0.125, so a conventional 0.05 floor
-  would make the ordinary case unpassable rather than informative. Reporting it
-  keeps the reader honest about how thin the evidence is. Enforcing it would
-  only teach the loop to grow the eval set until the arithmetic cooperates.
+- It does not require a p-value threshold by default. Paired evidence
+  (McNemar's exact test on the discordant counts) is reported on every compared
+  decision and enforced only when the caller passes `--max-p`. At the group
+  sizes this repository actually has, three discordant tasks cannot produce a p
+  below 0.125, so a conventional 0.05 floor would make the ordinary case
+  unpassable rather than informative. Reporting it keeps the reader honest about
+  how thin the evidence is. Defaulting to enforcing it would only teach the loop
+  to grow the eval set until the arithmetic cooperates.
+
+  The flag exists because the 2026-07-27 live run produced an ACCEPT at p=0.25
+  that a null control then reproduced from noise. Where an operator has enough
+  held-out tasks to afford the power, the tail the gate already computes should
+  be able to refuse. `--max-p` is read as the family bar and divided by
+  `--max-consultations` (Bonferroni), because a per-comparison threshold does
+  not bound a family: five looks at 0.05 each bound the family at 5 * 0.05 =
+  0.25 without assuming anything about dependence. The sharper bound of about
+  0.226 holds only if the five comparisons are independent, and five looks at
+  one selection group are not. Bonferroni controls the family bar under
+  arbitrary dependence between the comparisons, which is why it is used rather
+  than a sharper independence-dependent correction, and it means raising the
+  budget buys more looks at a stricter bar rather than a cheaper one. That
+  control is conditional: Bonferroni tolerates any dependence between the
+  comparisons but still assumes each per-comparison p-value is valid on its
+  own, and the exact McNemar tail earns that only if the discordant pairs
+  behave as independent fair coin flips under the null. The rule-path null
+  control recorded in this ADR reproduced both gains under a byte-identical
+  no-op, so outcomes on this harness are correlated and that assumption is not
+  free. Read the guarantee as holding under any dependence between the
+  comparisons given per-comparison validity, with the second half unguaranteed
+  here. It also costs power: at ten held-out tasks, clearing a corrected 0.01
+  needs seven one-directional discordant pairs. The bar refuses genuine
+  improvements at these sizes. That is why it is opt-in rather than the
+  default, and why the durable fix is more tasks or repeated sampling (Open
+  Requirement 6), not a tuned threshold.
 - It does not require a test group. At this repository's fixture counts, where
   the mode is 8, a three-way split can leave a selection group too small to
   decide anything. The default is optimize and selection only, and that default
@@ -428,11 +562,13 @@ write to. That is named under Open Requirements rather than claimed here.
 
 These block a move from `proposed` to `accepted`. They are listed as
 requirements rather than nice-to-haves because each one is a place where the
-document currently claims less than a reader might assume.
+document currently claims less than a reader might assume. The numbered items
+in this section are referred to as Open Requirement 1 through Open Requirement
+12, to keep them distinct from the Decision Requirements above.
 
-Requirement 1 is not in that category. It is a **prerequisite for the Decision
-statement's stronger form**, not future hardening, and it is listed first for
-that reason.
+Open Requirement 1 is not in that category. It is a **prerequisite for the
+Decision statement's stronger form**, not future hardening, and it is listed
+first for that reason.
 
 1. **A trusted controller that owns task definitions, scoring, and result
    files, and hands the optimizer only the optimize group.** Three separate
@@ -462,15 +598,29 @@ that reason.
    call rather than the author's.
 4. **A governance document, per ADR-022's own matrix.** This ADR carries an
    enforcement obligation, and ADR-022 asks for both halves in that case.
-5. **A live rule-path validation run.** See Validation Status. Blocked on
-   account usage limits until 2026-08-01.
+5. **A live rule-path validation run.** Done 2026-07-27 via GitHub Models; see
+   Validation Status. It produced a false accept and the null control that
+   caught it, which is what promoted requirement 6 from a suspicion to a
+   measurement.
 6. **Multi-run reduction for the rule adapter** (#3445). The agent adapter
    already averages over runs; the rule adapter is single-shot against an LLM
    judge, which is the noisiest of the three and the only one with no defense.
-7. **A one-time reveal path for the test group.** Requirement 1 says the group
-   is read once at the end, but no command reads it: `score` accepts `--group
-   opt` only, and `gate` always reads `sel`. Either implement the reveal with
-   its own once-ever record, or drop the third group from the design.
+   Now measured rather than assumed: scoring identical rule text twice moved
+   13 of 24 tasks, 5 of them across the pass threshold, with mean absolute
+   movement of 0.49 points on the five-point judge scale. The two held-out
+   gains that produced the false accept were the two largest movements in the
+   benchmark, 0.75 to 3.75 and 1.75 to 3.75. That is larger than the effect any
+   single edit in this loop has produced, so until this lands, an accept on the
+   rule path carries no more information than a coin flip that happened to
+   avoid the no-regression clause. `--max-p` bounds the damage; it does not
+   supply the missing samples. These are magnitudes from one paired re-run, not
+   an estimated rate; a rate needs repeated replication, which is the work this
+   requirement names.
+7. **A one-time reveal path for the test group.** Decision Requirement 1 says
+   the group is read once at the end, but no command reads it: `score` accepts
+   `--group opt` only, and `gate` always reads `sel`. Either implement the
+   reveal with its own once-ever record, or drop the third group from the
+   design.
 8. **A noise-parameter study before any reusable-holdout work.** See
    Alternatives Considered. `Thresholdout` is not rejected on merit; it is
    unadopted because nobody has chosen its parameters for the held-out sizes
@@ -494,14 +644,26 @@ that reason.
     can wake after its lease lapsed and another process took the lock, and both
     then write. It needs renewal plus a fencing token checked at the ledger
     write, which is enough machinery to want its own decision.
-12. **A corpus namespace with a trusted source.** Requirement 3 accepts that two
+12. **A corpus namespace with a trusted source.** Decision Requirement 3
+    accepts that two
     unrelated corpora with identical task ids and identical held-out membership
     share a budget, because the seam offers no corpus identity the caller did
     not supply. A namespace derived from task contents would fix it and needs a
-    seam that carries them.
+    seam that carries them. On 2026-07-27 this stopped being hypothetical. Two
+    architect-spike runs with identical task ids but different `fixture_set_sha`
+    were gated against each other and read as a null control, and the resulting
+    claim was published before the mismatch was found. The same missing identity
+    that lets two corpora share a budget lets two corpora be compared, and the
+    comparison failure is the more expensive of the two because it produces a
+    verdict that looks valid. Decision Requirement 5 closed the comparison half
+    for the
+    agent path, whose scorer publishes `fixture_set_sha`. What stays open is the
+    budget half, and both halves for the rule and hook paths, which publish no
+    corpus identity for the seam to carry.
 
 The default `--test-ratio` is 0.0, so the ordinary invocation produces optimize
-and selection groups only. Requirement 1's "test group, when present" describes
+and selection groups only. Decision Requirement 1's "test group, when present"
+describes
 an option that the default does not exercise. A reader should not assume a
 final untouched group exists unless the split was drawn with one.
 
@@ -581,17 +743,133 @@ Honest statement of what has and has not been exercised against real data.
 - **Agent path**: validated against a real report,
   `evals/analyst-spike/reports/20260528T050708Z-91be1106/report.json`, 24
   fixtures. Baseline 15/24 against agent 13/24; the decision correctly refused
-  a real regression.
+  a real regression. **No null control has been run on this path.** One was
+  claimed on 2026-07-27 and retracted the same day: the two architect-spike
+  runs it used disagree on `fixture_set_sha`, so the corpus was a second changed
+  variable. A valid control needs two runs agreeing on both `fixture_set_sha`
+  and `agent_prompt_sha`, and no committed pair does.
 - **Hook path**: validated against real `pytest tests/hooks` JUnit output, 532
-  node ids extracted.
-- **Rule path**: validated against real error-path output only. The live judge
-  call returned HTTP 400, account usage limit reached until 2026-08-01. That run
-  still earned its cost: it exposed two integration defects that fixtures had
-  hidden, a real envelope shape the extractor rejected and a scenario-id
-  collision that would have silently dropped 20 of 24 tasks.
+  node ids extracted. No null control has been run on the hook path, and none
+  is needed for the same reason: `pytest_results` is deterministic, so a
+  repeated run of the same suite against the same tree produces the same
+  mapping. The hook path is the only one of the three where an ACCEPT means
+  what it says.
+- **Rule path**: validated end to end against live judge output on 2026-07-27.
+  Anthropic remained rate-capped, so the run routed through GitHub Models
+  (`EVAL_PROVIDER=github`, `openai/gpt-4o-mini`), which `scripts/eval/_providers.py`
+  already supported. `eval-rule-activation.py` scored all seven files in
+  `tests/evals/rule-scenarios/`, 24 scenarios, 12 passing. An earlier
+  error-path-only run had already earned its cost by exposing two integration
+  defects that fixtures had hidden: a real envelope shape the extractor
+  rejected, and a scenario-id collision that would have silently dropped 20 of
+  24 tasks.
 
-The rule path should be re-run against live judge output before this ADR moves
-from proposed to accepted.
+### What the live rule run falsified
+
+The run produced an ACCEPT and the ACCEPT was wrong. That is the finding.
+
+A real edit to `.claude/rules/working-with-legacy-code.md` moved the held-out
+group 0.6 to 0.8 with two discordant gains, no losses, p=0.25. Post-hoc, the
+edited rule's own four scenarios had not moved at all; every flip came from a
+rule the edit never touched. Restoring the rule byte-for-byte and re-running
+the identical scorer as a null control flipped 5 of 24 tasks with no input
+change, moved the held-out group 6/10 to 7/10 on its own, and reproduced both
+gains that had earned the ACCEPT. Gating the byte-identical no-op returned
+REJECT only because the noise happened to break one task, which the ADR-057
+no-regression clause caught.
+
+Two conclusions, both load-bearing for this ADR:
+
+1. **A strictly-greater rule over a single sample does not survive a
+   nondeterministic scorer.** The decision was made by which way the variance
+   fell. `--max-p` now lets the exact tail this gate already computed refuse;
+   replaying the run under `--max-p 0.05` turns the false accept into a reject
+   naming the 0.25 tail.
+2. **No threshold rescues a ten-task held-out group.** A one-sided exact
+   McNemar tail cannot reach 0.05 below five one-directional discordant pairs,
+   so at this size the bar refuses genuine improvements too. Power comes from
+   more tasks or repeated sampling per task, not from tuning the bar. That
+   remains unbuilt.
+
+This strengthens rather than weakens the case for the design: the gate refused
+to be talked into anything by the optimize group, and the failure it did have
+was visible in a number it was already printing. It also means no run of this
+loop should be cited as evidence of an improvement until a null control has
+been run alongside it.
+
+One property of these numbers is worth stating so nobody over-reads them. The
+"scorer variance" measured here is a compound of two nondeterministic stages,
+the response model and the judge, both `gpt-4o-mini` at temperature 0. The
+harness sets no per-stage seed and records no `system_fingerprint`, so nothing
+in these reports attributes the movement to one stage or the other. The
+0.49-point mean is the variance of the pipeline. Whether a judge held fixed
+would show less is untested here.
+
+### A retracted agent-path claim, and the guard it produced
+
+An earlier revision of this section claimed the architect spike reproduced the
+rule finding on a second benchmark: two runs of `claude-sonnet-4-6` against the
+same eight fixtures, five of eight moving, and an ACCEPT on a pure null control.
+**That claim was wrong. It is withdrawn in full, and so is the twelve of
+twenty-four figure built on it.**
+
+The two runs did not share a corpus. Each agent report carries
+`fixture_set_sha`, and `_fixture_set_sha` in `eval-agent-vs-baseline.py`
+documents its purpose exactly: it "allows the report consumer to verify that two
+runs hit the same set." The two architect runs report `be99fa1b1180` and
+`26136df314d6`, and all eight individual `fixture_sha` values differ. The
+fixtures were committed once, on 2026-05-29, after both runs; the committed
+copies match the later run, so the earlier corpus is unrecoverable. Fixture
+content is a second changed variable, so nothing about the movement can be
+attributed to run-to-run noise.
+
+The two corroborating pairs fail for a different reason. The critic and
+high-level-advisor comparisons hold `fixture_set_sha` fixed but differ in
+`agent_prompt_sha`. There the prompt is the changed variable. Three confounded
+comparisons pooled together do not make one valid one.
+
+The corrected state of the evidence is one measured path, not three:
+
+- **Rule path, measured.** The artifact was restored byte-for-byte and verified
+  identical to `origin/main` before the re-run, holding both the corpus and the
+  artifact fixed. Both held-out gains that earned the ACCEPT reproduced under
+  the no-op.
+- **Agent path, unmeasured.** A control needs two runs agreeing on both
+  `fixture_set_sha` and `agent_prompt_sha`. No committed pair does.
+- **Hook path, deterministic by construction.**
+
+The error is more useful than the claim would have been, and it belongs in this
+ADR rather than in a commit message. The report schema already carried the field
+that falsifies the comparison. The tool that performed the comparison never read
+it. Nothing in the design would have stopped the next person from repeating the
+mistake, and the person who made it had just spent a session arguing that a
+property reported but not enforced is not a property. Open requirement 12
+already named the missing piece, that the seam carries no corpus identity. This
+is the first evidence of what that costs, and it raised the requirement from a
+budget-accounting nicety to a correctness gap: the same absence that lets two
+unrelated corpora share a ledger also lets two unrelated corpora be compared to
+each other. Decision Requirement 5 closes the comparison half on the one path
+whose
+scorer publishes an identity.
+
+### What follows for anyone running this loop
+
+A `gate` ACCEPT is only as trustworthy as the benchmark underneath it. Say that
+plainly rather than burying it: `optimize-artifact.py gate` with no `--max-p` is
+a guard against an optimizing agent gaming its own benchmark, and it is not a
+guard against the benchmark being noisy. Those are different threats and only
+the first one is closed by default. On the one path where a control was actually
+run, the default issued an ACCEPT for gains that a no-op reproduced.
+
+Until requirement 6 lands, a run of this loop against `rule_results` or
+`agent_results` is worth citing only alongside a null control, and `--max-p`
+should be supplied. The hook path needs neither, because it is deterministic.
+
+The ADR stays proposed. The rule path is live-validated; requirement 6 is why it
+cannot move further. A single-sample scorer at this benchmark size cannot
+distinguish an edit from noise, and that is a property of the benchmark rather
+than of the gate. That claim now rests on one benchmark, measured, rather than
+on two, one of which was not measuring what it said.
 
 ## References
 
