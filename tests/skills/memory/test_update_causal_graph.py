@@ -1311,7 +1311,7 @@ class TestEveryCommittedEpisodeReachesTheGraph:
         ids = set()
         for path in sorted(self.EPISODES.glob("episode-*.json")):
             content = json.loads(path.read_text(encoding="utf-8"))
-            ids.add(content.get("episode_id") or path.stem)
+            ids.add(content.get("id") or path.stem)
         return ids
 
     def _referenced(self) -> set[str]:
