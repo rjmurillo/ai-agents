@@ -1308,6 +1308,16 @@ class TestSplitFileIsSelfValidating:
         assert code == EXIT_CONFIG
         assert "decimal ratio" in out["error"]
 
+    @pytest.mark.parametrize("ratio", ["1e20000000", "1e-20000000", "-1e20000000"])
+    def test_split_rejects_absurd_decimal_exponents_without_traceback(
+        self, tmp_path, capsys, ratio
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "decimal ratio" in out["error"]
+
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",

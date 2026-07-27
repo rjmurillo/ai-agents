@@ -78,6 +78,7 @@ FENCE_END = "<!-- SLOW_UPDATE_END -->"
 _ANCHORED_OPS = frozenset({"insert_after", "replace", "delete"})
 _TEXT_OPS = frozenset({"append", "insert_after", "replace"})
 _VALID_OPS = frozenset({"append", "insert_after", "replace", "delete"})
+_MAX_RATIO_EXPONENT_MAGNITUDE = 100
 Ratio = float | str
 
 
@@ -164,6 +165,13 @@ def _ratio_fraction(name: str, value: Ratio) -> Fraction:
         raise ValueError(f"{name} must be a decimal ratio, got {value}") from exc
     if not decimal.is_finite():
         raise ValueError(f"{name} must be a finite decimal ratio, got {value}")
+    if not Decimal("0") <= decimal <= Decimal("1"):
+        raise ValueError(f"{name} must be a decimal ratio between 0 and 1, got {value}")
+    if decimal and abs(decimal.adjusted()) > _MAX_RATIO_EXPONENT_MAGNITUDE:
+        raise ValueError(
+            f"{name} must be a decimal ratio with exponent magnitude "
+            f"<= {_MAX_RATIO_EXPONENT_MAGNITUDE}, got {value}"
+        )
     return Fraction(decimal)
 
 
