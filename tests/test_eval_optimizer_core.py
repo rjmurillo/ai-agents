@@ -17,7 +17,11 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
-if str(_EVAL_DIR) not in sys.path:
+# Scope the mutation to the module load and remove it afterward so a sibling
+# test cannot pick up an importable name it never asked for, and so repeated
+# imports cannot stack duplicate entries.
+_path_added = str(_EVAL_DIR) not in sys.path
+if _path_added:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _optimizer_core import (  # noqa: E402
@@ -40,6 +44,9 @@ from _optimizer_core import (  # noqa: E402
     split_fingerprint,
     split_tasks,
 )
+
+if _path_added and str(_EVAL_DIR) in sys.path:
+    sys.path.remove(str(_EVAL_DIR))
 
 FENCE_START = "<!-- SLOW_UPDATE_START -->"
 FENCE_END = "<!-- SLOW_UPDATE_END -->"
