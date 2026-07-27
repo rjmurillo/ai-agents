@@ -38,8 +38,8 @@ The tempting premise is that `turns.user_message` holds the human half of the
 turn by construction, so it needs no provenance filter. That is false. The
 column has **no author field**, and the harness writes machine text into it.
 
-Scoped to `sessions.repository LIKE '%ai-agents%'`, after rejecting the
-obvious synthetic shapes, 264 unique texts survive. Of those:
+Scoped to `sessions.repository LIKE '%ai-agents%'`, the column holds 264
+unique texts. Two injected shapes account for 100 of them:
 
 | Injected shape | Texts |
 |---|---|
