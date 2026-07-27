@@ -87,7 +87,7 @@
     {
       "step": 1,
       "action": "Merge origin/main into branch to resolve CONFLICTING merge state",
-      "result": "Two plugin.json version conflicts resolved (kept 0.6.134 from PR branch)"
+      "result": "Two plugin.json version conflicts resolved; version later bumped to 0.6.136"
     },
     {
       "step": 2,
