@@ -42,7 +42,7 @@ A grep cannot tell these apart. A reviewer can. When the target exists only upst
 
 ### Why it is invisible in development
 
-This repository self-hosts its own plugins. `.claude/` is both the plugin source and the live configuration, so every upstream reference resolves here and the tests pass here. CI does load the shipped `src/copilot-cli/` plugin from a separate working directory in the plugin-load smoke test, so plugin isolation itself is covered. What no gate checks is whether the *prose inside a shipped file* names a path the consumer does not have.
+This repository self-hosts its own plugins. `.claude/` is both the plugin source and the live configuration, so every upstream reference resolves here and the tests pass here. CI does load the shipped `src/copilot-cli/` plugin from a separate working directory in the plugin-load smoke test, so plugin isolation itself is covered. What no gate checked, until issue #3565 added the frontmatter check below, was whether the *prose inside a shipped file* names a path the consumer does not have.
 
 ## The mechanism already exists
 
@@ -53,11 +53,12 @@ Do not invent a new one. Issue #2050 built this stack:
 - `check_skill_md_portability.py`. Ratchet over upstream paths in Markdown prose.
 - `check_skill_md_exec_portability.py`. Ratchet over executable invocations in `SKILL.md`.
 - `check_skill_portability.py`. Ratchet over hard-coded upstream paths in skill scripts.
-- `validate-vendor-portability.yml`. Runs the vendor ratchet in CI.
+- `check_plugin_frontmatter_self_containment.py`. Absolute check, no baseline, over `description` and `name` in the frontmatter of every Markdown file under all three plugin roots. Added for issue #3565.
+- `validate-vendor-portability.yml`. Runs the vendor ratchet in CI. The frontmatter gate runs in `validate-generated-agents.yml`.
 
-The four ratchets live in `scripts/validation/`, the workflow in `.github/workflows/`. Both stay upstream; a consumer never runs them.
+The five ratchets live in `scripts/validation/`, the workflows in `.github/workflows/`. Both stay upstream; a consumer never runs them.
 
-Every one is a **regression ratchet with a baseline**, not a universal enforcer. They block new offenders and grandfather existing ones. Passing them means "no new debt", not "this file is portable".
+The four `check_skill_*` scripts are **regression ratchets with a baseline**, not universal enforcers. They block new offenders and grandfather existing ones. Passing them means "no new debt", not "this file is portable". The frontmatter gate is the exception: its surface is small enough to hold at zero, so it carries no baseline.
 
 ### The declaration
 
@@ -87,7 +88,15 @@ The declaration is the wrong tool for these. It suppresses every portability che
 
 Measured while writing this rule: 32 Markdown files inside the plugin roots carry undeclared `docs/`, `build/`, or `templates/` references. Most are consumer-workspace paths or prose collisions such as "build/buy/partner". The genuine ones point at `templates/agents/*.shared.md`.
 
-Until those two patterns are added, such references are on the reviewer, not the gate.
+### What is gated, and what is not
+
+Frontmatter is gated. `check_plugin_frontmatter_self_containment.py` holds `description` and `name` at zero undeclared outward file references across all three plugin roots. A `description` loads into every consumer session whether or not the skill is invoked, so a dangling path there is the most-read and least-useful kind.
+
+Body prose is not gated, and the ratchet that covers part of it covers less than its name suggests. `check_skill_md_portability.py` scans `.claude/skills` only, so `.claude/commands/`, `src/claude/`, and `src/copilot-cli/` are outside it entirely, and its pattern set has no `docs/` entry. That combination is how PR #3497 landed `docs/agent-metrics.md` in a shipped `metrics` description two PRs after this rule shipped: no gate in the repository looked at that surface.
+
+The remaining body surface is large: 1,215 references across 237 of 901 shipped Markdown files, measured over `git ls-files` with `worktrees` excluded. Most are legitimate under the three-kind table above, so the surface needs per-file classification rather than a pattern, and it stays on the reviewer.
+
+Two counting traps, both hit while measuring this. `.claude/worktrees/` holds nested checkouts of this same repository, so a naive walk multiplies every finding by the number of live agent worktrees; the same scan returned 1,557,567 before excluding them. And a `vendor-portability` declaration suppresses the whole file, so a declared file contributes zero no matter how many references it carries.
 
 ## MUST
 
