@@ -25,7 +25,7 @@
 
 ## Kill Gate Decision
 
-**Verdict: PROCEED**
+Verdict: PROCEED
 
 - Improving skills (>= 0.5 delta): 5/5
 - Regressing skills: 0/5
@@ -40,12 +40,14 @@
 ## Key Findings
 
 ### Biggest Impact: golden-principles (+2.5)
+
 The SKILL.md is a governance scanner (GP-001 through GP-008). Without references,
 5/6 prompts about design principles were scope mismatches. The new reference files
 (code-qualities, SOLID, programming by intention, separation of concerns, DRY) gave
 the skill actual design knowledge to draw on.
 
 ### Strongest References by Impact
+
 1. design-programming-by-intention.md: sergeant pattern example produced 5.0 score vs 1.3 baseline
 2. security-zero-trust.md: three principles with implementation specifics vs 2.3 baseline
 3. reliability-observability-pillars.md: investigation workflow matrix, USE/RED methods vs 3.0 baseline
@@ -53,6 +55,7 @@ the skill actual design knowledge to draw on.
 5. multidimensional-cva.md: 30% empty cell threshold, correlated vs independent axes vs 3.3 baseline
 
 ### Caveats
+
 - Self-scoring (same model scores its own output)
 - No blinding, no second scorer, no inter-rater agreement
 - Enhanced condition read all references upfront (real usage is demand-loaded)
@@ -65,3 +68,8 @@ Proceed to Phase 2. Scale reference integration to remaining wiki, Osmani, and
 gstack content. Prioritize by delta signal: skills with design/methodology gaps
 benefit most from domain references. Skills with strong existing SKILL.md content
 (like decision-critic) show smaller but still meaningful improvement.
+
+## Machine-readable outputs
+
+The JSON outputs for this quality measurement were re-homed under
+`evals/agent-slimming-spike/reports/20260411T000000Z-9685367b/` by issue #3435.
