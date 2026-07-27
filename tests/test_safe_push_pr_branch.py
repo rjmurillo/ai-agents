@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import subprocess
 import sys
@@ -148,7 +149,7 @@ def test_single_porcelain_ref_rejects_unexpected_source() -> None:
 
     with pytest.raises(SafePushError) as excinfo:
         safe_push_pr_branch._require_single_porcelain_ref(
-            refs, "refs/heads/feature-x", audit
+            refs, "a" * 40, "refs/heads/feature-x", audit
         )
 
     assert excinfo.value.exit_code == EXIT_VERIFICATION
@@ -164,16 +165,38 @@ def test_single_porcelain_ref_rejects_duplicate_refs() -> None:
         process_id=1,
     )
     refs = [
-        safe_push_pr_branch.PorcelainRef(" ", "HEAD", "refs/heads/feature-x", "", None, None),
-        safe_push_pr_branch.PorcelainRef("=", "HEAD", "refs/heads/feature-x", "", None, None),
+        safe_push_pr_branch.PorcelainRef(" ", "a" * 40, "refs/heads/feature-x", "", None, None),
+        safe_push_pr_branch.PorcelainRef("=", "a" * 40, "refs/heads/feature-x", "", None, None),
     ]
 
     with pytest.raises(SafePushError) as excinfo:
         safe_push_pr_branch._require_single_porcelain_ref(
-            refs, "refs/heads/feature-x", audit
+            refs, "a" * 40, "refs/heads/feature-x", audit
         )
 
     assert excinfo.value.exit_code == EXIT_VERIFICATION
+
+
+def test_module_imports_without_fcntl(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_import = builtins.__import__
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "fcntl":
+            raise ModuleNotFoundError(name)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    module_name = "safe_push_pr_branch_no_fcntl"
+    spec = importlib.util.spec_from_file_location(module_name, _MODULE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(module_name, None)
+
+    assert hasattr(module, "safe_push")
 
 
 # ---------------------------------------------------------------------------
@@ -193,12 +216,53 @@ def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None
 
     assert audit.verified is True
     assert audit.branch == "feature-x"
-    assert audit.requested_refspec == "HEAD:refs/heads/feature-x"
+    assert audit.requested_refspec == f"{local_sha}:refs/heads/feature-x"
     assert audit.local_sha == local_sha
     assert audit.observed_remote_sha == local_sha
     assert audit.process_id > 0
     assert audit.transport_text
     assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") == local_sha
+
+
+@pytest.mark.integration
+def test_push_uses_resolved_sha_when_head_moves_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    original_sha = _git(repo, "rev-parse", "HEAD")
+    interloper_sha: str | None = None
+    push_args: list[str] = []
+    mutated = False
+    real_run_git = safe_push_pr_branch._run_git
+
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+        nonlocal interloper_sha, mutated, push_args
+        if args == ["rev-parse", "--verify", "HEAD"] and not mutated:
+            interloper_sha = _commit_file(Path(repo_root), "interloper.txt", "interloper\n")
+            mutated = True
+            return subprocess.CompletedProcess(
+                args=["git", *args],
+                returncode=0,
+                stdout=f"{original_sha}\n",
+                stderr="",
+            )
+        if args and args[0] == "push":
+            push_args = args
+        return real_run_git(args, repo_root)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", fake_run_git)
+
+    audit = safe_push("feature-x", "origin", str(repo))
+
+    assert interloper_sha is not None
+    assert audit.requested_refspec == f"{original_sha}:refs/heads/feature-x"
+    assert push_args[-1] == f"{original_sha}:refs/heads/feature-x"
+    assert _git(repo, "rev-parse", "HEAD") == interloper_sha
+    assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") == original_sha
+    assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") != interloper_sha
 
 
 @pytest.mark.integration
@@ -258,6 +322,7 @@ def test_push_fails_when_transport_names_a_different_ref(
     _init_worktree(repo, "fix-3377")
     _git(repo, "remote", "add", "origin", str(bare))
 
+    local_sha = _git(repo, "rev-parse", "HEAD")
     real_run_git = safe_push_pr_branch._run_git
 
     def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
@@ -267,7 +332,7 @@ def test_push_fails_when_transport_names_a_different_ref(
                 returncode=0,
                 stdout=(
                     "To https://example/repo.git\n"
-                    " \tHEAD:refs/heads/fix-3383\taaaaaaa..bbbbbbb\n"
+                    f" \t{local_sha}:refs/heads/fix-3383\taaaaaaa..bbbbbbb\n"
                     "Done\n"
                 ),
                 stderr="",
@@ -335,7 +400,7 @@ def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
                 returncode=0,
                 stdout=(
                     "To https://example/repo.git\n"
-                    f" \tHEAD:refs/heads/feature-x\t{local_sha[:7]}..{local_sha[:7]}\n"
+                    f" \t{local_sha}:refs/heads/feature-x\t{local_sha[:7]}..{local_sha[:7]}\n"
                     "Done\n"
                 ),
                 stderr="",

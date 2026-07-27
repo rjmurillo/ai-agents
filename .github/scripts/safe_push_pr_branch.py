@@ -3,23 +3,19 @@
 
 Issue #3412: the PR-maintenance autofix step pushed with a bare branch name
 (``git push origin $HEAD_REF``) and never verified that the remote ref landed at
-the requested commit. This helper pushes one explicit destination ref, verifies
-that porcelain names only that ref, then confirms the remote with ``ls-remote``.
+the requested commit. This helper pushes the resolved object id, verifies
+that porcelain names only that object and destination, then confirms the remote
+with ``ls-remote``.
 """
 
 from __future__ import annotations
 
 import argparse
-import contextlib
-import fcntl
-import hashlib
 import json
 import os
 import subprocess
 import sys
-from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 
 EXIT_OK = 0
 EXIT_VERIFICATION = 1
@@ -170,14 +166,18 @@ def _porcelain_refs_for_audit(refs: list[PorcelainRef]) -> list[dict[str, str | 
 
 
 def _require_single_porcelain_ref(
-    refs: list[PorcelainRef], dest_ref: str, audit: PushAudit
+    refs: list[PorcelainRef], source_ref: str, dest_ref: str, audit: PushAudit
 ) -> PorcelainRef:
     audit.parsed_refs = _porcelain_refs_for_audit(refs)
-    expected = [ref for ref in refs if ref.source == "HEAD" and ref.destination == dest_ref]
+    expected = [
+        ref
+        for ref in refs
+        if ref.source == source_ref and ref.destination == dest_ref
+    ]
     if len(refs) != 1 or len(expected) != 1:
         audit.error = (
-            "expected exactly one porcelain ref 'HEAD:"
-            f"{dest_ref}', got {audit.parsed_refs or 'none'}"
+            "expected exactly one porcelain ref "
+            f"{source_ref!r}:{dest_ref!r}, got {audit.parsed_refs or 'none'}"
         )
         raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
     return expected[0]
@@ -204,30 +204,6 @@ def _ls_remote_sha(
     return fields[0]
 
 
-def _git_common_dir(repo_root: str) -> Path:
-    value = _git_stdout(
-        ["rev-parse", "--git-common-dir"],
-        repo_root,
-        "cannot resolve git common dir",
-    )
-    path = Path(value)
-    if not path.is_absolute():
-        path = Path(repo_root) / path
-    return path.resolve()
-
-
-@contextlib.contextmanager
-def _branch_lock(repo_root: str, dest_ref: str) -> Iterator[None]:
-    lock_dir = _git_common_dir(repo_root) / "safe-push-locks"
-    lock_dir.mkdir(mode=0o700, exist_ok=True)
-    lock_name = hashlib.sha256(dest_ref.encode("utf-8")).hexdigest() + ".lock"
-    with (lock_dir / lock_name).open("w", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
 
 def safe_push(
     branch: str,
@@ -236,12 +212,12 @@ def safe_push(
     expected_remote_sha: str | None = None,
     force_with_lease: bool = False,
 ) -> PushAudit:
-    """Push ``HEAD`` to ``refs/heads/<branch>`` and verify the remote SHA."""
+    """Push the resolved HEAD commit to ``refs/heads/<branch>`` and verify it."""
 
     _assert_on_branch(branch, repo_root)
     local_sha = _head_sha(repo_root)
     dest_ref = f"refs/heads/{branch}"
-    refspec = f"HEAD:{dest_ref}"
+    refspec = f"{local_sha}:{dest_ref}"
     audit = PushAudit(
         branch=branch,
         remote=remote,
@@ -258,43 +234,41 @@ def safe_push(
             raise SafePushError(audit.error, EXIT_USAGE, audit)
         push_args.insert(2, f"--force-with-lease={dest_ref}:{expected_remote_sha}")
 
-    with _branch_lock(repo_root, dest_ref):
-        result = _run_git(push_args, repo_root)
-        audit.returncode = result.returncode
-        audit.stderr = result.stderr
-        audit.transport_text = result.stdout + result.stderr
-        refs = _parse_porcelain(result.stdout)
-        audit.parsed_refs = _porcelain_refs_for_audit(refs)
+    result = _run_git(push_args, repo_root)
+    audit.returncode = result.returncode
+    audit.stderr = result.stderr
+    audit.transport_text = result.stdout + result.stderr
+    refs = _parse_porcelain(result.stdout)
+    audit.parsed_refs = _porcelain_refs_for_audit(refs)
 
-        if result.returncode != 0:
-            audit.error = f"git push exited {result.returncode}: {result.stderr.strip()}"
-            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
+    if result.returncode != 0:
+        audit.error = f"git push exited {result.returncode}: {result.stderr.strip()}"
+        raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
 
-        pushed_ref = _require_single_porcelain_ref(refs, dest_ref, audit)
-        audit.transport_flag = pushed_ref.flag
-        audit.remote_old_sha = pushed_ref.old_sha
-        audit.remote_new_sha = pushed_ref.new_sha
+    pushed_ref = _require_single_porcelain_ref(refs, local_sha, dest_ref, audit)
+    audit.transport_flag = pushed_ref.flag
+    audit.remote_old_sha = pushed_ref.old_sha
+    audit.remote_new_sha = pushed_ref.new_sha
 
-        if pushed_ref.flag in _REJECT_FLAGS:
-            audit.error = f"remote rejected {dest_ref!r}: {pushed_ref.summary.strip()}"
-            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
-        if pushed_ref.flag not in _OK_FLAGS:
-            audit.error = f"unexpected transport flag {pushed_ref.flag!r} for {dest_ref!r}"
-            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
+    if pushed_ref.flag in _REJECT_FLAGS:
+        audit.error = f"remote rejected {dest_ref!r}: {pushed_ref.summary.strip()}"
+        raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
+    if pushed_ref.flag not in _OK_FLAGS:
+        audit.error = f"unexpected transport flag {pushed_ref.flag!r} for {dest_ref!r}"
+        raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
 
-        observed_sha = _ls_remote_sha(remote, dest_ref, repo_root, audit)
-        audit.observed_remote_sha = observed_sha
-        audit.remote_new_sha = observed_sha or audit.remote_new_sha
-        if observed_sha != local_sha:
-            audit.error = (
-                f"remote {dest_ref!r} is {observed_sha or 'missing'}, "
-                f"expected local sha {local_sha}"
-            )
-            raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
+    observed_sha = _ls_remote_sha(remote, dest_ref, repo_root, audit)
+    audit.observed_remote_sha = observed_sha
+    audit.remote_new_sha = observed_sha or audit.remote_new_sha
+    if observed_sha != local_sha:
+        audit.error = (
+            f"remote {dest_ref!r} is {observed_sha or 'missing'}, "
+            f"expected local sha {local_sha}"
+        )
+        raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
 
     audit.verified = True
     return audit
-
 
 def _emit_audit(audit: PushAudit) -> None:
     print(json.dumps(asdict(audit), sort_keys=True), file=sys.stderr)
