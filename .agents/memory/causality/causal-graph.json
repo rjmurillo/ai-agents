@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:54:20.824592+00:00",
+  "updated": "2026-07-27T08:54:41.956185+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20223,447 +20223,6 @@
       "created": "2026-07-27T04:24:15.155191+00:00"
     },
     {
-      "id": "980a6a1b929d",
-      "type": "milestone",
-      "label": "milestone: Assessed worktree  - partial changes already applied from prior session attempt",
-      "episodes": [
-        "episode-2026-03-09-session-1195"
-      ],
-      "created": "2026-06-02T04:20:23.791188+00:00"
-    },
-    {
-      "id": "ec1507b9ce0c",
-      "type": "decision",
-      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.791953+00:00"
-    },
-    {
-      "id": "3d95ae6a68bc",
-      "type": "decision",
-      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.791973+00:00"
-    },
-    {
-      "id": "adca69679015",
-      "type": "milestone",
-      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.792035+00:00"
-    },
-    {
-      "id": "59a0afea2e4c",
-      "type": "decision",
-      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.792454+00:00"
-    },
-    {
-      "id": "156510390f6c",
-      "type": "milestone",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.792466+00:00"
-    },
-    {
-      "id": "28cf7727026e",
-      "type": "decision",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream  - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false)  - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing  - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check  - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
-      "episodes": [
-        "episode-2026-04-27-session-1761"
-      ],
-      "created": "2026-06-02T04:20:23.792565+00:00"
-    },
-    {
-      "id": "3a9e365c8d60",
-      "type": "outcome",
-      "label": "Outcome: success - Autofix PR #2332 review feedback, validate ADR numbering, resolve threads, and merge if governance gates allow",
-      "episodes": [
-        "episode-2026-06-04-session-1875"
-      ],
-      "created": "2026-06-04T06:52:32.374459+00:00"
-    },
-    {
-      "id": "ec4d19e8d682",
-      "type": "outcome",
-      "label": "Outcome: partial - Add paths frontmatter to .claude/rules for Claude Code conditional loading (generator patch + 13 rule conversions); correct study record",
-      "episodes": [
-        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude"
-      ],
-      "created": "2026-06-07T20:00:30.168595+00:00"
-    },
-    {
-      "id": "4fc4229a09e0",
-      "type": "outcome",
-      "label": "Outcome: partial - Triage open issues sweep 2: fix 2497 2500 frontmatter CI lint, 2489 2490 2443",
-      "episodes": [
-        "episode-2026-06-07-session-2375-triage-open-issues-sweep-fix"
-      ],
-      "created": "2026-06-07T04:58:23.483318+00:00"
-    },
-    {
-      "id": "b0942c95cc30",
-      "type": "commit",
-      "label": "commit: Commit: 72247a7ae2",
-      "episodes": [
-        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
-      ],
-      "created": "2026-07-04T04:47:11.158192+00:00"
-    },
-    {
-      "id": "f6a3cc2c8fb6",
-      "type": "milestone",
-      "label": "milestone: Verified zero tracked ps1 and psm1 files and mapped known Python replacement CLIs.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.719954+00:00"
-    },
-    {
-      "id": "89fbc84d61f7",
-      "type": "milestone",
-      "label": "milestone: Repointed live docs, templates, skills, agent copies, and generated mirrors away from removed PowerShell commands.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720016+00:00"
-    },
-    {
-      "id": "6ba9688f5830",
-      "type": "milestone",
-      "label": "milestone: Added stale_script_refs.py and pytest coverage for existing refs, missing refs, skipped historical roots, and allowlist behavior.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720073+00:00"
-    },
-    {
-      "id": "955d36c9a444",
-      "type": "milestone",
-      "label": "milestone: Validation passed for stale_script_refs pytest, guard, ruff, and mypy; live pwsh ps1 grep returned zero hits.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720130+00:00"
-    },
-    {
-      "id": "7cd09d8d0b80",
-      "type": "milestone",
-      "label": "milestone: Created session log after pre-commit blocked the first commit attempt.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720187+00:00"
-    },
-    {
-      "id": "e8b49c40dc66",
-      "type": "commit",
-      "label": "commit: Commit: 397b7eec",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720244+00:00"
-    },
-    {
-      "id": "eb94f5e1cbed",
-      "type": "milestone",
-      "label": "milestone: Pre-commit required the session log to be staged with .agents doc commits; split doc commits to keep atomic file counts.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720303+00:00"
-    },
-    {
-      "id": "f40788b3266c",
-      "type": "milestone",
-      "label": "milestone: Committed traceability governance references to Python traceability CLIs.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720359+00:00"
-    },
-    {
-      "id": "4c6873279653",
-      "type": "milestone",
-      "label": "milestone: Committed spec schema references to current Python validation CLIs.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720415+00:00"
-    },
-    {
-      "id": "21d324837fc5",
-      "type": "milestone",
-      "label": "milestone: Committed session prompt traceability references to Python graph CLI.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720476+00:00"
-    },
-    {
-      "id": "c4692042ba07",
-      "type": "milestone",
-      "label": "milestone: Committed first architecture ADR PowerShell reference replacements.",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720532+00:00"
-    },
-    {
-      "id": "4516d24aa8b0",
-      "type": "outcome",
-      "label": "Outcome: success - Close issues 2914, 2915, and 2916 by repointing live PowerShell script references and adding a stale-script guard",
-      "episodes": [
-        "episode-2026-07-07-session-2609"
-      ],
-      "created": "2026-07-08T00:09:03.720589+00:00"
-    },
-    {
-      "id": "f8ac53c74250",
-      "type": "commit",
-      "label": "commit: Commit: 5cc3bb75d",
-      "episodes": [
-        "episode-2026-07-08-session-01-ci2933"
-      ],
-      "created": "2026-07-08T10:31:48.273421+00:00"
-    },
-    {
-      "id": "12cbc16aaef9",
-      "type": "commit",
-      "label": "commit: Commit: 5b9a9debbbf59af4234447501dd0115f0d7cbdad",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T11:30:21.070437+00:00"
-    },
-    {
-      "id": "8ac2922c545d",
-      "type": "commit",
-      "label": "commit: Commit: 5e18dcf0",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T11:30:21.070497+00:00"
-    },
-    {
-      "id": "9e921c695d4c",
-      "type": "commit",
-      "label": "commit: Commit: b71df3d1c1919e73807510314667482ff8f1604d",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T12:27:06.670431+00:00"
-    },
-    {
-      "id": "6e67022b0bc4",
-      "type": "commit",
-      "label": "commit: Commit: 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T12:27:06.670551+00:00"
-    },
-    {
-      "id": "de7373b71735",
-      "type": "commit",
-      "label": "commit: Commit: 246197d8d6fc3e8bb87102780595aad5822c2c99",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T12:27:06.670650+00:00"
-    },
-    {
-      "id": "1f163396a6a8",
-      "type": "milestone",
-      "label": "milestone: Episode commit metrics evidence: 5b9a9debbbf59af4234447501dd0115f0d7cbdad, 5e18dcf0, b71df3d1c1919e73807510314667482ff8f1604d, 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c, and 246197d8d6fc3e8bb87102780595aad5822c2c99 are the committed review-fix events represented in the episode file.",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T12:31:55.418282+00:00"
-    },
-    {
-      "id": "e56fdb982f28",
-      "type": "commit",
-      "label": "commit: Commit: 4f1e8546237893682a52d81c50deb16248e38a63",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T13:21:37.673924+00:00"
-    },
-    {
-      "id": "4a28017206e9",
-      "type": "commit",
-      "label": "commit: Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T13:57:03.566305+00:00"
-    },
-    {
-      "id": "bb3069d62878",
-      "type": "commit",
-      "label": "commit: Commit: 511eebde18b8539ec1abb6c82413d9f3df895364",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T15:03:48.756309+00:00"
-    },
-    {
-      "id": "7bde60220cd1",
-      "type": "commit",
-      "label": "commit: Commit: 618d8e1a70",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T09:39:53.611304+00:00"
-    },
-    {
-      "id": "8986a66e4e1e",
-      "type": "commit",
-      "label": "commit: Commit: 663bbac488",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T09:39:53.611367+00:00"
-    },
-    {
-      "id": "6dc514f1d663",
-      "type": "commit",
-      "label": "commit: Commit: a2487c4ac1",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T09:39:53.611431+00:00"
-    },
-    {
-      "id": "5ad2dc05281a",
-      "type": "milestone",
-      "label": "milestone: Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985616+00:00"
-    },
-    {
-      "id": "030e37237fcc",
-      "type": "milestone",
-      "label": "milestone: The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985692+00:00"
-    },
-    {
-      "id": "a447c3eb9ebd",
-      "type": "milestone",
-      "label": "milestone: parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985748+00:00"
-    },
-    {
-      "id": "d74900a3db4a",
-      "type": "milestone",
-      "label": "milestone: Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:45:45.775196+00:00"
-    },
-    {
-      "id": "f5878db40ab8",
-      "type": "milestone",
-      "label": "milestone: Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:54:20.572514+00:00"
-    },
-    {
-      "id": "8765f71323b7",
-      "type": "milestone",
-      "label": "milestone: Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.419948+00:00"
-    },
-    {
-      "id": "69503f649f61",
-      "type": "milestone",
-      "label": "milestone: _text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420013+00:00"
-    },
-    {
-      "id": "21d094721829",
-      "type": "milestone",
-      "label": "milestone: Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420069+00:00"
-    },
-    {
-      "id": "e304508c724f",
-      "type": "milestone",
-      "label": "milestone: Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420123+00:00"
-    },
-    {
-      "id": "6dae821622b7",
-      "type": "milestone",
-      "label": "milestone: First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420178+00:00"
-    },
-    {
-      "id": "9aee97c153c9",
-      "type": "milestone",
-      "label": "milestone: Collapse the duplicate unreadable-file error path in parse_agent_files",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427008+00:00"
-    },
-    {
-      "id": "03d74a697a44",
-      "type": "test",
-      "label": "test: 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427075+00:00"
-    },
-    {
-      "id": "ac601ad87978",
-      "type": "error",
-      "label": "error: Collapse the duplicate unreadable-file error path in parse_agent_files     Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes. 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427133+00:00"
-    },
-    {
       "id": "6eafa0686f54",
       "type": "milestone",
       "label": "milestone: Measure the acceptance criteria against the tree",
@@ -20889,15 +20448,6 @@
       "created": "2026-07-27T08:08:42.958663+00:00"
     },
     {
-      "id": "7637739895eb",
-      "type": "commit",
-      "label": "commit: Commit: 113c59808e",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T08:10:11.879746+00:00"
-    },
-    {
       "id": "0c4b2ecdcdbe",
       "type": "milestone",
       "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
@@ -20914,6 +20464,69 @@
         "episode-2026-07-27-session-3459-templates-portability"
       ],
       "created": "2026-07-27T08:54:20.818691+00:00"
+    },
+    {
+      "id": "734655ae5e70",
+      "type": "milestone",
+      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-07-27T08:54:41.790058+00:00"
+    },
+    {
+      "id": "9b951132455c",
+      "type": "decision",
+      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.793653+00:00"
+    },
+    {
+      "id": "dbf92401f9f0",
+      "type": "decision",
+      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.793743+00:00"
+    },
+    {
+      "id": "a521a8822e11",
+      "type": "milestone",
+      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.793867+00:00"
+    },
+    {
+      "id": "2ebc20812a9e",
+      "type": "decision",
+      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.794363+00:00"
+    },
+    {
+      "id": "1d01daa399d3",
+      "type": "milestone",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.794441+00:00"
+    },
+    {
+      "id": "dfbe42de5fde",
+      "type": "decision",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-07-27T08:54:41.794713+00:00"
     }
   ],
   "patterns": [
@@ -25100,46 +24713,46 @@
       "created": "2026-07-26T23:19:55.216421+00:00"
     },
     {
-      "source": "59a0afea2e4c",
-      "target": "156510390f6c",
+      "source": "2ebc20812a9e",
+      "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
-      "created": "2026-06-02T04:20:23.792469+00:00",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
       "contributions": {
         "episode-2026-04-27-session-1761": 0.6
-      }
+      },
+      "created": "2026-07-27T08:54:41.794454+00:00"
     },
     {
       "source": "c2f50a8595d5",
-      "target": "156510390f6c",
+      "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
-      "created": "2026-06-02T04:20:23.792513+00:00",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
       "contributions": {
         "episode-2026-04-27-session-1761": 0.6
-      }
+      },
+      "created": "2026-07-27T08:54:41.794574+00:00"
     },
     {
-      "source": "28cf7727026e",
-      "target": "156510390f6c",
+      "source": "dfbe42de5fde",
+      "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
       "evidence_count": 1,
-      "created": "2026-06-02T04:20:23.792577+00:00",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
       "contributions": {
         "episode-2026-04-27-session-1761": 0.6
-      }
+      },
+      "created": "2026-07-27T08:54:41.794798+00:00"
     }
   ]
 }
