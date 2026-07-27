@@ -1758,3 +1758,69 @@ controls: a genuinely seen patch still reports seen at exit 1, an unseen one
 still reports unseen at exit 0, a patch that genuinely cannot apply still
 reports `applied: 0`, and a budget of zero is still a budget error rather than
 an argument error, since the bar is negative rather than falsy.
+
+## Shape 42: the analysis was already written, about the wrong file
+
+The codebase already contained the correct diagnosis of this defect. It sat in
+`_ledger_held`'s docstring, one screen above the function that had the bug:
+"two gates started together both read the same count, both compare, and both
+write count + 1", and "atomic replacement keeps the file whole; it does not
+make the read-modify-write sequence a transaction." An author reasoned the
+class through, fixed the ledger, and did not look at the other file in the same
+module that performs the same sequence. `cmd_buffer_add` read the buffer,
+appended, and replaced it with no lock at all.
+
+The cost is asymmetric and worth stating precisely, because overstating it
+would be its own defect. It does not break soundness: the ledger still caps
+consultations, so no comparison runs uncharged. Losing an entry costs one
+duplicate rollout, which is the cheap side of a tradeoff `patch_fingerprint`
+already makes deliberately. The sharper half is the report. Both callers were
+told `added: true` when one entry had been discarded, so a loop that reads the
+field and moves on believes a rejection is recorded that is not.
+
+A natural race did not prove the race. Two concurrent `buffer-add` processes
+lost nothing across repeated attempts, because roughly 1.5 seconds of
+interpreter and import startup dominates a read-write window measured in
+microseconds. Only a forced interleaving reproduced it: a barrier between the
+read and the write put both callers on the same list, and one append vanished.
+The lesson generalizes past this defect. A race that does not reproduce under
+load has not been shown absent; it has been shown unlikely on the machine that
+ran it, which is not the property anyone wanted. The committed tests therefore
+assert the property directly rather than racing: they record whether the lock
+file exists at the moment of the read and at the moment of the write.
+
+The fix extracts `_lock_held` rather than copying the ledger's twenty-five
+lines. Duplicating them would have set the identical trap a second time, and
+the general form of this very defect is that a shared mechanism was fixed in
+one instance and not the other. The decision was not free: `_ledger_held` cites
+twenty-one prior reviews inside its body, and moving reviewed code is how
+reviewed behavior gets lost. What made it acceptable was the safety net, not
+confidence. Existing tests pin contention, the withheld name, both release
+paths, and the descriptor's release on a failed write, and mutation M18 was run
+to confirm they still bind after the move: dropping the nested `finally` around
+the pid write turns exactly the test that pins it red.
+
+One property inverts between the two callers, which is why the messages are
+parameters rather than constants. The ledger withholds its lock's filename
+because that name digests held-out membership and an unsalted digest of an
+enumerable set is that set. A buffer's path arrived on the command line, so
+withholding it buys nothing and turns a stale lock into a puzzle. Both
+directions are pinned by tests.
+
+`cmd_buffer_check` deliberately takes no lock. `_write_atomic` replaces the
+file, so a reader sees the whole old document or the whole new one, and
+serializing readers would let a stale lock block the question the loop asks
+most often. A control test pins that too.
+
+Coverage found what review did not. Sharing the helper gave the buffer a
+release path the ledger already had tests for and the buffer had none, and the
+line report named it: one uncovered line, the buffer's cleanup warning. Five
+tests now drive it. That is the argument for holding a hundred percent as a
+floor rather than a score. At ninety-nine percent the uncovered line is
+invisible.
+
+M17 drops the buffer's lock and turns the three defect tests red. M18 drops the
+pid write's nested `finally` in the extracted helper and turns the ledger's
+descriptor test red. M19 drops the cleanup warning and turns six red, four
+ledger and two buffer, which is the check that the shared helper is genuinely
+shared rather than shared in name.

@@ -5,7 +5,8 @@
     "date": "2026-07-27",
     "branch": "fix/eval-buffer-crash-exit-code",
     "startingCommit": "303f918ea8",
-    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
+    "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings.",
+    "endingCommit": ""
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -521,6 +522,21 @@
       ],
       "evidence": "PR #3478 merged 2026-07-27T20:47:36Z as 102e9976f. git merge --abort after add/add conflicts. Cherry-pick fe8dcb2be applied clean as 4710c7ee4. 1423 tests pass with 100 percent statement coverage on optimize-artifact.py (574), _optimizer_core.py (283), and _optimizer_adapters.py (89). git_hook_policy.py branch-context now passes.",
       "learning": "A repository that squash-merges cannot be reasoned about with merge-base. Merging main into a branch whose content was just flattened into main asks git to reconcile a file with an identical copy of itself that shares no history, and it produces add/add conflicts on files nobody touched. The move is to abort, verify what main contains by reading it rather than by asking git about ancestry, branch fresh, and cherry-pick only what post-dates the squash. Resolving those conflicts would have been work performed on a question that was never real."
+    },
+    {
+      "phase": "Round thirty-one: the buffer's read-modify-write had no lock",
+      "actions": [
+        "Ran round 31 on gpt-5.6-terra at xhigh, aimed at the one untested surface: state that crosses invocation boundaries. Demanded a seam inventory table so the denominator was visible, enumeration rather than sampling, and per-claim VERIFIED BY RUNNING / READING / NOT CHECKED labels.",
+        "Rejected finding 1 by reading. The reviewer reported _fsync_dir silently skipping on Windows; the function's own docstring already documents and justifies that skip. A reviewer that reads a docstring's first paragraph and stops will report the problem the remaining paragraphs solve.",
+        "Confirmed finding 2 by forcing the interleaving. Two concurrent buffer-add processes lost nothing, because ~1.5s of interpreter startup dominates a microsecond read-write window. A threading.Barrier between the read and the write reproduced it immediately: both callers reported added true, one entry survived, one rejection was silently discarded.",
+        "Found the decisive framing already in the codebase. _ledger_held's docstring states this exact bug about a different file. The author diagnosed the class, fixed the ledger, and left the buffer performing the same sequence one screen below.",
+        "Wrote nine tests red-first: three red for the right reason, six green controls. Asserted the property directly rather than racing, since a race that does not reproduce has not been shown absent.",
+        "Extracted _lock_held rather than copying the ledger's twenty-five lines, because the general form of this defect is that a shared mechanism was fixed in one instance and not the other. Parameterized the two messages: the ledger withholds its lock's name because the name digests held-out membership, the buffer prints its name because it came from the command line.",
+        "Coverage found what review did not: sharing the helper gave the buffer a release path with no test, reported as one uncovered line. Added five tests for it and restored 100 percent.",
+        "Falsified in halves. M17 removes the buffer lock: three red. M18 drops the pid write's nested finally in the extracted helper: the ledger's descriptor test red, proving the move preserved reviewed behavior. M19 drops the cleanup warning: six red, four ledger and two buffer.",
+        "Ran the ruff ratchet locally before pushing, since issue #3580 established that all three lefthook ruff invocations pass --exit-zero and cannot fail a local push."
+      ],
+      "evidence": "Forced interleaving before the fix: two added:true reports, one stored entry. After: one success, one explicit ConfigError naming the lock, lock cleaned up. 1437 eval tests pass with 100% statement coverage on optimize-artifact.py (587), _optimizer_core.py (283), _optimizer_adapters.py (89). Full suite 15651 passed, 26 skipped. ruff clean on both changed files; RUFF_RATCHET_BASE_REF=origin/main ruff_ratchet.py reports passed for 3 changed files; mypy clean."
     }
   ],
   "endingCommit": "4710c7ee4",
