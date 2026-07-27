@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T11:58:41.235955+00:00",
+  "updated": "2026-07-27T12:43:54.525143+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21456,6 +21456,60 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
+    },
+    {
+      "id": "a3dbd8d7226a",
+      "type": "milestone",
+      "label": "milestone: Read issue #3426",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808804+00:00"
+    },
+    {
+      "id": "c720677ae3c8",
+      "type": "milestone",
+      "label": "milestone: Closed stale execution plans",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808894+00:00"
+    },
+    {
+      "id": "009bd2621d26",
+      "type": "milestone",
+      "label": "milestone: Added active plan advisory",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808974+00:00"
+    },
+    {
+      "id": "46c04904a58c",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809050+00:00"
+    },
+    {
+      "id": "79ea5b5c5d73",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check.",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809125+00:00"
+    },
+    {
+      "id": "bd574610ca7a",
+      "type": "milestone",
+      "label": "milestone: Committed closeout docs",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:43:54.519216+00:00"
     }
   ],
   "patterns": [
