@@ -744,8 +744,18 @@ _ACTIVE_HOLDOUT_KEY: ContextVar[str | None] = ContextVar(
 def _warn(message: str) -> None:
     """Report a loss that must not abort the caller and must not leak.
 
-    Two rules that kept being written separately and therefore kept being
-    missed at one site or the other.
+    Three rules that kept being written separately and therefore kept being
+    missed one at a time. Rounds twenty and twenty-one each fixed the rule in
+    front of them and each left the next one open, so they are named here
+    together rather than discovered in sequence a fourth time.
+
+    Only the stream check sits outside the guard. Everything else is inside
+    it, including the redaction. Writing the opposite down is what exposed it:
+    a redaction that raises would leave the message unprinted either way, so
+    suppressing costs a diagnostic and excluding it costs the caller the abort
+    that rounds twenty through twenty-two were all spent removing. Nothing
+    reaches `print` unredacted, because a raise from `_scrub` skips the print
+    with the message still bound to its unscrubbed value.
 
     It must not leak. `_digest_scrubbed` is a seam over raised exceptions, and
     its own reasoning is that a wrapper covers the paths someone remembered
@@ -778,12 +788,12 @@ def _warn(message: str) -> None:
     than one that is lost, so a missing stream drops the message.
     """
     key = _ACTIVE_HOLDOUT_KEY.get()
-    if key is not None:
-        message = _scrub(message, key)
     stream = sys.stderr
     if stream is None:
         return
     with suppress(Exception):
+        if key is not None:
+            message = _scrub(message, key)
         print(message, file=stream)
 
 

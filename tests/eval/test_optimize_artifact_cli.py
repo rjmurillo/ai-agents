@@ -4792,6 +4792,32 @@ class TestADiagnosticNeitherLeaksNorFails:
         assert outer not in err
         assert oa._HELD_OUT_PLACEHOLDER in err
 
+    def test_a_redaction_that_raises_costs_the_message_and_not_the_caller(
+        self, capsys, monkeypatch
+    ):
+        """Negative: the guard has to cover the redaction, not just the write.
+
+        The first draft of the three-rule docstring asserted the opposite,
+        that `_scrub` belonged outside the suppression so a broken redactor
+        would fail loudly. Writing that sentence down is what disproved it. A
+        redaction that raises leaves the message unprinted either way, because
+        the exception skips the `print` with `message` still bound to its
+        unscrubbed value. So excluding it buys no leak protection at all and
+        costs the caller the abort that rounds twenty through twenty-two were
+        spent removing.
+        """
+        key = "e" * 64
+
+        def _explode(text, holdout_key):
+            raise RuntimeError("redactor is broken")
+
+        monkeypatch.setattr(oa, "_scrub", _explode)
+        with oa._digest_scrubbed(key):
+            oa._warn(f"cannot sync {key}")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert key not in captured.out
+
     def test_a_scrub_set_in_another_context_cannot_overwrite_this_one(self):
         """Edge: two live scopes at once, which one shared global cannot hold.
 
