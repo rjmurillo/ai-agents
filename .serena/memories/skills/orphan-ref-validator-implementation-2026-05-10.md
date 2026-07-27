@@ -120,3 +120,45 @@ the directive rather than use it. State the filter when quoting either number.
 line, so one directive covers a line carrying two findings. File scope must appear
 in the first 50 lines or it silently fails. Appending the directive after a table
 row works when the directive is placed inside the last cell's text (before the closing pipe). Appending after the closing pipe introduces an extra column.
+
+## `.serena/memories/` is out of scope by design, not by omission
+
+Proposing memories as a scan target looks like an obvious coverage win. It is a
+category error, and the measurement is unambiguous.
+
+Run: `scan.py --targets .serena/memories --output json`. Result: **174 findings,
+`VERDICT: CRITICAL_FAIL`, exit 1**. Split by kind: 153 `skill_name` across 115
+distinct tokens, 21 `script_path` across 13 scripts.
+
+**Zero of the 115 `skill_name` tokens is a skill.** The full set is CI runner
+labels (`ubuntu-latest`, `macos-latest`, `self-hosted`), CodeRabbit path-filter
+syntax (`any-glob-to-any-file`, `all-globs-to-all-files`), HTTP response headers
+(`x-ratelimit-remaining`, `retry-after`), model IDs (`gpt-5-mini`,
+`gemini-3-pro`), Actions inputs and permissions (`copilot-token`, `bot-pat`,
+`write-all`, `retention-days`), git hook lifecycle names (`post-merge`,
+`pre-remove`), issue labels (`area-skills`, `area-workflows`), agent names
+(`agent-architect`, `agent-qa`, which are agents and not skills), memory IDs
+(`skill-pr-enum-001`), language constructs (`try-catch`, `if-then-else`),
+software-engineering vocabulary (`hexagonal-architecture`,
+`branch-by-abstraction`, `swarm-intelligence`), and one placeholder,
+`your-api-key-here`. A 100% false-positive rate on the dominant kind.
+
+The 21 `script_path` findings are not merely false. They are *correct*. Eighteen
+of them name `.ps1` files from the pre-ADR-042 PowerShell era
+(`Invoke-PRMaintenance.ps1`, `Validate-PrePR.ps1`,
+`Review-MemoryExportSecurity.ps1`). Those scripts genuinely existed when the
+memory was written and genuinely do not exist now. The reference is accurate.
+
+That is the load-bearing point. **A memory is a dated record of what was true
+then. An orphan-ref scan asks whether an entity exists now.** Those two
+questions are incompatible, so a hit against a memory carries no signal about
+either. Extending the denylist would suppress the first 153 and leave the 21
+that are working exactly as intended.
+
+The same reasoning already justifies the narrow default scope above: ADRs and
+docs are excluded because they reference proposed-but-unimplemented or
+superseded-and-deleted entities. Memories are the strongest form of that case,
+not an exception to it.
+
+Do not add `.serena/memories/` as a target, and do not accept a denylist patch
+that exists to make this scan pass.
