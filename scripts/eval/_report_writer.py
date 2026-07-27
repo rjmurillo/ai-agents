@@ -67,8 +67,9 @@ def _build_report_json(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    system_fingerprints: list[str] | None = None,
     form_factor: FormFactorComparison | None = None,
-) -> dict:
+) -> dict[str, object]:
     """Serialize the AggregateResult into the report.json shape.
 
     `recommendation` is `null` until a caller supplies the verdict
@@ -106,6 +107,7 @@ def _build_report_json(
         "tokens_estimated": aggregate.tokens_estimated,
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
+        "system_fingerprints": system_fingerprints or [],
         "recommendation": recommendation,
     }
     if form_factor is not None:
@@ -113,7 +115,7 @@ def _build_report_json(
     return payload
 
 
-def _form_factor_payload(form_factor: FormFactorComparison) -> dict:
+def _form_factor_payload(form_factor: FormFactorComparison) -> dict[str, object]:
     return {
         "schemaVersion": form_factor.schema_version,
         "agent_recall": round(form_factor.agent_recall, 6),
@@ -308,6 +310,7 @@ def _render_markdown(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    system_fingerprints: list[str] | None = None,
     form_factor: FormFactorComparison | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
@@ -318,6 +321,9 @@ def _render_markdown(
         f"- Baseline prompt SHA: `{baseline_prompt_sha[:16]}...`\n"
         f"- Fixture set SHA: `{fixture_set_sha[:16]}...`\n"
     )
+    if system_fingerprints:
+        rendered = ", ".join(f"`{value}`" for value in system_fingerprints)
+        header += f"- System fingerprints: {rendered}\n"
     sections = [
         header,
         _render_summary_table(aggregate),
@@ -348,6 +354,7 @@ class ReportWriter:
         fixture_set_sha: str,
         wall_clock_seconds: float,
         recommendation: str | None = None,
+        system_fingerprints: list[str] | None = None,
         form_factor: FormFactorComparison | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
@@ -361,6 +368,7 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            system_fingerprints=system_fingerprints,
             form_factor=form_factor,
         )
         report_md = _render_markdown(
@@ -372,6 +380,7 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            system_fingerprints=system_fingerprints,
             form_factor=form_factor,
         )
         json_path = run_reports_dir / "report.json"

@@ -71,6 +71,7 @@ EXIT_AUTH = 4
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_N_RUNS = 3
+DEFAULT_SEED = 0
 ALLOWED_PROVENANCE = frozenset(
     {"synthetic", "public-cve", "paraphrased-from-public"}
 )
@@ -545,6 +546,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "comparable (ADR-058)."
         ),
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=(
+            "Optional seed forwarded to OpenAI-compatible providers. The "
+            f"default for eval runs is {DEFAULT_SEED}."
+        ),
+    )
     return parser
 
 
@@ -666,6 +676,7 @@ def _execute_one(
         error_category=api_result.error_category,
         attempts=api_result.attempts,
         tokens_estimated=getattr(api_result, "tokens_estimated", True),
+        system_fingerprint=api_result.system_fingerprint,
     )
 
 
@@ -745,7 +756,7 @@ def _run_live(
     fixture_path_by_id = {
         f.id: p for f, p in zip(fixtures, fixture_paths, strict=True)
     }
-    adapter = AnthropicAPIAdapter()
+    adapter = AnthropicAPIAdapter(seed=args.seed)
     engine = build_default_engine()
 
     import time as _time
@@ -929,6 +940,13 @@ def _generate_report(
 ) -> int:
     """Aggregate records and write report. Halts on >30% flakiness."""
     aggregator = ReportAggregator(records, model_id=model_id)
+    system_fingerprints = sorted(
+        {
+            record.system_fingerprint
+            for record in records
+            if isinstance(record.system_fingerprint, str)
+        }
+    )
     try:
         aggregate = aggregator.aggregate()
     except EmptyRunError as exc:
@@ -979,6 +997,7 @@ def _generate_report(
                 fixture_set_sha=_fixture_set_sha(fixture_paths),
                 wall_clock_seconds=wall_clock_seconds,
                 recommendation="form-factor-invalid",
+                system_fingerprints=system_fingerprints,
             )
             print(
                 json.dumps(
@@ -1009,6 +1028,7 @@ def _generate_report(
         fixture_set_sha=_fixture_set_sha(fixture_paths),
         wall_clock_seconds=wall_clock_seconds,
         recommendation="halt-due-to-flakiness" if halt else None,
+        system_fingerprints=system_fingerprints,
         form_factor=form_factor,
     )
     if halt:
