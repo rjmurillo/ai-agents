@@ -204,7 +204,9 @@
       "caused_by": [
         "e016"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e019"
+      ]
     },
     {
       "id": "e018",
@@ -217,6 +219,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

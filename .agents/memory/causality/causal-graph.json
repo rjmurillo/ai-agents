@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T05:14:10.579796+00:00",
+  "updated": "2026-07-27T05:34:46.583305+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20779,6 +20779,15 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:49:49.793110+00:00"
+    },
+    {
+      "id": "3be75c7c8f0d",
+      "type": "milestone",
+      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:34:46.577440+00:00"
     }
   ],
   "patterns": [
