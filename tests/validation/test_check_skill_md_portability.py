@@ -197,6 +197,9 @@ class TestDotPrefixedUpstreamBoundary:
             "/.claude/lib/foo.py",
             ".claude/review-axes/x.md",
             "/.claude/review-axes/x.md",
+            r"\.agents\specs\x.md",
+            r"\.claude\lib\foo.py",
+            r"\.claude\review-axes\x.md",
         ],
     )
     def test_root_anchored_dot_prefixed_paths_count(self, text: str) -> None:
