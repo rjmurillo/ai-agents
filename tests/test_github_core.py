@@ -16,6 +16,7 @@ from scripts.github_core import (
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
+    bot_config,
     check_workflow_rate_limit,
     count_unresolved_threads,
     create_issue_comment,
@@ -40,7 +41,6 @@ from scripts.github_core import (
     update_issue_comment,
 )
 from scripts.github_core.api import _403_PATTERN, _retry_after_delay
-from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
 
@@ -227,15 +227,15 @@ class TestAssertValidBodyFile:
             Path(tmp_file).unlink(missing_ok=True)
 
     def test_rejects_file_outside_repo_and_all_tempdirs(
-        self, tmp_path: Path, monkeypatch
+        self, external_tmp_path: Path, monkeypatch
     ):
         """File outside both repo and every candidate temp root is rejected."""
-        outside_dir = tmp_path / "not-a-temp-dir"
+        outside_dir = external_tmp_path / "not-a-temp-dir"
         outside_dir.mkdir()
         outside_file = outside_dir / "body.md"
         outside_file.write_text("hello")
 
-        unrelated_tmp = tmp_path / "unrelated-tmp"
+        unrelated_tmp = external_tmp_path / "unrelated-tmp"
         unrelated_tmp.mkdir()
         monkeypatch.setenv("TMPDIR", str(unrelated_tmp))
 
@@ -1016,7 +1016,7 @@ class TestFetchStatus:
         unlike a bare-string sentinel which would silently miss.
         """
         with pytest.raises(AttributeError):
-            _ = getattr(FetchStatus, "OK_TYPO")
+            _ = FetchStatus.OK_TYPO
 
 
 class TestCountUnresolvedThreads:
