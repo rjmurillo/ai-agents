@@ -2011,6 +2011,36 @@ class TestNoLedgerFailureLeaksTheDigest:
         code, out = self._gate(capsys, inc, split, record)
         assert code == EXIT_CONFIG and key not in json.dumps(out)
 
+    def test_a_lock_cleanup_failure_does_not_leak(self, tmp_path, capsys, monkeypatch):
+        """The unlink in the finally block names the lock, and the lock is the digest.
+
+        Release runs after the decision is emitted, so stdout carries two
+        documents here and the assertion is on the raw text rather than on a
+        parse. Before the fix this escaped as an uncaught PermissionError,
+        since main() catches ConfigError and not OSError.
+        """
+        inc, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        real_unlink = Path.unlink
+
+        def _boom(self, missing_ok=False):
+            if self.suffix == ".lock":
+                raise OSError(13, "Permission denied", str(self))
+            return real_unlink(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", _boom)
+        code = oa.main([
+            "gate", "--incumbent", str(inc), "--candidate", str(inc),
+            "--split", str(split), "--max-consultations", "2",
+            "--incumbent-fingerprint", record["fingerprint"],
+        ])
+        text = capsys.readouterr().out
+        assert code == EXIT_CONFIG
+        assert key not in text
+        assert "<held-out group>" in text
+        for task in record["sel"]:
+            assert task not in text
+
     def test_a_lock_that_fails_for_any_other_reason_does_not_leak(
         self, tmp_path, capsys, monkeypatch
     ):

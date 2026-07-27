@@ -515,9 +515,12 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
-    # The scrub sits outside so any errno but EEXIST loses the digest in the
-    # lock's name, and the contention branch sits inside so its own message,
-    # which carries no digest, reaches the caller intact.
+    # The scrub spans the whole lifecycle, not just the acquire. A seventh
+    # review found the release outside it: the unlink in the finally block
+    # names the lock, the lock's name is the digest, and main() does not catch
+    # OSError, so a cleanup failure printed the group as an uncaught traceback.
+    # The contention branch nests inside because its own message carries no
+    # digest and an operator needs it to clear a stale lock.
     with _digest_scrubbed(holdout_key):
         try:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -530,12 +533,12 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 f"digests the held-out membership, and an unsalted digest of a "
                 f"set the caller can enumerate is that set."
             ) from exc
-    try:
-        os.write(handle, str(os.getpid()).encode("utf-8"))
-        os.close(handle)
-        yield
-    finally:
-        lock.unlink(missing_ok=True)
+        try:
+            os.write(handle, str(os.getpid()).encode("utf-8"))
+            os.close(handle)
+            yield
+        finally:
+            lock.unlink(missing_ok=True)
 
 
 def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
