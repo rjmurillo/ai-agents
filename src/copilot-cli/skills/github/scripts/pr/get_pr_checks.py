@@ -63,6 +63,8 @@ query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
+            mergeable
+            mergeStateStatus
             commits(last: 1) {
                 nodes {
                     commit {
@@ -137,6 +139,8 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
 }"""
 
 _CONTEXTS_MAX_PAGES = 50
+_BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
+_BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
 
 # Pending statuses for CheckRun
 _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
@@ -344,10 +348,16 @@ def fetch_checks(
     if pr is None:
         return {"Error": "NotFound", "Message": "PR not found in response"}
 
+    mergeable = pr.get("mergeable")
+    merge_state_status = pr.get("mergeStateStatus")
+    merge_state = "UNKNOWN" if mergeable is None else str(mergeable)
+
     commits = pr.get("commits", {}).get("nodes", [])
     if not commits:
         return {
             "Number": pr.get("number"),
+            "MergeState": merge_state,
+            "MergeStateStatus": merge_state_status,
             "Checks": [],
             "OverallState": "UNKNOWN",
             "HasChecks": False,
@@ -359,6 +369,8 @@ def fetch_checks(
     if not rollup:
         return {
             "Number": pr.get("number"),
+            "MergeState": merge_state,
+            "MergeStateStatus": merge_state_status,
             "Checks": [],
             "OverallState": "UNKNOWN",
             "HasChecks": False,
@@ -392,6 +404,8 @@ def fetch_checks(
 
     return {
         "Number": pr.get("number"),
+        "MergeState": merge_state,
+        "MergeStateStatus": merge_state_status,
         "Checks": checks,
         "OverallState": overall_state,
         "HasChecks": True,
@@ -442,12 +456,42 @@ def build_output(
 
     has_checks = check_data.get("HasChecks", False)
     checks_incomplete = bool(check_data.get("ChecksIncomplete", False))
+    if "MergeState" in check_data:
+        merge_state_value = check_data.get("MergeState")
+        merge_state = "UNKNOWN" if merge_state_value is None else str(merge_state_value)
+    else:
+        merge_state = "MERGEABLE"
+    merge_state_status = check_data.get("MergeStateStatus")
+    merge_ref_usable = (
+        merge_state not in _BLOCKING_MERGE_STATES
+        and merge_state_status not in _BLOCKING_MERGE_STATE_STATUSES
+    )
+    merge_state_warning = ""
+    if merge_state == "CONFLICTING":
+        merge_state_warning = (
+            "PR merge ref cannot be built because GitHub reports merge conflicts; "
+            "most workflows may not have run"
+        )
+    elif merge_state_status == "DIRTY":
+        merge_state_warning = (
+            "PR merge ref cannot be built because GitHub reports dirty merge state; "
+            "most workflows may not have run"
+        )
+    elif merge_state == "UNKNOWN":
+        merge_state_warning = (
+            "PR merge state is unknown; do not treat the current check set as complete"
+        )
+    elif merge_state_status == "UNKNOWN":
+        merge_state_warning = (
+            "PR merge state status is unknown; do not treat the current check set as complete"
+        )
     all_passing = (
         has_checks
         and len(filtered_checks) > 0
         and failed_count == 0
         and pending_count == 0
         and not checks_incomplete
+        and merge_ref_usable
     )
 
     # Extract lists of pending and failed required checks for structured
@@ -462,6 +506,10 @@ def build_output(
         "Owner": owner,
         "Repo": repo,
         "OverallState": check_data.get("OverallState", "UNKNOWN"),
+        "MergeState": merge_state,
+        "MergeStateStatus": merge_state_status,
+        "MergeRefUsable": merge_ref_usable,
+        "MergeStateWarning": merge_state_warning,
         "HasChecks": has_checks,
         "Checks": [
             {
@@ -529,6 +577,9 @@ def _resolve_status(
 ) -> tuple[str, str]:
     """Return (human_summary, status) for the final check output."""
     number = output["Number"]
+    merge_state_warning = output.get("MergeStateWarning")
+    if merge_state_warning:
+        return f"PR #{number}: {merge_state_warning}", "FAIL"
     if checks_incomplete:
         return (
             f"PR #{number}: checks still unavailable after {timeout_seconds}s "
@@ -640,6 +691,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if output["FailedCount"] > 0:
+        return 1
+    if not output.get("MergeRefUsable", True):
         return 1
     if checks_incomplete or timed_out_pending:
         return 7
