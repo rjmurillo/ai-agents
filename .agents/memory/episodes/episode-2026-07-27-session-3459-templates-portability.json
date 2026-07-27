@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
       "caused_by": [
-        "e005"
+        "e006"
       ],
       "leads_to": [
         "e002"
@@ -50,10 +50,22 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ac9a29da8",

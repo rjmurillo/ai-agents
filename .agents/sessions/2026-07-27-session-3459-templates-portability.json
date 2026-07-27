@@ -148,6 +148,16 @@
         "Bumped both manifests to 0.6.135. Main advanced to 0.6.133 while this PR was open, so the claimed 0.6.133 would have shipped fourteen changed plugin files under an unchanged version. The gate passed regardless because it resolves the merge-base, not the tip."
       ],
       "outcome": "Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files."
+    },
+    {
+      "phase": "Remove bundled memory artifacts per review feedback",
+      "actions": [
+        "Copilot review flagged .agents/memory/ files bundled with skill code changes",
+        "Rule (claude-agents.md): MUST NOT bundle skill code changes with memory changes in the same PR",
+        "Restored causal-graph.json to merge-base state",
+        "Removed episode file (added by this branch, not on main)"
+      ],
+      "outcome": "Memory artifacts removed; portability fix unaffected; session file retained for hook compliance"
     }
   ],
   "endingCommit": "ac9a29da8",
