@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T01:45:53.055333+00:00",
+  "updated": "2026-07-27T04:29:47.510876+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20140,6 +20140,60 @@
         "episode-2026-07-26-session-2612"
       ],
       "created": "2026-07-27T01:45:53.050088+00:00"
+    },
+    {
+      "id": "aae8c7b5ba8a",
+      "type": "milestone",
+      "label": "milestone: One hypothesis falsified with evidence, one live defect located",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.504956+00:00"
+    },
+    {
+      "id": "8e1642c95a7a",
+      "type": "milestone",
+      "label": "milestone: 49 findings to 28, 95 tests passing. The 26 remaining script_path findings are true orphans and are left for a separate change",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.505039+00:00"
+    },
+    {
+      "id": "e6828041bf3e",
+      "type": "milestone",
+      "label": "milestone: Silent routing failure removed from every copy of the orchestrator",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.505112+00:00"
+    },
+    {
+      "id": "775850fa4689",
+      "type": "milestone",
+      "label": "milestone: The boundary is now binding knowledge in the rule tree and the memory graph rather than tacit",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.505185+00:00"
+    },
+    {
+      "id": "37c45808bd76",
+      "type": "milestone",
+      "label": "milestone: uv run resolves the pinned Python 3.14.6 again; tests run under uv rather than falling back to system python3",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.505255+00:00"
+    },
+    {
+      "id": "b5c5fbf72b89",
+      "type": "outcome",
+      "label": "Outcome: success - Audit knowledge encoded in .claude/ and .serena/memories/ against the wiki concept notes, then ship atomic fixes for what the audit proves wrong",
+      "episodes": [
+        "episode-2026-07-26-session-3401-knowledge-audit"
+      ],
+      "created": "2026-07-27T04:29:47.505326+00:00"
     }
   ],
   "patterns": [

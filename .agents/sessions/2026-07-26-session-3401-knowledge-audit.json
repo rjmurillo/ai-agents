@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3401,
+    "date": "2026-07-26",
+    "branch": "fix/orphan-ref-namespace-resolution",
+    "startingCommit": "2b3bf6dd58",
+    "objective": "Audit knowledge encoded in .claude/ and .serena/memories/ against the wiki concept notes, then ship atomic fixes for what the audit proves wrong"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/orphan-ref-namespace-resolution"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and .claude/rules/*.md loaded as session context; Python-first honored, no new bash scripts"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from main at 2b3bf6dd58; git status reviewed before every commit"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read at session start and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/orphan-ref-namespace-resolution"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start; serena-* tools live (serena-write_memory used this session)"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Enumerated all 96 skill descriptions and every validator under scripts/validation/ before proposing any new tooling"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md absent from git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote decision-plugin-roots-ship-alone this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown auto-lint postToolUse hook ran on every .md edit in this session"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "See workLog; commits recorded on fix/orphan-ref-namespace-resolution"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest .claude/skills/orphan-ref-validator/tests/test_scan.py: 95 passed. Real scan measured 49 findings before the change and 28 after"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Findings tracked as atomic PRs rather than a task file; each is described in workLog"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Deferred to the objective-level retrospective; the audit is still open"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Audit",
+      "actions": [
+        "Read the five highest-leverage wiki concept notes on skill triggering, description-as-trigger, and the Pocock authoring rubric",
+        "Audited all 96 skill descriptions mechanically against the rubric: 38,084 description bytes of permanent context load, 4 missing version fields, 5 SKILL.md files over 20,000 bytes",
+        "Tested the hypothesis that .serena/memories should be scanned for orphan references and falsified it: 182 findings, 136 unique entities, effectively all false positives"
+      ],
+      "outcome": "One hypothesis falsified with evidence, one live defect located"
+    },
+    {
+      "phase": "Fix the shipping gate",
+      "actions": [
+        "Confirmed orphan-ref-validator returned CRITICAL_FAIL on clean main with 49 findings, and that /build Gate 4 and /test Gate 5 both reject on that verdict",
+        "Root-caused it: SKILL_REF_RE treats any backticked kebab-case token as a skill reference, with precision supplied only by a hand-curated denylist that grew one token per bot-review round",
+        "Added sibling-namespace resolution plus an asymmetric strict path for prose that explicitly types a token as a skill, preserving REQ-009 AC-2",
+        "Ran two adversarial review rounds against a different model; accepted a blocker with executable evidence in round 1 and three of five findings in round 2",
+        "Pushed back on one round-2 finding with measured counter-evidence: the proposed inversion reintroduces every original false positive"
+      ],
+      "outcome": "49 findings to 28, 95 tests passing. The 26 remaining script_path findings are true orphans and are left for a separate change"
+    },
+    {
+      "phase": "Phantom agent",
+      "actions": [
+        "Verified that the orchestrator Agent Capability Matrix listed a memory agent that does not exist; memory is a skill",
+        "Cross-checked the full 18-row matrix against the 30-file agent roster and confirmed memory was the only phantom",
+        "Removed the row from the canonical template and all five generated or hand-maintained copies, and added roster-verification guidance",
+        "Found the same phantom in the README agent table and removed it there"
+      ],
+      "outcome": "Silent routing failure removed from every copy of the orchestrator"
+    },
+    {
+      "phase": "Plugin self-containment",
+      "actions": [
+        "User reported that docs/agent-catalog.md does not ship with the registered plugin, so plugin-shipped content must be self-contained",
+        "Verified the boundary from both marketplace manifests: only .claude/, src/claude/, and src/copilot-cli/ ship",
+        "Measured the blast radius: 3,804 outbound path references from inside the three plugin roots across 538 tracked files",
+        "Confirmed a live instance: docs/agent-catalog.md is referenced from ai-agents-generation-and-release in two plugin roots",
+        "Wrote .claude/rules/plugin-self-containment.md, regenerated both instruction mirrors, and recorded decision-plugin-roots-ship-alone in Serena"
+      ],
+      "outcome": "The boundary is now binding knowledge in the rule tree and the memory graph rather than tacit"
+    },
+    {
+      "phase": "Environment repair",
+      "actions": [
+        "Pre-commit failed because .venv was not a valid Python environment",
+        "Root cause: 657 MB of scratch from a prior PR review had been parked inside .venv/, displacing the interpreter",
+        "Moved the scratch out of the repository rather than deleting it, then ran uv sync"
+      ],
+      "outcome": "uv run resolves the pinned Python 3.14.6 again; tests run under uv rather than falling back to system python3"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Land the 26 script_path true orphans, which is what actually turns the gate green",
+    "Consider an automated gate for plugin self-containment; the rule currently has no enforcement",
+    "Work the remaining wiki gaps, starting with agents inferring context pressure from self-observation"
+  ]
+}
