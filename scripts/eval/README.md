@@ -282,7 +282,7 @@ This tool splits the task ids into three groups and keeps them apart:
 |-------|-------------|---------|---------------|
 | `opt` | The optimizing agent | Read failures here, propose edits from them. | The remainder, 0.6 |
 | `sel` | The gate | Decides accept or reject. Each decision spends one consultation from a fixed budget. | 0.4 |
-| `test` | The final report | Scored once after the loop stops, so it carries no consultation history. | 0.0, opt in with `--test-ratio` |
+| `test` | Nothing yet | Reserved for a final report. **No command scores it**, so today it only shrinks `opt` and `sel`. See ADR-087 Open Requirement 7. | 0.0, opt in with `--test-ratio` |
 
 `--test-ratio` defaults to zero, so out of the box you get two groups and an
 empty `test`. That is a concession to this repo's real fixture counts: most
@@ -415,12 +415,22 @@ Three things make that the honest description rather than an overcautious one:
 optimizer cooperates:
 
 - The consultation count, its cap, its storage path, and the key it is stored
-  under are all derived from the held-out membership itself. None of the four
-  can be moved by an argument the caller supplies.
+  under are derived from the held-out membership, with two stated exceptions.
+  The path's *root* comes from `$EVAL_LEDGER_DIR`, `$XDG_STATE_HOME`, or the
+  home directory, and only the filename inside it is membership-derived. The
+  cap's *first* value comes from `--max-consultations`, after which it is
+  pinned and a later change is refused. So what cannot be moved by a caller
+  argument is a budget already in progress; a first invocation still chooses
+  its own cap, and an operator with filesystem access can relocate or delete
+  the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
-- The split record is structurally tamper-evident: the fingerprint covers the
-  drawn result, so editing a group after the fact is detected.
+- The split record is structurally tamper-evident, in two parts because
+  neither alone suffices. The fingerprint covers the split's *inputs* (seed,
+  task-id set, ratios), which catches an added or removed task but not a task
+  moved between groups, since the union it hashes is unchanged by a move. The
+  gate also redraws the split from those recorded inputs and compares
+  memberships, which catches the move. Both run on every gate.
 - `score --group opt` refuses to read any other group.
 
 **What that combination buys.** An author who is trying to improve an artifact,
@@ -463,11 +473,11 @@ Four further refusals close holes that open once a loop runs many steps:
   Any two splits that hold out the same tasks share the budget those tasks have
   already spent, whatever ratio or seed produced them. Redrawing with a new seed
   usually does hold out different tasks, and that is a genuinely new group with
-  its own budget; the gate is counting selection pressure on a set of tasks, not
-  on a file.
+  its own budget; the gate is counting gate comparisons against a set of tasks,
+  not against a file.
 
-  A consultation is charged when the gate reaches the comparison, not when a
-  verdict comes back. A refusal decided from bookkeeping alone (an exhausted budget, a
+  A consultation is reserved before the held-out group is read and before the
+  results are checked for coverage, not when a verdict comes back. A refusal decided from bookkeeping alone (an exhausted budget, a
   stale incumbent fingerprint, a drifted split) reads nothing and costs nothing.
   Everything past that point costs one, including a results file that turns out
   not to cover the group, and including a process killed mid-comparison. Two
@@ -492,8 +502,12 @@ Four further refusals close holes that open once a loop runs many steps:
   group-aware, but `extract` is not, and the workflow above has the optimizer
   run `extract` itself. What the budget bounds is how many times an edit may be
   compared against the held-out group through the gate, which is the loop's
-  own selection pressure on that group. That is the quantity multiple-comparison
-  correction is about, and it is the one this mechanism actually holds.
+  own **gate comparisons** against that group. It is not a bound on total
+  selection pressure, and the difference matters: `extract` and `score` reach
+  results without touching the ledger, so an optimizer that inspects its own
+  files applies pressure the count never sees. Closing that needs #3452 and a
+  controller. Gate comparisons are the quantity multiple-comparison correction
+  is about, and it is the one this mechanism actually holds.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
