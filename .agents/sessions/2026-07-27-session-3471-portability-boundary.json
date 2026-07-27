@@ -123,9 +123,10 @@
       "step": "Filed issue #3471 with the reproduction table before opening the PR."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "661f2e665",
   "nextSteps": [
     "Issue #3465 tracks the unrelated gap that this validator only scans Markdown under .claude/skills, so shipped agents, rules, and instructions are not covered.",
-    "The reproduction shapes in issue #3471 are the regression surface; the new TestDotPrefixedUpstreamBoundary class covers them."
+    "The reproduction shapes in issue #3471 are the regression surface; the new TestDotPrefixedUpstreamBoundary class covers them.",
+    "endingCommit is a write-time marker recorded when this log was finalized, not a promise about the branch tip. Later commits may follow it."
   ]
 }
