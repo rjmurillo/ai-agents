@@ -12,7 +12,7 @@ metadata:
 # Security Review
 
 <!-- vendor-portability: cites `templates/agents/security.shared.md` as the canonical
-source of this content, which `.claude/rules/canonical-source-mirror.md` requires.
+source of this content, which the canonical-source-mirror rule requires.
 The path is upstream-only provenance, not a runtime dependency. Issue #3459. -->
 
 This skill carries the same security-review knowledge the `security` agent

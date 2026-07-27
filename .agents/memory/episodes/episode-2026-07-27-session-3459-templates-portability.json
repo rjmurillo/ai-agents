@@ -62,7 +62,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -73,6 +75,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -81,7 +93,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 5
   },
   "lessons": []
 }

@@ -154,10 +154,11 @@
       "actions": [
         "Copilot review flagged .agents/memory/ files bundled with skill code changes",
         "Rule (claude-agents.md): MUST NOT bundle skill code changes with memory changes in the same PR",
-        "Restored causal-graph.json to merge-base state",
-        "Removed episode file (added by this branch, not on main)"
+        "Staged removal of causal-graph.json and episode file",
+        "Pre-commit hooks (extract-session-episodes, update-causal-graph) regenerated both from this session file",
+        "Hook regeneration is by design: the session file drives both artifacts automatically"
       ],
-      "outcome": "Memory artifacts removed; portability fix unaffected; session file retained for hook compliance"
+      "outcome": "Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log"
     }
   ],
   "endingCommit": "ac9a29da8",

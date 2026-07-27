@@ -108,10 +108,10 @@ class TestCountUpstreamRefs:
         ],
     )
     def test_does_not_count_paths_that_resolve_elsewhere(self, text: str) -> None:
-        """Only a path that starts at the repo root names the upstream dir.
+        """Paths nested under another directory do not name the upstream dir.
 
-        A separator before ``templates`` means the path resolves somewhere
-        else, so it ships with whatever contains it. Windows and POSIX must
+        A non-dot separator or parent-directory prefix before ``templates`` means it resolves
+        somewhere else and ships with its container. Windows and POSIX must
         agree; an earlier regex rejected the Windows nested form and accepted
         the POSIX one.
         """

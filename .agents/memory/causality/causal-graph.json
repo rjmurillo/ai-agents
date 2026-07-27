@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T09:13:51.818044+00:00",
+  "updated": "2026-07-27T09:34:27.618870+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20914,6 +20914,15 @@
         "episode-2026-07-27-session-3459-templates-portability"
       ],
       "created": "2026-07-27T09:13:51.812423+00:00"
+    },
+    {
+      "id": "de932fb4f79c",
+      "type": "milestone",
+      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:34:27.612874+00:00"
     }
   ],
   "patterns": [
