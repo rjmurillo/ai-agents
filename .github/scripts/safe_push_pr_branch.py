@@ -30,21 +30,32 @@ _OK_FLAGS = frozenset({" ", "+", "*", "="})
 _REJECT_FLAGS = frozenset({"!"})
 
 
-def _load_object_id_validator() -> Callable[[str], bool]:
-    module_path = (
-        Path(__file__).resolve().parents[2]
-        / "scripts"
-        / "validation"
-        / "object_id.py"
-    )
+def _load_object_id_validator(
+    module_path: Path | None = None,
+) -> Callable[[str], bool]:
+    if module_path is None:
+        module_path = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "validation"
+            / "object_id.py"
+        )
     spec = importlib.util.spec_from_file_location("safe_push_object_id", module_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load object id validator from {module_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    validator = vars(module)["is_full_object_id"]
+    try:
+        validator = vars(module)["is_full_object_id"]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"object id validator {module_path} does not define is_full_object_id"
+        ) from exc
     if not callable(validator):
-        raise RuntimeError("object id validator is not callable")
+        raise RuntimeError(
+            f"object id validator {module_path} defines a non-callable "
+            "is_full_object_id"
+        )
     return cast(Callable[[str], bool], validator)
 
 

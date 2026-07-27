@@ -739,3 +739,45 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
             str(safe_push_tests),
         ],
     ]
+
+
+def test_object_id_validator_loads_from_real_module() -> None:
+    validator = safe_push_pr_branch._load_object_id_validator()
+
+    assert validator(FULL_SHA1) is True
+    assert validator("abcdef12") is False
+
+
+def test_object_id_validator_missing_symbol_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("VALUE = 1\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    message = str(excinfo.value)
+    assert "does not define is_full_object_id" in message
+    assert str(module_path) in message
+    assert excinfo.value.__cause__ is not None
+    assert isinstance(excinfo.value.__cause__, KeyError)
+
+
+def test_object_id_validator_non_callable_symbol_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("is_full_object_id = 3\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    message = str(excinfo.value)
+    assert "non-callable" in message
+    assert str(module_path) in message
+
+
+def test_object_id_validator_absent_file_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "missing_object_id.py"
+
+    with pytest.raises((RuntimeError, FileNotFoundError)) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    assert str(module_path) in str(excinfo.value)
