@@ -21,7 +21,7 @@ What holds now: count and cap are recorded at the first decision in `<split>.led
 
 ## Framing that must not be softened
 
-Twelve adversarial rounds, every one of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
+Thirteen adversarial rounds, twelve of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
 
 > A consultation-budgeted comparison over a public benchmark, relying on a cooperating optimizer not to inspect accessible task definitions or result files. It is not yet held-out validation of unseen tasks.
 
@@ -40,6 +40,8 @@ The reflex to resist: "the loop cannot edit toward a group it cannot name" is ba
 - Only `rule_results` is single-shot against an LLM judge; `agent_results` reduces over runs and `pytest_results` is deterministic. Noise arithmetic that treats all three as single-shot overstates spurious rejection (#3445).
 
 ## The rule that generalizes past this file
+
+Round 13 is the first that found nothing, and it ran against the same model family that rejected in round 9. Its load-bearing claim was re-verified independently before being accepted, because one ACCEPT after twelve REJECTs is when to distrust relief rather than bank it. Thirteen rounds is where the loop stops: the marginal round now returns ACCEPT.
 
 Twelve rounds, eleven of them the same shape: any part of a budget the caller can restate, or move by renaming something else, is not part of the budget; and any path by which the withheld thing is readable is not withholding it. The last three rounds are the useful ones to remember, because each found a defect inside the previous round's fix:
 

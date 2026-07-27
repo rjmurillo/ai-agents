@@ -21448,6 +21448,87 @@
         "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
       "created": "2026-07-27T12:28:54.153636+00:00"
+    },
+    {
+      "id": "c84e7ed0eeb4",
+      "type": "milestone",
+      "label": "milestone: Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:23:34.232554+00:00"
+    },
+    {
+      "id": "9007876af7b1",
+      "type": "commit",
+      "label": "commit: Commit: 7686d85d5",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:23:34.232695+00:00"
+    },
+    {
+      "id": "215adbcb0b09",
+      "type": "milestone",
+      "label": "milestone: Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:35:07.622472+00:00"
+    },
+    {
+      "id": "4bb9e115c196",
+      "type": "commit",
+      "label": "commit: Commit: e9f28051d",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:35:07.622558+00:00"
+    },
+    {
+      "id": "0c971adbbd46",
+      "type": "milestone",
+      "label": "milestone: Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736393+00:00"
+    },
+    {
+      "id": "a974ddb659de",
+      "type": "milestone",
+      "label": "milestone: Verified round-13 evidence claims against source",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736491+00:00"
+    },
+    {
+      "id": "0453f68fca0d",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736575+00:00"
+    },
+    {
+      "id": "705ec2515c5c",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:35:50.736662+00:00"
+    },
+    {
+      "id": "0bfd6d378543",
+      "type": "commit",
+      "label": "commit: Commit: 341682152a",
+      "episodes": [
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-27T11:58:41.229748+00:00"
     }
   ],
   "patterns": [
