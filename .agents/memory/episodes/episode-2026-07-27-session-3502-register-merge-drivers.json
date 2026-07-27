@@ -11,7 +11,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed the cause is that .gitattributes names a driver whose definition lives only in git config --local, which is never committed. 1 file changed the outcome.",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -49,6 +51,16 @@
         "e003"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: add12a90",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -56,7 +68,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []

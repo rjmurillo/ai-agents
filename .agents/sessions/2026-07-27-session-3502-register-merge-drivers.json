@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "fix(ci): register git merge drivers on runners that merge; this log staged in the same commit"
+        "evidence": "fix(ci): register git merge drivers on runners that merge (add12a90); 3 files changed"
       },
       "validationPassed": {
         "complete": true,
@@ -146,7 +146,7 @@
       "outcome": "Runner-side merges now behave identically to a dev machine, proven by a negative control and a positive case on the same commit pair. 2 files changed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "add12a90",
   "nextSteps": [
     "GitHub computes refs/pull/N/merge in its backend before any runner starts and will never run repository code, so no merge driver can make a PR report MERGEABLE. Closing that half needs option 3 (stop committing the graph) or option 4 (shard it) from issue #3345, both architectural and both requiring the user's decision.",
     "scripts/validation/get_pr_checks equivalent at .claude/skills/github/scripts/pr/get_pr_checks.py has no mergeability awareness, so it reported AllPassing true with 12 checks on PR #3442 where 123 later ran. A conflicting PR should never be able to report all-passing.",
