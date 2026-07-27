@@ -153,7 +153,7 @@ def add_causal_node(
     label: str,
     episode_id: str,
 ) -> dict[str, Any] | None:
-    """Add a node to the causal graph. Returns the node or None if duplicate.
+    """Add a node to the causal graph. Returns the node, or None if refused or duplicate.
 
     A type outside ``NODE_TYPES`` is refused rather than written. The type
     reaching here comes from ``event.get("type")`` in an episode file, which is
