@@ -232,14 +232,18 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
         )
     else:
         caveat = ""
+    effect_text = (
+        "statistically distinguishable from no effect"
+        if excludes_zero
+        else "not statistically distinguishable from no effect at the 95% level"
+    )
     return (
         "## Confidence Interval\n\n"
         f"{caveat}"
         f"Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the "
         f"signed recall delta is **[{_format_pp(ci_low)}, {_format_pp(ci_high)}]**. "
         f"The interval {'**excludes** zero' if excludes_zero else '**includes** zero'}, "
-        f"so the observed delta is "
-        f"{'statistically distinguishable from no effect' if excludes_zero else 'not statistically distinguishable from no effect at the 95% level'}.\n"
+        f"so the observed delta is {effect_text}.\n"
     )
 
 
