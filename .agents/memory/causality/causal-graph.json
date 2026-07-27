@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T09:04:44.449936+00:00",
+  "updated": "2026-07-27T09:40:56.267967+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -20585,15 +20585,6 @@
       "created": "2026-07-27T07:59:30.214364+00:00"
     },
     {
-      "id": "d6a92c529598",
-      "type": "commit",
-      "label": "commit: Commit: 1bba5b3cef0f214c83de2337cc5cbb230479caef",
-      "episodes": [
-        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
-      ],
-      "created": "2026-07-27T08:00:07.438078+00:00"
-    },
-    {
       "id": "734655ae5e70",
       "type": "milestone",
       "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
@@ -21069,6 +21060,15 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T09:04:44.443947+00:00"
+    },
+    {
+      "id": "1534598d564c",
+      "type": "commit",
+      "label": "commit: Commit: df5bb158c4dda1be25b9b2cd96f68b91c1326bb8",
+      "episodes": [
+        "episode-2026-07-27-session-3449-orphan-ref-historical-directives"
+      ],
+      "created": "2026-07-27T09:40:56.261899+00:00"
     }
   ],
   "patterns": [
