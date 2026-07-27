@@ -441,9 +441,12 @@ write to. That is named under Open Requirements rather than claimed here.
   held-out tasks to afford the power, the tail the gate already computes should
   be able to refuse. `--max-p` is read as the family bar and divided by
   `--max-consultations` (Bonferroni), because a per-comparison threshold does
-  not bound a family: five looks at 0.05 each is a family-wise 0.226. That
-  correction is conservative under any dependence between comparisons, which is
-  the right direction for a gate, and it means raising the budget buys more
+  not bound a family: five looks at 0.05 each bound the family at 5 * 0.05 =
+  0.25 without assuming anything about dependence, and at about 0.226 only if
+  the five comparisons are independent, which looks at one selection group are
+  not. Bonferroni controls the family bar under any dependence, which is why it
+  is used rather than a sharper independence-dependent correction, and it means
+  raising the budget buys more
   looks at a stricter bar rather than a cheaper one. It also costs power: at ten
   held-out tasks, clearing a corrected 0.01 needs seven one-directional
   discordant pairs. The bar refuses genuine improvements at these sizes. That is

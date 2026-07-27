@@ -885,3 +885,26 @@ produced. Asserting that a value appears in a message is not the same as
 asserting the message is legible. The test now pins the labels and the
 arithmetic, including the family-of-one edge where the two numbers are equal and
 the division has to stay visible anyway.
+
+Two later threads in the same round corrected the arithmetic that defect shape
+15 rests on, and the correction is worth keeping next to the original. Every
+statement of the problem, in the docstring, the README, the ADR, the test
+rationale, and the Serena memory, quoted `1 - 0.95**5`, about 0.226, as the
+family-wise false accept probability of five consultations at 0.05. That figure
+is exact only if the five comparisons are independent. They are not: all five
+look at the same selection group, and successive candidates are correlated
+edits of one artifact. The dependence-agnostic union bound is `5 * 0.05 = 0.25`.
+
+The conclusion does not move. Both numbers are roughly five times the 0.05 the
+operator asked for, so a per-comparison threshold still fails to bound a family
+and Bonferroni is still the right correction. What was wrong was the precision:
+the text quoted an exact value derived from an assumption the enforcement
+deliberately does not make. Bonferroni was chosen precisely because it holds
+under any dependence, so citing an independence-only figure to justify it
+argued for the mechanism on grounds the mechanism rejects.
+
+The shape generalizes past this file. A number carried into five documents by
+copying is corrected in five places or in none, and the one most likely to be
+missed is the test docstring, because nobody greps rationale prose when they
+change a claim. That is the same tier problem as defect shape 21, one level up:
+derived prose drifts from a corrected source exactly like derived artifacts do.
