@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:49:56.862028+00:00",
+  "updated": "2026-07-27T15:37:52.292113+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21915,6 +21915,69 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
       "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "659effefe94f",
+      "type": "milestone",
+      "label": "milestone: Phase 1 measured the three validators independently.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285792+00:00"
+    },
+    {
+      "id": "7147ef381008",
+      "type": "error",
+      "label": "error: Phase 1 measured the three validators independently.    consistency exited 0 over 0 features, traceability exited 1 with 3 errors, and hook_contracts exited 0 over 12 entries.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285890+00:00"
+    },
+    {
+      "id": "ecac05d70b01",
+      "type": "milestone",
+      "label": "milestone: Removed the retired consistency validator and its tests.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285973+00:00"
+    },
+    {
+      "id": "03df57002a48",
+      "type": "milestone",
+      "label": "milestone: Classified traceability failures before fixing.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286051+00:00"
+    },
+    {
+      "id": "65c8fab045c3",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve issue #3360 by deleting the retired consistency validator, wiring traceability, and documenting that hook contracts are already wired.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286130+00:00"
+    },
+    {
+      "id": "1e48b1ca3463",
+      "type": "error",
+      "label": "Phase 1 measured the three validators independently.    consistency exited 0 over 0 features, traceability exited 1 with 3 errors, and hook_contracts exited 0 over 12 entries.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286297+00:00"
+    },
+    {
+      "id": "7d3399f06cd8",
+      "type": "outcome",
+      "label": "Classified traceability failures before fixing.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286375+00:00"
     }
   ],
   "patterns": [
@@ -26311,6 +26374,20 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
       },
       "created": "2026-07-27T12:43:51.820258+00:00"
+    },
+    {
+      "source": "1e48b1ca3463",
+      "target": "7d3399f06cd8",
+      "type": "causes",
+      "weight": 0.8,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3360-validation-modules-resolution": 0.8
+      },
+      "created": "2026-07-27T15:37:52.286386+00:00"
     }
   ]
 }
