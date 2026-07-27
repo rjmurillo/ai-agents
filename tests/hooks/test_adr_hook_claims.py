@@ -323,3 +323,7 @@ class TestWhatCountsAsAProseClaim:
         context = "The `invoke_context_loader.py` hook still runs."
         assert _claims_live_registration(context)
         assert _names_running_hook("invoke_context_loader.py")
+
+    def test_a_line_range_suffix_is_stripped_and_the_reference_is_still_captured(self):
+        text = "See `invoke_serena_reassertion.py:38-41` for the guard.\n"
+        assert _prose_claims(text) == [(1, "invoke_serena_reassertion.py")]
