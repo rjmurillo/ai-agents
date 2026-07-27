@@ -716,6 +716,66 @@ class TestStagedBlobValidation:
         assert len(measured) > SKILL_BYTE_LIMIT
         assert main(["--staged-only", "--ci"]) == 1
 
+    def test_sparse_index_tree_replace_does_not_swap_measured_blob(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Finding (round-3 review, sparse-index tree replacement): a full index
+        # prints the recorded oid from ``ls-files -s`` verbatim, but a sparse
+        # index expands the sparse-directory tree entry that holds the path, and
+        # that expansion honors ``refs/replace/``. A replacement TREE mapping the
+        # skill path to a tiny decoy blob makes the oid resolution return the
+        # decoy; the cat-file (already --no-replace-objects) then reads the
+        # decoy's small bytes -> under-count (exit 0). ``ls-files`` must also run
+        # with --no-replace-objects. Reproduced on git 2.43.
+        self._init_repo(tmp_path)
+        (tmp_path / "keep").mkdir()
+        (tmp_path / "keep" / "a.txt").write_bytes(b"keep\n")
+        self._write_skill(tmp_path, b"---\nname: big\n---\n" + b"x" * (SKILL_BYTE_LIMIT + 64))
+        self._stage_all(tmp_path)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=tmp_path, check=True, capture_output=True
+        )
+        skill_rel = ".claude/skills/big/SKILL.md"
+
+        def _git(*args: str, _input: bytes | None = None) -> str:
+            return (
+                subprocess.run(
+                    ["git", *args],
+                    cwd=tmp_path,
+                    input=_input,
+                    capture_output=True,
+                    check=True,
+                )
+                .stdout.decode()
+                .strip()
+            )
+
+        big_oid = _git("rev-parse", f":{skill_rel}")
+        small_oid = _git("hash-object", "-w", "--stdin", _input=b"tiny")
+        orig_subtree = _git("rev-parse", "HEAD^{tree}:.claude/skills/big")
+        new_subtree = _git("mktree", _input=f"100644 blob {small_oid}\tSKILL.md\n".encode())
+        _git("replace", orig_subtree, new_subtree)
+        _git("sparse-checkout", "init", "--cone", "--sparse-index")
+        _git("sparse-checkout", "set", "keep")
+
+        monkeypatch.chdir(tmp_path)
+        # Setup proof: a default ls-files expands the sparse tree through the
+        # replacement, resolving the path to the decoy oid. Git builds that do
+        # not exhibit this expansion cannot stage the attack, so skip there.
+        default_listed = subprocess.run(
+            ["git", "ls-files", "-s", "-z", "--", f":(literal){skill_rel}"],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        ).stdout
+        default_oid = default_listed.split()[1].decode() if default_listed.strip() else ""
+        if default_oid != small_oid:
+            pytest.skip("git build does not resolve sparse tree entries through replace refs")
+        assert big_oid != small_oid
+        # The gate reads with --no-replace-objects on ls-files too, so it
+        # resolves the real indexed blob and measures the oversized bytes.
+        measured = read_staged_blob_bytes(Path(skill_rel))
+        assert len(measured) > SKILL_BYTE_LIMIT
     def test_replace_ref_head_does_not_hide_staged_skill_from_discovery(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
