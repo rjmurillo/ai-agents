@@ -11,6 +11,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -866,13 +867,31 @@ class TestRegistrationIsWiredAndIdempotent:
         assert "uv run" not in command
         assert command.startswith('"')
 
-    def test_the_registered_interpreter_exists_and_runs_the_driver(self, tmp_path: Path) -> None:
-        """The baked path must be a working interpreter, not just a string."""
+    def test_the_registered_interpreter_is_a_bare_name_that_runs_the_driver(
+        self, tmp_path: Path
+    ) -> None:
+        """The baked interpreter must be a PATH name, not a worktree path.
+
+        Issue #3418: linked worktrees share one ``.git/config``, so an absolute
+        venv path baked by the first worktree dangles for every other worktree
+        once that venv is relocated or deleted, and git silently falls back to
+        the text merge. A bare name resolves against PATH at merge time and
+        cannot dangle. Assert the token is a bare name (not absolute, no
+        ``.venv``), still resolves on PATH, and actually runs the driver.
+        """
         from scripts.maintenance.install_merge_drivers import _DRIVERS
 
         interpreter = _DRIVERS["causal-graph"]["driver"].split('"')[1]
 
-        assert Path(interpreter).is_file()
+        assert not Path(interpreter).is_absolute(), (
+            f"interpreter must be a bare PATH name, got absolute {interpreter!r}"
+        )
+        assert ".venv" not in interpreter, (
+            f"interpreter must not embed a worktree venv path, got {interpreter!r}"
+        )
+        assert shutil.which(interpreter) is not None, (
+            f"interpreter {interpreter!r} does not resolve on PATH"
+        )
 
         base = tmp_path / "b.json"
         ours = tmp_path / "o.json"
@@ -900,14 +919,30 @@ class TestRegistrationIsWiredAndIdempotent:
 
         assert "\\" not in _DRIVERS["causal-graph"]["driver"]
 
-    def test_an_interpreter_that_cannot_name_itself_falls_back(
+    def test_interpreter_prefers_python3_then_python_then_literal(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """sys.executable is documented as possibly empty in embedded hosts."""
+        """PATH selection order, plus the fallback when nothing resolves.
+
+        Issue #3418: ``_interpreter`` no longer reads ``sys.executable``; it
+        resolves a bare name against PATH so the baked command survives a shared
+        worktree config. Cover the prefer-python3 path, the python-only fallback,
+        and the no-interpreter-on-PATH literal.
+        """
         from scripts.maintenance import install_merge_drivers
 
-        monkeypatch.setattr(sys, "executable", "")
+        present: set[str] = {"python3", "python"}
+        monkeypatch.setattr(
+            install_merge_drivers.shutil,
+            "which",
+            lambda name: f"/usr/bin/{name}" if name in present else None,
+        )
+        assert install_merge_drivers._interpreter() == "python3"
 
+        present = {"python"}
+        assert install_merge_drivers._interpreter() == "python"
+
+        present = set()
         assert install_merge_drivers._interpreter() == "python3"
 
     def test_a_rejected_config_write_exits_two(
