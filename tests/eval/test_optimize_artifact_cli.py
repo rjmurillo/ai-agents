@@ -5385,7 +5385,9 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
     def test_buffer_add_refuses_a_patch_whose_op_is_not_a_string(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": 7, "text": "x"}])
-        code, out = _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
         assert code == EXIT_CONFIG
         assert out["type"] == "PatchShapeError"
         assert "op must be a string" in out["error"]
