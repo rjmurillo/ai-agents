@@ -223,6 +223,13 @@ MARKDOWN_SUFFIX = ".md"
 # appears.
 PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 
+# Roots whose skills tree must exist. A missing tree here is a broken checkout
+# or a moved directory, not a legitimate absence, and scanning around it would
+# reintroduce exactly the blind spot issue #3578 closed: the run reports clean
+# while a whole shipped root goes unread. `src/claude` is deliberately absent
+# from this set because it ships agents and rules and has no skills tree today.
+REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
+
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -370,6 +377,21 @@ def skills_dirs(root: Path) -> list[Path]:
     return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
 
 
+def missing_required_roots(root: Path) -> list[str]:
+    """Return the required roots whose skills tree is absent, in declared order.
+
+    Checking this separately from ``skills_dirs`` is the point: a scan that
+    silently drops a root still finds files, still compares cleanly against the
+    baseline, and still exits 0. Only an explicit expectation of which roots
+    must be present turns that into a failure.
+    """
+    return [
+        name
+        for name in PLUGIN_ROOTS
+        if name in REQUIRED_SKILLS_ROOTS and not (root / name / "skills").is_dir()
+    ]
+
+
 def scan_plugin_roots(root: Path) -> dict[str, int]:
     """Return {repo_relative_posix_path: count} across every plugin root.
 
@@ -487,9 +509,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
     scanned = skills_dirs(root)
-    if not scanned:
-        roots = ", ".join(f"{name}/skills" for name in PLUGIN_ROOTS)
-        print(f"No plugin root has a skills dir under {root}: {roots}", file=sys.stderr)
+    missing = missing_required_roots(root)
+    if missing:
+        absent = ", ".join(f"{name}/skills" for name in missing)
+        print(f"Required skills dir not found under {root}: {absent}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path == Path(""):

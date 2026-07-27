@@ -574,6 +574,71 @@ class TestPluginRootScan:
         )
         assert code == 1
 
+    @pytest.mark.parametrize("absent", sorted(cmp.REQUIRED_SKILLS_ROOTS))
+    def test_exit_2_when_a_required_root_is_missing(
+        self, tmp_path: Path, absent: str
+    ) -> None:
+        """A partial scan must fail, not narrow silently.
+
+        This is the same failure shape as issue #3578 one level up. If a
+        required root vanishes, the remaining roots still produce files, still
+        compare cleanly against the baseline, and still exit 0, so nothing
+        reports that a whole shipped tree went unread. Adversarial review
+        caught this: the first version of the multi root scan failed only when
+        every root was missing.
+
+        Parametrized over each required root so that dropping any single entry
+        from ``REQUIRED_SKILLS_ROOTS`` fails a test. A test that omitted only
+        one fixed root would let the other silently leave the set.
+        """
+        for name in sorted(cmp.REQUIRED_SKILLS_ROOTS - {absent}):
+            self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        assert cmp.missing_required_roots(tmp_path) == [absent]
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 2
+
+    def test_an_optional_root_without_skills_is_not_an_error(self, tmp_path: Path) -> None:
+        """``src/claude`` ships agents and rules and has no skills tree today."""
+        for name in cmp.REQUIRED_SKILLS_ROOTS:
+            self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        assert cmp.missing_required_roots(tmp_path) == []
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 0
+
+    def test_every_required_root_is_a_declared_root(self) -> None:
+        """A required root missing from ``PLUGIN_ROOTS`` would never be scanned."""
+        assert cmp.REQUIRED_SKILLS_ROOTS <= set(cmp.PLUGIN_ROOTS)
+
+    def test_every_root_with_a_skills_tree_is_required(self) -> None:
+        """Reality, not the constant, decides which roots are required.
+
+        Anchoring on the filesystem is the point. Mutation testing showed that
+        the parametrized case above derives its cases from
+        ``REQUIRED_SKILLS_ROOTS``, so shrinking that set shrinks the test with
+        it and the mutant survives. This assertion reads the repository
+        instead: a root that ships a skills tree today must be required, so
+        removing one from the set fails here.
+
+        It also self-maintains. The day ``src/claude`` grows a skills tree,
+        this test fails and names the root to add.
+        """
+        root = Path(__file__).resolve().parents[2]
+        have_skills = {
+            name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()
+        }
+        assert have_skills, "no plugin root has a skills tree; the scan would be empty"
+        assert have_skills <= cmp.REQUIRED_SKILLS_ROOTS, (
+            f"these roots ship skills but are not required: "
+            f"{sorted(have_skills - cmp.REQUIRED_SKILLS_ROOTS)}"
+        )
+
+    def test_this_repo_has_every_required_root(self) -> None:
+        """Pins the two sets against reality so the required list cannot rot."""
+        root = Path(__file__).resolve().parents[2]
+        assert cmp.missing_required_roots(root) == []
+
     def test_exit_2_when_no_root_has_a_skills_dir(self, tmp_path: Path) -> None:
         """An empty scan must fail loudly rather than report a clean zero."""
         assert cmp.main(["--repo-root", str(tmp_path)]) == 2
@@ -677,11 +742,22 @@ class TestDiff:
 
 
 class TestMainCli:
+    def _required_roots(self, root: Path) -> None:
+        """Create an empty skills tree in every required root.
+
+        Empty trees contribute no counts, so the tests keep their original
+        expectations while satisfying the required-root check that closes the
+        silent-narrowing hole.
+        """
+        for name in cmp.REQUIRED_SKILLS_ROOTS:
+            (root / name / "skills").mkdir(parents=True, exist_ok=True)
+
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
         assert rc == 2
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         (tmp_path / ".claude" / "skills" / "a").mkdir(parents=True)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Writes .agents/x\n", encoding="utf-8"
@@ -695,6 +771,7 @@ class TestMainCli:
         assert data["files"] == {".claude/skills/a/SKILL.md": 1}
 
     def test_drift_returns_exit_1(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text(
@@ -708,6 +785,7 @@ class TestMainCli:
         assert rc == 1
 
     def test_clean_repo_returns_zero(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
