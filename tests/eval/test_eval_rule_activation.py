@@ -317,3 +317,170 @@ class TestClampScore:
     )
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
         assert eval_mod._clamp_score(value) == expected
+
+
+class TestJudgeSampleReduction:
+    def _scenario(self) -> dict[str, object]:
+        return {
+            "id": "S1",
+            "desc": "sample scenario",
+            "input": "do the thing",
+            "expected_gate": "apply-rule",
+        }
+
+    def _rule(self) -> dict[str, str]:
+        return {"description": "desc", "body": "body"}
+
+    def test_eval_one_scenario_persists_samples_and_median_scores(self, monkeypatch):
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+        samples = [
+            {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "judge_failed": False,
+            },
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        ]
+        calls: list[int] = []
+
+        def fake_score(*args, **kwargs):
+            sample = dict(samples[len(calls) % len(samples)])
+            calls.append(1)
+            return sample
+
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=3,
+            judge_reducer="median",
+        )
+
+        full = result["mechanisms"]["full"]
+        assert full["judge_repeats"] == 3
+        assert full["score_reducer"] == "median"
+        assert len(full["score_samples"]) == 3
+        assert full["scores"]["activation_score"] == 5
+        assert full["scores"]["citation_score"] == 5
+        assert full["scores"]["behavior_score"] == 5
+
+    def test_eval_one_scenario_persists_failed_sample_without_reducing_it(self, monkeypatch):
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+        samples = [
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            RuntimeError("judge timeout"),
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        ]
+        calls: list[int] = []
+
+        def fake_score(*args, **kwargs):
+            value = samples[len(calls) % len(samples)]
+            calls.append(1)
+            if isinstance(value, RuntimeError):
+                raise value
+            return dict(value)
+
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=3,
+            judge_reducer="median",
+        )
+
+        full = result["mechanisms"]["full"]
+        assert full["score_samples"][1]["judge_failed"] is True
+        assert "judge API failure" in full["score_samples"][1]["reasoning"]
+        assert full["scores"]["judge_failed"] is True
+
+    def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
+        rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
+        if not rule_path.is_file():
+            pytest.skip("working-with-legacy-code.md not present in this checkout")
+        scenarios_data = {
+            "rule_id": "working-with-legacy-code",
+            "scenarios": [self._scenario()],
+        }
+        args = type(
+            "Args",
+            (),
+            {
+                "dry_run": True,
+                "model": "model",
+                "seed": 10,
+                "judge_repeats": 3,
+                "judge_reducer": "median",
+            },
+        )()
+
+        _rule_id, result, calls = eval_mod._process_one_rule(
+            "key", scenarios_data, rule_path, args
+        )
+
+        assert result is None
+        assert calls == len(eval_mod.MECHANISMS) * 4
+
+    def test_main_rejects_non_positive_judge_repeats(self, tmp_path, capsys):
+        scenario_file = tmp_path / "scenarios.json"
+        scenario_file.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "do the thing"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        old_argv = sys.argv
+        sys.argv = [
+            "eval-rule-activation.py",
+            "--scenarios",
+            str(scenario_file),
+            "--dry-run",
+            "--judge-repeats",
+            "0",
+        ]
+        try:
+            code = eval_mod.main()
+        finally:
+            sys.argv = old_argv
+
+        captured = capsys.readouterr()
+        assert code == 2
+        assert "--judge-repeats must be positive" in captured.err

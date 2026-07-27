@@ -294,6 +294,17 @@ def _rule_degraded_scenario_ids(
         elif not isinstance(scores, Mapping) or not scores:
             # Missing or empty scores: scoring never completed. Fail closed.
             degraded.append(task_id)
+            continue
+        samples = mech_data.get("score_samples")
+        if samples is None:
+            continue
+        if not isinstance(samples, Sequence) or isinstance(samples, (str, bytes)) or not samples:
+            degraded.append(task_id)
+            continue
+        for sample in samples:
+            if not isinstance(sample, Mapping) or sample.get("judge_failed"):
+                degraded.append(task_id)
+                break
     return degraded
 
 
@@ -334,7 +345,7 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
             if not any(task_id.startswith(f"{name}::") for task_id in degraded):
                 degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
         scored: dict[str, bool] = rule_results(
-            scenarios, args.mechanism, min_score=args.min_score
+            scenarios, args.mechanism, min_score=args.min_score, reduce=args.rule_reduce
         )
         for sid, passed in scored.items():
             out[f"{name}::{sid}"] = passed
@@ -357,7 +368,7 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
         _rule_degraded_scenario_ids(scenarios, args.mechanism)
     )
     extracted: dict[str, bool] = rule_results(
-        scenarios, args.mechanism, min_score=args.min_score
+        scenarios, args.mechanism, min_score=args.min_score, reduce=args.rule_reduce
     )
     return extracted
 
@@ -1024,6 +1035,12 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--pass-threshold", type=float, default=1.0)
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
     extract.add_argument("--min-score", type=float, default=3.5)
+    extract.add_argument(
+        "--rule-reduce",
+        default="median",
+        choices=("mean", "min", "max", "median"),
+        help="reducer for repeated rule judge samples",
+    )
     extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
     extract.set_defaults(func=cmd_extract)
 

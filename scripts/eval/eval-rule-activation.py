@@ -44,8 +44,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +70,15 @@ MECHANISMS = ("baseline", "description", "full")
 MIN_ACTIVATION_SCORE = 3.5
 MIN_DELTA_VS_BASELINE = 0.5
 DEFAULT_SEED = 0
+DEFAULT_JUDGE_REPEATS = 3
+DEFAULT_JUDGE_REDUCER = "median"
+_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
+_SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
+    "mean": statistics.fmean,
+    "min": min,
+    "max": max,
+    "median": statistics.median,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +249,29 @@ def _clamp_score(value: object) -> int:
     return max(0, min(5, n))
 
 
+def _reduce_score_samples(
+    samples: list[dict[str, Any]],
+    reducer_name: str,
+) -> dict[str, Any]:
+    reducer = _SCORE_REDUCERS[reducer_name]
+    if any(sample.get("judge_failed") for sample in samples):
+        return {
+            "activation_score": 0,
+            "citation_score": 0,
+            "behavior_score": 0,
+            "judge_failed": True,
+            "score_reducer": reducer_name,
+            "sample_count": len(samples),
+        }
+    reduced: dict[str, Any] = {
+        key: reducer([float(sample[key]) for sample in samples]) for key in _SCORE_KEYS
+    }
+    reduced["judge_failed"] = False
+    reduced["score_reducer"] = reducer_name
+    reduced["sample_count"] = len(samples)
+    return reduced
+
+
 # ---------------------------------------------------------------------------
 # Eval driver
 # ---------------------------------------------------------------------------
@@ -251,6 +285,8 @@ def eval_one_scenario(
     model: str,
     dry_run: bool,
     seed: int | None = None,
+    judge_repeats: int = DEFAULT_JUDGE_REPEATS,
+    judge_reducer: str = DEFAULT_JUDGE_REDUCER,
 ) -> dict[str, Any]:
     """Run all mechanisms on one scenario."""
     result: dict[str, Any] = {
@@ -266,6 +302,9 @@ def eval_one_scenario(
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
                 "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+                "score_samples": [],
+                "judge_repeats": judge_repeats,
+                "score_reducer": judge_reducer,
                 "system_prompt_chars": len(system),
             }
             continue
@@ -289,19 +328,30 @@ def eval_one_scenario(
             continue
 
         time.sleep(RATE_LIMIT_SLEEP_SEC)
-        try:
-            scores = score_response(api_key, scenario, response, model=model, seed=seed)
-        except RuntimeError as e:
-            result["mechanisms"][mechanism] = {
-                "error": f"judge API failure: {e}",
-                "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
-                "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
-            }
-            continue
-        time.sleep(RATE_LIMIT_SLEEP_SEC)
+        score_samples: list[dict[str, Any]] = []
+        for sample_index in range(judge_repeats):
+            judge_seed = None if seed is None else seed + sample_index + 1
+            try:
+                sample = score_response(
+                    api_key, scenario, response, model=model, seed=judge_seed
+                )
+            except RuntimeError as e:
+                sample = {
+                    "judge_failed": True,
+                    "reasoning": f"judge API failure: {e}",
+                    "sample_index": sample_index,
+                }
+            else:
+                sample["sample_index"] = sample_index
+            score_samples.append(sample)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
+        scores = _reduce_score_samples(score_samples, judge_reducer)
         mechanism_result = {
             "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
             "scores": scores,
+            "score_samples": score_samples,
+            "judge_repeats": judge_repeats,
+            "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
         fingerprint = metadata.get("system_fingerprint")
@@ -465,6 +515,18 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip API calls, print plan.",
     )
+    parser.add_argument(
+        "--judge-repeats",
+        type=int,
+        default=DEFAULT_JUDGE_REPEATS,
+        help="Number of judge samples per response.",
+    )
+    parser.add_argument(
+        "--judge-reducer",
+        default=DEFAULT_JUDGE_REDUCER,
+        choices=tuple(_SCORE_REDUCERS),
+        help="Reducer used for repeated judge samples.",
+    )
     return parser.parse_args()
 
 
@@ -585,12 +647,13 @@ def _process_one_rule(
     rule_id = scenarios_data.get("rule_id", rule_path.stem)
     rule = parse_rule(rule_path)
     scenarios = scenarios_data.get("scenarios", [])
-    n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
+    n_calls = len(scenarios) * len(MECHANISMS) * (1 + args.judge_repeats)
 
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms x 2 (call + judge) = {n_calls} calls"
+            f"{len(MECHANISMS)} mechanisms x "
+            f"{1 + args.judge_repeats} (call + judges) = {n_calls} calls"
         )
         print(f"  description present: {bool(rule['description'])}")
         print(f"  body chars: {len(rule['body'])}")
@@ -608,6 +671,8 @@ def _process_one_rule(
             args.model,
             dry_run=False,
             seed=args.seed,
+            judge_repeats=args.judge_repeats,
+            judge_reducer=args.judge_reducer,
         )
         scenario_results.append(r)
 
@@ -622,6 +687,9 @@ def _process_one_rule(
 
 def main() -> int:
     args = _parse_args()
+    if args.judge_repeats < 1:
+        print("ERROR: --judge-repeats must be positive", file=sys.stderr)
+        return 2
 
     if args.dry_run:
         api_key = ""

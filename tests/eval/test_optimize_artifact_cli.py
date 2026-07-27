@@ -314,6 +314,121 @@ class TestExtract:
         assert code == EXIT_OK
         assert out == {"S2": True}
 
+    def test_rule_extract_reduces_persisted_judge_samples(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 1,
+                                "citation_score": 1,
+                                "behavior_score": 1,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 1,
+                                    "citation_score": 1,
+                                    "behavior_score": 1,
+                                    "judge_failed": False,
+                                },
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_OK
+        assert out == {"S1": True}
+
+    def test_rule_extract_refuses_judge_failed_sample(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 5,
+                                "behavior_score": 5,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                                {"judge_failed": True, "reasoning": "timeout"},
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_refuses_missing_sample_scores(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 5,
+                                "behavior_score": 5,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "judge_failed": False,
+                                }
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "behavior_score" in out["error"]
+
     def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
         envelope = {
             "rules": {
