@@ -21,33 +21,52 @@ should list, and which ones earn a row is a judgment call, not an invariant.
 Scanned trees, all of which carry copies of the same matrices:
 
   templates/agents/       canonical shared templates
-  .claude/agents/         hand-maintained Claude Code copy (also the name source)
+  .claude/agents/         hand-maintained Claude Code copy
   .github/agents/         hand-maintained Copilot copy
   src/claude/             hand-maintained claude-agents plugin copy
   src/copilot-cli/agents/ generated Copilot plugin copy
   src/vs-code-agents/     generated VS Code copy
 
-Agent existence is resolved against ``.claude/agents/*.md``, the tree that
-``validate_install_parity.py`` treats as the self-host copy and that carries one
-file per registered agent.
+RESOLUTION IS PER TREE, NOT GLOBAL. A citation is checked against the agent
+files of the tree that carries it, never against a single repository-wide
+roster. The first version of this validator resolved every citation against
+``.claude/agents``, and that is the tree carrying the most agent files, so it
+validated the weakest claim available: "this name exists somewhere". The
+load-bearing claim is "this name exists in the install that ships this table".
+An adversarial review found the difference is not theoretical. ``quality-auditor``
+shipped to ``.claude/agents`` alone while the shared orchestrator body cited it,
+so five of six installs published a routing row for an agent they do not carry,
+and a global check reported success. ``.claude/``, ``src/claude/``, and
+``src/copilot-cli/`` are separate plugin roots that install standalone, so a
+name absent from a root is unreachable for everyone who installs that root.
+
+Agent names are derived by stripping each tree's own filename suffix, because
+the trees do not agree on one: ``orchestrator.shared.md`` in the templates,
+``orchestrator.md`` under ``.claude/agents``, ``orchestrator.agent.md`` under
+``.github/agents``. Suffix stripping is also what keeps non-agent files such as
+``copilot-instructions.md`` out of the roster.
 
 ANTI-VACUOUS GUARD: a scan that silently finds nothing is a passing scan that
-proves nothing. Three structural checks fail the run rather than report success:
+proves nothing. These structural checks fail the run rather than report success:
 no matrix found anywhere, no matrix found in the canonical ``templates/agents``
-tree, and a file whose text contains a matrix header but from which zero rows
-parse. The last catches the realistic regression, where the table format shifts
-and the row pattern quietly stops matching while the validator keeps exiting 0.
+tree, a file whose text contains a matrix header but from which zero rows parse,
+a data row inside a matrix that does not parse as an agent name, and a
+configured tree that exists but yields no agent files at all. The last three
+catch the realistic regressions, where a table format shifts or a filename
+convention changes and the patterns quietly stop matching while the validator
+keeps exiting 0. Every one of these was reachable in review: bolding the header
+and wrapping a name in backticks both hid a phantom row from the first version.
 
 The guard deliberately does not require every scanned tree to carry a matrix. A
 tree holding only agent definitions and no routing table is a valid state, so
 that rule would fire on correct repositories. Protection against a tree being
-dropped from ``MATRIX_TREES`` lives in the test suite instead, anchored on the
+dropped from ``AGENT_TREES`` lives in the test suite instead, anchored on the
 filesystem rather than on this module's own constants.
 
 EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
-  0 - Success: every cited agent name resolves
+  0 - Success: every cited agent name resolves within its own tree
   1 - Violations found, or the scan degenerated (no matrices, or a parse gap)
-  2 - Configuration error: the agent name source is missing
+  2 - Configuration error: no configured tree yields any agent file
 """
 
 from __future__ import annotations
@@ -58,47 +77,58 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Tree that defines which agent names exist. One file per registered agent.
-AGENT_NAME_SOURCE = Path(".claude/agents")
-
 # Canonical tree. Matrices originate here and propagate to the copies, so a
 # scan that finds nothing here is looking in the wrong place.
 CANONICAL_TREE = Path("templates/agents")
 
-# Trees carrying matrix copies. Relative to the repo root. An absent tree is
-# skipped, and a present tree carrying no matrix is a valid state: not every
-# agent tree publishes a routing table.
-MATRIX_TREES: tuple[Path, ...] = (
-    Path("templates/agents"),
-    Path(".claude/agents"),
-    Path(".github/agents"),
-    Path("src/claude"),
-    Path("src/copilot-cli/agents"),
-    Path("src/vs-code-agents"),
+# Trees carrying matrix copies, each paired with the filename suffix that marks
+# an agent definition in that tree. The suffix is what turns a filename into an
+# agent name, so it also decides which files are agents at all: stripping
+# ``.agent.md`` leaves ``copilot-instructions.md`` out of the roster, where a
+# bare ``.md`` rule would have admitted it.
+#
+# Relative to the repo root. An absent tree is skipped, and a present tree
+# carrying no matrix is a valid state: not every agent tree publishes a routing
+# table. A present tree yielding no agent files is not valid, and is caught by
+# the degeneracy guard.
+AGENT_TREES: tuple[tuple[Path, str], ...] = (
+    (Path("templates/agents"), ".shared.md"),
+    (Path(".claude/agents"), ".md"),
+    (Path(".github/agents"), ".agent.md"),
+    (Path("src/claude"), ".md"),
+    (Path("src/copilot-cli/agents"), ".agent.md"),
+    (Path("src/vs-code-agents"), ".agent.md"),
 )
 
 # ``| Agent | Use For | Model | Avoid When |`` and friends. The first column
-# header is the marker; downstream columns vary per matrix.
-MATRIX_HEADER = re.compile(r"^\|\s*Agent\s*\|")
+# header is the marker; downstream columns vary per matrix. Bold and backticks
+# are tolerated because a header reformat must not silently drop a whole table
+# from the scan: an adversarial review hid a phantom row behind ``| **Agent** |``
+# and the stricter pattern reported success.
+MATRIX_HEADER = re.compile(r"^\|\s*(?:\*\*)?\s*`?Agent`?\s*(?:\*\*)?\s*\|", re.IGNORECASE)
 
 # ``|-------|---------|`` alignment row directly under a header.
 TABLE_SEPARATOR = re.compile(r"^\|[\s:|-]+\|\s*$")
 
-# ``| **implementer** | ... |`` or ``| implementer | ... |``. Agent names are
-# lowercase kebab-case. Bold is optional: the orchestrator matrix bolds the
-# name, the per-category tables in ``AGENTS.md`` do not. The ``| Agent |``
-# header is what establishes that column one holds an agent name, so both
-# spellings are in scope and neither is a false positive.
-MATRIX_ROW = re.compile(r"^\|\s*(?:\*\*)?([a-z0-9][a-z0-9._-]*)(?:\*\*)?\s*\|")
+# ``| **implementer** | ... |``, ``| implementer | ... |``, or
+# ``| `implementer` | ... |``. Agent names are lowercase kebab-case. Bold and
+# backticks are optional: the orchestrator matrix bolds the name, the
+# per-category tables in ``AGENTS.md`` do not, and either could gain code
+# formatting in a reformat. The ``| Agent |`` header is what establishes that
+# column one holds an agent name, so all three spellings are in scope and none
+# is a false positive. A row inside a matrix that matches none of them is not
+# ignored; it is reported as a parse gap.
+MATRIX_ROW = re.compile(r"^\|\s*(?:\*\*)?\s*`?([a-z0-9][a-z0-9._-]*)`?\s*(?:\*\*)?\s*\|")
 
 
 @dataclass(frozen=True)
 class Citation:
-    """One agent name cited by one matrix row."""
+    """One agent name cited by one matrix row, and the tree that must carry it."""
 
     name: str
     path: Path
     line: int
+    tree: Path
 
 
 @dataclass
@@ -108,7 +138,10 @@ class ScanResult:
     citations: list[Citation] = field(default_factory=list)
     files_with_matrix: list[Path] = field(default_factory=list)
     parse_gaps: list[Path] = field(default_factory=list)
+    unparsed_rows: list[tuple[Path, int, str]] = field(default_factory=list)
     trees_scanned: list[Path] = field(default_factory=list)
+    empty_trees: list[Path] = field(default_factory=list)
+    agents_by_tree: dict[Path, set[str]] = field(default_factory=dict)
 
     def degeneracy(self) -> list[str]:
         """Return reasons the scan found too little to prove anything.
@@ -121,7 +154,7 @@ class ScanResult:
             reasons.append(
                 "no capability matrix found in any scanned tree; either "
                 "MATRIX_HEADER no longer matches the table format or "
-                "MATRIX_TREES is stale"
+                "AGENT_TREES is stale"
             )
         elif not any(
             path.is_relative_to(CANONICAL_TREE) for path in self.files_with_matrix
@@ -131,39 +164,53 @@ class ScanResult:
                 "canonical templates are where the matrices originate, so an "
                 "empty result there means the scan is looking in the wrong place"
             )
+        for tree in self.empty_trees:
+            reasons.append(
+                f"tree {tree} exists but yields no agent files; its configured "
+                "filename suffix no longer matches what the tree ships, so "
+                "every citation in it would resolve against an empty roster"
+            )
         for path in self.parse_gaps:
             reasons.append(f"matrix header present but no rows parsed: {path}")
+        for path, line, text in self.unparsed_rows:
+            reasons.append(
+                f"{path}:{line}: row inside a capability matrix does not parse "
+                f"as an agent name: {text.strip()[:72]}"
+            )
         return reasons
 
 
-def known_agents(repo_root: Path) -> set[str]:
-    """Return the set of registered agent names.
+def known_agents(tree_root: Path, suffix: str) -> set[str]:
+    """Return the agent names one tree ships, by stripping ``suffix``.
 
-    Raises:
-        FileNotFoundError: the name source tree is absent, which makes every
-            citation look broken. Fail loudly rather than report a flood of
-            false violations.
+    Files not ending in ``suffix`` are not agent definitions and are excluded.
+    Uppercase stems are directory-scoped instruction files such as ``AGENTS.md``
+    and ``CLAUDE.md``, never agents, and are excluded as well; they cannot
+    collide with a kebab-case citation in any case.
     """
-    source = repo_root / AGENT_NAME_SOURCE
-    if not source.is_dir():
-        raise FileNotFoundError(f"agent name source not found: {AGENT_NAME_SOURCE}")
-    return {
-        p.stem
-        for p in source.glob("*.md")
-        # AGENTS.md and CLAUDE.md are directory-scoped instruction files, not
-        # agent definitions, and their stems are uppercase so they cannot
-        # collide with a kebab-case citation.
-        if not p.stem.isupper()
-    }
+    names: set[str] = set()
+    for path in tree_root.glob(f"*{suffix}"):
+        name = path.name[: -len(suffix)]
+        if name and not name.isupper():
+            names.add(name)
+    return names
 
 
-def parse_matrix_rows(text: str) -> list[tuple[str, int]]:
-    """Extract ``(agent_name, line_number)`` for every matrix row in ``text``.
+def parse_matrix_rows(text: str) -> tuple[list[tuple[str, int]], list[tuple[int, str]]]:
+    """Split every matrix in ``text`` into parsed rows and unparsed rows.
 
-    Line numbers are 1-based. A matrix runs from a ``| Agent |`` header through
-    the first line that does not start with a pipe.
+    Returns ``(rows, unparsed)`` where ``rows`` holds ``(agent_name, line)`` and
+    ``unparsed`` holds ``(line, raw_text)`` for data rows that sit inside a
+    matrix but do not yield an agent name. Line numbers are 1-based. A matrix
+    runs from a ``| Agent |`` header through the first line that does not start
+    with a pipe.
+
+    Unparsed rows are returned rather than skipped. Skipping them is what let a
+    backtick-wrapped phantom name survive an earlier version of this check: the
+    file still produced other rows, so no gap was visible and the run passed.
     """
     rows: list[tuple[str, int]] = []
+    unparsed: list[tuple[int, str]] = []
     lines = text.splitlines()
     index = 0
     while index < len(lines):
@@ -177,9 +224,11 @@ def parse_matrix_rows(text: str) -> list[tuple[str, int]]:
             match = MATRIX_ROW.match(lines[cursor])
             if match:
                 rows.append((match.group(1), cursor + 1))
+            elif not TABLE_SEPARATOR.match(lines[cursor]):
+                unparsed.append((cursor + 1, lines[cursor]))
             cursor += 1
         index = cursor
-    return rows
+    return rows, unparsed
 
 
 def has_matrix_header(text: str) -> bool:
@@ -188,42 +237,62 @@ def has_matrix_header(text: str) -> bool:
 
 
 def scan(repo_root: Path) -> ScanResult:
-    """Scan every configured tree for matrix citations and structural gaps."""
+    """Scan every configured tree for matrix citations and structural gaps.
+
+    Each citation is tagged with the tree that carries it so existence can be
+    resolved against that tree's own roster rather than a repository-wide one.
+    """
     result = ScanResult()
-    for tree in MATRIX_TREES:
+    for tree, suffix in AGENT_TREES:
         directory = repo_root / tree
         if not directory.is_dir():
             continue
         result.trees_scanned.append(tree)
+        agents = known_agents(directory, suffix)
+        result.agents_by_tree[tree] = agents
+        if not agents:
+            result.empty_trees.append(tree)
         for path in sorted(directory.glob("*.md")):
             text = path.read_text(encoding="utf-8")
             if not has_matrix_header(text):
                 continue
             relative = path.relative_to(repo_root)
             result.files_with_matrix.append(relative)
-            rows = parse_matrix_rows(text)
+            rows, unparsed = parse_matrix_rows(text)
+            for line, raw in unparsed:
+                result.unparsed_rows.append((relative, line, raw))
             if not rows:
                 result.parse_gaps.append(relative)
                 continue
             for name, line in rows:
-                result.citations.append(Citation(name, relative, line))
+                result.citations.append(Citation(name, relative, line, tree))
     return result
 
 
-def violations(result: ScanResult, agents: set[str]) -> list[Citation]:
-    """Return citations naming an agent with no file, sorted for stable output."""
+def violations(result: ScanResult) -> list[Citation]:
+    """Return citations naming an agent their own tree does not ship.
+
+    Resolution is per tree. A name present in one install and absent from
+    another is a violation in the install that lacks it, because the plugin
+    roots ship standalone and a routing row cannot reach outside its own root.
+    """
     return sorted(
-        (c for c in result.citations if c.name not in agents),
+        (
+            c
+            for c in result.citations
+            if c.name not in result.agents_by_tree.get(c.tree, set())
+        ),
         key=lambda c: (c.name, str(c.path), c.line),
     )
 
 
-def report(result: ScanResult, agents: set[str], bad: list[Citation]) -> None:
+def report(result: ScanResult, bad: list[Citation]) -> None:
     """Print a human-readable summary of the scan."""
     print("=== Agent Capability Matrix Reference Validation ===")
     print()
-    print(f"Registered agents:      {len(agents)}")
     print(f"Trees scanned:          {len(result.trees_scanned)}")
+    for tree in result.trees_scanned:
+        print(f"  {str(tree) + ':':26s} {len(result.agents_by_tree.get(tree, ())):3d} agents")
     print(f"Files carrying matrix:  {len(result.files_with_matrix)}")
     print(f"Rows cited:             {len(result.citations)}")
     print(f"Distinct names cited:   {len({c.name for c in result.citations})}")
@@ -241,18 +310,24 @@ def report(result: ScanResult, agents: set[str], bad: list[Citation]) -> None:
         print()
 
     if not bad:
-        print("OK: every agent named in a capability matrix resolves to an agent file.")
+        print("OK: every agent named in a capability matrix ships in the tree that cites it.")
         return
 
-    print(f"VIOLATIONS: {len(bad)} matrix row(s) name an agent that does not exist")
+    print(f"VIOLATIONS: {len(bad)} matrix row(s) name an agent their own tree does not ship")
     print()
     for citation in bad:
-        print(f"  {citation.path}:{citation.line}: unknown agent '{citation.name}'")
+        print(
+            f"  {citation.path}:{citation.line}: '{citation.name}' is not shipped "
+            f"in {citation.tree}"
+        )
     print()
     print(
-        "A delegation naming a nonexistent agent fails silently and the work is "
-        "skipped. Either add the agent, or remove the row. If the capability "
-        "moved to a skill, say so in prose instead of leaving a routing row."
+        "A delegation naming an agent the install does not carry fails silently "
+        "and the work is skipped. Either ship the agent in every tree that cites "
+        "it, or remove the row. If the capability moved to a skill, say so in "
+        "prose instead of leaving a routing row. Remember that .claude/, "
+        "src/claude/, and src/copilot-cli/ install standalone, so a row cannot "
+        "reach an agent that lives only in a sibling root."
     )
 
 
@@ -268,15 +343,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
 
-    try:
-        agents = known_agents(repo_root)
-    except FileNotFoundError as exc:
-        print(f"CONFIG ERROR: {exc}", file=sys.stderr)
+    result = scan(repo_root)
+    if not any(result.agents_by_tree.values()):
+        print(
+            "CONFIG ERROR: no configured tree yields any agent file. Every "
+            "citation would resolve against an empty roster, so the run proves "
+            "nothing. Check AGENT_TREES and the per-tree filename suffixes.",
+            file=sys.stderr,
+        )
         return 2
 
-    result = scan(repo_root)
-    bad = violations(result, agents)
-    report(result, agents, bad)
+    bad = violations(result)
+    report(result, bad)
 
     if bad or result.degeneracy():
         return 1
