@@ -39,6 +39,7 @@ import re
 import sys
 from collections.abc import Hashable
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 import yaml
@@ -110,25 +111,36 @@ _UniqueKeySafeLoader.add_constructor(
 )
 
 
-def language_universal_forms(ext: str) -> frozenset[str]:
-    """Return the effective globs that scope a rule to every file of ``ext``.
+# VS Code's matcher special-cases these three globs as matching every file even
+# with no editor open, so a rule scoped to any of them is always-on for every
+# language. Raw ``minimatch`` would read bare ``*`` as root-only; the harness
+# does not (pinned source lines 294-310), so ``*`` belongs here. These are the
+# only forms whose universality cannot be decided by matching probe paths (bare
+# ``*`` compiles to ``^[^/]*$``, which no multi-segment path can satisfy), so
+# they are recognized directly.
+_ALL_FILES_FORMS = frozenset({"**", "**/*", "*"})
 
-    A rule joins the always-on language baseline when it loads for any file of
-    the language no matter where it lives. Membership is tested against the
-    *effective* glob (see ``_vscode_effective_glob``), so these are the folded
-    forms after the harness prepends ``**/`` to relative patterns:
 
-    - ``**`` and ``**/*`` and ``*`` are the harness all-files wildcards (every
-      file of every type).
-    - ``**/*.*`` matches every file whose basename carries a dot, which every
-      file of ``ext`` does, so it is universal for the language too (it also
-      matches other dotted types, but that only widens the match).
-    - ``**/*.<ext>`` is every file of the type at any depth. A relative
-      ``*.<ext>`` reaches this form via the ``**/`` prepend, so it is universal
-      too; a *scoped* relative glob such as ``src/*.<ext>`` prepends to
-      ``**/src/*.<ext>`` and stays out of this set.
+def _probe_paths(ext: str) -> tuple[str, ...]:
+    """Absolute sample paths of ``ext`` spanning depth, directory, and basename.
+
+    ``is_language_universal`` calls a glob universal for the language when it
+    matches *every* probe. The direction is safe for an upper-bound budget: a
+    truly universal glob matches all paths, so it can never be misjudged
+    non-universal (under-count, the dangerous direction); only a scoped glob that
+    happens to match every probe could be over-counted (the safe direction). The
+    probes therefore span the discriminating axes a scope could restrict:
+
+    - depth, including a root-level file, so a glob requiring an intermediate
+      literal directory segment (``**/src/*.py``) fails the depth-1 probe;
+    - directory names, so a glob pinned to a named tree fails;
+    - basename stems (short, dotted, punctuated), so a filename-scoped glob
+      (``**/foo*.py``) fails.
     """
-    return frozenset({"**", "**/*", "*", "**/*.*", f"**/*{ext}"})
+    stems = ("probe", "X", "a.b.c", "weird-name_123")
+    dirs = ("", "a/", "a/b/c/d/e/", "zzz/")
+    paths = [f"/{directory}{stem}{ext}" for directory in dirs for stem in stems]
+    return tuple(dict.fromkeys(paths))
 
 
 def _split_top_level_commas(raw: str) -> list[str]:
@@ -179,78 +191,93 @@ def expand_braces(pattern: str) -> list[str]:
     return expanded
 
 
-def _normalize_glob(pattern: str) -> str:
-    """Fold a glob to its minimal spelling using ``minimatch`` segment semantics.
-
-    Two rewrites, applied per path segment so the universality check depends on
-    glob meaning rather than on the exact spelling:
-
-    - A run of consecutive ``**`` segments collapses to one, because each ``**``
-      matches zero or more directories (``**/**/*.py`` == ``**/*.py``).
-    - Within any non-globstar segment, a run of ``*`` collapses to a single
-      ``*``, because ``minimatch`` treats ``**`` as ``*`` unless the whole
-      segment is ``**`` (``**/**.py`` == ``**/*.py``, a filename-segment match).
-
-    Without the second rewrite a rule could dodge the always-on budget by
-    padding its ``applyTo`` with an equivalent but unrecognized spelling such as
-    ``**/**.py``.
-    """
-    segments: list[str] = []
-    for segment in pattern.split("/"):
-        if segment == "**":
-            if segments and segments[-1] == "**":
-                continue
-            segments.append("**")
-        else:
-            segments.append(re.sub(r"\*+", "*", segment))
-    return "/".join(segments)
-
-
 def _vscode_effective_glob(pattern: str) -> str:
     """Fold an ``applyTo`` glob to the effective form the harness matches on.
 
-    Mirrors VS Code's instruction matcher, which is authoritative for the
-    ``.github/instructions`` and ``src/copilot-cli/instructions`` trees and is
-    the most permissive of the harnesses (so modeling it keeps the budget a
-    safe upper bound). Source, pinned:
+    Mirrors the one string transformation VS Code's instruction matcher applies
+    before matching: a pattern that is neither absolute (``/...``) nor already
+    ``**/``-anchored gets ``**/`` prepended, so ``*.py`` means ``**/*.py`` and
+    ``src/*.py`` becomes the scoped ``**/src/*.py``. Absolute patterns,
+    ``**/``-anchored patterns, and the all-files wildcards are returned
+    unchanged. Every other equivalence (zero-segment globstars, ``?`` wildcards,
+    absolute-root anchoring) is decided later by matching probe paths in
+    ``is_language_universal``, not by rewriting the string here, so the model
+    stays faithful to the harness rather than chasing glob spellings. Source,
+    pinned:
     https://github.com/microsoft/vscode/blob/018354116a88cb1264790f93663de42198a44594/src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts#L294-L310
-
-    Rules from that matcher:
-
-    - Bare ``**``, ``**/*``, and ``*`` are all-files wildcards: a rule scoped to
-      any of them attaches even with no file open, so ``*`` is universal (not
-      root-only as raw ``minimatch`` would have it).
-    - The harness matches against absolute file paths, so an absolute pattern is
-      anchored at the filesystem root. A leading ``/**/`` therefore spans any
-      directory prefix, the same span as the relative ``**/`` anchor, and bare
-      ``/**`` or ``/**/*`` is the all-files wildcard.
-    - Any other pattern that is neither absolute (``/...``) nor already
-      ``**/``-anchored gets ``**/`` prepended, so ``*.py`` means ``**/*.py`` and
-      loads for every ``.py`` at any depth, while ``src/*.py`` becomes
-      ``**/src/*.py`` and stays scoped.
-    - A trailing ``/**`` globstar matches zero or more trailing segments,
-      including the prefix path itself, so ``**/*.py/**`` covers the same files
-      as ``**/*.py`` and is likewise universal.
-
-    After the anchor folds the glob is passed through ``_normalize_glob`` so
-    equivalent spellings (``**/**.py`` -> ``**/*.py``) collapse to one form.
     """
     p = pattern.strip()
-    if p in ("**", "**/*", "*"):
+    if p in _ALL_FILES_FORMS:
         return p
-    if p in ("/**", "/**/*"):
-        return "**"
-    if p.startswith("/**/"):
-        p = p[1:]
     if not p.startswith("/") and not p.startswith("**/"):
         p = "**/" + p
-    normalized = _normalize_glob(p)
-    while normalized.endswith("/**"):
-        stripped = normalized[: -len("/**")]
-        if not stripped:
-            return "**"
-        normalized = _normalize_glob(stripped)
-    return normalized
+    return p
+
+
+_GLOBSTAR = object()
+
+
+def _compile_glob_regex(tokens: list[object]) -> str:
+    """Join translated glob ``tokens`` into a regex body with globstar semantics.
+
+    A ``_GLOBSTAR`` token matches zero or more whole path segments and supplies
+    its own surrounding separators, so a leading ``**/`` spans any prefix, a
+    trailing ``/**`` covers the prefix path itself, and a bare ``**`` matches
+    everything. Literal tokens are joined with ``/``.
+    """
+    last = len(tokens) - 1
+    out: list[str] = []
+    for index, token in enumerate(tokens):
+        if token is _GLOBSTAR:
+            if index == 0 and last == 0:
+                out.append(".*")
+            elif index == last:
+                out.append("(?:.*)?")
+            else:
+                out.append("(?:.*/)?")
+            continue
+        out.append(str(token))
+        if index != last:
+            following = tokens[index + 1]
+            if following is _GLOBSTAR and index + 1 == last:
+                out.append("(?:/)?")
+            elif following is not _GLOBSTAR:
+                out.append("/")
+    return "".join(out)
+
+
+@cache
+def _glob_to_regex(pattern: str) -> re.Pattern[str]:
+    """Compile a ``minimatch``-style glob to an anchored case-insensitive regex.
+
+    Path-segment semantics, matching the harness glob engine:
+
+    - ``**`` as a whole segment matches zero or more path segments;
+    - ``*`` matches zero or more non-separator characters within one segment;
+    - ``?`` matches exactly one non-separator character;
+    - every other character is literal.
+
+    Case-insensitive because VS Code matches ``applyTo`` with ``ignoreCase: true``
+    (same pinned source, line 316). ``is_language_universal`` uses this to decide
+    universality by *matching* diverse probe paths instead of enumerating glob
+    spellings, which closes bypasses such as ``**/*.p?`` and ``/*/**`` that no
+    finite spelling table can cover.
+    """
+    tokens: list[object] = []
+    for segment in pattern.split("/"):
+        if segment == "**":
+            tokens.append(_GLOBSTAR)
+            continue
+        piece: list[str] = []
+        for char in segment:
+            if char == "*":
+                piece.append("[^/]*")
+            elif char == "?":
+                piece.append("[^/]")
+            else:
+                piece.append(re.escape(char))
+        tokens.append("".join(piece))
+    return re.compile("^" + _compile_glob_regex(tokens) + "$", re.IGNORECASE)
 
 
 def _iter_applyto_globs(value: object) -> list[str]:
@@ -310,18 +337,30 @@ def parse_applyto(text: str) -> set[str]:
 def is_language_universal(patterns: set[str], ext: str) -> bool:
     """True when any pattern scopes the rule to every file of ``ext``.
 
-    Case-insensitive: VS Code matches ``applyTo`` globs with ``ignoreCase: true``
-    (same pinned source, line 316), so ``**/*.PY`` is universal for ``.py``. Both
-    the effective glob and the universal forms are case-folded before comparison.
+    Decides universality by *matching*, not by enumerating spellings: each
+    pattern is reduced to its harness-effective form (``_vscode_effective_glob``)
+    and then, unless it is an all-files wildcard, compiled to a faithful
+    ``minimatch`` regex (``_glob_to_regex``) and tested against every probe path
+    for the language (``_probe_paths``). A glob that matches all probes loads for
+    every file of the language regardless of location, so its bytes belong in the
+    always-on baseline.
 
-    The effective glob folds the harness anchor rules (``_vscode_effective_glob``)
-    so broad spellings reduce to a universal form: ``/**/*.py`` (absolute anchor),
-    ``**/*.py/**`` (trailing globstar), and ``**/*.*`` (any dotted basename) each
-    resolve to universal, closing the bypass where a broad glob would otherwise
-    contribute zero bytes to the always-on budget.
+    This containment test closes the whole class of broad forms an exact-form
+    table missed, including ``?`` wildcards (``**/*.p?``), zero-segment trailing
+    globstars (``**/*.py/**``), absolute anchors (``/**/*.py``, ``/*/**``), and
+    any-dotted-basename (``**/*.*``), while keeping scoped globs such as
+    ``**/src/*.py`` and ``/src/*.py`` out of the baseline. Matching is
+    case-insensitive to mirror the harness (``ignoreCase: true``).
     """
-    forms = {form.lower() for form in language_universal_forms(ext)}
-    return any(_vscode_effective_glob(pattern).lower() in forms for pattern in patterns)
+    probes = _probe_paths(ext)
+    for pattern in patterns:
+        effective = _vscode_effective_glob(pattern)
+        if effective in _ALL_FILES_FORMS:
+            return True
+        regex = _glob_to_regex(effective)
+        if all(regex.match(path) for path in probes):
+            return True
+    return False
 
 
 @dataclass(frozen=True)

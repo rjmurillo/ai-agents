@@ -194,13 +194,11 @@ def test_is_language_universal_normalizes_equivalent_globs() -> None:
     # cased alongside '**' and '**/*'), so a rule scoped '*' loads always-on.
     # Source: computeAutomaticInstructions.ts#L294-L310 (pinned in the module).
     assert ib.is_language_universal({"*"}, ".py") is True
-    assert ib._normalize_glob("**/**/*.py") == "**/*.py"
-    assert ib._normalize_glob("**/**.py") == "**/*.py"
-    assert ib._normalize_glob("**/**") == "**"
-    assert ib._normalize_glob("**.py") == "*.py"
-    # The '**/' prepend is what promotes a relative language glob to universal.
+    # The '**/' prepend is what promotes a relative language glob to universal;
+    # every other equivalence is decided by matching, not string rewriting, so
+    # the effective glob keeps its shape and '**.py' stays '**/**.py'.
     assert ib._vscode_effective_glob("*.py") == "**/*.py"
-    assert ib._vscode_effective_glob("**.py") == "**/*.py"
+    assert ib._vscode_effective_glob("**.py") == "**/**.py"
     assert ib._vscode_effective_glob("src/*.py") == "**/src/*.py"
     assert ib._vscode_effective_glob("*") == "*"
 
@@ -220,29 +218,61 @@ def test_is_language_universal_is_case_insensitive() -> None:
 
 def test_is_language_universal_matches_broad_vscode_forms() -> None:
     # VS Code's matcher makes several broader globs universal that an exact-form
-    # membership test would miss. Each of these loads for every .py file:
+    # membership test would miss. Universality is decided by matching probe
+    # paths, so the whole class is covered, not a hand-listed subset. Each of
+    # these loads for every .py file:
     #  - '**/*.*' matches any dotted basename (every .py has one).
     #  - '/**/*.py' is absolute; file paths are absolute, so it spans any dir.
     #  - '**/*.py/**' has a trailing globstar that matches zero segments,
     #    covering the .py file itself.
+    #  - '**/*.p?' uses a single-char wildcard that still matches every .py.
+    #  - '**/*.p*' matches any '.p'-prefixed extension, including '.py'.
+    #  - '/*/**' is an absolute one-segment-plus-globstar all-files form.
     assert ib.is_language_universal({"**/*.*"}, ".py") is True
     assert ib.is_language_universal({"*.*"}, ".py") is True
     assert ib.is_language_universal({"/**/*.py"}, ".py") is True
     assert ib.is_language_universal({"**/*.py/**"}, ".py") is True
-    # Absolute all-files and prefix wildcards fold to the all-files form.
+    assert ib.is_language_universal({"**/*.p?"}, ".py") is True
+    assert ib.is_language_universal({"**/*.p*"}, ".py") is True
+    assert ib.is_language_universal({"/*/**"}, ".py") is True
+    # Absolute all-files and prefix wildcards are universal too.
     assert ib.is_language_universal({"/**"}, ".py") is True
     assert ib.is_language_universal({"/**/*"}, ".py") is True
-    # The folds must not promote a scoped glob: a bounded prefix stays scoped
-    # whether the breadth comes from a trailing globstar or an absolute anchor.
+    # Matching must not promote a scoped glob: a bounded prefix stays scoped
+    # whether the breadth comes from a trailing globstar or an absolute anchor,
+    # and a single-char wildcard that cannot reach '.py' stays out (a '.pyx'
+    # rule is not universal for '.py').
     assert ib.is_language_universal({"src/**/*.py/**"}, ".py") is False
     assert ib.is_language_universal({"/src/**/*.py"}, ".py") is False
     assert ib.is_language_universal({"/src/*.py"}, ".py") is False
-    # Effective-glob folds, spelled out.
-    assert ib._vscode_effective_glob("/**/*.py") == "**/*.py"
-    assert ib._vscode_effective_glob("**/*.py/**") == "**/*.py"
-    assert ib._vscode_effective_glob("/**") == "**"
-    assert ib._vscode_effective_glob("/**/*") == "**"
+    assert ib.is_language_universal({"**/*.py?"}, ".py") is False
+    assert ib.is_language_universal({"**/*.pyx"}, ".py") is False
+    # Effective glob is prepend-only now; the breadth is resolved by matching.
+    assert ib._vscode_effective_glob("/**/*.py") == "/**/*.py"
+    assert ib._vscode_effective_glob("**/*.py/**") == "**/*.py/**"
+    assert ib._vscode_effective_glob("/**") == "/**"
+    assert ib._vscode_effective_glob("/**/*") == "/**/*"
     assert ib._vscode_effective_glob("**/*.*") == "**/*.*"
+
+
+def test_glob_to_regex_segment_semantics() -> None:
+    # The matcher is the load-bearing primitive: '**' spans zero+ segments, '*'
+    # stays within a segment, '?' is exactly one non-separator char.
+    globstar = ib._glob_to_regex("**/*.py")
+    assert globstar.match("/probe.py")  # zero intermediate segments
+    assert globstar.match("/a/b/c/probe.py")  # many segments
+    star = ib._glob_to_regex("/src/*.py")
+    assert star.match("/src/probe.py")
+    assert not star.match("/src/sub/probe.py")  # '*' does not cross '/'
+    assert not star.match("/probe.py")  # literal 'src/' segment required
+    question = ib._glob_to_regex("/x?.py")
+    assert question.match("/xy.py")  # exactly one char
+    assert not question.match("/x.py")  # zero chars fails
+    assert not question.match("/xyz.py")  # two chars fails
+    # Trailing '/**' covers the prefix path itself (zero trailing segments).
+    trailing = ib._glob_to_regex("/a/**")
+    assert trailing.match("/a")
+    assert trailing.match("/a/b/c")
 
 
 # --------------------------------------------------------------------------
