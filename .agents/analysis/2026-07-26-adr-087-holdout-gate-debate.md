@@ -34,15 +34,16 @@ the first draft made.
 | 9 | gemini-3.1-pro-preview | REJECT |
 | 10 | gpt-5.6-terra | REJECT |
 | 11 | gpt-5.6-luna | REJECT |
+| 12 | gpt-5.6-sol | REJECT |
 
 No round returned ACCEPT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
-The ADR is recorded with its defeats visible because eleven consecutive
+The ADR is recorded with its defeats visible because twelve consecutive
 falsifications are evidence about the claim, not noise to be smoothed over.
 
-Rounds 8 through 11 are the cleanest illustration in this log of why the
+Rounds 8 through 12 are the cleanest illustration in this log of why the
 count kept climbing. Each found its defect inside the previous round's fix.
-Rounds 10 and 11 were both given explicit permission to return ACCEPT and
+Rounds 10, 11, and 12 were all given explicit permission to return ACCEPT and
 told that a false finding costs more here than a missed one, so the streak is
 not an artifact of the prompt asking for a defect. Round 11 is also the first
 round whose report was partly declined, which is the other half of taking
@@ -79,7 +80,7 @@ characterization now leads both the ADR and the README.
 
 ## The recurring defect
 
-Ten of the eleven rounds found the same shape. Any part of a budget the caller
+Eleven of the twelve rounds found the same shape. Any part of a budget the caller
 can restate, or move by renaming something else, is not part of the budget.
 The same holds for what the budget is meant to withhold: any path by which the
 withheld thing is readable is not withholding it.
@@ -114,6 +115,10 @@ withheld thing is readable is not withholding it.
     above it, and that call resolves the home directory, which can fail
     outright. Fixing a boundary by moving one line inward leaves whatever was
     above that line as the new boundary.
+11. The guard in front of the redaction. `_scrub` learned to fold case and the
+    `if holdout_key in text` deciding whether to call it did not, so the input
+    the fix was written for skipped the fix. The one-definition rule has to
+    cover the predicate, not just the replacement.
 
 ## Round 7 blocking findings
 
@@ -257,6 +262,33 @@ two signatures to defend an unreachable case is plumbing this codebase
 declines on purpose. Recorded rather than silently dropped, so that anyone who
 later adds environment mutation knows this was weighed.
 
+## Round 12: the previous round's fix, applied to half the pair
+
+Round 12 got the same explicit permission to return ACCEPT and returned one
+finding, reproduced through the real `gate` entry point with only the stdlib
+`Path.mkdir` patched to deny.
+
+Round 11 taught `_scrub` to fold case because a hex digest has an uppercase
+spelling that `$EVAL_LEDGER_DIR` can carry. The line deciding whether to call
+it still read `if holdout_key in text`, which does not fold case. So the exact
+input round 11 was written for failed the guard, skipped the corrected scrub,
+and printed whole. Severity is the stated property rather than
+confidentiality, on the standing rule: reaching it requires the caller to have
+put the digest in the environment variable, so the reader already knows it.
+
+The fix deletes the second predicate instead of teaching it to fold. `_scrub`
+returning a different string answers both "is it here" and "what does it look
+like without it", so there is nothing left to keep in step. The one-definition
+rule that came out of rounds 9 and 10 had been applied to the replacement and
+not to the test in front of it.
+
+The tests are the other half of the finding and the more useful half. Round 11
+added four tests for case folding and every one called `_scrub` directly. They
+passed while the CLI printed the digest, because they asserted that the
+function had changed rather than that the property held. A test that exercises
+the unit you edited will confirm your edit. Only a test through the seam can
+contradict it.
+
 ## Corrections applied without dispute
 
 - The path root comes from `$EVAL_LEDGER_DIR`, `$XDG_STATE_HOME`, or home,
@@ -279,5 +311,5 @@ later adds environment mutation knows this was weighed.
 - \#3453: bound what each consultation discloses. There is no fixed
   multiplier to document, so the statable property is the output alphabet.
 - \#3437: widen the seam from `{task_id: bool}` to `{task_id: float}`. Every
-  reviewer across all eleven rounds argued for it. Left to the user, since it
+  reviewer across all twelve rounds argued for it. Left to the user, since it
   is a redesign rather than a tweak.

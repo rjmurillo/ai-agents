@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T08:55:41.817982+00:00",
+  "updated": "2026-07-27T09:04:44.449936+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21166,6 +21166,24 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T08:55:41.812138+00:00"
+    },
+    {
+      "id": "892d53c9c0dc",
+      "type": "milestone",
+      "label": "milestone: Ran a twelfth adversarial round (gpt-5.6-sol) and fixed the single finding, which was the round-eleven fix applied to half the pair",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:04:44.443858+00:00"
+    },
+    {
+      "id": "015ce33e50b9",
+      "type": "commit",
+      "label": "commit: Commit: ff16b4dc8",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:04:44.443947+00:00"
     }
   ],
   "patterns": [

@@ -239,9 +239,20 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".serena/memories/eval/eval-held-out-gated-optimization.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T11:20:00Z",
+      "action": "Ran a twelfth adversarial round (gpt-5.6-sol) and fixed the single finding, which was the round-eleven fix applied to half the pair",
+      "outcome": "Round 11 taught _scrub to fold case; the line deciding whether to call it kept reading `if holdout_key in text`, which does not, so an uppercase digest failed the guard and skipped the corrected scrub. Reproduced through the real gate entry point with only stdlib Path.mkdir patched. Fixed by deleting the second predicate: _scrub returning a different string answers both questions. The more useful half of the finding is the tests: round 11's four case-folding tests all called _scrub directly, so they passed while the CLI printed the digest. The eight new tests go through the seam and through main. 466 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean, and the reviewer's own repro now redacts.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
     }
   ],
-  "endingCommit": "c66939a96",
+  "endingCommit": "ff16b4dc8",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",

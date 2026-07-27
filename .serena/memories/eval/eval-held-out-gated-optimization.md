@@ -21,7 +21,7 @@ What holds now: count and cap are recorded at the first decision in `<split>.led
 
 ## Framing that must not be softened
 
-Eleven adversarial rounds, every one of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
+Twelve adversarial rounds, every one of which falsified something, converged on this sentence. Use it verbatim; it is the most expensive result of the session.
 
 > A consultation-budgeted comparison over a public benchmark, relying on a cooperating optimizer not to inspect accessible task definitions or result files. It is not yet held-out validation of unseen tasks.
 
@@ -41,15 +41,16 @@ The reflex to resist: "the loop cannot edit toward a group it cannot name" is ba
 
 ## The rule that generalizes past this file
 
-Eleven rounds, ten of them the same shape: any part of a budget the caller can restate, or move by renaming something else, is not part of the budget; and any path by which the withheld thing is readable is not withholding it. The last three rounds are the useful ones to remember, because each found a defect inside the previous round's fix:
+Twelve rounds, eleven of them the same shape: any part of a budget the caller can restate, or move by renaming something else, is not part of the budget; and any path by which the withheld thing is readable is not withholding it. The last three rounds are the useful ones to remember, because each found a defect inside the previous round's fix:
 
 - Round 8: a pathless `OSError` fell past a redaction branch that was also the branch converting it to a type `main` catches, so it escaped as a traceback.
 - Round 9: a redacted message chained the unredacted original with `raise ... from exc`, and `__cause__` is exactly where a printed traceback goes. Separately, cleanup in a `finally` ran after the decision was on stdout, so a failure there printed a second JSON document and overwrote a successful exit code.
 - Round 10: the first line of the lock helper, `lock.parent.mkdir(...)`, sat one line above the scrub covering everything below it. A seam is only a seam from its first line.
+- Round 12: `_scrub` learned to fold case in round 11 and the `if holdout_key in text` deciding whether to call it did not, so the exact input the fix was written for skipped the fix. One definition has to cover the predicate, not just the replacement.
 - Round 11: moving that `mkdir` inward left `_ledger_root()` as the new first line, and it resolves the home directory, which raises `RuntimeError` when `$HOME` is unset and the uid has no passwd entry. That is an ordinary container running as a numeric user, and it fires on the default configuration. Fixing a boundary by moving one line inward leaves whatever was above that line as the new boundary.
 
 Round 11 is also the first round partly declined: its double-resolution finding reproduced only by mutating `$EVAL_LEDGER_DIR` mid-process, and no in-process environment mutation exists in any of the three modules. Accepting every reported finding is not reviewing either; the decline and its reason are in the debate log so nobody re-litigates it.
 
-Three operational lessons worth more than the defect list. First, a workaround that stops a symptom appearing in tests is not a finding closed: the round-9 double-document bug had already been seen while writing round-7 tests and recorded as a test-harness quirk. Second, hand-written redaction sites are where rounds 9 and 10 both found defects, which is why redaction now has one definition, `_scrub`, rather than a `.replace` per site. Third, when a review is asked to find a defect, give it explicit permission to return ACCEPT and tell it a false finding costs more than a missed one; rounds 10 and 11 both got that instruction and both still returned real findings, which is what makes the streak evidence rather than an artifact of the prompt.
+Four operational lessons worth more than the defect list. First, a workaround that stops a symptom appearing in tests is not a finding closed: the round-9 double-document bug had already been seen while writing round-7 tests and recorded as a test-harness quirk. Second, hand-written redaction sites are where rounds 9 and 10 both found defects, which is why redaction now has one definition, `_scrub`, rather than a `.replace` per site. Third, when a review is asked to find a defect, give it explicit permission to return ACCEPT and tell it a false finding costs more than a missed one; rounds 10, 11, and 12 all got that instruction and all still returned real findings, which is what makes the streak evidence rather than an artifact of the prompt. Fourth, and this is the one that generalizes furthest: test the property through the seam, not the unit you edited. Round 11 added four passing tests for case folding and every one called `_scrub` directly, so they confirmed the edit while the CLI still printed the digest. A test aimed at the function you just changed will agree with you. Only a test aimed at the property can disagree.
 
 Evidence: issue #3422, PR #3430, PR #3458, branch `fix/eval-holdout-gate-digest-leak`, ADR-087, debate log `.agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md`, session log `.agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.
