@@ -749,17 +749,23 @@ def _warn(message: str) -> None:
     front of them and each left the next one open, so they are named here
     together rather than discovered in sequence a fourth time.
 
-    Only the stream check sits outside the guard, and it is read totally so
-    that the sentence stays true: `sys.stderr` is an attribute lookup, and a
-    harness that deletes it rather than blanking it turns the read itself into
-    the abort. `getattr` routes that case into the `None` branch already here
-    instead of adding a second one. Everything else is inside the guard,
-    including the redaction. Writing the opposite down is what exposed it:
-    a redaction that raises would leave the message unprinted either way, so
-    suppressing costs a diagnostic and excluding it costs the caller the abort
-    that rounds twenty through twenty-two were all spent removing. Nothing
-    reaches `print` unredacted, because a raise from `_scrub` skips the print
-    with the message still bound to its unscrubbed value.
+    Two reads sit outside the guard and both are total. `sys.stderr` is an
+    attribute lookup, and a harness that deletes it rather than blanking it
+    turns the read itself into the abort, so `getattr` routes that case into
+    the `None` branch already here instead of adding a second one. The key
+    read is total for a reason recorded fifty lines up rather than here, which
+    is why it is named: `_ACTIVE_HOLDOUT_KEY` is declared with `default=None`,
+    and a `ContextVar` without a default raises `LookupError` from `get()`
+    outside a set scope. Dropping that argument would put the abort back, and
+    a twenty-fifth review measured the cost of writing that down as thirteen
+    red tests, so the invariant is pinned as well as stated. Everything that
+    can do work is inside the guard, including the redaction. Writing the
+    opposite down is what exposed it: a redaction that raises would leave the
+    message unprinted either way, so suppressing costs a diagnostic and
+    excluding it costs the caller the abort that rounds twenty through
+    twenty-two were all spent removing. Nothing reaches `print` unredacted,
+    because a raise from `_scrub` skips the print with the message still bound
+    to its unscrubbed value.
 
     It must not leak. `_digest_scrubbed` is a seam over raised exceptions, and
     its own reasoning is that a wrapper covers the paths someone remembered

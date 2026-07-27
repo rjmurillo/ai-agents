@@ -21,7 +21,7 @@ import os
 import stat
 import sys
 import traceback
-from contextvars import copy_context
+from contextvars import ContextVar, copy_context
 from pathlib import Path
 
 import pytest
@@ -4735,7 +4735,7 @@ class TestADiagnosticNeitherLeaksNorFails:
     ):
         """Edge: `sys.stderr` can be missing, not only `None` or broken.
 
-        The docstring claims only the stream check sits outside the guard. The
+        The docstring claimed only the stream check sat outside the guard. The
         stream read sat outside it too, and `sys.stderr` is an attribute lookup
         that raises `AttributeError` when an embedding harness deletes it. That
         raise is the abort rounds twenty through twenty-three were each spent
@@ -4747,6 +4747,21 @@ class TestADiagnosticNeitherLeaksNorFails:
         self._fsync_refuses(monkeypatch)
         oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
         assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
+
+    def test_the_key_read_outside_the_guard_cannot_raise(self):
+        """The second unguarded read is total only because of a constructor arg.
+
+        `_warn` reads the scrub key before entering the guard, so `get()` must
+        not raise. It cannot, because the `ContextVar` carries `default=None`,
+        and a `ContextVar` without one raises `LookupError` outside a set
+        scope. That argument sits fifty lines from the read that depends on it,
+        which is the distance that lets an edit look harmless. Dropping it
+        turns thirteen diagnostic tests red without any of them naming the
+        cause, so the invariant is asserted here where the name is the reason.
+        """
+        assert oa._ACTIVE_HOLDOUT_KEY.get() is None
+        with pytest.raises(LookupError):
+            ContextVar("_probe_without_default").get()
 
     @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
     def test_a_warning_never_lands_on_the_stream_carrying_the_verdict(
