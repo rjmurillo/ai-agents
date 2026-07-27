@@ -156,10 +156,11 @@
       "outcome": "Replaced the false count-scan sentence in seven notes with the #2853 retirement, dated all ten notes, added the missing REQ-005 banner, and corrected six further claims in this log. Two of the three blockers were defects this fix introduced, not pre-existing ones, which is the argument for reviewing the remediation and not just the original change"
     }
   ],
-  "endingCommit": "cdb72ba7680721fe814dd317adde7ab43fe6efd1",
+  "endingCommit": "7b1bbb2381972aa6562c5bb242cf0ebaf0c215d1",
   "nextSteps": [
     "Re-scope REQ-003 and REQ-015 if either is resumed: both specify work against a script that no longer exists (issue #3449)",
     "Extend UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py with templates/agents/ and templates/platforms/ only",
-    "The episode extractor counts commits by regexing the session log for SHA-shaped tokens, so a multi-SHA line counts as one; the metric under-reports"
+    "The episode extractor counts commits by regexing the session log for SHA-shaped tokens, so a multi-SHA line counts as one; the metric under-reports",
+    "endingCommit records the last content commit on this branch. The commit that writes the field necessarily follows it, and the PR squash-merges, so neither SHA reaches main"
   ]
 }
