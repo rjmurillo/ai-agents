@@ -264,6 +264,25 @@ new file mode 100644
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
+    def test_no_base_range_spec_fails_open(self, tmp_path, monkeypatch):
+        """When resolve_push_update cannot compute a base, range_spec has no '..'."""
+        head = "a" * 40
+        remote = "0" * 40  # zero SHA = new branch
+        monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
+        monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: None)
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[:4] == ["ls-tree", "-r", "-z", "--name-only"]:
+                return _completed("pkg/module.py\0")
+            if args[:4] == ["diff", "--unified=0", "--no-color", head]:
+                raise AssertionError("should not reach diff with bare SHA")
+            return _completed("")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        stdin = io.StringIO(f"refs/heads/new-branch {head} refs/heads/new-branch {remote}\n")
+        # Fails open: no violations reported because diff is unreliable
+        assert policy.check_pushed_suppressions(stdin, tmp_path) == 0
+
 
 class TestAdrReviewPolicyMergeScope:
     def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
@@ -280,30 +299,35 @@ class TestAdrReviewPolicyMergeScope:
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
     def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
+        adr_path = ".agents/architecture/ADR-120-reviewed-on-main.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
-
-        result = policy.check_adr_review_policy(
-            [".agents/architecture/ADR-120-reviewed-on-main.md"],
-            tmp_path,
+        monkeypatch.setattr(
+            policy, "_paths_on_merge_head", lambda paths, root: {adr_path}
         )
+
+        result = policy.check_adr_review_policy([adr_path], tmp_path)
 
         assert result == 0
 
-    def test_merge_in_progress_with_branch_authored_adr_is_allowed_by_merge_exemption(
+    def test_merge_in_progress_with_branch_authored_adr_is_still_gated(
         self,
         tmp_path,
         monkeypatch,
+        capsys,
     ):
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_paths_on_merge_head", lambda paths, root: set())
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
 
         result = policy.check_adr_review_policy(
             [".agents/architecture/ADR-999-branch-authored-during-merge.md"],
             tmp_path,
         )
 
-        assert result == 0
+        assert result == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
 
 if __name__ == "__main__":

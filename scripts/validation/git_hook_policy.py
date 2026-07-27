@@ -742,7 +742,10 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     if not gated_paths:
         return 0
     if _merge_in_progress(repo_root):
-        return 0
+        from_main = _paths_on_merge_head(gated_paths, repo_root)
+        gated_paths = [p for p in gated_paths if p not in from_main]
+        if not gated_paths:
+            return 0
 
     session_log = _today_session_log(repo_root / ".agents" / "sessions")
     if session_log is None or not _session_has_adr_review(session_log):
@@ -960,6 +963,26 @@ def _merge_in_progress(repo_root: Path) -> bool:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     return merge_head.is_file()
+
+
+def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
+    """Return the subset of *paths* that exist on MERGE_HEAD.
+
+    Used by ``check_adr_review_policy`` to exempt only the ADR paths that
+    came from the merge parent (main) while still gating branch-authored
+    ADR content.  Returns the empty set on any git error (fail open to the
+    caller's gating logic).
+    """
+    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return set()
+    merge_head = result.stdout.strip()
+    present: set[str] = set()
+    for path in paths:
+        check = _run_git(repo_root, ["cat-file", "-e", f"{merge_head}:{path}"])
+        if check.returncode == 0:
+            present.add(path)
+    return present
 
 
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
@@ -1771,6 +1794,11 @@ def _added_suppression_violations(
 ) -> list[str] | None:
     scan_paths = [path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES]
     if not scan_paths:
+        return []
+    if ".." not in update.range_spec:
+        # No base available; `git diff <sha>` would compare against the
+        # working tree, not against a parent commit.  Fail open: the SHA
+        # gate at push time remains the hard safety boundary.
         return []
     result = _run_git(
         repo_root,
