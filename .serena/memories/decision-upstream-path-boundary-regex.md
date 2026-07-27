@@ -129,19 +129,30 @@ tight blockquote `>/templates/agents/x.md` stopped counting while the spaced for
 counting. That is a regression the old lookbehind did not have, and it is exactly the
 "missed reference a test can name" that the lesson above predicted. `>` was added.
 
-The same round proposed adding `:` and `=` alongside it. Both were measured and both were
-rejected, which is the more useful result.
+The same round also proposed adding `:` and `=` alongside it. Adding them as raw
+characters to the anchor set was measured and rejected, because each raw character
+trades one false negative for one false positive:
 
 | candidate | fixes | breaks |
 |---|---|---|
-| `:` | `[x]:/templates/agents/x.md`, `path:/templates/agents/x.md` | `C:\templates\agents\x.md`, `C:\.agents\specs\x.md` |
-| `=` | `<img src=/templates/agents/x.md>` | `[x](https://example.com/p?next=/.agents/x)` |
+| raw `:` | `[x]:/templates/agents/x.md`, `path:/templates/agents/x.md` | `C:\templates\agents\x.md`, `C:\.agents\specs\x.md` |
+| raw `=` | `<img src=/templates/agents/x.md>` | `[x](https://example.com/p?next=/.agents/x)` |
 
 A Windows drive letter is a colon followed by a single separator. A URL query parameter is
-an equals sign followed by a root-relative path. Both are the exact shape the anchor
-accepts, so each candidate trades one false negative for one false positive. Net zero.
-`TestPathStartAnchor.test_shapes_that_colon_or_equals_anchors_would_break` pins the
-casualties so a future contributor who adds either character sees the failure.
+an equals sign followed by a root-relative path. Both are the exact shape a raw anchor
+accepts, so each raw candidate trades one false negative for one false positive.
+
+A fourth review round (gpt-5.6-sol) then showed the trade is not forced. The three missed
+shapes are not "a path after a colon or equals"; they are three named contexts, so naming
+the context reaches all three while admitting none of the casualties. The final design adds
+two contextual anchors rather than the raw characters. `_LABEL_ANCHOR` requires the label
+itself (`path` or a bracketed label) to sit at an anchor, which excludes a drive letter and
+a colon embedded in a URL; `_ATTR_ANCHOR` requires an enclosing tag and a real attribute
+name, which excludes a bare query parameter. A nine-shape matrix confirmed it: the three
+that should count all count, the six that should not all stay out. Only the tight form needs
+these anchors, because whitespace after the colon (`[x]: /templates`) already anchors on the
+space. `TestPathStartAnchor.test_shapes_that_raw_colon_or_equals_anchors_would_break` pins
+the casualties so a future contributor who reverts to the raw characters sees the failure.
 
 The blockquoted-fence handling had a second defect. A fenced code block has no lazy
 continuation, so it ends when its blockquote ends, but the close test stripped the
@@ -155,6 +166,9 @@ should.
 ### Transferable lesson from the follow-up
 
 When a reviewer proposes widening a boundary, measure what the widening costs before
-accepting it. Two of the three proposed characters were net-negative, and the only way to
-know was to run the candidate set against the shapes the boundary already rejects. A
-suggestion that fixes a named case is not evidence it fixes more than it breaks.
+accepting it, and measure the shape of the widening too. Adding `:` and `=` as raw
+characters was net-negative, but that did not force the shapes to stay uncounted: a
+contextual anchor that names where the colon or equals may sit reached all three while
+admitting none of the casualties. Run the candidate set against the shapes the boundary
+already rejects, and when a raw widening is net-negative, look for a narrower context
+before concluding the case cannot be covered.

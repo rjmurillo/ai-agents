@@ -89,7 +89,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 106 passed; the 4 new behavioral tests fail against origin/main's module, which is the regression proof; check_skill_md_portability.py reported no drift and exited 0; ruff check passed on both changed files."
+        "evidence": "uv run pytest tests/validation/test_check_skill_md_portability.py -q returned 112 passed; 9 of those 112 fail against origin/main's module, which is the regression proof; check_skill_md_portability.py reported no drift and exited 0; ruff check passed on both changed files."
       },
       "tasksUpdated": {
         "complete": true,
