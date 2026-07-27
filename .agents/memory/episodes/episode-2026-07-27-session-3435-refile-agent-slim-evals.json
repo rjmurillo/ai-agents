@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
       "caused_by": [
-        "e012"
+        "e023"
       ],
       "leads_to": [
         "e002"
@@ -145,7 +145,7 @@
         "e011"
       ],
       "leads_to": [
-        "e001"
+        "e015"
       ]
     },
     {
@@ -156,7 +156,127 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branch is current with origin/main and remains within the requested scope.",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 31b993c42",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 89409bd60",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1bb576b9e",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fa7669ffe",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cb53ef0d7",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 069318da9",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8d9712744",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b791f3391",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c2234c9fe",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -164,7 +284,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 16,
     "files_changed": 33
   },
   "lessons": []
