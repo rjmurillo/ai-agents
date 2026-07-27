@@ -16,6 +16,15 @@ updated: 2026-05-05
 
 # REQ-005: Bundle Dedicated Skills into Lifecycle Commands
 
+> [!IMPORTANT]
+> **Retired dependency, annotated 2026-07-27.** `scripts/validation/bundle_registry.py` and <!-- orphan-ref-ignore -->
+> `tests/test_command_bundles.py` were removed in #3432 (commit `9b121ec6e8`) when the <!-- orphan-ref-ignore -->
+> command-bundle coverage check was deleted as dead code. AC-14 below requires
+> `scripts/validation/pre_pr.py` to perform bundle coverage; it no longer does. Text
+> below that creates, imports, or depends on either file is no longer actionable. It
+> is kept as a record of the plan as written, matching the notes on DESIGN-005 and
+> TASK-005.
+
 ## Context
 
 Lifecycle commands at `.claude/commands/{spec,plan,build,test,review,ship,pr-review}.md` miss seven dedicated skills and re-prompt agents inline for two more. The gaps are:

@@ -293,17 +293,35 @@ def get_staged_skill_files() -> list[Path]:
 def _staged_index_entry(path: Path) -> tuple[str, str]:
     """Return the ``(mode, object_id)`` of the stage-0 index entry for ``path``.
 
-    Parses ``git ls-files -s -z`` records (``<mode> <oid> <stage>\\t<path>``,
-    NUL-terminated so the path is never quoted). Only the stage-0 (non-conflict)
-    entry certifies what a commit will contain; a merge-conflicted path has only
-    stages 1/2/3 and cannot be committed, so it is treated as uncertifiable.
+    Parses ``git --no-replace-objects ls-files -s -z`` records (``<mode> <oid>
+    <stage>\\t<path>``, NUL-terminated so the path is never quoted). Only the
+    stage-0 (non-conflict) entry certifies what a commit will contain; a
+    merge-conflicted path has only stages 1/2/3 and cannot be committed, so it
+    is treated as uncertifiable. ``--no-replace-objects`` keeps a sparse-index
+    tree expansion from resolving the path through a replacement tree.
 
     Raises ``StagedBlobError`` when there is no stage-0 entry (path not staged,
     conflicted, or git unavailable) or the listing command fails.
     """
     try:
+        # ``--no-replace-objects`` so a ``refs/replace/`` entry cannot swap the
+        # resolved oid. On a full index ``ls-files -s`` prints the recorded oid
+        # verbatim (replace-insensitive), but on a sparse index it expands the
+        # sparse-directory tree entry that holds this path, and that expansion
+        # honors replace refs: a replacement TREE can map the exact path to a
+        # tiny decoy blob, so the oid returned here would already be the
+        # substitute. The downstream ``cat-file`` (also --no-replace-objects)
+        # would then read the decoy's small bytes and under-count.
         result = subprocess.run(
-            ["git", "ls-files", "-s", "-z", "--", f":(literal){path.as_posix()}"],
+            [
+                "git",
+                "--no-replace-objects",
+                "ls-files",
+                "-s",
+                "-z",
+                "--",
+                f":(literal){path.as_posix()}",
+            ],
             capture_output=True,
             timeout=10,
         )
@@ -344,9 +362,11 @@ def read_staged_blob_bytes(path: Path) -> bytes:
     A pre-commit gate must judge what will be committed, not the working tree.
     The bytes are read from the exact index object: ``git ls-files -s`` yields
     the staged ``(mode, oid)`` and ``git cat-file blob <oid>`` returns that
-    object's raw bytes. Reading by object id (rather than ``git show :<path>``)
-    ties the measurement to the listed entry with no path re-quoting and no
-    time-of-check/time-of-use gap between the mode check and the read.
+    object's raw bytes. Both git calls run with ``--no-replace-objects`` so no
+    ``refs/replace/`` entry can swap the resolved oid (sparse-index tree
+    expansion) or the read blob. Reading by object id (rather than ``git show
+    :<path>``) ties the measurement to the listed entry with no path re-quoting
+    and no time-of-check/time-of-use gap between the mode check and the read.
 
     Raises ``StagedBlobError`` when the blob cannot be certified: no stage-0
     entry, a non-regular mode (a symlink stores the link target text and a

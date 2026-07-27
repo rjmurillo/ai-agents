@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-27-session-3460-decompose-change-control",
+  "session": "2026-07-27-session-3460-decompose-change-control",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix CI (version bump), resolve Copilot review threads, merge main to unblock PR #3460",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 192a71cfbe",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
