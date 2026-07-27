@@ -60,6 +60,17 @@ def test_parse_applyto_flow_list_form() -> None:
     assert ib.parse_applyto(text) == {"**", "**/*.ts"}
 
 
+def test_parse_applyto_expands_brace_group() -> None:
+    text = "---\napplyTo: **/*.{py,pyi},tests/**\n---\nbody\n"
+    assert ib.parse_applyto(text) == {"**/*.py", "**/*.pyi", "tests/**"}
+
+
+def test_parse_applyto_brace_form_is_language_universal() -> None:
+    # A future rule scoped with a brace group must still be caught by the gate.
+    patterns = ib.parse_applyto("---\napplyTo: '**/*.{py,pyi}'\n---\nbody\n")
+    assert ib.is_language_universal(patterns, ".py") is True
+
+
 def test_parse_applyto_missing_frontmatter_returns_empty() -> None:
     assert ib.parse_applyto("# just a heading\n\nno frontmatter\n") == set()
 
@@ -78,8 +89,10 @@ def test_parse_applyto_missing_key_returns_empty() -> None:
     ("patterns", "ext", "expected"),
     [
         ({"**"}, ".py", True),
+        ({"**/*"}, ".py", True),
         ({"**/*.py"}, ".py", True),
-        ({"*.py"}, ".py", True),
+        ({"*.py"}, ".py", False),
+        ({"**/*.py", "**/*.pyi"}, ".py", True),
         ({"**/*.cs"}, ".py", False),
         ({"tests/**"}, ".py", False),
         ({"scripts/**", "build/**"}, ".py", False),
@@ -93,8 +106,10 @@ def test_is_language_universal(patterns: set[str], ext: str, expected: bool) -> 
 
 def test_is_language_universal_is_precise_not_endswith() -> None:
     # A directory-or-prefix glob that merely ends with '*.py' is NOT
-    # language-universal; only '**', '*.py', '**/*.py' count.
+    # language-universal; only '**', '**/*', and '**/*.py' count. The
+    # root-only '*.py' form is situational, not an always-on baseline.
     assert ib.is_language_universal({"src/foo*.py"}, ".py") is False
+    assert ib.is_language_universal({"*.py"}, ".py") is False
 
 
 # --------------------------------------------------------------------------
@@ -214,8 +229,17 @@ def test_file_without_frontmatter_is_not_matched(tmp_path: Path) -> None:
 def test_real_repo_python_baseline_is_under_ceiling_and_nonzero() -> None:
     results = {r.extension: r for r in ib.evaluate(REPO_ROOT, ib.DEFAULT_CEILINGS_BYTES)}
     py = results[".py"]
-    # The always-on .py baseline is large (the #3419 defect) but must stay
-    # under the ratchet ceiling. A zero here means the matcher broke.
-    assert py.total_bytes > 100_000
+    # Methodology guard, not a debt floor. The instrument must detect the
+    # always-on universal rules and stay under the ratchet ceiling. It must
+    # NOT assert a minimum size: the deferred rescoping phase legitimately
+    # shrinks this corpus, and a lower bound would fail on that success.
+    matched = set(py.matched_files)
+    core_universal = {
+        "universal.instructions.md",
+        "voice.instructions.md",
+        "builder-ethos.instructions.md",
+    }
+    missing = core_universal - matched
+    assert not missing, f"matcher missed core always-on rules: {sorted(missing)}"
+    assert py.total_bytes > 0
     assert py.total_bytes <= py.ceiling_bytes
-    assert len(py.matched_files) >= 10

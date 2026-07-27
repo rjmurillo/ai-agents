@@ -65,14 +65,69 @@ def language_universal_forms(ext: str) -> frozenset[str]:
     """Return the ``applyTo`` patterns that scope a rule to every file of ``ext``.
 
     A rule is part of the always-on language baseline when it applies to any
-    file of the language no matter where it lives: the universal ``**`` or the
-    language-universal ``**/*.<ext>`` (``*.<ext>`` accepted defensively).
+    file of the language no matter where it lives: the universal ``**`` or
+    ``**/*`` (every file, any type) or the language-universal ``**/*.<ext>``
+    (every file of the type, any depth). The root-only ``*.<ext>`` form is
+    deliberately excluded: it scopes to top-level files only, so it is
+    situational rather than an always-on baseline.
     """
-    return frozenset({"**", f"*{ext}", f"**/*{ext}"})
+    return frozenset({"**", "**/*", f"**/*{ext}"})
+
+
+def _split_top_level_commas(raw: str) -> list[str]:
+    """Split on commas that are not inside a ``{...}`` brace group."""
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for ch in raw:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    return parts
+
+
+def expand_braces(pattern: str) -> list[str]:
+    """Expand a glob brace group into its alternatives.
+
+    ``**/*.{py,pyi}`` -> ``['**/*.py', '**/*.pyi']``. Handles multiple and
+    nested groups by recursion. An unbalanced brace is left untouched.
+    """
+    start = pattern.find("{")
+    if start == -1:
+        return [pattern]
+    depth = 0
+    end = -1
+    for i in range(start, len(pattern)):
+        if pattern[i] == "{":
+            depth += 1
+        elif pattern[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end == -1:
+        return [pattern]
+    prefix, suffix = pattern[:start], pattern[end + 1 :]
+    options = _split_top_level_commas(pattern[start + 1 : end])
+    expanded: list[str] = []
+    for opt in options:
+        expanded.extend(expand_braces(prefix + opt + suffix))
+    return expanded
 
 
 def parse_applyto(text: str) -> set[str]:
-    """Extract the ``applyTo`` glob set from a rule file's frontmatter."""
+    """Extract the ``applyTo`` glob set from a rule file's frontmatter.
+
+    Splits the comma-separated scope list without breaking brace groups, then
+    expands each brace group so ``**/*.{py,pyi}`` becomes two concrete globs.
+    """
     fm_match = _FRONTMATTER_RE.match(text)
     if fm_match is None:
         return set()
@@ -85,7 +140,13 @@ def parse_applyto(text: str) -> set[str]:
     raw = raw.strip()
     if raw.startswith("[") and raw.endswith("]"):
         raw = raw[1:-1]
-    return {part.strip().strip("'\"") for part in raw.split(",") if part.strip()}
+    patterns: set[str] = set()
+    for part in _split_top_level_commas(raw):
+        cleaned = part.strip().strip("'\"").strip()
+        if not cleaned:
+            continue
+        patterns.update(expand_braces(cleaned))
+    return patterns
 
 
 def is_language_universal(patterns: set[str], ext: str) -> bool:
@@ -139,7 +200,7 @@ def load_instruction_files(repo_root: Path) -> list[InstructionFile]:
     if instructions_dir is None or not instructions_dir.is_dir():
         return []
     files: list[InstructionFile] = []
-    for path in sorted(instructions_dir.glob(INSTRUCTION_GLOB)):
+    for path in sorted(instructions_dir.rglob(INSTRUCTION_GLOB)):
         content = path.read_text(encoding="utf-8", errors="replace")
         files.append(
             InstructionFile(
