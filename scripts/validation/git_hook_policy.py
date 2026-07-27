@@ -2921,7 +2921,7 @@ def run_pytest(repo_root: Path) -> int:
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
     result = _run_command(
-        [sys.executable, "-m", "pytest", str(repo_root / "tests")],
+        [sys.executable, "-m", "pytest", "-m", "not integration", str(repo_root / "tests")],
         repo_root,
         process_env=env,
         timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,

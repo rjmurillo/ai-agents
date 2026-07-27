@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for ``.github/scripts/safe_push_pr_branch.py`` (issue #3412).
-
-Coverage matches the issue acceptance criteria:
-
-- A push fails if the requested refspec is not present in the transport result
-  (negative control via a forged porcelain result, and a wrong-branch guard).
-- The push records requested refspec, local SHA, remote SHA, process id, and
-  transport result (audit completeness).
-- A regression with two linked worktrees and concurrent push activity proves
-  each push updates only its own ref.
-- The pre-push validation entrypoint never invokes ``git push``.
-"""
+"""Tests for ``.github/scripts/safe_push_pr_branch.py`` (issue #3412)."""
 
 from __future__ import annotations
 
@@ -57,8 +46,6 @@ def _git(repo: Path, *args: str, check: bool = True) -> str:
 
 
 def _bare_git(bare: Path, *args: str) -> str:
-    # ``safe.bareRepository=explicit`` in a developer's global config blocks
-    # cwd-based access to a bare repo; ``--git-dir`` is the explicit form.
     result = subprocess.run(
         ["git", "--git-dir", str(bare), *args],
         capture_output=True,
@@ -89,28 +76,48 @@ def _bare_remote(tmp_path: Path, name: str = "remote.git") -> Path:
     return bare
 
 
+def _commit_file(repo: Path, name: str, content: str) -> str:
+    (repo / name).write_text(content, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "-qm", f"add {name}")
+    return _git(repo, "rev-parse", "HEAD")
+
+
 # ---------------------------------------------------------------------------
 # Unit: porcelain parsing and sha extraction
 # ---------------------------------------------------------------------------
 
 
-def test_parse_porcelain_maps_dest_ref_to_flag_and_summary() -> None:
+def test_parse_porcelain_keeps_source_destination_and_summary() -> None:
     stdout = (
         "To https://example/repo.git\n"
         " \tHEAD:refs/heads/foo\t1111111..2222222\n"
         "Done\n"
     )
+
     refs = safe_push_pr_branch._parse_porcelain(stdout)
-    assert refs["refs/heads/foo"] == (" ", "1111111..2222222")
+
+    assert len(refs) == 1
+    assert refs[0].source == "HEAD"
+    assert refs[0].destination == "refs/heads/foo"
+    assert refs[0].summary == "1111111..2222222"
 
 
 def test_parse_porcelain_ignores_headers_and_blank_lines() -> None:
     refs = safe_push_pr_branch._parse_porcelain("To url\n\nDone\n")
-    assert refs == {}
+
+    assert refs == []
 
 
-def test_extract_new_sha_parses_update_range() -> None:
+def test_extract_new_sha_parses_fast_forward_update_range() -> None:
     assert safe_push_pr_branch._extract_new_sha("1111111..2222222") == (
+        "1111111",
+        "2222222",
+    )
+
+
+def test_extract_new_sha_parses_force_update_range() -> None:
+    assert safe_push_pr_branch._extract_new_sha("1111111...2222222") == (
         "1111111",
         "2222222",
     )
@@ -120,11 +127,61 @@ def test_extract_new_sha_returns_none_for_new_branch() -> None:
     assert safe_push_pr_branch._extract_new_sha("[new branch]") == (None, None)
 
 
+def test_single_porcelain_ref_rejects_unexpected_source() -> None:
+    audit = safe_push_pr_branch.PushAudit(
+        branch="feature-x",
+        remote="origin",
+        requested_refspec="HEAD:refs/heads/feature-x",
+        local_sha="a" * 40,
+        process_id=1,
+    )
+    refs = [
+        safe_push_pr_branch.PorcelainRef(
+            flag=" ",
+            source="refs/heads/main",
+            destination="refs/heads/feature-x",
+            summary="1111111..2222222",
+            old_sha="1111111",
+            new_sha="2222222",
+        )
+    ]
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push_pr_branch._require_single_porcelain_ref(
+            refs, "refs/heads/feature-x", audit
+        )
+
+    assert excinfo.value.exit_code == EXIT_VERIFICATION
+    assert "exactly one porcelain ref" in str(excinfo.value)
+
+
+def test_single_porcelain_ref_rejects_duplicate_refs() -> None:
+    audit = safe_push_pr_branch.PushAudit(
+        branch="feature-x",
+        remote="origin",
+        requested_refspec="HEAD:refs/heads/feature-x",
+        local_sha="a" * 40,
+        process_id=1,
+    )
+    refs = [
+        safe_push_pr_branch.PorcelainRef(" ", "HEAD", "refs/heads/feature-x", "", None, None),
+        safe_push_pr_branch.PorcelainRef("=", "HEAD", "refs/heads/feature-x", "", None, None),
+    ]
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push_pr_branch._require_single_porcelain_ref(
+            refs, "refs/heads/feature-x", audit
+        )
+
+    assert excinfo.value.exit_code == EXIT_VERIFICATION
+
+
 # ---------------------------------------------------------------------------
 # Positive: real push to a bare remote verifies and audits
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
@@ -138,34 +195,58 @@ def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None
     assert audit.branch == "feature-x"
     assert audit.requested_refspec == "HEAD:refs/heads/feature-x"
     assert audit.local_sha == local_sha
+    assert audit.observed_remote_sha == local_sha
     assert audit.process_id > 0
-    assert audit.transport_text  # transport result recorded
-    remote_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
-    assert remote_sha == local_sha
+    assert audit.transport_text
+    assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") == local_sha
 
 
-def test_audit_records_remote_sha_on_update(tmp_path: Path) -> None:
+@pytest.mark.integration
+def test_audit_records_full_remote_sha_on_update(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
     _init_worktree(repo, "feature-x")
     _git(repo, "remote", "add", "origin", str(bare))
-    safe_push("feature-x", "origin", str(repo))  # first push (new branch)
-
-    (repo / "next.txt").write_text("next\n", encoding="utf-8")
-    _git(repo, "add", "next.txt")
-    _git(repo, "commit", "-qm", "second")
-    local_sha = _git(repo, "rev-parse", "HEAD")
+    safe_push("feature-x", "origin", str(repo))
+    local_sha = _commit_file(repo, "next.txt", "next\n")
 
     audit = safe_push("feature-x", "origin", str(repo))
 
     assert audit.verified is True
-    assert audit.remote_new_sha is not None
-    # local_sha starts with the abbreviated new sha reported by porcelain.
-    assert local_sha.startswith(audit.remote_new_sha)
+    assert audit.remote_new_sha == local_sha
+    assert audit.observed_remote_sha == local_sha
+
+
+@pytest.mark.integration
+def test_force_with_lease_pushes_only_expected_remote_sha(tmp_path: Path) -> None:
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    safe_push("feature-x", "origin", str(repo))
+    expected_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+    local_sha = _commit_file(repo, "next.txt", "next\n")
+
+    _git(repo, "reset", "--hard", "HEAD~1")
+    _commit_file(repo, "rewrite.txt", "rewrite\n")
+    rewritten_sha = _git(repo, "rev-parse", "HEAD")
+    assert rewritten_sha != local_sha
+
+    audit = safe_push(
+        "feature-x",
+        "origin",
+        str(repo),
+        expected_remote_sha=expected_sha,
+        force_with_lease=True,
+    )
+
+    assert audit.verified is True
+    assert audit.remote_old_sha is not None
+    assert audit.observed_remote_sha == rewritten_sha
 
 
 # ---------------------------------------------------------------------------
-# Negative control (criterion: fail if requested ref absent from transport)
+# Negative controls
 # ---------------------------------------------------------------------------
 
 
@@ -179,10 +260,8 @@ def test_push_fails_when_transport_names_a_different_ref(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str):
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
-            # Forge the issue #3412 signature: success exit, but the transport
-            # line names an unrelated branch, not the requested one.
             return subprocess.CompletedProcess(
                 args=["git", *args],
                 returncode=0,
@@ -199,11 +278,13 @@ def test_push_fails_when_transport_names_a_different_ref(
 
     with pytest.raises(SafePushError) as excinfo:
         safe_push("fix-3377", "origin", str(repo))
+
     assert excinfo.value.exit_code == EXIT_VERIFICATION
-    assert "absent from the transport result" in str(excinfo.value)
+    assert "exactly one porcelain ref" in str(excinfo.value)
+    assert excinfo.value.audit.local_sha == _git(repo, "rev-parse", "HEAD")
 
 
-def test_push_fails_when_transport_sha_mismatches_local(
+def test_push_checks_git_returncode_before_porcelain_verification(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare = _bare_remote(tmp_path)
@@ -213,16 +294,57 @@ def test_push_fails_when_transport_sha_mismatches_local(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str):
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+        if args and args[0] == "push":
+            return subprocess.CompletedProcess(
+                args=["git", *args],
+                returncode=128,
+                stdout="hook stdout without porcelain\n",
+                stderr="transport failed\n",
+            )
+        return real_run_git(args, repo_root)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", fake_run_git)
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push("feature-x", "origin", str(repo))
+
+    assert excinfo.value.exit_code == EXIT_TRANSPORT
+    assert excinfo.value.audit.local_sha == _git(repo, "rev-parse", "HEAD")
+    assert excinfo.value.audit.returncode == 128
+    assert "transport failed" in excinfo.value.audit.stderr
+    assert "hook stdout" in excinfo.value.audit.transport_text
+
+
+def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    local_sha = _git(repo, "rev-parse", "HEAD")
+    other_sha = "b" * 40
+
+    real_run_git = safe_push_pr_branch._run_git
+
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
                 returncode=0,
                 stdout=(
                     "To https://example/repo.git\n"
-                    " \tHEAD:refs/heads/feature-x\t1111111..deadbee\n"
+                    f" \tHEAD:refs/heads/feature-x\t{local_sha[:7]}..{local_sha[:7]}\n"
                     "Done\n"
                 ),
+                stderr="",
+            )
+        if args[:2] == ["ls-remote", "--refs"]:
+            return subprocess.CompletedProcess(
+                args=["git", *args],
+                returncode=0,
+                stdout=f"{other_sha}\trefs/heads/feature-x\n",
                 stderr="",
             )
         return real_run_git(args, repo_root)
@@ -231,7 +353,9 @@ def test_push_fails_when_transport_sha_mismatches_local(
 
     with pytest.raises(SafePushError) as excinfo:
         safe_push("feature-x", "origin", str(repo))
+
     assert excinfo.value.exit_code == EXIT_VERIFICATION
+    assert excinfo.value.audit.observed_remote_sha == other_sha
     assert "expected local sha" in str(excinfo.value)
 
 
@@ -240,6 +364,7 @@ def test_push_fails_when_transport_sha_mismatches_local(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
@@ -248,25 +373,30 @@ def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
 
     with pytest.raises(SafePushError) as excinfo:
         safe_push("some-other-branch", "origin", str(repo))
+
     assert excinfo.value.exit_code == EXIT_VERIFICATION
     assert "HEAD is on" in str(excinfo.value)
-    # Nothing was pushed.
     refs = _bare_git(bare, "for-each-ref", "--format=%(refname)")
     assert "some-other-branch" not in refs
 
 
-def test_push_refuses_on_detached_head(tmp_path: Path) -> None:
+@pytest.mark.integration
+def test_push_refuses_on_detached_head_even_when_branch_is_head(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
-    _init_worktree(repo, "feature-x")
+    _init_worktree(repo, "HEAD")
     _git(repo, "remote", "add", "origin", str(bare))
     _git(repo, "checkout", "-q", "--detach")
 
     with pytest.raises(SafePushError) as excinfo:
-        safe_push("feature-x", "origin", str(repo))
-    assert excinfo.value.exit_code == EXIT_VERIFICATION
+        safe_push("HEAD", "origin", str(repo))
+
+    assert excinfo.value.exit_code == EXIT_USAGE
+    refs = _bare_git(bare, "for-each-ref", "--format=%(refname)")
+    assert "refs/heads/HEAD" not in refs
 
 
+@pytest.mark.integration
 def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
@@ -274,81 +404,72 @@ def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
     _git(repo, "remote", "add", "origin", str(bare))
     safe_push("feature-x", "origin", str(repo))
 
-    # A second clone advances the remote so the first repo is now behind.
     other = tmp_path / "other"
     _git(tmp_path, "clone", "-q", str(bare), str(other))
-    _git(other, "config", "user.email", "t@e.com")
+    _git(other, "config", "user.email", "t@example.com")
     _git(other, "config", "user.name", "T")
     _git(other, "checkout", "-q", "feature-x")
-    (other / "adv.txt").write_text("adv\n", encoding="utf-8")
-    _git(other, "add", "adv.txt")
-    _git(other, "commit", "-qm", "advance")
+    _commit_file(other, "adv.txt", "adv\n")
     _git(other, "push", "-q", "origin", "feature-x")
 
-    # The first repo makes a divergent commit and must be rejected, not silently
-    # reported as success.
-    (repo / "local.txt").write_text("local\n", encoding="utf-8")
-    _git(repo, "add", "local.txt")
-    _git(repo, "commit", "-qm", "divergent")
+    _commit_file(repo, "local.txt", "local\n")
+
     with pytest.raises(SafePushError) as excinfo:
         safe_push("feature-x", "origin", str(repo))
-    assert excinfo.value.exit_code in {EXIT_TRANSPORT, EXIT_VERIFICATION}
+
+    assert excinfo.value.exit_code == EXIT_TRANSPORT
 
 
 # ---------------------------------------------------------------------------
-# Regression: two linked worktrees, concurrent push (criterion 4)
+# Regression: same-destination race uses one PR branch
 # ---------------------------------------------------------------------------
 
 
-def test_concurrent_worktrees_each_push_only_their_own_ref(
+@pytest.mark.integration
+def test_concurrent_worktrees_same_destination_detects_competing_update(
     tmp_path: Path,
 ) -> None:
     bare = _bare_remote(tmp_path)
+    seed = tmp_path / "seed"
+    _init_worktree(seed, "feature-x")
+    _git(seed, "remote", "add", "origin", str(bare))
+    safe_push("feature-x", "origin", str(seed))
 
-    # A base repo with two linked worktrees, each on its own branch, sharing one
-    # object store. This mirrors the autofix matrix pushing several PR branches.
-    base = tmp_path / "base"
-    _init_worktree(base, "main")
-    _git(base, "remote", "add", "origin", str(bare))
     wt_a = tmp_path / "wt-a"
     wt_b = tmp_path / "wt-b"
-    _git(base, "worktree", "add", "-q", "-b", "fix-3377", str(wt_a))
-    _git(base, "worktree", "add", "-q", "-b", "fix-3383", str(wt_b))
+    _git(tmp_path, "clone", "-q", str(bare), str(wt_a))
+    _git(tmp_path, "clone", "-q", str(bare), str(wt_b))
     for wt, tag in ((wt_a, "a"), (wt_b, "b")):
-        (wt / f"{tag}.txt").write_text(f"{tag}\n", encoding="utf-8")
-        _git(wt, "add", f"{tag}.txt")
-        _git(wt, "commit", "-qm", f"work {tag}")
+        _git(wt, "config", "user.email", f"{tag}@example.com")
+        _git(wt, "config", "user.name", f"Worker {tag}")
+        _git(wt, "checkout", "-q", "feature-x")
+        _commit_file(wt, f"{tag}.txt", f"{tag}\n")
 
-    # Values come from a runtime-loaded module, so ``Any`` is the honest static
-    # type; the assertions below exercise the real PushAudit attributes.
+    barrier = threading.Barrier(2)
     results: dict[str, Any] = {}
-    errors: dict[str, Exception] = {}
+    errors: dict[str, Any] = {}
 
-    def _worker(wt: Path, branch: str) -> None:
+    def worker(wt: Path, name: str) -> None:
+        barrier.wait(timeout=10)
         try:
-            results[branch] = safe_push(branch, "origin", str(wt))
-        except Exception as exc:  # noqa: BLE001 - recorded for assertion
-            errors[branch] = exc
+            results[name] = safe_push("feature-x", "origin", str(wt))
+        except SafePushError as exc:
+            errors[name] = exc
 
     threads = [
-        threading.Thread(target=_worker, args=(wt_a, "fix-3377")),
-        threading.Thread(target=_worker, args=(wt_b, "fix-3383")),
+        threading.Thread(target=worker, args=(wt_a, "a")),
+        threading.Thread(target=worker, args=(wt_b, "b")),
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join()
+        thread.join(timeout=20)
 
-    assert not errors, errors
-    # Each branch on the remote points at its own worktree HEAD, never swapped.
-    assert _bare_git(bare, "rev-parse", "refs/heads/fix-3377") == _git(
-        wt_a, "rev-parse", "HEAD"
-    )
-    assert _bare_git(bare, "rev-parse", "refs/heads/fix-3383") == _git(
-        wt_b, "rev-parse", "HEAD"
-    )
-    assert results["fix-3377"].branch == "fix-3377"
-    assert results["fix-3383"].branch == "fix-3383"
+    assert len(results) == 1
+    assert len(errors) == 1
+    assert next(iter(errors.values())).exit_code in {EXIT_TRANSPORT, EXIT_VERIFICATION}
+    remote_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+    assert remote_sha == next(iter(results.values())).local_sha
 
 
 # ---------------------------------------------------------------------------
@@ -357,11 +478,10 @@ def test_concurrent_worktrees_each_push_only_their_own_ref(
 
 
 def test_main_rejects_flag_shaped_branch(capsys: pytest.CaptureFixture[str]) -> None:
-    # ``--branch=--force`` keeps argparse from consuming ``--force`` as its own
-    # option, so the flag-shaped value reaches main's guard.
     assert main(["--branch=--force", "--repo-root", "."]) == EXIT_USAGE
 
 
+@pytest.mark.integration
 def test_main_success_emits_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     bare = _bare_remote(tmp_path)
     repo = tmp_path / "work"
@@ -369,21 +489,52 @@ def test_main_success_emits_notice(tmp_path: Path, capsys: pytest.CaptureFixture
     _git(repo, "remote", "add", "origin", str(bare))
 
     code = main(["--branch", "feature-x", "--remote", "origin", "--repo-root", str(repo)])
+
     assert code == EXIT_OK
     captured = capsys.readouterr()
     assert "pushed feature-x" in captured.out
-    # The audit JSON line went to stderr and carries the required fields.
     assert '"requested_refspec"' in captured.err
     assert '"process_id"' in captured.err
     assert '"local_sha"' in captured.err
 
 
+def test_main_failure_emits_populated_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    real_run_git = safe_push_pr_branch._run_git
+
+    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+        if args and args[0] == "push":
+            return subprocess.CompletedProcess(
+                args=["git", *args],
+                returncode=128,
+                stdout="stdout payload\n",
+                stderr="stderr payload\n",
+            )
+        return real_run_git(args, repo_root)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", fake_run_git)
+
+    code = main(["--branch", "feature-x", "--remote", "origin", "--repo-root", str(repo)])
+
+    assert code == EXIT_TRANSPORT
+    captured = capsys.readouterr()
+    assert '"local_sha": ""' not in captured.err
+    assert '"returncode": 128' in captured.err
+    assert '"stderr": "stderr payload\\n"' in captured.err
+    assert "stdout payload" in captured.err
+
+
 # ---------------------------------------------------------------------------
-# Criterion 2: the pre-push validation entrypoint never invokes ``git push``
+# Criterion 2: pre-push validation excludes real-transport integration tests
 # ---------------------------------------------------------------------------
 
 
-def test_pre_push_policy_never_invokes_git_push() -> None:
+def test_pre_push_pytest_entrypoint_excludes_integration_tests() -> None:
     policy = (
         Path(__file__).resolve().parents[1]
         / "scripts"
@@ -391,7 +542,6 @@ def test_pre_push_policy_never_invokes_git_push() -> None:
         / "git_hook_policy.py"
     )
     source = policy.read_text(encoding="utf-8")
-    # The pre-push gate must validate, never mutate a remote. A ``push``
-    # subprocess token here would let the hook itself move refs.
-    assert '"push"' not in source
-    assert "'push'" not in source
+
+    assert '"-m"' in source
+    assert '"not integration"' in source

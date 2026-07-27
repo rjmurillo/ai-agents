@@ -138,6 +138,14 @@ jobs:
           git config user.name "rjmurillo-bot"
           git config user.email "rjmurillo-bot@users.noreply.github.com"
 
+      - name: Checkout trusted push helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: .trusted-helper
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Auto-resolve conflicts for PR #${{ matrix.number }}
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
@@ -367,7 +375,7 @@ jobs:
           # Issue #3412: push through the transport-verifying helper so a push
           # that reports success without updating the requested ref (or that
           # names a different branch) fails loudly instead of silently.
-          python3 .github/scripts/safe_push_pr_branch.py --branch $env:HEAD_REF --remote origin
+          python3 .trusted-helper/.github/scripts/safe_push_pr_branch.py --repo-root . --branch $env:HEAD_REF --remote origin
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::error::PR #$($env:PR_NUMBER): verified push failed (exit $LASTEXITCODE)"
             exit $LASTEXITCODE

@@ -1,69 +1,58 @@
 #!/usr/bin/env python3
-"""Safe ``git push`` with explicit refspec and transport verification.
+"""Safe ``git push`` with explicit refspec and remote verification.
 
 Issue #3412: the PR-maintenance autofix step pushed with a bare branch name
-(``git push origin $HEAD_REF``) and never verified that the transport result
-actually updated the requested ref. A push reported success while the requested
-branch stayed unchanged, and the transport line named an unrelated branch. A
-false success lets the operator believe a PR was updated when it was not, and
-can coincide with mutating another branch.
-
-This helper closes that gap:
-
-- It refuses to push unless ``HEAD`` is on the expected branch, so a detached
-  HEAD or a wrong-branch checkout cannot push the wrong content.
-- It pushes with an explicit ``HEAD:refs/heads/<branch>`` refspec, so git cannot
-  fall back to ``push.default`` matching behavior or DWIM a different ref.
-- It parses ``git push --porcelain`` and fails unless the requested
-  ``refs/heads/<branch>`` appears in the transport result and lands at the exact
-  local SHA that was pushed.
-- It emits a structured JSON audit record (requested refspec, local SHA, remote
-  old and new SHA, process id, transport flag, and the full transport text) so a
-  future misdirected push is observable rather than silent.
-
-Exit codes (ADR aligned): 0 success, 1 logic or verification failure, 2 usage
-or configuration error, 3 external git or transport failure.
+(``git push origin $HEAD_REF``) and never verified that the remote ref landed at
+the requested commit. This helper pushes one explicit destination ref, verifies
+that porcelain names only that ref, then confirms the remote with ``ls-remote``.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
+import hashlib
 import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 EXIT_OK = 0
 EXIT_VERIFICATION = 1
 EXIT_USAGE = 2
 EXIT_TRANSPORT = 3
 
-# ``git push --porcelain`` per-ref flags. See ``git-push(1)`` PORCELAIN OUTPUT.
 _OK_FLAGS = frozenset({" ", "+", "*", "="})
 _REJECT_FLAGS = frozenset({"!"})
 
-
 class SafePushError(Exception):
-    """Raised when the push cannot be issued or cannot be verified.
+    """Raised when the push cannot be issued or cannot be verified."""
 
-    ``exit_code`` carries the process exit status the CLI should surface so a
-    verification failure (1) is distinguishable from a transport failure (3).
-    """
-
-    def __init__(self, message: str, exit_code: int) -> None:
+    def __init__(self, message: str, exit_code: int, audit: PushAudit | None = None) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+        self.audit = audit
+
+
+@dataclass(frozen=True, slots=True)
+class PorcelainRef:
+    """One parsed ``git push --porcelain`` per-ref line."""
+
+    flag: str
+    source: str
+    destination: str
+    summary: str
+    old_sha: str | None
+    new_sha: str | None
 
 
 @dataclass
 class PushAudit:
-    """Structured audit record for a single push attempt.
-
-    Emitted as JSON so a misdirected or no-op push is observable after the fact,
-    satisfying the issue #3412 requirement to record the requested refspec,
-    local SHA, remote SHA, process id, and transport result of each push.
-    """
+    """Structured audit record for a single push attempt."""
 
     branch: str
     remote: str
@@ -74,21 +63,17 @@ class PushAudit:
     transport_flag: str | None = None
     remote_old_sha: str | None = None
     remote_new_sha: str | None = None
+    observed_remote_sha: str | None = None
+    expected_remote_sha: str | None = None
     returncode: int | None = None
+    stderr: str = ""
     transport_text: str = ""
     error: str | None = None
-    parsed_refs: list[str] = field(default_factory=list)
+    parsed_refs: list[dict[str, str | None]] = field(default_factory=list)
 
 
-def _run_git(
-    args: list[str], repo_root: str
-) -> subprocess.CompletedProcess[str]:
-    """Run a git command in ``repo_root`` capturing text output.
-
-    ``encoding`` and ``errors`` are pinned so tool glyphs cannot crash the
-    reader thread on Windows (cp1252 default), which would otherwise leave
-    ``stdout`` as ``None``.
-    """
+def _run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    """Run a git command in ``repo_root`` capturing text output."""
 
     return subprocess.run(
         ["git", *args],
@@ -100,36 +85,39 @@ def _run_git(
     )
 
 
-def _current_branch(repo_root: str) -> str:
-    """Return the checked-out branch name, or ``"HEAD"`` when detached."""
-
-    result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+def _git_stdout(args: list[str], repo_root: str, message: str) -> str:
+    result = _run_git(args, repo_root)
     if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise SafePushError(f"{message}: {detail}", EXIT_TRANSPORT)
+    return result.stdout.strip()
+
+
+def _validate_branch_name(branch: str, repo_root: str) -> None:
+    if not branch or branch.startswith("-") or branch == "HEAD":
         raise SafePushError(
-            f"cannot resolve current branch: {result.stderr.strip()}",
-            EXIT_TRANSPORT,
+            "--branch must be a non-empty branch name, not HEAD or a flag",
+            EXIT_USAGE,
         )
+    result = _run_git(["check-ref-format", "--branch", branch], repo_root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise SafePushError(f"invalid branch name {branch!r}: {detail}", EXIT_USAGE)
+
+
+def _current_branch(repo_root: str) -> str:
+    result = _run_git(["symbolic-ref", "--quiet", "--short", "HEAD"], repo_root)
+    if result.returncode != 0:
+        raise SafePushError("refusing to push: HEAD is detached", EXIT_USAGE)
     return result.stdout.strip()
 
 
 def _head_sha(repo_root: str) -> str:
-    result = _run_git(["rev-parse", "HEAD"], repo_root)
-    if result.returncode != 0:
-        raise SafePushError(
-            f"cannot resolve HEAD sha: {result.stderr.strip()}",
-            EXIT_TRANSPORT,
-        )
-    return result.stdout.strip()
+    return _git_stdout(["rev-parse", "--verify", "HEAD"], repo_root, "cannot resolve HEAD sha")
 
 
 def _assert_on_branch(branch: str, repo_root: str) -> None:
-    """Refuse the push unless HEAD is exactly on ``branch``.
-
-    This blocks the wrong-branch and detached-HEAD leak scenarios: a push may
-    only proceed when the checkout is on the branch the caller intends to
-    update.
-    """
-
+    _validate_branch_name(branch, repo_root)
     current = _current_branch(repo_root)
     if current != branch:
         raise SafePushError(
@@ -139,53 +127,116 @@ def _assert_on_branch(branch: str, repo_root: str) -> None:
         )
 
 
-def _parse_porcelain(stdout: str) -> dict[str, tuple[str, str]]:
-    """Map each destination ref to ``(flag, summary)`` from porcelain output.
-
-    ``git push --porcelain`` prints ``To <url>`` then one tab-separated line per
-    ref: ``<flag>\\t<from>:<to>\\t<summary>`` and a trailing ``Done``. The
-    destination ref (``<to>``) is the key the caller verifies against.
-    """
-
-    refs: dict[str, tuple[str, str]] = {}
-    for line in stdout.splitlines():
-        if not line or line.startswith("To ") or line == "Done":
-            continue
-        fields = line.split("\t")
-        if len(fields) < 2:
-            continue
-        flag = fields[0]
-        from_to = fields[1]
-        summary = fields[2] if len(fields) > 2 else ""
-        if ":" not in from_to:
-            continue
-        _, dest = from_to.split(":", 1)
-        refs[dest] = (flag, summary)
-    return refs
-
-
 def _extract_new_sha(summary: str) -> tuple[str | None, str | None]:
-    """Return ``(old_sha, new_sha)`` parsed from a porcelain summary.
-
-    Updated refs report ``<old>..<new>``; new refs report ``[new branch]`` with
-    no SHAs. Returns ``(None, None)`` when SHAs are not present.
-    """
+    """Return ``(old_sha, new_sha)`` parsed from a porcelain summary."""
 
     token = summary.strip().split(" ", 1)[0]
+    if "..." in token:
+        old, new = token.split("...", 1)
+        return old or None, new or None
     if ".." in token:
-        old, _, new = token.partition("..")
+        old, new = token.split("..", 1)
         return old or None, new or None
     return None, None
 
 
-def safe_push(branch: str, remote: str, repo_root: str) -> PushAudit:
-    """Push ``HEAD`` to ``refs/heads/<branch>`` on ``remote`` and verify it.
+def _parse_porcelain(stdout: str) -> list[PorcelainRef]:
+    """Parse canonical porcelain lines from ``git push --porcelain`` stdout."""
 
-    Returns a populated :class:`PushAudit` on success. Raises
-    :class:`SafePushError` if the checkout is on the wrong branch, if git fails,
-    or if the transport result does not confirm the requested ref reached the
-    local SHA.
-    """
+    refs: list[PorcelainRef] = []
+    for line in stdout.splitlines():
+        if not line or line.startswith("To ") or line == "Done":
+            continue
+        fields = line.split("	")
+        if len(fields) != 3 or len(fields[0]) != 1 or ":" not in fields[1]:
+            continue
+        source, destination = fields[1].split(":", 1)
+        old_sha, new_sha = _extract_new_sha(fields[2])
+        refs.append(
+            PorcelainRef(
+                flag=fields[0],
+                source=source,
+                destination=destination,
+                summary=fields[2],
+                old_sha=old_sha,
+                new_sha=new_sha,
+            )
+        )
+    return refs
+
+
+def _porcelain_refs_for_audit(refs: list[PorcelainRef]) -> list[dict[str, str | None]]:
+    return [asdict(ref) for ref in refs]
+
+
+def _require_single_porcelain_ref(
+    refs: list[PorcelainRef], dest_ref: str, audit: PushAudit
+) -> PorcelainRef:
+    audit.parsed_refs = _porcelain_refs_for_audit(refs)
+    expected = [ref for ref in refs if ref.source == "HEAD" and ref.destination == dest_ref]
+    if len(refs) != 1 or len(expected) != 1:
+        audit.error = (
+            "expected exactly one porcelain ref 'HEAD:"
+            f"{dest_ref}', got {audit.parsed_refs or 'none'}"
+        )
+        raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
+    return expected[0]
+
+
+def _ls_remote_sha(
+    remote: str,
+    dest_ref: str,
+    repo_root: str,
+    audit: PushAudit,
+) -> str | None:
+    result = _run_git(["ls-remote", "--refs", remote, dest_ref], repo_root)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        audit.error = f"git ls-remote failed for {dest_ref!r}: {detail}"
+        raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
+    line = result.stdout.strip()
+    if not line:
+        return None
+    fields = line.split("	")
+    if len(fields) != 2 or fields[1] != dest_ref:
+        audit.error = f"git ls-remote returned unexpected output for {dest_ref!r}: {line!r}"
+        raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
+    return fields[0]
+
+
+def _git_common_dir(repo_root: str) -> Path:
+    value = _git_stdout(
+        ["rev-parse", "--git-common-dir"],
+        repo_root,
+        "cannot resolve git common dir",
+    )
+    path = Path(value)
+    if not path.is_absolute():
+        path = Path(repo_root) / path
+    return path.resolve()
+
+
+@contextlib.contextmanager
+def _branch_lock(repo_root: str, dest_ref: str) -> Iterator[None]:
+    lock_dir = _git_common_dir(repo_root) / "safe-push-locks"
+    lock_dir.mkdir(mode=0o700, exist_ok=True)
+    lock_name = hashlib.sha256(dest_ref.encode("utf-8")).hexdigest() + ".lock"
+    with (lock_dir / lock_name).open("w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def safe_push(
+    branch: str,
+    remote: str,
+    repo_root: str,
+    expected_remote_sha: str | None = None,
+    force_with_lease: bool = False,
+) -> PushAudit:
+    """Push ``HEAD`` to ``refs/heads/<branch>`` and verify the remote SHA."""
 
     _assert_on_branch(branch, repo_root)
     local_sha = _head_sha(repo_root)
@@ -197,70 +248,69 @@ def safe_push(branch: str, remote: str, repo_root: str) -> PushAudit:
         requested_refspec=refspec,
         local_sha=local_sha,
         process_id=os.getpid(),
+        expected_remote_sha=expected_remote_sha,
     )
 
-    result = _run_git(["push", "--porcelain", remote, refspec], repo_root)
-    audit.returncode = result.returncode
-    audit.transport_text = result.stdout + result.stderr
-    refs = _parse_porcelain(result.stdout)
-    audit.parsed_refs = sorted(refs)
+    push_args = ["push", "--porcelain", remote, refspec]
+    if force_with_lease:
+        if not expected_remote_sha:
+            audit.error = "--force-with-lease requires --expected-remote-sha"
+            raise SafePushError(audit.error, EXIT_USAGE, audit)
+        push_args.insert(2, f"--force-with-lease={dest_ref}:{expected_remote_sha}")
 
-    if dest_ref not in refs:
-        audit.error = (
-            f"requested refspec {refspec!r} is absent from the transport "
-            f"result; refs seen: {audit.parsed_refs or 'none'}"
-        )
-        raise SafePushError(audit.error, EXIT_VERIFICATION)
+    with _branch_lock(repo_root, dest_ref):
+        result = _run_git(push_args, repo_root)
+        audit.returncode = result.returncode
+        audit.stderr = result.stderr
+        audit.transport_text = result.stdout + result.stderr
+        refs = _parse_porcelain(result.stdout)
+        audit.parsed_refs = _porcelain_refs_for_audit(refs)
 
-    flag, summary = refs[dest_ref]
-    audit.transport_flag = flag
-    audit.remote_old_sha, audit.remote_new_sha = _extract_new_sha(summary)
+        if result.returncode != 0:
+            audit.error = f"git push exited {result.returncode}: {result.stderr.strip()}"
+            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
 
-    if flag in _REJECT_FLAGS:
-        audit.error = f"remote rejected {dest_ref!r}: {summary.strip()}"
-        raise SafePushError(audit.error, EXIT_TRANSPORT)
+        pushed_ref = _require_single_porcelain_ref(refs, dest_ref, audit)
+        audit.transport_flag = pushed_ref.flag
+        audit.remote_old_sha = pushed_ref.old_sha
+        audit.remote_new_sha = pushed_ref.new_sha
 
-    if flag not in _OK_FLAGS:
-        audit.error = f"unexpected transport flag {flag!r} for {dest_ref!r}"
-        raise SafePushError(audit.error, EXIT_TRANSPORT)
+        if pushed_ref.flag in _REJECT_FLAGS:
+            audit.error = f"remote rejected {dest_ref!r}: {pushed_ref.summary.strip()}"
+            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
+        if pushed_ref.flag not in _OK_FLAGS:
+            audit.error = f"unexpected transport flag {pushed_ref.flag!r} for {dest_ref!r}"
+            raise SafePushError(audit.error, EXIT_TRANSPORT, audit)
 
-    if result.returncode != 0:
-        audit.error = (
-            f"git push exited {result.returncode} despite naming {dest_ref!r}"
-        )
-        raise SafePushError(audit.error, EXIT_TRANSPORT)
-
-    # Defense in depth: when the transport reports a new SHA it must be the
-    # exact commit we pushed. A mismatch means the ref moved to content we did
-    # not intend (the issue #3412 misdirection signature).
-    if audit.remote_new_sha and not local_sha.startswith(audit.remote_new_sha):
-        audit.error = (
-            f"transport updated {dest_ref!r} to {audit.remote_new_sha}, "
-            f"expected local sha {local_sha}"
-        )
-        raise SafePushError(audit.error, EXIT_VERIFICATION)
+        observed_sha = _ls_remote_sha(remote, dest_ref, repo_root, audit)
+        audit.observed_remote_sha = observed_sha
+        audit.remote_new_sha = observed_sha or audit.remote_new_sha
+        if observed_sha != local_sha:
+            audit.error = (
+                f"remote {dest_ref!r} is {observed_sha or 'missing'}, "
+                f"expected local sha {local_sha}"
+            )
+            raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
 
     audit.verified = True
     return audit
 
 
 def _emit_audit(audit: PushAudit) -> None:
-    """Write the audit record as one JSON line to stderr."""
-
     print(json.dumps(asdict(audit), sort_keys=True), file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Push HEAD to a named branch with explicit refspec and transport "
+            "Push HEAD to a named branch with explicit refspec and remote "
             "verification (issue #3412)."
         )
     )
     parser.add_argument(
         "--branch",
         required=True,
-        help="Expected branch name; HEAD must be on it and it is the push dest.",
+        help="Expected branch name and push destination.",
     )
     parser.add_argument("--remote", default="origin", help="Remote name.")
     parser.add_argument(
@@ -268,23 +318,42 @@ def main(argv: list[str] | None = None) -> int:
         default=".",
         help="Repository working directory to run git in.",
     )
+    parser.add_argument(
+        "--expected-remote-sha",
+        help="Remote SHA required by --force-with-lease=<dest>:<sha>.",
+    )
+    parser.add_argument(
+        "--force-with-lease",
+        action="store_true",
+        help="Use --force-with-lease for intentional non-fast-forward updates.",
+    )
     args = parser.parse_args(argv)
 
-    if not args.branch or args.branch.startswith("-"):
-        print("::error::--branch must be a non-empty branch name", file=sys.stderr)
-        return EXIT_USAGE
-
     try:
-        audit = safe_push(args.branch, args.remote, args.repo_root)
-    except SafePushError as exc:
-        failed = PushAudit(
-            branch=args.branch,
-            remote=args.remote,
-            requested_refspec=f"HEAD:refs/heads/{args.branch}",
-            local_sha="",
-            process_id=os.getpid(),
-            error=str(exc),
+        audit = safe_push(
+            args.branch,
+            args.remote,
+            args.repo_root,
+            expected_remote_sha=args.expected_remote_sha,
+            force_with_lease=args.force_with_lease,
         )
+    except SafePushError as exc:
+        if exc.audit is not None:
+            failed = exc.audit
+            failed.error = str(exc)
+        else:
+            try:
+                local_sha = _head_sha(args.repo_root)
+            except SafePushError:
+                local_sha = ""
+            failed = PushAudit(
+                branch=args.branch,
+                remote=args.remote,
+                requested_refspec=f"HEAD:refs/heads/{args.branch}",
+                local_sha=local_sha,
+                process_id=os.getpid(),
+                error=str(exc),
+            )
         _emit_audit(failed)
         print(f"::error::safe push failed: {exc}", file=sys.stderr)
         return exc.exit_code
