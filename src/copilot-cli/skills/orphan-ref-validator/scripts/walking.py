@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 LOGGER = logging.getLogger("orphan_ref_validator")
@@ -54,6 +55,12 @@ SECRET_DENYLIST_PATTERNS: tuple[re.Pattern[str], ...] = (
 MAX_FILE_BYTES: int = 5 * 1024 * 1024
 
 
+@dataclass(frozen=True)
+class WalkProblem:
+    target: Path
+    reason: str
+
+
 def is_secret_path(path: Path) -> bool:
     """Return True if a file's name matches any secret denylist pattern."""
     name = path.name
@@ -85,6 +92,23 @@ def is_safe_subdirectory(entry: Path, repo_root: Path) -> bool:
     return True
 
 
+def collect_walk_targets(target: Path, repo_root: Path) -> tuple[list[Path], list[WalkProblem]]:
+    """Return candidate files plus incomplete-scan problems under ``target``."""
+    try:
+        target.resolve().relative_to(repo_root.resolve())
+    except (OSError, ValueError) as exc:
+        reason = f"target outside repo root ({exc})"
+        LOGGER.warning("skipping %s: %s", target, reason)
+        return [], [WalkProblem(target, reason)]
+    if target.is_file():
+        return _maybe_collect_file(target, repo_root, strict=True)
+    files: list[Path] = []
+    problems: list[WalkProblem] = []
+    visited: set[Path] = set()
+    _collect_dir_pruned(target, repo_root, visited, files, problems)
+    return files, problems
+
+
 def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     """Yield candidate files under ``target`` (or just the target if it is a file).
 
@@ -104,16 +128,8 @@ def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     skipped (CWE-22 / CWE-59 hardening). The walker also tracks visited
     canonical paths to defend against in-repo symlink cycles.
     """
-    try:
-        target.resolve().relative_to(repo_root.resolve())
-    except (OSError, ValueError) as exc:
-        LOGGER.warning("skipping %s: target outside repo root (%s)", target, exc)
-        return
-    if target.is_file():
-        yield from _maybe_yield_file(target, repo_root)
-        return
-    visited: set[Path] = set()
-    yield from _iter_dir_pruned(target, repo_root, visited)
+    files, _problems = collect_walk_targets(target, repo_root)
+    yield from files
 
 
 def _iter_dir_pruned(
@@ -141,6 +157,81 @@ def _iter_dir_pruned(
         yield from _iter_entry(entry, repo_root, visited)
 
 
+def _collect_dir_pruned(
+    directory: Path,
+    repo_root: Path,
+    visited: set[Path],
+    files: list[Path],
+    problems: list[WalkProblem],
+) -> None:
+    try:
+        canonical = directory.resolve()
+    except (OSError, RuntimeError) as exc:
+        reason = f"could not resolve directory: {exc}"
+        LOGGER.warning("could not resolve %s: %s", directory, exc)
+        problems.append(WalkProblem(directory, reason))
+        return
+    if canonical in visited:
+        reason = "symlink cycle detected"
+        LOGGER.warning("skipping %s: %s", directory, reason)
+        problems.append(WalkProblem(directory, reason))
+        return
+    visited.add(canonical)
+    try:
+        entries = list(directory.iterdir())
+    except (OSError, PermissionError) as exc:
+        reason = f"could not iterate directory: {exc}"
+        LOGGER.warning("could not iterate %s: %s", directory, exc)
+        problems.append(WalkProblem(directory, reason))
+        return
+    for entry in entries:
+        _collect_entry(entry, repo_root, visited, files, problems)
+
+
+def _collect_entry(
+    entry: Path,
+    repo_root: Path,
+    visited: set[Path],
+    files: list[Path],
+    problems: list[WalkProblem],
+) -> None:
+    try:
+        if entry.is_dir():
+            if entry.name in EXCLUDE_DIR_NAMES:
+                return
+            problem = _unsafe_subdirectory_problem(entry, repo_root)
+            if problem is not None:
+                LOGGER.warning("skipping %s: %s", entry, problem.reason)
+                problems.append(problem)
+                return
+            _collect_dir_pruned(entry, repo_root, visited, files, problems)
+            return
+    except OSError as exc:
+        reason = f"could not stat entry: {exc}"
+        LOGGER.warning("could not stat %s: %s", entry, exc)
+        problems.append(WalkProblem(entry, reason))
+        return
+    if not entry.is_file():
+        return
+    collected, entry_problems = _maybe_collect_file(entry, repo_root, strict=False)
+    files.extend(collected)
+    problems.extend(entry_problems)
+
+
+def _unsafe_subdirectory_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
+    if not entry.is_symlink():
+        return None
+    try:
+        resolved = entry.resolve()
+    except (OSError, RuntimeError) as exc:
+        return WalkProblem(entry, f"could not resolve symlink: {exc}")
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError:
+        return WalkProblem(entry, "symlink resolves outside repo root")
+    return None
+
+
 def _iter_entry(
     entry: Path, repo_root: Path, visited: set[Path]
 ) -> Iterable[Path]:
@@ -163,6 +254,29 @@ def _iter_entry(
     yield from _maybe_yield_file(entry, repo_root)
 
 
+def _maybe_collect_file(
+    entry: Path, repo_root: Path, strict: bool
+) -> tuple[list[Path], list[WalkProblem]]:
+    """Return a candidate file or an incomplete-scan problem."""
+    if is_secret_path(entry):
+        return [], []
+    if entry.suffix not in SCAN_FILE_SUFFIXES:
+        if strict:
+            reason = f"unsupported file suffix {entry.suffix or '<none>'}"
+            LOGGER.warning("skipping %s: %s", entry, reason)
+            return [], [WalkProblem(entry, reason)]
+        return [], []
+    problem = _unsafe_file_problem(entry, repo_root)
+    if problem is not None:
+        LOGGER.warning("skipping %s: %s", entry, problem.reason)
+        return [], [problem]
+    size_problem = _size_problem(entry)
+    if size_problem is not None:
+        LOGGER.warning("skipping %s: %s", entry, size_problem.reason)
+        return [], [size_problem]
+    return [entry], []
+
+
 def _maybe_yield_file(entry: Path, repo_root: Path) -> Iterable[Path]:
     """Apply secret denylist, size cap, suffix filter, and post-resolution
     repo-root containment to a candidate file."""
@@ -175,6 +289,20 @@ def _maybe_yield_file(entry: Path, repo_root: Path) -> Iterable[Path]:
     if not _within_size_cap(entry):
         return
     yield entry
+
+
+def _unsafe_file_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
+    if not entry.is_symlink():
+        return None
+    try:
+        resolved = entry.resolve()
+    except (OSError, RuntimeError) as exc:
+        return WalkProblem(entry, f"could not resolve symlink: {exc}")
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError:
+        return WalkProblem(entry, "symlink resolves outside repo root")
+    return None
 
 
 def _is_safe_file(entry: Path, repo_root: Path) -> bool:
@@ -193,6 +321,16 @@ def _is_safe_file(entry: Path, repo_root: Path) -> bool:
         LOGGER.warning("skipping %s: symlink resolves outside repo root", entry)
         return False
     return True
+
+
+def _size_problem(entry: Path) -> WalkProblem | None:
+    try:
+        size = entry.stat().st_size
+    except OSError as exc:
+        return WalkProblem(entry, f"could not stat file: {exc}")
+    if size > MAX_FILE_BYTES:
+        return WalkProblem(entry, f"exceeds {MAX_FILE_BYTES} bytes")
+    return None
 
 
 def _within_size_cap(entry: Path) -> bool:

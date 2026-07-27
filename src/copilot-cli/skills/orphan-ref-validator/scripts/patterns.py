@@ -41,9 +41,19 @@ SCRIPT_REF_RE = re.compile(
 # class. Existence is checked against the working tree; valid refs never flag.
 SKILL_SCRIPT_REF_RE = re.compile(
     r"(?<![\w/])(?:\.claude|src/copilot-cli)/skills/[a-zA-Z0-9_-]+"
-    r"/scripts/[a-zA-Z0-9_/-]+\.py(?!\w)",
+    r"/(?:scripts|tests)/[a-zA-Z0-9_/-]+\.py(?!\w)",
     re.IGNORECASE,
 )
+RULE_REF_RE = re.compile(
+    r"(?<![\w/])(\.claude/rules/[a-zA-Z0-9_.-]+\.md)(?!\w)",
+    re.IGNORECASE,
+)
+INSTRUCTION_REF_RE = re.compile(
+    r"(?<![\w/])((?:\.github|src/copilot-cli)/instructions/"
+    r"[a-zA-Z0-9_.-]+\.instructions\.md)(?!\w)",
+    re.IGNORECASE,
+)
+MARKDOWN_LINK_TARGET_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 # Prose that explicitly types a token as a skill ("the `foo` skill", "skill
@@ -128,6 +138,63 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
                 continue
             seen.add(path)
             yield lineno, path
+
+
+def _iter_line_path_matches(
+    line: str, pattern: re.Pattern[str]
+) -> Iterable[str]:
+    for match in pattern.finditer(line):
+        yield match.group(1) if match.lastindex else match.group(0)
+    for match in MARKDOWN_LINK_TARGET_RE.finditer(line):
+        target = match.group(1).split("#", 1)[0]
+        if target and pattern.fullmatch(target):
+            yield target
+
+
+def extract_rule_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for rule file references."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        seen: set[str] = set()
+        for path in _iter_line_path_matches(line, RULE_REF_RE):
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
+def extract_instruction_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for generated instruction mirror references."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        seen: set[str] = set()
+        for path in _iter_line_path_matches(line, INSTRUCTION_REF_RE):
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
+def extract_directive_suppressed_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield references hidden by a line-scope ignore directive."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line_has_ignore_directive(line):
+            continue
+        seen: set[str] = set()
+        for pattern in (
+            SCRIPT_REF_RE,
+            SKILL_SCRIPT_REF_RE,
+            RULE_REF_RE,
+            INSTRUCTION_REF_RE,
+            SKILL_REF_RE,
+        ):
+            for ref in _iter_line_path_matches(line, pattern):
+                if ref in seen:
+                    continue
+                seen.add(ref)
+                yield lineno, ref
 
 
 def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:
