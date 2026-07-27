@@ -55,7 +55,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the drift section below.
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of `references/instrument-guides.md`.
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -113,7 +113,7 @@ Re-verify one-liners for every volatile fact:
 | Skill size FAIL list | `uv run python ./scripts/validation/skill_size.py` |
 | Orphan-ref verdict and counts | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
 | Golden-principles totals | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
-| Drift gates green | run all three gate commands in the drift table |
+| Drift gates green | run all three gate commands from the Drift gates section of `references/instrument-guides.md` |
 | Guard tiers and telemetry dir | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` and `ls .agents/telemetry/` |
 | push_guard_base location | `ls .claude/hooks/PreToolUse/push_guard_base.py` |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
