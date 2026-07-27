@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-27-session-3471-portability-boundary",
+  "session": "2026-07-27-session-3471-portability-boundary",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix the UPSTREAM_PATTERNS boundary in check_skill_md_portability.py, which misses absolute upstream paths and matches inside longer paths and URLs. Refs #3471.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the defect against the code on main rather than against my own notes. Called count_upstream_refs from a copy of main's module on nine path shapes: four that should count returned 0, five that should not count returned 1.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the cause. PR #3463 fixed a genuine mid-path defect by adding a bare lookbehind to the two templates patterns; the lookbehind also rejects the leading slash of an absolute path. The three legacy patterns were never touched and carry the mirror-image defect.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced all five ad hoc prefixes with one shared _BOUNDARY constant that optionally consumes a leading separator or ./ before applying the lookbehind.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kept ../ excluded. An existing test asserts it, because a parent-relative path resolves outside the repo root. An earlier draft of the boundary allowed it and that test caught the regression.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Exercised 41 path shapes through the real count_upstream_refs API with zero failures, then added 13 test cases and proved 9 of them fail against the previous regex.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3471 with the reproduction table before opening the PR.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

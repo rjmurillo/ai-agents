@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T09:34:27.618870+00:00",
+  "updated": "2026-07-27T10:26:27.988873+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21348,6 +21348,69 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T09:04:44.443947+00:00"
+    },
+    {
+      "id": "e4909911a66e",
+      "type": "milestone",
+      "label": "milestone: Confirmed the defect against the code on main rather than against my own notes. Called count_upstream_refs from a copy of main's module on nine path shapes: four that should count returned 0, five that should not count returned 1.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.982925+00:00"
+    },
+    {
+      "id": "a189a9c4fe25",
+      "type": "milestone",
+      "label": "milestone: Traced the cause. PR #3463 fixed a genuine mid-path defect by adding a bare lookbehind to the two templates patterns; the lookbehind also rejects the leading slash of an absolute path. The three legacy patterns were never touched and carry the mirror-image defect.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983014+00:00"
+    },
+    {
+      "id": "8f844dcc7e59",
+      "type": "milestone",
+      "label": "milestone: Replaced all five ad hoc prefixes with one shared _BOUNDARY constant that optionally consumes a leading separator or ./ before applying the lookbehind.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983092+00:00"
+    },
+    {
+      "id": "4eb8ffbbe6c1",
+      "type": "milestone",
+      "label": "milestone: Kept ../ excluded. An existing test asserts it, because a parent-relative path resolves outside the repo root. An earlier draft of the boundary allowed it and that test caught the regression.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983168+00:00"
+    },
+    {
+      "id": "59bb4c288d76",
+      "type": "milestone",
+      "label": "milestone: Exercised 41 path shapes through the real count_upstream_refs API with zero failures, then added 13 test cases and proved 9 of them fail against the previous regex.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983243+00:00"
+    },
+    {
+      "id": "61553d74d318",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3471 with the reproduction table before opening the PR.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983317+00:00"
+    },
+    {
+      "id": "676a89c7673d",
+      "type": "outcome",
+      "label": "Outcome: success - Fix the UPSTREAM_PATTERNS boundary in check_skill_md_portability.py, which misses absolute upstream paths and matches inside longer paths and URLs. Refs #3471.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T10:26:27.983397+00:00"
     }
   ],
   "patterns": [
