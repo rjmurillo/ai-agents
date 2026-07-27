@@ -18,6 +18,42 @@ wrong in a specific, documented way:
     A slash command is dispatched by name and never consults a description, so
     counting it measures the dispatcher, not the phrase. A single word is not a
     trigger phrase; it collides with ordinary prose and inflates the score.
+
+Provenance
+----------
+
+Read this before citing any figure this eval produces.
+
+The corpus is the measurement. This eval reported three different wrong numbers
+before it reported a right one, and every failure was a corpus defect that the
+code could not see:
+
+1. It counted tool results as user prompts, because tool output shares the
+   ``user`` role in the transcript format.
+2. It counted agent-authored subagent prompts as operator prompts, because
+   those also carry the ``user`` role.
+3. It counted harness-injected envelopes as prose. After excluding meta and
+   sidechain entries, 154 of 163 remaining unique texts began with ``<``, and
+   the survivors were mostly compaction boilerplate. Roughly one genuine human
+   utterance was left.
+
+Two consequences are encoded here rather than left to a reviewer.
+
+``NON_HUMAN_ENTRY_FLAGS`` / ``NON_HUMAN_PROMPT_SOURCES``
+    Provenance filtering is rejection-based, not acceptance-based. The
+    transcript format does carry a ground-truth ``promptSource`` field, but it
+    is present on only 120 of 3,331 non-meta user entries, and the labelled and
+    unlabelled sets span identical dates. Its absence is therefore not
+    evidence, and an acceptance rule keyed on it discards the corpus.
+
+``MINIMUM_CORPUS``
+    A phrase used in 1 percent of prompts appears at least once in 200 prompts
+    with probability ``1 - 0.99**200``, about 0.87. Below that a zero reading
+    and a small non-zero reading are indistinguishable, so the CLI refuses to
+    print a percentage and exits 3 rather than publish an uninterpretable one.
+
+Neither store is committed and no prompt text reaches any output path; the
+report carries only counts and phrases the skills tree already documents.
 """
 
 from __future__ import annotations
@@ -26,6 +62,65 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import Final
+
+# A transcript entry carrying any of these is not something a human typed.
+# ``isSidechain`` and ``agentId`` mark a prompt an agent wrote for a subagent.
+# ``isMeta`` marks a harness-injected turn. ``isCompactSummary`` and
+# ``isVisibleInTranscriptOnly`` mark compaction bookkeeping. ``sourceToolUseID``
+# marks a turn a tool produced. All four shapes carry the ``user`` role.
+NON_HUMAN_ENTRY_FLAGS: Final = (
+    "isSidechain",
+    "agentId",
+    "isMeta",
+    "isCompactSummary",
+    "isVisibleInTranscriptOnly",
+    "sourceToolUseID",
+)
+
+# Claude Code records provenance directly when it knows it. ``typed`` is the
+# only value that means a human typed the text. The field is sparse, so its
+# absence is not evidence either way and is handled by the flag and prefix
+# rules above and below rather than by rejecting the entry outright.
+NON_HUMAN_PROMPT_SOURCES: Final = frozenset({"system", "sdk", "suggestion_accepted"})
+
+# Text shapes the harness writes into the user role.
+SYNTHETIC_TEXT_PREFIXES: Final = (
+    "<",
+    "[Request interrupted",
+    "Caveat:",
+    "This session is being continued",
+)
+
+# Below this many operator prompts the eval refuses to report a percentage.
+# The threshold is set so a phrase used in one percent of prompts is more
+# likely than not to appear at least once: 1 - 0.99**200 is about 0.87. Under
+# that, a zero reading and a small non-zero reading are indistinguishable, and
+# publishing either as a percentage would overstate what was measured.
+MINIMUM_CORPUS: Final = 200
+
+
+def is_operator_entry(entry: Mapping[str, object]) -> bool:
+    """Return whether a transcript entry is a prompt a human actually typed.
+
+    Provenance is judged by rejection, not acceptance, because the explicit
+    ``promptSource`` field is present on only a small minority of entries and
+    its absence spans the same dates as its presence. Requiring it would
+    discard real prompts; ignoring it would admit machine-authored ones. So an
+    entry is rejected when it carries a non-human flag, or when it declares a
+    non-human ``promptSource``, and is otherwise judged on its text.
+    """
+    if any(entry.get(flag) for flag in NON_HUMAN_ENTRY_FLAGS):
+        return False
+    return entry.get("promptSource") not in NON_HUMAN_PROMPT_SOURCES
+
+
+def is_operator_text(text: str) -> bool:
+    """Return whether the text reads as a typed prompt rather than harness output."""
+    stripped = text.strip()
+    if not stripped or stripped.startswith(SYNTHETIC_TEXT_PREFIXES):
+        return False
+    return "<local-command" not in stripped
 
 
 def is_measurable_phrase(phrase: str) -> bool:

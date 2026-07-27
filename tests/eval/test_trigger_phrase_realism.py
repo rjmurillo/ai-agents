@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,20 @@ def _load_cli():
 
 
 cli = _load_cli()
+
+
+def _operator_text(line: str) -> str | None:
+    """Return the operator-typed text of a transcript line, or None.
+
+    ``_split_user_text`` returns the text plus a provenance flag, because the
+    machine-authored half is this eval's negative control rather than waste.
+    These tests assert on the operator half, so they read through this shim.
+    """
+    split = cli._split_user_text(line)
+    if split is None:
+        return None
+    text, is_operator = split
+    return text if is_operator else None
 
 
 class TestWordBoundaryMatch:
@@ -173,7 +188,7 @@ class TestUserTextExtraction:
 
     def test_a_plain_string_user_message_is_returned(self):
         line = self._line({"type": "user", "message": {"content": "  fix the bug  "}})
-        assert cli._user_text(line) == "fix the bug"
+        assert _operator_text(line) == "fix the bug"
 
     def test_a_sidechain_entry_is_excluded(self):
         # Sidechain entries are prompts an agent wrote for a subagent. They
@@ -186,7 +201,7 @@ class TestUserTextExtraction:
                 "message": {"content": "fix the bug"},
             }
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_an_agent_authored_entry_is_excluded(self):
         line = self._line(
@@ -196,7 +211,7 @@ class TestUserTextExtraction:
                 "message": {"content": "fix the bug"},
             }
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_an_explicit_non_sidechain_entry_is_kept(self):
         # Negative control for the two exclusions above: a falsey flag must
@@ -209,7 +224,7 @@ class TestUserTextExtraction:
                 "message": {"content": "fix the bug"},
             }
         )
-        assert cli._user_text(line) == "fix the bug"
+        assert _operator_text(line) == "fix the bug"
 
     def test_text_blocks_are_joined(self):
         line = self._line(
@@ -223,7 +238,7 @@ class TestUserTextExtraction:
                 },
             }
         )
-        assert cli._user_text(line) == "fix the bug"
+        assert _operator_text(line) == "fix the bug"
 
     def test_a_tool_result_block_is_excluded(self):
         line = self._line(
@@ -232,42 +247,42 @@ class TestUserTextExtraction:
                 "message": {"content": [{"type": "tool_result", "content": "output"}]},
             }
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_an_assistant_entry_is_excluded(self):
         line = self._line({"type": "assistant", "message": {"content": "hello"}})
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_a_harness_injected_xml_entry_is_excluded(self):
         line = self._line(
             {"type": "user", "message": {"content": "<system-reminder>x</system-reminder>"}}
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_an_interrupted_request_marker_is_excluded(self):
         line = self._line(
             {"type": "user", "message": {"content": "[Request interrupted by user]"}}
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_a_local_command_entry_is_excluded(self):
         line = self._line(
             {"type": "user", "message": {"content": "ran <local-command-stdout>"}}
         )
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_an_empty_message_is_excluded(self):
         line = self._line({"type": "user", "message": {"content": "   "}})
-        assert cli._user_text(line) is None
+        assert _operator_text(line) is None
 
     def test_malformed_json_is_excluded(self):
-        assert cli._user_text("{not json") is None
+        assert _operator_text("{not json") is None
 
     def test_a_non_dict_json_line_is_excluded(self):
-        assert cli._user_text("[1, 2, 3]") is None
+        assert _operator_text("[1, 2, 3]") is None
 
     def test_a_missing_message_key_is_excluded(self):
-        assert cli._user_text(self._line({"type": "user"})) is None
+        assert _operator_text(self._line({"type": "user"})) is None
 
 
 class TestLoadTranscriptPrompts:
@@ -277,7 +292,7 @@ class TestLoadTranscriptPrompts:
         entry = json.dumps({"type": "user", "message": {"content": "fix the bug"}})
         (project / "a.jsonl").write_text(entry + "\n")
         (project / "b.jsonl").write_text(entry + "\n")
-        assert cli.load_transcript_prompts(tmp_path, "ai-agents") == ["fix the bug"]
+        assert cli.load_transcript_prompts(tmp_path, "ai-agents")[0] == ["fix the bug"]
 
     def test_a_project_outside_the_filter_is_skipped(self, tmp_path):
         other = tmp_path / "repo-something-else"
@@ -285,10 +300,10 @@ class TestLoadTranscriptPrompts:
         (other / "a.jsonl").write_text(
             json.dumps({"type": "user", "message": {"content": "fix the bug"}}) + "\n"
         )
-        assert cli.load_transcript_prompts(tmp_path, "ai-agents") == []
+        assert cli.load_transcript_prompts(tmp_path, "ai-agents")[0] == []
 
     def test_an_empty_store_yields_nothing(self, tmp_path):
-        assert cli.load_transcript_prompts(tmp_path, "ai-agents") == []
+        assert cli.load_transcript_prompts(tmp_path, "ai-agents")[0] == []
 
     def test_a_line_that_is_not_a_user_prompt_is_skipped(self, tmp_path):
         project = tmp_path / "repo-ai-agents"
@@ -299,7 +314,7 @@ class TestLoadTranscriptPrompts:
             + json.dumps({"type": "user", "message": {"content": "fix the bug"}})
             + "\n"
         )
-        assert cli.load_transcript_prompts(tmp_path, "ai-agents") == ["fix the bug"]
+        assert cli.load_transcript_prompts(tmp_path, "ai-agents")[0] == ["fix the bug"]
 
     def test_an_unreadable_transcript_is_skipped(self, tmp_path, monkeypatch):
         project = tmp_path / "repo-ai-agents"
@@ -312,7 +327,7 @@ class TestLoadTranscriptPrompts:
             raise OSError("permission denied")
 
         monkeypatch.setattr(Path, "read_text", _boom)
-        assert cli.load_transcript_prompts(tmp_path, "ai-agents") == []
+        assert cli.load_transcript_prompts(tmp_path, "ai-agents")[0] == []
 
 
 class TestCollectPhrases:
@@ -394,14 +409,27 @@ class TestCollectPhrases:
 
 
 class TestCliExitCodes:
-    def _store(self, tmp_path, content="start new session"):
+    """Every case here pins --session-store at a path that does not exist.
+
+    Without that the CLI falls back to the developer's real Copilot store, so
+    the suite would read private prompt text and its results would vary by
+    machine. The absent path exercises the same code path the guard protects.
+    """
+
+    def _store(self, tmp_path, content="start new session", filler=0):
         store = tmp_path / "projects"
         project = store / "x-ai-agents"
         project.mkdir(parents=True)
-        (project / "a.jsonl").write_text(
-            json.dumps({"type": "user", "message": {"content": content}}) + "\n"
-        )
+        lines = [json.dumps({"type": "user", "message": {"content": content}})]
+        lines += [
+            json.dumps({"type": "user", "message": {"content": f"unrelated prompt {i}"}})
+            for i in range(filler)
+        ]
+        (project / "a.jsonl").write_text("\n".join(lines) + "\n")
         return store
+
+    def _absent_session_store(self, tmp_path):
+        return str(tmp_path / "no-session-store.db")
 
     def _skills(self, tmp_path):
         skills = tmp_path / "skills" / "alpha"
@@ -418,6 +446,8 @@ class TestCliExitCodes:
             [
                 "--skills-dir",
                 str(tmp_path / "nope"),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
                 str(self._store(tmp_path)),
             ]
@@ -429,6 +459,8 @@ class TestCliExitCodes:
             [
                 "--skills-dir",
                 str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
                 str(tmp_path / "nope"),
             ]
@@ -442,27 +474,46 @@ class TestCliExitCodes:
             [
                 "--skills-dir",
                 str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
                 str(store),
             ]
         )
         assert code == cli.EXIT_EXTERNAL
 
-    def test_a_successful_run_exits_zero_and_writes_the_report(self, tmp_path, capsys):
-        out = tmp_path / "report.json"
+    def test_a_corpus_below_the_minimum_is_an_external_error(self, tmp_path):
+        """One prompt cannot distinguish a real zero from a broken matcher."""
         code = cli.main(
             [
                 "--skills-dir",
                 str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
                 str(self._store(tmp_path)),
+            ]
+        )
+        assert code == cli.EXIT_EXTERNAL
+
+    def test_a_successful_run_exits_zero_and_writes_the_report(self, tmp_path, capsys):
+        out = tmp_path / "report.json"
+        filler = realism.MINIMUM_CORPUS - 1
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
+                "--transcript-store",
+                str(self._store(tmp_path, filler=filler)),
                 "--output",
                 str(out),
             ]
         )
         assert code == cli.EXIT_OK
         report = json.loads(out.read_text())
-        assert report["corpus_prompts"] == 1
+        assert report["corpus_prompts"] == realism.MINIMUM_CORPUS
         assert report["documented"]["observed_phrases"] == 1
         assert report["documented"]["realism"] == 1.0
         assert "start new session" in capsys.readouterr().out
@@ -472,8 +523,10 @@ class TestCliExitCodes:
             [
                 "--skills-dir",
                 str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
-                str(self._store(tmp_path)),
+                str(self._store(tmp_path, filler=realism.MINIMUM_CORPUS - 1)),
             ]
         )
         assert code == cli.EXIT_OK
@@ -487,8 +540,16 @@ class TestCliExitCodes:
             [
                 "--skills-dir",
                 str(self._skills(tmp_path)),
+                "--session-store",
+                self._absent_session_store(tmp_path),
                 "--transcript-store",
-                str(self._store(tmp_path, content="something entirely different")),
+                str(
+                    self._store(
+                        tmp_path,
+                        content="something entirely different",
+                        filler=realism.MINIMUM_CORPUS - 1,
+                    )
+                ),
                 "--output",
                 str(out),
             ]
@@ -500,14 +561,374 @@ class TestCliExitCodes:
 
 
 class TestRender:
-    def test_renders_without_observed_phrases(self):
+    def _report(self, **overrides):
         report = {
             "corpus_prompts": 3,
+            "control_prompts": 5,
             "documented": {"measurable_phrases": 2, "observed_phrases": 0, "realism": 0.0},
             "promoted": {"measurable_phrases": 1, "observed_phrases": 0, "realism": 0.0},
+            "control_documented": {
+                "measurable_phrases": 2,
+                "observed_phrases": 0,
+                "realism": 0.0,
+            },
             "observed_phrases": [],
         }
-        text = cli.render(report)
-        assert "3 unique real prompts" in text
+        report.update(overrides)
+        return report
+
+    def test_renders_without_observed_phrases(self):
+        text = cli.render(self._report())
+        assert "3 unique operator-typed prompts" in text
         assert "0 of 2 phrases" in text
         assert "actually said" not in text
+
+    def test_renders_the_negative_control_block(self):
+        """The control is what makes a low operator number interpretable."""
+        text = cli.render(
+            self._report(
+                control_documented={
+                    "measurable_phrases": 2,
+                    "observed_phrases": 2,
+                    "realism": 1.0,
+                }
+            )
+        )
+        assert "5 machine-authored prompts" in text
+        assert "negative control" in text
+        assert "2 of 2 phrases appear" in text
+
+
+class TestSessionStorePrompts:
+    """The Copilot store is where operator turns actually live.
+
+    Its ``turns.user_message`` column is the human turn by construction, so
+    provenance here is structural rather than inferred from heuristics.
+    """
+
+    def _db(self, tmp_path, rows, repository="rjmurillo/ai-agents"):
+        path = tmp_path / "session-store.db"
+        connection = sqlite3.connect(path)
+        with connection:
+            connection.execute("CREATE TABLE sessions (id TEXT, repository TEXT)")
+            connection.execute("CREATE TABLE turns (session_id TEXT, user_message TEXT)")
+            connection.execute("INSERT INTO sessions VALUES ('s1', ?)", (repository,))
+            connection.executemany(
+                "INSERT INTO turns VALUES ('s1', ?)", [(row,) for row in rows]
+            )
+        connection.close()
+        return path
+
+    def test_reads_operator_turns(self, tmp_path):
+        db = self._db(tmp_path, ["fix the bug", "ship it"])
+        assert cli.load_session_store_prompts(db, "ai-agents") == ["fix the bug", "ship it"]
+
+    def test_deduplicates_and_strips(self, tmp_path):
+        db = self._db(tmp_path, ["fix the bug", "  fix the bug  "])
+        assert cli.load_session_store_prompts(db, "ai-agents") == ["fix the bug"]
+
+    def test_a_session_in_another_repository_is_skipped(self, tmp_path):
+        db = self._db(tmp_path, ["fix the bug"], repository="someone/other-project")
+        assert cli.load_session_store_prompts(db, "ai-agents") == []
+
+    def test_a_synthetic_turn_is_excluded(self, tmp_path):
+        """Agent-injected turns open with an XML tag and are not operator text."""
+        db = self._db(tmp_path, ["<command-name>/ship</command-name>", "fix the bug"])
+        assert cli.load_session_store_prompts(db, "ai-agents") == ["fix the bug"]
+
+    def test_a_null_message_is_excluded(self, tmp_path):
+        db = self._db(tmp_path, [None, "fix the bug"])
+        assert cli.load_session_store_prompts(db, "ai-agents") == ["fix the bug"]
+
+    def test_the_store_is_opened_read_only(self, tmp_path):
+        """A measurement must never mutate a live store."""
+        db = self._db(tmp_path, ["fix the bug"])
+        captured = {}
+        real_connect = sqlite3.connect
+
+        def spy(target, *args, **kwargs):
+            captured["target"] = target
+            return real_connect(target, *args, **kwargs)
+
+        cli.sqlite3.connect = spy
+        try:
+            cli.load_session_store_prompts(db, "ai-agents")
+        finally:
+            cli.sqlite3.connect = real_connect
+        assert captured["target"] == f"file:{db}?mode=ro"
+
+    def test_a_corrupt_store_raises_for_the_caller_to_classify(self, tmp_path):
+        path = tmp_path / "session-store.db"
+        path.write_text("not a database")
+        with pytest.raises(sqlite3.Error):
+            cli.load_session_store_prompts(path, "ai-agents")
+
+
+class TestNewRejectionShapes:
+    """Every non-human marker routes text to the control, never to the corpus."""
+
+    def _line(self, extra):
+        entry = {"type": "user", "message": {"content": "fix the bug"}}
+        entry.update(extra)
+        return json.dumps(entry)
+
+    @pytest.mark.parametrize("flag", sorted(realism.NON_HUMAN_ENTRY_FLAGS))
+    def test_a_non_human_flag_routes_to_the_control(self, flag):
+        text, is_operator = cli._split_user_text(self._line({flag: True}))
+        assert text == "fix the bug"
+        assert is_operator is False
+
+    @pytest.mark.parametrize("source", sorted(realism.NON_HUMAN_PROMPT_SOURCES))
+    def test_a_non_human_prompt_source_routes_to_the_control(self, source):
+        text, is_operator = cli._split_user_text(self._line({"promptSource": source}))
+        assert is_operator is False
+
+    def test_an_explicitly_typed_prompt_is_operator_text(self):
+        text, is_operator = cli._split_user_text(self._line({"promptSource": "typed"}))
+        assert is_operator is True
+
+    def test_an_unlabelled_prompt_is_operator_text(self):
+        """Absence of promptSource is not evidence: it is present on 120 of 3331
+        non-human entries and both sets span the same dates, so rejecting the
+        unlabelled majority would discard the corpus."""
+        text, is_operator = cli._split_user_text(self._line({}))
+        assert is_operator is True
+
+    def test_a_sourced_tool_use_routes_to_the_control(self):
+        text, is_operator = cli._split_user_text(self._line({"sourceToolUseID": "t1"}))
+        assert is_operator is False
+
+
+class TestFrontmatterRobustness:
+    def test_a_non_mapping_frontmatter_is_skipped(self, tmp_path):
+        """A bare scalar or list parses as valid YAML but has no description."""
+        d = tmp_path / "scalar"
+        d.mkdir()
+        (d / "SKILL.md").write_text("---\njust a string\n---\nbody\n")
+        assert cli.collect_phrases(tmp_path) == ({}, {})
+
+    def test_a_quoted_trigger_cell_is_collected(self, tmp_path):
+        """The canonical example in the governance standard quotes its phrases,
+        so a backtick-only cell pattern would silently miss the documented form."""
+        d = tmp_path / "quoted"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: quoted\ndescription: x\n---\n\n"
+            '## Triggers\n\n| Phrase | Effect |\n|---|---|\n| "run the audit" | goes |\n'
+        )
+        documented, _ = cli.collect_phrases(tmp_path)
+        assert documented == {"quoted": ["run the audit"]}
+
+    def test_backticked_and_quoted_cells_coexist(self, tmp_path):
+        d = tmp_path / "mixed"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "---\nname: mixed\ndescription: x\n---\n\n"
+            "## Triggers\n\n| Phrase | Effect |\n|---|---|\n"
+            '| `alpha phrase` | a |\n| "beta phrase" | b |\n'
+        )
+        documented, _ = cli.collect_phrases(tmp_path)
+        assert documented == {"mixed": ["alpha phrase", "beta phrase"]}
+
+
+class TestExternalErrorClassification:
+    """ADR-035: an unreadable store or unwritable output is external, not logic."""
+
+    def _skills(self, tmp_path):
+        skills = tmp_path / "skills" / "alpha"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: x\n---\n\n"
+            "## Triggers\n\n| Phrase | Effect |\n|---|---|\n| `start new session` | runs |\n"
+        )
+        return skills.parent
+
+    def _store(self, tmp_path):
+        store = tmp_path / "projects"
+        project = store / "x-ai-agents"
+        project.mkdir(parents=True)
+        project.joinpath("a.jsonl").write_text(
+            "\n".join(
+                json.dumps({"type": "user", "message": {"content": f"prompt {i}"}})
+                for i in range(realism.MINIMUM_CORPUS)
+            )
+            + "\n"
+        )
+        return store
+
+    def test_a_corrupt_session_store_is_an_external_error(self, tmp_path, capsys):
+        bad = tmp_path / "session-store.db"
+        bad.write_text("not a database")
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                str(bad),
+                "--transcript-store",
+                str(self._store(tmp_path)),
+            ]
+        )
+        assert code == cli.EXIT_EXTERNAL
+        assert "Cannot read" in capsys.readouterr().err
+
+    def test_an_unwritable_output_is_an_external_error(self, tmp_path, capsys):
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                str(tmp_path / "absent.db"),
+                "--transcript-store",
+                str(self._store(tmp_path)),
+                "--output",
+                str(tmp_path / "no-such-dir" / "report.json"),
+            ]
+        )
+        assert code == cli.EXIT_EXTERNAL
+        assert "Cannot write" in capsys.readouterr().err
+
+    def test_a_readable_session_store_contributes_to_the_corpus(self, tmp_path, capsys):
+        db = tmp_path / "session-store.db"
+        connection = sqlite3.connect(db)
+        with connection:
+            connection.execute("CREATE TABLE sessions (id TEXT, repository TEXT)")
+            connection.execute("CREATE TABLE turns (session_id TEXT, user_message TEXT)")
+            connection.execute(
+                "INSERT INTO sessions VALUES ('s1', 'rjmurillo/ai-agents')"
+            )
+            connection.executemany(
+                "INSERT INTO turns VALUES ('s1', ?)",
+                [(f"session prompt {i}",) for i in range(realism.MINIMUM_CORPUS)],
+            )
+        connection.close()
+        empty = tmp_path / "projects"
+        empty.mkdir()
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                str(db),
+                "--transcript-store",
+                str(empty),
+            ]
+        )
+        assert code == cli.EXIT_OK
+        assert f"Corpus: {realism.MINIMUM_CORPUS}" in capsys.readouterr().out
+
+
+class TestNoPromptTextEscapes:
+    """The report must never carry prompt text.
+
+    Both corpora are private local data. The eval reads them, counts matches,
+    and emits only phrases that the skills tree already documents publicly.
+    A change that put a prompt into the report or the summary would leak
+    private text into a committed artifact, so it is guarded here rather than
+    left to review.
+    """
+
+    SECRET = "my private prompt about an unreleased thing"
+
+    def _skills(self, tmp_path):
+        skills = tmp_path / "skills" / "alpha"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: x\n---\n\n"
+            "## Triggers\n\n| Phrase | Effect |\n|---|---|\n| `documented phrase` | runs |\n"
+        )
+        return skills.parent
+
+    def _store(self, tmp_path):
+        store = tmp_path / "projects"
+        project = store / "x-ai-agents"
+        project.mkdir(parents=True)
+        lines = [
+            json.dumps({"type": "user", "message": {"content": f"{self.SECRET} {i}"}})
+            for i in range(realism.MINIMUM_CORPUS)
+        ]
+        project.joinpath("a.jsonl").write_text("\n".join(lines) + "\n")
+        return store
+
+    def _run(self, tmp_path, capsys):
+        out = tmp_path / "report.json"
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                str(tmp_path / "absent.db"),
+                "--transcript-store",
+                str(self._store(tmp_path)),
+                "--output",
+                str(out),
+            ]
+        )
+        assert code == cli.EXIT_OK
+        return out.read_text(), capsys.readouterr().out
+
+    def test_no_transcript_prompt_reaches_the_report_or_stdout(self, tmp_path, capsys):
+        report, stdout = self._run(tmp_path, capsys)
+        assert self.SECRET not in report
+        assert self.SECRET not in stdout
+
+    def test_no_session_store_prompt_reaches_the_report_or_stdout(self, tmp_path, capsys):
+        db = tmp_path / "session-store.db"
+        connection = sqlite3.connect(db)
+        with connection:
+            connection.execute("CREATE TABLE sessions (id TEXT, repository TEXT)")
+            connection.execute("CREATE TABLE turns (session_id TEXT, user_message TEXT)")
+            connection.execute("INSERT INTO sessions VALUES ('s1', 'x/ai-agents')")
+            connection.executemany(
+                "INSERT INTO turns VALUES ('s1', ?)",
+                [(f"{self.SECRET} {i}",) for i in range(realism.MINIMUM_CORPUS)],
+            )
+        connection.close()
+        empty = tmp_path / "projects"
+        empty.mkdir()
+        out = tmp_path / "report.json"
+        code = cli.main(
+            [
+                "--skills-dir",
+                str(self._skills(tmp_path)),
+                "--session-store",
+                str(db),
+                "--transcript-store",
+                str(empty),
+                "--output",
+                str(out),
+            ]
+        )
+        assert code == cli.EXIT_OK
+        assert self.SECRET not in out.read_text()
+        assert self.SECRET not in capsys.readouterr().out
+
+    def test_the_report_carries_only_schema_keys_and_documented_phrases(
+        self, tmp_path, capsys
+    ):
+        """Negative control for the two tests above: they would still pass if
+        the report were empty. This pins that every string in it is either a
+        schema key or a phrase the skills tree documents publicly."""
+        report_text, _ = self._run(tmp_path, capsys)
+        report = json.loads(report_text)
+
+        def strings(node):
+            if isinstance(node, str):
+                yield node
+            elif isinstance(node, dict):
+                for key, value in node.items():
+                    yield key
+                    yield from strings(value)
+            elif isinstance(node, list):
+                for value in node:
+                    yield from strings(value)
+
+        schema = {
+            "corpus_prompts", "control_prompts", "documented", "promoted",
+            "control_documented", "observed_phrases", "skills",
+            "measurable_phrases", "excluded_phrases", "realism", "skill",
+            "phrase", "occurrences",
+        }
+        public = (self._skills(tmp_path) / "alpha" / "SKILL.md").read_text()
+        untraceable = [s for s in strings(report) if s not in schema and s not in public]
+        assert untraceable == []
