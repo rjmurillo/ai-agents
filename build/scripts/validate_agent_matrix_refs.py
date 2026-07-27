@@ -43,8 +43,28 @@ name absent from a root is unreachable for everyone who installs that root.
 Agent names are derived by stripping each tree's own filename suffix, because
 the trees do not agree on one: ``orchestrator.shared.md`` in the templates,
 ``orchestrator.md`` under ``.claude/agents``, ``orchestrator.agent.md`` under
-``.github/agents``. Suffix stripping is also what keeps non-agent files such as
-``copilot-instructions.md`` out of the roster.
+``.github/agents``.
+
+Suffix stripping alone is NOT enough to decide what is an agent. In the trees
+whose suffix is a bare ``.md`` it admits any sibling markdown file, and a second
+adversarial review showed ``src/claude/claude-instructions.template.md`` entering
+the roster as an agent named ``claude-instructions.template``, so a matrix row
+citing that name passed. An uppercase-stem filter did not help, because the
+filename is lowercase. Membership is therefore decided by content: a file counts
+as an agent only when it opens with a YAML frontmatter block carrying a
+``description:`` key. Measured across all six trees that rule keeps all 175 agent
+files and excludes exactly four suffix-matching sibling documents:
+``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
+``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
+also fully subsumes the uppercase-stem filter it replaced.
+
+GFM RENDERS A TABLE INDENTED UP TO THREE SPACES. Every table pattern here
+therefore tolerates that indent. Anchoring them at column zero made an indented
+matrix invisible to the scan while a reader still saw a rendered table, which the
+same adversarial review used to hide a phantom row and get a clean exit. Four
+spaces is an indented code block, so the patterns stop there, and the
+continuation pattern uses the same tolerance as the row pattern so an
+over-indented line ends the table instead of being reported as a parse gap.
 
 ANTI-VACUOUS GUARD: a scan that silently finds nothing is a passing scan that
 proves nothing. These structural checks fail the run rather than report success:
@@ -101,24 +121,51 @@ AGENT_TREES: tuple[tuple[Path, str], ...] = (
 )
 
 # ``| Agent | Use For | Model | Avoid When |`` and friends. The first column
-# header is the marker; downstream columns vary per matrix. Bold and backticks
-# are tolerated because a header reformat must not silently drop a whole table
-# from the scan: an adversarial review hid a phantom row behind ``| **Agent** |``
-# and the stricter pattern reported success.
-MATRIX_HEADER = re.compile(r"^\|\s*(?:\*\*)?\s*`?Agent`?\s*(?:\*\*)?\s*\|", re.IGNORECASE)
+# header is the marker; downstream columns vary per matrix. Bold, italic, and
+# backticks are tolerated because a header reformat must not silently drop a
+# whole table from the scan: an adversarial review hid a phantom row behind
+# ``| **Agent** |`` and the stricter pattern reported success.
+#
+# GitHub Flavored Markdown allows a block to be indented up to three spaces and
+# still render as a table, so every pattern here tolerates that indentation. A
+# review demonstrated a two-space indented matrix carrying a phantom row that the
+# column-zero patterns could not see at all.
+MATRIX_HEADER = re.compile(
+    r"^ {0,3}\|\s*(\*{1,2}|_{1,2})?\s*`?Agent`?\s*(?(1)\1)\s*\|",
+    re.IGNORECASE,
+)
 
 # ``|-------|---------|`` alignment row directly under a header.
-TABLE_SEPARATOR = re.compile(r"^\|[\s:|-]+\|\s*$")
+TABLE_SEPARATOR = re.compile(r"^ {0,3}\|[\s:|-]+\|\s*$")
 
-# ``| **implementer** | ... |``, ``| implementer | ... |``, or
-# ``| `implementer` | ... |``. Agent names are lowercase kebab-case. Bold and
-# backticks are optional: the orchestrator matrix bolds the name, the
-# per-category tables in ``AGENTS.md`` do not, and either could gain code
-# formatting in a reformat. The ``| Agent |`` header is what establishes that
-# column one holds an agent name, so all three spellings are in scope and none
-# is a false positive. A row inside a matrix that matches none of them is not
-# ignored; it is reported as a parse gap.
-MATRIX_ROW = re.compile(r"^\|\s*(?:\*\*)?\s*`?([a-z0-9][a-z0-9._-]*)`?\s*(?:\*\*)?\s*\|")
+# Any line that continues a table body. A matrix runs until the first line that
+# does not match this.
+TABLE_LINE = re.compile(r"^ {0,3}\|")
+
+# ``| **implementer** | ... |``, ``| implementer | ... |``,
+# ``| `implementer` | ... |``, or ``| *implementer* | ... |``. Agent names are
+# lowercase kebab-case. Emphasis and backticks are optional: the orchestrator
+# matrix bolds the name, the per-category tables in ``AGENTS.md`` do not, and
+# either could gain code or italic formatting in a reformat. The ``| Agent |``
+# header is what establishes that column one holds an agent name, so every one of
+# those spellings is in scope and none is a false positive. A row inside a matrix
+# that matches none of them is not ignored; it is reported as a parse gap.
+#
+# The closing delimiter is a conditional backreference rather than a second
+# independent optional group, because underscore is a legal name character. With
+# an independent closing group, ``__implementer__`` parsed as an agent literally
+# named ``implementer__``: the opening ``__`` was consumed as emphasis and the
+# closing ``__`` was swallowed by the name. The backreference also rejects
+# asymmetric emphasis such as ``*name**``, which does not render as emphasis
+# either.
+MATRIX_ROW = re.compile(
+    r"^ {0,3}\|\s*(\*{1,2}|_{1,2})?\s*`?([a-z0-9][a-z0-9._-]*)`?\s*(?(1)\1)\s*\|"
+)
+
+# A frontmatter key every agent definition carries, in every tree. Presence of a
+# frontmatter block containing this key is what separates an agent from a sibling
+# document that happens to share the tree's filename suffix.
+FRONTMATTER_DESCRIPTION = re.compile(r"^description:", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -156,9 +203,7 @@ class ScanResult:
                 "MATRIX_HEADER no longer matches the table format or "
                 "AGENT_TREES is stale"
             )
-        elif not any(
-            path.is_relative_to(CANONICAL_TREE) for path in self.files_with_matrix
-        ):
+        elif not any(path.is_relative_to(CANONICAL_TREE) for path in self.files_with_matrix):
             reasons.append(
                 f"no capability matrix found under {CANONICAL_TREE}; the "
                 "canonical templates are where the matrices originate, so an "
@@ -180,18 +225,46 @@ class ScanResult:
         return reasons
 
 
+def is_agent_definition(path: Path) -> bool:
+    """Report whether ``path`` is an agent definition rather than a sibling doc.
+
+    An agent opens with a YAML frontmatter block carrying a ``description:``
+    key. Filename suffix alone cannot decide this: in the trees whose suffix is
+    a bare ``.md`` it admits any sibling markdown file, which is how
+    ``claude-instructions.template.md`` became a citable agent name.
+
+    Both fences are required and the key must be anchored to the start of a line
+    inside the block. Without the opening fence a body-level ``---`` horizontal
+    rule turns any prose above it into a pseudo-block; without the anchor a key
+    such as ``x-description:`` satisfies the check.
+
+    A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
+    no separate ``is_file`` guard is needed.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    if not text.startswith("---\n"):
+        return False
+    end = text.find("\n---", 4)
+    if end == -1:
+        return False
+    return bool(FRONTMATTER_DESCRIPTION.search(text[4:end]))
+
+
 def known_agents(tree_root: Path, suffix: str) -> set[str]:
     """Return the agent names one tree ships, by stripping ``suffix``.
 
     Files not ending in ``suffix`` are not agent definitions and are excluded.
-    Uppercase stems are directory-scoped instruction files such as ``AGENTS.md``
-    and ``CLAUDE.md``, never agents, and are excluded as well; they cannot
-    collide with a kebab-case citation in any case.
+    So are files that carry the suffix but no agent frontmatter, which is what
+    keeps ``AGENTS.md``, ``CLAUDE.md``, and ``claude-instructions.template.md``
+    out of the roster.
     """
     names: set[str] = set()
     for path in tree_root.glob(f"*{suffix}"):
         name = path.name[: -len(suffix)]
-        if name and not name.isupper():
+        if name and is_agent_definition(path):
             names.add(name)
     return names
 
@@ -220,10 +293,10 @@ def parse_matrix_rows(text: str) -> tuple[list[tuple[str, int]], list[tuple[int,
         cursor = index + 1
         if cursor < len(lines) and TABLE_SEPARATOR.match(lines[cursor]):
             cursor += 1
-        while cursor < len(lines) and lines[cursor].startswith("|"):
+        while cursor < len(lines) and TABLE_LINE.match(lines[cursor]):
             match = MATRIX_ROW.match(lines[cursor])
             if match:
-                rows.append((match.group(1), cursor + 1))
+                rows.append((match.group(2), cursor + 1))
             elif not TABLE_SEPARATOR.match(lines[cursor]):
                 unparsed.append((cursor + 1, lines[cursor]))
             cursor += 1
@@ -277,11 +350,7 @@ def violations(result: ScanResult) -> list[Citation]:
     roots ship standalone and a routing row cannot reach outside its own root.
     """
     return sorted(
-        (
-            c
-            for c in result.citations
-            if c.name not in result.agents_by_tree.get(c.tree, set())
-        ),
+        (c for c in result.citations if c.name not in result.agents_by_tree.get(c.tree, set())),
         key=lambda c: (c.name, str(c.path), c.line),
     )
 
