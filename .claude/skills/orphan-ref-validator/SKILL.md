@@ -12,7 +12,7 @@ license: MIT
 Scans structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill descriptions) for references to entities that do not exist in the working tree:
 
 - **Skill names** that no longer have a `.claude/skills/<name>/` directory. Emitted as `Finding(kind="skill_name", severity="critical")`.
-- **Script paths** under `build/scripts/`, `scripts/validation/`, or `scripts/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
+- **Script paths** under `build/scripts/`, `scripts/validation/`, `scripts/`, or `tests/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
 
 Emits findings per the ADR-056 envelope and a final verdict line. Exit code follows ADR-035: `VERDICT: PASS` or `VERDICT: WARN` exits `0`; `VERDICT: CRITICAL_FAIL` exits `1`; configuration or runtime failures emit `VERDICT: ERROR` with `Success: false` and a populated `Error` block (`Code: 2`, `Type: InvalidParams`) and exit `2`.
 
@@ -46,7 +46,7 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--targets` | Files or directories to scan | `.agents/specs/`, `tests/evals/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
+| `--targets` | Files or directories to scan | `.agents/specs/`, `tests/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
 | `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
 | `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
 | `--baseline` | Path to a file of known pre-existing finding keys (`target_file:line:kind:referenced_entity`). Matching findings are marked `suppressed` and do not fail the scan; new findings still exit `1`. Accepts a JSON list of keys, a saved scan envelope (`Data.findings`), or one key per line (`#` comments allowed). | none |
@@ -176,7 +176,7 @@ Invoke directly with `python3 .claude/skills/orphan-ref-validator/scripts/scan.p
 | Kind | Pattern | Source of truth |
 |---|---|---|
 | `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen); plus single-word `` `<word>` `` only when `<word>` is a curated known single-word skill name (`filters.py:KNOWN_SINGLE_WORD_SKILLS`) | `.claude/skills/<name>/SKILL.md` directories |
-| `script_path` | `` `(build/scripts\|scripts/validation\|scripts)/<path>.py` `` | file existence on disk |
+| `script_path` | `` `(build/scripts\|scripts/validation\|scripts\|tests)/<path>.py` `` | file existence on disk |
 
 Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, etc.) are filtered to reduce false positives. The filter list lives in `filters.py:is_known_kebab_word`.
 
