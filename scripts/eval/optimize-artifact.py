@@ -954,6 +954,18 @@ def _lock_refused(lock: Path, exc: OSError) -> str:
     )
 
 
+def _close_quietly(handle: int) -> None:
+    """Release a descriptor when the failure that stopped the write is known.
+
+    POSIX frees the descriptor even when close reports an error, so there is
+    nothing to retry and nothing a caller can do with the news. Reporting it
+    would replace the cause an operator can act on with one raised while
+    cleaning up after it.
+    """
+    with suppress(OSError):
+        os.close(handle)
+
+
 @contextmanager
 def _lock_held(
     lock: Path,
@@ -988,6 +1000,15 @@ def _lock_held(
     the same argument the scrub makes: a wrapper covers the caller someone
     remembered. `_digest_scrubbed` catches `ConfigError` as well, so the ledger
     caller's redaction survives the change.
+
+    A thirty-fourth review found that fix incomplete. The lock has five
+    filesystem stages, and it had converted three: a close-only failure still
+    escaped raw. That is not a rare shape, because a write to a network or
+    quota backed filesystem can be buffered past `os.write` and reported by
+    `close`, which is why POSIX documents `EIO` and `ENOSPC` there. Close now
+    converts too, and deliberately outside a `finally`: when the write has
+    already failed it is the cause an operator can act on, and a `finally`
+    that raised would replace it with the consequence.
     """
     try:
         lock.parent.mkdir(parents=True, exist_ok=True)
@@ -998,19 +1019,22 @@ def _lock_held(
         raise ConfigError(_lock_refused(lock, exc)) from exc
     try:
         try:
-            try:
-                os.write(handle, str(os.getpid()).encode("utf-8"))
-            except OSError as exc:
-                # Converted here rather than left to escape, for the reason
-                # above: the descriptor is released by the finally below and
-                # the lock file by the outer one, so the only thing left to
-                # decide is which document the caller reads.
-                raise ConfigError(_lock_refused(lock, exc)) from exc
-        finally:
-            # Its own finally, so a write that fails on a full disk still
-            # releases the descriptor. POSIX frees the descriptor even when
-            # close reports EIO, so this must never be retried.
+            os.write(handle, str(os.getpid()).encode("utf-8"))
+        except OSError as exc:
+            # Converted here rather than left to escape, for the reason above:
+            # the descriptor is released on the next line and the lock file by
+            # the outer finally, so the only thing left to decide is which
+            # document the caller reads.
+            _close_quietly(handle)
+            raise ConfigError(_lock_refused(lock, exc)) from exc
+        # Not in a `finally`. A close that fails while the write is already
+        # failing would replace the cause with the consequence, and the write
+        # is the one an operator can act on. Ordering the two statements says
+        # that; a `finally` cannot.
+        try:
             os.close(handle)
+        except OSError as exc:
+            raise ConfigError(_lock_refused(lock, exc)) from exc
         yield
     finally:
         try:

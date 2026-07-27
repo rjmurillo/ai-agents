@@ -5895,3 +5895,119 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         )
         assert code == EXIT_CONFIG
         assert oa._holdout_key(split) not in out["error"]
+
+
+class TestACloseThatFailsIsAConfigErrorNotATraceback:
+    """Round 33's fix converted four of the lock's five filesystem stages.
+
+    The acquire, the parent create, and the pid write all became
+    `ConfigError`; the unlink already warned. `os.close` was left raw, in a
+    `finally` whose comment reasoned about whether the descriptor may be
+    retried and never about which document the caller reads. It is the same
+    defect the round-33 fix was written to close, one stage further down, and
+    it survived because the fix was aimed at the two calls the reviewer named
+    rather than at the class of call they belonged to.
+
+    A close-only failure is not hypothetical: a write to a network or quota
+    backed filesystem can be buffered past `os.write` and reported by `close`,
+    which is why POSIX documents `EIO` and `ENOSPC` there. On the ledger path
+    `_digest_scrubbed` masks it. On the buffer path nothing does, so it exits
+    1 with a traceback where a JSON document is promised.
+
+    Precedence is the second property. When the write fails and the close then
+    fails too, the write is the actionable cause; a `finally` that raises would
+    replace it with the incidental one.
+    """
+
+    def _fail_close_for_lock(self, monkeypatch, errno_, message):
+        """Fail `close` only for descriptors this module opened.
+
+        Patching `os.close` wholesale would break pytest's own capture
+        plumbing, which closes descriptors while the test runs.
+        """
+        ours = set()
+        real_open, real_close = oa.os.open, oa.os.close
+
+        def spy_open(*args, **kwargs):
+            fd = real_open(*args, **kwargs)
+            ours.add(fd)
+            return fd
+
+        def spy_close(fd):
+            if fd in ours:
+                ours.discard(fd)
+                real_close(fd)
+                raise OSError(errno_, message)
+            real_close(fd)
+
+        monkeypatch.setattr(oa.os, "open", spy_open)
+        monkeypatch.setattr(oa.os, "close", spy_close)
+
+    def _fixture(self, tmp_path):
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        return tmp_path / "b.json", patches
+
+    def test_a_close_that_fails_is_reported_as_a_config_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._fail_close_for_lock(monkeypatch, 5, "I/O error")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_lock_so_an_operator_can_act(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._fail_close_for_lock(monkeypatch, 5, "I/O error")
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert "I/O error" in out["error"]
+        assert str(buffer.with_suffix(".json.lock")) in out["error"] or ".lock" in out["error"]
+
+    def test_a_write_failure_outranks_a_close_failure_that_follows_it(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._fail_close_for_lock(monkeypatch, 5, "I/O error")
+        monkeypatch.setattr(
+            oa.os, "write",
+            lambda *a, **k: (_ for _ in ()).throw(OSError(28, "No space left")),
+        )
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_CONFIG
+        assert "No space left" in out["error"]
+        assert "I/O error" not in out["error"]
+
+    def test_a_close_failure_still_removes_the_lock_it_created(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        buffer, patches = self._fixture(tmp_path)
+        self._fail_close_for_lock(monkeypatch, 5, "I/O error")
+        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        assert not (tmp_path / "b.json.lock").exists()
+
+    def test_the_gate_still_scrubs_the_digest_out_of_a_close_failure(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path / "root"))
+        self._fail_close_for_lock(monkeypatch, 5, "I/O error")
+        digest = "c" * 64
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._ledger_held(digest):
+                pass
+        assert digest not in str(caught.value)
+
+    def test_a_successful_close_still_stores_the_rejection(self, tmp_path, capsys):
+        buffer, patches = self._fixture(tmp_path)
+        code, out = _run(
+            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_OK
+        assert out["added"] is True
