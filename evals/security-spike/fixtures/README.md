@@ -109,5 +109,5 @@ See `.agents/skillbook/README.md` for the policy model.
 - `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`: AC-4 corpus integrity rules
 - `.agents/specs/design/DESIGN-004-agent-eval-harness-spike.md`: §5.2 Fixture validator, §5.3 assertion shape
 - `.agents/specs/tasks/TASK-004-agent-eval-harness-spike.md`: T4-4a/b/c sub-task split
-- `.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md`: R1 pilot-gate mitigation
+- `.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md`: R1 pilot-gate mitigation
 - `evals/README.md`: directory landscape vs. `tests/evals/`

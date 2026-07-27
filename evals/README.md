@@ -39,7 +39,7 @@ evals/
 
 ## Cross-references
 
-- Plan: `.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md`
+- Plan: `.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md`
 - Spec: `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`
 - Design: `.agents/specs/design/DESIGN-004-agent-eval-harness-spike.md`
 - Task: `.agents/specs/tasks/TASK-004-agent-eval-harness-spike.md`
