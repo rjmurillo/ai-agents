@@ -50,6 +50,10 @@ def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
     return code, (json.loads(out) if out else {})
 
 
+def _boom(*_args, **_kwargs):
+    raise OSError("disk full")
+
+
 def _write(tmp_path: Path, name: str, payload: object) -> Path:
     path = tmp_path / name
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -1129,3 +1133,69 @@ class TestSplitFileIsSelfValidating:
                         "--sel-ratio", "0.4", "--test-ratio", "0.2")
         assert split["sel_ratio"] == 0.4
         assert split["test_ratio"] == 0.2
+
+
+class TestMalformedInputsAreConfigErrors:
+    """Broken input files must name themselves, not raise a traceback.
+
+    Every one of these was found by CodeRabbit on PR #3430 and reproduced
+    before being fixed. The CLI is driven by an unattended loop, so a
+    traceback is not a diagnostic anyone reads; it is a crash the loop cannot
+    branch on.
+    """
+
+    def test_a_non_utf8_artifact_is_a_config_error(self, tmp_path, capsys):
+        """UnicodeDecodeError subclasses ValueError, so the OSError arm missed it."""
+        target = tmp_path / "artifact.md"
+        target.write_bytes(b"valid ascii \xff\xfe then garbage")
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, out = _run(capsys, "apply", "--file", target, "--patches", patches,
+                         "--budget", "1")
+        assert code == EXIT_CONFIG
+        assert "artifact.md" in out["error"]
+
+    def test_a_buffer_of_non_objects_is_a_config_error(self, tmp_path, capsys):
+        buf = _write(tmp_path, "buf.json", [1, 2])
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, _ = _run(capsys, "buffer-check", "--buffer", buf, "--patches", patches)
+        assert code == EXIT_CONFIG
+
+
+class TestApplyWritesAtomically:
+    """A half-written artifact is worse than a refused edit.
+
+    `apply` overwrites the artifact the loop is optimizing. A direct
+    write_text truncates first, so an interrupt or a full disk mid-write
+    leaves the artifact destroyed and the loop with nothing to fall back to.
+    """
+
+    def _setup(self, tmp_path):
+        target = tmp_path / "artifact.md"
+        target.write_text("original\n", encoding="utf-8")
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "added"}])
+        return target, patches
+
+    def test_a_normal_apply_still_writes(self, tmp_path, capsys):
+        target, patches = self._setup(tmp_path)
+        code, out = _run(capsys, "apply", "--file", target, "--patches", patches,
+                         "--budget", "1")
+        assert code == 0 and out["written"] is True
+        assert "added" in target.read_text(encoding="utf-8")
+
+    def test_a_failed_replace_leaves_the_original_intact(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        target, patches = self._setup(tmp_path)
+        monkeypatch.setattr(oa.os, "replace", _boom)
+        code, out = _run(capsys, "apply", "--file", target, "--patches", patches,
+                         "--budget", "1")
+        assert code == EXIT_CONFIG
+        assert target.read_text(encoding="utf-8") == "original\n"
+
+    def test_a_failed_replace_leaves_no_temp_file(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        target, patches = self._setup(tmp_path)
+        monkeypatch.setattr(oa.os, "replace", _boom)
+        _run(capsys, "apply", "--file", target, "--patches", patches, "--budget", "1")
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["artifact.md", "p.json"]

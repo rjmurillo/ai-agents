@@ -2,7 +2,7 @@
 """Held-out-gated artifact optimization primitives (Issue #3422).
 
 Pure functions with no I/O and no API calls, so the accept/reject decision is
-unit-testable without eval spend. The CLI in ``optimize.py`` wires these to
+unit-testable without eval spend. The CLI in ``optimize-artifact.py`` wires these to
 files; the scorers stay where they are.
 
 Why this exists

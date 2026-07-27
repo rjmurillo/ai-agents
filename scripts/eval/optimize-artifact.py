@@ -30,16 +30,20 @@ Exit codes follow ADR-035:
     2  bad arguments, unreadable input, or malformed data
 
 A REJECT is exit 1 because it is a decision, not a crash, and a shell loop
-wants to branch on it. Every path still prints JSON, so a caller that needs
-to tell REJECT from a config failure can read `decision` instead of guessing
-from the code.
+wants to branch on it. Every path this module reaches prints JSON, so a
+caller that needs to tell REJECT from a config failure can read `decision`
+instead of guessing from the code, and a config failure prints an `error`
+field the same way. Argparse rejects a malformed command line before this
+module runs and prints its own plain-text usage to stderr.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -98,6 +102,10 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise ConfigError(f"no such file: {path}") from exc
+    except UnicodeDecodeError as exc:
+        # UnicodeDecodeError subclasses ValueError, not OSError, so the arm
+        # below never caught it and a binary artifact crashed the loop.
+        raise ConfigError(f"{path} is not valid UTF-8: {exc}") from exc
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
 
@@ -333,7 +341,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     if args.dry_run:
         _emit({"applied": len(patches), "result": updated, "written": False})
         return EXIT_OK
-    args.file.write_text(updated, encoding="utf-8")
+    _write_atomic(args.file, updated)
     _emit({"applied": len(patches), "written": True, "path": str(args.file)})
     return EXIT_OK
 
@@ -431,6 +439,28 @@ def cmd_gate(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _write_atomic(path: Path, text: str) -> None:
+    """Replace `path` with `text` so no reader ever sees a partial file.
+
+    `apply` overwrites the artifact the loop is optimizing. A direct write
+    truncates before it fills, so an interrupt or a full disk mid-write
+    destroys the artifact and leaves the loop nothing to fall back to. The
+    temp file is created beside the target so os.replace stays on one
+    filesystem and therefore stays atomic.
+    """
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except OSError as exc:
+        tmp.unlink(missing_ok=True)
+        raise ConfigError(f"could not write {path}: {exc}") from exc
+
+
 def _read_buffer(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         # A first run has no ledger yet. Treating that as empty keeps the loop
@@ -439,6 +469,9 @@ def _read_buffer(path: Path) -> list[dict[str, Any]]:
     data = _read_json(path)
     if not isinstance(data, list):
         raise ConfigError(f"{path} must hold a JSON array of rejection entries")
+    for index, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            raise ConfigError(f"{path} entry {index} must be an object, got {entry!r}")
     return data
 
 
@@ -565,7 +598,11 @@ def main(argv: list[str] | None = None) -> int:
         # returns an exit code.
         exit_code: int = args.func(args)
     except (ConfigError, AdapterError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        # JSON, not a bare message, because the module docstring promises a
+        # caller can tell a REJECT from a config failure by reading a field
+        # rather than guessing from the exit code. A plain-text error breaks
+        # that promise for any driver piping stdout through a JSON reader.
+        _emit({"error": str(exc), "type": type(exc).__name__})
         return EXIT_CONFIG
     return exit_code
 
