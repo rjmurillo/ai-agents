@@ -202,7 +202,7 @@ def _check_skill_refs(
 
     Sibling resolution applies only to references that make no type claim.
     When the prose explicitly calls the token a skill ("the ``ship`` skill",
-    ``skill=`ship```), REQ-009 AC-2 governs and the token must resolve
+    ``skill=`ship` ``), REQ-009 AC-2 governs and the token must resolve
     against ``.claude/skills/`` alone: a same-named agent or memory does not
     make the sentence true. Skipping that distinction would trade a false
     positive for a wrong pass.
