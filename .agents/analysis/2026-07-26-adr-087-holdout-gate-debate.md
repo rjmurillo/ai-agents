@@ -1391,3 +1391,24 @@ it a tautology and it is deleted. And the count in the surviving prose had to
 be re-measured after the move, because the number that made the argument in one
 round stopped being true in the next, which is the same failure mode as the
 line distance, one round later and caught before shipping this time.
+
+### Coda: the paragraph was the wrong shape, not the wrong wording
+
+Four rounds corrected this docstring and four corrections were falsified, which
+is a rate high enough to be about the artifact rather than about the readers.
+The common factor across all four is that the paragraph asserted quantities:
+how many expressions sat outside the guard, how far the declaration sat from
+the read, how many tests failed without it. Each was true when written. Each
+was falsifiable by an edit somewhere else in the file, and two of them were
+falsified by the very commit that corrected the previous one.
+
+Structural claims do not behave this way. "The stream read decides the early
+return, so it has to be outside the guard" is falsified only by editing this
+function, which is exactly when someone is reading the docstring anyway. A
+count is falsified by adding a test two thousand lines away.
+
+So the counts moved to this log, which carries dates and is understood to be a
+record of what was true at a moment, and the docstring kept the claims that a
+reader of the function can check against the function. That is a smaller
+docstring making fewer promises, which is the opposite of the instinct each of
+the previous four rounds followed.

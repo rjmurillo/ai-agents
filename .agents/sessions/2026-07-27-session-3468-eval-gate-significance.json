@@ -399,9 +399,18 @@
         "Re-measured the count in the surviving prose after the move, because the number that made the argument in round twenty-five stopped being true in round twenty-six.",
         "1390 pass, 100% on the CLI module held, ruff and mypy clean. Committed cdd704367."
       ]
+    },
+    {
+      "phase": "Treating the correction rate as evidence about the artifact",
+      "actions": [
+        "Four rounds corrected this docstring and four corrections were falsified, two of them by the commit that corrected the previous one. Treated that rate as evidence about the paragraph rather than about the readers.",
+        "The common factor is that every falsified claim was a quantity: a count of expressions outside the guard, a line distance to a declaration, a count of failing tests. Each was true when written and each was falsifiable by an edit elsewhere in the file.",
+        "Removed the quantities rather than re-verifying them. They now live in the dated review log. The docstring keeps only claims a reader of the function can check against the function.",
+        "1390 pass, 100% on the CLI module held, ruff clean, zero dashes. Committed de1e96c31."
+      ]
     }
   ],
-  "endingCommit": "1547e90cd",
+  "endingCommit": "de1e96c31",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
