@@ -150,7 +150,7 @@
       "outcome": "One canonical rule, one augmented memory, no third representation to drift"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "d3eefa86b0",
   "nextSteps": [
     "Add templates/ to UPSTREAM_PATTERNS in check_skill_md_portability.py and regenerate the baseline, which closes the measured gap",
     "Revisit whether contributor-facing knowledge skills should ship to consumers at all, which is the deeper fix behind most vendor-portability declarations"
