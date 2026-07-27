@@ -62,6 +62,7 @@ extract_single_word_skill_refs = _scan.extract_single_word_skill_refs
 extract_skill_script_refs = _scan.extract_skill_script_refs
 _check_skill_script_refs = _scan._check_skill_script_refs
 enumerate_skills = _scan.enumerate_skills
+enumerate_sibling_artifacts = _scan.enumerate_sibling_artifacts
 main = _scan.main
 render_envelope = _scan.render_envelope
 scan = _scan.scan
@@ -1025,3 +1026,154 @@ class TestBaselineSuppression:
         active = [f for f in result.findings if not f.suppressed]
         assert result.verdict == "CRITICAL_FAIL"
         assert any(f.referenced_entity == "delta-skill" for f in active)
+
+
+# ---------- sibling-namespace resolution ----------
+#
+# SKILL_REF_RE matches every backticked kebab token, so prose that names a
+# non-skill artifact (an agent, a slash command, a review axis, a Serena
+# memory) was reported as a reference to a deleted skill. Resolving the token
+# against those namespaces is what separates "names a real non-skill thing"
+# from "names nothing". Regression cover for the 14 false positives the
+# default-target scan reported on main.
+
+
+@pytest.fixture
+def sibling_repo(fake_repo: Path) -> Path:
+    """Extend fake_repo with one artifact in each sibling namespace."""
+    write(fake_repo / ".claude" / "commands" / "ship-it.md", "# command\n")
+    write(
+        fake_repo / ".claude" / "skills" / "alpha-skill" / "references" / "decision-rigor.md",
+        "# review axis\n",
+    )
+    write(
+        fake_repo / ".serena" / "memories" / "testing" / "testing-002-test-first.md",
+        "# memory\n",
+    )
+    return fake_repo
+
+
+def test_enumerate_sibling_artifacts_covers_every_namespace(sibling_repo):
+    names = enumerate_sibling_artifacts(sibling_repo)
+    assert {"agent-one", "ship-it", "decision-rigor", "testing-002-test-first"} <= names
+
+
+def test_enumerate_sibling_artifacts_empty_when_namespaces_absent(tmp_path):
+    """A vendored install has none of these directories; resolution is a no-op."""
+    assert enumerate_sibling_artifacts(tmp_path) == frozenset()
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["agent-one", "ship-it", "decision-rigor", "testing-002-test-first"],
+)
+def test_sibling_namespace_reference_yields_no_finding(sibling_repo, token, capsys):
+    write(sibling_repo / ".agents" / "specs" / "s.md", f"Mentions `{token}` in prose.\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_sibling_resolution_does_not_mask_a_real_orphan(sibling_repo, capsys):
+    """Negative control: resolution must not suppress a genuinely dead skill."""
+    write(
+        sibling_repo / ".agents" / "specs" / "s.md",
+        "Live `alpha-skill`, agent `agent-one`, dead `ghost-skill`.\n",
+    )
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "ghost-skill" in out
+    assert "agent-one" not in out
+
+
+def test_check_skill_refs_defaults_to_previous_behavior():
+    """Omitting sibling_names keeps the pre-change contract for other callers."""
+    findings, checked = _scan._check_skill_refs(
+        "A `ghost-skill` ref.\n", "s.md", set(), True
+    )
+    assert checked == 1
+    assert [f.referenced_entity for f in findings] == ["ghost-skill"]
+
+
+@pytest.mark.parametrize("token", ["keep-as-agent", "context-fork-skill", "co-change-checklist"])
+def test_classification_verdict_literals_are_denylisted(fake_repo, token, capsys):
+    """REQ-011/TASK-011 verdict enums and spec section templates are not skills."""
+    write(fake_repo / ".agents" / "specs" / "s.md", f"Set `verdict = {token}` here.\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(fake_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_typed_skill_reference_does_not_resolve_to_a_sibling(sibling_repo, capsys):
+    """REQ-009 AC-2: prose calling a token a skill must resolve against skills.
+
+    `agent-one` exists only as an agent. Claiming it is a skill is a wrong
+    reference, so sibling resolution must not rescue it. This is the case the
+    first cut of sibling resolution got wrong: it traded a false positive for
+    a wrong pass.
+    """
+    write(sibling_repo / ".agents" / "specs" / "s.md", "Use the `agent-one` skill.\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "agent-one" in out
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Use the `decision-rigor` skill.",
+        "The `decision-rigor` skill lives here.",
+        "See skill `decision-rigor` for detail.",
+        'Call Skill(skill=`decision-rigor`) now.',
+        "`decision-rigor` is a skill.",
+    ],
+)
+def test_type_claim_shapes_all_force_strict_resolution(sibling_repo, prose, capsys):
+    """Every shape that asserts skill-ness must bypass sibling resolution."""
+    write(sibling_repo / ".agents" / "specs" / "s.md", prose + "\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    assert rc == 1
+    assert "decision-rigor" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Improve your `bash` skills.",
+        "Soft skills `people` matter.",
+        "The `alpha-skill` and `beta-skill` skills.",
+    ],
+)
+def test_plural_skills_prose_is_not_a_type_claim(sibling_repo, prose, capsys):
+    """Plural reads as proficiency prose more often than as a catalog reference.
+
+    Treating it as a type claim turns the /build gate red on sentences that
+    name no artifact at all.
+    """
+    write(sibling_repo / ".agents" / "specs" / "s.md", prose + "\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_type_claim_is_honored_without_any_sibling_namespace(fake_repo, capsys):
+    """A vendored install has no siblings; explicit skill claims still bind.
+
+    Guards against gating the type-claim scan on sibling availability, which
+    would silently drop the check in exactly the install shape the fallback
+    was written for.
+    """
+    write(fake_repo / ".agents" / "specs" / "s.md", "Invoke the `ghost` skill.\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(fake_repo)])
+    assert rc == 1
+    assert "ghost" in capsys.readouterr().out
+
+
+def test_type_claim_on_a_living_skill_still_passes(sibling_repo, capsys):
+    """Strict resolution must not flag a typed reference to a real skill."""
+    write(sibling_repo / ".agents" / "specs" / "s.md", "Use the `alpha-skill` skill.\n")
+    rc = main(["--targets", ".agents/specs", "--repo-root", str(sibling_repo)])
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
