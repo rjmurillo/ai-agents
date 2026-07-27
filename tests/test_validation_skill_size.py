@@ -731,10 +731,19 @@ class TestStagedBlobValidation:
         # with --no-replace-objects. Reproduced on git 2.43.
         self._init_repo(tmp_path)
         # Harden the environment so an inherited replace-disabling setting
-        # (GIT_NO_REPLACE_OBJECTS in env, or a global core.useReplaceRefs=false)
         # cannot make the setup guard below skip on a capable git build and
-        # silently mask a regression. Repo-local config wins over global.
+        # silently mask a regression. Three inheritance channels can force
+        # replace refs off and each outranks or bypasses repo-local config:
+        #   - GIT_NO_REPLACE_OBJECTS (env): disables replace outright.
+        #   - core.useReplaceRefs=false in global/system config: repo-local
+        #     core.useReplaceRefs=true (set below) overrides it.
+        #   - command-scope config injection via GIT_CONFIG_PARAMETERS or the
+        #     GIT_CONFIG_COUNT/KEY_*/VALUE_* trio: these are applied at -c
+        #     precedence and would override the repo-local setting, so drop
+        #     them. Clearing GIT_CONFIG_COUNT neutralizes the indexed trio.
         monkeypatch.delenv("GIT_NO_REPLACE_OBJECTS", raising=False)
+        monkeypatch.delenv("GIT_CONFIG_PARAMETERS", raising=False)
+        monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
         subprocess.run(
             ["git", "config", "core.useReplaceRefs", "true"],
             cwd=tmp_path,
