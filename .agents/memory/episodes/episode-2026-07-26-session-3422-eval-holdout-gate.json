@@ -108,7 +108,7 @@
       "type": "test",
       "content": "356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01.",
       "caused_by": [
-        "e027"
+        "e030"
       ],
       "leads_to": [
         "e001"
@@ -325,7 +325,7 @@
         "e025"
       ],
       "leads_to": [
-        "e009"
+        "e030"
       ]
     },
     {
@@ -336,7 +336,31 @@
       "caused_by": [
         "e026"
       ],
+      "leads_to": [
+        "e029"
+      ]
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the two round-nine findings: the digest reachable through __cause__, and cleanup failure rewriting an already-emitted decision",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4e2284053",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e009"
+      ]
     }
   ],
   "metrics": {
@@ -344,7 +368,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 5
   },
   "lessons": []

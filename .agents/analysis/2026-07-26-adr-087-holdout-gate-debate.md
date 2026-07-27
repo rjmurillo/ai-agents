@@ -31,13 +31,16 @@ the first draft made.
 | 6 | gemini-3.1-pro-preview | REJECT |
 | 7 | gpt-5.6-sol | REJECT |
 | 8 | Copilot (PR #3458) | REJECT |
-
-No round returned ACCEPT. Round 8 arrived as a PR review on the follow-up branch and found a defect inside the round-7 fix itself, which is the cleanest illustration in this log of why the count kept climbing.
+| 9 | gemini-3.1-pro-preview | REJECT |
 
 No round returned ACCEPT. Every finding was verified at source before being
 acted on, rather than accepted on the reviewer's authority; all of them held.
-The ADR is recorded with its defeats visible because seven consecutive
+The ADR is recorded with its defeats visible because nine consecutive
 falsifications are evidence about the claim, not noise to be smoothed over.
+
+Rounds 8 and 9 are the cleanest illustration in this log of why the count
+kept climbing. Round 8 found a defect inside the round-7 fix. Round 9 then
+found one inside the round-8 fix.
 
 ## The finding that changed the decision
 
@@ -70,8 +73,10 @@ characterization now leads both the ADR and the README.
 
 ## The recurring defect
 
-Six of the seven rounds found the same shape. Any part of a budget the caller
+Eight of the nine rounds found the same shape. Any part of a budget the caller
 can restate, or move by renaming something else, is not part of the budget.
+The same holds for what the budget is meant to withhold: any path by which the
+withheld thing is readable is not withholding it.
 
 1. The count. `--consultations` defaulted to 0 every call, so a loop passing
    zero each time had an unlimited budget while looking capped. Review
@@ -89,6 +94,13 @@ can restate, or move by renaming something else, is not part of the budget.
    membership, so any error interpolating a path leaked the withheld thing.
    Closing it per call site missed lock release, which runs after the
    decision is already emitted.
+7. The pathless `OSError`. Two failures inside the lock operate on a file
+   descriptor and carry no filename, so they fell past the redaction branch
+   into a raw re-raise that `main` does not catch, leaving the JSON contract
+   for a stack trace.
+8. The unredacted cause. Redacting the message and chaining the original with
+   `raise ... from exc` leaves the digest one `__cause__` hop away, which is
+   exactly where a printed traceback goes.
 
 ## Round 7 blocking findings
 
@@ -127,6 +139,41 @@ was made: `LedgerMismatchError` derives from `Exception` rather than
 intact; and both of its messages name `path.parent` rather than the
 digest-bearing filename.
 
+## Round 9 blocking findings
+
+Round 9 was asked for the ninth defect by name, on the theory that eight
+consecutive rounds each finding something says more about the code than
+about the reviewers. It returned two, and both reproduced.
+
+The first is the ninth shape of the recurring defect: the seam redacted the
+digest from the message and then attached the unredacted exception as
+`__cause__`. `key in str(exc)` was False and `key in traceback` was True. The
+lock-contention branch was worse, because its message deliberately withholds
+the lock name and then handed back the `FileExistsError` that spells it out.
+A redacted message with an unredacted cause is not redacted.
+
+The reviewer proposed severing every chain. That was wider than the evidence
+supported, so the fix severs the two branches that provably carry the digest
+and leaves `from exc` on the pathless-`OSError` branch, where `str(exc)` has
+no filename to leak and the original raise site is worth keeping. That the
+`holdout_key in text` test is a sound detector was checked rather than
+assumed: `str(OSError(2, "m", "/p"))` includes the filename and
+`str(OSError(28, "No space"))` does not.
+
+The second finding was not a leak. Release runs in a `finally`, after the
+decision is already on stdout, so an unlink failure reached `main`, which
+printed a second JSON document after the first and returned the
+config-failure code for a comparison that had succeeded. Verified: exit code
+2 on a passing gate, and `json.loads` on stdout raising "Extra data". The
+module docstring promises a caller reads a field rather than guessing from
+the exit code, and two documents break every reader of the first. Cleanup now
+catches `OSError` locally and warns on stderr.
+
+Worth recording plainly: this session had already observed the two-document
+stdout while writing round-7 tests, recorded it as a test-harness quirk, and
+worked around it. The reviewer reclassified it correctly. A workaround that
+makes a symptom stop being visible in tests is not a finding closed.
+
 ## Corrections applied without dispute
 
 - The path root comes from `$EVAL_LEDGER_DIR`, `$XDG_STATE_HOME`, or home,
@@ -149,5 +196,5 @@ digest-bearing filename.
 - \#3453: bound what each consultation discloses. There is no fixed
   multiplier to document, so the statable property is the output alphabet.
 - \#3437: widen the seam from `{task_id: bool}` to `{task_id: float}`. Every
-  reviewer across all seven rounds argued for it. Left to the user, since it
+  reviewer across all nine rounds argued for it. Left to the user, since it
   is a redesign rather than a tweak.

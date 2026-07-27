@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T07:57:27.934500+00:00",
+  "updated": "2026-07-27T08:22:20.888124+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21112,6 +21112,24 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T07:57:27.929056+00:00"
+    },
+    {
+      "id": "904f9b86dcb6",
+      "type": "milestone",
+      "label": "milestone: Fixed the two round-nine findings: the digest reachable through __cause__, and cleanup failure rewriting an already-emitted decision",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:22:20.882135+00:00"
+    },
+    {
+      "id": "d08f46121cef",
+      "type": "commit",
+      "label": "commit: Commit: 4e2284053",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T08:22:20.882220+00:00"
     }
   ],
   "patterns": [

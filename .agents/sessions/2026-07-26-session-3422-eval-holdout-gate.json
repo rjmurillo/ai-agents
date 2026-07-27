@@ -209,9 +209,18 @@
     {
       "phase": "review",
       "summary": "An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules."
+    },
+    {
+      "timestamp": "2026-07-27T09:10:00Z",
+      "action": "Fixed the two round-nine findings: the digest reachable through __cause__, and cleanup failure rewriting an already-emitted decision",
+      "outcome": "Both reproduced by execution before any code moved. Fix 1 raises `from None` on the two branches that provably carry the digest and keeps `from exc` where str(exc) has no filename. Fix 2 catches OSError inside the finally and warns on stderr naming the lock's directory, so stdout keeps exactly one document and a passing gate keeps its exit code. One round-seven test asserted the two-document behavior; its assertions now cover the leak invariant across both streams. 440 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean on the touched files.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py"
+      ]
     }
   ],
-  "endingCommit": "f690ce24b",
+  "endingCommit": "4e2284053",
   "nextSteps": [
     "Drive PR #3430 CI to green.",
     "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",
