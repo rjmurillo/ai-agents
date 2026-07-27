@@ -1,0 +1,195 @@
+{
+  "id": "episode-2026-07-27-session-3502-mergeability-guards",
+  "session": "2026-07-27-session-3502-mergeability-guards",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3502: make PR check reporting mergeability-aware, register merge drivers for runner merges, close fresh-clone registration gaps, and document the GitHub merge-ref limitation.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #3502 and all comments with gh issue view 3502 --comments. The later owner comment changed the runner interpretation: plain runner registration is unsafe if it executes PR-controlled driver code with BOT_PAT in scope.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured the pre-fix live PR check proof on PR #3478: get_pr_checks.py returned exit 0 and AllPassing true without any MergeState fields.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "error",
+      "content": "Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extended get_pr_checks.py to query mergeable and mergeStateStatus, emit MergeState, MergeStateStatus, MergeRefUsable, and MergeStateWarning, and return exit 1 when the merge ref is CONFLICTING, DIRTY, or UNKNOWN.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a trusted-copy mode to install_merge_drivers.py. CI registration copies the stdlib-only driver under the git common dir before checkout, then registers that copy so PR-controlled branches cannot replace the command run during merge.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registered merge drivers inside resolve_pr_conflicts.py before local merges. Runner mode uses trusted-copy registration before checkout. Worktree mode registers before creating the merge worktree.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registered trusted merge drivers in pr-maintenance.yml before its inline git merge steps. Workflow validation passed with the pre-existing ADR-006 size warning.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the local-developer gap by running install_merge_drivers.py in bootstrap-vm.sh, documenting it in README.md and CONTRIBUTING.md setup, and adding a pre-push lefthook job so a missing driver self-heals or fails before push.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the GitHub merge-ref limitation in .gitattributes next to the causal graph driver. GitHub backend merge refs cannot use local git config or execute repository setup code; durable fixes are stop committing, shard, regenerate after merge, or accept merge-queue conflict handling.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the merge-driver failure and fix with one constructed pair of commits: no driver produced CONFLICT and exit 1; installer and CI trusted-copy modes both merged cleanly to tree ff22fdb31d6953a85b089406d53f44498e246e73 with nodes feature, main, shared.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1d8da02a26",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 5,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

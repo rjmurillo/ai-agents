@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:49:56.862028+00:00",
+  "updated": "2026-07-27T17:06:22.631078+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21915,6 +21915,168 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
       "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "6f17f059db53",
+      "type": "milestone",
+      "label": "milestone: Read issue #3502 and all comments with gh issue view 3502 --comments. The later owner comment changed the runner interpretation: plain runner registration is unsafe if it executes PR-controlled driver code with BOT_PAT in scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.623840+00:00"
+    },
+    {
+      "id": "794d02c06ac0",
+      "type": "milestone",
+      "label": "milestone: Captured the pre-fix live PR check proof on PR #3478: get_pr_checks.py returned exit 0 and AllPassing true without any MergeState fields.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.623935+00:00"
+    },
+    {
+      "id": "c771d1d3e96c",
+      "type": "milestone",
+      "label": "milestone: Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624018+00:00"
+    },
+    {
+      "id": "58c175d283ca",
+      "type": "test",
+      "label": "test: Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624099+00:00"
+    },
+    {
+      "id": "b486dd21de94",
+      "type": "error",
+      "label": "error: Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624178+00:00"
+    },
+    {
+      "id": "029f964dfee6",
+      "type": "milestone",
+      "label": "milestone: Extended get_pr_checks.py to query mergeable and mergeStateStatus, emit MergeState, MergeStateStatus, MergeRefUsable, and MergeStateWarning, and return exit 1 when the merge ref is CONFLICTING, DIRTY, or UNKNOWN.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624269+00:00"
+    },
+    {
+      "id": "89e18bf549f0",
+      "type": "milestone",
+      "label": "milestone: Added a trusted-copy mode to install_merge_drivers.py. CI registration copies the stdlib-only driver under the git common dir before checkout, then registers that copy so PR-controlled branches cannot replace the command run during merge.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624354+00:00"
+    },
+    {
+      "id": "31aa2c94f8d3",
+      "type": "milestone",
+      "label": "milestone: Registered merge drivers inside resolve_pr_conflicts.py before local merges. Runner mode uses trusted-copy registration before checkout. Worktree mode registers before creating the merge worktree.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624434+00:00"
+    },
+    {
+      "id": "522fd4cdab08",
+      "type": "milestone",
+      "label": "milestone: Registered trusted merge drivers in pr-maintenance.yml before its inline git merge steps. Workflow validation passed with the pre-existing ADR-006 size warning.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624514+00:00"
+    },
+    {
+      "id": "3e943722cc01",
+      "type": "milestone",
+      "label": "milestone: Closed the local-developer gap by running install_merge_drivers.py in bootstrap-vm.sh, documenting it in README.md and CONTRIBUTING.md setup, and adding a pre-push lefthook job so a missing driver self-heals or fails before push.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624596+00:00"
+    },
+    {
+      "id": "a761ac3fd824",
+      "type": "milestone",
+      "label": "milestone: Recorded the GitHub merge-ref limitation in .gitattributes next to the causal graph driver. GitHub backend merge refs cannot use local git config or execute repository setup code; durable fixes are stop committing, shard, regenerate after merge, or accept merge-queue conflict handling.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624683+00:00"
+    },
+    {
+      "id": "0ce90c4156f7",
+      "type": "milestone",
+      "label": "milestone: Reproduced the merge-driver failure and fix with one constructed pair of commits: no driver produced CONFLICT and exit 1; installer and CI trusted-copy modes both merged cleanly to tree ff22fdb31d6953a85b089406d53f44498e246e73 with nodes feature, main, shared.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624763+00:00"
+    },
+    {
+      "id": "03cc33d8f5be",
+      "type": "milestone",
+      "label": "milestone: Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624843+00:00"
+    },
+    {
+      "id": "55e4d6706199",
+      "type": "test",
+      "label": "test: Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.624922+00:00"
+    },
+    {
+      "id": "74deec9b310c",
+      "type": "commit",
+      "label": "commit: Commit: 1d8da02a26",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.625002+00:00"
+    },
+    {
+      "id": "73302fe58111",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3502: make PR check reporting mergeability-aware, register merge drivers for runner merges, close fresh-clone registration gaps, and document the GitHub merge-ref limitation.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.625082+00:00"
+    },
+    {
+      "id": "58950e5cd696",
+      "type": "error",
+      "label": "Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.625243+00:00"
+    },
+    {
+      "id": "e2947293465a",
+      "type": "outcome",
+      "label": "Registered merge drivers inside resolve_pr_conflicts.py before local merges. Runner mode uses trusted-copy registration before checkout. Worktree mode registers before creating the merge worktree.",
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "created": "2026-07-27T17:06:22.625323+00:00"
     }
   ],
   "patterns": [
@@ -26311,6 +26473,20 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
       },
       "created": "2026-07-27T12:43:51.820258+00:00"
+    },
+    {
+      "source": "58950e5cd696",
+      "target": "e2947293465a",
+      "type": "causes",
+      "weight": 0.8,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3502-mergeability-guards"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3502-mergeability-guards": 0.8
+      },
+      "created": "2026-07-27T17:06:22.625333+00:00"
     }
   ]
 }
