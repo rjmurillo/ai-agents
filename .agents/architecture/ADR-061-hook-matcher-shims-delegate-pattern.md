@@ -180,14 +180,14 @@ The cost is a runtime import surface. The shim cannot work without `_impl/` sibl
 | `build/scripts/build_all.py --check` | Indirect | Drift detection must understand new layout (one body file + many thin shims) | Medium |
 | Copilot CLI hook runtime (dev, user-install, system-install modes) | Indirect | Must launch shim with `sys.path` allowing `from _impl import ...` under all three install modes | High (BLOCKER if any mode fails) |
 | `pytest.ini` / pytest discovery configuration | Direct | Add `_impl/` to `norecursedirs` or rely on leading-underscore convention to prevent test collection from invoking canonical bodies as tests | Medium |
-| `build/scripts/validate_install_parity.py` | Direct | Extend parity rules: (a) every thin shim has sibling `_impl/invoke_X.py`; (b) no two thin shims contain divergent body bytes; (c) `_shim_runtime.py` exists exactly once per event dir | Medium |
+| `build/scripts/validate_install_parity.py` | Direct | Superseded layout rule: every thin shim has sibling `_impl/invoke_X.py`; no two thin shims contain divergent body bytes; `_shim_runtime.py` exists exactly once per event dir | Medium |
 
 ## Implementation Phasing
 
 1. **Spike Copilot CLI runtime (BLOCKER)**: install a delegate-shim test hook into a clean Copilot CLI repo under all three install modes (dev, user-install, system-install). Trigger the hook. Confirm `from _impl._shim_runtime import shim_dispatch` and `from _impl.invoke_X import _original_main` resolve under every mode. Validate: working directory at hook launch, hook invocation form (`python shim.py` vs `python -m`), install copy fidelity (does the installer preserve subdirectories or flatten them). If any mode fails, this ADR is blocked; reopen alternative-design discussion.
 2. **Amend REQ-003-007 spec text** to mandate delegate-shim layout. Preserve sentinel and crash-policy clauses verbatim.
 3. **Rewrite generator** (`_build_shim`, `inject_shim`, `strip_shim`, `_wrap_body_in_function` retired in favor of new `_emit_canonical_body`, `_emit_delegate_shim`, `_emit_shim_runtime`).
-4. **Rewrite tests**. Snapshot fixtures regenerated. Property tests target the new format. Add: drift detection test that mutates `_impl/invoke_X.py` and confirms all shim files still execute the new body via delegation.
+4. **Rewrite tests**. Snapshot fixtures regenerated. Property tests target the new format. Add: drift detection test that mutates the superseded `_impl/invoke_X.py` layout and confirms all shim files still execute the new body via delegation.
 5. **Regenerate** `src/copilot-cli/hooks/` install trees. Delete pre-refactor shim files. Add `_impl/` subdirs.
 6. **Extend** `build/scripts/validate_install_parity.py` with the three rules listed in Impact above.
 7. **Configure pytest** to exclude `_impl/` from collection.

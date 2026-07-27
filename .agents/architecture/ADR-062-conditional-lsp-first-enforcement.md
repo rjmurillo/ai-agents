@@ -29,13 +29,12 @@ modules under `.claude/lib/hook_utilities/` that only those hooks consume
 (`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
 and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
 canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
-the Serena Init BLOCKING step in AGENTS.md, and, while it remains present, the
-per-turn `invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles
-Git events and has no user-prompt lifecycle event. Issue #3216 classified this
-advisory nudge for removal because static steering and Serena Init already carry
-the behavior. The hook still exists pending that removal. If removed from the
-vendored surface, it needs no Lefthook replacement. The three-tier navigation
-preference (Decision, Section 1) survives as steering; only the blocking
+the Serena Init BLOCKING step in AGENTS.md, and the removed per-turn
+`invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles Git events
+and has no user-prompt lifecycle event. Issue #3216 classified this advisory
+nudge for removal because static steering and Serena Init already carry the
+behavior. The removal is complete, and it needs no Lefthook replacement. The
+three-tier navigation preference (Decision, Section 1) survives as steering; only the blocking
 behavior is withdrawn.
 
 Rationale: the #3197 ROI review measured the enforcement layer against three
@@ -46,7 +45,7 @@ Copilot logs). It found:
   Against it stand documented false positives #3091 (a cargo-cult "LSP CONTEXT"
   incantation agents emit to satisfy the gate), #2200, #2454 (merge-conflict
   reads), and #2622 (LSP-down hard blocks), plus multiple blocks this week.
-- The retired Read gate fired on the hottest tool. `invoke_lsp_read_guard.py` ran on
+- The retired Read gate fired on the hottest tool. The deleted `invoke_lsp_read_guard.py` ran on
   every Read to enforce a preference, not a safety property, and pays the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
 - The preference already has three enforcement-free carriers.
@@ -361,7 +360,7 @@ here.
 
 ## Relationship to Prior ADRs
 
-- **#1993 hook (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
+- **#1993 removed hook (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
   Serena activation state because a UserPromptSubmit hook "cannot observe whether
   Serena MCP tools were called this turn, and no other hook writes a
   Serena-activation marker file. Inventing that state would couple two components
@@ -384,8 +383,8 @@ here.
 This section describes the retired enforcement layer and its deleted hook files.
 
 Retired exit codes: 0 = allow (including fail-open and warn mode), 2 = block.
-ADR-035 Claude-hook-semantics exemption, precedent `invoke_skill_first_guard.py`,
-`invoke_security_gate.py`, `invoke_serena_reassertion.py:38-41`. Copilot uses
+ADR-035 Claude-hook-semantics exemption, historical precedent `invoke_skill_first_guard.py`,
+historical `invoke_security_gate.py`, and removed `invoke_serena_reassertion.py:38-41`. Copilot uses
 `permissionDecision`; the generator translates and preserves the shim crash
 policy.
 
@@ -428,7 +427,7 @@ bump plugin.json; full validation; PR.
 - github.com/nesaminua/claude-code-lsp-enforcement-kit (MIT, v2.3.2): adapted source.
 - GitHub Docs: Copilot CLI LSP servers + hooks (auto-LSP, permissionDecision).
 - Claude Code native LSP tool (v2.0.74+): tier-2 fallback.
-- `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
+- Removed reference: `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
 - `.claude/rules/canonical-source-mirror.md`; `.claude/rules/release-it.md`; ADR-006; ADR-035; ADR-042; ADR-008; ADR-033.
 
 ---
