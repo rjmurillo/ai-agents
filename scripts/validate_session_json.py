@@ -93,6 +93,25 @@ BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
 # Commit SHA pattern
 COMMIT_SHA_PATTERN = re.compile(r"^[a-f0-9]{7,40}$")
 
+# The common default abbreviation length git uses. Longer abbreviations are
+# possible when needed for uniqueness, but this is the heuristic threshold for
+# recognising commit references in evidence text.
+_SHORT_SHA = 7
+
+# A conventional feature branch name. Anchored on the type prefix so that bare
+# words in prose cannot match, and so that ``main`` never does.
+_FEATURE_BRANCH_RE = re.compile(
+    r"\b(?:feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert)/[A-Za-z0-9._/-]+"
+)
+
+# A hex run long enough to be a commit abbreviation. Bounded on both sides so a
+# 40-character SHA is read whole rather than as its first seven characters.
+_SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+
+# Checklist items whose evidence answers "which branch did this session run
+# on". Both spellings appear across the corpus.
+_BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
+
 # Minimum required session start items (must exist in every session log)
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
@@ -262,9 +281,13 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
         session: The session section data.
         result: ValidationResult to update with errors/warnings.
     """
-    # Validate branch pattern
+    # Validate branch pattern. The type guard is load-bearing: schema errors are
+    # collected rather than raised, so a log declaring a non-string branch still
+    # reaches this line, and BRANCH_PATTERN.match would raise TypeError there.
+    # That turns a reportable schema violation into a crash, which is the one
+    # outcome a gate must not produce.
     branch = session.get("branch")
-    if branch and not BRANCH_PATTERN.match(branch):
+    if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
 
     # Validate commit SHA format
@@ -399,6 +422,152 @@ def _has_contradiction(evidence: str) -> bool:
         not _is_scope_qualified(evidence, match) and not _is_numeric_test_count(evidence, match)
         for match in CONTRADICTION_PATTERNS.finditer(evidence)
     )
+
+
+def _same_commit(cited: str, declared: str) -> bool:
+    """Return True when two commit spellings can name the same commit.
+
+    Git abbreviates to whatever length is unambiguous, so a log may hold a full
+    SHA in one field and a seven-character prefix in another. Comparing the
+    shorter against the longer is the only test that does not reject a correct
+    record for spelling it two ways.
+
+    Args:
+        cited: A SHA read out of evidence prose.
+        declared: The SHA the session section declares.
+
+    Returns:
+        True when either is a prefix of the other.
+    """
+    return cited.startswith(declared[: len(cited)]) or declared.startswith(cited[: len(declared)])
+
+
+def _evidence_of(items: dict[str, Any], name: str) -> str:
+    """Return the evidence string for a checklist item, or "" if absent.
+
+    Args:
+        items: A flattened checklist, item name to item.
+        name: The checklist item to read.
+
+    Returns:
+        The evidence text, or "" when the item, the key, or a string value is
+        missing. Callers treat "" as "nothing claimed", not as a violation.
+    """
+    item = items.get(name)
+    if not isinstance(item, dict):
+        return ""
+    evidence = get_case_insensitive(item, "evidence")
+    return evidence if isinstance(evidence, str) else ""
+
+
+def _flatten_checklist(compliance: object) -> dict[str, Any]:
+    """Return every checklist item keyed by name, ignoring its section.
+
+    Item names are unique across sections in practice and the cross-field
+    checks care about the fact, not where it was recorded. Logs in this repo
+    spell the sections several ways (``sessionStart`` and ``session_start``
+    both appear), so keying on section would make the checks miss the older
+    half of the corpus.
+
+    Args:
+        compliance: The protocolCompliance value, whatever the parser produced.
+
+    Returns:
+        A flat name-to-item mapping; empty when the value is not a mapping of
+        mappings.
+    """
+    flat: dict[str, Any] = {}
+    if not isinstance(compliance, dict):
+        return flat
+    for section in compliance.values():
+        if isinstance(section, dict):
+            flat.update(section)
+    return flat
+
+
+def _contradicted_branches(evidence: str, branch: str) -> list[str]:
+    """Return branches named in evidence that never names ``branch`` itself.
+
+    Two narrowings, both measured against all 946 committed logs rather than
+    reasoned about, because the obvious rule is wrong here.
+
+    Only conventional ``type/slug`` names count. Evidence routinely mentions
+    ``main`` and ``origin/main`` for legitimate reasons (a merge-base, a
+    comparison), and counting those would flag most of the corpus.
+
+    A second feature branch alone is *not* a contradiction either. Honest
+    evidence names one whenever it describes a relationship: "renamed from
+    feat/1774", "stacked on chore/lefthook-migration", "branched from
+    feat/1769". Flagging on a second name caught seven logs, and six of the
+    seven were exactly those. Contamination looks different: the evidence
+    describes the other session and never mentions this branch at all.
+
+    Args:
+        evidence: The evidence text to read.
+        branch: The branch the session section declares.
+
+    Returns:
+        The names found, empty when the evidence names no feature branch or
+        names this one anywhere in the string.
+    """
+    named = _FEATURE_BRANCH_RE.findall(evidence)
+    if any(name == branch or branch.startswith(name) or name.startswith(branch) for name in named):
+        return []
+    return named
+
+
+def validate_evidence_agrees_with_session(data: dict[str, Any], result: ValidationResult) -> None:
+    """Report evidence that describes a different session than the record does.
+
+    Session logs are seeded by copying a recent log, so the previous session's
+    evidence survives into the new record whenever the edit was incomplete. The
+    schema cannot see this: every field is present and correctly typed, and the
+    document is simply not true. These are facts stored twice with nothing
+    enforcing agreement, the same defect class as issue #3355. See issue #3383.
+
+    Only contradictions are reported, never silence. Evidence that names no
+    branch and no commit is outside this function's reach; the completeness
+    checks elsewhere own that case.
+
+    Args:
+        data: The whole log. These checks are cross-field by nature, so neither
+            section validator can own them.
+        result: ValidationResult to update with errors/warnings.
+    """
+    session = data.get("session")
+    if not isinstance(session, dict):
+        return
+    items = _flatten_checklist(data.get("protocolCompliance"))
+
+    branch = session.get("branch")
+    if isinstance(branch, str) and branch:
+        for name in _BRANCH_EVIDENCE_ITEMS:
+            conflicting = _contradicted_branches(_evidence_of(items, name), branch)
+            if conflicting:
+                result.errors.append(
+                    f"Evidence names a different branch: {name} cites "
+                    f"{', '.join(sorted(set(conflicting)))} but session.branch is {branch!r}"
+                )
+
+    starting = session.get("startingCommit")
+    if isinstance(starting, str) and len(starting) >= _SHORT_SHA:
+        evidence = _evidence_of(items, "startingCommitNoted")
+        cited = [sha for sha in _SHA_RE.findall(evidence) if len(sha) >= _SHORT_SHA]
+        if cited and not any(_same_commit(sha, starting) for sha in cited):
+            result.errors.append(
+                f"Evidence names a different starting commit: startingCommitNoted cites "
+                f"{', '.join(cited)} but session.startingCommit is {starting!r}"
+            )
+
+    committed = items.get("changesCommitted")
+    claims_commit = isinstance(committed, dict) and (
+        get_case_insensitive(committed, "complete") is True
+    )
+    if claims_commit and not str(data.get("endingCommit") or "").strip():
+        result.warnings.append(
+            "changesCommitted is complete but endingCommit is empty; "
+            "record the final commit SHA or mark the item incomplete"
+        )
 
 
 def validate_must_item(
@@ -621,6 +790,15 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
             So an existing log is validated as a record, and a new one is
             validated as a record *and* as a compliance claim. See issue #3385.
 
+            Agreement between evidence and the session section sits on the
+            claim side of that line, which is not obvious and is worth stating.
+            The record's shape is "branchVerified holds an evidence string";
+            whether that string describes *this* session is a claim about how
+            the session was conducted. It matters practically: four committed
+            logs contradict themselves, and git cannot adjudicate which side is
+            true, so on the record side those four would be a permanent block
+            that no honest edit could clear. See issue #3383.
+
     Returns:
         ValidationResult with errors and warnings.
     """
@@ -642,6 +820,9 @@ def validate_session_log(data: object, *, existing_log: bool = False) -> Validat
 
     if not existing_log and isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
+
+    if not existing_log:
+        validate_evidence_agrees_with_session(data, result)
 
     return result
 
