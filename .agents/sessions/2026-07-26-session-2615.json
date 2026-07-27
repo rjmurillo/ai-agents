@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Three commits: the ci-scripts rule with mirrors, the claude-agents rule with mirrors, and the manifest bump (0.6.127, later rebumped to 0.6.128 after main advanced)."
+        "evidence": "Three commits: the ci-scripts rule with mirrors, the claude-agents rule with mirrors, and the manifest bump (0.6.127, later rebumped to 0.6.129 after main advanced twice)."
       },
       "validationPassed": {
         "complete": true,
@@ -118,7 +118,7 @@
     },
     {
       "task": "Ship the rules and regenerate the mirrors",
-      "outcome": "ci-scripts.md MUST 7 and MUST 8, claude-agents.md MUST 7, both instruction mirrors regenerated with build/scripts/generate_rules.py, both plugin manifests bumped to 0.6.128 (rebumped after main advanced to 0.6.127) and parity confirmed."
+      "outcome": "ci-scripts.md MUST 7 and MUST 8, claude-agents.md MUST 7, both instruction mirrors regenerated with build/scripts/generate_rules.py, both plugin manifests bumped to 0.6.129 (rebumped twice as main advanced to 0.6.127 then 0.6.128) and parity confirmed."
     },
     {
       "task": "Negative control on mirror drift",
