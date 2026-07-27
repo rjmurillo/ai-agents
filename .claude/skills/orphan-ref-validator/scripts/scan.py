@@ -27,6 +27,7 @@ import argparse
 import json
 import logging
 import sys
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from pathlib import Path
 
@@ -55,21 +56,28 @@ if __package__ in (None, ""):
     )
     from envelope import (
         Finding,
+        IncompleteScan,
+        Kind,
         ScanResult,
         Severity,
+        SuppressedReference,
         render_envelope,
         render_error_envelope,
+        render_scan_error_envelope,
     )
     from filters import is_known_kebab_word, is_known_single_word_skill
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_directive_suppressed_refs,
+        extract_instruction_refs,
+        extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
     )
-    from walking import walk_targets
+    from walking import collect_walk_targets
 else:
     from .counts import (
         enumerate_sibling_artifacts,
@@ -77,21 +85,28 @@ else:
     )
     from .envelope import (
         Finding,
+        IncompleteScan,
+        Kind,
         ScanResult,
         Severity,
+        SuppressedReference,
         render_envelope,
         render_error_envelope,
+        render_scan_error_envelope,
     )
     from .filters import is_known_kebab_word, is_known_single_word_skill
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_directive_suppressed_refs,
+        extract_instruction_refs,
+        extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
     )
-    from .walking import walk_targets
+    from .walking import collect_walk_targets
 
 LOGGER = logging.getLogger("orphan_ref_validator")
 
@@ -123,7 +138,7 @@ def scan_file(
     known_skills: set[str],
     skill_catalog_present: bool = True,
     sibling_names: frozenset[str] | None = None,
-) -> tuple[list[Finding], int]:
+) -> tuple[list[Finding], int, str | None]:
     """Scan one file. Returns findings and count of refs checked.
 
     Thin orchestrator: read text, check for the file-scope ignore directive,
@@ -146,12 +161,12 @@ def scan_file(
         text = target_path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         LOGGER.warning("could not read %s: %s", target_path, exc)
-        return findings, refs_checked
+        return findings, refs_checked, f"could not read file: {exc}"
 
     head = "\n".join(text.splitlines()[:50])
     if FILE_IGNORE_DIRECTIVE_RE.search(head):
         LOGGER.info("file-scope ignore directive in %s; skipping", rel)
-        return findings, refs_checked
+        return findings, refs_checked, None
 
     skill_findings, skill_refs = _check_skill_refs(
         text, rel, known_skills, skill_catalog_present, sibling_names
@@ -169,7 +184,46 @@ def scan_file(
     findings.extend(skill_script_findings)
     refs_checked += skill_script_refs
 
-    return findings, refs_checked
+    rule_findings, rule_refs = _check_repo_path_refs(
+        text,
+        rel,
+        repo_root,
+        extract_rule_refs,
+        "rule_path",
+        "Rule",
+    )
+    findings.extend(rule_findings)
+    refs_checked += rule_refs
+
+    instruction_findings, instruction_refs = _check_repo_path_refs(
+        text,
+        rel,
+        repo_root,
+        extract_instruction_refs,
+        "instruction_path",
+        "Instruction mirror",
+    )
+    findings.extend(instruction_findings)
+    refs_checked += instruction_refs
+
+    return findings, refs_checked, None
+
+
+def directive_suppressed_refs(target_path: Path, repo_root: Path) -> list[SuppressedReference]:
+    """Return references suppressed by line-scope ignore directives."""
+    rel = _path_under(repo_root, target_path)
+    try:
+        text = target_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return [
+        SuppressedReference(
+            target_file=rel,
+            line=lineno,
+            referenced_entity=ref,
+        )
+        for lineno, ref in extract_directive_suppressed_refs(text)
+    ]
 
 
 def _check_skill_refs(
@@ -351,6 +405,37 @@ def _check_skill_script_refs(
     return findings, refs_checked
 
 
+def _check_repo_path_refs(
+    text: str,
+    rel: str,
+    repo_root: Path,
+    extractor: Callable[[str], Iterable[tuple[int, str]]],
+    kind: Kind,
+    label: str,
+) -> tuple[list[Finding], int]:
+    """Emit findings for scanned repo-relative path references."""
+    findings: list[Finding] = []
+    refs_checked = 0
+    for lineno, path_ref in extractor(text):
+        refs_checked += 1
+        if _exists_under_repo(repo_root, repo_root / path_ref):
+            continue
+        findings.append(
+            Finding(
+                kind=kind,
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=path_ref,
+                recommendation=(
+                    f"{label} `{path_ref}` not present on disk. "
+                    "Update reference or restore the file."
+                ),
+            )
+        )
+    return findings, refs_checked
+
+
 def _expand_target(target: Path, repo_root: Path) -> list[Path]:
     """Expand a target into concrete paths.
 
@@ -365,6 +450,15 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
         return sorted(repo_root.glob(rel))
     abs_target = target if target.is_absolute() else (repo_root / target)
     return [abs_target] if abs_target.exists() else []
+
+
+def _missing_target_issue(target: Path, repo_root: Path) -> IncompleteScan:
+    display = str(target)
+    if not target.is_absolute():
+        display = str(target)
+    else:
+        display = _path_under(repo_root, target)
+    return IncompleteScan(display, "target does not exist or glob matched no files")
 
 
 MAX_FINDINGS = 500
@@ -465,6 +559,7 @@ def scan(
     repo_root: Path,
     max_findings: int = MAX_FINDINGS,
     baseline: set[str] | None = None,
+    allow_missing_targets: bool = False,
 ) -> ScanResult:
     """Scan all targets relative to repo_root.
 
@@ -489,31 +584,57 @@ def scan(
     for target in targets:
         expanded = _expand_target(target, repo_root)
         if not expanded:
-            LOGGER.info("skipping %s: not present", target)
+            if allow_missing_targets:
+                LOGGER.info("skipping optional %s: not present", target)
+                continue
+            LOGGER.warning("incomplete scan for %s: not present", target)
+            result.incomplete_scans.append(_missing_target_issue(target, repo_root))
             continue
         for resolved in expanded:
             try:
                 resolved.resolve().relative_to(repo_root)
-            except ValueError:
-                LOGGER.warning("skipping %s: outside repo root", resolved)
+            except (OSError, ValueError) as exc:
+                LOGGER.warning("incomplete scan for %s: outside repo root", resolved)
+                result.incomplete_scans.append(
+                    IncompleteScan(_path_under(repo_root, resolved), f"outside repo root: {exc}")
+                )
                 continue
-            for path in walk_targets(resolved, repo_root):
+            paths, walk_problems = collect_walk_targets(resolved, repo_root)
+            result.incomplete_scans.extend(
+                IncompleteScan(_path_under(repo_root, problem.target), problem.reason)
+                for problem in walk_problems
+            )
+            for path in paths:
                 # Re-check containment after symlink resolution. A symlink
                 # inside an allowed directory can point outside the repo.
                 try:
                     path.resolve().relative_to(repo_root)
-                except ValueError:
+                except (OSError, ValueError) as exc:
                     LOGGER.warning(
-                        "skipping %s: resolves outside repo root", path
+                        "incomplete scan for %s: resolves outside repo root", path
+                    )
+                    result.incomplete_scans.append(
+                        IncompleteScan(
+                            _path_under(repo_root, path),
+                            f"resolves outside repo root: {exc}",
+                        )
                     )
                     continue
-                findings, refs_checked = scan_file(
+                result.directive_suppressed.extend(
+                    directive_suppressed_refs(path, repo_root)
+                )
+                findings, refs_checked, scan_error = scan_file(
                     path,
                     repo_root,
                     known_skills,
                     skill_catalog_present=skill_catalog_present,
                     sibling_names=sibling_names,
                 )
+                if scan_error is not None:
+                    result.incomplete_scans.append(
+                        IncompleteScan(_path_under(repo_root, path), scan_error)
+                    )
+                    continue
                 if baseline:
                     findings = _suppress_baselined(findings, baseline)
                     findings.sort(key=lambda f: f.suppressed)
@@ -587,6 +708,21 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
             "the baseline still exit 1. Accepts a JSON list of keys, a scan "
             "envelope (Data.findings), or one key per line (# comments allowed)."
         ),
+    )
+    parser.add_argument(
+        "--allow-missing-targets",
+        action="store_true",
+        default=False,
+        help=(
+            "Treat missing scan targets as optional vendored-install paths. "
+            "Explicit targets are strict by default."
+        ),
+    )
+    parser.add_argument(
+        "--allow-empty-scan",
+        action="store_true",
+        default=False,
+        help="Permit a completed scan to pass after scanning zero files.",
     )
     parser.add_argument(
         "--output",
@@ -697,7 +833,23 @@ def main(argv: list[str] | None = None) -> int:
             targets,
             repo_root,
             baseline=baseline,
+            allow_missing_targets=args.allow_missing_targets,
         )
+        if result.incomplete_scans:
+            message = (
+                "scan incomplete: one or more requested targets could not be scanned"
+            )
+            print(render_scan_error_envelope(result, message, args.output))
+            return 2
+        if result.files_scanned == 0 and not args.allow_empty_scan:
+            result.incomplete_scans.append(
+                IncompleteScan(
+                    "<scanner>",
+                    "zero files scanned; pass --allow-empty-scan for explicit empty scope",
+                )
+            )
+            print(render_scan_error_envelope(result, "scan completed zero files", args.output))
+            return 2
         print(render_envelope(result, args.output))
     except Exception as exc:
         # Catch-all so an unexpected runtime crash (filesystem races, encoding
