@@ -466,15 +466,22 @@ The hook was structurally dead, enforcing nothing while costing startup and disp
 
 ### What still enforces
 
-- Gate 1 (Session Protocol) remains, enforced by the session-log guard on `git commit` and `gh pr create` (it has no `gh pr merge` matcher).
-- The Retrospective gate (Phase 3.5) remains on `git push`, enforced by the lefthook `retrospective-policy` job.
-- Architecture-change governance is enforced by the adr-review guard, which is a separate hook from the retired routing_gates hook.
+- Gate 1 (Session Protocol) remains, enforced by the lefthook `session-policy`
+  job on `.agents/**` changes. That job runs
+  `scripts/validation/git_hook_policy.py session` during pre-commit and validates
+  staged JSON session logs.
+- The Retrospective gate (Phase 3.5) remains on `git push`, enforced by the
+  lefthook `retrospective-policy` job.
+- Architecture-change governance is enforced by the lefthook `adr-review-policy`
+  job on ADR and session-protocol changes during pre-commit. It requires
+  adr-review evidence in the current session log and a debate log that references
+  the staged ADR IDs.
 
 ### Where the advisory intent went
 
 Because the hook enforced nothing, its retirement removed no live enforcement. The advisory intents behind Gates 2, 3, and 4 are handled without a dedicated PreToolUse blocker:
 
-- ADR existence and review: the separate adr-review guard blocks ADR-touching commits that lack adr-review evidence, the pre-push hook emits a non-blocking reminder when ADR files change, and CI runs spec validation on pull requests.
+- ADR existence and review: the lefthook `adr-review-policy` job blocks ADR-touching commits that lack adr-review evidence, and CI runs spec validation on pull requests.
 - QA validation and critic review: these are advisory quality signals, not agentic-harness blockers. They are left to CI and to code review rather than a per-tool-call PreToolUse gate. This matches the hook ROI reduction program (epic #3197): a hook ships to customers only when it delivers blocking value that CI cannot.
 
 ### adr-review consensus
