@@ -1,0 +1,544 @@
+#!/usr/bin/env python3
+"""Held-out-gated artifact optimization primitives (Issue #3422).
+
+Pure functions with no I/O and no API calls, so the accept/reject decision is
+unit-testable without eval spend. The CLI in ``optimize.py`` wires these to
+files; the scorers stay where they are.
+
+Why this exists
+---------------
+The rest of ``scripts/eval/`` measures artifacts. Nothing gates an edit to one.
+``eval-prompt-change.py`` scores a prompt before and after an edit on the same
+scenarios the author read while making the edit, and ``eval-agent-vs-baseline.py``
+scores an agent against every fixture in its spike directory while the author
+reads the failures and rewrites the prompt. Both loops fit the test set.
+
+The discipline here is SkillOpt's (Yang et al., Microsoft, arXiv:2605.23904):
+treat the artifact as external trainable state, propose bounded edits from
+scored rollouts, and land a candidate only if it strictly beats the incumbent on
+a split the author never saw. Rejected edits are fingerprinted so the same
+failure is not re-proposed.
+
+Two properties here are not in that paper, and both close holes that show up
+once a loop runs for more than a few steps:
+
+``TaskSplit.fingerprint``
+    Gating N times against one ``sel`` split selects on that split N times. A
+    losing edit can be resurrected by adding fixtures and re-rolling. The
+    fingerprint covers the seed, the task-id set, and the ratios, and
+    :func:`gate` refuses when it moves, so an eval-set change forces a
+    re-baseline instead of silently laundering a loss.
+
+``gate(max_consultations=...)``
+    Even with a fixed split, repeated selection erodes the gate's meaning. The
+    consultation count is carried in the result and can be capped, so the loop
+    reports that it has run out of statistical room rather than hiding it.
+
+The seam between this module and any scorer is one mapping, ``{task_id: bool}``.
+Agents key it by fixture id, rules and prompts by scenario id, hooks by pytest
+node id. That is the whole reason the loop generalizes past skills.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+
+__all__ = [
+    "AmbiguousAnchorError",
+    "AnchorNotFoundError",
+    "BudgetExceededError",
+    "GateResult",
+    "MissingResultError",
+    "Patch",
+    "PatchShapeError",
+    "ProtectedSectionError",
+    "SplitTooSmallError",
+    "TaskSplit",
+    "apply_patches",
+    "buffer_contains",
+    "edit_budget",
+    "gate",
+    "patch_fingerprint",
+    "score",
+    "split_tasks",
+]
+
+FENCE_START = "<!-- SLOW_UPDATE_START -->"
+FENCE_END = "<!-- SLOW_UPDATE_END -->"
+
+_ANCHORED_OPS = frozenset({"insert_after", "replace", "delete"})
+_TEXT_OPS = frozenset({"append", "insert_after", "replace"})
+_VALID_OPS = frozenset({"append", "insert_after", "replace", "delete"})
+
+
+class SplitTooSmallError(ValueError):
+    """The requested split yields a held-out set too small to gate on."""
+
+
+class BudgetExceededError(ValueError):
+    """More patches were proposed than this step's edit budget allows."""
+
+
+class AnchorNotFoundError(ValueError):
+    """A patch anchor does not appear in the document."""
+
+
+class AmbiguousAnchorError(ValueError):
+    """A patch anchor appears more than once, so the target is undefined."""
+
+
+class ProtectedSectionError(ValueError):
+    """A patch would mutate the protected slow-update fence."""
+
+
+class PatchShapeError(ValueError):
+    """A patch is missing a field its operation requires."""
+
+
+class MissingResultError(ValueError):
+    """A scored task has no entry in the results mapping."""
+
+
+@dataclass(frozen=True)
+class Patch:
+    """One atomic edit.
+
+    ``anchor`` is the unique line a patch attaches to and is required for every
+    operation except ``append``. ``text`` is the content to write and is
+    required for every operation except ``delete``.
+    """
+
+    op: str
+    anchor: str | None
+    text: str | None
+
+
+@dataclass(frozen=True)
+class TaskSplit:
+    """A deterministic partition of an eval set.
+
+    ``opt`` is visible to whoever proposes edits. ``sel`` gates them and must
+    never be read during reflection. ``test`` is optional, never gates, and
+    exists so a converged loop can report one number that repeated selection
+    has not touched.
+    """
+
+    opt: tuple[str, ...]
+    sel: tuple[str, ...]
+    test: tuple[str, ...]
+    fingerprint: str
+
+
+@dataclass(frozen=True)
+class GateResult:
+    """The verdict on one candidate."""
+
+    decision: str
+    reason: str
+    candidate: float
+    incumbent: float
+    sel_consultations: int
+
+
+def _normalize_ws(value: str | None) -> str:
+    """Collapse every whitespace run to a single space."""
+    if value is None:
+        return ""
+    return " ".join(value.split())
+
+
+def _round_half_up(value: float) -> int:
+    """Round halves away from zero, avoiding banker's rounding surprises."""
+    return math.floor(value + 0.5)
+
+
+def split_tasks(
+    task_ids: Sequence[str],
+    *,
+    seed: str,
+    sel_ratio: float = 0.4,
+    test_ratio: float = 0.0,
+    min_sel: int = 3,
+) -> TaskSplit:
+    """Partition ``task_ids`` into optimize, held-out, and reserve groups.
+
+    The partition is derived from ``sha256(seed, task_id)`` rank, so it is
+    identical on every machine and independent of input order. Group sizes are
+    exact rather than approximate: hash bucketing can hand a ten-task eval set a
+    one-task gate, which measures nothing.
+
+    Adding or removing a task changes ``fingerprint``. That is deliberate. A
+    different eval set means the incumbent score was measured against something
+    else and has to be earned again.
+
+    Raises:
+        ValueError: on empty, blank, or duplicate ids, an empty seed, ratios
+            outside ``(0, 1)``, or ratios leaving no optimize tasks.
+        SplitTooSmallError: when the held-out group is smaller than ``min_sel``.
+    """
+    if not task_ids:
+        raise ValueError("split_tasks requires at least one task id")
+    if not seed or not seed.strip():
+        raise ValueError("split_tasks requires a non-empty seed")
+    if not 0.0 < sel_ratio < 1.0:
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+    if not 0.0 <= test_ratio < 1.0:
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+    if min_sel < 0:
+        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+    if sel_ratio + test_ratio >= 1.0:
+        raise ValueError(
+            f"sel_ratio + test_ratio must leave at least one opt task, "
+            f"got {sel_ratio} + {test_ratio}"
+        )
+
+    cleaned: list[str] = []
+    for raw in task_ids:
+        task_id = raw.strip()
+        if not task_id:
+            raise ValueError("split_tasks requires non-empty task ids")
+        cleaned.append(task_id)
+
+    if len(set(cleaned)) != len(cleaned):
+        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
+        raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
+
+    total = len(cleaned)
+    n_sel = _round_half_up(total * sel_ratio)
+    n_test = _round_half_up(total * test_ratio)
+    if total - n_sel - n_test < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"leaves no opt tasks"
+        )
+    if n_sel < min_sel:
+        raise SplitTooSmallError(
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"widen the eval set or lower min_sel to gate on it"
+        )
+
+    ranked = sorted(
+        cleaned,
+        key=lambda tid: hashlib.sha256(f"{seed}\x00{tid}".encode()).hexdigest(),
+    )
+    sel = tuple(ranked[:n_sel])
+    test = tuple(ranked[n_sel : n_sel + n_test])
+    opt = tuple(ranked[n_sel + n_test :])
+
+    payload = json.dumps(
+        {
+            "seed": seed,
+            "tasks": sorted(cleaned),
+            "sel_ratio": sel_ratio,
+            "test_ratio": test_ratio,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    fingerprint = hashlib.sha256(payload.encode()).hexdigest()
+    return TaskSplit(opt=opt, sel=sel, test=test, fingerprint=fingerprint)
+
+
+def edit_budget(step: int, total: int, *, max_edits: int = 5, min_edits: int = 1) -> int:
+    """Return how many patches step ``step`` of ``total`` may propose.
+
+    Cosine decay: the first step gets ``max_edits`` so early exploration can
+    restructure, the last gets ``min_edits`` so late steps can only make small,
+    reversible edits. Steps past ``total`` clamp to the floor.
+
+    Raises:
+        ValueError: on a negative step, a non-positive total, or bounds where
+            ``min_edits`` is below 1 or above ``max_edits``.
+    """
+    if step < 0:
+        raise ValueError(f"step must be non-negative, got {step}")
+    if total <= 0:
+        raise ValueError(f"total must be positive, got {total}")
+    if min_edits < 1:
+        raise ValueError(f"min_edits must be at least 1, got {min_edits}")
+    if min_edits > max_edits:
+        raise ValueError(f"min_edits ({min_edits}) must not exceed max_edits ({max_edits})")
+
+    clamped = min(step, total)
+    span = (max_edits - min_edits) * 0.5
+    decayed = min_edits + span * (1.0 + math.cos(math.pi * clamped / total))
+    return max(min_edits, min(max_edits, round(decayed)))
+
+
+def _split_lines(document: str) -> list[str]:
+    """Split into lines, dropping exactly one trailing newline."""
+    normalized = document.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _join_lines(lines: Sequence[str]) -> str:
+    if not lines:
+        return ""
+    return "\n".join(lines) + "\n"
+
+
+def _protected_indices(lines: Sequence[str]) -> frozenset[int]:
+    """Return every line index inside a slow-update fence, markers included.
+
+    Raises:
+        ProtectedSectionError: on a nested, unclosed, or unbalanced fence. The
+            document shape is checked before any patch applies, so a malformed
+            fence fails closed rather than leaving rails unprotected.
+    """
+    protected: set[int] = set()
+    open_at: int | None = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == FENCE_START:
+            if open_at is not None:
+                raise ProtectedSectionError(
+                    f"nested slow-update fence: second start at line {index + 1}"
+                )
+            open_at = index
+        elif stripped == FENCE_END:
+            if open_at is None:
+                raise ProtectedSectionError(
+                    f"unbalanced slow-update fence: end at line {index + 1} with no start"
+                )
+            protected.update(range(open_at, index + 1))
+            open_at = None
+    if open_at is not None:
+        raise ProtectedSectionError(
+            f"unclosed slow-update fence: start at line {open_at + 1} is never closed"
+        )
+    return frozenset(protected)
+
+
+def _validate_shape(patch: Patch) -> None:
+    if patch.op not in _VALID_OPS:
+        raise PatchShapeError(
+            f"unknown patch op {patch.op!r}; expected one of {sorted(_VALID_OPS)}"
+        )
+    if patch.op in _ANCHORED_OPS and (patch.anchor is None or not patch.anchor.strip()):
+        raise PatchShapeError(f"patch op {patch.op!r} requires a non-blank anchor")
+    if patch.op in _TEXT_OPS and patch.text is None:
+        raise PatchShapeError(f"patch op {patch.op!r} requires text")
+
+
+def _reject_smuggled_markers(patch: Patch) -> None:
+    """Refuse patch text that would introduce a fence marker.
+
+    Without this a patch could open its own fence and make the next step's edits
+    unreachable, or close an existing one and expose the rails inside it.
+    """
+    if patch.text is None:
+        return
+    for line in patch.text.replace("\r\n", "\n").split("\n"):
+        if line.strip() in (FENCE_START, FENCE_END):
+            raise ProtectedSectionError(
+                "patch text may not contain a slow-update fence marker; "
+                f"found {line.strip()!r}"
+            )
+
+
+def _locate(lines: Sequence[str], anchor: str) -> int:
+    needle = anchor.strip()
+    matches = [index for index, line in enumerate(lines) if line.strip() == needle]
+    if not matches:
+        raise AnchorNotFoundError(f"anchor {needle!r} does not appear in the document")
+    if len(matches) > 1:
+        raise AmbiguousAnchorError(
+            f"anchor {needle!r} appears {len(matches)} times; anchors must be unique"
+        )
+    return matches[0]
+
+
+def apply_patches(document: str, patches: Sequence[Patch], *, budget: int) -> str:
+    """Apply ``patches`` to ``document`` under a hard edit budget.
+
+    Patches apply in order, so a later patch may anchor on a line an earlier one
+    wrote. Every anchor must be unique at the moment its patch runs; an
+    ambiguous anchor is refused rather than resolved by picking the first match.
+    Nothing inside a slow-update fence can be touched.
+
+    A refusal here means the proposed edit was malformed or out of bounds. It is
+    not a statement about quality; that is :func:`gate`'s job.
+
+    Raises:
+        ValueError: on a negative budget.
+        BudgetExceededError: when more patches are proposed than allowed.
+        PatchShapeError: when a patch omits a field its op requires.
+        AnchorNotFoundError: when an anchor is absent.
+        AmbiguousAnchorError: when an anchor is not unique.
+        ProtectedSectionError: when a patch targets or introduces fenced content.
+    """
+    if budget < 0:
+        raise ValueError(f"budget must be non-negative, got {budget}")
+    if len(patches) > budget:
+        raise BudgetExceededError(
+            f"{len(patches)} patches exceed this step's edit budget of {budget}"
+        )
+
+    lines = _split_lines(document)
+    for patch in patches:
+        _validate_shape(patch)
+        _reject_smuggled_markers(patch)
+        protected = _protected_indices(lines)
+
+        if patch.op == "append":
+            lines = [*lines, *(patch.text or "").replace("\r\n", "\n").split("\n")]
+            continue
+
+        assert patch.anchor is not None  # guaranteed by _validate_shape
+        index = _locate(lines, patch.anchor)
+        if index in protected:
+            raise ProtectedSectionError(
+                f"anchor {patch.anchor.strip()!r} is inside a slow-update fence; "
+                f"fenced guidance is edited by hand at epoch boundaries, not by the optimizer"
+            )
+
+        if patch.op == "delete":
+            lines = [*lines[:index], *lines[index + 1 :]]
+        elif patch.op == "replace":
+            payload = (patch.text or "").replace("\r\n", "\n").split("\n")
+            lines = [*lines[:index], *payload, *lines[index + 1 :]]
+        else:  # insert_after
+            payload = (patch.text or "").replace("\r\n", "\n").split("\n")
+            lines = [*lines[: index + 1], *payload, *lines[index + 1 :]]
+
+    return _join_lines(lines)
+
+
+def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
+    """Return the passing fraction of ``task_ids``.
+
+    A task with no entry in ``results`` raises rather than counting as a
+    failure. Treating an absent result as a fail lets a truncated or crashed
+    rollout quietly change a score, which is the one thing the gate must not
+    tolerate.
+
+    Raises:
+        ValueError: when ``task_ids`` is empty.
+        MissingResultError: when any requested task has no result.
+        TypeError: when a result is not a bool.
+    """
+    if not task_ids:
+        raise ValueError("score requires at least one task id")
+
+    unique = sorted(set(task_ids))
+    missing = [task_id for task_id in unique if task_id not in results]
+    if missing:
+        raise MissingResultError(f"no result recorded for: {', '.join(missing)}")
+
+    for task_id in unique:
+        value = results[task_id]
+        if not isinstance(value, bool):
+            raise TypeError(f"result for {task_id!r} must be a bool, got {type(value).__name__}")
+
+    return sum(1 for task_id in unique if results[task_id]) / len(unique)
+
+
+def gate(
+    candidate: float,
+    incumbent: float,
+    *,
+    sel_consultations: int = 0,
+    max_consultations: int | None = None,
+    split_fingerprint: str | None = None,
+    incumbent_fingerprint: str | None = None,
+) -> GateResult:
+    """Decide whether a candidate replaces the incumbent.
+
+    Strictly greater wins. A tie is a reject: an edit that did not move the
+    held-out score is churn, and churn on an artifact costs review attention
+    forever.
+
+    Two guards run before the comparison. A moved ``split_fingerprint`` means
+    the candidate and the incumbent were measured against different eval sets,
+    so the comparison is meaningless. An exhausted consultation budget means the
+    held-out split has been selected against too many times to carry the claim.
+
+    Raises:
+        ValueError: on scores outside ``[0, 1]``, negative consultations, or a
+            non-positive consultation cap.
+    """
+    if not 0.0 <= candidate <= 1.0:
+        raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
+    if not 0.0 <= incumbent <= 1.0:
+        raise ValueError(f"incumbent score must be in [0, 1], got {incumbent}")
+    if sel_consultations < 0:
+        raise ValueError(f"sel_consultations must be non-negative, got {sel_consultations}")
+    if max_consultations is not None and max_consultations < 1:
+        raise ValueError(f"max_consultations must be positive, got {max_consultations}")
+
+    def _result(decision: str, reason: str) -> GateResult:
+        return GateResult(
+            decision=decision,
+            reason=reason,
+            candidate=candidate,
+            incumbent=incumbent,
+            sel_consultations=sel_consultations,
+        )
+
+    if (
+        split_fingerprint is not None
+        and incumbent_fingerprint is not None
+        and split_fingerprint != incumbent_fingerprint
+    ):
+        return _result(
+            "REJECT",
+            "split fingerprint moved since the incumbent was scored; re-baseline "
+            "on the current eval set before gating",
+        )
+
+    if max_consultations is not None and sel_consultations >= max_consultations:
+        return _result(
+            "REJECT",
+            f"held-out split exhausted after {sel_consultations} consultations "
+            f"(limit {max_consultations}); refresh the split or report on the test group",
+        )
+
+    if candidate > incumbent:
+        return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
+    if candidate == incumbent:
+        return _result("REJECT", f"tie at {candidate:.4f}; a tie does not earn an edit")
+    return _result("REJECT", f"candidate {candidate:.4f} regressed from {incumbent:.4f}")
+
+
+def patch_fingerprint(patches: Sequence[Patch]) -> str:
+    """Return a stable identity for a proposed edit.
+
+    Order-independent and whitespace-insensitive, so re-proposing the same edit
+    with the lines shuffled or the prose re-wrapped still matches a buffered
+    rejection.
+
+    Raises:
+        ValueError: when ``patches`` is empty.
+    """
+    if not patches:
+        raise ValueError("patch_fingerprint requires at least one patch")
+
+    canonical = sorted(
+        [patch.op, _normalize_ws(patch.anchor), _normalize_ws(patch.text)] for patch in patches
+    )
+    payload = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def buffer_contains(entries: Iterable[Mapping[str, object]], patches: Sequence[Patch]) -> bool:
+    """Report whether this edit has already been rejected.
+
+    Entries without a usable ``fingerprint`` are skipped rather than raising, so
+    one hand-edited line in the ledger cannot stop the loop.
+
+    Raises:
+        ValueError: when ``patches`` is empty.
+    """
+    target = patch_fingerprint(patches)
+    for entry in entries:
+        stored = entry.get("fingerprint")
+        if isinstance(stored, str) and stored == target:
+            return True
+    return False
