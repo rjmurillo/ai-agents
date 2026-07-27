@@ -127,6 +127,18 @@ _ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
 # in ``C:\templates`` the ``C`` is one character and not the literal ``path`` or
 # a bracketed label, and in ``https://x/path:/templates`` the label is preceded
 # by ``/``, which is not an anchor character.
+#
+# Only the tight form, with no gap between the colon and the path, needs this
+# anchor. CommonMark allows optional spaces, tabs, and up to one line ending
+# between a link label's colon and its destination, but every spaced form is
+# already counted without help here: the whitespace is itself an ``_ANCHOR``
+# character (``\s`` covers space, tab and newline), so ``[x]: /templates``
+# anchors on the space. Widening this to ``[x]:[ \t]*`` would match only strings
+# ``_ANCHOR`` already matches, which is dead regex, and it would still admit no
+# new hazard because a bare colon in prose (``note:/templates``) has no anchor
+# before the label. ``test_label_definition_whitespace_after_colon_still_counts``
+# pins the spaced, tabbed and line-broken forms; the negative-control test pins
+# that a raw prose colon does not anchor.
 _LABEL_ANCHOR = _ANCHOR + r"(?:path|\[[^\]\r\n]+\]):"
 
 # An unquoted HTML attribute ``<img src=/templates/agents/x.md>`` puts an equals
@@ -165,12 +177,6 @@ _MARKER_PATTERN = re.compile(
 
 # Regex to detect a fenced code block opening line (CommonMark: 0-3 spaces indent allowed).
 _FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
-
-# A fence may also open inside a blockquote, which is how GitHub admonitions
-# (``> [!NOTE]`` followed by a fenced example) are written. CommonMark parses
-# blockquote content as Markdown after the marker is removed, so the marker has
-# to come off before the fence test runs.
-_BLOCKQUOTE_PREFIX_PATTERN = re.compile(r"^[ \t]{0,3}(?:>[ \t]?)+")
 
 # One blockquote marker: optional leading indent on the first, then ``>`` and an
 # optional single space that belongs to the marker rather than the content.
