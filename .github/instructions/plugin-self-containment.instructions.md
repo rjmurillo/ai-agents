@@ -99,8 +99,8 @@ Two counting traps, both hit while measuring this. `.claude/worktrees/` holds ne
 ## MUST
 
 1. **No undeclared upstream-only dependency in a shipped file.** A file under a plugin root, or under `templates/agents/`, MUST NOT instruct the reader to open, run, or resolve a path that exists only in this repository, unless a `vendor-portability` declaration in that file names that path. Consumer-workspace paths are exempt; they are the point.
-2. **Address in-root executables through the plugin-root env vars.** Use `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts/<file>"`, never a bare `.claude/skills/...` path, which resolves only when the consumer's working directory happens to match. `check_skill_md_exec_portability.py` ratchets new violations.
-3. **Do not cross-reference between plugin roots.** `.claude/` and `src/copilot-cli/` install separately. Neither may reach into the other. The generator mirrors content for exactly this reason.
+2. **Address in-root executables through the plugin-root env vars.** Use `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts/<file>"`, never a bare `.claude/skills/...` path, which resolves only when the consumer's working directory happens to match. `check_skill_md_exec_portability.py` ratchets new violations in bodies, and `check_plugin_frontmatter_self_containment.py` blocks them outright in frontmatter.
+3. **Do not cross-reference between plugin roots.** `.claude/` and `src/copilot-cli/` install separately. Neither may reach into the other. The generator mirrors content for exactly this reason. `check_plugin_frontmatter_self_containment.py` blocks a cross-root reference in frontmatter even when the target exists here, because existing in this repository is not the same as travelling with the plugin the consumer installed.
 
 ## SHOULD
 

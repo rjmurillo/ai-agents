@@ -66,8 +66,12 @@ Why frontmatter, and only frontmatter:
 What counts as a violation:
 
   A frontmatter ``description`` or ``name`` under a plugin root that names a
-  *file* (a path with an extension) under a directory that exists only in
-  ``rjmurillo/ai-agents``.
+  *file* (a path with an extension) which the plugin does not carry. Two
+  shapes qualify. The first is a path under a directory that exists only in
+  ``rjmurillo/ai-agents``. The second is a path that spells out a plugin root,
+  which the rule forbids twice over: MUST-2 bans the bare in-root form because
+  it "resolves only when the consumer's working directory happens to match",
+  and MUST-3 bans reaching across roots because the roots install separately.
 
   Requiring an extension is what keeps this check honest. The rule permits
   consumer-workspace paths, which are the plugin doing its job: an agent told
@@ -94,6 +98,25 @@ Opt-out:
   opt-out to the path it names keeps the hatch specific and makes it say what
   it is buying.
 
+Scanned surface versus triggered surface:
+
+  ``iter_markdown`` walks every Markdown file under a plugin root, including
+  files inside nested dot-directories. That is only safe because the workflow's
+  path filter reaches them too, and it reaches them because
+  ``dorny/paths-filter`` passes ``{dot: true}`` to picomatch at the SHA this
+  repository pins. Verified at ``7b450fff21473bca461d4b92ce414b9d0420d706``,
+  ``src/filter.ts`` line 16, applied at both ``picomatch()`` call sites.
+
+  The default matters because it runs the other way: picomatch without that
+  option does *not* match ``.claude/.hidden/a.md`` against ``.claude/**``.
+  Confirmed directly against the library. So a future change that swaps the
+  action, unpins it onto a release that drops the option, or hand-rolls the
+  filter would silently shrink the trigger below the scan, and a violation in a
+  nested dot-directory would stop firing this gate while still shipping. If
+  that ever happens, narrow ``iter_markdown`` to match rather than leaving the
+  gap. Today no plugin root contains a Markdown file in a nested dot-directory,
+  so the exposure is latent either way.
+
 No baseline. The surface is four files, two of which are declared, so the
 honest starting point is zero and staying there. A baseline on a surface this
 small would only invite drift.
@@ -116,6 +139,19 @@ import yaml
 
 PLUGIN_ROOTS = (".claude", "src/claude", "src/copilot-cli")
 
+# A path that spells out a plugin root. The directory exists here, so this is
+# not an upstream-only reference, but it does not resolve for a consumer
+# either: the root is what gets installed, and it lands wherever the harness
+# puts it, not at the repo-relative path written here. The rule forbids both
+# shapes. MUST-2 bans a bare in-root path, because it "resolves only when the
+# consumer's working directory happens to match", and MUST-3 bans reaching
+# across roots, because ``.claude`` and ``src/copilot-cli`` install separately.
+# Resolution handles the difference between the two: an in-root reference is
+# tried against the file's own directory and against the owning root first, so
+# a relative path that genuinely resolves is never flagged, while a
+# root-prefixed spelling of that same file has nowhere to land and is.
+ROOT_PREFIXED = tuple(re.escape(root) for root in PLUGIN_ROOTS)
+
 # Directories that exist only in this repository. A consumer who installs a
 # plugin receives the plugin root and nothing above it.
 UPSTREAM_ONLY = (
@@ -134,7 +170,7 @@ UPSTREAM_ONLY = (
 # The trailing extension is load-bearing: see the module docstring.
 OUTWARD_FILE = re.compile(
     r"(?<![\w./-])(?:\.{1,2}/)?(?:"
-    + "|".join(UPSTREAM_ONLY)
+    + "|".join(UPSTREAM_ONLY + ROOT_PREFIXED)
     + r")/[\w./-]*\w\.[A-Za-z][A-Za-z0-9]{0,4}(?![\w/])"
 )
 

@@ -106,9 +106,17 @@ class TestPrecision:
         "reference",
         [".claude/skills/foo/SKILL.md", "src/copilot-cli/lib/paths.py"],
     )
-    def test_ignores_in_root_paths(self, reference: str) -> None:
-        """Plugin roots ship. A reference inside one resolves for the consumer."""
-        assert gate.scan_file(Path("x.md"), _frontmatter(f"Reads {reference}.")) == []
+    def test_detects_a_root_prefixed_path(self, reference: str) -> None:
+        """The rule forbids this spelling twice over, so the gate must see it.
+
+        MUST-2 bans a bare in-root path because it "resolves only when the
+        consumer's working directory happens to match", and MUST-3 bans
+        reaching across roots because the roots install separately. An earlier
+        draft asserted the opposite, on the reasoning that a plugin root ships
+        and therefore anything under it resolves. The root ships; the
+        repo-relative spelling of it does not travel with it.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter(f"Reads {reference}.")) != []
 
     def test_ignores_body_prose(self) -> None:
         """Body is the sibling ratchet's surface, deliberately not this one."""
@@ -125,6 +133,16 @@ class TestPrecision:
     def test_ignores_a_similar_prefix(self) -> None:
         """'mydocs/' and 'subdocs/' are not 'docs/'."""
         assert gate.scan_file(Path("x.md"), _frontmatter("Reads mydocs/a.md.")) == []
+
+    def test_the_leading_dot_of_a_root_is_a_literal(self) -> None:
+        """Kills the mutant that drops ``re.escape`` from the root prefixes.
+
+        Unescaped, ``.claude`` is a wildcard followed by ``claude``, so a
+        directory named ``xclaude/`` matches and a consumer-workspace path gets
+        hard-blocked by a gate with no baseline.
+        """
+        assert gate.scan_file(Path("x.md"), _frontmatter("Reads xclaude/a.md.")) == []
+        assert gate.scan_file(Path("x.md"), _frontmatter("Reads .claude/a.md.")) != []
 
 
 class TestDeclaration:
@@ -369,6 +387,43 @@ class TestRootAwareness:
     def test_plugin_roots_are_pinned(self) -> None:
         """Losing a root silently halves the gate; the tuple is the contract."""
         assert gate.PLUGIN_ROOTS == (".claude", "src/claude", "src/copilot-cli")
+
+    def test_root_prefixed_detection_tracks_the_pinned_roots(self) -> None:
+        """Adding a root must extend detection, not just the scan.
+
+        Asserted through the matcher rather than against the constant, so a
+        hand-maintained list that drifts from ``PLUGIN_ROOTS`` fails here.
+        """
+        for name in gate.PLUGIN_ROOTS:
+            reference = f"{name}/skills/x/SKILL.md"
+            assert gate.OUTWARD_FILE.findall(reference) == [reference], name
+
+    def test_resolution_does_not_launder_a_root_prefixed_path(self, tmp_path: Path) -> None:
+        """The discriminating case for the two-base resolution.
+
+        The target really exists in the root that ships the file naming it, so
+        a resolver that stripped the root prefix, or that resolved against the
+        repository instead of the plugin, would call this clean. It is not:
+        the consumer receives the root's contents at whatever path their
+        harness installs to, so the repo-relative spelling has nowhere to land.
+        The relative spelling of the same file, asserted alongside, still
+        resolves, which is what keeps this from being a blanket ban.
+        """
+        (tmp_path / ".claude" / "rules").mkdir(parents=True)
+        (tmp_path / ".claude" / "rules" / "y.md").write_text("x", encoding="utf-8")
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
+        assert ships("rules/y.md") is True
+        assert ships(".claude/rules/y.md") is False
+
+    def test_a_cross_root_reference_is_flagged_even_when_the_target_exists(self) -> None:
+        """MUST-3. The roots install separately, so neither may reach the other."""
+        root = Path(__file__).resolve().parents[2]
+        text = _frontmatter("Mirrors .claude/rules/plugin-self-containment.md.")
+        assert (root / ".claude/rules/plugin-self-containment.md").is_file()
+        ships = gate.reference_shipper(root, "src/copilot-cli", root / "src/copilot-cli/skills/x")
+        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text, ships)] == [
+            ".claude/rules/plugin-self-containment.md"
+        ]
 
 
 class TestReferenceShapes:
