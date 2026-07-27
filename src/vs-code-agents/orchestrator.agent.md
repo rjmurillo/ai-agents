@@ -103,7 +103,6 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **implementer** | Code changes, tests | sonnet | Design decisions still open |
 | **independent-thinker** | Challenge consensus, devil's advocate | opus | Need validation, not challenge |
 | **issue-feature-review** | Triage feature requests | sonnet | Already prioritized |
-| **memory** | Cross-session retrieval and storage | sonnet | Within-session state |
 | **milestone-planner** | Epic → milestones with exit criteria | sonnet | Task-level decomposition |
 | **qa** | Test strategy, user-outcome validation | sonnet | Unit test details only |
 | **quality-auditor** | Domain grading, gap analysis | sonnet | Single-file review |
@@ -112,6 +111,8 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
 | **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
+
+Every row above names an agent that is registered in this install. Delegate only to a name on this list, and confirm the agent is registered before routing: a delegation naming an agent that was renamed or retired fails silently, and the work is simply skipped rather than reported as an error. Cross-session retrieval and storage is not on this list because it is not an agent. Use the `memory` skill, or `mcp__serena__read_memory` and `mcp__serena__write_memory` directly.
 
 ## Model, Effort, and Cost Routing
 
