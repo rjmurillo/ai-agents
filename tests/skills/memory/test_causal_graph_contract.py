@@ -136,9 +136,30 @@ class TestTheRetiredWriterBorrowsTheLiveIdentity:
         ) == _load_writer().generate_node_id("decision", "shared")
 
     def test_it_no_longer_allocates_sequential_ids(self) -> None:
-        source = (
-            SKILL_ROOT / "memory_core" / "reflexion_memory.py"
-        ).read_text(encoding="utf-8")
-        # The old allocators returned these literals when the graph was empty.
-        assert 'return "n001"' not in source
-        assert 'return "p001"' not in source
+        """The retired writer derives ids via the live writer, not sequential."""
+        sys.path.insert(0, str(SKILL_ROOT))
+        try:
+            from memory_core import reflexion_memory
+        finally:
+            sys.path.pop(0)
+
+        schema = _load(SCHEMA_FILE)
+        node_id_pattern = schema["properties"]["nodes"]["items"]["properties"]["id"][
+            "pattern"
+        ]
+        pattern_id_pattern = schema["properties"]["patterns"]["items"]["properties"][
+            "id"
+        ]["pattern"]
+
+        node_id = reflexion_memory._next_node_id("decision", "test-label")
+        pattern_id = reflexion_memory._next_pattern_id("test-pattern")
+
+        # IDs must match the schema's 12-hex pattern, not sequential n001/p001.
+        import re as _re
+
+        assert _re.fullmatch(
+            node_id_pattern, node_id
+        ), f"node id {node_id!r} does not match {node_id_pattern}"
+        assert _re.fullmatch(
+            pattern_id_pattern, pattern_id
+        ), f"pattern id {pattern_id!r} does not match {pattern_id_pattern}"

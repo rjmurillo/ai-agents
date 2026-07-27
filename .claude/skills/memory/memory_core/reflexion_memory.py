@@ -21,6 +21,7 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import json
 import logging
@@ -54,6 +55,7 @@ EPISODE_SCHEMA_FILE = SCHEMAS_PATH / "episode.schema.json"
 CAUSAL_GRAPH_SCHEMA_FILE = SCHEMAS_PATH / "causal-graph.schema.json"
 
 
+@functools.lru_cache(maxsize=1)
 def _live_writer() -> Any:
     """Load the live causal-graph writer so identity is defined in one place.
 
