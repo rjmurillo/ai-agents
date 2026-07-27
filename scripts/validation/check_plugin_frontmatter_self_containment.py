@@ -186,8 +186,13 @@ UPSTREAM_ONLY = (
 # prose. A greedy `\S+` swallows a real reference that follows a URI with only
 # punctuation between them, as in `http://example.com,docs/a.md`, which turns a
 # precision fix into a silent miss.
+#
+# `file:` is excluded because a standalone local file URI has to survive this
+# strip for `LOCAL_URI` to report it. The guard is live rather than defensive:
+# the local scan reads the stripped value, so without it every `file://`
+# reference would be erased here and silently pass.
 REMOTE_URI = re.compile(
-    r"(?<![A-Za-z0-9])[a-z][a-z0-9+.-]*://[^\s<>,;)\]\"']+",
+    r"(?<![A-Za-z0-9])(?!file:)[a-z][a-z0-9+.-]*://[^\s<>,;)\]\"']+",
     re.IGNORECASE,
 )
 
@@ -195,15 +200,28 @@ REMOTE_URI = re.compile(
 # are addresses and payloads, so a path-shaped substring in one is not a
 # reference. The list is explicit rather than a general `scheme:` pattern
 # because a general one also matches ordinary prose such as `Note:docs/a.md`.
+#
+# `data:` is split out because its payload follows a comma, and the shared tail
+# stops at one. Sharing the tail left `data:text/plain,docs/a.md` half-stripped
+# and reported the payload as a reference.
 OPAQUE_URI = re.compile(
-    r"(?<![A-Za-z0-9])(?:mailto|tel|urn|data):[^\s<>,;)\]\"']+",
+    r"(?<![A-Za-z0-9])(?:(?:mailto|tel|urn):[^\s<>,;)\]\"']+"
+    r"|data:[^\s<>;)\]\"']+)",
     re.IGNORECASE,
 )
 
 # A local file URI. Nothing about it survives leaving this machine, so it is a
 # violation on sight rather than a path to resolve. It is reported whole,
 # because the part a consumer cannot use is the scheme, not the tail.
-LOCAL_URI = re.compile(r"(?<![A-Za-z0-9])file:/[^\s<>,;)\]\"']*", re.IGNORECASE)
+#
+# The tail may not end in sentence punctuation. Without that, `file:///docs/a.md.`
+# at the end of a sentence reports the period as part of the URI, and because the
+# opt-out below compares the reported string against the declared one, a period on
+# one side and not the other would silently defeat a correct declaration.
+LOCAL_URI = re.compile(
+    r"(?<![A-Za-z0-9])file:/(?:[^\s<>,;)\]\"']*[^\s<>,;)\]\"'.!?])?",
+    re.IGNORECASE,
+)
 
 # A path under an upstream-only directory, or one that spells a plugin root,
 # that names a file rather than a directory. The trailing extension is
@@ -331,6 +349,24 @@ def checked_values(text: str) -> list[tuple[int, str, str]]:
     return found
 
 
+def _path_surface(value: str) -> str:
+    """The part of a value where a filesystem path can legitimately appear.
+
+    Remote and opaque URIs are removed first because their tails are hosts,
+    addresses, and payloads. A path-shaped substring inside one is not a
+    reference to a file, and reporting it is a false positive on a gate that
+    blocks a merge.
+
+    Both readers of a value go through here, and that is the point rather than
+    tidiness. When only ``scan_file`` stripped URIs, a marker reading
+    ``<!-- vendor-portability: https://example.test/?path=docs/a.md -->``
+    declared ``docs/a.md`` out of a query string and silently waived a real
+    violation elsewhere in the same file. An opt-out that a URL can trigger is
+    not an opt-out.
+    """
+    return OPAQUE_URI.sub(" ", REMOTE_URI.sub(" ", value))
+
+
 def declared_paths(text: str) -> set[str]:
     """Paths named inside this file's ``vendor-portability`` markers.
 
@@ -340,7 +376,17 @@ def declared_paths(text: str) -> set[str]:
     """
     declared: set[str] = set()
     for body in DECLARATION.findall(text):
-        declared.update(OUTWARD_FILE.findall(body))
+        surface = _path_surface(body)
+        declared.update(OUTWARD_FILE.findall(surface))
+        # A local file URI is checked as a whole string, and `OUTWARD_FILE`
+        # cannot produce that string: the character before any directory name
+        # inside a URI is always `/`, which the boundary rejects. Reading the
+        # marker with `OUTWARD_FILE` alone therefore left `declared` empty for
+        # every local URI, so the opt-out the docstring and the failure message
+        # both advertise could never be taken. The two matchers cannot collide,
+        # because one always yields a string containing `file:/` and the other
+        # never does.
+        declared.update(LOCAL_URI.findall(surface))
     return declared
 
 
@@ -360,12 +406,22 @@ def reference_shipper(repo_root: Path, root: str, file_dir: Path) -> Callable[[s
     test is for the segment rather than the substring: a filename may contain
     consecutive dots (``docs/a..b.md``) without being a traversal, and the
     traversal may sit anywhere in the path rather than only at the front.
+
+    An absolute candidate never resolves either, and the reason is a pathlib
+    behaviour rather than a policy: ``base / "/docs/a.md"`` discards the base
+    and yields ``/docs/a.md``. Without the guard the existence test asks about
+    the host filesystem rather than about shipped content, so an absolute
+    reference is laundered into "shipped" by whatever happens to sit at the
+    root of the build container. ``/build`` and ``/scripts`` are ordinary
+    directories in a container image, and both spell a watched directory here.
     """
 
     bases = (file_dir, repo_root / root)
 
     def ships(reference: str) -> bool:
         candidate = reference[2:] if reference.startswith("./") else reference
+        if candidate.startswith("/"):
+            return False
         if ".." in candidate.split("/"):
             return False
         return any((base / candidate).exists() for base in bases)
@@ -380,10 +436,11 @@ def scan_file(
     declared = declared_paths(text)
     violations: list[tuple[int, str, str]] = []
     for number, key, value in checked_values(text):
-        for local in LOCAL_URI.findall(value):
+        surface = _path_surface(value)
+        for local in LOCAL_URI.findall(surface):
             if local not in declared:
                 violations.append((number, key, local))
-        for reference in OUTWARD_FILE.findall(OPAQUE_URI.sub(" ", REMOTE_URI.sub(" ", value))):
+        for reference in OUTWARD_FILE.findall(surface):
             if reference in declared:
                 continue
             if ships is not None and ships(reference):

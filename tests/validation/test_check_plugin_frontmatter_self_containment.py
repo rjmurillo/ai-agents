@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import yaml
@@ -831,3 +832,117 @@ class TestUriHandling:
         text = _frontmatter("Note:docs/a.md is the file.")
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
 
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("Read file:///docs/a.md.", "file:///docs/a.md"),
+            ("See file:///docs/a.md!", "file:///docs/a.md"),
+            ("Which file:///docs/a.md?", "file:///docs/a.md"),
+            ("Bare file:///docs/a.md", "file:///docs/a.md"),
+        ],
+    )
+    def test_a_local_uri_does_not_absorb_sentence_punctuation(
+        self, value: str, expected: str
+    ) -> None:
+        """A period ending the sentence is not part of the URI.
+
+        This is not cosmetic. The opt-out compares the reported string against
+        the declared one, so a trailing period on one side and not the other
+        silently defeats a correct declaration.
+        """
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), _frontmatter(value))]
+        assert refs == [expected]
+
+    def test_a_local_uri_can_be_declared(self) -> None:
+        """The opt-out the failure message advertises has to be reachable.
+
+        ``declared_paths`` read markers with ``OUTWARD_FILE`` alone, which
+        cannot produce a ``file:/`` string, so ``declared`` was always empty for
+        a local URI and the documented escape hatch could never be taken.
+        """
+        text = (
+            _frontmatter("Read file:///docs/a.md.")
+            + "\n<!-- vendor-portability: file:///docs/a.md -->\n"
+        )
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_an_undeclared_local_uri_is_still_a_violation(self) -> None:
+        """Making the opt-out reachable must not make it automatic."""
+        text = (
+            _frontmatter("Read file:///docs/a.md.") + "\n<!-- vendor-portability: docs/b.md -->\n"
+        )
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), text)]
+        assert refs == ["file:///docs/a.md"]
+
+    def test_a_file_uri_inside_a_remote_url_is_not_a_local_reference(self) -> None:
+        """A query string is part of the remote address, not a local path."""
+        value = "See <https://example.test/?redirect=file:///docs/a.md>"
+        assert gate.scan_file(Path("x.md"), _frontmatter(value)) == []
+
+    def test_a_standalone_file_uri_survives_the_remote_strip(self) -> None:
+        """The converse of the test above, and the reason for the ``file:`` guard.
+
+        ``REMOTE_URI`` matches any ``scheme://``, which includes ``file://``.
+        Since the local scan now reads the stripped value, dropping the guard
+        erases every local URI here and the check passes on a real violation.
+        """
+        refs = [
+            ref
+            for _, _, ref in gate.scan_file(Path("x.md"), _frontmatter("Read file:///docs/a.md."))
+        ]
+        assert refs == ["file:///docs/a.md"]
+
+    def test_a_data_payload_is_not_a_reference(self) -> None:
+        """``data:`` carries its payload after a comma, where the shared tail stops."""
+        assert gate.scan_file(Path("x.md"), _frontmatter("See data:text/plain,docs/a.md")) == []
+
+    def test_a_url_in_a_marker_does_not_declare_a_path(self) -> None:
+        """An opt-out a URL can trigger is not an opt-out.
+
+        The marker names a remote address whose query happens to contain a
+        path-shaped value. Reading it without stripping URIs waived a real
+        violation elsewhere in the same file.
+        """
+        text = (
+            _frontmatter("Per docs/a.md.")
+            + "\n<!-- vendor-portability: https://example.test/?path=docs/a.md -->\n"
+        )
+        refs = [ref for _, _, ref in gate.scan_file(Path("x.md"), text)]
+        assert refs == ["docs/a.md"]
+
+    def test_a_marker_naming_the_path_plainly_still_waives(self) -> None:
+        """Closing the laundering path must not close the escape hatch."""
+        text = _frontmatter("Per docs/a.md.") + "\n<!-- vendor-portability: docs/a.md -->\n"
+        assert gate.scan_file(Path("x.md"), text) == []
+
+    def test_an_absolute_reference_is_never_shipped(self, tmp_path: Path) -> None:
+        """``base / "/docs/a.md"`` discards the base, so the test leaks to the host.
+
+        Without the guard the existence question is asked of the build machine
+        rather than of shipped content. ``/build`` and ``/scripts`` are ordinary
+        directories in a container image and both spell a watched directory, so
+        an absolute reference would be laundered into "shipped" by the image.
+        """
+        (tmp_path / ".claude").mkdir()
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
+        assert ships("/docs/a.md") is False
+
+    def test_an_absolute_reference_asks_nothing_of_the_host(self, tmp_path: Path) -> None:
+        """The guard must short-circuit, not merely produce the right answer.
+
+        A version that resolved first and rejected after would still stat a host
+        path, which is the behaviour that made the laundering possible.
+        """
+        (tmp_path / ".claude").mkdir()
+        ships = gate.reference_shipper(tmp_path, ".claude", tmp_path / ".claude")
+        seen: list[str] = []
+
+        def fake_exists(candidate: Path) -> bool:
+            seen.append(str(candidate))
+            return True
+
+        with mock.patch.object(Path, "exists", fake_exists):
+            result = ships("/docs/a.md")
+        assert result is False
+        assert seen == []
