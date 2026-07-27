@@ -208,8 +208,8 @@ Negative, accepted:
   that can already execute arbitrary commands. The coverage-invariant test
   protects this publishing repo, not consumers or forks.
 - Consumers previously received `invoke_session_start_memory_first.py` through
-  the plugin (membership frozen here); pruning it for consumers is a
-  follow-up plugin change.
+  the plugin. That consumer prune is completed; the hook and plugin membership
+  are gone.
 - Group membership exists on three surfaces (dispatch manifest, settings,
   plugin manifest); the parity tests are the drift guard.
 - Copilot matcher emission assumes matcher-aware CLI versions ignore or
