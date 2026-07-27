@@ -1824,3 +1824,68 @@ pid write's nested `finally` in the extracted helper and turns the ledger's
 descriptor test red. M19 drops the cleanup warning and turns six red, four
 ledger and two buffer, which is the check that the shared helper is genuinely
 shared rather than shared in name.
+
+## Shape 43: the same defect inverted, and a reviewer as the witness
+
+Round 32 ran on a third model family against the two surfaces still marked NOT
+CHECKED: the adapter layer and artifact-to-results provenance. It returned two
+Criticals. Both were rejected, and one of them was worth more rejected than it
+would have been accepted.
+
+The second is disposed of quickly. It restated ADR-087 Open Requirement 2 in
+its own words: nothing proves `candidate.json` was produced by the edit under
+test. That is true, known, written down, and tracked as #3436. The review was
+told in its own instructions not to report from that section. This is the third
+round in the series to spend itself on already-tracked material, after round 19
+quoted the Open Requirements back verbatim as Criticals and round 31 reported a
+Windows skip that its own docstring documents. The instruction is necessary and
+not sufficient. What would help is unclear; a reviewer that reads the ADR
+carefully enough to find the surface is reading the section that already
+describes it.
+
+The first is the interesting one. It reported that `extract --kind rule`
+refuses a degraded scorer report with exit 2, and argued this overrides the
+adapter layer's documented fail-closed design and crashes an autonomous loop on
+a transient judge failure. The proposed fix was to delete the refusal.
+
+The finding is wrong and the code is right. Fail-closed and refusal answer the
+same threat, which is that a missing measurement must never read as an
+improvement, and they differ on what a wasted consultation costs. Scoring a
+failed judge as a real failure measures the judge rather than the rule. The
+gate would then spend one of a small budget of held-out consultations to reach
+a REJECT that carries no information about the candidate, and the budget does
+not refund. The rule path is also the one that can least afford the noise: it
+is single-shot against an LLM judge, and Open Requirement 6 measured identical
+rule text moving 5 of 24 tasks across the pass threshold on a re-run, while the
+agent path averages over runs. Exit 2 is the README's own documented signal
+that the command failed and the loop must stop.
+
+Applying the reviewer's proposed fix turns seven tests red, six of which
+predate this round. A defect whose repair breaks six existing tests written by
+earlier reviews is usually not a defect.
+
+What the round produced instead is a real one, and it is the recurring shape
+turned inside out. Four times in five rounds the document was right and the
+code was wrong. Here the code was right and the document was wrong. The
+README's adapter paragraph listed three losses as scoring false together: a
+fixture the variant never ran, a scenario whose judge errored, and a skipped
+test. Two of the three do. The middle one does not: on the rule path the
+extraction is refused outright. The sentence had been read four rounds running
+without anyone checking it against the third path.
+
+The evidence that the prose misleads is the review itself. A capable reader,
+instructed to verify by running, read that sentence, found the code disagreeing
+with it, and filed a Critical against working code. An operator reading the same
+sentence would have concluded the same thing with less recourse. A reviewer
+misled by prose is a measurement of the prose, not only of the reviewer, and
+that is the argument for treating a rejected finding as a finding about
+something.
+
+The fix is to the README and to the tests, not to the behavior. The paragraph
+now separates the two policies and says why they differ, and four tests pin the
+contrast rather than each path alone, since the contrast is what the prose
+asserts. The fourth calls `rule_results` directly to pin that the refusal lives
+in `extract` and not in the library, so moving the scan down would turn the new
+prose false and turn a test red at the same time.
+
+M20 is the reviewer's own proposed fix: delete the refusal. Seven red.
