@@ -150,19 +150,48 @@ _ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
 
 _BOUNDARY = rf"(?:{_ANCHOR}|{_LABEL_ANCHOR}|{_ATTR_ANCHOR})" + r"(?:\.[\\/]|[\\/])?"
 
+# A directory reference ends where the directory name stops. The terminator
+# accepts either a continuation into a subpath or any boundary that is not part
+# of the name.
+#
+# ``[\\/]+`` keeps a reference that runs on into a subpath or filename and
+# consumes the separators, so ``/templates/agents/x.md`` counts and an adjacent
+# reference is not double counted.
+#
+# ``(?![\w-])`` is the word-boundary case the older class missed. A bare mention
+# such as ``templates/agents for generation`` ends at a space, and
+# ``[state](/.agents)`` ends at ``)``; both are boundaries, neither a separator
+# nor one of the few punctuation marks the old class named. The negative
+# lookahead admits every non-identifier boundary at once (space, tab, newline,
+# end of string, ``)``, ``,``, ``;``, ``!``, backtick, ``'``, ``"``, ``?``,
+# ``#`` and the rest) while still rejecting a longer directory name:
+# ``templates/agentsx``, ``templates/agents-v2`` and ``templates/agents2``
+# continue with a word character or a hyphen and do not match. This subsumes the
+# old ``['\"?#]`` and ``$`` alternatives, which were all non-identifier
+# boundaries already.
+#
+# ``(?!\.[\w])`` rejects a file-extension dot. Without it, the case-insensitive
+# match makes the real file ``templates/AGENTS.md`` count as the
+# ``templates/agents`` directory, because ``.`` is a boundary and ``AGENTS``
+# folds to ``agents`` (measured: 25 such false positives across the repo, all
+# references to ``templates/AGENTS.md``). A sentence-ending period is still a
+# boundary, because ``templates/agents.`` puts a non-word character after the
+# dot; only ``name.ext`` is excluded (issue #3482).
+_TERMINATOR = r"(?:[\\/]+|(?![\w-])(?!\.[\w]))"
+
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
-    re.compile(_BOUNDARY + r"\.claude[\\/]+lib(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.agents" + _TERMINATOR, re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.claude[\\/]+lib" + _TERMINATOR, re.IGNORECASE),
     re.compile(
-        _BOUNDARY + r"\.claude[\\/]+review-axes(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"\.claude[\\/]+review-axes" + _TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+agents" + _TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+platforms" + _TERMINATOR,
         re.IGNORECASE,
     ),
 )
