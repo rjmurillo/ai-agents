@@ -495,3 +495,80 @@ class TestMalformedScenarioShapes:
     def test_the_error_names_the_scenario(self):
         with pytest.raises(AdapterError, match="S7"):
             rule_results([{"id": "S7", "mechanisms": "bad"}], "m")
+
+
+class TestASkipThatCarriesAFailureIsStillAFailure:
+    """`exclude` dropped testcases that had already proved something.
+
+    The policy exists because a skipped test demonstrated nothing, so counting
+    it as a failure punishes a candidate for a test that never ran. That
+    argument holds only for a testcase whose sole child is `<skipped>`. The
+    early return did not check, so a testcase carrying both a skip and an
+    error was dropped along with the error.
+
+    The overlap is not hypothetical and not a reading of pytest's source. A
+    fixture whose teardown raises, in front of a test that skips, makes stock
+    pytest emit both children under one `<testcase>`:
+
+        <testcase classname="test_probe" name="test_skips_then_teardown_errors">
+          <skipped type="pytest.skip" message="conditionally skipped">...</skipped>
+          <error message='failed on teardown with "RuntimeError: ..."'>...</error>
+        </testcase>
+
+    Under `exclude` that testcase left the mapping entirely, so a broken
+    teardown never reached the gate and never counted against the candidate.
+    This is the fail-open the module docstring says no adapter has: the
+    denominator shrank and the score rose.
+    """
+
+    REAL = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<testsuites name="pytest tests"><testsuite name="pytest" errors="1" '
+        'failures="0" skipped="2" tests="3">'
+        '<testcase classname="test_probe" name="test_skips_then_teardown_errors">'
+        '<skipped type="pytest.skip" message="conditionally skipped">skipped</skipped>'
+        '<error message="failed on teardown">RuntimeError</error></testcase>'
+        '<testcase classname="test_probe" name="test_plain_skip">'
+        '<skipped type="pytest.skip" message="just skipped">skipped</skipped>'
+        "</testcase></testsuite></testsuites>"
+    )
+
+    def _one(self, children):
+        return _junit(f'<testcase classname="t" name="x">{children}</testcase>')
+
+    def test_a_skip_carrying_an_error_is_not_dropped(self):
+        xml = self._one("<skipped/><error message='teardown'/>")
+        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+
+    def test_a_skip_carrying_a_failure_is_not_dropped(self):
+        xml = self._one("<skipped/><failure message='assert'/>")
+        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+
+    def test_a_plain_skip_is_still_dropped(self):
+        assert pytest_results(self._one("<skipped/>"), on_skip="exclude") == {}
+
+    def test_a_plain_skip_still_fails_under_the_default_policy(self):
+        assert pytest_results(self._one("<skipped/>"), on_skip="fail") == {"t::x": False}
+
+    def test_a_skip_carrying_an_error_still_fails_under_the_default_policy(self):
+        xml = self._one("<skipped/><error message='teardown'/>")
+        assert pytest_results(xml, on_skip="fail") == {"t::x": False}
+
+    def test_a_passing_test_is_still_kept_under_exclude(self):
+        assert pytest_results(self._one(""), on_skip="exclude") == {"t::x": True}
+
+    def test_an_error_without_a_skip_is_still_kept_under_exclude(self):
+        xml = self._one("<error message='teardown'/>")
+        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+
+    def test_the_report_stock_pytest_actually_emits_keeps_the_teardown_error(self):
+        """The exact shape observed from a real `--junitxml` run."""
+        got = pytest_results(self.REAL, on_skip="exclude")
+        assert got == {"test_probe::test_skips_then_teardown_errors": False}
+
+    def test_that_same_report_scores_both_under_the_default_policy(self):
+        got = pytest_results(self.REAL, on_skip="fail")
+        assert got == {
+            "test_probe::test_skips_then_teardown_errors": False,
+            "test_probe::test_plain_skip": False,
+        }

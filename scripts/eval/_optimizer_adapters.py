@@ -251,6 +251,9 @@ def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
             demonstrated nothing. Prefer `exclude` only when skips are static,
             since a conditionally skipped test changes the task-id set between
             runs, which moves the split fingerprint and stops the gate.
+            `exclude` drops only a testcase whose skip stands alone: one that
+            also carries a failure or an error did demonstrate something and
+            is scored as a failure under either policy.
 
     Returns:
         Mapping from `classname::name` node id to pass or fail.
@@ -277,14 +280,17 @@ def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
         node_id = f"{classname}::{name}" if classname else name
 
         skipped = case.find("skipped") is not None
-        if skipped and on_skip == "exclude":
+        broken = (
+            case.find("failure") is not None or case.find("error") is not None
+        )
+        # Both conditions, because `exclude` rests on a skipped test having
+        # demonstrated nothing, and one that also carries a failure or an
+        # error demonstrated exactly that. Stock pytest emits the pair when a
+        # fixture teardown raises behind a skipped test, so dropping on the
+        # skip alone let a broken teardown leave the denominator.
+        if skipped and not broken and on_skip == "exclude":
             continue
         if node_id in out:
             raise AdapterError(f"duplicate test node id: {node_id}")
-        failed = (
-            skipped
-            or case.find("failure") is not None
-            or case.find("error") is not None
-        )
-        out[node_id] = not failed
+        out[node_id] = not (skipped or broken)
     return out
