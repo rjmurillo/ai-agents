@@ -45,10 +45,35 @@ reciprocally, which the standard requires:
   work back to `github`.
 - `session-log-fixer` routes local completion to `session-end`; `session-end` routes creation
   to `session-init` and CI repair to `session-log-fixer`.
-- `session-init` already routes to the `session` parent, which satisfies the explicit
-  chaining-parent escape rather than needing a direct pointer back.
+- `session-init` now routes session-end work back to `session-end`. The first draft leaned
+  on the chaining-parent escape, arguing that `session-init` pointing at `session` was
+  enough. Adversarial review disproved it: the escape requires one sibling to orchestrate
+  the others, and `session` does not. Its description covers mid-session compliance checks
+  only. A direct back-pointer was the correct fix.
 
-After the edits the measurement reports zero family members without a SKIP clause.
+After the edits, zero of the 37 prefix-family members lack a negative clause, and the
+`session` family has no non-reciprocal routing edge.
+
+## What this measurement does not cover
+
+The claim above is scoped to one reading of the rule: a family is a set of skills sharing a
+leading name token, and the MUST is discharged by having a negative clause. The standard is
+broader than that in two ways this change does not address.
+
+It says families share a "prefix or theme", and theme is never defined. Under a theme
+reading, `review`, `security-review` and `adr-review` form a family and none routes to a
+theme sibling.
+
+It also says the clause must name the sibling, which is stricter than having any clause.
+Five members carry a clause that routes somewhere useful but not to a family sibling, and
+17 within-family routing edges have no back-pointer, 11 of them in the 15-member
+`ai-agents-*` family where pairwise reciprocity would need 105 clause pairs and cannot fit
+the 1024-char budget.
+
+Those are rule-interpretation questions, not defects to patch silently. Filed as issue
+#3484 with the measurement script and a proposal to define family membership operationally,
+replace pairwise reciprocity with a connectivity requirement, and add a validator so the
+standard stops drifting unobserved.
 
 ## Transferable lesson
 
@@ -57,6 +82,17 @@ applying it to every artifact manufactures violations. Before acting on a govern
 check which section the rule sits in and what that section is about, then re-measure. Here
 that check cut the work by more than half and prevented four descriptions from being
 rewritten for no reason.
+
+The mirror-image error is just as easy. Scoping the rule correctly and then measuring a
+weaker predicate than the rule states produces a compliance claim that is true of the
+measurement and false of the rule. State the predicate you measured next to the number, not
+just the number.
+
+Ad hoc audit scripts need the same scepticism as the artifacts they audit. A first version
+of this one split negative clauses on `.` and truncated a clause at `github.com`, hiding a
+real routing target. A second version matched any skill name inside the clause span and
+counted the prose phrase "a new session log" as a route to the `session` skill, inventing
+two reciprocity violations. Only targets in the documented `(use X)` form are reliable.
 
 A referent check must also cover every artifact kind the repo can route to. Searching only
 skills reports false violations for clauses that correctly name an agent.

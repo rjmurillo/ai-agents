@@ -4,7 +4,18 @@
   "timestamp": "2026-07-27T00:00:00+00:00",
   "outcome": "success",
   "task": "Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "chosen": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -71,6 +82,54 @@
       "content": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
       "caused_by": [
         "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "caused_by": [
+        "e009"
       ],
       "leads_to": []
     }

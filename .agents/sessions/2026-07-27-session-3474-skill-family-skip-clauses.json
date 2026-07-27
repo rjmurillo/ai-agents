@@ -74,7 +74,7 @@
       "serenaMemoryUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Decision memory records the measured scope reduction from 7 candidate edits to 3 real violations"
+        "evidence": "Decision memory records the measured scope reduction from 7 candidate edits to 3 real violations, the predicate that measurement used, and what it does not cover."
       },
       "markdownLintRun": {
         "complete": true,
@@ -84,7 +84,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Three canonical SKILL.md edits, three regenerated mirrors, and two parity manifest bumps, committed in family-sized commits"
+        "evidence": "Four canonical SKILL.md edits, four regenerated mirrors, and two parity manifest bumps to 0.6.138, committed in family-sized commits."
       },
       "validationPassed": {
         "complete": true,
@@ -94,12 +94,12 @@
       "tasksUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Issue #3471 filed with the nine reproduction shapes before this branch was pushed"
+        "evidence": "Issue #3479 filed with the measurement before this branch was pushed. Issue #3484 filed afterwards for the rule-interpretation gaps that adversarial review surfaced."
       },
       "retrospectiveInvoked": {
         "complete": false,
         "level": "SHOULD",
-        "evidence": "Not warranted; single-commit validator fix carried over from an already-reviewed branch."
+        "evidence": "Not warranted; three description edits with their generated mirrors and a parity bump."
       }
     }
   },
@@ -117,16 +117,26 @@
       "step": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard."
     },
     {
-      "step": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137."
+      "step": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it."
     },
     {
       "step": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash."
+    },
+    {
+      "step": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge."
+    },
+    {
+      "step": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count."
+    },
+    {
+      "step": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "The reciprocity rule in the standard is scoped to within-family pairs and carries a chaining-parent escape. A raw cross-family scan reports many more pairs and must not be used as a violation count.",
-    "The standard's 'name a real sibling artifact' rule sits inside the sibling-families section, so it binds family members. Skills outside a multi-member family may route to an action rather than a named artifact.",
+    "Issue #3484 tracks the three ambiguities in the SKIP-clause standard and proposes a validator so the rule stops drifting unobserved.",
+    "The reciprocity rule is scoped to within-family pairs and carries a chaining-parent escape. A raw cross-family scan reports many more pairs and must not be used as a violation count.",
+    "Any referent check must search agents and commands as well as skills. panning-for-gold was flagged only because an earlier check looked at skills alone, and its clause names the analyst agent.",
     "endingCommit is left empty because the final commit SHA is not known at write time; the validator accepts an empty value."
   ]
 }
