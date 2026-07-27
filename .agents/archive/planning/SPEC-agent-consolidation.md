@@ -31,7 +31,7 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 ### Eval Framework
 
 - AC-9: New eval framework `scripts/eval/eval-agents.py` scores agents on 4 dimensions (role_adherence, actionability, quality, **appropriateness**) with Cynefin complexity tagging.
-- AC-10: Baseline (v1 and v2) and post-review eval results are committed under `.agents/planning/agent-*-results.json`.
+- AC-10: Baseline (v1 and v2) and post-review eval results were originally committed under `.agents/planning/agent-*-results.json`; issue #3435 re-homed the machine-readable outputs to `evals/agent-slimming-spike/`.
 - AC-11: Post-optimization eval confirms all 11 slim targets are above 4.0 overall (no regressions).
 - AC-12: Average score across all 23 agents improved from 4.24 → 4.57 (+0.33) in the post-review eval.
 
@@ -44,7 +44,7 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 - **Slim target set**: 11 agents (explainer, implementer, issue-feature-review, roadmap, milestone-planner, spec-generator, analyst, context-retrieval, critic, orchestrator, skillbook)
 - **Size**: 230KB → 71KB (**69% reduction**). Measured with `wc -c` against `.claude/agents/<name>.md` before/after slim.
 - **Average score**: 4.24 → 4.57 across all 23 agents (+0.33). Delta across the 11 slim targets: +1.20.
-- Source of truth for deltas: `.agents/archive/planning/agent-baseline-results.json` (before) and `.agents/archive/planning/agent-post-review-results.json` (after).
+- Source of truth for deltas: `evals/agent-slimming-spike/reports/20260412T000000Z-4aa87f2f/agent-baseline-results.json` (before) and `evals/agent-slimming-spike/reports/20260412T000000Z-4aa87f2f/agent-post-review-results.json` (after).
 
 Any number that does not match this section is stale.
 
@@ -118,12 +118,14 @@ Key finding: Model does not predict quality. Prompt size inversely correlates wi
 ## CVA Summary
 
 **Commonalities across agents (candidates for extraction):**
+
 - Style guide compliance section (identical in all 23)
 - Strategic knowledge references (Serena memory access patterns)
 - Claude Code tool access declarations
 - Activation profile / keyword matching
 
 **Variabilities (must stay inline):**
+
 - Core mission / role definition
 - Output format expectations
 - Tool access restrictions (read-only vs write)
@@ -131,6 +133,7 @@ Key finding: Model does not predict quality. Prompt size inversely correlates wi
 - Decision framework references specific to role
 
 **Relationships:**
+
 - Orchestrator delegates to all other agents
 - Reviewer agents (architect, critic, security) have read-only access
 - Implementer has write access
