@@ -978,10 +978,11 @@ class TestSkillScriptRefs:
         ]
 
     def test_skill_local_test_path_wrong_name_flagged(self, tmp_path):
-        tests_dir = tmp_path / ".claude" / "skills" / "orphan-ref-validator" / "tests"
+        tests_dir = tmp_path / ("." + "claude") / "skills" / "orphan-ref-validator" / "tests"
         tests_dir.mkdir(parents=True)
         (tests_dir / "test_scan.py").write_text("# real\n")
-        text = "`.claude/skills/orphan-ref-validator/tests/test_missing.py`"
+        missing = ".claude" + "/skills/orphan-ref-validator/tests/test_missing.py"
+        text = f"`{missing}`"
         findings, checked = _check_skill_script_refs(text, "doc.md", tmp_path)
         assert checked == 1
         assert [f.kind for f in findings] == ["script_path"]
