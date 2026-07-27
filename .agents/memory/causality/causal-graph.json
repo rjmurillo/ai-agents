@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T17:13:48.823990+00:00",
+  "updated": "2026-07-27T17:47:42.990499+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22339,6 +22339,15 @@
         "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
       "created": "2026-07-27T13:33:30.219770+00:00"
+    },
+    {
+      "id": "7840f8c99af5",
+      "type": "commit",
+      "label": "commit: Commit: f6057de64",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T17:47:42.984198+00:00"
     }
   ],
   "patterns": [
