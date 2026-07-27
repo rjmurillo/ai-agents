@@ -34,14 +34,23 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ADR_DIR = PROJECT_ROOT / ".agents" / "architecture"
 HOOKS_ROOT = PROJECT_ROOT / ".claude" / "hooks"
+HOOK_SEARCH_ROOTS = (
+    HOOKS_ROOT,
+    PROJECT_ROOT / "src" / "copilot-cli" / "hooks",
+)
 
 # A backticked path naming an `invoke_*.py` file directly under an event
 # directory (`Stop/invoke_x.py`), optionally prefixed by the repo-relative
 # hooks root (`.claude/hooks/Stop/invoke_x.py`). ADR-008 uses both spellings,
 # so both have to resolve.
 _HOOK_PATH_RE = re.compile(r"`([^`]*?(?:hooks/)?[A-Za-z]\w*/invoke_[\w.-]+\.py)`")
+_BACKTICKED_INVOKE_RE = re.compile(r"`([^`]*invoke_[\w.-]+\.py)`")
 _IMPLEMENTED_RE = re.compile(r"^\s*(?:\u2705\s*)?implemented\b", re.IGNORECASE)
-_RETIRED_RE = re.compile(r"\bretired\b|\bremoved\b|\bdeleted\b|\bsuperseded\b", re.IGNORECASE)
+_RETIRED_RE = re.compile(
+    r"\b(?:amended|deleted|deregistered|dropped|no longer|previously|removed|"
+    r"replaced|retired|superseded)\b",
+    re.IGNORECASE,
+)
 
 
 def _adr_files() -> list[Path]:
@@ -70,11 +79,37 @@ def _claims(text: str) -> list[tuple[int, str]]:
     return found
 
 
+def _prose_claims(text: str) -> list[tuple[int, str]]:
+    """(line number, hook token) for prose claims that are not retired nearby."""
+    found: list[tuple[int, str]] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("|"):
+            continue
+        if _has_nearby_retirement_marker(lines, index):
+            continue
+        for match in _BACKTICKED_INVOKE_RE.finditer(line):
+            found.append((index + 1, match.group(1)))
+    return found
+
+
+def _has_nearby_retirement_marker(lines: list[str], index: int) -> bool:
+    start = max(0, index - 3)
+    end = min(len(lines), index + 4)
+    return any(_RETIRED_RE.search(line) for line in lines[start:end])
+
+
 def _resolves(hook_path: str) -> bool:
     # removeprefix, not lstrip: lstrip takes a character set, so lstrip("./")
     # eats the leading dot of ".claude/hooks/..." and the path stops resolving.
     candidate = hook_path.removeprefix("./")
-    return (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file()
+    if (PROJECT_ROOT / candidate).is_file() or (HOOKS_ROOT / candidate).is_file():
+        return True
+    if "/" in candidate:
+        return any((root / candidate).is_file() for root in HOOK_SEARCH_ROOTS)
+    return any(root.joinpath(candidate).is_file() for root in HOOK_SEARCH_ROOTS) or any(
+        path.is_file() for root in HOOK_SEARCH_ROOTS for path in root.glob(f"*/{candidate}")
+    )
 
 
 @pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
@@ -92,6 +127,20 @@ def test_no_adr_claims_a_hook_that_is_absent(adr: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("adr", _adr_files(), ids=lambda p: p.stem)
+def test_no_adr_prose_names_a_hook_that_is_absent_without_retirement_marker(adr: Path) -> None:
+    missing = [
+        f"{adr.name}:{line} names `{path}`"
+        for line, path in _prose_claims(adr.read_text(encoding="utf-8"))
+        if not _resolves(path)
+    ]
+    assert not missing, (
+        "ADR prose names a hook file that is not in the tree without a nearby "
+        f"retirement marker: {missing}. Either name the current enforcement point "
+        "or mark the reference as historical within three lines."
+    )
+
+
 class TestTheScanIsNotVacuous:
     """A parametrized check that matches nothing passes for the wrong reason."""
 
@@ -103,6 +152,10 @@ class TestTheScanIsNotVacuous:
         """The ADR the issue was filed against must be inside the scan."""
         adr = ADR_DIR / "ADR-008-protocol-automation-lifecycle-hooks.md"
         assert _claims(adr.read_text(encoding="utf-8"))
+
+    def test_some_adr_prose_names_at_least_one_hook(self):
+        total = sum(len(_prose_claims(a.read_text(encoding="utf-8"))) for a in _adr_files())
+        assert total >= 1, "no ADR prose was read as a hook file reference"
 
 
 class TestWhatCountsAsAClaim:
@@ -148,3 +201,23 @@ class TestPathResolution:
         assert not _resolves("Stop/invoke_auto_retrospective.py")
         assert not _resolves("PreToolUse/invoke_false_completion_gate.py")
         assert not _resolves("PostToolUse/invoke_plan_state_sync.py")
+
+    def test_a_bare_live_hook_filename_resolves(self):
+        assert _resolves("invoke_context_loader.py")
+
+
+class TestWhatCountsAsAProseClaim:
+    def test_a_resolvable_prose_token_is_a_claim(self):
+        text = "The `invoke_context_loader.py` hook runs at session start.\n"
+        assert _prose_claims(text) == [(1, "invoke_context_loader.py")]
+
+    def test_an_unresolved_unmarked_prose_token_is_a_claim(self):
+        text = "The `invoke_deleted_gate.py` hook still enforces this policy.\n"
+        assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
+
+    def test_an_unresolved_token_with_a_nearby_retirement_marker_is_suppressed(self):
+        text = (
+            "The hook was retired by #3184.\n"
+            "This historical paragraph still names `invoke_deleted_gate.py`.\n"
+        )
+        assert _prose_claims(text) == []
