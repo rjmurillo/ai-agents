@@ -438,19 +438,32 @@ Four further refusals close holes that open once a loop runs many steps:
   gates cannot race for the last consultation; the read, the comparison, and the
   write happen under a lock keyed by the same held-out group.
 
-  The gate never names a held-out task. `score` and `mcnemar_exact` report which
-  ids they could not find, which is the right message everywhere else and a full
-  disclosure here, so the gate asks its own coverage question and answers one
-  bit. Not a count: `split` publishes the held-out size, so a count would tell a
-  caller how many of the keys it chose to omit were held out, and a few chosen
-  omissions recover the membership.
+  The gate never names a held-out task, and never prints the key either, since
+  the key digests the membership and a digest of an enumerable set is that set.
+  `score` and `mcnemar_exact` report which ids they could not find, which is the
+  right message everywhere else, so the gate asks its own coverage question and
+  answers one bit. Not a count: `split` publishes the held-out size, so a count
+  would tell a caller how many of the keys it chose to omit were held out.
+
+  None of that hides the held-out task list, and it is not meant to. `split`
+  publishes `opt` because the loop cannot edit toward a group it cannot name,
+  the universe is your own results file, and with no test group drawn (the
+  default) the held-out group is what is left after subtracting one from the
+  other. Knowing which tasks are withheld is the point. What does not cross back
+  is how the artifact scores on them: `score` refuses any group but `opt`, the
+  gate answers one accept or reject bit, and the budget caps how many such bits
+  one group can emit. The redaction earns its keep when a test group exists,
+  because there the complement is two groups and the published sizes do not say
+  which task is in which.
 
   Three things this does not cover, stated rather than implied. The cap is
   whatever positive integer the first call names, so the budget is only as tight
-  as that first invocation. `$EVAL_LEDGER_DIR` relocates the root, which is how
-  the tests stay isolated and equally how anyone who sets it starts over. And a
-  stale lock left by a killed process is reported rather than broken, so
-  clearing it by hand is a deliberate act with no record.
+  as that first invocation. The root is relocatable: `$EVAL_LEDGER_DIR` moves
+  it, `$XDG_STATE_HOME` moves it, and so does anything that changes the home
+  directory, which is how the tests stay isolated and equally how anyone who
+  sets one starts over. And a stale lock left by a killed process is reported
+  rather than broken, so clearing it by hand is a deliberate act with no
+  record.
 
   ```bash
   optimize-artifact.py gate --incumbent inc.json --candidate cand.json \
