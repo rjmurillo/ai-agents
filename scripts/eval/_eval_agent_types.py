@@ -150,6 +150,7 @@ class RunRecord:
     error_category: str | None
     attempts: int
     tokens_estimated: bool = True
+    system_fingerprint: str | None = None
     schema_version: int = SCHEMA_VERSION
 
 
@@ -184,6 +185,7 @@ class Report:
     flaky_fixtures_excluded: list[str] = field(default_factory=list)
     flaky_halt_threshold_crossed: bool = False
     tokens_estimated: bool = True
+    system_fingerprints: list[str] = field(default_factory=list)
     recommendation: RecommendationLiteral | None = None
     recommendation_default: str | None = None
     schema_version: int = SCHEMA_VERSION
