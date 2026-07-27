@@ -730,41 +730,41 @@ class TestStagedBlobValidation:
         # decoy's small bytes -> under-count (exit 0). ``ls-files`` must also run
         # with --no-replace-objects. Reproduced on git 2.43.
         # Make this test's git environment hermetic so no inherited
-        # configuration can disable replace refs and turn the setup guard's
-        # skip into a silent mask over a real regression. git honors
-        # refs/replace/ unless replace is disabled, and replace can be disabled
-        # through several channels that each outrank or redirect repo-local
-        # config:
-        #   - GIT_NO_REPLACE_OBJECTS: disables replace outright.
-        #   - GIT_CONFIG_PARAMETERS and the GIT_CONFIG_COUNT/KEY_*/VALUE_* trio:
-        #     command-scope (-c) config injection that outranks repo-local
-        #     core.useReplaceRefs. Clearing GIT_CONFIG_COUNT neutralizes the
-        #     indexed trio (git reads only up to COUNT).
-        #   - GIT_CONFIG: redirects the ``git config`` write below so it never
-        #     reaches repo-local .git/config.
-        #   - GIT_REPLACE_REF_BASE: moves where replace refs are read from, so a
-        #     later read would not honor the decoy ``git replace`` written here.
-        #   - core.useReplaceRefs=false in global or system config.
-        #   - GIT_TEMPLATE_DIR (or init.templateDir): a template seeds the new
-        #     repo's .git/config, so a template config carrying an [include]
-        #     directive can pull in core.useReplaceRefs=false that outranks the
-        #     repo-local write below. Point it at an empty dir so init seeds
-        #     nothing.
-        # Clear every env channel, disable system config outright
-        # (GIT_CONFIG_NOSYSTEM), redirect global/system config at a nonexistent
-        # file (git reads a missing config as empty), and init from an empty
-        # template; git then falls back to its default of replace enabled, and
-        # the repo-local write below reinforces it. Sanitize before _init_repo
-        # so its identity writes and any template expansion also land in a clean
-        # repo-local .git/config. Together these neutralize the whole class of
-        # config-inheritance channels, not just the individually named ones.
-        for _var in (
-            "GIT_NO_REPLACE_OBJECTS",
-            "GIT_CONFIG_PARAMETERS",
-            "GIT_CONFIG_COUNT",
-            "GIT_CONFIG",
-            "GIT_REPLACE_REF_BASE",
-        ):
+        # configuration can disable replace refs (or redirect the repo, object
+        # store, index, or config this guard depends on) and turn the setup
+        # guard's skip into a silent mask over a real regression. git honors
+        # refs/replace/ unless replace is disabled, and replace resolution can
+        # be subverted through many channels that each outrank or bypass the
+        # repo-local write below. Rather than enumerate them by hand (a
+        # whack-a-mole that across review rounds missed GIT_NO_REPLACE_OBJECTS,
+        # then command-scope -c injection, then GIT_CONFIG, then
+        # GIT_TEMPLATE_DIR, then GIT_DIR/GIT_WORK_TREE), clear git's own
+        # authoritative list of local-scope env vars, reported by
+        # ``git rev-parse --local-env-vars``. That set covers
+        # GIT_NO_REPLACE_OBJECTS, GIT_REPLACE_REF_BASE, GIT_CONFIG,
+        # GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT, GIT_DIR, GIT_WORK_TREE,
+        # GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES,
+        # GIT_INDEX_FILE, GIT_COMMON_DIR, GIT_GRAFT_FILE, and every other var
+        # git uses to resolve THIS repository. On top of that: the indexed
+        # GIT_CONFIG_KEY_*/VALUE_* trio is neutralized because clearing
+        # GIT_CONFIG_COUNT (in the list) makes git read zero injected pairs;
+        # GIT_CONFIG_NOSYSTEM=1 disables system config outright;
+        # GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM redirect at a nonexistent file
+        # (git reads a missing config as empty); and GIT_TEMPLATE_DIR points at
+        # an empty dir so no template [include] seeds
+        # core.useReplaceRefs=false. git then falls back to its default of
+        # replace ENABLED and the repo-local write reinforces it. Sanitize
+        # before _init_repo so its identity writes and any template expansion
+        # land in a clean repo-local .git/config. This closes the whole class,
+        # bounded by git's own enumeration: a residual channel would have to be
+        # a var git does not report as local (a git bug, not a test gap).
+        _local_env_vars = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.split()
+        for _var in _local_env_vars:
             monkeypatch.delenv(_var, raising=False)
         _neutral_cfg = tmp_path / "hermetic-absent.gitconfig"
         _empty_template = tmp_path / "hermetic-empty-template"
