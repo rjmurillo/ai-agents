@@ -63,6 +63,25 @@ def _split(capsys, tmp_path, *args, name="split.json"):
     return code, json.loads(path.read_text(encoding="utf-8"))
 
 
+def _run_gate(capsys, tmp_path, *args, spent=None):
+    """Run `gate`, supplying the ledger it now keeps its own count in.
+
+    The consultation count used to arrive on the command line, which meant a
+    caller that passed zero every time had an unlimited budget. `spent`
+    pre-seeds the ledger for tests that need the gate to believe consultations
+    have already happened.
+    """
+    ledger = tmp_path / "ledger.json"
+    if spent is not None:
+        split_path = args[list(args).index("--split") + 1]
+        split = json.loads(Path(split_path).read_text(encoding="utf-8"))
+        ledger.write_text(
+            json.dumps({"consultations": spent, "fingerprint": split["fingerprint"]}),
+            encoding="utf-8",
+        )
+    return _run(capsys, "gate", *args, "--ledger", ledger)
+
+
 def _boom(*_args, **_kwargs):
     raise OSError("disk full")
 
@@ -539,9 +558,9 @@ class TestGateHoldsOutOnly:
             {f"t{i}": True for i in range(10)},
         )
         with pytest.raises(SystemExit):
-            _run(
+            _run_gate(
                 capsys,
-                "gate",
+                tmp_path,
                 "--incumbent",
                 inc,
                 "--candidate",
@@ -559,8 +578,8 @@ class TestGateHoldsOutOnly:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        _, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert out["group"] == "sel"
 
@@ -581,19 +600,18 @@ class TestGateRefusalCostsNothing:
 
     def test_an_exhausted_budget_withholds_the_scores(self, tmp_path, capsys):
         inc, cand, split_path, _ = self._setup(tmp_path, capsys)
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
             cand,
             "--split",
             split_path,
-            "--consultations",
-            "3",
             "--max-consultations",
             "3",
+            spent=3,
         )
         assert code == EXIT_LOGIC
         assert out["compared"] is False
@@ -602,9 +620,9 @@ class TestGateRefusalCostsNothing:
 
     def test_a_moved_fingerprint_withholds_the_scores(self, tmp_path, capsys):
         inc, cand, split_path, _ = self._setup(tmp_path, capsys)
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
@@ -620,9 +638,9 @@ class TestGateRefusalCostsNothing:
 
     def test_a_refusal_still_reports_the_decision_and_reason(self, tmp_path, capsys):
         inc, cand, split_path, _ = self._setup(tmp_path, capsys)
-        _, out = _run(
+        _, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
@@ -637,8 +655,8 @@ class TestGateRefusalCostsNothing:
 
     def test_a_permitted_call_still_reports_the_scores(self, tmp_path, capsys):
         inc, cand, split_path, _ = self._setup(tmp_path, capsys)
-        _, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert out["compared"] is True
         assert out["candidate"] == 1.0
@@ -653,8 +671,8 @@ class TestGateReportsPairedEvidence:
         cand = _write(tmp_path, "cand.json", candidate)
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
-        return _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
 
     def test_a_clean_win_reports_gains_and_no_losses(self, tmp_path, capsys):
@@ -680,9 +698,9 @@ class TestGateReportsPairedEvidence:
         cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
         split_path = _write(tmp_path, "split.json", split)
-        _, out = _run(
+        _, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
@@ -709,8 +727,8 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert code == EXIT_OK
         assert out["decision"] == "ACCEPT"
@@ -719,8 +737,8 @@ class TestGate:
     def test_rejects_a_tie(self, tmp_path, capsys):
         same = {f"t{i}": True for i in range(10)}
         inc, cand, split_path, _ = self._setup(tmp_path, capsys, same, dict(same))
-        code, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert code == EXIT_LOGIC
         assert out["decision"] == "REJECT"
@@ -733,8 +751,8 @@ class TestGate:
             {f"t{i}": True for i in range(10)},
             {f"t{i}": False for i in range(10)},
         )
-        code, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert code == EXIT_LOGIC
         assert "regress" in out["reason"]
@@ -747,8 +765,8 @@ class TestGate:
         candidate = {t: True for t in split["opt"]}
         candidate.update({t: False for t in split["sel"] + split["test"]})
         cand = _write(tmp_path, "cand.json", candidate)
-        code, out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", cand, "--split", split_path
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", split_path
         )
         assert code == EXIT_LOGIC
         assert out["candidate"] == 0.0
@@ -760,9 +778,9 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
@@ -782,9 +800,9 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
@@ -804,19 +822,18 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
             cand,
             "--split",
             split_path,
-            "--consultations",
-            "5",
             "--max-consultations",
             "5",
+            spent=5,
         )
         assert code == EXIT_LOGIC
         assert "exhaust" in out["reason"]
@@ -828,17 +845,16 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
             cand,
             "--split",
             split_path,
-            "--consultations",
-            "2",
+            spent=2,
         )
         assert code == EXIT_OK
         assert out["sel_consultations"] == 3
@@ -850,19 +866,18 @@ class TestGate:
             {f"t{i}": False for i in range(10)},
             {f"t{i}": True for i in range(10)},
         )
-        code, out = _run(
+        code, out = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             inc,
             "--candidate",
             cand,
             "--split",
             split_path,
-            "--consultations",
-            "2",
             "--incumbent-fingerprint",
             "stale",
+            spent=2,
         )
         assert code == EXIT_LOGIC
         assert out["sel_consultations"] == 2
@@ -876,16 +891,16 @@ class TestGate:
             {f"t{i}": True for i in range(10)},
         )
         truncated = _write(tmp_path, "trunc.json", {"t0": True})
-        code, _out = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", truncated, "--split", split_path
+        code, _out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", truncated, "--split", split_path
         )
         assert code == EXIT_CONFIG
 
     def test_malformed_split_is_a_config_error(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         bad_split = _write(tmp_path, "split.json", {"opt": ["t0"]})
-        code, _ = _run(
-            capsys, "gate", "--incumbent", inc, "--candidate", inc, "--split", bad_split
+        code, _ = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc, "--split", bad_split
         )
         assert code == EXIT_CONFIG
 
@@ -1032,21 +1047,26 @@ class TestMalformedInputs:
         code, _ = _run(capsys, "score", "--results", results, "--split", split)
         assert code == EXIT_CONFIG
 
-    def test_negative_consultations_is_a_config_error(self, tmp_path, capsys):
+    def test_a_negative_ledger_count_is_a_config_error(self, tmp_path, capsys):
+        """This used to arrive as `--consultations -1` on the command line.
+
+        The count moved into a ledger the gate writes, so the malformed input
+        moved with it. A negative count is still refused rather than treated
+        as zero.
+        """
         results = _write(tmp_path, "r.json", _results(10, 0))
         _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
-        split_path = _write(tmp_path, "split.json", split)
-        code, _ = _run(
+        split_path = _write(tmp_path, "split2.json", split)
+        code, _ = _run_gate(
             capsys,
-            "gate",
+            tmp_path,
             "--incumbent",
             results,
             "--candidate",
             results,
             "--split",
             split_path,
-            "--consultations",
-            "-1",
+            spent=-1,
         )
         assert code == EXIT_CONFIG
 
@@ -1078,7 +1098,7 @@ class TestSplitFileIsSelfValidating:
     def test_an_untampered_split_gates_normally(self, tmp_path, capsys):
         inc, cand, split = self._setup(tmp_path, capsys)
         path = _write(tmp_path, "split.json", split)
-        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
         assert code == 0
         assert out["decision"] == "ACCEPT"
@@ -1090,7 +1110,7 @@ class TestSplitFileIsSelfValidating:
         split["opt"] = [t for t in split["opt"] if t != moved]
         split["sel"] = [*split["sel"], moved]
         path = _write(tmp_path, "split.json", split)
-        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
         assert code == 0
         assert out["decision"] == "REJECT"
@@ -1101,7 +1121,7 @@ class TestSplitFileIsSelfValidating:
         inc, cand, split = self._setup(tmp_path, capsys)
         split["sel"] = [*split["sel"], "smuggled"]
         path = _write(tmp_path, "split.json", split)
-        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
         assert out["decision"] == "REJECT"
         assert "fingerprint" in out["reason"]
@@ -1110,7 +1130,7 @@ class TestSplitFileIsSelfValidating:
         inc, cand, split = self._setup(tmp_path, capsys)
         split["fingerprint"] = "0" * 64
         path = _write(tmp_path, "split.json", split)
-        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
         assert out["decision"] == "REJECT"
 
@@ -1118,7 +1138,7 @@ class TestSplitFileIsSelfValidating:
         inc, cand, split = self._setup(tmp_path, capsys)
         split["seed"] = "s2"
         path = _write(tmp_path, "split.json", split)
-        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                          "--split", path)
         assert out["decision"] == "REJECT"
 
@@ -1126,17 +1146,17 @@ class TestSplitFileIsSelfValidating:
         inc, cand, split = self._setup(tmp_path, capsys)
         split["sel"] = [*split["sel"], "smuggled"]
         path = _write(tmp_path, "split.json", split)
-        _, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
-                      "--split", path, "--consultations", "0",
-                      "--max-consultations", "3")
+        _, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                           "--split", path, "--max-consultations", "3")
         assert out["consultations"] == 0
+        assert not (tmp_path / "ledger.json").exists()
 
     def test_a_split_file_without_ratios_is_refused(self, tmp_path, capsys):
         """Older split files cannot be verified, so they cannot be trusted."""
         inc, cand, split = self._setup(tmp_path, capsys)
         del split["sel_ratio"]
         path = _write(tmp_path, "split.json", split)
-        code, _ = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, _ = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                        "--split", path)
         assert code == EXIT_CONFIG
 
@@ -1145,7 +1165,7 @@ class TestSplitFileIsSelfValidating:
         inc, cand, split = self._setup(tmp_path, capsys)
         split["sel_ratio"] = "half"
         path = _write(tmp_path, "split.json", split)
-        code, _ = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+        code, _ = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
                        "--split", path)
         assert code == EXIT_CONFIG
 
@@ -1283,3 +1303,105 @@ class TestHeldOutGroupsAreNotReadable:
         code, out = _run(capsys, "score", "--results", self._tasks(tmp_path),
                          "--split", out_path)
         assert code == 0 and out["group"] == "opt" and out["score"] == 1.0
+
+
+class TestConsultationLedgerIsHeldByTheGate:
+    """A budget the caller passes in is not a budget.
+
+    `--consultations` defaulted to 0 and arrived on the command line on every
+    invocation, so a loop that simply never incremented it had an unlimited
+    budget while appearing to respect a cap. An adversarial review
+    (gpt-5.6-sol, 2026-07-26) reproduced ACCEPT twice under a cap of one by
+    passing zero both times. The count now lives in a ledger the gate writes,
+    bound to the split fingerprint so redrawing cannot reset it either.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        return inc, cand, tmp_path / "split.json", tmp_path / "ledger.json"
+
+    def _gate(self, capsys, inc, cand, split, ledger, cap=None):
+        args = ["gate", "--incumbent", inc, "--candidate", cand,
+                "--split", split, "--ledger", ledger]
+        if cap is not None:
+            args += ["--max-consultations", str(cap)]
+        return _run(capsys, *args)
+
+    def test_a_compared_decision_writes_the_count(self, tmp_path, capsys):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, cand, split, ledger)
+        assert out["sel_consultations"] == 1
+        assert json.loads(ledger.read_text(encoding="utf-8"))["consultations"] == 1
+
+    def test_the_cap_holds_across_separate_invocations(self, tmp_path, capsys):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        first, _ = self._gate(capsys, inc, cand, split, ledger, cap=1)
+        assert first == EXIT_OK
+        second, out = self._gate(capsys, inc, cand, split, ledger, cap=1)
+        assert second == EXIT_LOGIC
+        assert "exhaust" in out["reason"]
+
+    def test_a_refused_decision_does_not_spend_budget(self, tmp_path, capsys):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        tampered = json.loads(split.read_text(encoding="utf-8"))
+        tampered["sel"], tampered["opt"] = tampered["opt"], tampered["sel"]
+        split.write_text(json.dumps(tampered), encoding="utf-8")
+        self._gate(capsys, inc, cand, split, ledger)
+        assert not ledger.exists()
+
+    def test_a_ledger_from_a_different_split_is_refused(self, tmp_path, capsys):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        ledger.write_text(
+            json.dumps({"consultations": 0, "fingerprint": "not-this-split"}),
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, cand, split, ledger)
+        assert code == EXIT_LOGIC
+        assert "ledger" in out["reason"]
+        assert "candidate" not in out
+
+    @pytest.mark.parametrize("payload", [
+        '{"consultations": "many"}',
+        '{"consultations": true}',
+        '["not", "an", "object"]',
+    ])
+    def test_a_malformed_ledger_is_a_config_error(self, tmp_path, capsys, payload):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        ledger.write_text(payload, encoding="utf-8")
+        code, _ = self._gate(capsys, inc, cand, split, ledger)
+        assert code == EXIT_CONFIG
+
+    def test_a_first_run_needs_no_existing_ledger(self, tmp_path, capsys):
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        code, _ = self._gate(capsys, inc, cand, split, ledger)
+        assert code == EXIT_OK and ledger.exists()
+
+    def test_a_negative_cap_is_a_config_error(self, tmp_path, capsys):
+        """`gate()` rejects a nonsense cap; the CLI reports it rather than crashing."""
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        code, out = self._gate(capsys, inc, cand, split, ledger, cap=-1)
+        assert code == EXIT_CONFIG
+        assert not ledger.exists()
+        assert out["error"]
+
+    def test_a_result_missing_a_held_out_task_is_a_config_error(self, tmp_path, capsys):
+        """The gate cannot score a held-out task the run never reported.
+
+        Distinct from a truncated file: this one parses, covers every task the
+        optimizer could see, and is short only on the group the optimizer is
+        not allowed to look at. Reporting it as a config error keeps a partial
+        run from reading as a real verdict.
+        """
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        partition = json.loads(split.read_text(encoding="utf-8"))
+        dropped = partition["sel"][0]
+        short = {k: v for k, v in json.loads(Path(cand).read_text(encoding="utf-8")).items()
+                 if k != dropped}
+        short_path = _write(tmp_path, "short.json", short)
+        code, out = self._gate(capsys, inc, short_path, split, ledger)
+        assert code == EXIT_CONFIG
+        assert dropped in out["error"]
+        assert not ledger.exists()

@@ -554,7 +554,16 @@ def guard_refusal(
     refusals are decidable from bookkeeping alone, and a caller that scores
     first has already read the held-out group: the refusal then costs exactly
     what it was meant to prevent.
+
+    The cap is validated here rather than only in ``gate`` because callers
+    reach this function first. A cap below one would otherwise read as a
+    permanently exhausted budget, which is indistinguishable from legitimate
+    discipline: every gate refuses, and the reason names a limit the operator
+    never meant to set.
     """
+    if max_consultations is not None and max_consultations < 1:
+        raise ValueError(f"max_consultations must be positive, got {max_consultations}")
+
     if (
         split_fingerprint is not None
         and incumbent_fingerprint is not None

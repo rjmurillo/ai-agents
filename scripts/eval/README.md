@@ -365,7 +365,8 @@ uv run --frozen python "$OA" apply --file target.md --patches p.json --budget 3
 
 # Rerun the real scorer here, then extract it to cand.json.
 uv run --frozen python "$OA" gate --incumbent base.json --candidate cand.json \
-    --split split.json --incumbent-fingerprint "$FP"
+    --split split.json --ledger ledger.json --incumbent-fingerprint "$FP" \
+    --max-consultations 5
 ```
 
 On reject, revert the file and run `buffer-add` so the same edit is not
@@ -410,9 +411,26 @@ Four further refusals close holes that open once a loop runs many steps:
   the ratios. If it changes, the gate refuses instead of comparing. This blocks
   the cheapest cheat available: an edit loses, so add fixtures and re-roll.
 - **Exhausted consultations.** Gating N times against one `sel` group selects
-  on it N times. Pass `--consultations` and `--max-consultations` to cap it. The
-  count only advances when scores were actually weighed, and a refusal reports
-  no scores at all, so a refused call cannot be used to read the group for free.
+  on it N times. `gate --ledger PATH` is required, and the count lives in that
+  file rather than on the command line. This matters: a count the caller passes
+  is not a cap. `--consultations` defaulted to zero and arrived on every
+  invocation, so a loop that passed zero each time had an unlimited budget while
+  looking capped. An adversarial review reproduced ACCEPT twice under
+  `--max-consultations 1` that way.
+
+  The ledger records the split fingerprint alongside the count, so redrawing the
+  split does not reset the budget: the gate refuses a ledger and a split that
+  disagree. The count advances only when scores were actually weighed, and a
+  refusal reports no scores at all, so a refused call cannot be used to read the
+  group for free.
+
+  ```bash
+  optimize-artifact.py gate --incumbent inc.json --candidate cand.json \
+      --split split.json --ledger ledger.json --max-consultations 5
+  ```
+
+  A first run needs no existing ledger; the gate creates it. Point one ledger at
+  one split for the life of a loop.
 - **Protected sections.** Text between `<!-- SLOW_UPDATE_START -->` and
   `<!-- SLOW_UPDATE_END -->` is off limits, markers included. Patches carrying a
   fence marker in their text are rejected too, since one could otherwise open a

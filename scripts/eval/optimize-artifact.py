@@ -82,6 +82,14 @@ class ConfigError(Exception):
     """Input was unreadable or malformed. Maps to exit 2."""
 
 
+class LedgerMismatchError(Exception):
+    """The ledger belongs to a different split. A decision, not a crash."""
+
+    def __init__(self, recorded: str) -> None:
+        super().__init__(recorded)
+        self.recorded = recorded
+
+
 def _emit(payload: object) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
@@ -365,6 +373,54 @@ def cmd_apply(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _read_ledger(path: Path, fingerprint: str) -> int:
+    """Return the consultations already spent against this split.
+
+    The count lives here rather than on the command line because a budget the
+    caller supplies is not a budget: passing zero every time yields an
+    unlimited one while still looking capped. The ledger is bound to the split
+    fingerprint so an old ledger cannot be paired with a fresh split, which
+    would reset the count by redrawing rather than by editing a number.
+    """
+    if not path.exists():
+        return 0
+    data = _read_json(path)
+    if not isinstance(data, Mapping):
+        raise ConfigError(f"{path} must hold a JSON object")
+    spent = data.get("consultations")
+    if not isinstance(spent, int) or isinstance(spent, bool) or spent < 0:
+        raise ConfigError(f"{path} consultations must be a non-negative integer")
+    recorded = data.get("fingerprint")
+    if recorded != fingerprint:
+        raise LedgerMismatchError(str(recorded))
+    return spent
+
+
+def _write_ledger(path: Path, fingerprint: str, spent: int) -> None:
+    payload = {"consultations": spent, "fingerprint": fingerprint}
+    _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> str | None:
+    """Ask whether a comparison may happen, reporting nonsense input cleanly.
+
+    ``guard_refusal`` raises on a cap below one rather than treating it as a
+    permanently exhausted budget. That is a caller mistake, not a gate verdict,
+    so it becomes a config error instead of a REJECT that would read as real
+    discipline.
+    """
+    try:
+        refusal: str | None = guard_refusal(
+            sel_consultations=spent,
+            max_consultations=args.max_consultations,
+            split_fingerprint=split["fingerprint"],
+            incumbent_fingerprint=args.incumbent_fingerprint,
+        )
+        return refusal
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
     if _split_drifted(split):
@@ -376,26 +432,37 @@ def cmd_gate(args: argparse.Namespace) -> int:
                     "contents; the groups or the seed were edited after the "
                     "split was drawn. Re-split and re-baseline."
                 ),
-                "consultations": args.consultations,
+                "consultations": 0,
             }
         )
         return EXIT_OK
 
+    try:
+        spent = _read_ledger(args.ledger, split["fingerprint"])
+    except LedgerMismatchError as exc:
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    f"ledger {args.ledger} records fingerprint {exc.recorded} but "
+                    f"this split is {split['fingerprint']}; a ledger and a split "
+                    f"that disagree mean the split was redrawn mid-run"
+                ),
+                "compared": False,
+            }
+        )
+        return EXIT_LOGIC
+
     # Guards first, scoring second. Both refusals are decidable from
     # bookkeeping alone, and scoring before asking would read the held-out
     # group to produce a verdict that says the held-out group must not be read.
-    refusal = guard_refusal(
-        sel_consultations=args.consultations,
-        max_consultations=args.max_consultations,
-        split_fingerprint=split["fingerprint"],
-        incumbent_fingerprint=args.incumbent_fingerprint,
-    )
+    refusal = _guard(args, split, spent)
     if refusal is not None:
         _emit(
             {
                 "decision": "REJECT",
                 "reason": refusal,
-                "sel_consultations": args.consultations,
+                "sel_consultations": spent,
                 "compared": False,
                 "group": _GATE_GROUP,
                 "fingerprint": split["fingerprint"],
@@ -408,19 +475,24 @@ def cmd_gate(args: argparse.Namespace) -> int:
     sel_ids = _group_ids(split, _GATE_GROUP)
     incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
     candidate = _score_group(candidate_results, split, _GATE_GROUP)
-    try:
-        gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
-        result = gate(
-            candidate,
-            incumbent,
-            sel_consultations=args.consultations,
-            max_consultations=args.max_consultations,
-            split_fingerprint=split["fingerprint"],
-            incumbent_fingerprint=args.incumbent_fingerprint,
-            discordant_loss=loss,
-        )
-    except ValueError as exc:
-        raise ConfigError(str(exc)) from exc
+    gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
+    result = gate(
+        candidate,
+        incumbent,
+        sel_consultations=spent,
+        max_consultations=args.max_consultations,
+        split_fingerprint=split["fingerprint"],
+        incumbent_fingerprint=args.incumbent_fingerprint,
+        discordant_loss=loss,
+    )
+
+    # A refusal that never weighed the scores costs the held-out split
+    # nothing, so it does not advance the counter. Everything else does, and
+    # the gate writes it rather than telling the caller what to pass next.
+    spent_after = spent + (1 if result.compared else 0)
+    if result.compared:
+        _write_ledger(args.ledger, split["fingerprint"], spent_after)
+
     _emit(
         {
             "decision": result.decision,
@@ -435,10 +507,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "discordant_gain": gain,
             "discordant_loss": loss,
             "p_value": p_value,
-            # What to pass as --consultations next time. A refusal that never
-            # weighed the scores costs the held-out split nothing, so it does
-            # not advance the counter.
-            "sel_consultations": args.consultations + (1 if result.compared else 0),
+            "sel_consultations": spent_after,
             "compared": result.compared,
             "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
@@ -586,7 +655,12 @@ def build_parser() -> argparse.ArgumentParser:
     gate_cmd.add_argument("--split", type=Path, required=True)
     # No --group. A gate reads the held-out group by definition, and offering
     # the choice let a caller gate on the group it had already optimized against.
-    gate_cmd.add_argument("--consultations", type=int, default=0)
+    gate_cmd.add_argument(
+        "--ledger",
+        type=Path,
+        required=True,
+        help="file the gate keeps the consultation count in; created on first use",
+    )
     gate_cmd.add_argument("--max-consultations", type=int, default=None)
     gate_cmd.add_argument("--incumbent-fingerprint", default=None)
     gate_cmd.set_defaults(func=cmd_gate)
@@ -615,11 +689,15 @@ def main(argv: list[str] | None = None) -> int:
         # argparse.Namespace attributes are Any; every registered handler
         # returns an exit code.
         exit_code: int = args.func(args)
-    except (ConfigError, AdapterError) as exc:
+    except (ConfigError, AdapterError, ValueError) as exc:
         # JSON, not a bare message, because the module docstring promises a
         # caller can tell a REJECT from a config failure by reading a field
         # rather than guessing from the exit code. A plain-text error breaks
         # that promise for any driver piping stdout through a JSON reader.
+        #
+        # ValueError joins them so the core's own validation surfaces the same
+        # way. Wrapping one call site left the policy in two places and the
+        # wrapper unreachable once its inputs were validated upstream.
         _emit({"error": str(exc), "type": type(exc).__name__})
         return EXIT_CONFIG
     return exit_code

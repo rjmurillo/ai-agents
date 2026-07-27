@@ -936,3 +936,24 @@ class TestSplitFingerprint:
     def test_an_empty_task_set_still_hashes(self):
         """It is a hash, not a validator. split_tasks owns the size rules."""
         assert len(split_fingerprint([], seed="s", sel_ratio=0.5)) == 64
+
+
+class TestGuardRefusalValidatesItsOwnCap:
+    """A nonsense cap must be refused, not silently mean "always exhausted".
+
+    `gate()` rejects a cap below one, but callers reach `guard_refusal` first
+    so they can ask before scoring anything. Without the same check there, a
+    typo like `--max-consultations -1` reads as a permanently exhausted budget
+    and looks exactly like legitimate discipline.
+    """
+
+    @pytest.mark.parametrize("cap", [0, -1, -100])
+    def test_a_cap_below_one_is_refused(self, cap):
+        with pytest.raises(ValueError, match="must be positive"):
+            guard_refusal(sel_consultations=0, max_consultations=cap)
+
+    def test_a_positive_cap_is_accepted(self):
+        assert guard_refusal(sel_consultations=0, max_consultations=1) is None
+
+    def test_no_cap_is_accepted(self):
+        assert guard_refusal(sel_consultations=99, max_consultations=None) is None
