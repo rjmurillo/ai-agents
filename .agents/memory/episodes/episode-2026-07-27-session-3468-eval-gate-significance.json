@@ -166,7 +166,7 @@
       "type": "test",
       "content": "['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
       "caused_by": [
-        "e020"
+        "e021"
       ],
       "leads_to": [
         "e001"
@@ -239,6 +239,18 @@
         "e017"
       ],
       "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 44be0404f",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
         "e014"
       ]
     }
@@ -248,7 +260,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 6
   },
   "lessons": []
