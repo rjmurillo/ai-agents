@@ -317,3 +317,16 @@ class TestClampScore:
     )
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
         assert eval_mod._clamp_score(value) == expected
+
+    @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
+    def test_non_finite_floats_fail_closed_to_zero(self, value: object):
+        # json.loads accepts Infinity / -Infinity by default, so a judge can
+        # emit a non-finite score. int(float("inf")) raises OverflowError, which
+        # is not caught by the (TypeError, ValueError) handler and crashes the
+        # evaluator. A non-finite score is garbage: it must clamp to 0 (fail
+        # closed, lowering the activation average) rather than crash or inflate.
+        assert eval_mod._clamp_score(value) == 0
+
+    def test_nan_fails_closed_to_zero(self):
+        # NaN reaches int() and raises ValueError today; lock the fail-closed 0.
+        assert eval_mod._clamp_score(float("nan")) == 0

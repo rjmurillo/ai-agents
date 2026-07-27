@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 import time
@@ -228,12 +229,23 @@ Respond in JSON only, no other text:
 
 
 def _clamp_score(value: object) -> int:
-    """Coerce a judge-supplied score to int in [0, 5]. Strings/None/out-of-range -> 0 or clamped."""
+    """Coerce a judge-supplied score to int in [0, 5], failing closed.
+
+    Strings, None, out-of-range values, and non-finite floats all resolve to 0
+    or a clamped value. ``json.loads`` accepts ``Infinity``, ``-Infinity``, and
+    ``NaN`` by default, so a judge response can carry a non-finite float.
+    ``int(float("inf"))`` raises ``OverflowError`` (not ``ValueError``), so the
+    non-finite guard runs before ``int()`` and ``OverflowError`` is caught as a
+    defensive backstop. A garbage score must lower the activation average, never
+    crash the evaluator or inflate the result.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        return 0
     if not isinstance(value, (int, float, str)):
         return 0
     try:
         n = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
     return max(0, min(5, n))
 
