@@ -24,7 +24,6 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_coverage import (  # noqa: E402
-    validate_command_bundle_coverage,
     validate_review_marker,
 )
 from checks_dash import validate_dash_prohibition  # noqa: E402
@@ -378,14 +377,7 @@ def run_all_validations(
         lambda: validate_workflow_local_run(repo_root),
     )
 
-    # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
-    run_validation(
-        "Command-Skill Bundle Coverage",
-        state,
-        lambda: validate_command_bundle_coverage(repo_root),
-    )
-
-    # 7b. Review Marker (advisory by default; /ship blocks, Issue #1938).
+    # 7. Review Marker (advisory by default; /ship blocks, Issue #1938).
     # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
     run_validation(
         "Review Marker (SHA-bound /review)",

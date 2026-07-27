@@ -14,6 +14,7 @@ if the driver is already registered with the value we want, nothing is written.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,18 +25,32 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def _interpreter() -> str:
     """Return the interpreter to bake into the registered driver command.
 
-    The merge driver is stdlib-only, so any Python that can start will run it.
-    Registering this process's own interpreter is therefore both sufficient and
-    the one path proven to work: it is running right now.
+    A bare, PATH-resolved name (``python3``, falling back to ``python``), never
+    this process's absolute ``sys.executable``. The merge driver needs no
+    project environment (it imports only the standard library), so any Python
+    >=3.10 on PATH runs it, and a bare name is the only form that stays correct
+    across git worktrees. The 3.10 floor is real: the driver imports
+    ``typing.TypeAlias`` and evaluates a PEP 604 ``X | Y`` union at import time,
+    both of which raise on 3.9. Baking a bare name trades one worktree's pinned
+    interpreter for the clone's PATH, which is the contract issue #3418 asks
+    for; a merge-time PATH without a >=3.10 python is out of that scope.
 
-    ``as_posix`` matters because git hands the driver string to ``sh`` even on
+    Linked worktrees share one ``.git/config``, so the first worktree to run the
+    installer would register its own absolute venv path for all of them. When
+    that worktree or its venv is later deleted, the baked path stops resolving,
+    the driver exits 127, and git falls back to the text merge, silently
+    reintroducing the conflict the driver exists to remove (issue #3418). A bare
+    name cannot point at a deleted directory, so it survives the shared config.
+
+    A name also survives ``sh``: git hands the driver string to ``sh`` even on
     Windows, and ``sh`` eats the backslashes in a native ``D:\\...\\python.exe``.
-
-    ``sys.executable`` is documented as possibly empty when the interpreter
-    cannot determine its own path (embedded hosts). ``python3`` is the only
-    fallback left at that point.
+    A bare name has none. ``python3`` is preferred; some Windows installs expose
+    only ``python``. If neither resolves, ``python3`` is the last literal left.
     """
-    return Path(sys.executable).as_posix() if sys.executable else "python3"
+    for name in ("python3", "python"):
+        if shutil.which(name):
+            return name
+    return "python3"
 
 
 # driver name -> (config key suffix, value)
@@ -50,19 +65,22 @@ _DRIVERS: dict[str, dict[str, str]] = {
         # into this string before sh parses it, and today it substitutes bare
         # temp names like .merge_file_yvRBP2 that cannot contain a space.
         #
-        # An absolute interpreter path rather than `uv run --frozen python`.
-        # The driver imports only argparse, json, sys, pathlib and typing, so it
-        # needs no project environment, and routing it through uv would let a
-        # merge fail wherever uv cannot run: offline, before the first sync, or
-        # in a clone that never installed it. A failed driver is not a loud
-        # error, it is a silent fall back to the text merge and the conflict
-        # this driver exists to eliminate.
+        # A bare, PATH-resolved interpreter name rather than `uv run --frozen
+        # python` or an absolute venv path. The driver imports only argparse,
+        # json, sys, pathlib and typing, so it needs no project environment
+        # (any Python >=3.10 on PATH runs it), and routing it through uv would
+        # let a merge fail wherever uv cannot run: offline, before the first
+        # sync, or in a clone that never installed it. A failed driver is not a
+        # loud error, it is a silent fall back to the text merge and the
+        # conflict this driver exists to eliminate.
         #
-        # The path is machine-local, which is the right scope: it is written to
-        # `git config --local`, which is never committed. It self-heals because
-        # the installer runs from pre-commit and rewrites the key whenever the
-        # computed value differs from what is registered, so a recreated or
-        # relocated venv is repaired on the next commit.
+        # The name (not an absolute path) is what keeps this correct across git
+        # worktrees. Linked worktrees share one `.git/config`, so an absolute
+        # venv path baked by one worktree breaks every other worktree the moment
+        # that venv is relocated or deleted (issue #3418). A bare name resolves
+        # against PATH at merge time and cannot dangle. It is written to
+        # `git config --local`, never committed, and re-registered from
+        # pre-commit whenever the computed value differs.
         "driver": (f'"{_interpreter()}" scripts/validation/merge_causal_graph.py "%O" "%A" "%B"'),
     },
 }
