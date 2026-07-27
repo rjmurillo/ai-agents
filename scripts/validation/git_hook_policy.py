@@ -172,6 +172,10 @@ class PushUpdate:
     destination_branch: str | None
 
 
+class PushUpdateConfigError(ValueError):
+    """Raised when a pushed ref cannot be resolved to a deterministic range."""
+
+
 def _clean_git_env() -> dict[str, str]:
     env = os.environ.copy()
     for key in GIT_ENV_KEYS:
@@ -1579,7 +1583,7 @@ MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
 # span (post-image).
 DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
-EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 
 
 def _normalize_ratchet_path(path: str) -> str:
@@ -1819,7 +1823,11 @@ def _push_updates(stream: TextIO, repo_root: Path) -> list[PushUpdate] | None:
     for push_ref in push_refs:
         if push_ref.is_deletion or push_ref.local_sha in seen_heads:
             continue
-        updates.append(resolve_push_update(push_ref, repo_root))
+        try:
+            updates.append(resolve_push_update(push_ref, repo_root))
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return None
         seen_heads.add(push_ref.local_sha)
     return updates
 
@@ -1903,7 +1911,7 @@ def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
                 violations.append(f"{head[:12]}:{current_path}:{current_line}")
             current_line += 1
             continue
-        if line.startswith("-") and not line.startswith("---"):
+        if line.startswith("-"):
             continue
         current_line += 1
     return violations
@@ -1913,8 +1921,6 @@ def _changed_commit_paths(
     update: PushUpdate,
     repo_root: Path,
 ) -> list[str] | None:
-    if ".." not in update.range_spec:
-        return _commit_paths(update.head, repo_root)
     result = _run_git(
         repo_root,
         [
@@ -2561,13 +2567,16 @@ def resolve_push_update(push_ref: PushRef, repo_root: Path) -> PushUpdate:
         base = _merge_base(repo_root, "main", push_ref.local_sha)
     if base is None and not push_ref.is_new:
         base = push_ref.remote_sha
-    plugin_base = base or "origin/main"
-    diff_base = base or EMPTY_TREE_SHA
-    range_spec = f"{diff_base}..{push_ref.local_sha}"
+    if base is None:
+        raise PushUpdateConfigError(
+            "could not determine push base for new branch; fetch origin/main or "
+            "unshallow the repository before pushing"
+        )
+    range_spec = f"{base}..{push_ref.local_sha}"
     destination = _branch_name(push_ref.remote_ref)
     return PushUpdate(
         source=push_ref,
-        base=plugin_base,
+        base=base,
         head=push_ref.local_sha,
         range_spec=range_spec,
         destination_branch=destination,
@@ -2613,7 +2622,13 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
-    updates = [resolve_push_update(push_ref, repo_root) for push_ref in active_refs]
+    updates = []
+    for push_ref in active_refs:
+        try:
+            updates.append(resolve_push_update(push_ref, repo_root))
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     return _check_push_updates(updates, repo_root)
 
 
@@ -3137,7 +3152,11 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
     for push_ref in refs:
         if push_ref.is_deletion:
             continue
-        update = resolve_push_update(push_ref, repo_root)
+        try:
+            update = resolve_push_update(push_ref, repo_root)
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
         result = _run_command(
             [
                 sys.executable,

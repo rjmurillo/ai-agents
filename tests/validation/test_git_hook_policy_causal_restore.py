@@ -189,27 +189,27 @@ def _run_suppression_push(
     diff_text: str,
     changed_paths: tuple[str, ...] = ("pkg/module.py",),
     *,
-    base: str | None = None,
+    base: str | None = "c" * 40,
+    remote_sha: str = "b" * 40,
     diff_without_no_renames: str | None = None,
 ) -> int:
     head = "a" * 40
-    remote = "b" * 40
-    resolved_base = "c" * 40 if base is None else base
-    empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-    expected_range = f"{resolved_base or empty_tree}..{head}"
+    expected_range = f"{base}..{head}" if base is not None else None
     monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
-    monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: resolved_base)
+    monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: base)
 
     def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["ls-tree", "-r"]:
             assert args[-1] == head
             return _completed("\0".join(changed_paths) + "\0")
         if args[:3] == ["diff", "--name-only", "--diff-filter=ACMRT"]:
+            assert expected_range is not None
             assert expected_range in args
             return _completed("\0".join(changed_paths) + "\0")
         if "diff" in args and "--unified=0" in args:
             if args[3] == head:
                 return _completed("")
+            assert expected_range is not None
             assert expected_range in args
             if "--no-renames" not in args and diff_without_no_renames is not None:
                 return _completed(diff_without_no_renames)
@@ -219,7 +219,7 @@ def _run_suppression_push(
         raise AssertionError(f"unexpected git call: {args!r}")
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
-    stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {remote}\n")
+    stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {remote_sha}\n")
     return policy.check_pushed_suppressions(stdin, repo_root)
 
 
@@ -338,14 +338,13 @@ new file mode 100644
         )
         assert "pkg/payload.py:1" in capsys.readouterr().err
 
-    def test_new_branch_without_merge_base_scans_empty_tree_to_head(
+    def test_new_branch_without_merge_base_is_config_error(
         self,
         tmp_path,
         monkeypatch,
         capsys,
     ):
         suppression = "# type" ": ignore[arg-type]"
-        empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -354,9 +353,67 @@ new file mode 100644
 +value = call()  {suppression}
 """
 
-        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("source.py",), base="") == 1
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                diff,
+                ("source.py",),
+                base=None,
+                remote_sha="0" * 40,
+            )
+            == 2
+        )
         err = capsys.readouterr().err
-        assert f"{empty_tree}.." in err or "source.py:1" in err
+        assert "could not determine push base for new branch" in err
+        assert "fetch origin/main" in err
+        assert "unshallow" in err
+
+    def test_new_branch_with_merge_base_scans_only_pushed_range(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        suppression = "# type" ": ignore[arg-type]"
+        diff = f"""diff --git a/source.py b/source.py
+new file mode 100644
+--- /dev/null
++++ b/source.py
+@@ -0,0 +1 @@
++value = call()  {suppression}
+"""
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                diff,
+                ("source.py",),
+                base="d" * 40,
+                remote_sha="0" * 40,
+            )
+            == 1
+        )
+        assert "source.py:1" in capsys.readouterr().err
+
+    def test_removed_line_starting_with_two_dashes_does_not_shift_added_line_number(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        suppression = "# no" "sec"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -10,2 +10,1 @@
+--- removed content line
++real = 1  {suppression}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:10" in capsys.readouterr().err
 
 
 class TestAdrReviewPolicyMergeScope:
@@ -422,6 +479,26 @@ class TestAdrReviewPolicyMergeScope:
             lambda root, commit, relative_path: b"main adr",
             raising=False,
         )
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+
+        result = policy.check_adr_review_policy(
+            [path],
+            tmp_path,
+        )
+
+        assert result == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_merge_in_progress_with_conflicted_adr_is_gated_when_stage_zero_is_absent(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        path = ".agents/architecture/ADR-998-conflicted.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: None)
         monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
 
         result = policy.check_adr_review_policy(
