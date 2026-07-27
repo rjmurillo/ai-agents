@@ -742,3 +742,81 @@ falsified by a later edit, in a file where every such sentence was added by a
 previous review round. Second: when a guard covers two mechanisms, write the
 property for each mechanism separately. One sentence covering both is how the
 weaker guarantee inherits the stronger one's language.
+
+## Defect shape 20: the error contract is a claim like any other
+
+Round seventeen ran a third model, `gemini-3.1-pro-preview`, chosen because
+rounds fifteen and sixteen both used `gpt-5.6-terra` and agreement between two
+runs of one model is one opinion sampled twice. It was told what round sixteen
+found, what was fixed, which reviewer proposal was declined, and why, and asked
+to attack that reasoning specifically. It did not overturn the decline. It found
+three defects the earlier rounds had walked past, and all three were verified by
+running the code before any of them was accepted.
+
+Two of the three were the same shape, and the shape is new to this log. Every
+finding through round sixteen was about the gate's decision: what it refuses,
+what it charges, what it reveals. These two were about what the CLI does when it
+fails, which the README states plainly and which nothing tested.
+
+- `_write_atomic` called `tempfile.mkstemp` one line above the `try` that turns
+  a write failure into a `ConfigError`. Its docstring is about the other
+  promise, that the artifact is never left half written, and the block below is
+  built to keep it. Nobody asked what happens when the temp file cannot be
+  created at all. `split --tasks ... --out /nonexistent/split.json` printed a
+  `FileNotFoundError` traceback: an ordinary caller mistake, reported as a
+  crash, to a caller documented to parse stdout as JSON.
+- `_read_json` did not name `UnicodeDecodeError`. `_read_text`, forty lines
+  above, catches it with a comment explaining that it subclasses `ValueError`
+  rather than `OSError` and so the `OSError` arm never sees it. The same
+  sentence is true of `_read_json`, which was written with the same three arms
+  minus that one. Nothing crashed, because `main` catches `ValueError`, so the
+  defect surfaced only as an error document typed `UnicodeDecodeError` where
+  every other unreadable input says `ConfigError`. A caller branching on `type`
+  sees a class the contract never mentions.
+
+The third finding was rated optional and is the more interesting one, because it
+is defect shape 19 recurring inside the fix for defect shape 19.
+`_corpus_refusal` exists so the preflight and the recheck cannot phrase the same
+refusal two ways, and its docstring says exactly that: two call sites would let
+the caller tell which read caught it. The recheck then emitted
+`_corpus_refusal() | {"sel_consultations": spent}`. The key set alone answered
+the question the docstring said it must not.
+
+The reviewer proposed unifying the schema. The fix went further, because the
+added key was not merely inconsistent, it was the wrong fact. `sel_consultations`
+reports the ledger's prior spend, and `_guard` runs before the recheck, so an
+exhausted budget has already refused by the time the recheck can fire. The
+number was therefore never actionable at that call site: a caller told to
+re-score against the right corpus does not decide differently based on how much
+budget remains, because budget is known to remain. Dropping it makes the two
+documents identical, which is the property the shared builder was written to
+have.
+
+Removing it broke one existing assertion, and the break was worth having. A
+round-sixteen test named `test_the_recheck_refuses_before_the_consultation_is_charged`
+asserted `out["sel_consultations"] == 0`. That value is prior spend, which is
+zero in a fresh test ledger whether or not the run under test charged anything.
+The test would have passed if the recheck had charged. It now asserts that no
+ledger file exists after the refusal, which is the claim the name always made.
+
+Three generalizations, one per shape.
+
+First: the error contract deserves the same treatment as the decision contract.
+The gate's refusals have thirty tests between them. Until this round, the
+sentence "every failure prints one JSON document" had none that exercised a
+write. A promise stated in a README and enforced by a single `except` clause in
+`main` is one edit away from false, and the edit that breaks it will be in a
+function whose docstring is about something else.
+
+Second: when two readers consume the same bytes, the second one is written by
+copying the first, and the copy loses whichever arm was added last. `_read_text`
+gained its `UnicodeDecodeError` arm from an earlier review round. `_read_json`
+predates that fix and never received it. Grep for the sibling before assuming a
+handler is complete.
+
+Third, and this is the one worth carrying out of this file: a helper introduced
+to stop two call sites from drifting does not stop them from drifting. It only
+makes drift visible as an argument at the call site. The `| {...}` was three
+tokens and it defeated the entire purpose of the function it decorated. If a
+shared builder is load-bearing, a test has to assert that the call sites produce
+equal output, because the language will not.

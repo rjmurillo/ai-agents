@@ -227,6 +227,22 @@
         "adr-review: ADR-087 requirement 5 rewritten from four properties to six, adding the pin-deletion limit and the recheck. The debate log records defect shape 19 and the reasoning for declining the reviewer's proposed fix."
       ],
       "outcome": "Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file."
+    },
+    {
+      "phase": "Round 17 review: a third model finds the error contract untested",
+      "actions": [
+        "Third adversarial review, gemini-3.1-pro-preview, chosen because rounds 15 and 16 both ran gpt-5.6-terra and two runs of one model is one opinion sampled twice. It was told what round 16 found, what was fixed, and which reviewer proposal was declined and why, and asked to attack that reasoning. It did not overturn the decline. REJECT with three findings.",
+        "Verified all three by running the code before accepting any. REQUIRED: _write_atomic called tempfile.mkstemp one line above the try that wraps OSError into ConfigError, so split --out into a nonexistent directory printed a FileNotFoundError traceback to a caller documented to parse stdout as JSON. Reproduced; the reviewer's own repro used four tasks and hit the min_sel refusal first, so it needed thirty tasks to reach the write.",
+        "NIT, accepted as real: _read_json did not name UnicodeDecodeError. _read_text catches it forty lines above with a comment saying it subclasses ValueError rather than OSError. Nothing crashed, since main catches ValueError, but a binary input produced an error document typed UnicodeDecodeError where every other unreadable input says ConfigError.",
+        "OPTIONAL, and the most interesting: defect shape 19 recurring inside the fix for defect shape 19. _corpus_refusal exists so the two corpus checks cannot phrase one refusal two ways, and says so in its docstring. The recheck emitted _corpus_refusal() | {sel_consultations: spent}, so the key set alone said which read caught the mismatch.",
+        "Went further than the reviewer's proposed schema unification. sel_consultations reports prior ledger spend, and _guard runs before the recheck, so an exhausted budget has already refused by then. The number was never actionable at that call site. Dropped it; both call sites now emit exactly _corpus_refusal().",
+        "TDD: wrote three test classes first, confirmed 8 red, then implemented. Removing the key broke one round-16 assertion that read sel_consultations == 0, a value that is prior spend and therefore zero in a fresh ledger whether or not the run charged. Rewrote it to assert no ledger file exists after the refusal, which is what the test name always claimed.",
+        "Re-proved the guard end to end on the real incident pair, the two tracked architect reports with fixture_set_sha be99fa1b1180 and 26136df314d6: REJECT, compared false, consultations 0, exit 1, zero ledger files, and now one clean payload shape.",
+        "1094 tests pass. 100 percent coverage held on all three optimizer modules: optimize-artifact.py 479 statements, _optimizer_core.py 259, _optimizer_adapters.py 89. ruff and mypy clean on changed files.",
+        "Flagged but did not fix: tests/eval/test_anthropic_model_default.py:35 trips ruff UP037, pre-existing from PR #2860 and outside this change.",
+        "Docs updated: README exit-codes section now records both error-contract breaks, the incomparable-pair section goes from a miscounted five to seven properties, ADR-087 requirement 5 records the one-voice property, and the debate log gains defect shape 20."
+      ],
+      "outcome": "Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output."
     }
   ],
   "endingCommit": "d30417c7d4b29385e44785be2089a05a305e74bd",

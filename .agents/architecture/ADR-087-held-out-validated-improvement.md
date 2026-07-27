@@ -318,7 +318,10 @@ Six properties, each answering a specific failure the earlier rounds taught:
   comparison is scored from a second, full read. Only the second is
   authoritative, so the conflict rule runs again against the loaded values
   before a consultation is charged. Two reads of one path that never have to
-  agree leave a window between them.
+  agree leave a window between them. Both checks emit the same document: a
+  seventeenth review found the gate's copy carrying the ledger's prior spend,
+  which let the key set alone say which read caught the mismatch and reported a
+  number the caller cannot act on, since the budget guard has already run.
 - **The refusal names nothing.** No task ids, no holdout key. A caller cannot
   turn repeated mismatches into a probe of the held-out group. The preflight runs
   under the same digest scrubber as the ledger paths.

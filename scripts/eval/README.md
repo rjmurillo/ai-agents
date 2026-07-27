@@ -602,6 +602,16 @@ a reject from a broken input reads `decision` rather than inferring from the
 code. Argument errors from `argparse` are the exception and print plain text to
 stderr, exit 2, as with every other script here.
 
+That promise has been broken twice by exceptions that reached the top level
+under a class the handler did not name, and both cost a traceback where a caller
+was parsing stdout. `_write_atomic` created its temp file before the block that
+turns a write failure into a `ConfigError`, so `split --out` into a directory
+that does not exist raised `FileNotFoundError` uncaught. `_read_json` did not
+name `UnicodeDecodeError`, which subclasses `ValueError` rather than `OSError`,
+so a binary input was reported under the decoder's own class while `_read_text`
+reported the same bytes as a config problem. Both now answer exit 2 with a
+`ConfigError` document.
+
 | Code | Meaning |
 |------|---------|
 | 0 | Accept, novel patch, or plain success |
@@ -749,7 +759,7 @@ architect reports, `20260528T051601Z-70c6ae97` and `20260528T055934Z-5f4d8ad4`,
 and gating them exactly as the false accept was produced now returns the refusal
 above, exit 1, with no ledger file written.
 
-Five properties, each chosen against a specific failure:
+Seven properties, each chosen against a specific failure:
 
 - **It costs nothing.** The decision comes from three header fields, so it lands
   beside the split-drift refusal and ahead of the ledger. A mismatched pair is
@@ -785,6 +795,14 @@ Five properties, each chosen against a specific failure:
   authoritative, so the conflict rule runs again against the loaded values
   before a consultation is charged. Without that, the two reads never had to
   agree and the gap between them was a window a file could change in.
+- **Both checks speak with one voice.** The two refusals are the same document.
+  The gate's copy briefly added the ledger's prior spend, so the key set alone
+  told the caller which of the two reads caught the mismatch, which is the
+  property the shared builder exists to prevent. It was also the wrong number
+  to report: the budget guard runs before the recheck, so budget is never
+  exhausted by the time it fires, and prior spend cannot change what the caller
+  does next. Both report `consultations: 0`, the one claim each can make
+  honestly, which is that this run charged nothing.
 - **It leaks nothing.** The reason names neither task ids nor the holdout key,
   so a caller cannot use repeated mismatches to probe the held-out group. The
   preflight runs under the same digest scrubber as the ledger paths.
