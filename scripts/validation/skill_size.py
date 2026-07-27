@@ -21,7 +21,7 @@ procedures and tables in references/*.md) keeps the always-loaded body small.
 Exit codes follow ADR-035:
     0 - Success: All skill files within size limits
     1 - Error: One or more files exceed limit (CI mode only)
-    2 - Config error (path not found)
+    2 - Uncertifiable staged blob or staged discovery failure (fail-closed)
 
 Related: Issue #676 (Skill Prompt Size Limits), Issue #3421 (byte ceiling)
 """
@@ -45,8 +45,10 @@ _FRONTMATTER_PATH = (
 )
 try:
     _spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
-    _mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
-    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    if _spec is None or _spec.loader is None:
+        raise TypeError("importlib could not create spec for frontmatter module")
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
     has_size_exception = _mod.has_size_exception
 except (FileNotFoundError, TypeError, AttributeError) as _exc:
     print(
@@ -96,7 +98,7 @@ class StagedBlobError(RuntimeError):
 
     Raised in staged mode when the index blob is missing, is not a regular-file
     blob (a symlink stores the link target text, a gitlink stores a commit id,
-    so measuring either under-counts), or ``git show`` fails. The gate fails
+    so measuring either under-counts), or ``git cat-file`` fails. The gate fails
     closed on this rather than fall back to the working tree, which a pre-commit
     hook must never trust for what is about to be committed.
     """
@@ -128,7 +130,7 @@ class _Tally:
     """Running counts across the SKILL.md files a single run inspects.
 
     ``uncertifiable`` counts staged blobs the gate could not measure (missing
-    index entry, symlink, or failed ``git show``); it drives an unconditional
+    index entry, symlink, or failed ``git cat-file``); it drives an unconditional
     fail-closed exit so an unmeasurable blob can never be reported as passing.
     """
 

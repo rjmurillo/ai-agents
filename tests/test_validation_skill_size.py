@@ -458,7 +458,7 @@ class TestStagedBlobValidation:
         with pytest.raises(StagedBlobError):
             read_staged_blob_bytes(Path(".claude/skills/ghost/SKILL.md"))
 
-    def test_git_show_failure_fails_closed_in_main(
+    def test_git_cat_file_failure_fails_closed_in_main(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # If reading the staged blob fails for any reason, main must fail closed
@@ -468,7 +468,7 @@ class TestStagedBlobValidation:
         self._stage_all(tmp_path)
 
         def _boom(path: Path) -> bytes:
-            msg = f"{path.as_posix()}: simulated git show failure"
+            msg = f"{path.as_posix()}: simulated git cat-file failure"
             raise StagedBlobError(msg)
 
         monkeypatch.setattr(_skill_size_mod, "read_staged_blob_bytes", _boom)
