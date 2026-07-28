@@ -5,6 +5,8 @@ argument-hint: problem-statement-or-issue-number
 size-exception: true
 ---
 
+@CLAUDE.md
+
 <!--
 size-exception rationale. Required by `.claude/rules/code-quality.md` ("Suppressions
 Are a Last Resort"), which says a suppression is a last resort and must carry a short
@@ -32,8 +34,6 @@ and deletes this key. The Prior Art block is the first deferral candidate: it is
 roughly half the file, so moving it alone brings this under the ceiling. Do not copy
 this pattern into another file without doing the same.
 -->
-
-@CLAUDE.md
 
 Spec: $ARGUMENTS
 
