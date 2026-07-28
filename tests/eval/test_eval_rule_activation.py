@@ -81,7 +81,7 @@ def _make_scenario(
 
 
 class TestAggregateVerdicts:
-    def test_pass_when_full_clears_threshold_and_beats_baseline(self):
+    def test_pass_when_description_clears_threshold_and_beats_baseline(self):
         scenarios = [_make_scenario(baseline=1, description=4, full=5)]
         summary = eval_mod.aggregate(scenarios)
         assert summary["verdict"] == "PASS"
@@ -109,6 +109,17 @@ class TestAggregateVerdicts:
         scenarios = [_make_scenario(baseline=5, description=2, full=2)]
         summary = eval_mod.aggregate(scenarios)
         assert summary["best_mechanism"] != "baseline"
+        assert summary["verdict"] == "FAIL_THRESHOLD"
+
+    def test_full_cannot_rescue_description_failure(self):
+        scenarios = [_make_scenario(baseline=0, description=0, full=5)]
+
+        summary = eval_mod.aggregate(scenarios)
+
+        assert summary["baseline_avg"] == 0.0
+        assert summary["delta_description_vs_baseline"] == 0.0
+        assert summary["delta_full_vs_baseline"] == 5.0
+        assert summary["best_mechanism"] == "full"
         assert summary["verdict"] == "FAIL_THRESHOLD"
 
     def test_judge_failures_force_fail_judge_errors_verdict(self):
@@ -388,6 +399,195 @@ def test_activation_fixture_routes_release_it_to_library():
 
 def test_activation_fixture_routes_philosophy_of_software_design_to_library():
     _assert_fixture_routes_to_library("philosophy-of-software-design")
+
+
+def _read_text(relative_path: str) -> str:
+    return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _software_engineering_library_route(
+    request: str,
+    discovered_evidence: str,
+) -> tuple[str | None, str | None]:
+    """Offline proxy for the autoplan to analyze to skill route.
+
+    The test reads the real routing surfaces. It does not trust the fixture's
+    declared target path, so removing the autoplan row, analyze handoff, or
+    frontmatter trigger breaks the route.
+    """
+    autoplan = _read_text(".claude/skills/autoplan/SKILL.md").lower()
+    analyze = _read_text(".claude/skills/analyze/SKILL.md").lower()
+    library = _read_text(".claude/skills/software-engineering-library/SKILL.md").lower()
+    combined = f"{request} {discovered_evidence}".lower()
+
+    if "software-engineering-library" not in library:
+        return None, None
+
+    direct_trigger = "software-engineering-library" in autoplan and any(
+        trigger in combined and trigger in library
+        for trigger in (
+            "architecture review",
+            "architecture boundaries",
+            "software design depth",
+            "dependency boundary",
+            "module interface shape",
+            "domain modeling",
+            "bounded context",
+            "refactoring",
+            "code smell",
+            "external api",
+            "queues",
+            "retries",
+            "transactions",
+            "event ordering",
+            "schema evolution",
+            "timeout",
+            "circuit breaker",
+            "bulkhead",
+        )
+    )
+    bug_to_analyze = "fix " in request.lower() and "skill: analyze" in autoplan
+    analyze_discovers_risk = any(
+        trigger in combined and trigger in analyze and trigger in library
+        for trigger in (
+            "low test coverage",
+            "old file",
+            "hard-to-test",
+            "external api",
+            "queues",
+            "retries",
+            "transaction",
+            "event ordering",
+            "schema evolution",
+            "layer dependency",
+            "bounded context",
+            "module interface shape",
+        )
+    )
+    if not (direct_trigger or (bug_to_analyze and analyze_discovers_risk)):
+        return None, None
+
+    reference_signals = (
+        (
+            "clean-architecture",
+            ("architecture review", "dependency boundary", "layer boundary"),
+        ),
+        (
+            "domain-driven-design",
+            ("domain modeling", "bounded context"),
+        ),
+        (
+            "enterprise-patterns",
+            ("repository", "unit-of-work", "transactions"),
+        ),
+        (
+            "refactoring",
+            ("refactoring", "code smell"),
+        ),
+        (
+            "working-with-legacy-code",
+            ("low test coverage", "old file", "characterization test"),
+        ),
+        (
+            "data-intensive-applications",
+            ("schema evolution", "event ordering", "data consistency"),
+        ),
+        (
+            "release-it",
+            ("external api", "queues", "retries", "timeout", "circuit breaker", "bulkhead"),
+        ),
+        (
+            "philosophy-of-software-design",
+            ("module interface shape", "complexity hiding"),
+        ),
+    )
+    for reference, signals in reference_signals:
+        path = f"references/{reference}.md"
+        if path in library and any(signal in combined for signal in signals):
+            return "software-engineering-library", path
+    return "software-engineering-library", None
+
+
+@pytest.mark.parametrize(
+    ("test_name", "user_request", "evidence", "expected_reference"),
+    [
+        (
+            "clean_architecture_boundary_change",
+            "Architecture boundaries review for a dependency boundary between domain "
+            "and infrastructure.",
+            "Layer boundary direction is the risk.",
+            "references/clean-architecture.md",
+        ),
+        (
+            "domain_driven_design_bounded_context",
+            "Domain modeling for billing and fulfillment bounded contexts.",
+            "The model needs context translation rules.",
+            "references/domain-driven-design.md",
+        ),
+        (
+            "enterprise_patterns_repository_transaction",
+            "Design a repository with unit-of-work handling for transactions.",
+            "Persistence orchestration is central.",
+            "references/enterprise-patterns.md",
+        ),
+        (
+            "refactoring_code_smell",
+            "Refactoring request for a code smell in pricing.py.",
+            "Behavior must stay the same.",
+            "references/refactoring.md",
+        ),
+        (
+            "working_with_legacy_code_low_coverage",
+            "Fix token expiration in auth.py.",
+            "Analysis found low test coverage, old file age, and a characterization test need.",
+            "references/working-with-legacy-code.md",
+        ),
+        (
+            "data_intensive_schema_evolution",
+            "Plan schema evolution for event ordering and data consistency.",
+            "Consumers read old and new records during rollout.",
+            "references/data-intensive-applications.md",
+        ),
+        (
+            "release_it_resilience",
+            "Review external API calls with queues, retries, timeout, and circuit "
+            "breaker behavior.",
+            "Production resilience is the primary risk.",
+            "references/release-it.md",
+        ),
+        (
+            "philosophy_of_software_design_interface_shape",
+            "Software design depth review for module interface shape and complexity hiding.",
+            "The public surface is shallow and leaks implementation details.",
+            "references/philosophy-of-software-design.md",
+        ),
+    ],
+)
+def test_behavioral_request_routes_to_library_reference(
+    test_name: str,
+    user_request: str,
+    evidence: str,
+    expected_reference: str,
+) -> None:
+    selected_skill, selected_reference = _software_engineering_library_route(
+        user_request,
+        evidence,
+    )
+
+    assert selected_skill == "software-engineering-library", test_name
+    assert selected_reference == expected_reference, test_name
+
+
+def test_skill_description_prompt_exposes_only_umbrella_skill() -> None:
+    skill_path = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
+    reference_path = skill_path.parent / "references" / "working-with-legacy-code.md"
+    rule = eval_mod.parse_skill_reference(skill_path, reference_path)
+
+    prompt = eval_mod.build_system_prompt("description", rule, "working-with-legacy-code")
+
+    assert "software-engineering-library" in prompt
+    assert "working-with-legacy-code" not in prompt
+    assert "references/working-with-legacy-code.md" not in prompt
 
 
 # ---------------------------------------------------------------------------

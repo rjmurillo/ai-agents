@@ -22771,6 +22771,69 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "3db100629688",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into fix/3419-progressive-disclosure after PR #3507 became conflicting. Conflict candidates were causal-graph.json, scripts/eval/README.md, and tests/eval/test_optimize_artifact_cli.py; git auto-merged them.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861277+00:00"
+    },
+    {
+      "id": "66f178daf8d7",
+      "type": "milestone",
+      "label": "milestone: Added behavioral routing tests that read autoplan, analyze, and software-engineering-library. Reproduced the synthetic evaluator false pass before the fix and confirmed it fails after the fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861370+00:00"
+    },
+    {
+      "id": "12832f8f3f47",
+      "type": "milestone",
+      "label": "milestone: Repointed two ordinary live deleted-rule references, amended ADR references with dated current-path notes, and kept historical records unchanged.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861454+00:00"
+    },
+    {
+      "id": "86b6e60f2533",
+      "type": "milestone",
+      "label": "milestone: Re-ran adr-review on amended ADR-088 and appended round 2 convergence evidence to the debate log. Filed issue #3589 for the wired rollback trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861536+00:00"
+    },
+    {
+      "id": "7a102f74b3fe",
+      "type": "milestone",
+      "label": "milestone: Added dated amendment notes to ADR-060, ADR-061, ADR-062, and ADR-063 for moved book-rule references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:46:56.344118+00:00"
+    },
+    {
+      "id": "eec2b04f2508",
+      "type": "milestone",
+      "label": "milestone: Added dated amendment notes to ADR-070, ADR-076, and ADR-087 for moved book-rule references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:51:12.074687+00:00"
+    },
+    {
+      "id": "94d919432707",
+      "type": "milestone",
+      "label": "milestone: Updated ADR-088 to defer unwired rollback trigger to issue #3589 and appended round 2 adr-review convergence to ADR-088 debate log.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:55:10.805049+00:00"
     }
   ],
   "patterns": [

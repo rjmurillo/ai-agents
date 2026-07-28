@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Rule Activation Eval: measure whether `.claude/rules/*.md` files actually fire.
+"""Rule Activation Eval: measure whether rules and skill references actually fire.
 
-Tests how a rule activates across loading mechanisms:
+Tests how a rule or skill reference activates across loading mechanisms:
   - baseline       : no rule context (control)
-  - description    : only the rule's frontmatter description in system prompt
-  - full           : entire rule body in system prompt (mimics @import or alwaysApply: true)
+  - description    : only the rule description, or the skill catalog front door
+                     plus skill router, must select the reference before use
+  - full           : entire rule body, or skill router plus selected reference body,
+                     in system prompt as a diagnostic ceiling
 
 Each scenario is graded by an LLM judge on three dimensions (1-5):
   - activation_score : did the response apply rule-specific guidance vs generic advice?
@@ -104,6 +106,9 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     """Build the progressive-disclosure prompt surface for one skill reference."""
     skill = _parse_markdown_artifact(skill_path)
     reference = _parse_markdown_artifact(reference_path)
+    skill_name_match = re.search(r"^name:\s*(.+?)$", skill["frontmatter"], re.MULTILINE)
+    skill_name = skill_name_match.group(1).strip() if skill_name_match else skill_path.parent.name
+    reference_rel = str(reference_path.relative_to(skill_path.parent))
     body = (
         "Skill router:\n\n"
         f"{skill['body']}\n\n"
@@ -114,6 +119,11 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
         "description": skill["description"],
         "body": body,
         "frontmatter": skill["frontmatter"],
+        "skill_name": skill_name,
+        "skill_body": skill["body"],
+        "skill_path": str(skill_path.relative_to(REPO_ROOT)),
+        "reference_path": reference_rel,
+        "reference_body": reference["body"],
     }
 
 
@@ -124,6 +134,14 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     if mechanism == "description":
         if not rule["description"]:
             return ""
+        if rule.get("skill_name"):
+            return (
+                "Project skills are available on demand. Available skill:\n\n"
+                f"  - {rule['skill_name']}: {rule['description']}\n\n"
+                "Decide whether to select this skill based on the user's request. "
+                "If selected, open the skill router and then the smallest matching "
+                "reference before advising the user."
+            )
         return (
             "Project rules apply to your work. Available rule:\n\n"
             f"  - {rule_id}: {rule['description']}\n\n"
@@ -137,6 +155,92 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
             f"{rule['body']}"
         )
     raise ValueError(f"Unknown mechanism: {mechanism}")
+
+
+def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
+    """Build the progressive-disclosure routing prompt for a skill reference."""
+    return f"""Route the user request through the available skill catalog.
+
+Available skill:
+- {rule["skill_name"]}: {rule["description"]}
+
+If the skill is relevant, open this skill router and choose the smallest matching reference:
+
+{rule["skill_body"]}
+
+User request:
+{scenario.get("input", "")}
+
+Return JSON only with these fields:
+- selected_skill: skill name or null
+- selected_reference: reference path or null
+- reasoning: one sentence"""
+
+
+def _parse_json_object(text: str) -> dict[str, Any] | None:
+    """Extract one JSON object from a model response."""
+    stripped = text.strip()
+    if "```" in stripped:
+        match = re.search(r"```(?:json)?\s*\n(.*?)```", stripped, re.DOTALL)
+        if match:
+            stripped = match.group(1).strip()
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _normalize_selected_reference(value: object) -> str | None:
+    """Normalize a route response reference path."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().strip("`")
+    if not cleaned or cleaned.lower() == "null":
+        return None
+    if cleaned.startswith("references/"):
+        return cleaned
+    if "/references/" in cleaned:
+        return "references/" + cleaned.rsplit("/references/", maxsplit=1)[1]
+    if cleaned.endswith(".md"):
+        return f"references/{Path(cleaned).name}"
+    return cleaned
+
+
+def _resolve_reference_body(rule: dict[str, str], selected_reference: str | None) -> str:
+    """Return the selected reference body if it resolves under the skill reference dir."""
+    if not selected_reference:
+        return ""
+    skill_path_str = rule.get("skill_path")
+    if not skill_path_str:
+        return ""
+    skill_path = (REPO_ROOT / skill_path_str).resolve()
+    candidate = (skill_path.parent / selected_reference).resolve()
+    try:
+        candidate.relative_to((skill_path.parent / "references").resolve())
+    except ValueError:
+        return ""
+    if candidate.suffix != ".md" or not candidate.is_file():
+        return ""
+    return _parse_markdown_artifact(candidate)["body"]
+
+
+def _build_routed_reference_prompt(
+    rule: dict[str, str],
+    selected_reference: str | None,
+) -> str:
+    """Build the system prompt after the progressive route selected a reference."""
+    reference_body = _resolve_reference_body(rule, selected_reference)
+    if not reference_body:
+        return ""
+    return (
+        "The on-demand skill route selected this reference. Apply it when relevant.\n\n"
+        f"Skill: {rule['skill_name']}\n"
+        f"Reference: {selected_reference}\n\n"
+        f"{reference_body}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +388,7 @@ def eval_one_scenario(
 
     for mechanism in MECHANISMS:
         system = build_system_prompt(mechanism, rule, rule_id)
+        routing: dict[str, Any] | None = None
         if dry_run:
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
@@ -294,6 +399,42 @@ def eval_one_scenario(
 
         try:
             metadata: dict[str, object] = {}
+            if mechanism == "description" and rule.get("skill_name"):
+                route_response = _call_api(
+                    api_key,
+                    [{"role": "user", "content": build_skill_route_prompt(rule, scenario)}],
+                    system=system,
+                    model=model,
+                    max_tokens=300,
+                    seed=seed,
+                    metadata=metadata,
+                )
+                parsed_route = _parse_json_object(route_response)
+                if parsed_route is None:
+                    result["mechanisms"][mechanism] = {
+                        "error": "route parse failure",
+                        "response_preview": route_response[:400]
+                        + ("..." if len(route_response) > 400 else ""),
+                        "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+                        "routing": {
+                            "selected_skill": None,
+                            "selected_reference": None,
+                            "route_failed": True,
+                        },
+                    }
+                    continue
+                selected_skill = parsed_route.get("selected_skill")
+                selected_reference = _normalize_selected_reference(
+                    parsed_route.get("selected_reference")
+                )
+                routing = {
+                    "selected_skill": selected_skill if isinstance(selected_skill, str) else None,
+                    "selected_reference": selected_reference,
+                    "route_failed": False,
+                    "reasoning": str(parsed_route.get("reasoning", ""))[:300],
+                }
+                system = _build_routed_reference_prompt(rule, selected_reference)
+                metadata = {}
             response = _call_api(
                 api_key,
                 [{"role": "user", "content": scenario["input"]}],
@@ -326,6 +467,8 @@ def eval_one_scenario(
             "scores": scores,
             "system_prompt_chars": len(system),
         }
+        if routing is not None:
+            mechanism_result["routing"] = routing
         fingerprint = metadata.get("system_fingerprint")
         if isinstance(fingerprint, str):
             mechanism_result["system_fingerprint"] = fingerprint
@@ -392,14 +535,10 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
     full_avg = summary["per_mechanism"]["full"]["avg_score"]
 
-    # `best_mechanism` is what the rule author should ship. Baseline is the
-    # control; selecting it as best would say "the rule is not needed" and
-    # mask a real activation failure as FAIL_NO_DELTA. Pick from rule-enhanced
-    # mechanisms only.
+    # `description` is the progressive-disclosure gate. The `full` mechanism is
+    # retained only as a diagnostic ceiling and cannot rescue a failed front door.
     rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
-    best_mech = max(
-        rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"]
-    )
+    best_mech = max(rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"])
     best_avg = summary["per_mechanism"][best_mech]["avg_score"]
 
     total_judge_failures = sum(
@@ -421,10 +560,8 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     elif not pos_scenarios:
         summary["verdict"] = "NO_POSITIVE_CASES"
     else:
-        passes_threshold = best_avg >= MIN_ACTIVATION_SCORE
-        beats_baseline = (full_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE or (
-            desc_avg - baseline_avg
-        ) >= MIN_DELTA_VS_BASELINE
+        passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
+        beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
         if passes_threshold and beats_baseline:
             summary["verdict"] = "PASS"
         elif not passes_threshold:
@@ -682,12 +819,14 @@ def _process_one_rule(
     else:
         rule = parse_skill_reference(primary_path, reference_path)
     scenarios = scenarios_data.get("scenarios", [])
-    n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
+    route_calls = len(scenarios) if reference_path is not None else 0
+    n_calls = len(scenarios) * len(MECHANISMS) * 2 + route_calls
 
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms x 2 (call + judge) = {n_calls} calls"
+            f"{len(MECHANISMS)} mechanisms x 2 (call + judge)"
+            f" + {route_calls} route calls = {n_calls} calls"
         )
         print(f"  description present: {bool(rule['description'])}")
         print(f"  body chars: {len(rule['body'])}")
