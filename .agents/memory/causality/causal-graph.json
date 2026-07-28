@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T07:59:45.934466+00:00",
+  "updated": "2026-07-28T08:25:22.471569+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23394,13 +23394,76 @@
       "created": "2026-07-28T07:59:45.928204+00:00"
     },
     {
-      "id": "252c5542960e",
-      "type": "outcome",
-      "label": "Outcome: success - Record why GitHub reports a false conflict on causal-graph.json and what the safe resolution is.",
+      "id": "180586f63fc5",
+      "type": "milestone",
+      "label": "milestone: Observed PR #3636 reporting mergeable CONFLICTING/DIRTY while a local merge of the same commits was clean. Polled gh pr view four times at 30 second intervals on the reported head SHA.",
       "episodes": [
         "episode-2026-07-28-session-3644-causal-graph-false-conflict"
       ],
-      "created": "2026-07-28T07:59:45.928290+00:00"
+      "created": "2026-07-28T08:25:22.464469+00:00"
+    },
+    {
+      "id": "9517a6ee58d2",
+      "type": "milestone",
+      "label": "milestone: Ran an adversarial review of that draft on a different model family (gpt-5.6-sol) with a prompt that specifically attacked the causal claim and asked which confounds were not ruled out.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464563+00:00"
+    },
+    {
+      "id": "0be8e47a942d",
+      "type": "milestone",
+      "label": "milestone: Checked GitHub's reported base against the head for PR #3636: git merge-base --is-ancestor 87b1176674 cadd47a5b1.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464655+00:00"
+    },
+    {
+      "id": "5c6e6f4a481d",
+      "type": "milestone",
+      "label": "milestone: Ran a controlled experiment against the advanced main (304355e98f), which is not an ancestor: merge-tree with the driver active, with the driver forced to false, with the driver replaced by a plain text merge, and a raw git merge-file of the three blobs.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464739+00:00"
+    },
+    {
+      "id": "3280305eb2cf",
+      "type": "milestone",
+      "label": "milestone: Verified the review's remaining technical claims against the source rather than accepting them.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464821+00:00"
+    },
+    {
+      "id": "ea5b8a44eb22",
+      "type": "milestone",
+      "label": "milestone: Replaced the whole-record comparison with an identity-key comparison using the driver's own _COLLECTIONS keys, then re-checked PR #3636's merge.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464903+00:00"
+    },
+    {
+      "id": "6715f72d105d",
+      "type": "milestone",
+      "label": "milestone: Rewrote the memory around the finding the existing runbook does not cover: for a driver-managed path, a local trial merge is not authoritative for GitHub in either direction, because GitHub runs no custom merge driver.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.464985+00:00"
+    },
+    {
+      "id": "b06dc2d7ccc4",
+      "type": "outcome",
+      "label": "Outcome: success - Record why local git and the GitHub API disagree on whether causal-graph.json merges cleanly, and what the safe resolution is. Ordering in workLog is sequential; the timestamps mark order only, not measured wall-clock times.",
+      "episodes": [
+        "episode-2026-07-28-session-3644-causal-graph-false-conflict"
+      ],
+      "created": "2026-07-28T08:25:22.465068+00:00"
     }
   ],
   "patterns": [

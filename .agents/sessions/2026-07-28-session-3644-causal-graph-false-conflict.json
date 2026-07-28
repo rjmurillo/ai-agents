@@ -5,7 +5,7 @@
     "date": "2026-07-28",
     "branch": "fix/causal-graph-false-conflict",
     "startingCommit": "87b1176674",
-    "objective": "Record why GitHub reports a false conflict on causal-graph.json and what the safe resolution is."
+    "objective": "Record why local git and the GitHub API disagree on whether causal-graph.json merges cleanly, and what the safe resolution is. Ordering in workLog is sequential; the timestamps mark order only, not measured wall-clock times."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -76,38 +76,38 @@
   "workLog": [
     {
       "timestamp": "2026-07-28T00:00:00Z",
-      "action": "Observed PR #3636 reporting CONFLICTING while git merge-tree exited 0 against the same two commits.",
-      "outcome": "Local git and the GitHub API disagreed, so one of them was wrong about the same merge."
+      "action": "Observed PR #3636 reporting mergeable CONFLICTING/DIRTY while a local merge of the same commits was clean. Polled gh pr view four times at 30 second intervals on the reported head SHA.",
+      "outcome": "Status did not change across the polls. Wrote a first draft memory attributing the disagreement to the custom merge driver registered at .gitattributes:541."
     },
     {
-      "timestamp": "2026-07-28T00:10:00Z",
-      "action": "Polled gh pr view four times at 30 second intervals on the correct head SHA.",
-      "outcome": "CONFLICTING/DIRTY every time. Ruled out a stale mergeability cache."
+      "timestamp": "2026-07-28T00:01:00Z",
+      "action": "Ran an adversarial review of that draft on a different model family (gpt-5.6-sol) with a prompt that specifically attacked the causal claim and asked which confounds were not ruled out.",
+      "outcome": "Returned eight blocking findings. The central one: a clean local merge plus a configured driver does not establish the driver as the cause, and GitHub's own reported base SHA had not been checked."
     },
     {
-      "timestamp": "2026-07-28T00:20:00Z",
-      "action": "Ran a throwaway worktree merge of origin/main.",
-      "outcome": "Exit 0, Automatic merge went well, with causal-graph.json auto-merged. The conflict was not real locally."
+      "timestamp": "2026-07-28T00:02:00Z",
+      "action": "Checked GitHub's reported base against the head for PR #3636: git merge-base --is-ancestor 87b1176674 cadd47a5b1.",
+      "outcome": "Refuted the draft. The base was already an ancestor of the head, so no merge was being computed and no driver could have been involved. That CONFLICTING was the stale merge-state cache already documented in docs/autonomous-pr-monitor.md for PR #2334 and issue #2368."
     },
     {
-      "timestamp": "2026-07-28T00:30:00Z",
-      "action": "Checked git check-attr and git config for a custom merge driver on the graph.",
-      "outcome": "Found merge=causal-graph at .gitattributes:541, driver registered by scripts/maintenance/install_merge_drivers.py. GitHub does not run custom drivers, which explains the disagreement."
+      "timestamp": "2026-07-28T00:03:00Z",
+      "action": "Ran a controlled experiment against the advanced main (304355e98f), which is not an ancestor: merge-tree with the driver active, with the driver forced to false, with the driver replaced by a plain text merge, and a raw git merge-file of the three blobs.",
+      "outcome": "Driver active exits 0 with no conflict. Driver forced to false exits 1 with CONFLICT in causal-graph.json. Driver replaced by a text merge exits 1. Raw merge-file yields 239 conflict hunks. The driver is established as the cause for that SHA pair, with a working negative control."
     },
     {
-      "timestamp": "2026-07-28T00:40:00Z",
-      "action": "Merged origin/main into the branch and pushed, then compared node counts across HEAD, HEAD^1, and HEAD^2.",
-      "outcome": "Status moved to MERGEABLE. Merged graph had 2616 nodes against 2575 and 2586, confirming a union rather than a discarded side."
+      "timestamp": "2026-07-28T00:04:00Z",
+      "action": "Verified the review's remaining technical claims against the source rather than accepting them.",
+      "outcome": "All confirmed. _survives at merge_causal_graph.py:246 honors deliberate deletions, so the driver is not a pure union and node counts prove nothing. update_causal_graph.py defaults to the whole episode directory and takes --reset-graph, so the standalone generator can rebuild; only the lefthook wrapper is staged-scoped and it skips on merge (lefthook.yml:284-289). The graph changed in 49 of the last 200 first-parent commits on main, not on nearly every commit."
     },
     {
-      "timestamp": "2026-07-28T00:50:00Z",
-      "action": "Tested whether the finding generalizes by diagnosing PR #3497, which had also gone CONFLICTING.",
-      "outcome": "Negative result that sharpened the memory: 3497 auto-merged the graph but carried a real conflict in src/copilot-cli/.claude-plugin/plugin.json. CONFLICTING does not always mean the false conflict, so the memory prescribes a local test merge before acting."
+      "timestamp": "2026-07-28T00:05:00Z",
+      "action": "Replaced the whole-record comparison with an identity-key comparison using the driver's own _COLLECTIONS keys, then re-checked PR #3636's merge.",
+      "outcome": "The whole-record check reported one pattern lost; by key nothing was lost, and the record differed only in fields the driver merges on purpose. The merge was sound and the first check was the thing that was wrong."
     },
     {
-      "timestamp": "2026-07-28T01:00:00Z",
-      "action": "Searched .serena/memories/git/ and the driver docstring for existing coverage of the GitHub side symptom.",
-      "outcome": "Not covered. Issue #3345 closed the local half only. Filed #3644 for the durable fix and wrote the memory as the interim."
+      "timestamp": "2026-07-28T00:06:00Z",
+      "action": "Rewrote the memory around the finding the existing runbook does not cover: for a driver-managed path, a local trial merge is not authoritative for GitHub in either direction, because GitHub runs no custom merge driver.",
+      "outcome": "Memory now defers the stale-cache case to docs/autonomous-pr-monitor.md, carries the controlled experiment, states that the fix expires when the base advances again, and gives a verification that does not rely on counts."
     }
   ],
   "endingCommit": "6e906b4e42",
