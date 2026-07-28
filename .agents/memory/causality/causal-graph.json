@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T02:41:32.346977+00:00",
+  "updated": "2026-07-28T05:35:41.133186+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22825,6 +22825,24 @@
         "episode-2026-07-28-session-3566-causal-review-fixes"
       ],
       "created": "2026-07-28T02:41:32.340684+00:00"
+    },
+    {
+      "id": "21b0aab346ad",
+      "type": "milestone",
+      "label": "milestone: New evidence tests fail without the fix and pass with it. Final push evidence used TMPDIR outside the worktree.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T05:35:41.126141+00:00"
+    },
+    {
+      "id": "cfd9462744e8",
+      "type": "commit",
+      "label": "commit: Commit: 7a0dce3cd8d6326213f070033dc9b26adc1c0e04",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T05:35:41.126245+00:00"
     }
   ],
   "patterns": [

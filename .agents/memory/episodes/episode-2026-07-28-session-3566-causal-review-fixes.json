@@ -46,6 +46,22 @@
       "content": "New evidence tests fail without the fix and pass with it. TMPDIR was inside .pytest_tmp, not system temp.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "New evidence tests fail without the fix and pass with it. Final push evidence used TMPDIR outside the worktree.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7a0dce3cd8d6326213f070033dc9b26adc1c0e04",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -53,7 +69,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 2
   },
   "lessons": []
