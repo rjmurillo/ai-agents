@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from ..scripts.extract_session_episode import (
+    _link_sequential_events,
     extract_from_json,
     get_decision_type,
     get_session_id_from_path,
@@ -284,7 +286,7 @@ class TestGetSessionOutcome:
 class TestMainFunction:
     """Tests for the main CLI entry point."""
 
-    def test_extract_episode(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_extract_episode(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         session_file = tmp_path / "2026-01-15-session-001.md"
         session_file.write_text(SAMPLE_SESSION_LOG)
 
@@ -388,7 +390,7 @@ class TestMainFunction:
         )
 
     def test_force_and_preserve_are_mutually_exclusive(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         session_file = tmp_path / "2026-01-15-session-002.md"
         session_file.write_text(SAMPLE_SESSION_LOG)
@@ -400,7 +402,7 @@ class TestMainFunction:
                 "--preserve",
             ])
 
-    def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         session_file = tmp_path / "session-001.md"
         session_file.write_text("# Simple session\n**Status**: Done\n")
 
@@ -417,11 +419,11 @@ class TestMainFunction:
         assert "session" in episode
 
 
-def _gate(complete: bool) -> dict:
+def _gate(complete: bool) -> dict[str, object]:
     return {"level": "MUST", "Complete": complete, "Evidence": "x"}
 
 
-def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
+def _json_log(work_log: list[dict[str, Any]], *, end_complete: bool = True) -> dict[str, Any]:
     gate = _gate(end_complete)
     return {
         "session": {
@@ -441,6 +443,76 @@ def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
         },
         "workLog": work_log,
         "endingCommit": "bbbbbbb1234",
+        "nextSteps": [],
+    }
+
+
+def _real_3459_log() -> dict[str, Any]:
+    return {
+        "session": {
+            "number": 3459,
+            "date": "2026-07-27",
+            "branch": "fix/skill-md-templates-portability",
+            "startingCommit": "98caa0e54d",
+            "objective": (
+                "Close the templates/ gap in check_skill_md_portability.py so shipped "
+                "SKILL.md files cannot point at generator inputs that never ship with the plugin"
+            ),
+        },
+        "protocolCompliance": {
+            "sessionStart": {},
+            "sessionEnd": {
+                "checklistComplete": _gate(True),
+                "changesCommitted": _gate(True),
+                "validationPassed": _gate(True),
+            },
+        },
+        "workLog": [
+            {
+                "phase": "Measure the gap",
+                "actions": [
+                    "Read UPSTREAM_PATTERNS in scripts/validation/check_skill_md_portability.py",
+                    "Checked each skill for a vendor-portability marker",
+                ],
+                "outcome": (
+                    "Confirmed a real gap rather than a baseline artifact. Filed issue #3459 "
+                    "with the evidence before writing code"
+                ),
+            },
+            {
+                "phase": "Extend the patterns and prove they are load-bearing",
+                "actions": ["Added two patterns scoped to the second segment"],
+                "outcome": (
+                    "Patterns verified to fire on the true positives and stay silent on "
+                    "the four negative shapes"
+                ),
+            },
+            {
+                "phase": "Declare the three offenders",
+                "actions": ["Regenerated the Copilot mirror"],
+                "outcome": (
+                    "Validator stays at baseline 0 with the wider patterns in force, so "
+                    "the ratchet tightens without grandfathering anything"
+                ),
+            },
+            {
+                "phase": "Adversarial review remediation",
+                "actions": ["Verified the regex through the validator itself"],
+                "outcome": (
+                    "Regex verified through the validator itself, not only in isolation. "
+                    "55 tests pass, ruff clean, ratchet reports zero refs across zero files."
+                ),
+            },
+            {
+                "phase": "Remove bundled memory artifacts per review feedback",
+                "actions": ["Hook regeneration is by design"],
+                "outcome": (
+                    "Hooks regenerate memory artifacts from the session file on every commit; "
+                    "files remain as auto-generated derivatives of this session log"
+                ),
+            },
+        ],
+        "endingCommit": "ac9a29da8",
         "nextSteps": [],
     }
 
@@ -482,33 +554,153 @@ class TestJsonOutcome:
 
 class TestJsonEvents:
     def test_milestone_from_task(self):
-        events = json_events(_json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "Build X", "outcome": "done"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and e["content"] == "Build X" for e in events)
 
     def test_milestone_from_action_legacy_schema(self):
-        events = json_events(_json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"action": "Refactor Y", "outcome": "done"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and e["content"] == "Refactor Y" for e in events)
 
     def test_test_event_from_passed_count(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "ok", "evidence": "24 passed"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "ok", "evidence": "24 passed"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "test" for e in events)
 
     def test_no_error_event_from_prose_fail(self):
-        events = json_events(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert not any(e["type"] == "error" for e in events)
 
     def test_error_event_from_counted_failure(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "2 failed"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "error" for e in events)
 
     def test_commit_event_from_ending_commit(self):
-        events = json_events(_json_log([{"task": "t", "outcome": "o"}]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log([{"task": "t", "outcome": "o"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "commit" for e in events)
 
     def test_milestone_from_string_entry(self):
         # Some logs store workLog as a list of bare strings (e.g. session 1766).
-        events = json_events(_json_log(["Reviewed PR 1766: 5 unresolved threads"]), "2026-05-31T00:00:00+00:00")
+        events = json_events(
+            _json_log(["Reviewed PR 1766: 5 unresolved threads"]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert any(e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in events)
+
+
+class TestCausalEventLinks:
+    def test_real_3459_pre_code_milestone_is_not_caused_by_final_commit(self):
+        bundle = extract_from_json(_real_3459_log())
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        pre_code = next(e for e in bundle["events"] if "Filed issue #3459" in e["content"])
+        assert commit["content"] == "Commit: ac9a29da8"
+        assert pre_code["caused_by"] == []
+        assert commit["leads_to"] != [pre_code["id"]]
+
+    def test_commit_is_not_caused_by_later_review_milestone(self):
+        bundle = extract_from_json(_json_log([
+            {
+                "phase": "Review",
+                "actions": ["Addressed PR review feedback"],
+                "outcome": "PR review round complete",
+            }
+        ]))
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        review = next(e for e in bundle["events"] if e["type"] == "milestone")
+        assert commit["caused_by"] == []
+        assert review["leads_to"] != [commit["id"]]
+
+    def test_pre_and_post_code_milestones_in_same_log_use_observed_order(self):
+        bundle = extract_from_json(_json_log([
+            {
+                "phase": "Reproduce",
+                "actions": ["Filed the issue before code changed"],
+                "outcome": "Filed issue #3464 before writing code",
+            },
+            {
+                "phase": "Review",
+                "actions": ["Reviewed the completed branch"],
+                "outcome": "PR review round complete",
+            },
+        ]))
+        _link_sequential_events(bundle["events"])
+
+        commit = next(e for e in bundle["events"] if e["type"] == "commit")
+        pre_code = next(e for e in bundle["events"] if "before writing code" in e["content"])
+        post_code = next(e for e in bundle["events"] if "review round" in e["content"])
+        assert commit["caused_by"] == []
+        assert pre_code["caused_by"] == []
+        assert pre_code["leads_to"] == [post_code["id"]]
+        assert post_code["caused_by"] == [pre_code["id"]]
+
+    def test_rank_only_timestamp_ties_do_not_emit_causal_edges(self):
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "milestone",
+                "content": "Reported the result",
+                "caused_by": [],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: abc1234",
+                "caused_by": [],
+                "leads_to": [],
+            },
+            {
+                "id": "e003",
+                "timestamp": "2026-07-27T00:00:00+00:00",
+                "type": "test",
+                "content": "10 passed",
+                "caused_by": [],
+                "leads_to": [],
+            },
+        ]
+
+        _link_sequential_events(events)
+
+        assert all(e["caused_by"] == [] for e in events)
+        assert all(e["leads_to"] == [] for e in events)
+
+    def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        session_log = tmp_path / "2026-07-27-session-3459-templates-portability.json"
+        session_log.write_text(json.dumps(_real_3459_log()), encoding="utf-8")
+        output_dir = tmp_path / "episodes"
+
+        rc = main([str(session_log), "--output-path", str(output_dir)])
+
+        assert rc == 0
+        episode = json.loads(capsys.readouterr().out)
+        commit = next(e for e in episode["events"] if e["type"] == "commit")
+        pre_code = next(e for e in episode["events"] if "Filed issue #3459" in e["content"])
+        assert pre_code["caused_by"] == []
+        assert commit["leads_to"] != [pre_code["id"]]
 
 
 class TestStringWorkLog:
@@ -541,7 +733,9 @@ class TestJsonMetrics:
 
 class TestExtractFromJsonEndToEnd:
     def test_bundle_shape(self):
-        bundle = extract_from_json(_json_log([{"task": "Ship it", "outcome": "done", "evidence": "20 passed"}]))
+        bundle = extract_from_json(
+            _json_log([{"task": "Ship it", "outcome": "done", "evidence": "20 passed"}])
+        )
         assert bundle["outcome"] == "success"
         assert bundle["task"] == "Do the thing"
         assert bundle["timestamp"].startswith("2026-05-31")
@@ -549,7 +743,10 @@ class TestExtractFromJsonEndToEnd:
 
     def test_main_on_json_log(self, tmp_path, capsys):
         log = tmp_path / "2026-05-31-session-9001.json"
-        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])), encoding="utf-8")
+        log.write_text(
+            json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])),
+            encoding="utf-8",
+        )
         rc = main([str(log), "--output-path", str(tmp_path / "ep")])
         assert rc == 0
         episode = json.loads(capsys.readouterr().out)

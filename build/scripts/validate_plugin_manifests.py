@@ -322,6 +322,7 @@ def find_manifests(root: Path) -> list[Path]:
         "node_modules",
         ".git",
         "cache",
+        ".pytest_cache",
         ".pytest_tmp",
     }
     results: list[Path] = []

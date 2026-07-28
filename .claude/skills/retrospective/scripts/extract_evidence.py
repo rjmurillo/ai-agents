@@ -10,13 +10,12 @@ degrade gracefully ... mark the missing sections, never substitute invented
 data").
 
 System of record: the session log is the SoR for what happened in a session;
-git history is corroborating derived evidence (see
-``.claude/rules/data-intensive-applications.md``). This module only reads; it
+git history is corroborating derived evidence. This module only reads; it
 mutates no state.
 
 Integration points: ``git`` is an external process. Every subprocess call sets
 an explicit timeout and treats a non-zero exit or timeout as "source absent",
-never as a crash (see ``.claude/rules/release-it.md``).
+never as a crash.
 
 Exit codes (ADR-035):
   0: evidence gathered (some sources may be marked absent)
