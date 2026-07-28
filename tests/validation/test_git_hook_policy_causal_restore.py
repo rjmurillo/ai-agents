@@ -1311,6 +1311,64 @@ class TestAdrReviewPolicyMergeScope:
         assert policy.check_adr_review_policy([relative], repo) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
+    def test_a_rename_does_not_hide_the_history_the_head_copy_came_from(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Renaming an ADR must not turn main's own revision into gated work.
+
+        The head-copy clause asked `rev-list` for the commits touching one
+        pathname, which stops at the rename. An ADR renamed on both branches
+        and revised on main then failed the clause on the branch's own copy,
+        because that copy lived under the former name, and a merge that only
+        brought main's revision in demanded review evidence for it.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        old_name = ".agents/architecture/ADR-093-old.md"
+        new_name = ".agents/architecture/ADR-093-new.md"
+        # Long enough that a one-line revision still scores as a rename. Git
+        # pairs paths at 50% similarity by default, and a three-line fixture
+        # would need the threshold lowered to pass, which would be tuning the
+        # gate to the test rather than to the documents it guards.
+        body = "\n".join(f"Context paragraph {index}." for index in range(20))
+        first = f"# ADR 093\n\n{body}\n\nDecision: first position.\n"
+        second = f"# ADR 093\n\n{body}\n\nDecision: second position.\n"
+        (repo / old_name).write_text(first, encoding="utf-8")
+        _commit(repo, "first position")
+        _git(repo, "branch", "local")
+
+        _git(repo, "mv", old_name, new_name)
+        (repo / new_name).write_text(second, encoding="utf-8")
+        _commit(repo, "rename and revise on main")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "local")
+        _git(repo, "mv", old_name, new_name)
+        _commit(repo, "the branch renamed it too")
+
+        # Both sides moved the file, so the merge pairs the renames and takes
+        # main's revision on its own. Nothing here is authored by the branch.
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+        assert policy._read_index_blob(repo, new_name) == second.encode("utf-8")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, new_name) is True
+        assert policy._merge_authored_adr_paths([new_name], repo) == []
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([new_name], repo) == 0
+
+
 def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:
     """Build a repo mid-merge whose staged ADR is the one main contributed.
 

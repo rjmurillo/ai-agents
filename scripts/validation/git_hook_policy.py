@@ -927,27 +927,70 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
     """Report whether HEAD's copy of a path is a state `origin/main` has held.
 
     A path HEAD does not carry cannot be a regression of local work, so it
-    passes. Otherwise the copy has to appear somewhere in `origin/main`'s
-    history for that path. Walking the path's own history keeps this to the
-    handful of commits that touched one ADR rather than the whole branch.
+    passes. Otherwise the copy has to be one of the blobs this file has held
+    in `origin/main`. Walking the file's own history keeps this to the handful
+    of commits that touched one ADR rather than the whole branch.
+
+    Identity is the blob id, not the bytes, because git already computed the
+    answer and an id cannot be normalized into agreeing with a different blob.
 
     `origin/main` is a local cache of main, so a branch that has not fetched
     in a while can fail this on content main really does carry. That
     direction is the safe one: the answer is review evidence demanded for a
     file that did not need it, and a fetch clears it.
     """
-    head_blob = _read_head_blob(repo_root, path)
-    if head_blob is None:
+    head_blob_id = _blob_id_at(repo_root, "HEAD", path)
+    if head_blob_id is None:
         return True
-    carried = _origin_main_commits_touching(repo_root, path)
-    return _blob_is_at_any(repo_root, carried, path, head_blob)
+    return head_blob_id in _origin_main_blob_ids(repo_root, path)
 
 
-def _origin_main_commits_touching(repo_root: Path, path: str) -> list[str]:
-    result = _run_git(repo_root, ["rev-list", "origin/main", "--", path])
+def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", f"{commit}:{path}"])
     if result.returncode != 0:
-        return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return None
+    return result.stdout.strip() or None
+
+
+def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
+    """Every blob `path` has held in `origin/main`, following it through renames.
+
+    Asking `rev-list` for one pathname stops at the rename, so an ADR that was
+    moved and revised on main left its earlier states behind under the former
+    name. A branch that had also moved the file then held a copy main really
+    had carried, failed this check on the name alone, and had review evidence
+    demanded of it for someone else's revision.
+
+    `--follow` crosses the rename, and reading blob ids out of the raw diff
+    rather than re-reading the file at each commit is what makes that useful:
+    at those older commits the current name does not exist yet. The widening
+    is exactly one file's lineage, not any blob main happens to contain.
+    """
+    result = _run_git(
+        repo_root,
+        [
+            "log",
+            "--follow",
+            "--format=",
+            "--raw",
+            "--no-abbrev",
+            "origin/main",
+            "--",
+            path,
+        ],
+    )
+    if result.returncode != 0:
+        return set()
+    blob_ids: set[str] = set()
+    for line in result.stdout.splitlines():
+        if not line.startswith(":"):
+            continue
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        blob_ids.add(fields[3])
+    blob_ids.discard("0" * 40)
+    return blob_ids
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
