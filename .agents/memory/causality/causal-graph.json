@@ -23320,6 +23320,60 @@
         "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
       "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "eac4ccd2f8bd",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into fix/3456-orphan-ref-tests-coverage after live-state guard showed main moved.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619346+00:00"
+    },
+    {
+      "id": "3b60d8f128fb",
+      "type": "milestone",
+      "label": "milestone: Fixed scanner fail-open paths: truncation is incomplete, active findings sort before baselined findings, broken symlinks are incomplete, BOM encodings decode, malformed UTF-8 is incomplete, and permission failures exit 4.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619452+00:00"
+    },
+    {
+      "id": "890d37cc5133",
+      "type": "milestone",
+      "label": "milestone: Fixed suppression accounting so file-scope ignores count skipped files and report suppressed references through the same extraction candidate pipeline.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619535+00:00"
+    },
+    {
+      "id": "8f1834d0883d",
+      "type": "milestone",
+      "label": "milestone: Expanded default scope through git ls-files over tracked text roots and corrected issue #3556 to describe the real default-scope and Python-literal gaps.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619615+00:00"
+    },
+    {
+      "id": "03d3c75a64e8",
+      "type": "milestone",
+      "label": "milestone: Hardened tests with positive extraction evidence and mutation proof for the round-two survivor set.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619707+00:00"
+    },
+    {
+      "id": "7b787c992456",
+      "type": "outcome",
+      "label": "Outcome: success - Fix PR #3550 round-two adversarial review findings for orphan-ref validator issue #3456.",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T01:52:40.619787+00:00"
     }
   ],
   "patterns": [

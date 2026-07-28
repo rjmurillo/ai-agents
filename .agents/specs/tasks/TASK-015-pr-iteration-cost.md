@@ -214,8 +214,8 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
 
 > **Retired milestone, annotated 2026-07-27.** The session log field guard
 > hook and its tests were removed in PR #3295 (commit `8318d1c35`). The push
-> gate now validates session log shape through the retained validators, so this
-> historical plan section no longer names the deleted hook or test files.
+> gate now validates session log shape through the retained validators. The names
+> below remain historical plan text, not live implementation targets.
 
 **Objective**: Ship US-3. Block `git push` when session logs have placeholder values.
 
