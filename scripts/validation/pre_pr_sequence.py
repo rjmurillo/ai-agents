@@ -290,7 +290,7 @@ def run_all_validations(
         lambda: validate_model_pins(repo_root),
     )
 
-    # 3.88 Active Plan Closeout (Issue #3426). Advisory warning when every
+    # 3.89 Active Plan Closeout (Issue #3426). Advisory warning when every
     # tracking issue on an active execution plan is closed, so stale plans do
     # not silently refill .agents/plans/active/.
     run_validation(

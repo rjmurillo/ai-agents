@@ -58,8 +58,6 @@ def active_plan_warnings(
 
     warnings: list[ActivePlanWarning] = []
     for plan in sorted(active_dir.glob("*.md")):
-        if plan.name == ".gitkeep":
-            continue
 
         issue_numbers = issue_refs(plan.read_text(encoding="utf-8"))
         if not issue_numbers:
