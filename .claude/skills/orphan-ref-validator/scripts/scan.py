@@ -84,7 +84,11 @@ if __package__ in (None, ""):
         render_scan_error_envelope,
         scan_error_exit_code,
     )
-    from filters import is_known_kebab_word, is_known_single_word_skill
+    from filters import (
+        is_known_kebab_skill,
+        is_known_kebab_word,
+        is_known_single_word_skill,
+    )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
@@ -115,7 +119,11 @@ else:
         render_scan_error_envelope,
         scan_error_exit_code,
     )
-    from .filters import is_known_kebab_word, is_known_single_word_skill
+    from .filters import (
+        is_known_kebab_skill,
+        is_known_kebab_word,
+        is_known_single_word_skill,
+    )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
@@ -151,6 +159,7 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
 
 
 _is_known_kebab_word = is_known_kebab_word
+_is_known_kebab_skill = is_known_kebab_skill
 _is_known_single_word_skill = is_known_single_word_skill
 
 
@@ -314,16 +323,24 @@ def _check_skill_refs(
 ) -> tuple[list[Finding], int]:
     """Emit skill_name findings for orphaned skill references.
 
-    Two reference shapes are checked:
+    Two reference shapes are checked, both under the same candidate rule: a
+    backticked token is a skill reference candidate only when the document
+    gives evidence it means a skill. Evidence is either a type claim in the
+    prose ("the ``ship`` skill", ``skill="ship"``) or membership in the
+    curated set of names this repository has actually used for a skill.
 
-    - Hyphenated tokens (``alpha-skill``): every backticked kebab token is a
-      candidate, flagged when absent from ``.claude/skills/``.
-    - Single-word tokens (``incoherence``): a backticked single word is a
-      candidate only when it resolves to a live catalog entry (valid, no
-      finding) or is a curated known single-word skill name (flagged when
-      absent). Arbitrary backticked English words are ignored, so widening
-      detection to no-hyphen names does not flood false positives (issue
-      #2679).
+    - Hyphenated tokens (``alpha-skill``): candidate when typed or listed in
+      ``KNOWN_KEBAB_SKILLS``, flagged when absent from ``.claude/skills/``.
+    - Single-word tokens (``incoherence``): candidate when typed or listed in
+      ``KNOWN_SINGLE_WORD_SKILLS``, flagged when absent.
+
+    The hyphenated arm used to treat every backticked kebab token as a
+    candidate. In prose that premise is wrong far more often than it is
+    right: kebab-case is the ordinary spelling for Actions runners, model
+    ids, HTTP headers, config keys, and hook lifecycle names. Measured on
+    ``.serena/memories/`` it produced 183 findings and zero true positives
+    (issue #3637). The single-word arm already carried the evidence rule for
+    the same reason (issue #2679); this is that rule applied consistently.
 
     A token that resolves in ``sibling_names`` names a real non-skill
     artifact (agent, slash command, review axis, Serena memory) and is not
@@ -354,11 +371,13 @@ def _check_skill_refs(
     for lineno, ref in extract_skill_refs(text):
         if _is_known_kebab_word(ref):
             continue
+        is_typed = (lineno, ref) in typed
+        if ref in known_skills or (ref in siblings and not is_typed):
+            refs_checked += 1
+            continue
+        if not is_typed and not _is_known_kebab_skill(ref):
+            continue
         refs_checked += 1
-        if ref in known_skills:
-            continue
-        if ref in siblings and (lineno, ref) not in typed:
-            continue
         findings.append(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )

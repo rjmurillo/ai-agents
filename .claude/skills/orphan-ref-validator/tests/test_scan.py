@@ -153,7 +153,7 @@ def test_enumerate_skills_handles_missing_dir(tmp_path):
 
 def test_ac2_orphan_skill_name_yields_critical_finding(fake_repo):
     target = fake_repo / "docs" / "stale.md"
-    write(target, "Use the `gamma-skill` for things.\n")
+    write(target, "Use the skill `gamma-skill` for things.\n")
     result = scan([target], fake_repo)
     skill_findings = [f for f in result.findings if f.kind == "skill_name"]
     assert len(skill_findings) == 1
@@ -749,7 +749,7 @@ def test_ac9_mixed_living_and_dead_refs(fake_repo):
     target = fake_repo / "docs" / "mixed.md"
     write(
         target,
-        "Use `alpha-skill` and `dead-skill`. Run `build/scripts/missing.py`.\n",
+        "Use `alpha-skill` and skill `dead-skill`. Run `build/scripts/missing.py`.\n",
     )
     result = scan([target], fake_repo)
     skill_findings = [f for f in result.findings if f.kind == "skill_name"]
@@ -762,7 +762,7 @@ def test_ac9_mixed_living_and_dead_refs(fake_repo):
 def test_ac9_directory_target_walks_files(fake_repo):
     target_dir = fake_repo / "docs"
     write(target_dir / "a.md", "Use `alpha-skill`.\n")
-    write(target_dir / "b.md", "Use `dead-skill`.\n")
+    write(target_dir / "b.md", "Use skill `dead-skill`.\n")
     result = scan([target_dir], fake_repo)
     bad = [f for f in result.findings if f.kind == "skill_name"]
     assert {f.referenced_entity for f in bad} == {"dead-skill"}
@@ -770,7 +770,7 @@ def test_ac9_directory_target_walks_files(fake_repo):
 
 def test_ac9_secret_files_skipped(fake_repo):
     target_dir = fake_repo / "docs"
-    write(target_dir / ".env.local", "Use `dead-skill`.\n")
+    write(target_dir / ".env.local", "Use skill `dead-skill`.\n")
     write(target_dir / "ok.md", "Use `alpha-skill`.\n")
     result = scan([target_dir], fake_repo)
     files = {f.target_file for f in result.findings}
@@ -801,7 +801,7 @@ def test_exit_code_pass(fake_repo, capsys):
 
 def test_exit_code_critical_fail(fake_repo, capsys):
     target = fake_repo / "docs" / "bad.md"
-    write(target, "Use `dead-skill`.\n")
+    write(target, "Use skill `dead-skill`.\n")
     rc = main([
         "--targets", str(target),
         "--repo-root", str(fake_repo),
@@ -824,7 +824,7 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
 
 def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys):
     target = fake_repo / "docs" / "locked.md"
-    write(target, "Use `dead-skill`.\n")
+    write(target, "Use skill `dead-skill`.\n")
     original_mode = target.stat().st_mode
     os.chmod(target, 0)
     try:
@@ -938,7 +938,7 @@ def test_render_envelope_human_lists_directive_suppressed_refs(fake_repo):
 
 def test_adr056_success_true_on_critical_fail(fake_repo, capsys):
     target = fake_repo / "docs" / "bad.md"
-    write(target, "Use `dead-skill`.\n")
+    write(target, "Use skill `dead-skill`.\n")
     rc = main([
         "--targets", str(target),
         "--repo-root", str(fake_repo),
@@ -983,9 +983,9 @@ def test_walk_prunes_excluded_directories(fake_repo):
     docs = fake_repo / "docs"
     write(docs / "ok.md", "Use `alpha-skill`.\n")
     nm = docs / "node_modules" / "pkg"
-    write(nm / "trap.md", "Use `dead-skill`.\n")
+    write(nm / "trap.md", "Use skill `dead-skill`.\n")
     refs = docs / "references"
-    write(refs / "trap.md", "Use `dead-skill`.\n")
+    write(refs / "trap.md", "Use skill `dead-skill`.\n")
     result = scan([docs], fake_repo)
     bad = [f for f in result.findings if f.kind == "skill_name"]
     assert bad == []
@@ -998,7 +998,7 @@ def test_skill_name_warn_when_catalog_absent(tmp_path):
     repo.mkdir()
     (repo / ".git").mkdir()
     docs = repo / "docs"
-    write(docs / "x.md", "Use `dead-skill`.\n")
+    write(docs / "x.md", "Use skill `dead-skill`.\n")
     result = scan([docs], repo)
     skill_findings = [f for f in result.findings if f.kind == "skill_name"]
     assert len(skill_findings) == 1
@@ -1015,7 +1015,7 @@ def test_skill_name_critical_when_catalog_empty(tmp_path):
     (repo / ".git").mkdir()
     (repo / ".claude" / "skills").mkdir(parents=True)
     docs = repo / "docs"
-    write(docs / "x.md", "Use `dead-skill`.\n")
+    write(docs / "x.md", "Use skill `dead-skill`.\n")
     result = scan([docs], repo)
     skill_findings = [f for f in result.findings if f.kind == "skill_name"]
     assert len(skill_findings) == 1
@@ -1027,7 +1027,7 @@ def test_walk_skips_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
     docs = fake_repo / "docs"
     write(docs / "ok.md", "Hello\n")
     outside = tmp_path / "outside"
-    write(outside / "trap.md", "Use `dead-skill`.\n")
+    write(outside / "trap.md", "Use skill `dead-skill`.\n")
     link = docs / "link.md"
     link.symlink_to(outside / "trap.md")
     with caplog.at_level("WARNING"):
@@ -1044,7 +1044,7 @@ def test_walk_skips_symlink_to_directory_outside_repo(tmp_path, fake_repo, caplo
     docs = fake_repo / "docs"
     write(docs / "ok.md", "Use `alpha-skill`.\n")
     outside = tmp_path / "outside_dir"
-    write(outside / "trap.md", "Use `dead-skill`.\n")
+    write(outside / "trap.md", "Use skill `dead-skill`.\n")
     link = docs / "external_dir"
     link.symlink_to(outside)
     with caplog.at_level("WARNING"):
@@ -1076,7 +1076,7 @@ def test_glob_target_pattern_expansion(fake_repo):
     """--targets accepts glob patterns that expand against repo_root."""
     skills_dir = fake_repo / ".claude" / "skills"
     (skills_dir / "alpha-skill" / "SKILL.md").write_text(
-        "# alpha\nUse `dead-skill` here.\n"
+        "# alpha\nUse skill `dead-skill` here.\n"
     )
     (skills_dir / "beta-skill" / "SKILL.md").write_text("# beta living-only\n")
     rc = main([
@@ -1092,7 +1092,7 @@ def test_walk_skips_file_symlink_resolving_outside_repo(tmp_path, fake_repo, cap
     docs = fake_repo / "docs"
     write(docs / "ok.md", "Hello\n")
     outside_file = tmp_path / "outside-target.md"
-    write(outside_file, "Use `dead-skill`.\n")
+    write(outside_file, "Use skill `dead-skill`.\n")
     link = docs / "external_file.md"
     link.symlink_to(outside_file)
     with caplog.at_level("WARNING"):
@@ -1137,7 +1137,7 @@ def test_walk_breaks_in_repo_symlink_cycle(tmp_path, fake_repo, caplog):
 def test_walk_filters_suffix_on_direct_file_target(fake_repo):
     """A direct file target with a non-scanned suffix should be skipped."""
     target = fake_repo / "notes.txt"
-    write(target, "Use `dead-skill`.\n")
+    write(target, "Use skill `dead-skill`.\n")
     result = scan([target], fake_repo)
     assert result.findings == []
     assert result.files_scanned == 0
@@ -1147,8 +1147,8 @@ def test_max_findings_cap_truncates_as_incomplete_scan(fake_repo):
     """When findings exceed max_findings, the result is incomplete and
     bounded. A measurement not taken is not a measurement of zero."""
     docs = fake_repo / "docs"
-    # Each line produces one finding for `dead-skill`.
-    payload = "\n".join(["Use `dead-skill`." for _ in range(10)])
+    # Each line produces one finding for skill `dead-skill`.
+    payload = "\n".join(["Use skill `dead-skill`." for _ in range(10)])
     write(docs / "huge.md", payload)
     result = scan([docs], fake_repo, max_findings=3)
     truncation = [f for f in result.findings if f.kind == "scan_truncated"]
@@ -1163,8 +1163,8 @@ def test_max_findings_cap_truncates_as_incomplete_scan(fake_repo):
 def test_truncation_keeps_active_orphan_when_baselined_noise_fills_budget(fake_repo):
     docs = fake_repo / "docs"
     for index in range(499):
-        write(docs / f"baseline-{index:03}.md", "Use `dead-skill`.\n")
-    write(docs / "z-active.md", "Use `active-skill`.\n")
+        write(docs / f"baseline-{index:03}.md", "Use skill `dead-skill`.\n")
+    write(docs / "z-active.md", "Use skill `active-skill`.\n")
     full = scan([docs], fake_repo, max_findings=1000)
     baseline = {
         f.key for f in full.findings if f.referenced_entity == "dead-skill"
@@ -1366,7 +1366,7 @@ class TestSingleWordSkillRefs:
         """Hyphenated names keep the original behavior: a living kebab name is
         clean, a dead one is critical."""
         target = fake_repo / "docs" / "mixed.md"
-        write(target, "Use `alpha-skill` not `dead-skill`.\n")
+        write(target, "Use `alpha-skill` not skill `dead-skill`.\n")
         result = scan([target], fake_repo)
         bad = {
             f.referenced_entity
@@ -1400,7 +1400,7 @@ class TestBaselineSuppression:
 
     def _orphan(self, fake_repo: Path) -> Any:
         target = fake_repo / "docs" / "stale.md"
-        write(target, "Use the `gamma-skill` for things.\n")
+        write(target, "Use the skill `gamma-skill` for things.\n")
         result = scan([target], fake_repo)
         critical = [f for f in result.findings if f.severity == "critical"]
         assert len(critical) == 1
@@ -1419,7 +1419,7 @@ class TestBaselineSuppression:
     def test_new_finding_not_in_baseline_yields_critical_fail(self, fake_repo):
         # Baseline an unrelated key; the actual orphan is still active.
         target = fake_repo / "docs" / "stale.md"
-        write(target, "Use the `gamma-skill` for things.\n")
+        write(target, "Use the skill `gamma-skill` for things.\n")
         result = scan([target], fake_repo, baseline={"other.md:1:skill_name:zeta-skill"})
         assert result.verdict == "CRITICAL_FAIL"
         active = [f for f in result.findings if not f.suppressed]
@@ -1427,7 +1427,7 @@ class TestBaselineSuppression:
 
     def test_mixed_baselined_and_new_yields_critical_fail(self, fake_repo):
         target = fake_repo / "docs" / "stale.md"
-        write(target, "Use `gamma-skill` and `delta-skill` here.\n")
+        write(target, "Use skill `gamma-skill` and skill `delta-skill` here.\n")
         full = scan([target], fake_repo)
         keys = {f.key for f in full.findings if f.referenced_entity == "gamma-skill"}
         assert keys, "expected gamma-skill orphan finding"
@@ -1535,7 +1535,7 @@ class TestBaselineSuppression:
 
     def test_cli_baseline_file_suppresses(self, fake_repo, capsys):
         target = fake_repo / "docs" / "stale.md"
-        write(target, "Use the `gamma-skill` for things.\n")
+        write(target, "Use the skill `gamma-skill` for things.\n")
         bl = fake_repo / "baseline.txt"
         bl.write_text("docs/stale.md:1:skill_name:gamma-skill\n", encoding="utf-8")
         rc = main(
@@ -1583,7 +1583,7 @@ class TestBaselineSuppression:
 
     def test_truncation_keeps_active_findings_before_suppressed(self, fake_repo):
         target = fake_repo / "docs" / "stale.md"
-        write(target, "Use `gamma-skill` and `delta-skill` here.\n")
+        write(target, "Use skill `gamma-skill` and skill `delta-skill` here.\n")
         full = scan([target], fake_repo)
         gamma_keys = {
             f.key for f in full.findings if f.referenced_entity == "gamma-skill"
@@ -1645,7 +1645,7 @@ def test_sibling_resolution_does_not_mask_a_real_orphan(sibling_repo, capsys):
     """Negative control: resolution must not suppress a genuinely dead skill."""
     write(
         sibling_repo / "notes" / "s.md",
-        "Live `alpha-skill`, agent `agent-one`, dead `ghost-skill`.\n",
+        "Live `alpha-skill`, agent `agent-one`, dead skill `ghost-skill`.\n",
     )
     rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     out = capsys.readouterr().out
@@ -1657,7 +1657,7 @@ def test_sibling_resolution_does_not_mask_a_real_orphan(sibling_repo, capsys):
 def test_check_skill_refs_defaults_to_previous_behavior():
     """Omitting sibling_names keeps the pre-change contract for other callers."""
     findings, checked = _scan._check_skill_refs(
-        "A `ghost-skill` ref.\n", "s.md", set(), True
+        "A skill `ghost-skill` ref.\n", "s.md", set(), True
     )
     assert checked == 1
     assert [f.referenced_entity for f in findings] == ["ghost-skill"]
@@ -1824,3 +1824,219 @@ def test_type_claim_does_not_reach_a_different_token_on_its_own_line(
     rc = main(["--targets", "notes", "--repo-root", str(sibling_repo)])
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+# ---------- issue #3637: kebab tokens need evidence, not just a hyphen ----------
+
+
+def _filters_module():
+    """Load filters.py beside the scan.py under test, keyed like _MODULE_KEY."""
+    key = _MODULE_KEY + "_filters"
+    cached = sys.modules.get(key)
+    if cached is not None:
+        return cached
+    spec = importlib.util.spec_from_file_location(key, _SCRIPT_DIR / "filters.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[key] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _skill_names(result: ScanResult) -> set[str]:
+    return {f.referenced_entity for f in result.findings if f.kind == "skill_name"}
+
+
+class TestKebabTokensNeedEvidence:
+    """A backticked kebab token is a skill reference only with evidence.
+
+    Evidence is a type claim in the prose or membership in the curated set of
+    names this repository has used for a skill. Before issue #3637 every
+    hyphenated token was a candidate, which produced 183 findings and zero
+    true positives on `.serena/memories/`.
+    """
+
+    # -- still detected: the reference makes a type claim --
+
+    def test_a_typed_reference_to_a_missing_skill_is_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `zeta-skill` skill now.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"zeta-skill"}
+
+    def test_the_skill_before_token_form_is_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Invoke skill `zeta-skill` here.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"zeta-skill"}
+
+    def test_the_key_value_form_is_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", 'Use `zeta-skill` (skill="zeta-skill").\n')
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"zeta-skill"}
+
+    def test_a_typed_reference_to_a_live_skill_is_not_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `alpha-skill` skill now.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    # -- still detected: the name is a retired skill of this repository --
+
+    def test_a_bare_retired_skill_name_is_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "See `doc-coverage` for details.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"doc-coverage"}
+
+    @pytest.mark.parametrize(
+        "name",
+        ["doc-coverage", "doc-sync", "github-pr-reply",
+         "session-migration", "session-qa-eligibility"],
+    )
+    def test_every_curated_retired_name_is_detectable(self, fake_repo, name):
+        write(fake_repo / "notes" / "s.md", f"Mentions `{name}` in prose.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {name}
+
+    def test_a_retired_name_that_is_live_again_is_not_flagged(self, fake_repo):
+        restored = fake_repo / ".claude" / "skills" / "doc-sync"
+        restored.mkdir(parents=True)
+        (restored / "SKILL.md").write_text("# stub\n", encoding="utf-8")
+        write(fake_repo / "notes" / "s.md", "See `doc-sync` for details.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_typed_retired_name_yields_one_finding_not_two(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `doc-sync` skill.\n")
+        result = scan([fake_repo / "notes"], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["doc-sync"]
+
+    # -- no longer detected: a bare token with no evidence --
+
+    def test_a_bare_unknown_kebab_token_is_not_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Set `zeta-skill` in the config.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    @pytest.mark.parametrize(
+        "token",
+        [
+            "ubuntu-latest", "windows-latest", "self-hosted", "retention-days",
+            "any-glob-to-any-file", "all-globs-to-all-files",
+            "gpt-4o-mini", "gemini-3-pro", "claude-fable-5",
+            "x-ratelimit-remaining", "retry-after",
+            "post-switch", "pre-merge", "post-merge",
+            "try-catch", "if-then-else", "return-value",
+            "area-workflows", "vscode-extension", "mcp-server",
+            "hexagonal-architecture", "branch-by-abstraction",
+            "probe-050", "your-api-key-here",
+        ],
+    )
+    def test_real_prose_vocabulary_is_not_flagged(self, fake_repo, token):
+        """Every token here was a live false positive on the memory corpus."""
+        write(fake_repo / "notes" / "s.md", f"The `{token}` value applies.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_bare_live_skill_name_still_counts_as_checked(self, fake_repo):
+        findings, checked = _scan._check_skill_refs(
+            "Use `alpha-skill` here.\n", "s.md", {"alpha-skill"}, True
+        )
+        assert (findings, checked) == ([], 1)
+
+    def test_a_bare_unknown_token_is_not_counted_as_checked(self, fake_repo):
+        findings, checked = _scan._check_skill_refs(
+            "Use `zeta-skill` here.\n", "s.md", {"alpha-skill"}, True
+        )
+        assert (findings, checked) == ([], 0)
+
+    # -- the denylist still wins, even against a type claim --
+
+    def test_a_denylisted_token_is_not_flagged_even_when_typed(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `pre-commit` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    # -- sibling resolution is unchanged --
+
+    def test_an_untyped_sibling_artifact_is_not_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "See `agent-one` for details.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_typed_sibling_artifact_is_still_flagged(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `agent-one` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"agent-one"}
+
+
+class TestRetiredKebabSkillsStayHonest:
+    """The curated set is only trustworthy while it matches the catalog."""
+
+    def test_no_curated_name_is_currently_live(self):
+        """A live name in the set is stale: the catalog already resolves it."""
+        repo_root = Path(__file__).resolve().parents[4]
+        catalog = repo_root / ".claude" / "skills"
+        if not catalog.is_dir():
+            pytest.skip("no .claude/skills catalog in this checkout")
+        live = {p.name for p in catalog.iterdir() if (p / "SKILL.md").is_file()}
+        assert _filters_module().KNOWN_KEBAB_SKILLS & live == set()
+
+    def test_every_curated_name_is_hyphenated(self):
+        """A single-word name belongs in KNOWN_SINGLE_WORD_SKILLS instead."""
+        assert all("-" in n for n in _filters_module().KNOWN_KEBAB_SKILLS)
+
+    def test_every_deleted_hyphenated_skill_is_curated_or_restored(self):
+        """Drift guard: a deleted skill must be listed or it goes silent.
+
+        Skipped on a shallow clone, where the deletion history is absent and
+        the derived set would be empty for the wrong reason.
+        """
+        repo_root = Path(__file__).resolve().parents[4]
+        if not (repo_root / ".git").exists():
+            pytest.skip("not a git checkout")
+        shallow = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, check=False,
+        )
+        if shallow.stdout.strip() != "false":
+            pytest.skip("shallow clone: deletion history unavailable")
+        log = subprocess.run(
+            ["git", "-C", str(repo_root), "log", "--all", "--diff-filter=D",
+             "--name-only", "--format=", "--", ".claude/skills/*/SKILL.md"],
+            capture_output=True, text=True, check=False,
+        )
+        deleted = {
+            line.split("/")[2]
+            for line in log.stdout.splitlines()
+            if line.startswith(".claude/skills/") and line.endswith("/SKILL.md")
+        }
+        catalog = repo_root / ".claude" / "skills"
+        live = {p.name for p in catalog.iterdir() if (p / "SKILL.md").is_file()}
+        gone = {n for n in deleted if n not in live and "-" in n}
+        assert gone <= _filters_module().KNOWN_KEBAB_SKILLS
+
+
+class TestTheMemoryCorpusIsGateable:
+    """Issue #3637 acceptance bar, measured against the real corpus."""
+
+    @staticmethod
+    def _memories() -> Path:
+        repo_root = Path(__file__).resolve().parents[4]
+        target = repo_root / ".serena" / "memories"
+        if not target.is_dir():
+            pytest.skip("no .serena/memories in this checkout")
+        return target
+
+    def test_the_memory_corpus_reports_no_unowned_skill_orphans(self):
+        """183 findings before the change; the residue must stay named.
+
+        `land-and-deploy` is a typed reference to a skill this repository has
+        never shipped, documented in that memory as belonging to gstack. It is
+        the detector working, not noise, so it is pinned by name rather than
+        suppressed.
+        """
+        target = self._memories()
+        result = scan([target], target.parents[1])
+        assert _skill_names(result) == {"land-and-deploy"}
+
+    def test_a_planted_reference_to_a_deleted_skill_is_still_caught(self, tmp_path):
+        """The other half of the acceptance bar."""
+        repo_root = Path(__file__).resolve().parents[4]
+        if not (repo_root / ".claude" / "skills").is_dir():
+            pytest.skip("no .claude/skills catalog in this checkout")
+        planted = repo_root / ".serena" / "memories"
+        if not planted.is_dir():
+            pytest.skip("no .serena/memories in this checkout")
+        probe = planted / "zz-orphan-ref-probe.md"
+        probe.write_text("See the `doc-coverage` skill.\n", encoding="utf-8")
+        try:
+            result = scan([probe], repo_root)
+        finally:
+            probe.unlink()
+        assert _skill_names(result) == {"doc-coverage"}

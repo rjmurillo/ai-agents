@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3637,
+    "date": "2026-07-28",
+    "branch": "fix/3637-orphan-ref-kebab-candidates",
+    "startingCommit": "d62a8a7e0a",
+    "objective": "Issue #3637: the orphan-ref skill_name detector scored 0 true positives against the .serena/memories corpus while emitting 183 findings there, so the corpus could never be gated. Narrow the kebab arm to require evidence that a token was ever a skill. Ordering in workLog is sequential; timestamps mark order only, not measured wall-clock times."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3637-orphan-ref-kebab-candidates."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branched from origin/main at d62a8a7e0a."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #3637 body and the related #3554 discourse were read before any edit; both name the same file."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: no Serena MCP tools were exposed in this Copilot CLI session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project and initial_instructions were unavailable. Read .serena/memories/ directly per the documented fallback; that corpus is also the subject of this issue."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/generated-artifacts.md and .claude/rules/plugin-version-bump.md before touching the generated mirror and the manifests."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every numeric claim in the change comment was measured against the running scanner, not estimated. Repo-wide skill_name findings 1790 -> 90 with all 68 true positives retained; .serena/memories 183 -> 1."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: Serena MCP was unavailable. The measurements are recorded in the filters.py comment block and in the PR body, which are readable without MCP."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two atomic commits: canonical sources plus this log, then the generated mirror plus both parity manifests."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "191 tests pass in .claude/skills/orphan-ref-validator/tests/test_scan.py. ruff check and mypy both clean on the three changed files. Two negative controls isolate cleanly: reverting the scan.py gate fails 27 tests, emptying KNOWN_KEBAB_SKILLS fails 7, and neither overlaps the other's failures."
+      },
+      "qaSkipDocumented": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full QA ran. The acceptance bar from the issue was tested directly against the real .serena/memories corpus rather than a fixture, and both halves of it are asserted in TestTheMemoryCorpusIsGateable."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: no markdown file was changed in this session."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "timestamp": "2026-07-28T00:00:01Z",
+      "action": "Reproduced the issue against the real corpus",
+      "detail": "Scanning .serena/memories produced 210 findings: 183 skill_name across 122 distinct tokens, plus 27 script_path. Intersecting those 122 tokens with the 8 genuinely deleted skills returned the empty set, confirming the issue's claim of 0 true positives. A planted reference to a deleted skill did produce a finding, proving the detector was live and not simply misconfigured.",
+      "outcome": "Issue confirmed exactly as filed."
+    },
+    {
+      "step": 2,
+      "timestamp": "2026-07-28T00:00:02Z",
+      "action": "Refuted the issue's own suggested fix with measurement",
+      "detail": "The issue proposes detecting only typed references. Classifying all 1790 repo-wide skill_name findings gave 68 true positives, of which only 11 are typed. Typed-only would discard 57 true positives, 21 of them on live surfaces including six inside .claude/skills/doc-accuracy/SKILL.md.",
+      "outcome": "Typed-only rejected on evidence; recorded in the code comment so it is not retried."
+    },
+    {
+      "step": 3,
+      "timestamp": "2026-07-28T00:00:03Z",
+      "action": "Chose the union rule and verified it against precedent",
+      "detail": "A token is a candidate when it is typed as a skill OR appears in a curated set of names that were once skills. The repo already ships this exact shape for single-word tokens (KNOWN_SINGLE_WORD_SKILLS, added by #2679 for the identical false-positive-flood reason), so the fix is existing precedent applied to the kebab arm rather than a new mechanism.",
+      "outcome": "Predicted 90 repo-wide findings with all 68 true positives retained."
+    },
+    {
+      "step": 4,
+      "timestamp": "2026-07-28T00:00:04Z",
+      "action": "Rejected git history as the runtime evidence source",
+      "detail": "Deriving 'was ever a skill' from git log at scan time would silently return nothing under actions/checkout's default depth of 1, making the arm inert in CI without failing. A curated frozenset is deterministic in shallow clones and vendored installs. A drift test derives the same set from history and skips when git rev-parse --is-shallow-repository is not false.",
+      "outcome": "Curated set with a history-derived drift guard."
+    },
+    {
+      "step": 5,
+      "timestamp": "2026-07-28T00:00:05Z",
+      "action": "Implemented and re-measured against the running code",
+      "detail": "Repo-wide batched scan over 3433 tracked markdown files reported exactly 90 skill_name findings, down from 1790, retaining all 68 true positives. .serena/memories went from 183 to 1. The single residual finding is a typed reference to land-and-deploy, a gstack skill this repo never shipped; it is pinned by name in a test rather than suppressed, because it is a correct finding.",
+      "outcome": "Implementation matched the prediction exactly."
+    },
+    {
+      "step": 6,
+      "timestamp": "2026-07-28T00:00:06Z",
+      "action": "Ran two isolating negative controls",
+      "detail": "Restoring the old open premise in scan.py failed 27 tests, all of them the new noise and corpus assertions. Separately emptying KNOWN_KEBAB_SKILLS failed 7 tests, all of them the retired-name detection and drift assertions. The two failure sets do not overlap, so each half of the rule is independently load-bearing. Both files restored; 191 tests pass.",
+      "outcome": "Both halves proven necessary, not just jointly sufficient."
+    },
+    {
+      "step": 7,
+      "timestamp": "2026-07-28T00:00:07Z",
+      "action": "Retyped 29 fixture references rather than weaken assertions",
+      "detail": "17 pre-existing tests failed after the change because their fixtures wrote bare backticked names. Each was rewritten to the typed form so the fixture still expresses a skill reference. Diffing the two premise-testing tests before and after confirmed each test's actual subject (exit codes, truncation, baseline suppression, glob expansion) was unchanged.",
+      "outcome": "Faithful re-expression, not a lowered bar."
+    },
+    {
+      "step": 8,
+      "timestamp": "2026-07-28T00:00:08Z",
+      "action": "Measured KEBAB_DENYLIST and left it alone deliberately",
+      "detail": "Emptying the entire ~90-entry KEBAB_DENYLIST changes nothing repo-wide: still exactly 90 findings, zero new tokens surfaced. It is now provably dead. Deleting it is a separate behavior change and was filed as its own issue so each change keeps an independent revert point.",
+      "outcome": "Measured, reported, and scoped out on purpose."
+    }
+  ]
+}
