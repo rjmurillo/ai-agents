@@ -110,16 +110,18 @@ def gh_issue_state(
     env: Mapping[str, str] | None = None,
 ) -> str | None:
     """Return a GitHub issue state, or None when lookup cannot prove closure."""
-    if not _REPO_RE.fullmatch(repo):
+    match = _REPO_RE.fullmatch(repo)
+    if match is None:
         _print_lookup_advisory(issue_number, f"invalid repo format: {repo!r}")
         return None
+    validated_repo = match.group(0)
     command = [
         "gh",
         "issue",
         "view",
         str(issue_number),
         "--repo",
-        repo,
+        validated_repo,
         "--json",
         "state",
         "--jq",
@@ -157,9 +159,8 @@ def gh_issue_state(
     return state
 
 
-def validate_active_plan_closeout(repo_root: Path) -> bool:
+def validate_active_plan_closeout(repo_root: Path, *, repo: str = DEFAULT_REPO) -> bool:
     """Warn when an active plan can be closed out. Advisory only."""
-    repo = os.environ.get("GH_REPO", DEFAULT_REPO)
     warnings = active_plan_warnings(
         repo_root,
         issue_state_lookup=lambda issue: gh_issue_state(issue, repo=repo),
@@ -193,7 +194,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"[ERROR] repo root does not exist: {repo_root}", file=sys.stderr)
         return EXIT_CONFIG
 
-    validate_active_plan_closeout(repo_root)
+    repo = os.environ.get("GH_REPO", DEFAULT_REPO)
+    validate_active_plan_closeout(repo_root, repo=repo)
     return EXIT_OK
 
 
