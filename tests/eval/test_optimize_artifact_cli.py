@@ -207,6 +207,7 @@ def _markdown_block(text: str, marker: str) -> str:
     target = text.count("\n", 0, found[0])
 
     narrowest: tuple[int, int] | None = None
+    narrowest_type = ""
     for token in _create_parser().parse(text):
         # `inline` carries a block's content, not the block, and for a setext
         # heading its range excludes the underline. Blocks only, so the window
@@ -218,12 +219,20 @@ def _markdown_block(text: str, marker: str) -> str:
             narrowest is None or end - start < narrowest[1] - narrowest[0]
         ):
             narrowest = (start, end)
+            narrowest_type = token.type
     if narrowest is None:
         raise AssertionError(
             f"{marker!r} is on no block the renderer draws, so there is no "
             "window to assert on: it is on a blank line, or inside a "
             "construct the parser consumes without emitting, such as a link "
             "reference definition"
+        )
+    if narrowest_type == "html_block":
+        raise AssertionError(
+            f"{marker!r} is inside raw HTML, where one Markdown block can be "
+            "several elements the reader sees: CommonMark ends the block at a "
+            "blank line, not at the end of an element. The window would "
+            "borrow a sibling's words, so assert on Markdown prose instead"
         )
     return "\n".join(text.split("\n")[narrowest[0]:narrowest[1]])
 
@@ -6679,6 +6688,43 @@ class TestMarkdownBlockStopsAtEveryBlockBoundary:
         """The other half of the same refusal, which must not regress."""
         with pytest.raises(AssertionError, match="no block the renderer draws"):
             _markdown_block("first\n  \nsecond\n", "  ")
+
+    def test_a_marker_in_raw_html_is_refused_rather_than_given_a_wide_window(self):
+        """One Markdown block can be several elements the reader sees.
+
+        CommonMark ends a raw HTML block at a blank line, not at the end of an
+        element, so a contiguous run of markup is one token however many
+        siblings it renders. The window would hand back both, which is the
+        borrowed-neighbour failure the parser was brought in to end, and the
+        parser cannot tell one element from two without an HTML parser.
+
+        Refusing is the honest half of that limit. Borrowing is silent; a
+        refusal names the constraint and the remedy.
+        """
+        text = "<div>contract marker</div>\n<p>neighbour borrowed</p>\n"
+        with pytest.raises(AssertionError, match="raw HTML"):
+            _markdown_block(text, "contract")
+
+    def test_the_refusal_covers_a_single_element_spanning_lines_too(self):
+        """The limit is the construct, not the count of elements in it.
+
+        `<details>` is one element over four lines and would be a correct
+        window. The token is the same `html_block` either way, so accepting
+        this case means accepting the borrowing one. The stricter half is
+        chosen deliberately and pinned here so it is not read as an oversight.
+        """
+        text = "<details>\n<summary>contract marker</summary>\nbody\n</details>\n"
+        with pytest.raises(AssertionError, match="raw HTML"):
+            _markdown_block(text, "contract")
+
+    def test_markdown_prose_beside_raw_html_still_gets_its_own_window(self):
+        """The refusal is scoped to markup, not to documents containing it.
+
+        A README may carry a badge or a details block and still assert on its
+        prose. Only a marker the parser puts inside the markup is refused.
+        """
+        text = "<div>badge</div>\n\ncontract marker\n\n<p>neighbour</p>\n"
+        assert _markdown_block(text, "contract") == "contract marker"
 
 
 class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
