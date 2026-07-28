@@ -19,6 +19,7 @@ import io
 import json
 import os
 import stat
+import subprocess
 import sys
 import traceback
 from contextvars import copy_context
@@ -1373,6 +1374,76 @@ class TestSplitFileIsSelfValidating:
         assert code == 0
         assert out["decision"] == "ACCEPT"
 
+    def test_legacy_numeric_inexact_ratio_redraws_with_legacy_membership(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(25)})
+        tasks = [f"t{i}" for i in range(25)]
+        ranked = sorted(
+            tasks,
+            key=lambda task_id: oa.hashlib.sha256(
+                f"s1\x00{task_id}".encode()
+            ).hexdigest(),
+        )
+        split = {
+            "opt": ranked[14:],
+            "sel": ranked[:14],
+            "test": [],
+            "fingerprint": _legacy_split_fingerprint(
+                tasks, seed="s1", sel_ratio=0.58, test_ratio=0.0
+            ),
+            "seed": "s1",
+            "sel_ratio": 0.58,
+            "test_ratio": 0.0,
+            "min_sel": 0,
+        }
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert len(split["sel"]) == 14
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
+    def test_legacy_numeric_plain_integer_test_ratio_gates_normally(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_OK
+        assert out["decision"] == "ACCEPT"
+
+    @pytest.mark.parametrize(
+        ("sel_ratio", "test_ratio"),
+        [
+            (None, 0.0),
+            (True, 0.0),
+            (10 ** 309, 0.0),
+            ({"value": 0.4}, 0.0),
+            (0.4, "0.0"),
+        ],
+    )
+    def test_unusable_split_ratio_schemas_are_config_errors(
+        self, tmp_path, capsys, sel_ratio, test_ratio
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = sel_ratio
+        split["test_ratio"] = test_ratio
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "split file holds unusable seed or ratios" in out["error"]
+
     def test_legacy_numeric_fingerprint_does_not_alias_precise_string_ratio(
         self, tmp_path, capsys
     ):
@@ -1402,6 +1473,13 @@ class TestSplitFileIsSelfValidating:
                          "--split", path)
         assert code == 0
         assert out["decision"] == "ACCEPT"
+
+    def test_string_schema_inexact_ratio_uses_exact_membership(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.58", "--min-sel", "0")
+        assert len(split["sel"]) == 15
+        assert len(split["opt"]) == 10
 
     def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
         """The union is unchanged, so only recomputation catches this."""
@@ -1508,6 +1586,89 @@ class TestSplitFileIsSelfValidating:
                          "--sel-ratio", ratio, "--out", tmp_path / "split.json")
         assert code == EXIT_CONFIG
         assert "decimal ratio" in out["error"]
+
+    def test_split_rejects_absurd_decimal_coefficients_without_traceback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        ratio = "0." + "1" * 65
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "coefficient digits" in out["error"]
+        assert len(out["error"]) < 200
+
+    def test_split_accepts_the_largest_allowed_decimal_coefficient(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        ratio = "0." + "1" * 64
+        code, out = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                           "--sel-ratio", ratio, "--min-sel", "0")
+        assert code == EXIT_OK
+        assert len(out["sel"]) == 3
+
+    def test_split_million_digit_ratio_has_a_subprocess_deadline(self, tmp_path):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        out_path = tmp_path / "split.json"
+        script = f"""
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location("optimize_artifact", {str(_SCRIPT)!r})
+module = importlib.util.module_from_spec(spec)
+sys.modules["optimize_artifact"] = module
+assert spec is not None and spec.loader is not None
+spec.loader.exec_module(module)
+code = module.main([
+    "split",
+    "--results",
+    {str(inc)!r},
+    "--seed",
+    "s1",
+    "--sel-ratio",
+    "0." + "1" * 1_000_000,
+    "--out",
+    {str(out_path)!r},
+])
+print(code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=False,
+            capture_output=True,
+            cwd=_EVAL_DIR,
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0
+        assert result.stdout.splitlines()[-1] == str(EXIT_CONFIG)
+        payload = json.loads("\n".join(result.stdout.splitlines()[:-1]))
+        assert len(payload["error"]) < 200
+
+    def test_split_semantic_ratio_errors_truncate_long_values(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        ratio = "0." + "0" * 125
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--min-sel", "0",
+                         "--out", tmp_path / "zero.json")
+        assert code == EXIT_CONFIG
+        assert "strictly between 0 and 1" in out["error"]
+        assert len(out["error"]) < 200
+
+    def test_split_ratio_sum_error_truncates_both_values(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        sel_ratio = "0." + "9" * 64
+        test_ratio = "0." + "1" * 64
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", sel_ratio, "--test-ratio", test_ratio,
+                         "--min-sel", "0", "--out", tmp_path / "sum.json")
+        assert code == EXIT_CONFIG
+        assert "leave at least one opt task" in out["error"]
+        assert len(out["error"]) < 200
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
