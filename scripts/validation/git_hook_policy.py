@@ -1038,6 +1038,14 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
         [
             "log",
             f"--diff-merges={diff_merges}",
+            # `log.showSignature` prefixes each commit's raw records with the
+            # verification result, and the first field of the stream then
+            # begins with that text rather than the colon a record starts
+            # with. Every record is skipped and the walk reports that main
+            # carried nothing here, which refuses records main did carry, for
+            # whichever developers hold that setting. What this gate accepts
+            # is not a display preference.
+            "--no-show-signature",
             "--follow",
             "--format=",
             "--raw",
@@ -3036,7 +3044,16 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
 
 
 def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
-    result = _run_git(repo_root, ["show", "-s", "--format=%P", merge_sha])
+    # `log.showSignature` makes `show` report the signature check before the
+    # commit, and the first field of the split is then a word of that report
+    # rather than the merge's own first parent. Skipping the first field would
+    # then leave the first parent in the parents searched for main, and a merge
+    # of a side branch would read as a merge of main and double the commit
+    # limit. What this gate accepts is not a display preference.
+    result = _run_git(
+        repo_root,
+        ["show", "-s", "--no-show-signature", "--format=%P", merge_sha],
+    )
     if result.returncode != 0:
         return False
     parents = result.stdout.split()

@@ -5079,7 +5079,7 @@ def test_commit_limit_relaxes_for_merge_from_main(
             return _completed(0, "30\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
-        if args[:3] == ["show", "-s", "--format=%P"]:
+        if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent main-parent\n")
         return _completed(0)
 
@@ -5107,6 +5107,94 @@ def test_main_merge_detection_rejects_non_main_second_parent(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: next(responses))
 
     assert not policy._merge_has_main_parent("merge", tmp_path)
+
+
+# A session fixture in tests/conftest.py injects `commit.gpgsign=false` through
+# GIT_CONFIG_COUNT, which outranks repo config. The command line outranks the
+# injection in turn, so signing is requested there and nowhere else.
+_SIGNING = ("-c", "commit.gpgsign=true")
+
+
+def _sign_with_ssh(repo: Path) -> None:
+    """Make this repo sign its commits, using the backend that needs no keyring.
+
+    Verification is left to fail. An unknown signer still makes git print a
+    verification line, which is the decoration under test.
+    """
+    keygen = shutil.which("ssh-keygen")
+    if keygen is None:
+        pytest.skip("ssh-keygen is required to build a signed history")
+    key = repo / "signing-key"
+    subprocess.run(
+        [keygen, "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
+    if not key.with_suffix(".pub").exists():
+        pytest.skip("ssh-keygen produced no key on this host")
+    _git(repo, "config", "gpg.format", "ssh")
+    _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
+
+
+def _repo_with_a_signed_merge(tmp_path: Path, of_main: bool) -> tuple[Path, str]:
+    """Build a repo holding one signed merge, and ask to see the signatures.
+
+    `of_main` chooses which merge. False builds one whose second parent is a
+    side branch and whose first parent is an ancestor of `origin/main`, which
+    is not a merge of main and must not raise the commit limit. True builds a
+    real merge of main, the case the limit is raised for.
+    """
+    repo = tmp_path / ("merge-of-main" if of_main else "merge-of-side")
+    _init_repo(repo, branch="main")
+    _sign_with_ssh(repo)
+    _commit_file(repo, "base.md", "base\n")
+    # Named refs only. A raw sha as a branch point is not resolvable under this
+    # suite's git environment (Refs #3661).
+    _git(repo, "branch", "side")
+    _git(repo, "branch", "pivot")
+    main_head = _commit_file(repo, "main-only.md", "main\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", main_head)
+    _git(repo, "checkout", "-q", "side")
+    _commit_file(repo, "side-only.md", "side\n")
+    if of_main:
+        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge main", "main")
+    else:
+        _git(repo, "checkout", "-q", "pivot")
+        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+    merge = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    assert "gpgsig" in _git(repo, "cat-file", "commit", merge).stdout
+    # The setting under test lives in the developer's own config.
+    _git(repo, "config", "log.showSignature", "true")
+    return repo, merge
+
+
+def test_main_merge_detection_reads_a_signed_merge(tmp_path: Path) -> None:
+    """`log.showSignature` decorates `git show` as well as `git log`.
+
+    The parents are read by splitting that output and skipping the first
+    field, which is the merge's own first parent. Prefixed with a
+    verification report, the first field is a word of that report instead,
+    so the first parent joins the parents searched for main. A merge of a
+    side branch made from a commit main already holds then reports as a
+    merge of main, which doubles the commit limit this push is held to.
+    """
+    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=False)
+
+    assert policy._merge_has_main_parent(merge, repo) is False
+
+
+def test_main_merge_detection_still_reads_a_signed_merge_of_main(
+    tmp_path: Path,
+) -> None:
+    """The negative control for the test above.
+
+    Naming the signature behaviour must not stop a real merge of main from
+    being found, which is the case the raised limit exists for.
+    """
+    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=True)
+
+    assert policy._merge_has_main_parent(merge, repo) is True
 
 
 def test_review_marker_reports_git_error(

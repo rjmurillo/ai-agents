@@ -1745,6 +1745,40 @@ class TestAdrReviewPolicyMergeScope:
 
         assert side_blob in policy._origin_main_blob_ids(repo, name)
 
+    def test_a_signed_history_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """`log.showSignature` decorates the stream this gate parses.
+
+        Set in the developer's own git config, it prefixes each commit's raw
+        records with the verification result. The first field of the stream
+        then begins with that text rather than with the colon every record
+        starts with, so every record is skipped and the walk reports that
+        main has carried nothing here. That refuses a record main plainly
+        did carry, and it refuses it only for developers holding that
+        setting.
+        """
+        repo, adr, carried = _repo_where_the_history_is_signed(tmp_path)
+
+        assert carried in policy._origin_main_blob_ids(repo, adr)
+
+    def test_an_unsigned_history_is_read_the_same_way(
+        self,
+        tmp_path,
+    ):
+        """The negative control for the test above.
+
+        Naming the signature behaviour must not change what an ordinary
+        repository reports, which is the whole point of naming it.
+        """
+        repo, adr, carried = _repo_where_the_history_is_signed(
+            tmp_path,
+            sign=False,
+        )
+
+        assert carried in policy._origin_main_blob_ids(repo, adr)
+
 
 def _repo_where_a_merge_linked_a_non_adr_file(
     tmp_path: Path,
@@ -2062,6 +2096,59 @@ def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Pat
     merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
     assert merge.returncode == 0, merge.stderr
     return repo
+
+
+def _repo_where_the_history_is_signed(
+    tmp_path: Path,
+    sign: bool = True,
+) -> tuple[Path, str, str]:
+    """Build a repo whose commits carry signatures the developer asks to see.
+
+    Signing uses the ssh backend so the fixture needs only `ssh-keygen`, and
+    verification is left to fail: an unknown signer still makes git print a
+    verification line, which is the decoration under test. `sign=False`
+    builds the same history without signatures for the negative control.
+    """
+    repo = tmp_path / "signed"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    if sign:
+        key = repo / "signing-key"
+        _run(
+            [_tool("ssh-keygen"), "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
+            repo,
+        )
+        assert key.with_suffix(".pub").exists(), "ssh-keygen produced no public key"
+        _git(repo, "config", "gpg.format", "ssh")
+        _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
+        _git(repo, "config", "commit.gpgsign", "true")
+    # The setting under test lives in the developer's own config, so the
+    # fixture puts it there rather than passing it on the command line.
+    _git(repo, "config", "log.showSignature", "true")
+
+    # A session fixture in tests/conftest.py injects `commit.gpgsign=false`
+    # through GIT_CONFIG_COUNT, which outranks the repo config written above.
+    # Passing the setting on the command line outranks the injection in turn.
+    signing = ("-c", "commit.gpgsign=true") if sign else ()
+
+    adr = ".agents/architecture/ADR-099-signed.md"
+    document = repo / adr
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("first\n", encoding="utf-8")
+    _git(repo, "add", adr)
+    _git(repo, *signing, "commit", "-m", "add a decision")
+    document.write_text("second\n", encoding="utf-8")
+    _git(repo, *signing, "commit", "-am", "revise it")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    if sign:
+        signed = _git(repo, "cat-file", "commit", "HEAD").stdout
+        assert "gpgsig" in signed, "the fixture did not actually sign the commit"
+
+    carried = _git(repo, "rev-parse", "HEAD:" + adr).stdout.strip()
+    return repo, adr, carried
 
 
 if __name__ == "__main__":
