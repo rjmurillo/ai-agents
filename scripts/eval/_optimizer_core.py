@@ -236,6 +236,7 @@ def split_tasks(
         raise ValueError("split_tasks requires a non-empty seed")
     sel_display = _ratio_display(str(sel_ratio))
     test_display = _ratio_display(str(test_ratio))
+    min_sel_display = _ratio_display(str(min_sel))
     sel_fraction = _ratio_fraction("sel_ratio", sel_ratio)
     test_fraction = _ratio_fraction("test_ratio", test_ratio)
     if not Fraction(0) < sel_fraction < Fraction(1):
@@ -243,7 +244,7 @@ def split_tasks(
     if not Fraction(0) <= test_fraction < Fraction(1):
         raise ValueError(f"test_ratio must be in [0, 1), got {test_display}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_fraction + test_fraction >= Fraction(1):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -281,7 +282,7 @@ def split_tasks(
         )
     if n_sel < min_sel:
         raise SplitTooSmallError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 

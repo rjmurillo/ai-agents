@@ -10,8 +10,6 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from decimal import localcontext
 from fractions import Fraction
@@ -28,6 +26,7 @@ _path_added = str(_EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(_EVAL_DIR))
 
+import _optimizer_core as optimizer_core  # noqa: E402
 from _optimizer_core import (  # noqa: E402
     AmbiguousAnchorError,
     AnchorNotFoundError,
@@ -243,6 +242,12 @@ class TestSplitTasks:
         with pytest.raises(ValueError, match="decimal ratio"):
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
 
+    @staticmethod
+    def _assert_truncated_ratio_value(message: str, original_length: int) -> None:
+        assert "..." in message
+        assert f"(length {original_length})" in message
+        assert len(message) < 200
+
     def test_rejects_absurd_decimal_coefficients_before_fraction_conversion(self):
         ratio = "0." + "1" * 65
         with pytest.raises(ValueError, match="coefficient digits") as excinfo:
@@ -254,42 +259,49 @@ class TestSplitTasks:
         split = split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
         assert len(split.sel) == 3
 
-    def test_million_digit_ratio_rejection_has_a_subprocess_deadline(self):
-        script = """
-import sys
-from _optimizer_core import split_tasks
+    def test_million_digit_ratio_rejection_uses_text_length_guard(self, monkeypatch):
+        class BoomDecimal:
+            def __init__(self, *_args, **_kwargs):
+                raise AssertionError("Decimal must not parse overlong ratios")
 
-try:
-    split_tasks([f"t{i}" for i in range(25)], seed="s", sel_ratio="0." + "1" * 1_000_000, min_sel=0)
-except ValueError as exc:
-    print(len(str(exc)))
-    sys.exit(0)
-sys.exit(1)
-"""
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            check=False,
-            capture_output=True,
-            cwd=_REPO_ROOT,
-            env={**os.environ, "PYTHONPATH": str(_EVAL_DIR)},
-            text=True,
-            timeout=2,
-        )
-        assert result.returncode == 0
-        assert int(result.stdout.strip()) < 200
-
-    def test_semantic_ratio_errors_truncate_long_values(self):
-        ratio = "0." + "0" * 125
-        with pytest.raises(ValueError, match="strictly between 0 and 1") as excinfo:
+        monkeypatch.setattr(optimizer_core, "Decimal", BoomDecimal)
+        ratio = "0." + "1" * 1_000_000
+        with pytest.raises(ValueError, match="at most 128 characters") as excinfo:
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
-        assert len(str(excinfo.value)) < 200
+        message = str(excinfo.value)
+        assert "coefficient digits" not in message
+        self._assert_truncated_ratio_value(message, len(ratio))
 
-    def test_ratio_sum_error_truncates_both_values(self):
-        sel_ratio = "0." + "9" * 64
-        test_ratio = "0." + "1" * 64
-        with pytest.raises(ValueError, match="leave at least one opt task") as excinfo:
-            split_tasks(_ids(25), seed="s", sel_ratio=sel_ratio, test_ratio=test_ratio, min_sel=0)
-        assert len(str(excinfo.value)) < 200
+    @pytest.mark.parametrize(
+        ("kwargs", "pattern", "lengths"),
+        [
+            ({"sel_ratio": "0." + "0" * 64}, "strictly between 0 and 1", (66,)),
+            ({"test_ratio": "1." + "0" * 63}, "test_ratio must be in", (65,)),
+            (
+                {"sel_ratio": "0." + "9" * 64, "test_ratio": "0." + "1" * 64},
+                "leave at least one opt task",
+                (66, 66),
+            ),
+            (
+                {"sel_ratio": "0." + "4" * 64, "test_ratio": "0." + "4" * 64},
+                "leaves no opt tasks",
+                (66, 66),
+            ),
+            ({"sel_ratio": "0." + "0" * 63 + "1"}, "holds out no tasks", (66,)),
+        ],
+    )
+    def test_semantic_ratio_errors_truncate_long_values(self, kwargs, pattern, lengths):
+        with pytest.raises(ValueError, match=pattern) as excinfo:
+            split_tasks(_ids(2), seed="s", min_sel=0, **kwargs)
+        message = str(excinfo.value)
+        for original_length in lengths:
+            self._assert_truncated_ratio_value(message, original_length)
+
+    def test_min_sel_shortfall_error_truncates_long_values(self):
+        min_sel = int("1" * 309)
+        with pytest.raises(SplitTooSmallError, match="below min_sel") as excinfo:
+            split_tasks(_ids(4), seed="s", sel_ratio="0.75", min_sel=min_sel)
+        self._assert_truncated_ratio_value(str(excinfo.value), 309)
 
     def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
         with pytest.raises(ValueError, match="leaves no opt tasks"):
