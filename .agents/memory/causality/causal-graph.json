@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T02:41:32.346977+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22771,6 +22771,60 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "8310e423a84d",
+      "type": "milestone",
+      "label": "milestone: PR branch no longer has an unresolved local merge conflict.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340248+00:00"
+    },
+    {
+      "id": "79ece367937c",
+      "type": "milestone",
+      "label": "milestone: Pre-code milestones are no longer linked to later commits, and same-timestamp commit to test edges remain supported.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340346+00:00"
+    },
+    {
+      "id": "92e391f552fd",
+      "type": "milestone",
+      "label": "milestone: Malformed episodes fail closed instead of manufacturing edges or crashing.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340428+00:00"
+    },
+    {
+      "id": "51a66ce7b026",
+      "type": "milestone",
+      "label": "milestone: New v2 episode links feed the global causal graph, while legacy links remain distinguishable by missing marker.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340514+00:00"
+    },
+    {
+      "id": "7df38af562fa",
+      "type": "milestone",
+      "label": "milestone: New evidence tests fail without the fix and pass with it. TMPDIR was inside .pytest_tmp, not system temp.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340593+00:00"
+    },
+    {
+      "id": "79a84ac635cc",
+      "type": "outcome",
+      "label": "Outcome: success - Address adversarial review findings on PR #3566 for issue #3464 causal ordering.",
+      "episodes": [
+        "episode-2026-07-28-session-3566-causal-review-fixes"
+      ],
+      "created": "2026-07-28T02:41:32.340684+00:00"
     }
   ],
   "patterns": [

@@ -1,0 +1,60 @@
+{
+  "id": "episode-2026-07-28-session-3566-causal-review-fixes",
+  "session": "2026-07-28-session-3566-causal-review-fixes",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Address adversarial review findings on PR #3566 for issue #3464 causal ordering.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR branch no longer has an unresolved local merge conflict.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-code milestones are no longer linked to later commits, and same-timestamp commit to test edges remain supported.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Malformed episodes fail closed instead of manufacturing edges or crashing.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "New v2 episode links feed the global causal graph, while legacy links remain distinguishable by missing marker.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "New evidence tests fail without the fix and pass with it. TMPDIR was inside .pytest_tmp, not system temp.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}

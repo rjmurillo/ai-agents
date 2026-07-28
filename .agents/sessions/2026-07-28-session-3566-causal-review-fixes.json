@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3566,
+    "date": "2026-07-28",
+    "branch": "fix/3464-memory-causal-order",
+    "startingCommit": "faa300d216c8b4d9d8e313b275663e4e2d57659f",
+    "objective": "Address adversarial review findings on PR #3566 for issue #3464 causal ordering."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3464-memory-causal-order"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Loaded repository instructions and merge-resolver skill context before resolving conflicts."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Fetched origin main and origin fix/3464-memory-causal-order, then verified origin branch is ancestor of HEAD."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Conversation handoff summary loaded with current PR #3566 state and review findings."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3464-memory-causal-order."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena activate_project tool was not exposed; api_tool search confirmed no activate tool. Serena initial_instructions was loaded."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Skill routing and merge-resolver instructions loaded."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This checklist."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md left unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No durable project convention was discovered beyond code and issue #3598."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No authored Markdown files changed."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Changes are committed in atomic commits before push."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "TMPDIR=$PWD/.pytest_tmp uv run pytest tests/skills/memory reported 394 passed; selected causal tests reported 33 passed; pre-push collect-only selected 15847 tests with 59 deselected; ruff passed on changed Python files; mirror cmp passed; manifest parity passed."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Issue #3598 filed for legacy unversioned causal edges."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No retrospective required for a targeted bug fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Resolve conflicts",
+      "actions": [
+        "Fetched origin main and PR branch",
+        "Merged origin/main into the PR branch with no manual conflict markers left"
+      ],
+      "outcome": "PR branch no longer has an unresolved local merge conflict."
+    },
+    {
+      "phase": "Fix causal ordering",
+      "actions": [
+        "Replaced rank-only ordering with parsed UTC timestamps, git ancestry for commit pairs, and sparse same-timestamp boundaries",
+        "Added causal_order_version=2 to generated episodes"
+      ],
+      "outcome": "Pre-code milestones are no longer linked to later commits, and same-timestamp commit to test edges remain supported."
+    },
+    {
+      "phase": "Validate causal input",
+      "actions": [
+        "Added event type, timestamp, unique id, reference, and DAG validation",
+        "Mapped malformed configuration to exit 2 and invalid causal logic to exit 1"
+      ],
+      "outcome": "Malformed episodes fail closed instead of manufacturing edges or crashing."
+    },
+    {
+      "phase": "Connect global graph",
+      "actions": [
+        "Changed update_causal_graph.py to consume v2 episode caused_by and leads_to links",
+        "Filed issue #3598 for legacy unversioned edges"
+      ],
+      "outcome": "New v2 episode links feed the global causal graph, while legacy links remain distinguishable by missing marker."
+    },
+    {
+      "phase": "Validate",
+      "actions": [
+        "Ran RED proof on origin/main with copied tests: 17 failed",
+        "Ran revert proof with production files stashed: 17 failed",
+        "Ran GREEN selected causal tests: 33 passed",
+        "Ran memory suite: 394 passed"
+      ],
+      "outcome": "New evidence tests fail without the fix and pass with it. TMPDIR was inside .pytest_tmp, not system temp."
+    }
+  ],
+  "learnings": {
+    "patterns": [],
+    "avoidances": []
+  }
+}
