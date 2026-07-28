@@ -25,12 +25,12 @@ class GhCliClient:
             ["gh", "api", endpoint],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_TIMEOUT,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"gh api GET {endpoint} failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"gh api GET {endpoint} failed: {result.stderr.strip()}")
         response: dict[str, Any] = json.loads(result.stdout)
         return response
 
@@ -41,12 +41,12 @@ class GhCliClient:
             input=json.dumps(payload),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_TIMEOUT,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"gh api POST {endpoint} failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"gh api POST {endpoint} failed: {result.stderr.strip()}")
         response: dict[str, Any] = json.loads(result.stdout)
         return response
 
@@ -57,18 +57,16 @@ class GhCliClient:
             input=json.dumps(payload),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_TIMEOUT,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"gh api PATCH {endpoint} failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"gh api PATCH {endpoint} failed: {result.stderr.strip()}")
         response: dict[str, Any] = json.loads(result.stdout)
         return response
 
-    def graphql(
-        self, query: str, variables: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute a GraphQL query via ``gh api graphql`` and return the data dict."""
         if variables is None:
             variables = {}
@@ -84,12 +82,12 @@ class GhCliClient:
             gh_args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_TIMEOUT,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"GraphQL request failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"GraphQL request failed: {result.stderr.strip()}")
 
         parsed = json.loads(result.stdout)
         if parsed.get("errors"):
@@ -106,6 +104,8 @@ class GhCliClient:
                 ["gh", "auth", "status"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=_TIMEOUT,
             )
             return result.returncode == 0
