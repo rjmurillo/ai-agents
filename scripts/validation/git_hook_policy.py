@@ -20,6 +20,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
 
@@ -91,7 +92,44 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
     r"When parsing a snippet as Bash for metavariable-pattern "
     r"in rule '([^'\r\n]+)'(?:,|$)"
 )
-POWERSHELL_SHELL_RE = re.compile(r"^\s*(?:pwsh|powershell)(?:\s|$)", re.IGNORECASE)
+# The GitHub Actions rules in SEMGREP_POWERSHELL_RULES parse every `run:` scalar
+# as Bash. Two shapes defeat that sub-parse without meaning the step is
+# unscannable: a scalar another interpreter runs (`shell: pwsh`,
+# `shell: python3 {0}`), and a Bash scalar carrying GitHub Actions `${{ }}`
+# template syntax, which the runner substitutes before any shell sees it.
+# Semgrep reports both as warn-level errors. Tolerate only those two shapes;
+# every other scan error still blocks the push.
+# The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
+# `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
+# string makes the interpreter token exact.
+NON_BASH_SHELL_RE = re.compile(
+    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
+    re.IGNORECASE,
+)
+# A `shell:` value naming a second interpreter cannot be trusted to describe what
+# actually runs the script. `pwsh -NoProfile -Command "& '{0}'"` is the idiomatic
+# form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
+# declares Python and executes Bash. Refuse to classify the latter as non-Bash.
+FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
+# A custom shell template that hands the script to a repository file says nothing
+# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
+# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
+# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
+# file means the value is delegating and must not be trusted. Windows flags such as
+# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
+SCRIPT_FILE_RE = re.compile(
+    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
+    re.IGNORECASE,
+)
+RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
+MIN_PATH_SEPARATORS = 2
+ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
+# `bash -n` parses without executing. A body it accepts is valid shell, so a
+# Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
+# the step is unscannable. A body it rejects is genuinely malformed, and an
+# attacker can use that to make Semgrep miss a real finding, so those still
+# block. Refs #3663.
+BASH_SYNTAX_CHECK_TIMEOUT_SECONDS = 10
 SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
@@ -2213,12 +2251,12 @@ def _verify_semgrep_targets(
     errors = payload.get("errors")
     if not isinstance(errors, list):
         return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
-    if any(not _is_known_powershell_semgrep_error(error, expected, repo_root) for error in errors):
+    if any(not _is_tolerated_semgrep_parse_error(error, expected, repo_root) for error in errors):
         return _semgrep_target_failure(result, "Semgrep reported scan errors")
     return result
 
 
-def _is_known_powershell_semgrep_error(
+def _is_tolerated_semgrep_parse_error(
     error: object,
     targets: set[Path],
     repo_root: Path,
@@ -2245,9 +2283,9 @@ def _is_known_powershell_semgrep_error(
         and error.get("rule_id") in SEMGREP_POWERSHELL_RULES
         and SEMGREP_POWERSHELL_ERROR_MARKER in message
     ):
-        return _message_matches_powershell_run(message, scripts)
+        return _message_matches_unparseable_run(message, scripts)
     spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
-    return bool(spans) and all(_span_belongs_to_powershell_step(scripts, span) for span in spans)
+    return bool(spans) and all(_span_belongs_to_unparseable_step(scripts, span) for span in spans)
 
 
 def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
@@ -2278,7 +2316,7 @@ def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
     return scripts
 
 
-def _message_matches_powershell_run(
+def _message_matches_unparseable_run(
     message: str,
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
 ) -> bool:
@@ -2287,12 +2325,14 @@ def _message_matches_powershell_run(
     snippet = SEMGREP_TRUNCATION_RE.sub("", raw_snippet).strip()
     if truncated and len(snippet) < SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH:
         return False
-    matching_shells = [
-        shell
+    matching_steps = [
+        (shell, run)
         for shell, run, _ in scripts
         if _semgrep_snippet_matches_run(snippet, run, truncated=truncated)
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _semgrep_snippet_matches_run(
@@ -2375,8 +2415,91 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _is_powershell_shell(shell: str | None) -> bool:
-    return shell is not None and bool(POWERSHELL_SHELL_RE.match(shell))
+def _delegates_to_a_script(remainder: str) -> bool:
+    for token in remainder.split():
+        candidate = token.strip("\"'")
+        if SCRIPT_FILE_RE.search(candidate):
+            return True
+        if candidate.startswith(RELATIVE_PATH_PREFIXES):
+            return True
+        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
+            return True
+    return False
+
+
+def _is_non_bash_shell(shell: str | None) -> bool:
+    if shell is None:
+        return False
+    match = NON_BASH_SHELL_RE.match(shell)
+    if match is None:
+        return False
+    remainder = shell[match.end() :]
+    if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
+        return False
+    return not _delegates_to_a_script(remainder)
+
+
+WINDOWS_BASH_FALLBACKS = (
+    r"C:\Program Files\Git\bin\bash.exe",
+    r"C:\Program Files\Git\usr\bin\bash.exe",
+    r"C:\Program Files (x86)\Git\bin\bash.exe",
+)
+
+
+@lru_cache(maxsize=1)
+def _resolve_bash() -> str | None:
+    """Locate a Bash interpreter, or ``None`` when the host has none.
+
+    Bare ``subprocess.run(["bash", ...])`` does not resolve on Windows because
+    ``CreateProcess`` needs the ``.exe`` suffix, so the syntax check failed
+    closed on every Windows host and silently disabled the carve-out there.
+    ``shutil.which`` applies ``PATHEXT`` and finds Git for Windows on ``PATH``;
+    the fallbacks cover a Git install that never exported one. Refs #3663.
+    """
+    found = shutil.which("bash")
+    if found is not None:
+        return found
+    for candidate in WINDOWS_BASH_FALLBACKS:
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+@lru_cache(maxsize=256)
+def _body_is_valid_shell_syntax(run: str) -> bool:
+    """Report whether ``bash -n`` parses ``run`` without a syntax error.
+
+    ``bash -n`` reads and parses but never executes, so this is safe on
+    untrusted workflow content. A missing or unusable ``bash`` fails closed:
+    the caller then refuses to tolerate the Semgrep error and blocks the push.
+    """
+    bash = _resolve_bash()
+    if bash is None:
+        return False
+    try:
+        result = subprocess.run(
+            [bash, "-n"],
+            input=run,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=BASH_SYNTAX_CHECK_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
+    if _is_non_bash_shell(shell):
+        return True
+    if not ACTIONS_EXPRESSION_RE.search(run):
+        return False
+    # An Actions expression explains a Bash sub-parse failure only when the body
+    # is otherwise valid shell. Without this check, appending a deliberate syntax
+    # error to a malicious script suppresses the finding and the error together.
+    return _body_is_valid_shell_syntax(run)
 
 
 def _powershell_partial_parsing_spans(
@@ -2451,14 +2574,14 @@ def _powershell_partial_parsing_spans(
     return spans
 
 
-def _span_belongs_to_powershell_step(
+def _span_belongs_to_unparseable_step(
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
     span: tuple[int, int, int, int],
 ) -> bool:
     start_line, end_line, start_offset, end_offset = span
-    matching_shells = [
-        shell
-        for shell, _, node in scripts
+    matching_steps = [
+        (shell, run)
+        for shell, run, node in scripts
         if _yaml_node_contains_span(
             node,
             start_line,
@@ -2467,7 +2590,9 @@ def _span_belongs_to_powershell_step(
             end_offset,
         )
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _yaml_node_contains_span(
