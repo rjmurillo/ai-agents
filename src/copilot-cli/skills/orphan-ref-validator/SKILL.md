@@ -15,7 +15,7 @@ Scans structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill 
 - **Script paths** under `build/scripts/`, `scripts/validation/`, `scripts/`, or `tests/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
 - **Rule and instruction paths** under `.claude/rules/`, `.github/instructions/`, or `src/copilot-cli/instructions/` that are not present on disk. Emitted as `Finding(kind="rule_path" | "instruction_path", severity="critical")`.
 
-Emits findings per the ADR-056 envelope and a final verdict line. Exit code follows ADR-035: `VERDICT: PASS` or `VERDICT: WARN` exits `0`; `VERDICT: CRITICAL_FAIL` exits `1`; configuration or runtime failures emit `VERDICT: ERROR` with `Success: false` and a populated `Error` block (`Code: 2`, `Type: InvalidParams`) and exit `2`.
+Emits findings per the ADR-056 envelope and a final verdict line. Exit code follows ADR-035: `VERDICT: PASS` or `VERDICT: WARN` exits `0`; `VERDICT: CRITICAL_FAIL` exits `1`; usage/configuration or incomplete scan exits `2`; external failures exit `3`; permission failures exit `4`.
 
 The skill ships with vendored installs. Missing targets are errors by default. Use `--allow-missing-targets` only when the caller intentionally runs in a partial vendored tree, and use `--allow-empty-scan` only when zero scanned files is the declared scope.
 
@@ -49,7 +49,7 @@ uv run python .claude/skills/orphan-ref-validator/scripts/scan.py \
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--targets` | Files or directories to scan | `.agents/specs/`, `tests/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
+| `--targets` | Files or directories to scan | tracked `.md`, `.json`, `.yaml`, and `.yml` files under `.agents/`, `.claude/`, `.github/`, `docs/`, `scripts/`, and `tests/`, excluding `references/` and `templates/` subtrees |
 | `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
 | `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
 | `--allow-missing-targets` | Treat missing targets as optional vendored-install paths | off |
@@ -80,6 +80,7 @@ uv run python .claude/skills/orphan-ref-validator/scripts/scan.py \
     "verdict": "CRITICAL_FAIL",
     "counts": {
       "files_scanned": 142,
+      "files_skipped": 0,
       "refs_checked": 318,
       "findings_total": 1,
       "findings_suppressed": 0,
@@ -100,6 +101,7 @@ VERDICT: CRITICAL_FAIL
 ```text
 orphan-ref-validator 1.0.0
   files_scanned:        142
+  files_skipped:        0
   refs_checked:         318
   findings:             1
   suppressed:           0
@@ -113,7 +115,7 @@ VERDICT: CRITICAL_FAIL
 
 ### Phase 1: Resolve Targets
 
-- Read `--targets` if supplied, else use `DEFAULT_TARGETS`.
+- Read `--targets` if supplied, else derive default targets from `git ls-files`.
 - Append `OPT_IN_ADR_TARGETS` if `--include-adrs` is set.
 - Append `OPT_IN_SKILL_TARGETS` if `--include-skill-descriptions` is set.
 - Expand glob patterns containing `*` or `?` against the repository root.
@@ -124,7 +126,7 @@ VERDICT: CRITICAL_FAIL
 - For directory targets, recurse and yield files whose suffix matches `.md`, `.json`, `.yaml`, `.yml`.
 - Exclude paths whose any segment is in `EXCLUDE_DIR_NAMES` (`__pycache__`, `.git`, `node_modules`, `worktrees`, `cache`, `references`, `templates`). The first five are vendor/VCS directories; the last two are added because skill `references/` and `templates/` directories are progressive-disclosure docs that legitimately cite external entities.
 - Exclude files matching the secret denylist.
-- Mark unreadable files, outside-repo symlinks, stat failures, walk failures, and files larger than 5 MB as incomplete scans.
+- Mark unreadable files, broken symlinks, outside-repo symlinks, symlink loops, stat failures, walk failures, and files larger than 5 MB as incomplete scans.
 
 ### Phase 3: Detect References
 
@@ -137,7 +139,7 @@ VERDICT: CRITICAL_FAIL
 
 | Directive | Scope | Where it must appear | Effect |
 |---|---|---|---|
-| `<!-- orphan-ref-ignore-file -->` | Whole file | Anywhere in the **first 50 lines** of the file | Skip the file entirely; emit no findings. |
+| `<!-- orphan-ref-ignore-file -->` | Whole file | Anywhere in the **first 50 lines** of the file | Skip the file entirely; emit no findings and report suppressed references under `directive_suppressed`. |
 | `<!-- orphan-ref-ignore -->` | Single line | Anywhere on the same line as a reference | Skip every reference on that line and report it under `directive_suppressed`. |
 
 Place file-scope directives below the YAML frontmatter (if any) and well within the first 50-line window. Adding a directive at line 51 or later silently fails because the scanner only reads `text.splitlines()[:50]`.
@@ -151,7 +153,7 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 - For each surviving reference, check the source of truth (skill set, file presence).
 - Build the ADR-056 envelope with findings, counts, and verdict.
 - Verdict is `CRITICAL_FAIL` if any finding has severity `critical`, else `WARN` if findings exist, else `PASS`.
-- Print envelope and `VERDICT:` line. Exit 1 on CRITICAL_FAIL, 2 on configuration or incomplete-scan error, 0 otherwise.
+- Print envelope and `VERDICT:` line. Exit 1 on CRITICAL_FAIL, 2 on usage/configuration or incomplete-scan error, 3 on external error, 4 on permission error, 0 otherwise.
 
 ## Verification
 
@@ -160,7 +162,7 @@ Success criteria for the skill:
 - [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed.
 - [ ] `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
-- [ ] `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default targets.
+- [ ] `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
 - [ ] `.claude/commands/build.md` Mandatory Exit Gates lists orphan-ref-validator as gate 4.
 
 ## Scripts
@@ -215,11 +217,11 @@ verdict calculation.
 
 ### Vendored install behavior
 
-Missing targets are incomplete scans and exit `2` by default. A vendored caller that intentionally lacks repository-only paths must pass `--allow-missing-targets`; a caller that intentionally scans an empty scope must also pass `--allow-empty-scan`.
+Missing targets are incomplete scans and exit `2` by default. Truncation is also an incomplete scan: if the finding budget is exhausted, the scanner prioritizes active findings before baselined findings, adds a `scan_truncated` finding, and exits nonzero. A vendored caller that intentionally lacks repository-only paths must pass `--allow-missing-targets`; a caller that intentionally scans an empty scope must also pass `--allow-empty-scan`.
 
 ### Path safety
 
-Target paths are resolved with `pathlib.Path.resolve()` and must lie under the repository root. Paths outside the repo, outside-repo symlinks, walk errors, stat errors, unreadable files, and files larger than 5 MB are incomplete scans and exit `2`. Files in the secret denylist (`.env*`, `secrets.*`, `*.key`, `*.pem`, `*.pfx`, `*.p12`, `id_rsa(.pub)?`, `id_ed25519(.pub)?`, `id_ecdsa(.pub)?`, `id_dsa(.pub)?`, `.netrc`, `.npmrc`, `.pypirc`, `credentials`) are excluded.
+Target paths are resolved with `pathlib.Path.resolve()` and must lie under the repository root. Paths outside the repo, broken symlinks, symlink loops, outside-repo symlinks, walk errors, stat errors, unreadable files, and files larger than 5 MB are incomplete scans. Permission failures exit `4`; other incomplete scans exit `2` unless the reason is classified as logic or external. Files in the secret denylist (`.env*`, `secrets.*`, `*.key`, `*.pem`, `*.pfx`, `*.p12`, `id_rsa(.pub)?`, `id_ed25519(.pub)?`, `id_ecdsa(.pub)?`, `id_dsa(.pub)?`, `.netrc`, `.npmrc`, `.pypirc`, `credentials`) are excluded.
 
 ## Failure modes
 
@@ -227,11 +229,15 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 |---|---|
 | Missing target path | Exit 2 unless `--allow-missing-targets` is set |
 | Zero files scanned | Exit 2 unless `--allow-empty-scan` is set |
-| Target file unreadable (permissions) | Exit 2 with incomplete-scan count |
+| Target file unreadable (permissions) | Exit 4 with incomplete-scan count |
 | Manifest with malformed JSON | scanned as text; skill/script references still extracted |
-| Symlink directory pointing outside repo | Skipped at recursion entry; logged as `WARNING` (CWE-22 / CWE-59) |
-| Symlink file pointing outside repo | Skipped post-resolution; logged as `WARNING` |
-| Oversized files (>5 MB) | Skipped; logged as `WARNING` |
+| Broken symlink | Incomplete scan; logged as `WARNING` |
+| Symlink loop | Incomplete scan; logged as `WARNING` |
+| Symlink directory pointing outside repo | Incomplete scan; logged as `WARNING` (CWE-22 / CWE-59) |
+| Symlink file pointing outside repo | Incomplete scan; logged as `WARNING` |
+| Oversized files (>5 MB) | Incomplete scan; logged as `WARNING` |
+| UTF-8, UTF-16, or UTF-32 file with BOM | Decoded and scanned |
+| Unsupported or malformed encoding | Incomplete scan; no replacement decode |
 
 ## When the /build gate fails
 

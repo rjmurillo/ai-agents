@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -253,8 +255,11 @@ class TestTestsScriptRefs:
     def test_existing_tests_script_path_yields_no_finding(self, fake_repo):
         target = fake_repo / "docs" / "spec.md"
         write(fake_repo / "tests" / "hooks" / "real.py", "# real test helper\n")
-        write(target, "Run `tests/hooks/real.py` for the guard.\n")
+        text = "Run `tests/hooks/real.py` for the guard.\n"
+        assert list(extract_script_refs(text)) == [(1, "tests/hooks/real.py")]
+        write(target, text)
         result = scan([target], fake_repo)
+        assert result.refs_checked == 1
         assert [f for f in result.findings if f.kind == "script_path"] == []
         assert result.verdict == "PASS"
 
@@ -268,10 +273,15 @@ class TestTestsScriptRefs:
     def test_cli_exits_zero_for_existing_tests_script_ref(self, fake_repo, capsys):
         target = fake_repo / "docs" / "spec.md"
         write(fake_repo / "tests" / "hooks" / "real.py", "# real test helper\n")
-        write(target, "Run `tests/hooks/real.py` for the guard.\n")
+        text = "Run `tests/hooks/real.py` for the guard.\n"
+        assert list(extract_script_refs(text)) == [(1, "tests/hooks/real.py")]
+        write(target, text)
         rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
         assert rc == 0
-        assert "VERDICT: PASS" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        payload = json.loads(out.split("\nVERDICT:")[0])
+        assert payload["Data"]["counts"]["refs_checked"] == 1
+        assert "VERDICT: PASS" in out
 
     def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
         specs_dir = Path("." + "agents") / "specs"
@@ -293,6 +303,9 @@ class TestTestsScriptRefs:
             "<!-- orphan-ref-ignore -->\n",
         )
         result = scan([fake_repo / "tests"], fake_repo)
+        assert result.directive_suppressed[0].referenced_entity == (
+            "tests/hooks/missing.py"
+        )
         assert [f for f in result.findings if f.kind == "script_path"] == []
         assert result.verdict == "PASS"
 
@@ -320,13 +333,16 @@ class TestTestsScriptRefs:
         assert result.verdict == "CRITICAL_FAIL"
 
     def test_tests_script_glob_is_not_reference_syntax(self):
-        assert list(extract_script_refs("Run `tests/hooks/*.py`.\n")) == []
+        text = "Run `tests/hooks/*.py`.\n"
+        assert list(extract_script_refs(text)) == []
+        assert list(_scan.extract_all_reference_candidates(text)) == []
 
     def test_empty_tests_tree_yields_pass(self, fake_repo):
         (fake_repo / "tests").mkdir()
         result = scan([fake_repo / "tests"], fake_repo)
         assert result.findings == []
         assert result.files_scanned == 0
+        assert result.incomplete_scans == []
         assert result.verdict == "PASS"
 
 
@@ -345,8 +361,11 @@ class TestRuleAndInstructionRefs:
     def test_existing_rule_path_yields_no_finding(self, fake_repo):
         target = fake_repo / "docs" / "rules.md"
         write(fake_repo / ".claude" / "rules" / "living.md", "# rule\n")
-        write(target, "See [.claude/rules/living.md](.claude/rules/living.md).\n")
+        text = "See [.claude/rules/living.md](.claude/rules/living.md).\n"
+        assert list(extract_rule_refs(text)) == [(1, ".claude/rules/living.md")]
+        write(target, text)
         result = scan([target], fake_repo)
+        assert result.refs_checked == 1
         assert [f for f in result.findings if f.kind == "rule_path"] == []
 
     def test_missing_instruction_mirror_path_yields_critical_finding(self, fake_repo):
@@ -369,11 +388,13 @@ class TestRuleAndInstructionRefs:
             fake_repo / "src" / "copilot-cli" / "instructions" / "living.instructions.md",
             "# mirror\n",
         )
-        write(
-            target,
-            "See [mirror](src/copilot-cli/instructions/living.instructions.md).\n",
-        )
+        text = "See [mirror](src/copilot-cli/instructions/living.instructions.md).\n"
+        assert list(extract_instruction_refs(text)) == [
+            (1, "src/copilot-cli/instructions/living.instructions.md")
+        ]
+        write(target, text)
         result = scan([target], fake_repo)
+        assert result.refs_checked == 1
         assert [f for f in result.findings if f.kind == "instruction_path"] == []
 
 
@@ -441,6 +462,26 @@ def test_ac6_optional_default_targets_skip_when_absent(fake_repo, capsys):
     assert "VERDICT: PASS" in captured
 
 
+def test_default_scope_uses_tracked_supported_text_surfaces(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    write(repo / ".claude" / "skills" / "alpha-skill" / "SKILL.md", "# stub\n")
+    target = repo / "docs" / "rules.md"
+    write(target, "See `.claude/rules/deleted-rule.md`.\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+
+    rc = main(["--repo-root", str(repo), "--output", "json"])
+
+    out = capsys.readouterr().out
+    payload = json.loads(out.split("\nVERDICT:")[0])
+    assert rc == 1
+    assert payload["Data"]["counts"]["refs_checked"] == 1
+    assert payload["Data"]["findings"][0]["referenced_entity"] == (
+        ".claude/rules/deleted-rule.md"
+    )
+
+
 def test_ac6_explicit_missing_target_exits_two(fake_repo, capsys):
     rc = main([
         "--repo-root",
@@ -503,6 +544,60 @@ def test_ac6_paths_outside_repo_are_skipped(tmp_path, fake_repo, caplog):
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
     assert result.verdict == "PASS"
     assert len(result.incomplete_scans) == 1
+
+
+def test_utf_bom_encoded_files_are_scanned(fake_repo):
+    target = fake_repo / "docs" / "utf16.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes("See `.claude/rules/deleted-rule.md`.\n".encode("utf-16"))
+
+    result = scan([target], fake_repo)
+
+    assert result.refs_checked == 1
+    assert result.findings[0].referenced_entity == ".claude/rules/deleted-rule.md"
+    assert result.incomplete_scans == []
+
+
+@pytest.mark.parametrize(
+    ("encoding", "prefix"),
+    [
+        ("utf-8-sig", b"\xef\xbb\xbf"),
+        ("utf-16", b"\xff\xfe"),
+        ("utf-16-be", b"\xfe\xff"),
+        ("utf-32", b"\xff\xfe\x00\x00"),
+        ("utf-32-be", b"\x00\x00\xfe\xff"),
+    ],
+)
+def test_supported_bom_encodings_decode_without_incomplete_scan(
+    fake_repo, encoding, prefix
+):
+    target = fake_repo / "docs" / f"{encoding}.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = "See `.claude/rules/deleted-rule.md`.\n"
+    data = text.encode(encoding)
+    if not data.startswith(prefix):
+        data = prefix + data
+    target.write_bytes(data)
+
+    result = scan([target], fake_repo)
+
+    assert result.refs_checked == 1
+    assert result.findings[0].referenced_entity == ".claude/rules/deleted-rule.md"
+    assert result.incomplete_scans == []
+
+
+def test_invalid_utf8_is_incomplete_scan(fake_repo, capsys):
+    target = fake_repo / "docs" / "bad.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"\xff\xffbroken-no-bom")
+
+    rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+
+    out = capsys.readouterr().out
+    payload = json.loads(out.split("\nVERDICT:")[0])
+    assert rc == 2
+    assert payload["Data"]["counts"]["incomplete_scans"] == 1
+    assert "could not decode file" in payload["Data"]["incomplete_scans"][0]["reason"]
 
 
 # ---------- AC9: edge cases ----------
@@ -593,6 +688,23 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
     assert rc == 0
 
 
+def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys):
+    target = fake_repo / "docs" / "locked.md"
+    write(target, "Use `dead-skill`.\n")
+    original_mode = target.stat().st_mode
+    os.chmod(target, 0)
+    try:
+        rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+    finally:
+        os.chmod(target, original_mode)
+
+    out = capsys.readouterr().out
+    payload = json.loads(out.split("\nVERDICT:")[0])
+    assert rc == 4
+    assert payload["Error"]["Code"] == 4
+    assert payload["Error"]["Type"] == "AuthError"
+
+
 # ---------- render_envelope direct tests ----------
 
 
@@ -632,6 +744,27 @@ def test_render_envelope_json_carries_directive_suppressed_refs(fake_repo):
     assert payload["Data"]["directive_suppressed"][0]["referenced_entity"] == (
         "scripts/missing.py"
     )
+
+
+def test_file_scope_ignore_reports_suppressed_references(fake_repo):
+    target = fake_repo / "docs" / "ignored.md"
+    write(
+        target,
+        "<!-- orphan-ref-ignore-file -->\n"
+        "Use `scripts/missing.py` and `.claude/rules/deleted-rule.md`.\n",
+    )
+
+    result = scan([target], fake_repo)
+
+    assert result.files_scanned == 0
+    assert result.files_skipped == 1
+    assert {ref.reason for ref in result.directive_suppressed} == {
+        "file ignore directive"
+    }
+    assert {ref.referenced_entity for ref in result.directive_suppressed} == {
+        "scripts/missing.py",
+        ".claude/rules/deleted-rule.md",
+    }
 
 
 def test_render_envelope_human_lists_findings(fake_repo):
@@ -830,6 +963,19 @@ def test_walk_skips_file_symlink_resolving_outside_repo(tmp_path, fake_repo, cap
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
 
 
+def test_broken_symlink_is_incomplete_scan(fake_repo, caplog):
+    docs = fake_repo / "docs"
+    docs.mkdir()
+    link = docs / "broken.md"
+    link.symlink_to(docs / "missing-target.md")
+    with caplog.at_level("WARNING"):
+        result = scan([docs], fake_repo)
+
+    assert result.incomplete_scans
+    assert "could not resolve symlink" in result.incomplete_scans[0].reason
+    assert any("could not resolve symlink" in r.getMessage() for r in caplog.records)
+
+
 def test_walk_breaks_in_repo_symlink_cycle(tmp_path, fake_repo, caplog):
     """A symlinked directory pointing back to an ancestor inside the
     repo must not cause infinite recursion."""
@@ -843,7 +989,8 @@ def test_walk_breaks_in_repo_symlink_cycle(tmp_path, fake_repo, caplog):
     with caplog.at_level("WARNING"):
         result = scan([docs], fake_repo)
     assert any("symlink cycle" in r.getMessage() for r in caplog.records)
-    assert result.verdict == "PASS"
+    assert len(result.incomplete_scans) == 1
+    assert result.incomplete_scans[0].reason == "symlink cycle detected"
 
 
 def test_walk_filters_suffix_on_direct_file_target(fake_repo):
@@ -855,11 +1002,9 @@ def test_walk_filters_suffix_on_direct_file_target(fake_repo):
     assert result.files_scanned == 0
 
 
-def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
-    """When findings exceed max_findings, scan halts and appends a warn
-    finding so the operator knows the result is partial. The total list
-    must never exceed max_findings (one slot is reserved for the
-    truncation finding)."""
+def test_max_findings_cap_truncates_as_incomplete_scan(fake_repo):
+    """When findings exceed max_findings, the result is incomplete and
+    bounded. A measurement not taken is not a measurement of zero."""
     docs = fake_repo / "docs"
     # Each line produces one finding for `dead-skill`.
     payload = "\n".join(["Use `dead-skill`." for _ in range(10)])
@@ -868,9 +1013,29 @@ def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     truncation = [f for f in result.findings if f.kind == "scan_truncated"]
     assert len(truncation) == 1
     assert truncation[0].severity == "warn"
-    assert "halted" in truncation[0].recommendation.lower()
+    assert "incomplete" in truncation[0].recommendation.lower()
     # Hard bound: total findings must respect the budget.
     assert len(result.findings) <= 3
+    assert result.incomplete_scans[0].reason == "scan truncated at 3 findings"
+
+
+def test_truncation_keeps_active_orphan_when_baselined_noise_fills_budget(fake_repo):
+    docs = fake_repo / "docs"
+    for index in range(499):
+        write(docs / f"baseline-{index:03}.md", "Use `dead-skill`.\n")
+    write(docs / "z-active.md", "Use `active-skill`.\n")
+    full = scan([docs], fake_repo, max_findings=1000)
+    baseline = {
+        f.key for f in full.findings if f.referenced_entity == "dead-skill"
+    }
+    assert len(baseline) == 499
+
+    result = scan([docs], fake_repo, max_findings=10, baseline=baseline)
+
+    active = [f for f in result.findings if not f.suppressed]
+    assert result.verdict == "CRITICAL_FAIL"
+    assert any(f.referenced_entity == "active-skill" for f in active)
+    assert any(item.reason == "scan truncated at 10 findings" for item in result.incomplete_scans)
 
 
 def test_render_error_envelope_emitted_on_bad_cli_args(capsys):
