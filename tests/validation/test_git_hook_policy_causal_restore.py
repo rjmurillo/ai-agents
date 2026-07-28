@@ -1668,16 +1668,43 @@ class TestAdrReviewPolicyMergeScope:
         assert policy.ADR_REVIEW_PATH_RE.search(".agents/SESSION-PROTOCOL.md")
         assert policy.ADR_REVIEW_PATH_RE.search("SESSION-PROTOCOL.md")
 
-    def test_a_rename_between_two_adrs_is_still_carried(
+    def test_a_lineage_into_a_different_decision_record_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """Two ADRs are two decisions, however alike their text.
+
+        Records written from one template share most of their lines, so git
+        scores a commit that drops one and adds another as a rename of it.
+        `--follow` then walks from the new record into the old one and every
+        state the old one held reads as a state of the new.
+
+        Both are paths this gate governs, so scoping the walk to governed
+        paths does not refuse it. The content did face ADR review, but it
+        faced it as a different decision. Placing it under this record's
+        number is a decision nobody reviewed.
+
+        Found by review on PR #3680.
+        """
+        repo, target, only_ever_elsewhere = _repo_where_a_merge_linked_two_adrs(
+            tmp_path
+        )
+
+        carried = policy._origin_main_blob_ids(repo, target)
+
+        assert only_ever_elsewhere not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, target) is False
+
+    def test_a_rename_within_one_adr_is_still_carried(
         self,
         tmp_path,
     ):
         """Refusing foreign lineages must not refuse the one this gate wants.
 
-        The negative control for the test above. An ADR that main moved and
-        revised is the false positive the rename-aware lookup exists to
-        remove, and both of its names are paths this gate governs, so the
-        states under the former name stay carried.
+        The negative control for the two tests above. One decision record
+        that main moved and revised keeps its number across the rename, so
+        the states under its former name are still states of this record and
+        stay carried.
         """
         repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
 
@@ -1733,6 +1760,111 @@ def _repo_where_a_merge_linked_a_non_adr_file(
     (repo / adr).write_bytes(b"the state that was never an adr\n")
     _git(repo, "commit", "-qam", "place the file's old text at the adr path")
     return repo, adr, foreign
+
+
+class TestGovernedDocumentIdentity:
+    """The record a path holds, which is what scopes a followed history."""
+
+    def test_one_record_keeps_its_identity_when_it_is_renamed(self):
+        """The name after the number is free to change; the number is not."""
+        assert policy._governed_document_identity(
+            ".agents/architecture/ADR-201-old-name.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-201-new-name.md"
+        )
+
+    def test_a_number_written_in_either_case_is_one_record(self):
+        """The path test ignores case, so the identity read out of it must too.
+
+        Read case-sensitively, a record renamed from a lowercased name to an
+        uppercased one would look like two records and its earlier states
+        would be refused, which is the false refusal following renames exists
+        to remove.
+        """
+        assert policy._governed_document_identity(
+            ".agents/architecture/adr-201-old-name.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-201-new-name.md"
+        )
+
+    def test_two_numbers_are_two_records(self):
+        assert policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        ) != policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+
+    def test_the_protocol_stands_for_itself(self):
+        """It carries no number, and it is not any record's."""
+        protocol = policy._governed_document_identity(".agents/SESSION-PROTOCOL.md")
+
+        assert protocol is not None
+        assert protocol != policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        )
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "docs/ADR-overview.md",
+            "docs/fake-SESSION-PROTOCOL.md",
+            "notes.md",
+            "",
+        ],
+    )
+    def test_a_path_this_gate_does_not_govern_holds_no_record(self, path):
+        assert policy._governed_document_identity(path) is None
+
+
+def _repo_where_a_merge_linked_two_adrs(tmp_path: Path) -> tuple[Path, str, str]:
+    """Build a repo where `--follow` crosses from one ADR into another.
+
+    Both records carry the same template body and differ only in their title
+    and their decision, which is enough alike that git reads a commit
+    dropping the first and adding the second as a rename. Merging that branch
+    puts the link on `origin/main`.
+
+    Returns the repo, the second record's path, and a blob the first record
+    held that the second one's path never held in any commit on main.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+    shared = "".join(f"a line every record from the template carries {i}\n" for i in range(60))
+
+    first = ".agents/architecture/ADR-201-first.md"
+    second = ".agents/architecture/ADR-202-second.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / first).write_text("# ADR-201\n" + shared + "decision alpha\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the first record")
+    only_ever_elsewhere = _git(repo, "rev-parse", "HEAD:" + first).stdout.strip()
+
+    (repo / first).write_text("# ADR-201\n" + shared + "decision alpha revised\n", encoding="utf-8")
+    _git(repo, "commit", "-qam", "revise the first record")
+
+    _git(repo, "checkout", "-qb", "side", "HEAD~1")
+    _git(repo, "rm", "-q", "--", first)
+    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    (repo / second).write_text("# ADR-202\n" + shared + "decision beta\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "side replaces it with a second record")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    _run(["git", "merge", "--no-edit", "side"], repo)
+    (repo / first).unlink(missing_ok=True)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the merge keeps only the second record")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    _git(repo, "checkout", "-qb", "feature")
+    (repo / second).write_text("# ADR-201\n" + shared + "decision alpha\n", encoding="utf-8")
+    _git(repo, "commit", "-qam", "place the first record's old text under the second number")
+    return repo, second, only_ever_elsewhere
 
 
 def _repo_where_a_rename_crossed_a_merge(tmp_path: Path) -> tuple[Path, str, str]:

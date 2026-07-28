@@ -35,11 +35,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
+ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
+SESSION_PROTOCOL_PATH_RE = re.compile(r"(?:^|[\\/])SESSION-PROTOCOL\.md$", re.IGNORECASE)
+# Composed rather than written out again: the two halves disagreed about
+# anchoring for as long as they were separate strings, and a path merely ending
+# in the protocol's filename read as the protocol itself.
 ADR_REVIEW_PATH_RE = re.compile(
-    r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|(?:^|[\\/])SESSION-PROTOCOL\.md$",
+    f"{ADR_PATH_RE.pattern}|{SESSION_PROTOCOL_PATH_RE.pattern}",
     re.IGNORECASE,
 )
-ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
@@ -991,6 +995,25 @@ def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
     return result.stdout.strip() or None
 
 
+def _governed_document_identity(path: str) -> str | None:
+    """Which record `path` holds, or None if this gate does not govern it.
+
+    Scoping a followed history to governed paths does not tell two decision
+    records apart: both are governed. Records written from one template share
+    most of their lines, so git reads a commit that drops one and adds another
+    as a rename of it, and the walk crosses from one decision into the other.
+
+    The number in the filename is what says which decision a path holds. The
+    protocol has no number and stands for itself.
+    """
+    if ADR_PATH_RE.search(path):
+        identifier = ADR_ID_RE.search(path)
+        return identifier.group(0).upper() if identifier else None
+    if SESSION_PROTOCOL_PATH_RE.search(path):
+        return "SESSION-PROTOCOL"
+    return None
+
+
 def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
     """Blob ids from one `--follow` traversal of `path` on `origin/main`.
 
@@ -1028,6 +1051,10 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     )
     if result.returncode != 0:
         return set()
+    # An unrecognised path carries no identity, so nothing below matches it and
+    # the caller is told main has carried nothing here. That refuses; it cannot
+    # exempt.
+    followed = _governed_document_identity(path)
     blob_ids: set[str] = set()
     fields = result.stdout.split("\0")
     index = 0
@@ -1051,13 +1078,15 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
         index += wanted
         if len(paths) < wanted:
             break
-        if ADR_REVIEW_PATH_RE.search(paths[-1]) is None:
+        if _governed_document_identity(paths[-1]) != followed:
             # `--follow` rewrites the path it tracks whenever it scores a drop
             # and an add as a rename, which is similarity and not provenance.
             # Crossing into a file this gate does not govern would read that
-            # file's states as states of this ADR, and they never faced ADR
-            # review. The post-image belongs to the record's destination path,
-            # so that is the path that has to qualify.
+            # file's states as states of this record, and they never faced ADR
+            # review; crossing into another record would read a decision
+            # somebody reviewed under a different number as this one. The
+            # post-image belongs to the record's destination path, so that is
+            # the path that has to qualify.
             continue
         blob_ids.add(metadata[3])
     blob_ids.discard("0" * 40)
