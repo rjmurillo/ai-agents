@@ -607,6 +607,17 @@
         "Both review threads answered with the measured output and resolved.",
         "Shape 46 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md."
       ]
+    },
+    {
+      "phase": "Phase thirty-seven: the retrospective gate the day boundary opened",
+      "actions": [
+        "The push was rejected by check_retrospective_evidence. Diagnosed rather than bypassed: the date rolled to 2026-07-28, _today_session_log globs {today,yesterday} against .agents/sessions, and no retrospective existed for either day. The gate was correct. A session had crossed a day boundary with nothing written down.",
+        "Read the second failure before acting on it. validate_review_marker.py rejected the tip because a merge commit has two parents and a marker must be a single-parent empty commit. Traced the caller: checks_coverage.validate_review_marker is advisory unless REVIEW_MARKER_ENFORCED is set, and git_hook_policy._check_review_marker only runs the validator when HEAD already carries a Reviewed-By trailer. The merge commit carries none. The FAIL line was printed by an advisory check and blocked nothing.",
+        "Wrote .agents/retrospective/2026-07-28-eval-gate-holdout-review-rounds.md. Classified the last twelve findings against FAILURE-MODES.md: nine are FM-10, a guard clause answering with a plausible default that is wrong for one input it did not consider. Tabulated the four in this branch pair with the specific input that defeats each.",
+        "Recorded two process failures in the same document rather than only the code ones. A git reset --hard destroyed two uncommitted files, and a computed range replacement dropped nineteen lines of prose after that lesson had already been written down in the same session. Both are one mistake: an operation whose blast radius was assumed rather than measured.",
+        "Verified the fix against the gate's own predicate instead of assuming the file was enough: imported git_hook_policy and called _today_retrospective_exists directly, which returned True."
+      ],
+      "evidence": "uv run --frozen python -c \"import sys; sys.path.insert(0,'scripts/validation'); from pathlib import Path; import git_hook_policy as g; print(g._recent_date_prefixes(), g._today_retrospective_exists(Path('.')))\" reports ('2026-07-28', '2026-07-27') True. checks_coverage.py:31 documents the advisory default; git_hook_policy.py:2660 gates the validator on a Reviewed-By trailer that the merge commit does not carry."
     }
   ],
   "endingCommit": "e4d5c0d6c",
