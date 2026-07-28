@@ -7,6 +7,7 @@ Merges with existing data using upsert semantics (INSERT OR REPLACE).
 EXIT CODES:
   0  - Success
   1  - Error
+  3  - External dependency unavailable (sqlite3 not found)
 
 See: ADR-035 Exit Code Standardization
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -181,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Importing {len(input_files)} memory file(s)")
     print(f"   Merge mode: {args.merge_mode}")
+
+    if not shutil.which("sqlite3"):
+        print("ERROR: sqlite3 is not installed or not in PATH", file=sys.stderr)
+        return 3
 
     total_inserted = 0
     total_updated = 0

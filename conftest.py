@@ -128,6 +128,9 @@ def tmp_path(
     Pytest honors --basetemp even when it points inside the worktree. Tests in
     this repository treat tmp_path as scratch space outside the project unless
     they explicitly build a repo there. Redirect only that unsafe configuration.
+
+    Reproduces pytest's retention behavior: when tmp_path_retention_policy is
+    "failed", directories for passing tests are removed after the test.
     """
     if _external_tmp_root is None:
         yield tmp_path_factory.mktemp(_safe_tmp_name(request.node.name))
@@ -136,6 +139,16 @@ def tmp_path(
     path = _external_tmp_root / uuid.uuid4().hex
     path.mkdir(mode=0o700)
     yield path
+
+    # Reproduce pytest retention cleanup for relocated paths.
+    try:
+        from _pytest.tmpdir import tmppath_result_key
+    except ImportError:  # pragma: no cover - pytest internals may change
+        return
+    policy = getattr(tmp_path_factory, "_retention_policy", "all")
+    result_dict = request.node.stash.get(tmppath_result_key, None)
+    if policy == "failed" and result_dict is not None and result_dict.get("call", True):
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _git_env() -> dict[str, str]:
