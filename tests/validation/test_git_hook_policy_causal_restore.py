@@ -702,14 +702,264 @@ class TestAdrReviewPolicyMergeScope:
         )
         monkeypatch.setattr(
             policy,
+            "_merge_head_commits",
+            lambda root: ["the-shared-branch-tip"],
+            raising=False,
+        )
+        blobs = {"the-shared-branch-tip": b"main adr", "origin/main": b"main adr"}
+        monkeypatch.setattr(
+            policy,
             "_read_commit_blob_bytes",
-            lambda root, commit, relative_path: (
-                b"main adr" if commit == "origin/main" else None
-            ),
+            lambda root, commit, relative_path: blobs.get(commit),
             raising=False,
         )
 
         assert policy.check_adr_review_policy([path], tmp_path) == 0
+
+    def test_an_adr_reverted_to_a_stale_origin_main_during_a_merge_is_still_gated(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Content sitting on main is not a licence to put it back.
+
+        A local `origin/main` ref goes stale the moment someone else pushes.
+        Matching content against it alone would let an author revert an ADR to
+        the stale state mid-merge and walk past the gate, and the revert would
+        then overwrite the newer copy on the next push. Reverting is a fresh
+        decision no matter how old the bytes are, so the content has to arrive
+        through the merge as well as match main.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-001-superseded.md"
+        adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
+        _commit(repo, "old position")
+        # The local ref stops here. Someone else already pushed the revision.
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", head)
+        adr.write_text("# ADR 001\n\nthe revised position.\n", encoding="utf-8")
+        _commit(repo, "revised position")
+
+        _git(repo, "checkout", "-b", "feature")
+        (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        _commit(repo, "feature work")
+        _git(repo, "branch", "sibling")
+        _git(repo, "checkout", "sibling")
+        (repo / "sibling.txt").write_text("sibling\n", encoding="utf-8")
+        _commit(repo, "sibling work")
+        _git(repo, "checkout", "feature")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "sibling"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-001-superseded.md"
+        adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_an_adr_a_collaborator_wrote_on_the_shared_branch_is_still_gated(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Arriving through the merge is not enough on its own.
+
+        A collaborator can write an ADR on the shared branch and push it. The
+        content then sits on a merge parent without ever having been reviewed
+        on main. Exempting it because the merge carried it would let any pair
+        of branches walk an ADR onto main with no review evidence at all, so
+        the content has to match main as well as arrive through the merge.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-003-collaborator.md"
+        adr.write_text("# ADR 003\n\nthe reviewed position.\n", encoding="utf-8")
+        _commit(repo, "reviewed position")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", head)
+
+        _git(repo, "checkout", "-b", "shared")
+        adr.write_text("# ADR 003\n\nthe collaborator position.\n", encoding="utf-8")
+        _commit(repo, "collaborator writes the adr on the branch")
+
+        _git(repo, "checkout", "main")
+        _git(repo, "checkout", "-b", "feature")
+        (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        _commit(repo, "feature work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-003-collaborator.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_an_approved_merge_parent_exempts_content_origin_main_does_not_carry(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """The approved-parent rule has to keep working on its own.
+
+        Merging an older main commit brings content that the local `origin/main`
+        tip no longer carries, so the blob comparison against main cannot
+        exempt it and the ancestry rule is the only thing that can. Without
+        this the ancestry rule could be deleted outright and every other test
+        here would stay green.
+        """
+        path = ".agents/architecture/ADR-002-an-earlier-main.md"
+        blobs = {"an-approved-parent": b"earlier main", "origin/main": b"later main"}
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"earlier main")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: ["an-approved-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_merge_head_commits",
+            lambda root: ["an-approved-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: blobs.get(commit),
+            raising=False,
+        )
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 0
+
+    def test_a_carrier_branch_cannot_launder_a_reversion_past_a_stale_origin_main(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Matching a stale `origin/main` is not evidence of review.
+
+        Requiring the blob to sit on a merge parent stops an author typing a
+        reversion during someone else's merge, but it does not stop an author
+        who builds the merge. Branch off the newer commit, commit the older
+        ADR text there, merge that branch back, and both halves of the rule
+        are satisfied: the blob is on a merge parent because the author put it
+        there, and it matches `origin/main` because `origin/main` is stale.
+
+        The gate cannot tell a stale ref from a current one offline, so it
+        asks a different question instead: is the copy this branch already has
+        one that main has ever carried. Here it is not, because the newer text
+        was written locally and never pushed, which makes the merge a
+        regression of local work rather than main's content arriving.
+
+        Found by adversarial security review, Finding 3. It reproduces with no
+        write to `.git` and no ref surgery, which is what separates it from
+        the other two findings that round returned.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-004-carrier.md"
+        adr.write_text("# ADR 004\n\nold reviewed position.\n", encoding="utf-8")
+        old = _commit(repo, "the old position")
+        _git(repo, "update-ref", "refs/remotes/origin/main", old)
+
+        adr.write_text("# ADR 004\n\nnewer reviewed position.\n", encoding="utf-8")
+        newer = _commit(repo, "the newer position, not yet pushed")
+
+        _git(repo, "update-ref", "refs/heads/carrier", newer)
+        _git(repo, "checkout", "carrier")
+        adr.write_text("# ADR 004\n\nold reviewed position.\n", encoding="utf-8")
+        _commit(repo, "carrier quietly restores the old text")
+
+        _git(repo, "checkout", "main")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "carrier"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-004-carrier.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_synthetic_merge_head_that_head_already_contains_is_not_a_merge(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """A hand-written `MERGE_HEAD` naming an ancestor is never a real merge.
+
+        `git merge <ancestor>` reports "Already up to date" and writes no
+        `MERGE_HEAD` at all, so any `MERGE_HEAD` that HEAD already contains
+        was placed there by something other than git. Reading it as a merge
+        in progress hands the whole merge exemption to anyone who can write a
+        file, and the older commit it names is an approved parent by
+        construction, so the reversion it authorises is the exact thing the
+        gate exists to catch.
+
+        Found by adversarial security review, Finding 2. Unlike the carrier
+        case this one needs a write inside `.git`, and an author who has that
+        can also skip the hook outright. It is fixed anyway because the check
+        costs one ancestry query and removes a way to get the same result
+        while the hook still reports success.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-005-synthetic.md"
+        adr.write_text("# ADR 005\n\nold reviewed position.\n", encoding="utf-8")
+        old = _commit(repo, "the old position")
+
+        adr.write_text("# ADR 005\n\nnewer reviewed position.\n", encoding="utf-8")
+        newer = _commit(repo, "the newer position")
+        _git(repo, "update-ref", "refs/remotes/origin/main", newer)
+
+        adr.write_text("# ADR 005\n\nold reviewed position.\n", encoding="utf-8")
+        _git(repo, "add", ".")
+        (repo / ".git" / "MERGE_HEAD").write_text(f"{old}\n", encoding="utf-8")
+
+        relative = ".agents/architecture/ADR-005-synthetic.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
     def test_a_real_merge_of_a_shared_branch_tip_exempts_the_adr_main_contributed(
         self,
@@ -851,10 +1101,15 @@ class TestAdrReviewPolicyMergeScope:
         )
         monkeypatch.setattr(
             policy,
+            "_merge_head_commits",
+            lambda root: ["the-shared-branch-tip"],
+            raising=False,
+        )
+        blobs = {"the-shared-branch-tip": b"main adr", "origin/main": b"main adr"}
+        monkeypatch.setattr(
+            policy,
             "_read_commit_blob_bytes",
-            lambda root, commit, relative_path: (
-                b"main adr" if commit == "origin/main" else None
-            ),
+            lambda root, commit, relative_path: blobs.get(commit),
             raising=False,
         )
         monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
