@@ -92,6 +92,7 @@ RunPersistence = persistence_mod.RunPersistence
 DuplicateRunError = persistence_mod.DuplicateRunError
 MalformedRunRecordError = persistence_mod.MalformedRunRecordError
 RunDirectoryNotFreshError = persistence_mod.RunDirectoryNotFreshError
+RunSeedMismatchError = persistence_mod.RunSeedMismatchError
 
 ReportAggregator = aggregator_mod.ReportAggregator
 AggregateResult = aggregator_mod.AggregateResult
@@ -898,7 +899,7 @@ class TestRunPersistenceResume:
         first = RunPersistence(run_dir, resume=False, seed=111)
         first.write_record(_make_record(seed=111))
 
-        with pytest.raises(Exception, match="seed"):
+        with pytest.raises(RunSeedMismatchError, match="seed"):
             RunPersistence(run_dir, resume=True, seed=222)
 
 

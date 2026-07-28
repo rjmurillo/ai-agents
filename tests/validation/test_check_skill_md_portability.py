@@ -258,6 +258,7 @@ class TestPathStartAnchor:
             '<img src="/templates/agents/x.md">',
             "`templates/agents/x.md`",
             "Prose line.\n/templates/agents/x.md",
+            ">/templates/agents/x.md",
         ],
     )
     def test_paths_at_a_real_start_of_context_count(self, text: str) -> None:
@@ -265,9 +266,88 @@ class TestPathStartAnchor:
 
         Markdown link parentheses, table pipes, HTML attribute quotes and inline
         code backticks all introduce a path without changing where it resolves
-        from, so each one still counts.
+        from, so each one still counts. A tight blockquote marker counts too, so
+        it agrees with the spaced form that whitespace already accepts.
         """
         assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]:/templates/agents/x.md",
+            "path:/templates/agents/x.md",
+            "<img src=/templates/agents/x.md>",
+        ],
+    )
+    def test_labelled_and_attribute_contexts_count(self, text: str) -> None:
+        """A colon or equals in a named context introduces a real path.
+
+        A link reference definition and a ``path:`` label both put a colon
+        before the path; an unquoted HTML attribute puts an equals sign there.
+        Only the ``[label]:`` form is a CommonMark construct, a link reference
+        definition; ``path:`` is a project convention and the unquoted attribute
+        is HTML. The validator treats each as a path reference by naming the
+        context, so each counts.
+
+        Naming the context is what makes this safe. Admitting a raw ``:`` would
+        also count the Windows drive letters ``C:\\templates\\`` and
+        ``C:\\.agents\\``; admitting a raw ``=`` would also count the URL query
+        parameter ``?next=/.agents/x``. The guards below pin those out (issue
+        #3489).
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]: /templates/agents/x.md",
+            "[x]:   /templates/agents/x.md",
+            "[x]:\t/templates/agents/x.md",
+            "[x]:\n/templates/agents/x.md",
+            "path:   /templates/agents/x.md",
+            "<img src= /templates/agents/x.md>",
+        ],
+    )
+    def test_label_definition_whitespace_after_colon_still_counts(self, text: str) -> None:
+        """Whitespace between the label colon and the path still counts.
+
+        CommonMark allows optional spaces, tabs, and up to one line ending
+        between a link reference definition's colon and its destination. A
+        review asked to widen ``_LABEL_ANCHOR`` and ``_ATTR_ANCHOR`` to accept
+        that gap, but no widening is needed: the whitespace is itself an anchor
+        character, a space, tab or newline, so the path anchors on the gap
+        rather than on the label. Widening the label anchors would only re-match
+        what the whitespace anchor already matches, which is dead regex. This
+        pins the deliberate limit so the label anchors stay tight-only.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\specs\\x.md",
+            "[x](https://example.com/p?next=/.agents/x)",
+            "file:/templates/agents/x.md",
+            "note:/templates/agents/x.md",
+            "https://example.com/path:/templates/agents/x.md",
+            "https://example.com/?src=/templates/agents/x.md",
+        ],
+    )
+    def test_shapes_that_raw_colon_or_equals_anchors_would_break(self, text: str) -> None:
+        """Negative control for the contextual anchors above.
+
+        Each of these carries a colon or an equals sign immediately before a
+        path-looking string, and none of them names the repository root. A
+        colon anchors a path only when the literal ``path`` or a bracketed
+        label sits at an anchor before it: a Windows drive letter, a URI scheme,
+        and a bare prose word (``note:``) are none of those, and a URL query
+        parameter has no enclosing tag for the attribute anchor. If someone
+        replaces the contextual anchors with a raw ``:`` or ``=`` in the
+        character set, these start counting and this test fails, which is the
+        intended warning.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
 
 
 class TestBlockquotedFence:
@@ -293,6 +373,28 @@ class TestBlockquotedFence:
         end the block early and expose the rest of the example as prose.
         """
         text = "```\n> ```\n/templates/agents/x.md\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_unquoted_line_ends_a_quoted_fence(self) -> None:
+        """A fenced block has no lazy continuation, so it dies with its quote.
+
+        The unquoted line is top-level prose, not fence body, so a reference on
+        it is a real dependency and must count.
+        """
+        text = "> ```\n> code .agents/a\nplain /templates/agents/b\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_unterminated_quoted_fence_does_not_swallow_later_prose(self) -> None:
+        text = "> ```\n> code .agents/a\nreal prose /templates/agents/b\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_line_ending_a_quoted_fence_is_re_read_at_top_level(self) -> None:
+        """Ending the blockquote must not skip fence detection on that line.
+
+        The bare fence marker leaves the blockquote and opens a top-level fence,
+        so the lines after it are code and must not count.
+        """
+        text = "> ```bash\n> echo hi\n```\n> cp .agents/x .\n> ```\n"
         assert cmp.count_upstream_refs(text) == 0
 
 
@@ -509,3 +611,37 @@ class TestCommittedRepoHasNoDrift:
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+
+class TestBlockquoteFenceDepth:
+    """A quoted fence remembers the depth it opened at, not just that it was quoted.
+
+    Tracking only a boolean loses both directions of the question. Each case
+    below was cross-checked against CommonMark via markdown-it, which is the
+    arbiter for what is code and what is prose (issue #3489).
+    """
+
+    def test_deeper_marker_does_not_close_a_shallower_fence(self) -> None:
+        """``>>`` inside a ``>`` fence is content, not the closing marker.
+
+        Stripping every marker made the depth-2 line look like a bare closing
+        fence, which ended the block early and exposed the following code line
+        as prose. CommonMark keeps the path inside a fence token.
+        """
+        text = "> ```\n>> ```\n> /templates/agents/x.md\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_dropping_below_the_opening_depth_ends_the_fence(self) -> None:
+        """A fence opened at depth 2 ends when the document returns to depth 1.
+
+        The depth-1 line has left the blockquote the fence opened in, so it is
+        prose. Testing only for the presence of a marker kept the fence open and
+        hid it. CommonMark puts the path in an inline token.
+        """
+        text = ">> ```\n>> code\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_same_depth_marker_still_closes(self) -> None:
+        """The ordinary case keeps working: a marker at the opening depth closes."""
+        text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1

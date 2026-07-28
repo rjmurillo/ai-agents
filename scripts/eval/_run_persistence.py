@@ -122,7 +122,7 @@ def _parse_record(line: str) -> RunRecord | None:
     if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS:
         raise SchemaVersionError(
             f"unsupported schemaVersion={schema_version!r} on record "
-            f"(supported: {RUN_RECORD_SCHEMA_VERSION})"
+            f"(supported: {sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
         )
     payload["schema_version"] = schema_version
     payload.setdefault("system_fingerprint", None)
@@ -209,7 +209,7 @@ class RunPersistence:
                     raise SchemaVersionError(
                         f"{self._jsonl_path}: line {line_no} has "
                         f"schemaVersion={schema_version!r} (supported: "
-                        f"{RUN_RECORD_SCHEMA_VERSION})"
+                        f"{sorted(SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS)})"
                     )
                 existing_seed = payload.get("seed")
                 if (
@@ -287,8 +287,8 @@ class RunPersistence:
         """
         if record.schema_version != RUN_RECORD_SCHEMA_VERSION:
             raise SchemaVersionError(
-                f"unsupported schemaVersion={record.schema_version} "
-                f"(supported: {RUN_RECORD_SCHEMA_VERSION})"
+                f"cannot write schemaVersion={record.schema_version}; "
+                f"writer requires current version {RUN_RECORD_SCHEMA_VERSION}"
             )
         key = _record_key(record)
         if key in self._seen:

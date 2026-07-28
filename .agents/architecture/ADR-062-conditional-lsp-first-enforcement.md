@@ -19,23 +19,22 @@ is filed as issue #3214 and unblocks the hook removal in issue #3216, part of
 the #3197 vendored-hook ROI review. It records the decision only. It does not
 delete any hook. The deletion is the implementation issue this unblocks.
 
-Change: retire the LSP-first runtime enforcement hooks. That is the five
-PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
+Change: mark the LSP-first runtime enforcement hooks retired. The retired set is
+the five PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
 `invoke_lsp_bash_grep_guard.py`, `invoke_lsp_glob_guard.py`,
-`invoke_lsp_pre_delegation_guard.py`), the two PostToolUse trackers
+`invoke_lsp_pre_delegation_guard.py`), the two retired PostToolUse trackers
 (`invoke_lsp_read_tracker.py`, `invoke_lsp_usage_tracker.py`), the SessionStart
 reset (`invoke_lsp_session_reset.py`), and the shared state and detection
 modules under `.claude/lib/hook_utilities/` that only those hooks consume
 (`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
 and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
 canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
-the Serena Init BLOCKING step in AGENTS.md, and, while it remains present, the
-per-turn `invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles
-Git events and has no user-prompt lifecycle event. Issue #3216 classified this
-advisory nudge for removal because static steering and Serena Init already carry
-the behavior. The hook still exists pending that removal. If removed from the
-vendored surface, it needs no Lefthook replacement. The three-tier navigation
-preference (Decision, Section 1) survives as steering; only the blocking
+the Serena Init BLOCKING step in AGENTS.md, and the removed per-turn
+`invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles Git events
+and has no user-prompt lifecycle event. Issue #3216 classified this advisory
+nudge for removal because static steering and Serena Init already carry the
+behavior. The removal is complete, and it needs no Lefthook replacement. The
+three-tier navigation preference (Decision, Section 1) survives as steering; only the blocking
 behavior is withdrawn.
 
 Rationale: the #3197 ROI review measured the enforcement layer against three
@@ -46,14 +45,14 @@ Copilot logs). It found:
   Against it stand documented false positives #3091 (a cargo-cult "LSP CONTEXT"
   incantation agents emit to satisfy the gate), #2200, #2454 (merge-conflict
   reads), and #2622 (LSP-down hard blocks), plus multiple blocks this week.
-- The Read gate fires on the hottest tool. `invoke_lsp_read_guard.py` runs on
-  every Read to enforce a preference, not a safety property, and pays the 250 ms
+- The retired Read gate fired on the hottest tool. The deleted `invoke_lsp_read_guard.py` ran on
+  every Read to enforce a preference, not a safety property, and paid the 250 ms
   to 1 s Windows spawn tax measured in #3075 on every invocation.
-- The preference already has three enforcement-free carriers.
+- The preference now has two enforcement-free carriers.
   `.claude/rules/lsp-first.md` ships as context every session, Serena Init is
-  BLOCKING at session start (AGENTS.md), and #1993 re-asserts every turn. The
-  runtime block is a fourth, and most expensive, layer on a preference the first
-  three already carry.
+  BLOCKING at session start (AGENTS.md). The removed #1993 per-turn reassertion
+  hook used to be a third carrier. The runtime block was the most expensive layer
+  on a preference the remaining carriers already preserve.
 - Most of the family self-neuters in consumer repos. The guards gate on the git
   origin being `ai-agents` (`skip_if_consumer_repo`), so they no-op in any
   customer repo regardless of the block.
@@ -74,12 +73,10 @@ What this amendment does NOT change:
   documents (the env-var escape hatches, the hook-tier description) are cleaned
   up by the #3216 removal when the hooks they describe are deleted; the
   three-tier navigation preference the file carries is what stays.
-- Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay while the
-  hook remains present. Lefthook handles Git events and has no user-prompt
-  lifecycle event. Issue #3216 classified the advisory nudge for removal because
-  static steering and Serena Init already carry the behavior. The hook has not
-  yet been removed. If removed from the vendored surface, it needs no Lefthook
-  replacement.
+- Serena Init (AGENTS.md BLOCKING) stays. The #1993 re-assertion hook has been
+  removed. Lefthook handles Git events and has no user-prompt lifecycle event.
+  Issue #3216 classified the advisory nudge for removal because static steering
+  and Serena Init already carry the behavior. It needs no Lefthook replacement.
 - No security property changes. Section 4 already states the gate-state is not a
   security boundary and Section 7 shows the detection modules are CWE-78 and
   CWE-22 safe by construction; the modules are removed with the hooks, not
@@ -102,9 +99,9 @@ This repository already mandates Serena (an MCP symbol server) first, but only
 through steering, never enforcement:
 
 - AGENTS.md makes Serena Init BLOCKING at session start.
-- A per-turn UserPromptSubmit re-assertion hook
+- A removed per-turn UserPromptSubmit re-assertion hook
   (`invoke_serena_reassertion.py`, issue #1993, commit `e6fa83a9`, merged
-  2026-05-30) re-injects a Serena reminder every prompt.
+  2026-05-30) previously re-injected a Serena reminder every prompt.
 - `.claude/rules/claude-model-patches.md` steers to dedicated tools over shell.
 
 Measured drift evidence: 2026-05-10 session 16 logged 10+ native Read calls on
@@ -361,7 +358,7 @@ here.
 
 ## Relationship to Prior ADRs
 
-- **#1993 hook (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
+- **#1993 removed hook (`invoke_serena_reassertion.py:16-29`)**: it rejected branching on
   Serena activation state because a UserPromptSubmit hook "cannot observe whether
   Serena MCP tools were called this turn, and no other hook writes a
   Serena-activation marker file. Inventing that state would couple two components
@@ -370,7 +367,7 @@ here.
   that activation surface: a PostToolUse usage tracker that observes LSP tool
   calls and owns the state (single system-of-record, not inter-component
   inference), so the leakage concern does not apply. The #1993 stateless steering
-  remains; this enforcement sits above it.
+  was later removed; this enforcement originally sat above it.
 - **ADR-033 (routing gates)**: sits beside the routing gates; agent-delegation
   gating has a single owner (the pre-delegation guard) to avoid double-gating.
 - **ADR-061 (hook-matcher-shims-delegate-pattern, Withdrawn 2026-05-27)**: the
@@ -381,9 +378,11 @@ here.
 
 ## Implementation Notes
 
-Exit codes: 0 = allow (including fail-open and warn mode), 2 = block. ADR-035
-Claude-hook-semantics exemption, precedent `invoke_skill_first_guard.py`,
-`invoke_security_gate.py`, `invoke_serena_reassertion.py:38-41`. Copilot uses
+This section describes the retired enforcement layer and its deleted hook files.
+
+Retired exit codes: 0 = allow (including fail-open and warn mode), 2 = block.
+ADR-035 Claude-hook-semantics exemption, historical precedent `invoke_skill_first_guard.py`,
+historical `invoke_security_gate.py`, and removed `invoke_serena_reassertion.py:38-41`. Copilot uses
 `permissionDecision`; the generator translates and preserves the shim crash
 policy.
 
@@ -426,7 +425,7 @@ bump plugin.json; full validation; PR.
 - github.com/nesaminua/claude-code-lsp-enforcement-kit (MIT, v2.3.2): adapted source.
 - GitHub Docs: Copilot CLI LSP servers + hooks (auto-LSP, permissionDecision).
 - Claude Code native LSP tool (v2.0.74+): tier-2 fallback.
-- `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
+- Removed reference: `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
 - `.claude/rules/canonical-source-mirror.md`; `.claude/rules/release-it.md`; ADR-006; ADR-035; ADR-042; ADR-008; ADR-033.
 
 ---
