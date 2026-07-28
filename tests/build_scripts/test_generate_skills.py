@@ -17,17 +17,21 @@ from copilot_body_translation import translate_skill_file  # noqa: E402
 _GATED_SKILL_TREE_MIRRORS = (
     "review",
     "cva-analysis",
+    "observability",
     "orphan-ref-validator",
     "security-detection",
     "slashcommandcreator",
+    "taste-lints",
 )
 _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
     {
         "cva-analysis",
+        "observability",
         "orphan-ref-validator",
         "review",
         "security-detection",
         "slashcommandcreator",
+        "taste-lints",
     }
 )
 _SKILLFORGE_TIMEOUT_SECONDS = 20

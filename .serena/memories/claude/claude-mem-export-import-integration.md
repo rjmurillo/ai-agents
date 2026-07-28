@@ -131,7 +131,7 @@ git commit -m "docs(memory): export session 229 learnings - agent frustrations"
 
 - `.claude-mem/scripts/Export-ClaudeMemMemories.ps1` - PowerShell export wrapper
 - `.claude-mem/scripts/Import-ClaudeMemMemories.ps1` - PowerShell import wrapper
-- `scripts/Review-MemoryExportSecurity.ps1` - Security scanner (6 pattern categories)
+- `scripts/review_memory_export_security.py` - Security scanner (6 pattern categories)
 
 ### Git
 
@@ -206,7 +206,7 @@ Files modified:
 - `.claude-mem/.gitignore` (simplified)
 - `.claude-mem/memories/README.md` (PowerShell updates)
 - `.claude-mem/memories/AGENTS.md` (PowerShell updates)
-- `scripts/Review-MemoryExportSecurity.ps1` (new)
+- `scripts/Review-MemoryExportSecurity.ps1` (new; since renamed to `scripts/review_memory_export_security.py`)
 
 Files removed:
 - scripts/export-memories.ts (removed) (TypeScript wrapper)

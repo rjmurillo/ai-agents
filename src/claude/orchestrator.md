@@ -83,7 +83,10 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 |-------|---------|-------|-----------|
 | **analyst** | Research, root cause, feasibility | sonnet | Already have enough context |
 | **architect** | ADRs, design review, patterns | sonnet | Implementation details |
+| **backlog-generator** | Proactive backlog discovery | sonnet | Existing PRD to decompose |
 | **critic** | Plan validation, pre-merge review | sonnet | No plan to review |
+| **debug** | Runtime failures, bug triage | sonnet | Requirements are unclear |
+| **dependency-auditor** | Dependency CVEs, package health | sonnet | First-party code risk |
 | **devops** | CI/CD, deployment, infra | sonnet | Business logic changes |
 | **explainer** | PRDs, documentation, onboarding | sonnet | Technical decisions |
 | **high-level-advisor** | Strategy, priorities, ruthless clarity | opus | Tactical work |
@@ -93,10 +96,12 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **memory** | Cross-session retrieval and storage | sonnet | Within-session state |
 | **milestone-planner** | Epic → milestones with exit criteria | sonnet | Task-level decomposition |
 | **qa** | Test strategy, user-outcome validation | sonnet | Unit test details only |
+| **pr-test-analyzer** | PR test coverage gaps | sonnet | No PR or diff |
 | **quality-auditor** | Domain grading, gap analysis | sonnet | Single-file review |
 | **retrospective** | Post-mortem, learning extraction | sonnet | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | opus | Tactical execution |
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
+| **silent-failure-hunter** | Error suppression, unsafe fallbacks | sonnet | Loud failures already surface |
 | **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
 

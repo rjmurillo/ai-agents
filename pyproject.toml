@@ -66,6 +66,7 @@ addopts = "-v --tb=short --import-mode=importlib"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
+    "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits; nightly only). The smoke gate asserts these were not skipped (issue #2231 item 4).",
 ]
