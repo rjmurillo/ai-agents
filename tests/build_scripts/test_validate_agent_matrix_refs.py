@@ -318,6 +318,51 @@ class TestKnownAgents:
         )
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
+    def test_an_opening_fence_with_trailing_whitespace_still_opens(self, tmp_path):
+        """The opening fence tolerates what the closing fence tolerates.
+
+        Rejecting an invisible trailing space here reported a real agent as
+        absent, so a matrix citing it failed with ``agent does not ship`` while
+        the file sat in the tree. The two fences must agree.
+        """
+        (tmp_path / "analyst.md").write_text(
+            "---  \ndescription: An agent.\n---\n\n# Analyst\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_a_wider_opening_fence_shifts_the_search_for_the_close(self, tmp_path):
+        """The close is searched from the end of the open, not a fixed offset.
+
+        A hardcoded offset of four is correct only for a bare ``---\\n``. With a
+        wider opening fence it lands mid-key, so a block whose first key would
+        be truncated proves the offset follows the match.
+        """
+        (tmp_path / "analyst.md").write_text(
+            "---\t \ndescription: An agent.\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    @pytest.mark.parametrize(
+        ("label", "opening"),
+        [
+            ("four hyphens", "----\n"),
+            ("two hyphens", "--\n"),
+            ("leading blank line", "\n---\n"),
+            ("leading space", " ---\n"),
+            ("trailing text", "--- x\n"),
+        ],
+    )
+    def test_a_malformed_opening_fence_excludes_the_file(self, tmp_path, label, opening):
+        """Only three hyphens at the first byte open a block.
+
+        The anchor is what stops a body-level horizontal rule from turning the
+        prose above it into a pseudo-block, so loosening it is not safe.
+        """
+        (tmp_path / "analyst.md").write_text(
+            f"{opening}description: An agent.\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set(), label
+
     def test_directory_matching_the_suffix_is_excluded(self, tmp_path):
         """A directory named ``foo.md`` cannot be read, so it cannot be an agent."""
         (tmp_path / "bogus.md").mkdir()

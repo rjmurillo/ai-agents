@@ -177,6 +177,13 @@ MARKDOWN = MarkdownIt("commonmark").enable("table")
 # separates an agent from a sibling document sharing the tree's filename suffix.
 FRONTMATTER_KEY = "description"
 
+# The opening delimiter, anchored at the first byte. Anchoring is what stops a
+# body-level ``---`` horizontal rule from turning the prose above it into a
+# pseudo-block. Trailing spaces are tolerated because the closing fence already
+# tolerates them, and rejecting them here reported a real agent as missing.
+# A fourth hyphen still fails: ``----`` is not the frontmatter convention.
+FRONTMATTER_OPEN = re.compile(r"---[ \t]*\n")
+
 # The closing delimiter of a frontmatter block, which must be a line holding
 # nothing but three hyphens. Searching for the substring ``\n---`` instead
 # accepted ``---not-a-closing-fence``, which let a malformed document present
@@ -281,11 +288,12 @@ def is_agent_definition(path: Path) -> bool:
     a bare ``.md`` it admits any sibling markdown file, which is how
     ``claude-instructions.template.md`` became a citable agent name.
 
-    Both fences are required. Without the opening fence a body-level ``---``
-    horizontal rule turns any prose above it into a pseudo-block. The closing
-    fence must be a line holding nothing but three hyphens: a substring search
-    for ``\n---`` accepted ``---not-a-closing-fence`` and admitted a malformed
-    document.
+    Both fences are required, and the opening fence must sit at the first byte.
+    Without that anchor a body-level ``---`` horizontal rule turns any prose
+    above it into a pseudo-block. Each fence tolerates trailing spaces and
+    neither tolerates a fourth hyphen. The closing fence must otherwise be a
+    line holding nothing but three hyphens: a substring search for ``\n---``
+    accepted ``---not-a-closing-fence`` and admitted a malformed document.
 
     The block is parsed as YAML rather than pattern matched. A textual search for
     the key reported success on ``description: [``, which no host can load, so a
@@ -300,13 +308,13 @@ def is_agent_definition(path: Path) -> bool:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
-    if not text.startswith("---\n"):
+    if not (opened := FRONTMATTER_OPEN.match(text)):
         return False
-    close = FRONTMATTER_CLOSE.search(text, 4)
+    close = FRONTMATTER_CLOSE.search(text, opened.end())
     if close is None:
         return False
     try:
-        block = yaml.load(text[4 : close.start()], Loader=FrontmatterLoader)
+        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
     except yaml.YAMLError:
         return False
     return isinstance(block, dict) and FRONTMATTER_KEY in block
