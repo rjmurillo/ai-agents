@@ -176,6 +176,66 @@
       "caused_by": [
         "e014"
       ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased the branch onto main after PR #3643 removed the Tier 3 causal memory graph, then reworked the deliverable. PR #3643 deleted .agents/memory/causality/causal-graph.json, scripts/validation/merge_causal_graph.py, .claude/skills/memory/scripts/update_causal_graph.py, scripts/maintenance/install_merge_drivers.py, and the causal-graph entry in .gitattributes, so every worked example in the draft named a file that no longer exists on main.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Walked the claim instead of asserting it. Built a scratch repository carrying this repository's .gitattributes and merged divergent edits to .agents/HANDOFF.md and .agents/handoffs/b.md against a plain text-attributed control, then ran a second scratch repository contrasting merge=union against merge=ours on git 2.43.0.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review of the rewritten memory and runbook bullet on a different model family (gpt-5.6-sol) with instructions to falsify each claim independently and reproduce every experiment in its own scratch repositories.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The memory-size pre-commit hook rejected the single memory at 11211 characters against a 10000 maximum, and reported six categories against a maximum of five. Split the file on the seam between the two findings it carried rather than trimming evidence.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a second adversarial review of the split memories on gpt-5.6-sol, then reproduced each finding locally with a merge driver that succeeds and writes a sentinel, because a failing driver cannot discriminate between running and absent.",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": []
     }
   ],
@@ -185,7 +245,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 4
+    "files_changed": 6
   },
   "lessons": []
 }
