@@ -199,7 +199,12 @@ def load_prompt_from_ref(prompt_path: str, ref: str) -> str:
     try:
         result = subprocess.run(
             ["git", "show", f"{ref}:{prompt_path}"],
-            capture_output=True, text=True, check=True, timeout=30,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=30,
         )
         return result.stdout
     except subprocess.CalledProcessError as e:

@@ -136,6 +136,32 @@ class TestAggregateVerdicts:
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
 
+class TestScoreResponseJudgeShape:
+    @pytest.mark.parametrize(
+        "judge_json",
+        [
+            "{}",
+            '{"activation_score": 5, "citation_score": "5", "behavior_score": 5}',
+            '{"activation_score": 5, "citation_score": 5}',
+            '{"activation_score": NaN, "citation_score": 5, "behavior_score": 5}',
+            '{"activation_score": Infinity, "citation_score": 5, "behavior_score": 5}',
+        ],
+    )
+    def test_malformed_judge_score_object_sets_judge_failed(
+        self, monkeypatch, judge_json
+    ):
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: judge_json)
+
+        scores = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+        assert scores["judge_failed"] is True
+        assert scores["activation_score"] == 0
+
+
 # ---------------------------------------------------------------------------
 # _load_scenarios_file() path validation
 # ---------------------------------------------------------------------------
@@ -313,6 +339,7 @@ class TestClampScore:
             (None, 0),
             (True, 1),  # bool is int subclass; True -> 1, False -> 0
             (3.7, 3),  # float coerces to int via int()
+            (float("inf"), 0),
         ],
     )
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
