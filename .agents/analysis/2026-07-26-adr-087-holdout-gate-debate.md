@@ -2538,3 +2538,44 @@ put the bad value on the candidate, and the guard reads both headers. A test
 that only exercises one argument of a symmetric guard would pass if the guard
 dropped the other. Confirmed by mutation: deleting the incumbent check makes
 the new test fail and leaves every other test green.
+
+## Shape 60: prose that is true of the default and read as the contract
+
+A review thread on PR #3579 caught the adapter paragraph saying a skipped test
+scores as a failure "rather than being dropped", with no qualifier, while
+`extract --kind hook` has always taken `--on-skip exclude`, which drops exactly
+those. The flag appeared nowhere in the README. The sentence was true of the
+default and false as a contract, which is the harder version of a doc defect:
+nothing in it is wrong, so nothing in it looks wrong.
+
+This is the fourth prose-versus-code disagreement in this file and the second
+where the prose was incomplete rather than mistaken. Shape 57 wrote a sentence
+and the sentence found a defect. F40-1 had the README right and the code drifted
+under it for two rounds. Here the code was right the whole time and the prose
+described a subset of it. The three failure directions are now all represented,
+and the common cause is the same: no test stood between the two.
+
+Underneath the doc gap sat the enabling defect. The command hardcoded
+`("fail", "exclude")` beside the adapter's own `_SKIP_POLICIES`, so one policy
+set had two representations. A third policy added to the adapter would have been
+refused by argparse before the adapter ever saw it, and the operator would have
+read an error naming the wrong layer. It also gave the README two places to
+drift from, which is why the doc test could not be written cleanly until the
+duplicate was gone. The DRY defect was not merely adjacent to the doc defect, it
+was what made the doc defect untestable.
+
+The three tests are picked for durability over precision. Pinning the sentence
+would pin today's wording and break on a rephrase, so the assertions are: the
+README names every value the flag accepts, the fingerprint cost appears beside
+the escape hatch, and every accepted value survives the command end to end. The
+last is driven through the CLI rather than read off `parser.choices`, because
+an introspection test would stay green even if the value never reached the
+adapter, and because the private-attribute spelling it would need collides with
+the suppression gate's pattern for `noqa: S`.
+
+One instrument failure worth recording, because it is the fourth this session.
+The first mutation of the doc test passed, which would have meant the test was
+worthless. The test was fine; the mutation was incomplete, since the term
+appears three times in the paragraph and the sed replaced one. A mutation that
+does not turn a test red is a claim about the mutation before it is a claim
+about the test.

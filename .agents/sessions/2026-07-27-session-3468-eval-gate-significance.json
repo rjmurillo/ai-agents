@@ -791,9 +791,30 @@
       "filesModified": [
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Phase forty-seven: a review thread found prose that was true and incomplete",
+      "actions": [
+        "Worked an unresolved bot thread on PR 3579 rather than leaving it for the reviewer. It caught the adapter paragraph saying a skipped test scores as a failure rather than being dropped, with no qualifier, while extract --kind hook has always taken --on-skip exclude, which drops exactly those. The flag appeared nowhere in the README.",
+        "Found the enabling defect underneath: the command hardcoded the pair ('fail', 'exclude') beside the adapter's own _SKIP_POLICIES, so one policy set had two representations. Imported the tuple instead, which follows the existing cross-module convention for _MAX_PASS_RATE and _RULE_SCORE_KEYS.",
+        "Wrote three tests red first, then fixed the prose. Verified all three by mutation. The first mutation passed, which would have meant a worthless test; the mutation was incomplete rather than the test weak, since the term appears three times in the paragraph.",
+        "Suite 1706, ruff and mypy clean, dash count 0."
+      ],
+      "decisions": [
+        "Fixed on this branch rather than on 3579 where the thread lives, matching the earlier decision for the _absent thread. Rebasing two children to place a doc fix upstream costs more than the thread staying open with an explanation on it.",
+        "Asserted the weaker claims rather than the sentence. Pinning today's wording would break on a rephrase; naming every accepted value, requiring the fingerprint cost beside the escape hatch, and driving every value through the command survive rewrites and catch the omission class.",
+        "Drove the value test through the CLI rather than reading argparse choices, for two reasons: an introspection test stays green even if the value never reaches the adapter, and the private-attribute spelling it needs collides with the suppression gate's noqa: S pattern."
+      ],
+      "filesModified": [
+        "scripts/eval/README.md",
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "0103a1fe8",
+  "endingCommit": "32ab12dbe",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
