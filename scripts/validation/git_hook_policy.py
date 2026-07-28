@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import difflib
 import json
 import os
 import re
@@ -61,9 +63,20 @@ DOCUMENTATION_PATTERNS = (
 TRIVIAL_SESSION_SECONDS = 10 * 60
 SECURITY_SUPPRESSION_RE = re.compile(
     r"(?:#|//|/\*)\s*"
-    r"(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
+    r"(?:"
+    r"lgtm\[|"
+    r"nosec\b|"
+    r"nosem(?:grep)?\b|"
+    r"noqa\b(?:\s*:[^\r\n]*)?|"
+    r"type:\s*ignore(?:\[[^\]\r\n]*\])?|"
+    r"cwe-suppress\b"
+    r")"
 )
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
+RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
+BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
+TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
+EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -81,6 +94,36 @@ POWERSHELL_SHELL_RE = re.compile(r"^\s*(?:pwsh|powershell)(?:\s|$)", re.IGNORECA
 SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
+
+
+def _ruff_scan_suffixes() -> frozenset[str]:
+    """Return suffixes accepted by the repository's Ruff count gate."""
+    try:
+        module = ast.parse(RUFF_COUNT_RATCHET.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return frozenset({".py"})
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        has_scan_globs_assignment = any(
+            isinstance(target, ast.Name) and target.id == "_SCAN_GLOBS"
+            for target in node.targets
+        )
+        if not has_scan_globs_assignment:
+            continue
+        try:
+            scan_globs = ast.literal_eval(node.value)
+        except (ValueError, TypeError):
+            return frozenset({".py"})
+        if not isinstance(scan_globs, tuple) or not all(
+            isinstance(item, str) for item in scan_globs
+        ):
+            return frozenset({".py"})
+        return frozenset(PurePosixPath(item).suffix.lower() for item in scan_globs)
+    return frozenset({".py"})
+
+
+SECURITY_SUPPRESSION_SUFFIXES = SEMGREP_SUFFIXES | BANDIT_SUFFIXES | _ruff_scan_suffixes()
 SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
@@ -167,6 +210,10 @@ class PushUpdate:
     head: str
     range_spec: str
     destination_branch: str | None
+
+
+class PushUpdateConfigError(ValueError):
+    """Raised when a pushed ref cannot be resolved to a deterministic range."""
 
 
 def _clean_git_env() -> dict[str, str]:
@@ -739,8 +786,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     if not gated_paths:
         return 0
     if _merge_in_progress(repo_root):
-        from_main = _paths_on_merge_head(gated_paths, repo_root)
-        gated_paths = [p for p in gated_paths if p not in from_main]
+        gated_paths = _merge_authored_adr_paths(gated_paths, repo_root)
         if not gated_paths:
             return 0
 
@@ -767,6 +813,62 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
         return 1
     return 0
+
+
+def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
+    parent_commits = _approved_merge_head_commits(repo_root)
+    authored: list[str] = []
+    for path in paths:
+        staged_blob = _read_index_blob(repo_root, path)
+        if staged_blob is None:
+            authored.append(path)
+            continue
+        if _read_head_blob(repo_root, path) == staged_blob:
+            continue
+        if any(
+            _read_commit_blob_bytes(repo_root, parent, path) == staged_blob
+            for parent in parent_commits
+        ):
+            continue
+        authored.append(path)
+    return authored
+
+
+def _approved_merge_head_commits(repo_root: Path) -> list[str]:
+    return [
+        commit
+        for commit in _merge_head_commits(repo_root)
+        if _commit_is_origin_main_ancestor(repo_root, commit)
+    ]
+
+
+def _merge_head_commits(repo_root: Path) -> list[str]:
+    result = _run_git(repo_root, ["rev-parse", "--git-path", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return []
+    merge_head = Path(result.stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = repo_root / merge_head
+    try:
+        return [
+            line.strip()
+            for line in merge_head.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except OSError:
+        return []
+
+
+def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
+    result = _run_git(repo_root, ["merge-base", "--is-ancestor", commit, "origin/main"])
+    return result.returncode == 0
+
+
+def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
+    result = _run_git(repo_root, ["show", f"{commit}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.encode("utf-8")
 
 
 def _session_has_retrospective_evidence(session_log: Path) -> bool:
@@ -1299,10 +1401,13 @@ MYPY_RATCHET_DEFAULT_BASE = "origin/main"
 # absent in this repo's config but tolerated. Only ``error`` severity blocks;
 # ``note`` lines are advisory and ignored.
 MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
-# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file; the
-# ``+c,d`` field of each hunk header is the changed-line span (post-image).
-DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.+)$")
+# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file with
+# stable prefixes; the optional prefix keeps parser tests honest against
+# diff.noprefix drift. The ``+c,d`` field of each hunk header is the changed-line
+# span (post-image).
+DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
+
 
 
 def _normalize_ratchet_path(path: str) -> str:
@@ -1542,7 +1647,11 @@ def _push_updates(stream: TextIO, repo_root: Path) -> list[PushUpdate] | None:
     for push_ref in push_refs:
         if push_ref.is_deletion or push_ref.local_sha in seen_heads:
             continue
-        updates.append(resolve_push_update(push_ref, repo_root))
+        try:
+            updates.append(resolve_push_update(push_ref, repo_root))
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return None
         seen_heads.add(push_ref.local_sha)
     return updates
 
@@ -1573,63 +1682,154 @@ def _added_suppression_violations(
     paths: Sequence[str],
     repo_root: Path,
 ) -> list[str] | None:
-    scan_paths = [path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES]
+    scan_paths = [
+        path for path in paths if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+    ]
     if not scan_paths:
         return []
-    if ".." not in update.range_spec:
-        # No base available; `git diff <sha>` would compare against the
-        # working tree, not against a parent commit.  Fail open: the SHA
-        # gate at push time remains the hard safety boundary.
-        return []
-    result = _run_git(
-        repo_root,
-        ["diff", "--unified=0", "--no-color", update.range_spec, "--", *scan_paths],
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
+    notebook_paths = [path for path in scan_paths if Path(path).suffix.lower() == ".ipynb"]
+    diff_scan_paths = [path for path in scan_paths if Path(path).suffix.lower() != ".ipynb"]
+    violations: list[str] = []
+    if diff_scan_paths:
+        result = _run_git(
+            repo_root,
+            [
+                "-c",
+                "diff.noprefix=false",
+                "diff",
+                *TEXTUAL_DIFF_FLAGS,
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
+                "--no-renames",
+                "--unified=0",
+                "--no-color",
+                update.range_spec,
+                "--",
+                *diff_scan_paths,
+            ],
+        )
+        if result.returncode != 0:
+            _print_process_output(result)
+            return None
+        violations.extend(_suppression_violations_in_diff(update.head, result.stdout))
+    notebook_violations = _notebook_suppression_violations(update, notebook_paths, repo_root)
+    if notebook_violations is None:
         return None
-    return _suppression_violations_in_diff(update.head, result.stdout)
+    violations.extend(notebook_violations)
+    return violations
 
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     violations: list[str] = []
     current_path: str | None = None
     current_line: int | None = None
+    in_hunk = False
     for line in diff_text.splitlines():
-        file_match = DIFF_ADDED_FILE_RE.match(line)
-        if file_match is not None:
+        if line.startswith("diff --git "):
+            current_path = None
+            current_line = None
+            in_hunk = False
+            continue
+        file_match = None if in_hunk else DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None and file_match.group("path") != "/dev/null":
             current_path = _normalize_ratchet_path(file_match.group("path"))
             current_line = None
             continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is not None:
             current_line = int(hunk_match.group("start"))
+            in_hunk = True
             continue
-        if current_path is None or current_line is None or line.startswith("\\"):
+        if not in_hunk or current_path is None or current_line is None or line.startswith("\\"):
             continue
-        if line.startswith("+") and not line.startswith("+++"):
+        if line.startswith("+"):
             if SECURITY_SUPPRESSION_RE.search(line[1:]):
                 violations.append(f"{head[:12]}:{current_path}:{current_line}")
             current_line += 1
             continue
-        if line.startswith("-") and not line.startswith("---"):
+        if line.startswith("-"):
             continue
         current_line += 1
     return violations
+
+
+def _notebook_suppression_violations(
+    update: PushUpdate,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _commit_text_or_none(update.head, path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_or_empty(update.base, path, repo_root)
+        base_lines = _notebook_code_lines(base_text)
+        head_lines = _notebook_code_lines(head_text)
+        for line_number in _added_line_numbers(base_lines, head_lines):
+            if SECURITY_SUPPRESSION_RE.search(head_lines[line_number - 1]):
+                violations.append(f"{update.head[:12]}:{path}:{line_number}")
+    return violations
+
+
+def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
+    result = _run_git(repo_root, ["show", f"{head}:{path}"])
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return result.stdout
+
+
+def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
+    result = _run_git(repo_root, ["show", f"{head}:{path}"])
+    return result.stdout if result.returncode == 0 else ""
+
+
+def _notebook_code_lines(text: str) -> list[str]:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return text.splitlines()
+    if not isinstance(parsed, dict):
+        return text.splitlines()
+    cells = parsed.get("cells")
+    if not isinstance(cells, list):
+        return text.splitlines()
+    lines: list[str] = []
+    for cell in cells:
+        if not isinstance(cell, dict) or cell.get("cell_type") != "code":
+            continue
+        source = cell.get("source", [])
+        if isinstance(source, str):
+            lines.extend(source.splitlines())
+        elif isinstance(source, list):
+            for item in source:
+                if isinstance(item, str):
+                    lines.extend(item.splitlines())
+    return lines
+
+
+def _added_line_numbers(base_lines: Sequence[str], head_lines: Sequence[str]) -> list[int]:
+    numbers: list[int] = []
+    matcher = difflib.SequenceMatcher(a=base_lines, b=head_lines, autojunk=False)
+    for tag, _base_start, _base_end, head_start, head_end in matcher.get_opcodes():
+        if tag in {"insert", "replace"}:
+            numbers.extend(range(head_start + 1, head_end + 1))
+    return numbers
 
 
 def _changed_commit_paths(
     update: PushUpdate,
     repo_root: Path,
 ) -> list[str] | None:
-    if ".." not in update.range_spec:
-        return _commit_paths(update.head, repo_root)
     result = _run_git(
         repo_root,
         [
             "diff",
+            *TEXTUAL_DIFF_FLAGS,
             "--name-only",
             "--diff-filter=ACMRT",
+            "--no-renames",
             "-z",
             update.range_spec,
         ],
@@ -2261,20 +2461,58 @@ def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     return result.stdout.strip() or None
 
 
+def _commit_ref_exists(repo_root: Path, ref: str) -> bool:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    return result.returncode == 0
+
+
+def _is_shallow_repository(repo_root: Path) -> bool | None:
+    result = _run_git(repo_root, ["rev-parse", "--is-shallow-repository"])
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
+
+
+def _empty_tree_sha(repo_root: Path) -> str | None:
+    result = _run_command(
+        ["git", "-C", str(repo_root), "hash-object", "-t", "tree", "--stdin"],
+        repo_root,
+        input_text="",
+    )
+    if result.returncode == 0:
+        return result.stdout.strip() or None
+    return None
+
+
 def resolve_push_update(push_ref: PushRef, repo_root: Path) -> PushUpdate:
     if push_ref.is_deletion:
         raise ValueError("deletions do not have a push range")
     base = _merge_base(repo_root, "origin/main", push_ref.local_sha)
     if base is None and push_ref.is_new:
         base = _merge_base(repo_root, "main", push_ref.local_sha)
+        if base is None:
+            base_refs_present = any(
+                _commit_ref_exists(repo_root, base_ref) for base_ref in ("origin/main", "main")
+            )
+            if base_refs_present and _is_shallow_repository(repo_root) is False:
+                base = _empty_tree_sha(repo_root) or EMPTY_TREE_SHA1
     if base is None and not push_ref.is_new:
         base = push_ref.remote_sha
-    plugin_base = base or "origin/main"
-    range_spec = f"{base}..{push_ref.local_sha}" if base else push_ref.local_sha
+    if base is None:
+        raise PushUpdateConfigError(
+            "could not determine push base for new branch; fetch origin/main or "
+            "unshallow the repository before pushing"
+        )
+    range_spec = f"{base}..{push_ref.local_sha}"
     destination = _branch_name(push_ref.remote_ref)
     return PushUpdate(
         source=push_ref,
-        base=plugin_base,
+        base=base,
         head=push_ref.local_sha,
         range_spec=range_spec,
         destination_branch=destination,
@@ -2320,7 +2558,13 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
-    updates = [resolve_push_update(push_ref, repo_root) for push_ref in active_refs]
+    updates = []
+    for push_ref in active_refs:
+        try:
+            updates.append(resolve_push_update(push_ref, repo_root))
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     return _check_push_updates(updates, repo_root)
 
 
@@ -2847,7 +3091,11 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
     for push_ref in refs:
         if push_ref.is_deletion:
             continue
-        update = resolve_push_update(push_ref, repo_root)
+        try:
+            update = resolve_push_update(push_ref, repo_root)
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
         result = _run_command(
             [
                 sys.executable,

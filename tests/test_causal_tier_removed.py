@@ -72,8 +72,7 @@ def test_deleted_skill_file_stays_deleted(tree: str, relative: str) -> None:
 def test_memory_core_exports_no_causal_symbol(tree: str, symbol: str) -> None:
     source = _read(f"{tree}/skills/memory/memory_core/__init__.py")
     assert symbol not in source, (
-        f"{tree} memory_core re-exports {symbol}. The causal write API was "
-        "removed by ADR-088."
+        f"{tree} memory_core re-exports {symbol}. The causal write API was removed by ADR-088."
     )
 
 
@@ -126,3 +125,26 @@ def test_episode_schema_retains_intra_episode_causal_links() -> None:
         "No episode retains a caused_by or leads_to link. ADR-088 kept the "
         "intra-episode links; only the derived graph was removed."
     )
+
+
+def test_non_causal_push_gate_tests_survived_the_removal() -> None:
+    """Edge case: the removal must not have deleted tests by filename.
+
+    ``test_git_hook_policy_causal_restore.py`` held five classes. Three covered
+    the graph snapshot-and-restore path and went with the graph. Two covered the
+    push gate's suppression parser and the ADR-review merge scope, which never
+    touched causality; they shared the file only because both exercise
+    ``git_hook_policy``. A first pass of ADR-088 deleted the file on the
+    strength of its name and dropped 25 unrelated tests. This asserts the
+    survivors are still collected.
+    """
+    path = REPO_ROOT / "tests/validation/test_git_hook_policy_push_scope.py"
+    assert path.is_file(), (
+        "tests/validation/test_git_hook_policy_push_scope.py is missing. It holds "
+        "the suppression-parser and ADR-merge-scope tests rescued from the "
+        "deleted causal-restore file (ADR-088 Scope)."
+    )
+
+    body = path.read_text(encoding="utf-8")
+    for expected in ("class TestPushedSuppressionPolicy:", "class TestAdrReviewPolicyMergeScope:"):
+        assert expected in body, f"{expected} was dropped from the rescued push-scope tests"

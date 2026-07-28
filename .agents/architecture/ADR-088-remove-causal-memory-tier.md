@@ -228,6 +228,17 @@ Those order the events within one session and are part of the ADR-038 episode
 format that 275 committed files already use. They are not the deleted graph;
 they never left the episode.
 
+Two test suites that shared a causal-named file also stay. A first pass of this
+change deleted `tests/validation/test_git_hook_policy_causal_restore.py`
+outright, on the strength of its name. The name was wrong about its contents:
+three of its five classes covered the graph snapshot-and-restore path, and the
+other two covered the push gate's suppression parser and the ADR-review merge
+scope, which have nothing to do with causality. They shared a file only because
+both exercise `git_hook_policy`. The two surviving classes now live in
+`tests/validation/test_git_hook_policy_push_scope.py`, unchanged except for the
+module header. Deleting by filename would have silently dropped 25 tests
+guarding a gate that had been hardened four days earlier.
+
 ## Consequences
 
 ### Positive
