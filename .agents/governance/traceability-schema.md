@@ -20,9 +20,11 @@ This document defines the traceability graph structure used to validate cross-re
 
 | Type | ID Pattern | Location | Description |
 |------|------------|----------|-------------|
-| REQ | `REQ-NNN` | `.agents/specs/requirements/` | EARS format requirements |
-| DESIGN | `DESIGN-NNN` | `.agents/specs/design/` | Design documents |
-| TASK | `TASK-NNN` | `.agents/specs/tasks/` | Atomic work items |
+| REQ | `REQ-<id>` | `.agents/specs/requirements/` | EARS format requirements |
+| DESIGN | `DESIGN-<id>` | `.agents/specs/design/` | Design documents |
+| TASK | `TASK-<id>` | `.agents/specs/tasks/` | Atomic work items |
+
+`<id>` is an alphanumeric suffix (digits or lowercase letters, e.g., `001`, `a02`).
 
 ### Edge Types
 
@@ -40,11 +42,11 @@ Each spec file MUST have YAML front matter with these fields:
 ```yaml
 ---
 type: requirement | design | task
-id: REQ-NNN | DESIGN-NNN | TASK-NNN
+id: REQ-<id> | DESIGN-<id> | TASK-<id>
 status: draft | review | approved | implemented | complete
 related:
-  - REQ-NNN     # For designs: requirements addressed
-  - DESIGN-NNN  # For tasks: designs implemented
+  - REQ-<id>     # For designs: requirements addressed
+  - DESIGN-<id>  # For tasks: designs implemented
 ---
 ```
 
