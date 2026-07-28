@@ -73,8 +73,13 @@ jobs:
           # `type: choice` input, which GitHub validates server-side; the
           # check restates that constraint so a later widening of the input
           # type cannot silently reopen the hole.
+          #
+          # `0*` rejects zero and every leading-zero form in one arm. Zero is
+          # not the "positive integer" the message promises: `--since 0`
+          # resolves to today, so the report would cover a same-day window
+          # while claiming to be a period metrics run.
           case "$days" in
-            ''|*[!0-9]*)
+            ''|0*|*[!0-9]*)
               echo "::error::days must be a positive integer" >&2
               exit 1
               ;;
@@ -102,16 +107,19 @@ jobs:
             > metrics-report.txt
 
           # Capture summary for job output
-          echo "## Agent Metrics Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Grouped so the redirect is opened once rather than per line.
+          {
+            echo "## Agent Metrics Summary"
+            echo ""
 
-          if [ "$PERIOD_FORMAT" = "json" ]; then
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            cat metrics-report.txt >> $GITHUB_STEP_SUMMARY
-          fi
+            if [ "$PERIOD_FORMAT" = "json" ]; then
+              echo '```json'
+              cat metrics-report.txt
+              echo '```'
+            else
+              cat metrics-report.txt
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Display metrics
         run: cat metrics-report.txt
@@ -154,8 +162,8 @@ jobs:
           COVERAGE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_2_coverage']['coverage_rate'])")
           INFRA_RATE=$(python -c "import json; m=json.load(open('metrics.json')); print(m['metric_4_infrastructure_review']['review_rate'])")
 
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "infra_rate=$INFRA_RATE" >> $GITHUB_OUTPUT
+          echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "infra_rate=$INFRA_RATE" >> "$GITHUB_OUTPUT"
 
           # Check if any threshold is breached
           ALERT=false
@@ -174,29 +182,32 @@ jobs:
             ALERT=true
           fi
 
-          echo "alert=$ALERT" >> $GITHUB_OUTPUT
+          echo "alert=$ALERT" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         env:
           CHECK_COVERAGE: ${{ steps.check.outputs.coverage }}
           CHECK_INFRA_RATE: ${{ steps.check.outputs.infra_rate }}
         run: |
-          echo "## Threshold Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Current | Target | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          # Grouped so the redirect is opened once rather than per line.
+          {
+            echo "## Threshold Check Results"
+            echo ""
+            echo "| Metric | Current | Target | Status |"
+            echo "|--------|---------|--------|--------|"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           COVERAGE="$CHECK_COVERAGE"
           INFRA_RATE="$CHECK_INFRA_RATE"
 
           if (( $(echo "$COVERAGE >= 50" | bc -l) )); then
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Agent Coverage | ${COVERAGE}% | 50% | :white_check_mark: |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Agent Coverage | ${COVERAGE}% | 50% | :x: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Agent Coverage | ${COVERAGE}% | 50% | :x: |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if (( $(echo "$INFRA_RATE >= 100" | bc -l) )); then
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :white_check_mark: |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :warning: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Infrastructure Review | ${INFRA_RATE}% | 100% | :warning: |" >> "$GITHUB_STEP_SUMMARY"
           fi

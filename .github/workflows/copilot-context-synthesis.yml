@@ -89,7 +89,7 @@ jobs:
           INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
           EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             number="$INPUT_ISSUE_NUMBER"
           else
             number="$EVENT_ISSUE_NUMBER"
@@ -98,8 +98,12 @@ jobs:
           # The dispatch input is free-form text that reaches a shell
           # argument and a `gh` call downstream, so constrain it to digits
           # at the boundary rather than trusting the dispatcher.
+          #
+          # `0*` rejects zero and every leading-zero form in one arm. GitHub
+          # issue numbers start at 1, so zero names nothing and the message
+          # already promised it could not get through.
           case "$number" in
-            ''|*[!0-9]*)
+            ''|0*|*[!0-9]*)
               echo "::error::issue_number must be a positive integer" >&2
               exit 1
               ;;
@@ -143,17 +147,20 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
-          echo "## Copilot Context Synthesis Complete :robot:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
-          echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY
-          echo "- Posted/updated synthesis comment with @copilot mention" >> $GITHUB_STEP_SUMMARY
-          echo "- Assigned copilot-swe-agent to the issue" >> $GITHUB_STEP_SUMMARY
-          echo "- Removed copilot-ready label (processing complete)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY
+          # Grouped so the redirect is opened once rather than per line.
+          {
+            echo "## Copilot Context Synthesis Complete :robot:"
+            echo ""
+            echo "**Issue**: #${ISSUE_NUMBER}"
+            echo ""
+            echo "### Actions Taken"
+            echo "- Synthesized context from trusted sources"
+            echo "- Posted/updated synthesis comment with @copilot mention"
+            echo "- Assigned copilot-swe-agent to the issue"
+            echo "- Removed copilot-ready label (processing complete)"
+            echo ""
+            echo "Copilot will now create a PR based on the synthesized context."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # Job 2: Sweep for Missed Issues (scheduled or manual without issue number)
@@ -182,15 +189,15 @@ jobs:
         run: |
           echo "Searching for issues with copilot-ready label..."
           ISSUES=$(gh issue list --label "copilot-ready" --state open --json number --jq '.[].number' | tr '\n' ' ')
-          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"
 
           if [ -z "$ISSUES" ]; then
             echo "No issues found with copilot-ready label"
-            echo "count=0" >> $GITHUB_OUTPUT
+            echo "count=0" >> "$GITHUB_OUTPUT"
           else
-            COUNT=$(echo $ISSUES | wc -w)
+            COUNT=$(echo "$ISSUES" | wc -w)
             echo "Found $COUNT issue(s) to process: $ISSUES"
-            echo "count=$COUNT" >> $GITHUB_OUTPUT
+            echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Process each issue
@@ -249,16 +256,22 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## Copilot Context Synthesis Sweep :broom:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Issues Found**: ${{ steps.find-issues.outputs.count }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.find-issues.outputs.count }}" == "0" ]; then
-            echo "No issues with \`copilot-ready\` label found. All caught up! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### Issues Processed" >> $GITHUB_STEP_SUMMARY
-            echo "Issues: ${{ steps.find-issues.outputs.issues }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Check the job logs for individual issue processing results." >> $GITHUB_STEP_SUMMARY
-          fi
+          # Grouped so the redirect is opened once rather than per line.
+          # `=` rather than `==` keeps the test POSIX; the step declares no
+          # shell, so it runs under bash today, but the guard should not
+          # depend on that.
+          {
+            echo "## Copilot Context Synthesis Sweep :broom:"
+            echo ""
+            echo "**Trigger**: ${{ github.event_name }}"
+            echo "**Issues Found**: ${{ steps.find-issues.outputs.count }}"
+            echo ""
+            if [ "${{ steps.find-issues.outputs.count }}" = "0" ]; then
+              echo "No issues with \`copilot-ready\` label found. All caught up! :white_check_mark:"
+            else
+              echo "### Issues Processed"
+              echo "Issues: ${{ steps.find-issues.outputs.issues }}"
+              echo ""
+              echo "Check the job logs for individual issue processing results."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
