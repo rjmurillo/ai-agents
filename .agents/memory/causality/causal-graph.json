@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-28T09:51:54.622018+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22485,15 +22485,6 @@
       "created": "2026-07-27T19:52:49.940040+00:00"
     },
     {
-      "id": "028cf1b95824",
-      "type": "commit",
-      "label": "commit: Commit: 8c17b1d10e58",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T16:34:01.954991+00:00"
-    },
-    {
       "id": "65d72b61f137",
       "type": "milestone",
       "label": "milestone: First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
@@ -23725,6 +23716,177 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution"
       ],
       "created": "2026-07-28T04:28:48.065013+00:00"
+    },
+    {
+      "id": "ad1c190e241b",
+      "type": "milestone",
+      "label": "milestone: Identified 3 unresolved review threads from copilot-pull-request-reviewer",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.777870+00:00"
+    },
+    {
+      "id": "201690d119c5",
+      "type": "milestone",
+      "label": "milestone: Fixed load_skills() fail-closed bug: missing skills_dir now raises FileNotFoundError instead of returning empty list",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.777970+00:00"
+    },
+    {
+      "id": "4f36636f319a",
+      "type": "milestone",
+      "label": "milestone: Added test_missing_skills_dir_is_config_error for the fail-closed contract",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778055+00:00"
+    },
+    {
+      "id": "8385d7a62b0d",
+      "type": "milestone",
+      "label": "milestone: Added test_use_instead_route_form and test_semicolon_use_route_form covering all three supported SKIP clause patterns",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778138+00:00"
+    },
+    {
+      "id": "bf3f334fb4fa",
+      "type": "milestone",
+      "label": "milestone: All 16 tests pass, ruff clean, mypy clean, pre-PR validation passes with 0 failures",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778222+00:00"
+    },
+    {
+      "id": "998b4c825c3b",
+      "type": "commit",
+      "label": "commit: Commit: d673cbba9",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778305+00:00"
+    },
+    {
+      "id": "6c506cca4054",
+      "type": "commit",
+      "label": "commit: Commit: 42894c131",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778388+00:00"
+    },
+    {
+      "id": "1ed6c5adca1d",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3512 under pr-autofix: fix fail-closed contract violation in load_skills() and add route-form test coverage per review threads.",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T09:43:20.778471+00:00"
+    },
+    {
+      "id": "8278aafed32e",
+      "type": "decision",
+      "label": "implementation: Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615013+00:00"
+    },
+    {
+      "id": "d15b13cd49f9",
+      "type": "milestone",
+      "label": "milestone: Created isolated worktree from origin/fix/3484-skip-clause-standard",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615110+00:00"
+    },
+    {
+      "id": "ce4c1c852df8",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to resolve CONFLICTING state (plugin.json version conflict)",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615196+00:00"
+    },
+    {
+      "id": "c1cc935b5315",
+      "type": "milestone",
+      "label": "milestone: Removed noqa suppression comments: used importlib in tests, consolidated imports in checks_spec",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615279+00:00"
+    },
+    {
+      "id": "23aee26b299c",
+      "type": "milestone",
+      "label": "milestone: Identified git merge-tree splitting aliased imports due to function insertion after block",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615362+00:00"
+    },
+    {
+      "id": "21cf6daf2a12",
+      "type": "milestone",
+      "label": "milestone: Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615447+00:00"
+    },
+    {
+      "id": "fccd58e96424",
+      "type": "milestone",
+      "label": "milestone: Verified merge-tree simulation produces correct result with new pattern",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615529+00:00"
+    },
+    {
+      "id": "eb441cfe0e14",
+      "type": "milestone",
+      "label": "milestone: Updated causal graph for session-3512 episode",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615611+00:00"
+    },
+    {
+      "id": "9b20d2d3bbdb",
+      "type": "outcome",
+      "label": "Outcome: success - Recover cancelled PR #3512 autofix: resolve merge conflicts, fix ruff E402 ratchet, update causal graph",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615702+00:00"
+    },
+    {
+      "id": "1cff6cf13b4e",
+      "type": "decision",
+      "label": "Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615878+00:00"
+    },
+    {
+      "id": "e0ec61a4c6b9",
+      "type": "milestone",
+      "label": "Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "created": "2026-07-28T09:51:54.615962+00:00"
     }
   ],
   "patterns": [
@@ -24289,7 +24451,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 8,
+      "occurrences": 9,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-01-09-session-317",
@@ -24299,7 +24461,8 @@
         "episode-2026-07-11-session-3016-confidence-adr",
         "episode-2026-07-13-session-3041-frontier-model",
         "episode-2026-07-15-session-3042",
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph",
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
       ],
       "id": "5bbe1bcd6123",
       "contributions": {
@@ -24310,7 +24473,8 @@
         "episode-2026-05-31-session-1857": 1.0,
         "episode-2026-07-11-session-2840-model-pin-adr": 1.0,
         "episode-2026-07-11-session-3016-confidence-adr": 1.0,
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0,
+        "episode-2026-07-28-session-3512-recovery-merge-forward": 1.0
       }
     },
     {
@@ -28149,6 +28313,20 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution": 0.8
       },
       "created": "2026-07-27T15:37:52.286386+00:00"
+    },
+    {
+      "source": "1cff6cf13b4e",
+      "target": "e0ec61a4c6b9",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3512-recovery-merge-forward"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3512-recovery-merge-forward": 0.6
+      },
+      "created": "2026-07-28T09:51:54.615972+00:00"
     }
   ]
 }

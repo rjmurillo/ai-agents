@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -26,22 +25,6 @@ from checks_common import (  # noqa: E402
     _resolve_branch_base_ref,
     _run_subprocess,
 )
-
-# Shadow the untyped import with a typed wrapper for call-site safety.
-_run_subprocess_raw = _run_subprocess
-
-
-def _run_subprocess(
-    args: list[str],
-    timeout: int = 300,
-    cwd: Path | str | None = None,
-    env: dict[str, str] | None = None,
-) -> tuple[int, str, str]:
-    """Typed wrapper for the bare-imported subprocess helper."""
-    return cast(
-        tuple[int, str, str],
-        _run_subprocess_raw(args, timeout=timeout, cwd=cwd, env=env),
-    )
 
 
 def validate_build_gates(repo_root: Path) -> bool:
@@ -202,7 +185,7 @@ def validate_skill_skip_clauses(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_sync_registry(repo_root: Path) -> bool:
