@@ -78,6 +78,8 @@ FENCE_END = "<!-- SLOW_UPDATE_END -->"
 _ANCHORED_OPS = frozenset({"insert_after", "replace", "delete"})
 _TEXT_OPS = frozenset({"append", "insert_after", "replace"})
 _VALID_OPS = frozenset({"append", "insert_after", "replace", "delete"})
+_MAX_RATIO_TEXT_LENGTH = 128
+_MAX_RATIO_COEFFICIENT_DIGITS = 64
 _MAX_RATIO_EXPONENT_MAGNITUDE = 100
 Ratio = float | str
 
@@ -159,20 +161,38 @@ class GateResult:
 
 
 def _ratio_fraction(name: str, value: Ratio) -> Fraction:
+    ratio_text = str(value)
+    display = _ratio_display(ratio_text)
+    if len(ratio_text) > _MAX_RATIO_TEXT_LENGTH:
+        raise ValueError(
+            f"{name} must be a decimal ratio with at most "
+            f"{_MAX_RATIO_TEXT_LENGTH} characters, got {display}"
+        )
     try:
-        decimal = Decimal(str(value))
+        decimal = Decimal(ratio_text)
     except InvalidOperation as exc:
-        raise ValueError(f"{name} must be a decimal ratio, got {value}") from exc
+        raise ValueError(f"{name} must be a decimal ratio, got {display}") from exc
     if not decimal.is_finite():
-        raise ValueError(f"{name} must be a finite decimal ratio, got {value}")
+        raise ValueError(f"{name} must be a finite decimal ratio, got {display}")
     if not Decimal("0") <= decimal <= Decimal("1"):
-        raise ValueError(f"{name} must be a decimal ratio between 0 and 1, got {value}")
+        raise ValueError(f"{name} must be a decimal ratio between 0 and 1, got {display}")
     if decimal and abs(decimal.adjusted()) > _MAX_RATIO_EXPONENT_MAGNITUDE:
         raise ValueError(
             f"{name} must be a decimal ratio with exponent magnitude "
-            f"<= {_MAX_RATIO_EXPONENT_MAGNITUDE}, got {value}"
+            f"<= {_MAX_RATIO_EXPONENT_MAGNITUDE}, got {display}"
+        )
+    if len(decimal.as_tuple().digits) > _MAX_RATIO_COEFFICIENT_DIGITS:
+        raise ValueError(
+            f"{name} must be a decimal ratio with at most "
+            f"{_MAX_RATIO_COEFFICIENT_DIGITS} coefficient digits, got {display}"
         )
     return Fraction(decimal)
+
+
+def _ratio_display(value: str) -> str:
+    if len(value) <= 40:
+        return value
+    return f"{value[:37]}... (length {len(value)})"
 
 
 def _canonical_ratio(value: Ratio, *, name: str = "ratio") -> str:
@@ -214,18 +234,20 @@ def split_tasks(
         raise ValueError("split_tasks requires at least one task id")
     if not seed or not seed.strip():
         raise ValueError("split_tasks requires a non-empty seed")
+    sel_display = _ratio_display(str(sel_ratio))
+    test_display = _ratio_display(str(test_ratio))
     sel_fraction = _ratio_fraction("sel_ratio", sel_ratio)
     test_fraction = _ratio_fraction("test_ratio", test_ratio)
     if not Fraction(0) < sel_fraction < Fraction(1):
-        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_display}")
     if not Fraction(0) <= test_fraction < Fraction(1):
-        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_display}")
     if min_sel < 0:
         raise ValueError(f"min_sel must be non-negative, got {min_sel}")
     if sel_fraction + test_fraction >= Fraction(1):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
-            f"got {sel_ratio} + {test_ratio}"
+            f"got {sel_display} + {test_display}"
         )
 
     cleaned: list[str] = []
@@ -248,12 +270,13 @@ def split_tasks(
     n_test = _round_half_up(Fraction(total) * test_fraction)
     if total - n_sel - n_test < 1:
         raise ValueError(
-            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"split of {total} tasks at sel_ratio={sel_display} "
+            f"test_ratio={test_display} "
             f"leaves no opt tasks"
         )
     if n_sel < 1:
         raise SplitTooSmallError(
-            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"split of {total} tasks at sel_ratio={sel_display} holds out no tasks; "
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
