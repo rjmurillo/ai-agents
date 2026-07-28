@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-05-09 |
 | **Owner** | engineering |
 | **Complexity** | Medium |
@@ -79,6 +79,8 @@ ADR (memory decomposition) → M3 (memory skill split)
 M1 (prune doc-coverage/doc-sync/workflow) → optional gate for M2 (shows process works)
 Wave 2 triage → M1-M4 learnings + quarterly CI cron
 ```
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: epic #1944 and children #1946, #1949, #1950, #2925, and #1932 closed; Tier 1 prune targets are gone.
 
 ## Objectives
 

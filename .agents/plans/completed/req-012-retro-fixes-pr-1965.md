@@ -4,10 +4,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-05-10 |
 | **Owner** | richard (with Claude Opus 4.7 1M context) |
 | **Complexity** | Medium (Tier 2-3, ~11h) |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: PR #1965 merged; wait_for_unresolved_zero.py, spec.md checklist, complete_session_log.py, and bot_cascade_advisory landed.
 
 ## Objectives
 
