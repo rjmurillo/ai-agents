@@ -23554,6 +23554,177 @@
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
       "created": "2026-07-28T02:55:10.805049+00:00"
+    },
+    {
+      "id": "a3dbd8d7226a",
+      "type": "milestone",
+      "label": "milestone: Read issue #3426",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808804+00:00"
+    },
+    {
+      "id": "c720677ae3c8",
+      "type": "milestone",
+      "label": "milestone: Closed stale execution plans",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808894+00:00"
+    },
+    {
+      "id": "009bd2621d26",
+      "type": "milestone",
+      "label": "milestone: Added active plan advisory",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808974+00:00"
+    },
+    {
+      "id": "46c04904a58c",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809050+00:00"
+    },
+    {
+      "id": "79ea5b5c5d73",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check.",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809125+00:00"
+    },
+    {
+      "id": "bd574610ca7a",
+      "type": "milestone",
+      "label": "milestone: Committed closeout docs",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:43:54.519216+00:00"
+    },
+    {
+      "id": "8d477003135d",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:44:42.128789+00:00"
+    },
+    {
+      "id": "a76f1303445a",
+      "type": "milestone",
+      "label": "milestone: Committed completed plan batch",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:45:48.675324+00:00"
+    },
+    {
+      "id": "24368d5c21ec",
+      "type": "milestone",
+      "label": "milestone: Committed single plan closeout",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:48:08.258840+00:00"
+    },
+    {
+      "id": "f640dc8c090f",
+      "type": "commit",
+      "label": "commit: Commit: b02150b671",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-28T03:56:21.060656+00:00"
+    },
+    {
+      "id": "659effefe94f",
+      "type": "milestone",
+      "label": "milestone: Phase 1 measured the three validators independently.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285792+00:00"
+    },
+    {
+      "id": "7147ef381008",
+      "type": "error",
+      "label": "error: Phase 1 measured the three validators independently.    consistency exited 0 over 0 features, traceability exited 1 with 3 errors, and hook_contracts exited 0 over 12 entries.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285890+00:00"
+    },
+    {
+      "id": "ecac05d70b01",
+      "type": "milestone",
+      "label": "milestone: Removed the retired consistency validator and its tests.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.285973+00:00"
+    },
+    {
+      "id": "03df57002a48",
+      "type": "milestone",
+      "label": "milestone: Classified traceability failures before fixing.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286051+00:00"
+    },
+    {
+      "id": "65c8fab045c3",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve issue #3360 by deleting the retired consistency validator, wiring traceability, and documenting that hook contracts are already wired.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286130+00:00"
+    },
+    {
+      "id": "1e48b1ca3463",
+      "type": "error",
+      "label": "Phase 1 measured the three validators independently.    consistency exited 0 over 0 features, traceability exited 1 with 3 errors, and hook_contracts exited 0 over 12 entries.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286297+00:00"
+    },
+    {
+      "id": "7d3399f06cd8",
+      "type": "outcome",
+      "label": "Classified traceability failures before fixing.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:37:52.286375+00:00"
+    },
+    {
+      "id": "4a7139c424fd",
+      "type": "milestone",
+      "label": "milestone: Documented that hook_contracts.py was already wired and that the retired consistency protocol now delegates to the live planning validator.",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-27T15:43:50.673731+00:00"
+    },
+    {
+      "id": "e1db675f1330",
+      "type": "commit",
+      "label": "commit: Commit: c4e160ab39",
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "created": "2026-07-28T04:28:48.065013+00:00"
     }
   ],
   "patterns": [
@@ -27964,6 +28135,20 @@
         "episode-2026-07-27-session-3489-anchor-blockquote": 0.8
       },
       "created": "2026-07-27T13:33:30.219779+00:00"
+    },
+    {
+      "source": "1e48b1ca3463",
+      "target": "7d3399f06cd8",
+      "type": "causes",
+      "weight": 0.8,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-27-session-3360-validation-modules-resolution"
+      ],
+      "contributions": {
+        "episode-2026-07-27-session-3360-validation-modules-resolution": 0.8
+      },
+      "created": "2026-07-27T15:37:52.286386+00:00"
     }
   ]
 }
