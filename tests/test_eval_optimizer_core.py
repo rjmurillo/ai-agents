@@ -36,17 +36,20 @@ from _optimizer_core import (  # noqa: E402
     Patch,
     PatchShapeError,
     ProtectedSectionError,
+    ScoreEvidence,
     SplitTooSmallError,
     apply_patches,
     buffer_contains,
     edit_budget,
-    gate,
     guard_refusal,
     mcnemar_exact,
     patch_fingerprint,
     score,
     split_fingerprint,
     split_tasks,
+)
+from _optimizer_core import (
+    gate as core_gate,
 )
 
 if _path_added and str(_EVAL_DIR) in sys.path:
@@ -63,6 +66,14 @@ def _ids(n: int, prefix: str = "F") -> list[str]:
 def _half_up_fraction(total: int, ratio: str) -> int:
     value = Fraction(total) * Fraction(ratio)
     return (value + Fraction(1, 2)).numerator // (value + Fraction(1, 2)).denominator
+
+
+def _evidence(value: float, label: str) -> ScoreEvidence:
+    return ScoreEvidence(value, {"schema": "test-provenance", "source": label})
+
+
+def gate(candidate: float, incumbent: float, **kwargs):
+    return core_gate(_evidence(candidate, "candidate"), _evidence(incumbent, "incumbent"), **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -830,6 +841,14 @@ class TestGateRegressionGuard:
 
 
 class TestGate:
+    def test_rejects_bare_scores_without_provenance(self):
+        with pytest.raises(ValueError, match="requires extraction provenance"):
+            core_gate(0.8, 0.6)
+
+    def test_rejects_empty_score_provenance(self):
+        with pytest.raises(ValueError, match="non-empty extraction provenance"):
+            core_gate(ScoreEvidence(0.8, {}), _evidence(0.6, "incumbent"))
+
     def test_a_strict_win_is_accepted(self):
         assert gate(0.8, 0.6).decision == "ACCEPT"
 
