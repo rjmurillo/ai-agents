@@ -35,7 +35,7 @@ def _job(name: str) -> dict[str, Any]:
 def test_changed_file_ruff_ratchet_blocks_in_pre_push() -> None:
     job = _job("python-lint-ratchet")
 
-    assert job["run"] == "uv run --frozen python scripts/ci/ruff_ratchet.py"
+    assert job["run"] == "uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py"
     assert "--exit-zero" not in job["run"]
     assert job["env"] == {"RUFF_RATCHET_BASE_REF": "origin/main"}
     assert job["glob"] == "**/*.py"
@@ -45,7 +45,7 @@ def test_whole_tree_ruff_count_ratchet_blocks_in_pre_push() -> None:
     job = _job("python-lint-count-ratchet")
 
     assert job["run"] == (
-        "uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref origin/main"
+        "uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main"
     )
     assert "--exit-zero" not in job["run"]
     assert "--update" not in job["run"]
