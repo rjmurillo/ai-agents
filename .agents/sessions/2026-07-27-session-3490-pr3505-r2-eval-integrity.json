@@ -89,7 +89,7 @@
       "retrospectiveInvoked": {
         "complete": true,
         "level": "SHOULD",
-        "evidence": "Not invoked; no new retrospective artifact needed for this follow-up fix."
+        "evidence": "Learnings captured in this session log: eval validators must fail closed when a measurement cannot be taken. No separate retrospective file needed for this follow-up."
       }
     }
   },
