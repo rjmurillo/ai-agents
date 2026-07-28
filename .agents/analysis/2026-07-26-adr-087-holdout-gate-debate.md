@@ -2080,7 +2080,7 @@ property that made the substitution invisible is what made the underlying bug
 survive: two causes that print at the same exit code, through the same error
 class, naming the same path.
 
-## Shape 47: the test that passed before the fix, and what it was hiding
+## Shape 50: the test that passed before the fix, and what it was hiding
 
 A reviewer said `_lock_refused` dropped the offending path by building its
 message from `exc.strerror` alone. Half of that is right and easy: the errno
@@ -2114,7 +2114,7 @@ finding. This is the fifth consecutive round where the finding was real and
 the stated impact was wrong, and the first where following the stated remedy
 would have left the stated defect in place.
 
-## Shape 48: the mutant that survived because the property cannot be violated
+## Shape 51: the mutant that survived because the property cannot be violated
 
 The ancestor walk shipped with a docstring saying the nearest blocker wins,
 and a test named for it. Reversing the walk to outermost-first survived the
