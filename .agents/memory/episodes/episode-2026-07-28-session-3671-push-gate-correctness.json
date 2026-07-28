@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-07-28-session-3671-push-gate-correctness",
+  "session": "2026-07-28-session-3671-push-gate-correctness",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix push and pre-PR gate defects: missing conflict-marker gate (#3671), traceability import failure (#3657), commit-ceiling drift between hook and CI (#3596), and the unreachable ceiling relief on a first push (#3610).",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Measured conflict-marker false-positive exposure on the real corpus first: 2 tracked files carry labelled markers, both inside fenced code blocks. Chose a fence-aware rule that never keys on a bare row of equals signs.",
+      "chosen": "Measured conflict-marker false-positive exposure on the real corpus first: 2 tracked files carry labelled markers, both inside fenced code blocks. Chose a fence-aware rule that never keys on a bare row of equals signs.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified all four issues still reproduce against origin/main at 95da12691 before writing any fix.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3657 by putting the repo root on sys.path before the scripts.github_core import, then audited the five sibling validators with the same unguarded import and confirmed none is reachable by file path today.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured conflict-marker false-positive exposure on the real corpus first: 2 tracked files carry labelled markers, both inside fenced code blocks. Chose a fence-aware rule that never keys on a bare row of equals signs.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the conflict-marker detector with 22 shapes (22 correct) and swept all 7404 tracked text files (0 false positives).",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3596 by moving both ADR-008 ceilings into pr_commit_count.py as the single source of truth and adding contains_base_merge so CI applies the relief the hook already honored.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3610 with _unpushed_commit_count. Caught my own first design: plain --not --remotes=origin excludes the branch's own remote ref and would retire the ceiling on every re-push. Narrowed to --exclude=origin/<branch>.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a behavioral probe in a throwaway repo: stacked first push measured 25 total and 10 unpushed; re-push measured 21 and 21. Both correct.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 47 regression tests, then ran a negative control against pre-fix source: 43 failures. Rewrote the first #3657 test, which was vacuous because pytest runs under uv, to invoke with -S so the editable-install .pth cannot mask the defect.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "error",
+      "content": "Wrote 47 regression tests, then ran a negative control against pre-fix source: 43 failures. Rewrote the first #3657 test, which was vacuous because pytest runs under uv, to invoke with -S so the editable-install .pth cannot mask the defect.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e473f0ea7",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c953c0df2",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 43,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}

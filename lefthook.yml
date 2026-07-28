@@ -76,6 +76,13 @@ pre-commit:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
 
+          # Issue #3671: nothing stopped a conflict marker reaching a commit.
+          - name: conflict-marker-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-conflict-markers {staged_files}
+            exclude:
+              - "tests/hooks/fixtures/**"
+
           - name: python-autofix
             timeout: 5m
             run: uv run --frozen --extra dev ruff check --fix --exit-zero -- {staged_files}
