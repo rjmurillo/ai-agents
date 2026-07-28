@@ -265,8 +265,16 @@ class WorkflowValidator:
     #
     # Deliberately absent: github.ref, github.ref_name, github.head_ref, and
     # github.base_ref all carry a branch name, which a fork author chooses.
-    # secrets.* is absent because a secret in a `run:` block is a separate
-    # exposure question, not a safe default.
+    #
+    # secrets.* is absent from this set but is still permitted, because
+    # `secrets.` sits in _DERIVED_EXPRESSION_PREFIXES above and
+    # _classify_expression checks that arm too. Setting a secret needs
+    # repository admin, which already implies workflow write, so this check
+    # does not treat a secret value as attacker-supplied text. Flagging it
+    # would be a policy change across every workflow that hands a token to a
+    # `run:` block, not a tightening of this list. Whether a secret reaching a
+    # shell argument is acceptable is a separate exposure question this check
+    # does not answer. TestSafeHeadCommentMatchesBehavior pins both halves.
     _SAFE_EXPRESSION_HEADS: frozenset[str] = frozenset(
         {
             "github.event_name",

@@ -7,6 +7,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import pytest
+
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 
 
@@ -861,3 +863,67 @@ class TestLiveWorkflowTreeHasNoInjection:
             body = path.read_text(encoding="utf-8")
             assert "${{ inputs." in body, f"{name} no longer references a dispatch input"
             assert "echo \"days=${{ inputs.days }}\"" not in body
+
+
+class TestSafeHeadCommentMatchesBehavior:
+    """Pin what `_classify_expression` actually permits.
+
+    The comment above `_SAFE_EXPRESSION_HEADS` names two deliberate absences.
+    One of them did not hold. `secrets.*` is absent from the safe-head set, but
+    `_DERIVED_EXPRESSION_PREFIXES` eleven lines above carries `secrets.`, and
+    that arm is checked too, so a secret interpolated into a `run:` block is
+    waved through. A reader auditing the check from the comment alone would
+    have built the opposite model.
+
+    These tests pin both halves so the comment cannot drift from the code
+    again without a red test.
+    """
+
+    @staticmethod
+    def _classify(expression: str) -> str | None:
+        return WorkflowValidator(Path("/nonexistent"))._classify_expression(expression, set())
+
+    @pytest.mark.parametrize(
+        "expression",
+        ["github.ref", "github.ref_name", "github.head_ref", "github.base_ref"],
+    )
+    def test_branch_name_contexts_are_flagged(self, expression: str) -> None:
+        """The comment's first claim: a fork author picks these, so they are unsafe."""
+        assert self._classify(expression) is not None
+
+    @pytest.mark.parametrize(
+        "expression", ["secrets.MY_TOKEN", "secrets.GITHUB_TOKEN", "secrets.NPM_TOKEN"]
+    )
+    def test_secrets_are_permitted_by_this_check(self, expression: str) -> None:
+        """The comment's second claim, corrected: `secrets.` is a derived prefix.
+
+        Setting a secret needs repository admin, which already implies workflow
+        write, so this check does not treat a secret value as attacker-supplied
+        text. Flagging it instead would be a policy change across every
+        workflow that passes a token to a `run:` block, not a comment fix.
+        """
+        assert self._classify(expression) is None
+
+    @pytest.mark.parametrize(
+        "expression", ["env.FOO", "vars.FOO", "needs.a.outputs.b", "matrix.x", "runner.os"]
+    )
+    def test_the_other_derived_prefixes_are_permitted_too(self, expression: str) -> None:
+        """Control: `secrets.` is permitted by the same arm as its siblings."""
+        assert self._classify(expression) is None
+
+    @pytest.mark.parametrize(
+        "expression", ["inputs.days", "github.event.issue.title", "github.event.pull_request.body"]
+    )
+    def test_attacker_supplied_text_is_still_flagged(self, expression: str) -> None:
+        """Negative control: the check has not been widened into a rubber stamp."""
+        assert self._classify(expression) is not None
+
+    def test_secrets_prefix_is_the_reason_not_the_safe_head_set(self) -> None:
+        """Edge: name the mechanism, so a fix to one list cannot silently pass.
+
+        If someone removes `secrets.` from the derived prefixes, this test
+        fails even though `test_secrets_are_permitted_by_this_check` would also
+        fail; the pair localizes which list moved.
+        """
+        assert "secrets.MY_TOKEN" not in WorkflowValidator._SAFE_EXPRESSION_HEADS
+        assert "secrets." in WorkflowValidator._DERIVED_EXPRESSION_PREFIXES
