@@ -1118,3 +1118,128 @@ class TestReducingARuleScenarioAcrossRepeatedRuns:
             "full",
         )
         assert got == {"S1": True, "S2": False}
+
+
+# ---------------------------------------------------------------------------
+# reduce_samples, the seam where the two rule reductions meet
+# ---------------------------------------------------------------------------
+
+
+def _sampled(sid: str, mech: str, *triples: tuple, **kw) -> dict:
+    """A scenario whose mechanism carries several judge samples.
+
+    `scores` stays populated because the producer writes it either way: it is
+    the reduction the evaluator already published, and the adapter reads the
+    raw samples instead so the two reductions cannot silently differ.
+    """
+    samples = [
+        {
+            "activation_score": t[0],
+            "citation_score": t[1],
+            "behavior_score": t[2],
+        }
+        for t in triples
+    ]
+    mech_block: dict = {"scores": dict(samples[0]), "score_samples": samples}
+    mech_block.update(kw)
+    return {"id": sid, "negative_case": False, "mechanisms": {mech: mech_block}}
+
+
+class TestTwoReductionsStackWithoutSubsumingEachOther:
+    """Repeated judge calls and repeated reports are different noise.
+
+    `score_samples` holds several calls to one judge against one report, so a
+    single erratic call is the shape it defends against and the median drops
+    that call outright. A run is a whole report, where ADR-087 Open
+    Requirement 6 measured movement spread across 13 of 24 tasks rather than
+    spiked on one, so the run reduction means them instead.
+
+    Neither collapses the other. Reducing samples cannot rescue a report that
+    landed low as a whole, and reducing runs cannot see which call inside a
+    report was the outlier. These tests pin that both axes stay live and stay
+    independently selectable.
+    """
+
+    @staticmethod
+    def _bar() -> float:
+        return 3.5
+
+    def test_samples_reduce_before_the_bar_is_applied(self):
+        """Median of 5, 5, 0 is 5 and passes; their mean is 3.33 and fails."""
+        run = [_sampled("S1", "full", (5, 5, 5), (5, 5, 5), (0, 0, 0))]
+        assert rule_results(run, "full") == {"S1": True}
+        assert rule_results(run, "full", reduce="mean") == {"S1": False}
+
+    def test_the_sample_reducer_is_selectable_through_the_multi_run_path(self):
+        """Same run, same run-reducer, opposite verdicts from samples alone."""
+        runs = [[_sampled("S1", "full", (5, 5, 5), (5, 5, 5), (0, 0, 0))]]
+        assert rule_results_multi(runs, "full") == {"S1": True}
+        assert rule_results_multi(runs, "full", reduce_samples="mean") == {"S1": False}
+
+    def test_both_reductions_apply_and_the_run_reducer_still_decides(self):
+        """Samples collapse to 5 and 2; the runs then decide between them.
+
+        Meaning the runs gives 3.5, which clears the inclusive floor. Taking
+        their min gives 2.0, which does not. The sample reduction is identical
+        in both, so only the run axis moved the verdict.
+        """
+        runs = [
+            [_sampled("S1", "full", (5, 5, 5), (5, 5, 5), (0, 0, 0))],
+            [_sampled("S1", "full", (2, 2, 2))],
+        ]
+        assert rule_results_multi(runs, "full") == {"S1": True}
+        assert rule_results_multi(runs, "full", reduce="min") == {"S1": False}
+
+    def test_one_sampled_run_still_matches_the_single_run_adapter(self):
+        """The generalization property has to survive the second axis."""
+        run = [_sampled("S1", "full", (5, 5, 5), (2, 2, 2), (4, 4, 4))]
+        for reducer in ("mean", "min", "max", "median"):
+            assert rule_results_multi(
+                [run], "full", reduce_samples=reducer
+            ) == rule_results(run, "full", reduce=reducer)
+
+    def test_an_unknown_sample_reducer_names_the_parameter_it_came_from(self):
+        """Two reducer parameters means the error has to say which one broke."""
+        run = [_sampled("S1", "full", (4, 4, 4))]
+        with pytest.raises(AdapterError, match="reduce_samples must be one of"):
+            rule_results_multi([run], "full", reduce_samples="average")
+        with pytest.raises(AdapterError, match="reduce must be one of"):
+            rule_results_multi([run], "full", reduce="average")
+
+    def test_a_failed_sample_makes_the_whole_run_no_evidence(self):
+        """Reducing the survivors would report a number the report disowned.
+
+        The run that carries the broken call has no evidence for the scenario,
+        which is not the same as a low score. A scenario measured in one run
+        and not another is the shape `rule_results_multi` already refuses, so
+        the failure surfaces there rather than averaging a hole.
+        """
+        broken = [
+            _sampled(
+                "S1",
+                "full",
+                (5, 5, 5),
+                (5, 5, 5),
+            )
+        ]
+        samples = broken[0]["mechanisms"]["full"]["score_samples"]
+        samples[1]["judge_failed"] = True
+        assert rule_results(broken, "full") == {"S1": False}
+        with pytest.raises(AdapterError, match="evidence"):
+            rule_results_multi(
+                [broken, [_sampled("S1", "full", (5, 5, 5))]], "full"
+            )
+
+    def test_a_sample_missing_a_score_is_refused_not_defaulted_to_zero(self):
+        """The same refusal the unsampled path makes, at sample granularity."""
+        run = [_sampled("S1", "full", (5, 5, 5), (5, 5, 5))]
+        del run[0]["mechanisms"]["full"]["score_samples"][1]["behavior_score"]
+        with pytest.raises(AdapterError, match=r"score_samples\[1\] missing"):
+            rule_results_multi([run], "full")
+
+    def test_an_empty_sample_list_is_refused_rather_than_read_as_unsampled(self):
+        """An empty list is a producer that meant to write samples and did not."""
+        run = [_sampled("S1", "full", (5, 5, 5))]
+        run[0]["mechanisms"]["full"]["score_samples"] = []
+        with pytest.raises(AdapterError, match="non-empty list"):
+            rule_results_multi([run], "full")

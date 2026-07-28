@@ -524,6 +524,121 @@ class TestExtract:
         assert code == EXIT_OK
         assert out["results"] == {"S2": True}
 
+    def test_rule_extract_reduces_persisted_judge_samples(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 1,
+                                "citation_score": 1,
+                                "behavior_score": 1,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 1,
+                                    "citation_score": 1,
+                                    "behavior_score": 1,
+                                    "judge_failed": False,
+                                },
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_OK
+        assert out == _enveloped(None, {"S1": True})
+
+    def test_rule_extract_refuses_judge_failed_sample(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 5,
+                                "behavior_score": 5,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                                {"judge_failed": True, "reasoning": "timeout"},
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                    "judge_failed": False,
+                                },
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S1" in out["error"]
+
+    def test_rule_extract_refuses_missing_sample_scores(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S1",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 5,
+                                "behavior_score": 5,
+                            },
+                            "score_samples": [
+                                {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "judge_failed": False,
+                                }
+                            ],
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "behavior_score" in out["error"]
+
     def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
         envelope = {
             "rules": {
@@ -6386,20 +6501,26 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         return ["extract", "--kind", kind, "--input", str(path)]
 
     # Every flag whose value a module owns, paired with the function whose
-    # signature is that owner. `Ratio` is `float | str`, so the two split
-    # ratios arrive as the string argparse was given while the owner declares
-    # a float. `_defaults_agree` reconciles the two through the product's own
-    # `_canonical_ratio`, which is neither float-loose nor string-tight.
+    # signature is that owner, then by the parameter name inside that
+    # signature. The fourth element is not redundant: `--rule-reduce` and
+    # `--reduce` both reach `rule_results_multi` and neither can be named
+    # `reduce` on both sides, so a table keyed on `dest` alone would have to
+    # leave one of the two unaudited. `Ratio` is `float | str`, so the two
+    # split ratios arrive as the string argparse was given while the owner
+    # declares a float. `_defaults_agree` reconciles the two through the
+    # product's own `_canonical_ratio`, which is neither float-loose nor
+    # string-tight.
     _OWNED_DEFAULTS = (
-        ("extract", "pass_threshold", "agent_results"),
-        ("extract", "reduce", "rule_results_multi"),
-        ("extract", "min_score", "rule_results_multi"),
-        ("extract", "on_skip", "pytest_results"),
-        ("split", "sel_ratio", "split_tasks"),
-        ("split", "test_ratio", "split_tasks"),
-        ("split", "min_sel", "split_tasks"),
-        ("budget", "max_edits", "edit_budget"),
-        ("budget", "min_edits", "edit_budget"),
+        ("extract", "pass_threshold", "agent_results", "pass_threshold"),
+        ("extract", "reduce", "rule_results_multi", "reduce"),
+        ("extract", "rule_reduce", "rule_results_multi", "reduce_samples"),
+        ("extract", "min_score", "rule_results_multi", "min_score"),
+        ("extract", "on_skip", "pytest_results", "on_skip"),
+        ("split", "sel_ratio", "split_tasks", "sel_ratio"),
+        ("split", "test_ratio", "split_tasks", "test_ratio"),
+        ("split", "min_sel", "split_tasks", "min_sel"),
+        ("budget", "max_edits", "edit_budget", "max_edits"),
+        ("budget", "min_edits", "edit_budget", "min_edits"),
     )
 
     # The minimum argv each subcommand accepts. Built by hand because
@@ -6419,9 +6540,9 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         argv = [a.format(path=path) for a in self._MINIMUM_ARGV[command]]
         return oa.build_parser().parse_args([command, *argv])
 
-    @pytest.mark.parametrize(("command", "dest", "owner"), _OWNED_DEFAULTS)
+    @pytest.mark.parametrize(("command", "dest", "owner", "param"), _OWNED_DEFAULTS)
     def test_a_flag_default_equals_the_default_of_the_function_that_owns_it(
-        self, tmp_path, command, dest, owner
+        self, tmp_path, command, dest, owner, param
     ):
         """The command must not carry its own copy of a value it does not own.
 
@@ -6435,7 +6556,7 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         exactly the defect this pins.
         """
         fn = getattr(adapters, owner, None) or getattr(core, owner)
-        expected = inspect.signature(fn).parameters[dest].default
+        expected = inspect.signature(fn).parameters[param].default
         actual = getattr(self._parse(command, tmp_path), dest)
         assert _defaults_agree(expected, actual), f"{command} --{dest}"
 
@@ -6447,9 +6568,9 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         the table is checked against both signatures directly.
         """
         missing = [
-            (dest, owner)
-            for _, dest, owner in self._OWNED_DEFAULTS
-            if dest
+            (param, owner)
+            for _, _, owner, param in self._OWNED_DEFAULTS
+            if param
             not in inspect.signature(
                 getattr(adapters, owner, None) or getattr(core, owner)
             ).parameters

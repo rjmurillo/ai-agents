@@ -58,6 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _optimizer_adapters import (  # noqa: E402
     _DEFAULT_REDUCER,
+    _DEFAULT_SAMPLE_REDUCER,
     _DEFAULT_SKIP_POLICY,
     _MAX_PASS_RATE,
     _MAX_RULE_SCORE,
@@ -673,6 +674,17 @@ def _rule_degraded_scenario_ids(
         scores = mech_data.get("scores")
         if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
+            continue
+        samples = mech_data.get("score_samples")
+        if samples is None:
+            continue
+        if not isinstance(samples, Sequence) or isinstance(samples, (str, bytes)) or not samples:
+            degraded.append(task_id)
+            continue
+        for sample in samples:
+            if not isinstance(sample, Mapping) or sample.get("judge_failed"):
+                degraded.append(task_id)
+                break
     return degraded
 
 
@@ -782,7 +794,11 @@ def _extract_rules_envelope(
     origin: dict[str, tuple[str, str]] = {}
     for name, per_run in entries:
         scored: dict[str, bool] = rule_results_multi(
-            per_run, args.mechanism, min_score=args.min_score, reduce=args.reduce
+            per_run,
+            args.mechanism,
+            min_score=args.min_score,
+            reduce=args.reduce,
+            reduce_samples=args.rule_reduce,
         )
         for sid, passed in scored.items():
             task_id = f"{name}::{sid}"
@@ -839,7 +855,11 @@ def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[
             _rule_degraded_scenario_ids(scenarios, args.mechanism)
         )
     extracted: dict[str, bool] = rule_results_multi(
-        runs, args.mechanism, min_score=args.min_score, reduce=args.reduce
+        runs,
+        args.mechanism,
+        min_score=args.min_score,
+        reduce=args.reduce,
+        reduce_samples=args.rule_reduce,
     )
     return extracted
 
@@ -2279,6 +2299,12 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
     extract.add_argument(
         "--min-score", type=float, default=DEFAULT_MIN_ACTIVATION_SCORE
+    )
+    extract.add_argument(
+        "--rule-reduce",
+        default=_DEFAULT_SAMPLE_REDUCER,
+        choices=tuple(_REDUCERS),
+        help="reducer for repeated judge samples inside one run",
     )
     extract.add_argument(
         "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES

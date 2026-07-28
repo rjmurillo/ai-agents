@@ -59,6 +59,11 @@ _SKIP_POLICIES = ("fail", "exclude")
 # silently change behaviour.
 _DEFAULT_SKIP_POLICY = "fail"
 _DEFAULT_REDUCER = "mean"
+# Samples are repeated calls to one judge on one artifact, so a single
+# erratic call is the shape being defended against and the median drops it
+# outright. Runs are whole reports, where movement is spread rather than
+# spiked, so `_DEFAULT_REDUCER` means them instead.
+_DEFAULT_SAMPLE_REDUCER = "median"
 
 _RULE_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 # The judge is told "1-5 each" and `eval-rule-activation.py` clamps its own
@@ -195,7 +200,10 @@ def agent_results(
 
 
 def _rule_run_scores(
-    scenarios: Sequence[Mapping[str, Any]], mechanism: str
+    scenarios: Sequence[Mapping[str, Any]],
+    mechanism: str,
+    *,
+    reduce_samples: str = _DEFAULT_SAMPLE_REDUCER,
 ) -> dict[str, float | None]:
     """Score one run's scenarios, mapping each id to its judge mean or None.
 
@@ -205,12 +213,43 @@ def _rule_run_scores(
     reduction refuse a scenario that was measured in some runs and not others
     instead of averaging a hole.
 
+    Both polarities read one normalized scale. `eval-rule-activation.py` builds
+    the judge prompt so that 5 always means correct behavior, including for a
+    negative case ("5 means the response correctly did NOT activate the rule").
+    So a high score is a pass whether the rule was meant to fire or stay quiet,
+    and this adapter must not invert.
+
+    Two reductions stack here and they collapse different things. One run may
+    score a scenario several times, one `score_samples` entry per judge call,
+    and `reduce_samples` collapses those inside this run. `rule_results_multi`
+    then collapses whole runs. Repeating the judge defends against one erratic
+    call; repeating the run defends against a whole report landing on the far
+    side of the bar. Neither subsumes the other, so both stay.
+
+    Args:
+        scenarios: Scored scenario records, each with `id`, `negative_case`,
+            and `mechanisms[mechanism]["scores"]`.
+        mechanism: Which mechanism column to read, typically `full`,
+            `description`, or `baseline`.
+        reduce_samples: How to collapse repeated judge samples for each score
+            key. One of `mean`, `min`, `max`, `median`.
+
+    Returns:
+        Mapping from scenario id to its reduced judge mean, or None where this
+        run produced no evidence for that scenario.
+
     Raises:
         AdapterError: A scenario is not an object, lacks an id, repeats an id,
             carries a malformed `mechanisms` or `scores` block, or holds a
             score that is not finite and numeric or falls outside the [0, 5]
             the judge is asked for and the producer clamps to.
     """
+    if reduce_samples not in _REDUCERS:
+        raise AdapterError(
+            f"reduce_samples must be one of {sorted(_REDUCERS)}, "
+            f"got {reduce_samples!r}"
+        )
+    reducer = _REDUCERS[reduce_samples]
     out: dict[str, float | None] = {}
     for scenario in scenarios:
         if not isinstance(scenario, Mapping):
@@ -252,27 +291,72 @@ def _rule_run_scores(
             out[sid] = None
             continue
 
-        missing = [key for key in _RULE_SCORE_KEYS if key not in raw_scores]
-        if missing:
-            # Defaulting an absent key to 0 put an unknown into the mean beside
-            # two real measurements, which dilutes it rather than refusing it.
-            # That reads as fail-closed only while the bar sits above what the
-            # present maxima reach alone: two fives and one absent key reduce
-            # to 3.33 and clear `--min-score 3.0`. `eval-rule-activation.py`
-            # writes all three keys unconditionally, so a mapping arriving here
-            # short of one did not come from that producer intact. It is a
-            # claim about the report, not about the candidate.
-            raise AdapterError(
-                f"scenario {sid!r} is missing {len(missing)} of "
-                f"{len(_RULE_SCORE_KEYS)} rule scores: {', '.join(missing)}"
-            )
+        raw_samples = mech_data.get("score_samples")
+        if raw_samples is None:
+            samples: list[Mapping[str, Any]] = [raw_scores]
+            missing = [key for key in _RULE_SCORE_KEYS if key not in raw_scores]
+            if missing:
+                # Defaulting an absent key to 0 put an unknown into the mean
+                # beside two real measurements, which dilutes it rather than
+                # refusing it. That reads as fail-closed only while the bar
+                # sits above what the present maxima reach alone: two fives
+                # and one absent key reduce to 3.33 and clear `--min-score
+                # 3.0`. `eval-rule-activation.py` writes all three keys
+                # unconditionally, so a mapping arriving here short of one did
+                # not come from that producer intact. It is a claim about the
+                # report, not about the candidate.
+                raise AdapterError(
+                    f"scenario {sid!r} is missing {len(missing)} of "
+                    f"{len(_RULE_SCORE_KEYS)} rule scores: {', '.join(missing)}"
+                )
+        else:
+            if (
+                not isinstance(raw_samples, Sequence)
+                or isinstance(raw_samples, (str, bytes))
+                or not raw_samples
+            ):
+                raise AdapterError(
+                    f"scenario {sid!r} score_samples must be a non-empty list"
+                )
+            samples = []
+            judge_failed = False
+            for index, sample in enumerate(raw_samples):
+                if not isinstance(sample, Mapping):
+                    raise AdapterError(
+                        f"scenario {sid!r} score_samples[{index}] must be an object"
+                    )
+                if sample.get("judge_failed"):
+                    # One broken call proves nothing, and reducing only the
+                    # samples that survived would report a number gathered
+                    # under conditions the report itself flagged as unsound.
+                    judge_failed = True
+                    break
+                missing = [key for key in _RULE_SCORE_KEYS if key not in sample]
+                if missing:
+                    raise AdapterError(
+                        f"scenario {sid!r} score_samples[{index}] missing "
+                        f"{', '.join(missing)}"
+                    )
+                samples.append(sample)
+            if judge_failed:
+                out[sid] = None
+                continue
 
+        # Reduce per key across samples, then mean the three, so a judge that
+        # is erratic on one dimension cannot be rescued by another dimension's
+        # spread. Indexing is safe: both branches above refuse a missing key
+        # rather than defaulting it, so there is no silent zero left here.
         triple = [
-            _as_float(
-                raw_scores[key],
-                f"scenario {sid!r} {key}",
-                lo=0.0,
-                hi=_MAX_RULE_SCORE,
+            reducer(
+                [
+                    _as_float(
+                        sample[key],
+                        f"scenario {sid!r} {key}",
+                        lo=0.0,
+                        hi=_MAX_RULE_SCORE,
+                    )
+                    for sample in samples
+                ]
             )
             for key in _RULE_SCORE_KEYS
         ]
@@ -293,6 +377,7 @@ def rule_results(
     mechanism: str,
     *,
     min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
+    reduce: str = _DEFAULT_SAMPLE_REDUCER,
 ) -> dict[str, bool]:
     """Map one run's rule-activation scenarios to per-scenario pass or fail.
 
@@ -318,6 +403,8 @@ def rule_results(
             `description`, or `baseline`.
         min_score: Mean of the three judge scores at or above which a scenario
             passes.
+        reduce: How to collapse repeated judge samples for each score key. One
+            of `mean`, `min`, `max`, `median`.
 
     Returns:
         Mapping from scenario id to pass or fail.
@@ -330,7 +417,9 @@ def rule_results(
     """
     return {
         sid: score is not None and score >= min_score
-        for sid, score in _rule_run_scores(scenarios, mechanism).items()
+        for sid, score in _rule_run_scores(
+            scenarios, mechanism, reduce_samples=reduce
+        ).items()
     }
 
 
@@ -340,6 +429,7 @@ def rule_results_multi(
     *,
     min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
     reduce: str = _DEFAULT_REDUCER,
+    reduce_samples: str = _DEFAULT_SAMPLE_REDUCER,
 ) -> dict[str, bool]:
     """Reduce a rule scenario across repeated runs, then threshold once.
 
@@ -367,6 +457,8 @@ def rule_results_multi(
         min_score: Reduced value at or above which a scenario passes.
         reduce: How to collapse a scenario's runs. One of `mean`, `min`,
             `max`, `median`.
+        reduce_samples: How to collapse repeated judge samples inside each run,
+            applied before `reduce` collapses the runs.
 
     Returns:
         Mapping from scenario id to pass or fail.
@@ -384,7 +476,10 @@ def rule_results_multi(
     if not runs:
         raise AdapterError("reducing rule scenarios needs at least one run, got 0")
 
-    scored = [_rule_run_scores(run, mechanism) for run in runs]
+    scored = [
+        _rule_run_scores(run, mechanism, reduce_samples=reduce_samples)
+        for run in runs
+    ]
     expected = set(scored[0])
     for index, run_scores in enumerate(scored[1:], start=2):
         if set(run_scores) != expected:
