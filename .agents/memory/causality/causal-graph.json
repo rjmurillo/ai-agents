@@ -23257,6 +23257,60 @@
         "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
       ],
       "created": "2026-07-28T01:33:45.877354+00:00"
+    },
+    {
+      "id": "1070b8f189e0",
+      "type": "milestone",
+      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615224+00:00"
+    },
+    {
+      "id": "ccb10a8598d0",
+      "type": "milestone",
+      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615321+00:00"
+    },
+    {
+      "id": "ae4384fa1407",
+      "type": "milestone",
+      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615402+00:00"
+    },
+    {
+      "id": "fd0498b1f9da",
+      "type": "commit",
+      "label": "commit: Commit: 6c19696ac",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615480+00:00"
+    },
+    {
+      "id": "bcbf184a4c55",
+      "type": "outcome",
+      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615557+00:00"
+    },
+    {
+      "id": "a305a0ccef47",
+      "type": "commit",
+      "label": "commit: Commit: 6f0315519",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T05:06:51.357047+00:00"
     }
   ],
   "patterns": [
