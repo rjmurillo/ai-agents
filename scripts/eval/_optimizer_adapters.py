@@ -53,6 +53,13 @@ _REDUCERS: dict[str, Callable[[list[float]], float]] = {
 
 _SKIP_POLICIES = ("fail", "exclude")
 
+# Named rather than repeated as a literal at each default, and not spelled as
+# an index into the collection above. An index makes the order of a choice set
+# load-bearing without saying so, and reordering it for help text would then
+# silently change behaviour.
+_DEFAULT_SKIP_POLICY = "fail"
+_DEFAULT_REDUCER = "mean"
+
 _RULE_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 # The judge is told "1-5 each" and `eval-rule-activation.py` clamps its own
 # output to [0, 5]; the floor is 0 rather than 1 because `_clamp_score` maps a
@@ -114,7 +121,7 @@ def agent_results(
     report: Mapping[str, Any],
     variant: str,
     *,
-    reduce: str = "mean",
+    reduce: str = _DEFAULT_REDUCER,
     pass_threshold: float = 1.0,
 ) -> dict[str, bool]:
     """Map an agent eval report to per-fixture pass or fail.
@@ -187,43 +194,24 @@ def agent_results(
     return out
 
 
-def rule_results(
-    scenarios: Sequence[Mapping[str, Any]],
-    mechanism: str,
-    *,
-    min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
-) -> dict[str, bool]:
-    """Map rule-activation scenarios to per-scenario pass or fail.
+def _rule_run_scores(
+    scenarios: Sequence[Mapping[str, Any]], mechanism: str
+) -> dict[str, float | None]:
+    """Score one run's scenarios, mapping each id to its judge mean or None.
 
-    Both polarities read one normalized scale. `eval-rule-activation.py` builds
-    the judge prompt so that 5 always means correct behavior, including for a
-    negative case ("5 means the response correctly did NOT activate the rule").
-    So a high score is a pass whether the rule was meant to fire or stay quiet,
-    and this adapter must not invert.
-
-    What it does add is including negative cases at all. That evaluator's own
-    verdict averages positive scenarios only and reads negative ones solely to
-    count judge failures, so a rule that over-fires can pass there. Here it
-    loses.
-
-    Args:
-        scenarios: Scored scenario records, each with `id`, `negative_case`,
-            and `mechanisms[mechanism]["scores"]`.
-        mechanism: Which mechanism column to read, typically `full`,
-            `description`, or `baseline`.
-        min_score: Mean of the three judge scores at or above which a positive
-            scenario passes.
-
-    Returns:
-        Mapping from scenario id to pass or fail.
+    None means the run produced no evidence for that scenario: the mechanism
+    never ran, ran and errored, or the judge itself failed. That is distinct
+    from a low score, and keeping the two apart is what lets the multi-run
+    reduction refuse a scenario that was measured in some runs and not others
+    instead of averaging a hole.
 
     Raises:
-        AdapterError: A scenario is not an object, lacks an id, repeats an
-            id, carries a malformed `mechanisms` or `scores` block, or holds a
+        AdapterError: A scenario is not an object, lacks an id, repeats an id,
+            carries a malformed `mechanisms` or `scores` block, or holds a
             score that is not finite and numeric or falls outside the [0, 5]
             the judge is asked for and the producer clamps to.
     """
-    out: dict[str, bool] = {}
+    out: dict[str, float | None] = {}
     for scenario in scenarios:
         if not isinstance(scenario, Mapping):
             raise AdapterError(f"scenario must be an object, got {scenario!r}")
@@ -247,7 +235,7 @@ def rule_results(
         if not isinstance(mech_data, Mapping) or "error" in mech_data:
             # Mechanism never ran, or ran and errored. Either way it produced
             # no evidence, and no evidence is not a pass.
-            out[sid] = False
+            out[sid] = None
             continue
 
         raw_scores = mech_data.get("scores", {})
@@ -261,7 +249,7 @@ def rule_results(
             )
         if raw_scores.get("judge_failed"):
             # A broken judge proves nothing, for either polarity.
-            out[sid] = False
+            out[sid] = None
             continue
 
         missing = [key for key in _RULE_SCORE_KEYS if key not in raw_scores]
@@ -296,11 +284,145 @@ def rule_results(
         # value this adapter adds is including negative cases in the task set
         # at all: eval-rule-activation.py's own verdict reads only positive
         # scenarios, using negative ones solely to count judge failures.
-        out[sid] = statistics.fmean(triple) >= min_score
+        out[sid] = statistics.fmean(triple)
     return out
 
 
-def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
+def rule_results(
+    scenarios: Sequence[Mapping[str, Any]],
+    mechanism: str,
+    *,
+    min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
+) -> dict[str, bool]:
+    """Map one run's rule-activation scenarios to per-scenario pass or fail.
+
+    Both polarities read one normalized scale. `eval-rule-activation.py` builds
+    the judge prompt so that 5 always means correct behavior, including for a
+    negative case ("5 means the response correctly did NOT activate the rule").
+    So a high score is a pass whether the rule was meant to fire or stay quiet,
+    and this adapter must not invert.
+
+    What it does add is including negative cases at all. That evaluator's own
+    verdict averages positive scenarios only and reads negative ones solely to
+    count judge failures, so a rule that over-fires can pass there. Here it
+    loses.
+
+    One run of an LLM judge is a noisy measurement; see `rule_results_multi`
+    for reducing several. This entry point is the single-run case and stays
+    exact for it.
+
+    Args:
+        scenarios: Scored scenario records, each with `id`, `negative_case`,
+            and `mechanisms[mechanism]["scores"]`.
+        mechanism: Which mechanism column to read, typically `full`,
+            `description`, or `baseline`.
+        min_score: Mean of the three judge scores at or above which a scenario
+            passes.
+
+    Returns:
+        Mapping from scenario id to pass or fail.
+
+    Raises:
+        AdapterError: A scenario is not an object, lacks an id, repeats an
+            id, carries a malformed `mechanisms` or `scores` block, or holds a
+            score that is not finite and numeric or falls outside the [0, 5]
+            the judge is asked for and the producer clamps to.
+    """
+    return {
+        sid: score is not None and score >= min_score
+        for sid, score in _rule_run_scores(scenarios, mechanism).items()
+    }
+
+
+def rule_results_multi(
+    runs: Sequence[Sequence[Mapping[str, Any]]],
+    mechanism: str,
+    *,
+    min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
+    reduce: str = _DEFAULT_REDUCER,
+) -> dict[str, bool]:
+    """Reduce a rule scenario across repeated runs, then threshold once.
+
+    The rule path is the only one of the three adapters with no noise defense:
+    `pytest_results` is deterministic and `agent_results` already averages over
+    runs. ADR-087 Open Requirement 6 measured what that costs rather than
+    assuming it. Scoring identical rule text twice moved 13 of 24 tasks and 5
+    of them across the pass threshold, with mean absolute movement of 0.49
+    points on the five-point judge scale. The two held-out gains behind the
+    live run's false accept were the two largest movements in that benchmark.
+
+    A run here is a whole report, one per invocation of
+    `eval-rule-activation.py`, because that is how the ADR's own paired
+    measurement was gathered and it needs no change to the producer.
+
+    The reduction is over scores, not over verdicts, so it matches
+    `agent_results`: collapse the runs to one number, then apply the bar once.
+    Thresholding per run and voting would discard the distance from the bar,
+    which is the only thing that says whether a disagreement was close.
+
+    Args:
+        runs: One scenario sequence per run. Every run must score the same
+            scenario ids.
+        mechanism: Which mechanism column to read.
+        min_score: Reduced value at or above which a scenario passes.
+        reduce: How to collapse a scenario's runs. One of `mean`, `min`,
+            `max`, `median`.
+
+    Returns:
+        Mapping from scenario id to pass or fail.
+
+    Raises:
+        AdapterError: `reduce` is unknown, `runs` is empty, the runs do not
+            agree on which scenarios they scored, a scenario has evidence in
+            some runs but not others, or any run is malformed in the ways
+            `rule_results` refuses.
+    """
+    if reduce not in _REDUCERS:
+        raise AdapterError(
+            f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
+        )
+    if not runs:
+        raise AdapterError("reducing rule scenarios needs at least one run, got 0")
+
+    scored = [_rule_run_scores(run, mechanism) for run in runs]
+    expected = set(scored[0])
+    for index, run_scores in enumerate(scored[1:], start=2):
+        if set(run_scores) != expected:
+            differing = sorted(expected.symmetric_difference(run_scores))
+            raise AdapterError(
+                f"every run must score the same scenarios; run {index} of "
+                f"{len(scored)} differs on: {', '.join(differing)}"
+            )
+
+    reducer = _REDUCERS[reduce]
+    out: dict[str, bool] = {}
+    for sid in scored[0]:
+        values = [run_scores[sid] for run_scores in scored]
+        present = [value for value in values if value is not None]
+        if not present:
+            # Uniform absence keeps the single-run meaning: no evidence is not
+            # a pass. This is the only shape a one-run call can reach, which is
+            # what makes `rule_results_multi([s]) == rule_results(s)` hold.
+            out[sid] = False
+            continue
+        if len(present) != len(values):
+            # Scoring this False would be worse than useless. A judge error on
+            # the incumbent's run reads as a failing scenario, so a candidate
+            # that merely ran cleanly looks like a fail-to-pass improvement:
+            # the spurious accept the gate exists to prevent, arriving through
+            # the scorer. Dropping the bad run instead would reduce over a
+            # different sample size per scenario without saying so. Neither is
+            # a measurement.
+            raise AdapterError(
+                f"scenario {sid!r} has evidence in some runs but not others "
+                f"({len(present)} of {len(values)}); "
+                f"the runs it is missing from measured nothing about it"
+            )
+        out[sid] = reducer(present) >= min_score
+    return out
+
+
+def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> dict[str, bool]:
     """Map a pytest JUnit XML report to per-test pass or fail.
 
     Uses `--junitxml`, which is pytest core, so hook and script suites need no
@@ -313,8 +435,12 @@ def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
         on_skip: `fail` scores a skipped test as a failure, `exclude` drops it
             from the mapping. `fail` is the default because a skipped test
             demonstrated nothing. Prefer `exclude` only when skips are static,
-            since a conditionally skipped test changes the task-id set between
-            runs, which moves the split fingerprint and stops the gate.
+            because dropping a task is not free. A conditionally skipped test
+            changes the task-id set between runs while the split was drawn once
+            from the full set, so a dropped id in the held-out group makes the
+            gate charge a consultation and report `REJECT` at exit 1 with
+            `compared: false`, and a dropped id outside it leaves the drift
+            invisible.
             `exclude` drops only a testcase whose skip stands alone: one that
             also carries a failure or an error did demonstrate something and
             is scored as a failure under either policy.

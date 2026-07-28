@@ -3,7 +3,7 @@
   "session": {
     "number": 3468,
     "date": "2026-07-27",
-    "branch": "fix/eval-refuse-malformed-input",
+    "branch": "feat/eval-rule-multirun",
     "startingCommit": "303f918ea8",
     "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
   },
@@ -12,12 +12,12 @@
       "branchVerified": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current returned fix/eval-refuse-malformed-input. The session opened on feat/eval-gate-significance-bar, moved to fix/eval-buffer-crash-exit-code when PR #3478 squash-merged that work as 102e9976f, and moved again when ADR-008's twenty-commit ceiling refused the push at twenty-one. That ceiling was read as a size gate rather than an obstacle: the branch was left at twenty commits covering the crash-to-verdict findings, and the refuse-malformed-input findings continue here against issue #3588."
+        "evidence": "git branch --show-current returned fix/eval-refuse-malformed-input. The session opened on feat/eval-gate-significance-bar, moved to fix/eval-buffer-crash-exit-code when PR #3478 squash-merged that work as 102e9976f, and moved again when ADR-008's twenty-commit ceiling refused the push at twenty-one. That ceiling was read as a size gate rather than an obstacle: the branch was left at twenty commits covering the crash-to-verdict findings, and the refuse-malformed-input findings continue here against issue #3588. A fourth move followed: feat/eval-rule-multirun, stacked on fix/eval-refuse-malformed-input because ADR-087 Open Requirement 6 is adapter work rather than more hardening of the same file, and because _optimizer_adapters.py is already in the open chain so a main-based branch would have conflicted."
       },
       "notOnMain": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current = fix/eval-refuse-malformed-input"
+        "evidence": "git branch --show-current = feat/eval-rule-multirun"
       },
       "gitStateVerified": {
         "complete": true,
@@ -666,9 +666,275 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Phase forty-one: the rule path stops asking one judge once",
+      "actions": [
+        "Resolved the open end-to-end question by reading ADR-087 Open Requirement 5 rather than running anything: a live rule-path validation ran 2026-07-27 via GitHub Models. It produced a false accept, and the null control caught it. A negative demonstration is a demonstration, and it is the more informative direction.",
+        "That run is what promoted Open Requirement 6 from a suspicion to a measurement. Scoring identical rule text twice moved 13 of 24 tasks and 5 across the pass threshold, mean absolute movement 0.49 points on a five-point judge scale. The two held-out gains behind the false accept were the two largest movements in that benchmark.",
+        "Read the producer before designing the consumer. eval-rule-activation.py has no runs flag and writes one scores block per mechanism, so an in-record runs list would have been a consumer for data nobody makes. The ADR's own paired measurement was gathered by invoking the producer twice, so the run unit is a whole report and no producer change is needed.",
+        "TDD: 16 tests written and run red (ImportError on rule_results_multi), then green. Eval suite 1627 to 1643.",
+        "Extracted _rule_run_scores so both entry points share one implementation rather than sniffing the input shape, which is the missing-model smell the review skill names."
+      ],
+      "decisions": [
+        "Reduce over scores, not over verdicts. Thresholding each run and voting discards the distance from the bar, which is the only thing that says whether a disagreement was close. This also matches agent_results, so the two noisy adapters now read the same way.",
+        "A scenario with evidence in some runs but not others is refused, not scored False and not silently dropped. False is actively unsafe in the incumbent direction: a judge error on the incumbent's run reads as a failing scenario, so a candidate that merely ran cleanly looks like a fail-to-pass improvement. That is the spurious accept the gate exists to prevent, arriving through the scorer. Dropping the run reduces over a different sample size per scenario without saying so.",
+        "Uniform absence stays False, which is what makes rule_results_multi([s]) == rule_results(s) hold exactly. That equality is a test, not a claim.",
+        "#3445 was on the deferred-to-owner list and was taken off it. Open Requirement 3 (#3437, the boolean seam) is marked in the ADR as the user's call; Open Requirement 6 carries a directive Proposed section instead. The marker is the difference, not the issue number."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "tests/test_eval_optimizer_adapters.py",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Phase forty-two: round thirty-nine, and a refusal that leaked around itself",
+      "actions": [
+        "Ran round 39 as a code-review agent on gpt-5.6-sol at xhigh, scoped to the four commits since round 38, with instructions to reproduce before reporting. It returned three Critical findings and nothing else. All three reproduced independently before any test was written.",
+        "F5: a candidate carrying a duplicate JSON key came back decision REJECT exit 1, with a reason stating the two files disagree on a corpus they agree on. Fixed with a third sentinel, not a widened guard. Measured after: ConfigError naming the repeated key, which the dispatcher turns into exit 2.",
+        "F7: a closed stdout raises ValueError, not OSError, so main's guard missed it and the process exited 1 with a traceback. Measured after: exit 2, no traceback. Catching ValueError at main gives up nothing, because _dispatch's inner handler already maps every ValueError to EXIT_CONFIG.",
+        "F6: os.dup2 needs a descriptor, so a stand-in stream left the broken stdout installed and CPython's shutdown flush replaced the status with 120 after the function returned 2. Measured before at exit 120 with 'Exception ignored'; after, exit 2 clean. A unit test cannot catch this, because pytest restores stdout before interpreter shutdown, so the test is a subprocess.",
+        "TDD: 7 tests written and confirmed red for the right reasons, then green. Eval suite 1689 to 1695. One of the 7 was wrong before the code was, the fourth bad instrument this session: it stood in a closed io.StringIO for a closed stdout, and a closed StringIO's flush returns quietly.",
+        "Split the work into two commits by filtering the diff's hunks. The first attempt classified hunks by line number and produced a red intermediate commit, because U3 context shifted a hunk start by three and misrouted the F6/F7 tests into the F5 commit. Reclassified by content, with the filter refusing rather than guessing on any hunk it could not place, and verified the intermediate commit green at 590 tests before committing.",
+        "Fired the adr-review gate as a critic agent on gemini-3.1-pro-preview against the ADR-087 delta. Verdict OVERCLAIMING, and correct on substance: my entry claimed a single-run rule accept 'carries exactly the information it carried before this landed', which is false. Rewrote the entry.",
+        "Wrote debate log shapes 52 through 58."
+      ],
+      "decisions": [
+        "The F5 fix adds an answer rather than widening a guard. _corpus_conflict's anti-strip rule is real and something has to hold it, so tolerating an unreadable file there would buy the malformed case by selling the stripped one. A negative control test that was green before the fix and stayed green after is what holds that line.",
+        "Gave the sentinel a class instead of a bare object(). _UNREADABLE = object() made the return type str | object | None, which collapses to object and checks nothing. As a one-line class the type became str | _Unreadable | None and mypy immediately failed the call site, because the sentinel flows into _corpus_conflict, which is written against str | None. The bare-object version would have shipped that hole silently.",
+        "_detach_stdout still prefers the devnull redirect and falls back to sys.stdout = None, rather than assigning None directly. The redirect keeps a real stream in place for anything that writes afterward. It also closes the descriptor it opens, because os.dup2 duplicates it and leaking one per exit is wrong to write down as intentional.",
+        "ADR-087 Open Requirement 6 is recorded as still open, not as landed. A mechanism exists, but nothing enforces a run count and the replication rate is still unmeasured, which is what the requirement actually asked for.",
+        "Recorded the correction the ADR review earned: single-run rule extraction is not unchanged by this branch. _rule_degraded_scenario_ids now refuses a score mapping that is present but short of a dimension, where before it refused only a missing or empty one, so single-run callers are held to a stricter standard than before."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/architecture/ADR-087-held-out-validated-improvement.md",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Phase forty-three: two push gates that cannot both be satisfied by a linear history",
+      "actions": [
+        "Removed all three type suppressions rather than justifying them, because the push gate has no allowance to justify one in place. The type: ignore[index] existed because the rule dispatch built a parallel list of booleans, checked all(), then re-indexed the payloads behind that check; collecting the values in the first pass removed both the suppression and the second traversal. Used len(envelopes) == len(payloads) rather than a truth test so an empty input keeps taking the envelope path the way all([]) did.",
+        "Probed the alternative to the two type: ignore[assignment] on sys.stdout and found the whole file-descriptor path unnecessary. sys.stdout = io.StringIO() handles the stream whose fileno raises and the real broken pipe identically to an os.dup2 devnull redirect, needs no descriptor to open or guard or close, and cannot fail at construction. Deleted _detach_stdout; its three branches collapsed to one assignment.",
+        "Hit the structural wall: every intermediate commit added a suppression and only the tip removed them, so no partial push was clean either, while the full 45-commit stack exceeded the ceiling. Rewrote the unpushed history into three layered commits after tagging pre-squash-backup, and verified the adapter-only intermediate green at 1648 before committing it.",
+        "Verified the rewrite lost nothing: git diff --quiet pre-squash-backup HEAD reports an identical tree, and the suite is 1695 on both."
+      ],
+      "decisions": [
+        "Eliminate the suppressions idiomatically rather than seek a bypass. The gate is right that a suppression is a smell, and in all three cases the code that needed one was the worse code: two traversals where one would do, and a descriptor dance where an object swap suffices.",
+        "Rewrite history rather than push in stages. Two gates bind at once. _check_commit_limit counts the whole three-branch stack from main against 40 and its only relief is a label on an open PR, which cannot exist before the first push. _added_suppression_violations refuses any commit in the pushed range that adds a suppression and has no relief at all. Rewriting is safe here only because nothing was pushed.",
+        "Group by layer rather than by finding. The twelve original commits told the review story, but that story belongs in the PR body, which survives a squash. The three that remain are separable: the adapter layer is green without the CLI, so an intermediate is a real state rather than a bisect trap."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "scripts/eval/_optimizer_core.py",
+        "scripts/eval/optimize-artifact.py",
+        "scripts/eval/README.md",
+        "tests/eval/test_optimize_artifact_cli.py",
+        "tests/test_eval_optimizer_adapters.py",
+        "tests/test_eval_optimizer_core.py",
+        ".agents/architecture/ADR-087-held-out-validated-improvement.md",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "phase": "Phase forty-four: round forty, and a third answer that covered only the case that prompted it",
+      "actions": [
+        "Pushed the rewritten branch clean past both gates at 37 commits, opened PR #3608 against fix/eval-refuse-malformed-input, and filed #3610 for the deadlock: the commit-ceiling relief needs a label on an open PR, and the PR needs a push the ceiling blocks, while the suppression gate closes the usual prefix-push escape.",
+        "Ran round forty with claude-opus-4.8 at xhigh, a model used in neither round thirty-eight nor thirty-nine. One Critical, F40-1, and explicit clearance of the multi-run reduction, the extract dispatch, and the exit path.",
+        "Reproduced F40-1 independently before accepting it. Read _corpus_header line 381 and confirmed by inspection that a non-string or bad-hex corpus fell into the same None as 'declares no corpus', then wrote seven failing tests and watched all seven fail with decision REJECT exit 1.",
+        "Fixed by mirroring _checked_corpus rather than enumerating the bad shapes: None for absent or null only, _UNREADABLE for everything the authoritative reader would raise on. Suite 1702, up from 1695; ruff clean, mypy clean, zero suppressions, dash count 0."
+      ],
+      "decisions": [
+        "Mirror the authoritative reader by construction, not by enumeration. Listing the four bad shapes would have needed a second edit the next time _checked_corpus learns to refuse something, which is the same maintenance shape that produced this defect.",
+        "Keep the README unchanged. It already documented that a truncated or upper-case value exits 2, written two rounds earlier. The documentation was right and the implementation had drifted, so the fix restores the contract rather than changing it. That a documented claim went unchecked for two rounds is the finding worth carrying forward.",
+        "Treat the round thirty-nine negative control as the test that decides whether the fix widened. It was green before and after, which answered 'did this eat the anti-strip rule' by running the suite rather than by reasoning about it."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "phase": "Phase forty-five: auditing the defect class rather than the defect",
+      "actions": [
+        "Sent the reviewer back with the generalized question: find every best-effort peek that shadows an authoritative reader with fewer branches, since that is the shape F40-1 and the round thirty-nine finding both had. Seven pairs exist across the three files. Only two readers in the codebase swallow an exception and return a domain value; every other except re-raises.",
+        "Result: the corpus header was the only pair whose missing branch could reach a decision emitter. The ledger has no pre-lock peek at all, which the round thirty-nine docstring had implied and this confirmed. No second Critical.",
+        "Closed the coverage gap the audit exposed. Every test for the corpus refusal put the bad value on the candidate, and the guard reads both headers. Added a symmetry test and verified it is real by mutation: deleting the incumbent check makes it fail at exit 1 while the rest of the suite stays green. Suite 1703."
+      ],
+      "decisions": [
+        "Keep the sharper rule rather than the blunt one. 'Peeks must carry every branch' would demand edits to the degraded-rule scan and the buffer dedup, which are safe as they are: everything they miss raises in the authority behind them, and extract never emits a verdict. The rule that survives contact is that a peek is dangerous exactly when its answer can reach a decision emitter.",
+        "Put the rule in the _corpus_header docstring rather than only in the debate log. A reader editing that function is the person who needs it, and the debate log is not on their path.",
+        "Record the audit's negative result in the debate log too. Seven pairs checked, one dangerous, is a fact worth having so the next reviewer does not repeat the enumeration."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "phase": "Phase forty-six: correcting a document of record that pointed at a destroyed commit",
+      "actions": [
+        "Squashed the two unpushed commits carrying the symmetry test and the sharpened docstring, because the branch had reached forty-one commits and the ceiling is forty. Verified lossless against a temporary tag before deleting it, suite still 1703.",
+        "That squash destroyed the sha this log named as endingCommit for the second time in the session. The first time a history rewrite did it; this time a routine ceiling squash did. The value survived local gc only because the reflog still held it, so the validator passed on a sha that is not in the branch.",
+        "Pushed the branch clean at forty commits, then applied commit-limit-bypass to PR 3608 with a public justification, since correcting the field needs one commit and the branch is exactly at the ceiling."
+      ],
+      "decisions": [
+        "Took the label rather than amending the pushed tip. Amending would have needed a force push on a branch with an open PR under review, and the rule against force-pushing shared branches is worth more than one commit of headroom.",
+        "The lesson is that endingCommit is structurally fragile: it can only ever name the parent of the commit that records it, so any later rewrite silently invalidates it and nothing checks reachability. Recorded as a candidate validator improvement rather than fixed here, since it is outside this branch's scope."
+      ],
+      "filesModified": [
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Phase forty-seven: a review thread found prose that was true and incomplete",
+      "actions": [
+        "Worked an unresolved bot thread on PR 3579 rather than leaving it for the reviewer. It caught the adapter paragraph saying a skipped test scores as a failure rather than being dropped, with no qualifier, while extract --kind hook has always taken --on-skip exclude, which drops exactly those. The flag appeared nowhere in the README.",
+        "Found the enabling defect underneath: the command hardcoded the pair ('fail', 'exclude') beside the adapter's own _SKIP_POLICIES, so one policy set had two representations. Imported the tuple instead, which follows the existing cross-module convention for _MAX_PASS_RATE and _RULE_SCORE_KEYS.",
+        "Wrote three tests red first, then fixed the prose. Verified all three by mutation. The first mutation passed, which would have meant a worthless test; the mutation was incomplete rather than the test weak, since the term appears three times in the paragraph.",
+        "Suite 1706, ruff and mypy clean, dash count 0."
+      ],
+      "decisions": [
+        "Fixed on this branch rather than on 3579 where the thread lives, matching the earlier decision for the _absent thread. Rebasing two children to place a doc fix upstream costs more than the thread staying open with an explanation on it.",
+        "Asserted the weaker claims rather than the sentence. Pinning today's wording would break on a rephrase; naming every accepted value, requiring the fingerprint cost beside the escape hatch, and driving every value through the command survive rewrites and catch the omission class.",
+        "Drove the value test through the CLI rather than reading argparse choices, for two reasons: an introspection test stays green even if the value never reaches the adapter, and the private-attribute spelling it needs collides with the suppression gate's noqa: S pattern."
+      ],
+      "filesModified": [
+        "scripts/eval/README.md",
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Round 41: the correction carried the defect it was correcting",
+      "actions": [
+        "Ran a fourth distinct model against the shape 60 change; it returned one critical and six required findings.",
+        "Reproduced the critical end to end before accepting it: built a split over ten tasks, dropped a held-out id from the candidate, and ran gate.",
+        "Measured the actual behaviour: exit 1, REJECT, consultations 1, compared false, and the fingerprint echoed back unchanged. Dropping an id outside the held-out group let the run proceed.",
+        "Corrected the false sentence in both places it lived, the README paragraph and the pytest_results docstring.",
+        "Audited the flag-duplication class the previous round declared closed, and found two older instances: --reduce respelling the four reducer names, and --min-score repeating 3.5 while DEFAULT_MIN_ACTIVATION_SCORE sat exported in __all__ for that use.",
+        "Replaced the _SKIP_POLICIES[0] default I introduced last round with a named _DEFAULT_SKIP_POLICY, and added _DEFAULT_REDUCER, so no default is spelled as an index into a choice set.",
+        "Rewrote all three of the previous round's tests red first, and added a five-test class covering the whole duplication class.",
+        "Mutation-verified seven mutations. Two passed against the heading-bounded documentation window, which exposed the window rather than the tests.",
+        "Narrowed the documentation window to a blank-line-delimited paragraph, then re-ran all three doc mutations red."
+      ],
+      "decisions": [
+        "Fixed the prose I own and filed the gate's charge-before-coverage-check ordering as an issue rather than changing it. The ordering is deliberate, carries a comment explaining that a refusal decided after reading the group would otherwise be free, withholds missing ids to avoid leaking held-out membership, and is pinned by tests predating this branch. Round 41's key-set proposal is split-independent and therefore sound, but charging policy is architecture, not a fold-in on a stacked branch at the commit ceiling.",
+        "Treated the two passing mutations as a finding about the window rather than about the tests. One passing mutation is ambiguous because the mutation may be incomplete, which is the trap recorded in the previous phase. Two against the same window are evidence.",
+        "Recorded that mutation sensitivity proves a test reads its subject but not that it reads the right subject. All three replaced tests were mutation-verified last round and still asserted the wrong thing."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "scripts/eval/optimize-artifact.py",
+        "scripts/eval/README.md",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "phase": "Round 42: the fix for the tautology was a tautology",
+      "actions": [
+        "Ran a fifth distinct model against the round 41 commits.",
+        "Reproduced its critical finding: the five new default tests read the constant off the module under test, so both sides of every comparison resolve through the same module.",
+        "Confirmed the reproduction is the real defect, not a contrived one: deleting the import and hardcoding a different copy beside the parser left all five green while the command answered median and the adapter answered mean.",
+        "Verified the six further duplications it reported, each against the function signature that declares the same default.",
+        "Verified the paragraph window breaks when a blank line carries a single space, which is still a paragraph break to every Markdown renderer.",
+        "Checked and rejected its fourth finding: split partitions into optimize, held-out, and reserve, so the test group is not a held-out group, and the README table already says no command scores it. Measured a dropped test id and got compared true, which is what the paragraph says.",
+        "Replaced the three vacuous default tests with one parametrized case per flag-and-owner pair read from the owner's signature, plus a check that the table names a real parameter.",
+        "Fixed the window to treat a line of whitespace as a break and to refuse a marker that occurs more than once.",
+        "Mutation-verified eight cases including the reviewer's own reproduction, with a negative control confirming intact prose stays green under whitespace-only blank lines."
+      ],
+      "decisions": [
+        "Pinned the six further duplications with a test rather than extracting six constants. The values live in function signatures, so single-sourcing would add six names to remove six literals and leave the relationship implicit. Reading the signature compares the two directly and covers the next flag added.",
+        "Recorded that the shape 61 rule was too weak. A tautology is not insensitive to mutation; it is sensitive to the wrong thing, and mutating what it does read will never say so. Only a mutation that is the defect exposes it.",
+        "Recorded that two consecutive audits stopped at the instances sharing a shape with the fix rather than with the defect, which is why two thirds of the class stayed hidden twice."
+      ],
+      "filesModified": [
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "phase": "Round 43: measuring which duplications can drift quietly",
+      "actions": [
+        "Reopened PR #3608, which GitHub closed one second after #3595 merged and deleted its base branch. The closed PR made the commit-limit-bypass label unreachable, so the push gate blocked at 47 commits while naming the count as the cause.",
+        "Filed #3627: the gate prints its reason to stdout and its error to stderr, and lefthook pipes stdout, so the reason lands under the next hook's header. Verified the reordering reproduces with buffered stdout and disappears with python -u.",
+        "Pushed the round 42 commits once the label was reachable again.",
+        "Checked all six duplications round 42 reported. Renaming a verdict string turns 31 tests red, a task group rename raises AttributeError, a rule score key rename fails at runtime naming the missing keys, and the pre-gate dict keys are asserted on every refusal path.",
+        "Pinned the two that measurement left standing: the README results schema and both non-zero exit codes.",
+        "Mutated both authors of all three values. The first two passes disagreed with each other, so cleared bytecode per case and re-ran: six red, negative control green."
+      ],
+      "decisions": [
+        "Four of six reported duplications are not defects. A duplication is a defect only when drift is both possible and silent, and only the silent half needs measuring.",
+        "Pinned rather than refactored. One side is a constant and the other is a file, so a test is the only thing that can hold them together.",
+        "Anchored each exit-code assertion on its own sentence fragment. Both codes share a paragraph, so a bare search for the number passes on the neighbour.",
+        "The mutation harness reused bytecode across cases because every edit was one character and the file size never moved. That made case six compare case five's code against case six's prose and report a working pin as worthless."
+      ],
+      "filesModified": [
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Repairing the squash-merged stack and measuring the dead-hash guard",
+      "actions": [
+        "Repaired feat/eval-rule-multirun after #3595 squash-merged into its base. Verified the tree at the old base tip is byte-identical to the tree at the squash commit, which makes the rebase conflict free by construction, then rebased --onto the new base and confirmed git diff between the old and new heads is empty. Suite still 1722 passed. Force-pushed with lease. #3608 went from CONFLICTING to MERGEABLE and CLEAN with every check passing.",
+        "Investigated the one unresolved thread on #3579. Established with git show origin/main that the flagged README claim predates the PR, that #3579 only shortened the list the claim appears in, and that the correction ships in #3608.",
+        "Corrected my own reply on that thread. It cited a commit hash the rebase had just destroyed, which is the same dead-reference defect this stack fixed once already in a session log.",
+        "Measured whether a validator could catch dead hashes before proposing one. Over the session log and the debate log, a hex token rule found forty six candidates, thirty five resolving to commits and eleven not. All eleven were false positives: a p-value of 0.0078125, the interior of the word succeeded, dates and random suffixes from run directory names, and truncated corpus fingerprints. True positives: zero."
+      ],
+      "decisions": [
+        "Do not build the dead-hash validator. Its only finding bucket was one hundred percent false positives on the first run, and a gate that opens that way gets an ignore list and then a skip flag. Prose does not record intent, so a detector over prose can only match shape, and hex is a shape that dates, probabilities, digests and ordinary English words share.",
+        "Cite pull request numbers rather than commit hashes in anything that outlives a branch. A number survives every rewrite and cannot be confused with a p-value.",
+        "Leave the #3579 thread answered rather than cherry-picking the fix upstream. The claim is pre-existing on main and duplicating the insertion risks a rebase conflict for the child PR."
+      ],
+      "filesModified": [
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Landing the base branch under multirun, then fixing the two round-44 test-bar findings",
+      "actions": [
+        "Resolved the half-applied merge of fix/eval-buffer-crash-exit-code into feat/eval-rule-multirun. Both conflicts in scripts/eval/optimize-artifact.py were add/add: this branch added _single_input while the base added _refuse_degraded_agent_report, and cmd_extract had a rename of args.input to path on one side and an inserted refusal call on the other. Kept both in each case, with the refusal still ahead of _report_corpus so a degraded report never reaches corpus extraction. Suite 1772 passed.",
+        "Fixed F4. The flag-default audit read float(actual) == expected while its own comment said the digits are what must agree. Measured that float('0.4000000000000000000000000001') == 0.4 is True, so a default that drifted that far read as unchanged. Mutation-verified end to end: with --sel-ratio defaulted to that string the old bar passes and the new one fails.",
+        "Disproved the planned F4 justification before writing it. The intended fix was an exact-string bar, justified by the claim that split_fingerprint hashes the JSON string. Read the code and found _canonical_ratio runs ratios through Fraction first, then measured that 0.4, '0.4' and '0.40' all produce the identical fingerprint while '0.4000000000000000000000000001' does not. An exact-string bar would have reported drift for a respelling nobody made.",
+        "Fixed F5. _readme_paragraph claimed a blank-line paragraph cannot borrow a word from a neighbour. CommonMark lets a heading, list, ordered list, blockquote and fence interrupt a paragraph with no blank line, so that claim is false. Mutation-verified against the real README: injecting a heading plus a contradicting exit-code sentence with no blank line leaves the old window returning both, and the new window returning the marker line alone.",
+        "Cleared a push block that a merged main commit created. #3503 tightened the suppression parser enough to start catching three pre-existing '# noqa: ANN202' comments on this branch. Confirmed ANN is already waived for tests by per-file-ignores, so the comments never suppressed anything, and replaced them with the real annotations.",
+        "Merged the newest main into fix/eval-buffer-crash-exit-code after #3579 went CONFLICTING again. Clean merge, 1697 passed, branch still owns zero plugin paths so no manifest bump."
+      ],
+      "decisions": [
+        "Compare ratio defaults through _canonical_ratio, the function split_fingerprint itself calls, rather than through float or through str. Float is too loose in the direction that matters and exact-string is too tight in the other, and reusing the product's own canonicalization is the only spelling that cannot drift from what it protects.",
+        "Split the README windowing rule out as a pure _markdown_block(text, marker) and pin it to written-out cases. The four earlier windows were each correct for the README that motivated them and wrong for the next one, so testing the rule against the current file is how a fifth one would go unnoticed.",
+        "Treat the vestigial noqa comments as an idiomatic-fix problem rather than a gate problem. The suppression policy has no bypass by design, and the annotation the comment stood in for is the better code regardless.",
+        "Record that F4 and F5 are latent rather than live. No current call site over-spans and no default has drifted, so both fixes protect against a future edit rather than repairing a present wrong answer."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Third main merge into the buffer-crash branch, and recording shape 66",
+      "actions": [
+        "Re-merged origin/main into fix/eval-buffer-crash-exit-code for the third time this session. Main advanced by two commits (304355e98 closing stale execution plans, 03569ca57 resolving module wiring for issue #3360) after the previous merge, which flipped PR #3579 back to CONFLICTING. Reset the worktree to the remote branch first so the merge ran against what GitHub sees, merged clean with no conflicted paths, confirmed 1697 passed and that the branch still owns zero plugin paths, and pushed as 1ebc1fb3d.",
+        "Recorded shape 66 in the ADR-087 debate document. The round-45 F4 finding was real and measured, but the justification the plan carried for the fix was invented: it claimed the split fingerprint is computed over the JSON string, so exact-string comparison was the right bar. Reading split_fingerprint disproved that. It calls _canonical_ratio, which runs the value through Fraction, so 0.4, '0.4' and '0.40' all hash to fa2b51a4f24c8cb2 and only the long-decimal respelling differs. An exact-string bar would have failed on '0.40', a respelling the product cannot distinguish anywhere it matters, so the planned fix would have shipped a false-positive test.",
+        "The general form is the ninth instrument failure this session: a finding can be true while the reason attached to it is invented, because reasoning about a function that has not been opened produces prose of the same confidence as reasoning about one that has. The discipline is to read the cited function before the justification is written into a commit message, since a wrong reason does not stay inert, it selects the wrong fix."
+      ],
+      "outcome": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise."
     }
   ],
-  "endingCommit": "e4d5c0d6c",
+  "endingCommit": "691dcfb0e",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

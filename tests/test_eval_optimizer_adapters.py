@@ -34,6 +34,7 @@ try:
         agent_results,
         pytest_results,
         rule_results,
+        rule_results_multi,
     )
 finally:
     if _path_added and str(_EVAL_DIR) in sys.path:
@@ -969,3 +970,151 @@ class TestAPartialScoreMappingIsNotAMeasurement:
         """Shape of the block precedes completeness of its keys."""
         with pytest.raises(AdapterError, match="malformed"):
             rule_results(self._scen(None), "full")
+
+
+# ---------------------------------------------------------------------------
+# rule_results_multi
+# ---------------------------------------------------------------------------
+
+
+class TestReducingARuleScenarioAcrossRepeatedRuns:
+    """The rule path is the only one of three with no noise defense.
+
+    `pytest_results` is deterministic and `agent_results` already averages over
+    runs. `rule_results` reads one score block from one LLM judge and
+    thresholds it, which ADR-087 Open Requirement 6 measured rather than
+    assumed: scoring identical rule text twice moved 13 of 24 tasks and 5 of
+    them across the pass threshold, with mean absolute movement of 0.49 points
+    on a five-point scale. The two held-out gains that produced the live run's
+    false accept were the two largest movements in that benchmark.
+
+    So a single judge reading is not evidence about an edit, and the gate's
+    no-regression clause inherits that. Reducing over repeated readings is what
+    makes the reading mean something; nothing else here changes.
+
+    The runs are whole reports, one per invocation of `eval-rule-activation.py`,
+    because that is how the ADR's own paired measurement was gathered. It needs
+    no change to the producer.
+    """
+
+    @staticmethod
+    def _run(*triples: tuple) -> list:
+        return [_scenario(f"S{i}", "full", t) for i, t in enumerate(triples, 1)]
+
+    def test_one_run_matches_the_single_run_adapter_exactly(self):
+        """The multi-run path must be a generalization, not a second opinion."""
+        scenarios = self._run((4, 4, 4), (3, 3, 3))
+        assert rule_results_multi([scenarios], "full") == rule_results(scenarios, "full")
+
+    def test_the_mean_across_runs_decides_not_any_single_run(self):
+        """3.0 then 4.0 means 3.5, which clears the inclusive floor.
+
+        Neither run decides this alone: the first fails the bar and the second
+        clears it. That is the whole point of reducing.
+        """
+        got = rule_results_multi(
+            [self._run((3, 3, 3)), self._run((4, 4, 4))], "full"
+        )
+        assert got == {"S1": True}
+
+    def test_a_lucky_run_no_longer_carries_a_scenario_on_its_own(self):
+        """One 5.0 among three 3.0s reduces to 3.67 and passes; among five, 3.33.
+
+        The single-run adapter would have returned True from the lucky run and
+        False from any other, which is the coin flip the ADR names.
+        """
+        low = self._run((3, 3, 3))
+        high = self._run((5, 5, 5))
+        assert rule_results_multi([high, low, low], "full") == {"S1": True}
+        assert rule_results_multi([high, low, low, low, low], "full") == {"S1": False}
+
+    def test_min_reduces_to_the_worst_run(self):
+        got = rule_results_multi(
+            [self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="min"
+        )
+        assert got == {"S1": False}
+
+    def test_max_reduces_to_the_best_run(self):
+        got = rule_results_multi(
+            [self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="max"
+        )
+        assert got == {"S1": True}
+
+    def test_median_ignores_a_single_outlier(self):
+        got = rule_results_multi(
+            [self._run((0, 0, 0)), self._run((4, 4, 4)), self._run((4, 4, 4))],
+            "full",
+            reduce="median",
+        )
+        assert got == {"S1": True}
+
+    def test_an_unknown_reducer_is_refused_by_name(self):
+        with pytest.raises(AdapterError, match="reduce must be one of"):
+            rule_results_multi([self._run((4, 4, 4))], "full", reduce="average")
+
+    def test_no_runs_at_all_is_refused_rather_than_scored_as_empty(self):
+        """An empty reduction has no answer, and {} would read as zero tasks."""
+        with pytest.raises(AdapterError, match="at least one run"):
+            rule_results_multi([], "full")
+
+    def test_runs_that_disagree_on_which_scenarios_exist_are_refused(self):
+        """Reducing across different task sets compares unlike things."""
+        first = [_scenario("S1", "full", (4, 4, 4))]
+        second = [_scenario("S2", "full", (4, 4, 4))]
+        with pytest.raises(AdapterError, match="same scenarios"):
+            rule_results_multi([first, second], "full")
+
+    def test_the_refusal_names_the_scenarios_that_differ(self):
+        first = [_scenario("S1", "full", (4, 4, 4))]
+        second = [
+            _scenario("S1", "full", (4, 4, 4)),
+            _scenario("S9", "full", (4, 4, 4)),
+        ]
+        with pytest.raises(AdapterError, match="S9"):
+            rule_results_multi([first, second], "full")
+
+    def test_a_scenario_with_no_evidence_in_every_run_fails_closed(self):
+        """Uniform absence keeps the single-run meaning: no evidence is not a pass."""
+        blank = [{"id": "S1", "negative_case": False, "mechanisms": {}}]
+        assert rule_results_multi([blank, blank], "full") == {"S1": False}
+
+    def test_evidence_in_some_runs_but_not_others_is_refused(self):
+        """This is the case that only exists once there is more than one run.
+
+        Scoring it False would be worse than useless. A judge error on the
+        incumbent's run reads as a failing scenario, so a candidate that merely
+        ran cleanly looks like a fail-to-pass improvement. That is the spurious
+        accept the gate exists to prevent, arriving through the scorer.
+        Dropping the bad run instead would silently reduce over a different
+        sample size per scenario. Neither is a measurement, so refuse.
+        """
+        scored = [_scenario("S1", "full", (4, 4, 4))]
+        blank = [{"id": "S1", "negative_case": False, "mechanisms": {}}]
+        with pytest.raises(AdapterError, match="some runs but not others"):
+            rule_results_multi([scored, blank], "full")
+
+    def test_a_judge_failure_in_one_run_is_refused_not_averaged(self):
+        """A judge failure is a missing measurement, not a low score."""
+        scored = [_scenario("S1", "full", (4, 4, 4))]
+        broken = [_scenario("S1", "full", (5, 5, 5), judge_failed=True)]
+        with pytest.raises(AdapterError, match="some runs but not others"):
+            rule_results_multi([scored, broken], "full")
+
+    def test_min_score_still_applies_after_the_reduction(self):
+        got = rule_results_multi(
+            [self._run((3, 3, 3)), self._run((4, 4, 4))], "full", min_score=3.6
+        )
+        assert got == {"S1": False}
+
+    def test_a_malformed_scenario_in_a_later_run_is_still_refused(self):
+        """The scan must not stop at the first run."""
+        good = self._run((4, 4, 4))
+        with pytest.raises(AdapterError, match="must be an object"):
+            rule_results_multi([good, ["not a mapping"]], "full")
+
+    def test_every_scenario_is_reduced_not_just_the_first(self):
+        got = rule_results_multi(
+            [self._run((5, 5, 5), (3, 3, 3)), self._run((5, 5, 5), (3, 3, 3))],
+            "full",
+        )
+        assert got == {"S1": True, "S2": False}

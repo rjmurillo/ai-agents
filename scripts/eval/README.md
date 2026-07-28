@@ -357,6 +357,19 @@ test both score as failures rather than being dropped; `extract --kind hook
 denominator, which raises the score, so a silent omission would read as an
 improvement.
 
+That is the default and not the only policy. `extract --kind hook` takes
+`--on-skip`, which is `fail` above and `exclude` to drop a skipped test from the
+mapping instead. Reach for `exclude` only when the skips are static, because
+dropping a task is not free. A conditionally skipped test changes the task-id
+set between runs, and the split was drawn once from the full set. If the dropped
+id landed in the held-out group, the gate charges a consultation, reports
+`REJECT` at exit 1, and says `compared: false`: the operator pays out of a small
+budget for a verdict that measured nothing, and reads a rejection of a candidate
+that was never scored. If it landed outside that group the run proceeds and the
+drift is invisible. `exclude` drops only a testcase whose skip stands alone: one
+that also carries a failure or an error demonstrated something and scores false
+under either policy.
+
 `--kind rule` goes further and refuses. A scenario whose mechanism errored,
 whose scores are missing, or whose judge reported a failure is a config error
 that exits 2 and names the scenarios, rather than scoring them false. The two
@@ -373,6 +386,49 @@ to stop and let an operator re-run the scorer.
 Calling `rule_results` from `_optimizer_adapters` directly still fails closed.
 The refusal lives in `extract`, so the library keeps one contract and the
 command that spends budget keeps a stricter one.
+
+### Reading a rule across several runs
+
+Refusing a broken judge does not help when the judge answers cleanly and
+differently each time. `--kind rule` takes more than one `--input`, one report
+per run of `eval-rule-activation.py`, and reduces each scenario across them
+before the bar is applied:
+
+```bash
+uv run --frozen python "$OA" extract --kind rule \
+    --input run1.json run2.json run3.json --reduce mean > base.json
+```
+
+The reduction is over scores, not over verdicts. Thresholding each run and then
+voting would throw away the distance from the bar, which is the only thing that
+says whether a disagreement was close. Reducing first matches what
+`agent_results` already does: collapse the runs to one number, apply the bar
+once.
+
+`--reduce` takes `mean` (the default), `min`, `max`, or `median`. `min` reads as
+"every run must clear the bar" and `max` as "any run may", so the strict and
+lenient readings are both reachable without a second flag. `--kind agent` and
+`--kind hook` still take exactly one `--input` and refuse a second, because
+`agent_results` already averages over runs and `pytest_results` is
+deterministic.
+
+One run behaves exactly as before, so an existing caller needs no change:
+`rule_results_multi([scenarios])` and `rule_results(scenarios)` agree.
+
+The runs must agree on which scenarios they scored, and a scenario with
+evidence in some runs but not others is refused rather than reduced over
+whatever is left. Both are the fail-closed policy above, applied to the shape
+this flag introduces. Scoring a partially evidenced scenario false would let a
+judge error on the incumbent's run read as a failing scenario, so a candidate
+that merely ran cleanly would look like a fail-to-pass improvement. That is the
+spurious accept the gate exists to prevent, arriving through the scorer.
+
+How many runs is a judgment, not a setting. The benchmark behind this flag
+(ADR-087 Open Requirement 6, #3445) measured a mean absolute movement of 0.49
+points on the five-point scale between two scorings of identical rule text.
+Three runs at `mean` is the cheapest configuration that can outvote one outlier.
+Nothing here enforces a count, and one run remains legal so the flag can be
+adopted without rescoring everything first.
 
 `--kind rule` does not invert negative cases. `eval-rule-activation.py` builds
 the judge prompt so 5 always means the rule behaved correctly, negative cases
@@ -748,11 +804,32 @@ naming the write. Cleanup cannot stand in for the failure it cleans up after,
 so the unlink is now suppressed on `OSError` while every other class still
 escapes. All three now answer exit 2 with a `ConfigError` document.
 
+The fourth was worse than a traceback, because it answered. `_emit` writes with
+a bare `print`, so a reader that closed early made it raise `BrokenPipeError`,
+an `OSError`, which the handler did not name. It left `main` and exited 1, and
+exit 1 on this CLI is REJECT: a verdict on a comparison that never finished. On
+`gate` the ledger write precedes the final emit, so a consultation had already
+been charged against a fixed budget and the answer it bought was discarded.
+CPython contributed a second mode on its own. When the payload fits the pipe
+buffer the write succeeds and the shutdown flush fails instead, which prints
+`Exception ignored while flushing sys.stdout` and replaces the status with 120,
+so the caller saw neither a verdict nor a config failure. Measured on this
+branch: `split` over 20000 tasks into a closed reader exited 1 with a traceback,
+and `budget` into the same exited 120. Both now exit 2 with one line on stderr.
+`main` is a thin `except OSError` guard over `_dispatch`, which holds the old
+body, and the guard covers parser construction too, because `print_help` writes
+to stderr and stderr closes for the same reasons stdout does. The handler does
+not retry the write on the stream that just failed; the exit code carries it.
+
+Catching `OSError` that broadly at the top gives up nothing. Any `OSError` that
+reached `main` before was an unhandled crash exiting 1, and exit 2 is the
+correct answer for a run that produced no decision.
+
 | Code | Meaning |
 |------|---------|
 | 0 | Accept, novel patch, or plain success |
 | 1 | Reject, already-rejected patch, or a refused patch |
-| 2 | Bad arguments, unreadable input, or malformed data |
+| 2 | Bad arguments, unreadable input, malformed data, or a stream that could not be written |
 
 ### Scope
 

@@ -2279,3 +2279,588 @@ argument and a silent hole if the premise stops holding.
 A surviving mutant is a question, not a verdict. Answering it starts with
 asking whether the property is constructible at all, because when it is not,
 writing a stronger test is writing a second test that also cannot fail.
+
+## Shape 52: refusing the unmeasurable beats repairing it
+
+The multi-rule envelope built task ids as `f"{rule}::{scenario}"`. That join is
+not injective. Rule `a` with scenario `b::c` and rule `a::b` with scenario `c`
+both render `a::b::c`, and the second silently overwrote the first, so two
+scenarios arrived at the gate as one.
+
+The reflex fix is to escape the separator, which keeps every input scoreable.
+It was the wrong fix here. Ids from this command are written into files a
+caller holds across runs, so escaping changes the shape of ids an earlier run
+already handed out, and it does it silently, to inputs that were never
+ambiguous. The file's thesis is that unmeasurable input is refused rather than
+repaired, and a collision is exactly unmeasurable: two scenarios, one slot, no
+way to say which score belongs to which.
+
+The discipline that keeps a refusal from metastasizing is to fire on the
+collision, not on the smell of one. `::` appearing in a rule name is legal and
+common. Two of the five tests exist only to hold that line, asserting that
+names containing the separator still score when they do not actually collide.
+A guard written against the symptom would have refused measurable input, which
+is the same defect as accepting unmeasurable input, pointed the other way.
+
+## Shape 53: debug your own probe before you believe a finding failed
+
+Round 38 arrived with four findings. Two of them appeared not to reproduce on
+first probe. Both times the probe was wrong, not the finding.
+
+The quadratic scan probe returned 0.000 seconds at 40k ids, which reads as a
+refuted claim. `split_tasks` takes `seed` as a keyword-only `str` and the probe
+passed an int, so it raised on the seed before reaching the scan under test.
+Corrected, the same probe measured 1.155s, 4.586s, and 18.484s at 10k, 20k, and
+40k: doubling n quadrupled the time, which is the shape the finding described.
+The duplicate-key end-to-end test looked like a false alarm for a different
+reason: it invoked `gate` with a placeholder fingerprint, and `gate` rejects on
+fingerprint drift before it ever reads the candidate, so the test measured the
+drift check and not the parser.
+
+Both probes failed fast and cheaply, which is what made them dangerous. A probe
+that returns quickly and cleanly is indistinguishable from a probe that never
+reached the code. The rule that falls out: a non-reproduction is a claim about
+your own instrument first and the reported defect second, and it is only worth
+reporting after the instrument has been shown to reach the line in question.
+All four round 38 findings were real. The first four rounds where reviewers
+overclaimed trained a skepticism that nearly discarded a round where they did
+not.
+
+## Shape 54: a racy test is a defect in the test, not a tolerance to budget
+
+The broken-stdout fix has a mode where the write succeeds into the pipe buffer
+and the failure lands on the interpreter's shutdown flush. The obvious test
+pipes a small payload to a reader that exits. It returned 120 under one shell
+construct and 0 under another on the same machine, because whether the reader
+had closed by the time the child flushed was a race.
+
+The available moves were to retry, to loosen the assertion to accept either
+outcome, or to mark it flaky. All three keep a test that cannot fail for the
+reason it was written. A test asserting `code in (0, 120)` passes when the fix
+is reverted.
+
+The move that worked was to stop testing the race. The flush logic came out of
+the `__main__` block into `_final_exit_code`, a function taking a code and
+returning one, and the interesting behavior became reachable from a unit test
+with a stand-in stream. The end-to-end case that survived stopped depending on
+a reader's exit timing: `subprocess.Popen` with the parent closing the read end
+itself makes EPIPE deterministic, because the close happens before the child
+writes rather than concurrently with it.
+
+Code sitting under `pragma: no cover` because it is hard to reach is not
+untestable code. It is usually code in the wrong place. Moving it is cheaper
+than the flaky test, and much cheaper than the flaky test's eventual removal
+after it has cried wolf a dozen times.
+
+## Shape 55: point a guard test at the layer that carries the behavior
+
+A pre-existing negative control asserts that an OSError carrying the held-out
+digest escapes when the scrubber is disabled. It exists to prove the scrubber
+is load bearing rather than decorative. Adding an outer `except OSError` to
+`main` broke it: with the guard in place nothing escapes `main`, so the control
+went green for a reason unrelated to the scrubber and stopped proving anything.
+
+Two repairs present themselves and one of them is a trap. Narrowing the new
+guard so the control's exception still escapes would restore the test and
+reintroduce the exact defect class the guard was added to close. Deleting the
+control trades a real proof for a green suite.
+
+The third option is to notice that the control was never about `main`. The
+scrubber wraps `_dispatch`, so `_dispatch` is the layer where an escape is
+observable, and `monkeypatch.setattr(oa, "main", oa._dispatch)` inside that one
+test aims it there. The signatures are identical, so the harness is unchanged.
+
+This is the second time in this session the correct move was to re-aim a test
+rather than reshape the code under it. The general form: when a new guard makes
+an old test green, ask which layer the old test was actually asserting about.
+A guard that swallows the evidence has not falsified the property, it has moved
+where the property is visible.
+
+## Shape 56: a guard against a wrong answer must not buy it with a leak
+
+The stdout guard reports through `_warn(f"...: {exc}")`, which prints
+`str(exc)`. Every ledger and lock filename in this tool ends in an unsalted
+hash of the held-out set. So the fix for a wrong verdict introduced, on its
+face, a path from an arbitrary OSError to the held-out digest on stderr.
+
+It turned out to be closed already. `_digest_scrubbed` converts every OSError
+raised under the ledger into a `ConfigError` with the filename replaced, and
+`ConfigError` is handled below the new guard, so the guard cannot see an
+OSError carrying a digest. The correct response to that discovery is not
+relief. It is a test, because the property now has two owners: the scrubber
+that holds it and a new caller that depends on it holding without saying so.
+
+The general form is narrow and worth stating plainly. When a fix adds a new
+path from an exception to an output stream, the fix has joined the set of code
+that must not leak, whether or not it currently does. Reasoning that it does
+not leak today is the argument for writing the test, not the substitute for it.
+
+## Shape 57: writing the documentation sentence is a test the suite cannot run
+
+The broken-stdout fix shipped with ten tests, a clean suite, and two real
+subprocess reproductions. Then the README sentence describing it read: both
+modes now exit 2 with one line on stderr. Verifying that sentence rather than
+assuming it found that half of it was false. The write-time mode reported. The
+flush-time mode returned exit 2 in silence, because `_final_exit_code` changed
+the status and told no one.
+
+No test caught it because no test asked. Every test asserted the exit code, and
+the exit code was correct in both modes. The property the tests were missing
+was not visible from inside either test; it only appeared when the two modes
+were described side by side in one sentence and the asymmetry became the
+subject. Exit 2 also covers a bad flag and an unreadable file, so a silent 2
+leaves an operator unable to tell a dead pipe from a typo. The fix relocated
+the confusion instead of removing it.
+
+Documentation is usually treated as the thing you write after the work is
+verified. It is also the only artifact that forces adjacent behaviors into one
+frame, which is where asymmetries live. Tests assert one behavior each and
+cannot see between themselves. The practical rule: write the sentence, then run
+the commands the sentence describes and read their actual output, before
+believing either the sentence or the tests. Here that produced a sixth commit
+and four more tests on work that had already been called done.
+
+## Shape 58: a best-effort reader can launder malformed input into a domain answer
+
+Round 39's first finding is the most instructive defect of this whole effort,
+because the thing it broke was the commit written to prevent it.
+
+Two commits earlier the gate learned to refuse a JSON object that states the
+same key twice. That refusal lives in the full reader, which raises a
+ConfigError naming the repeated key, and exits 2 like every other unreadable
+input. It works. It is tested. And the gate never reached it, because a cheaper
+reader ran first and answered the question in the gate's own vocabulary.
+
+`_corpus_header` exists to peek at a results file's corpus digest before the
+gate takes the ledger lock, so a corpus mismatch costs nothing. It promises
+never to raise on content, because a header peek that can abort is not cheaper
+than the full read. To keep that promise it swallowed decode failures and
+answered `None`. But `None` was already spoken for: it meant "this file parsed
+and declares no corpus." So one value carried two facts that the caller reads
+differently. `_corpus_conflict` treats an absent corpus beside a pinned digest
+as the envelope strip, a deliberate REJECT, so a file nobody could parse took
+the anti-strip path. The result was `decision: REJECT`, exit 1, with a reason
+stating that the two files disagree on a corpus they in fact agreed on. A wrong
+verdict, and a false explanation of it, on exactly the input the previous commit
+had been written to refuse.
+
+The general shape: a refusal added at one layer can be bypassed by an earlier
+best-effort reader that collapses "malformed" into a legitimate domain value.
+The earlier reader is usually there for a good reason, usually cost, and its
+error handling is usually written as a local convenience without asking what the
+caller will do with the answer. `except Exception: return None` is the classic
+form. The bug is not the swallowing; a cheap reader has to swallow something.
+The bug is answering with a value that already means something else.
+
+Two things follow for the fix.
+
+Add an answer, do not widen a guard. The instinct is to make `_corpus_conflict`
+tolerant, which is wrong, because the anti-strip rule is real and something has
+to hold it. A third sentinel keeps both rules intact and puts the new fact where
+it belongs, in the reader that learned it. The negative control matters here as
+much as the failing test: `test_a_stripped_candidate_is_still_a_corpus_conflict`
+was green before the fix and had to stay green after, because a fix that bought
+the malformed case by selling the stripped one would pass every new test.
+
+Give the sentinel a type. The first version was `_UNREADABLE = object()`,
+matching the file's existing `_UNPINNED`, which made the return type
+`str | object | None`. That union collapses to `object` and checks nothing.
+Turning it into a one-line class made the type `str | _Unreadable | None`, and
+mypy immediately failed the call site: the sentinel flows into
+`_corpus_conflict`, which is written against `str | None`. The bare-object
+sentinel would have shipped that hole silently. The narrowing then wanted its
+own function, so the parseability question stopped being a condition the
+conflict rule had to carry.
+
+The cheap check this session did not run: when you add a refusal, ask what runs
+before it. A refusal is only as good as the earliest reader that can answer the
+same question.
+
+## Shape 59: a third answer must cover the whole question, not the first case that raised it
+
+Round forty found the shape 58 fix incomplete, one input class over, in the
+function it had just changed. `_UNREADABLE` was introduced for a file that
+would not parse, because that was the input the round-thirty-nine finding
+arrived on. A file that parses cleanly but carries a corpus the authoritative
+reader refuses, a truncated digest, upper-case hex, an empty string, a number,
+still answered `None`, and `None` is the envelope strip. So the same wrong
+verdict came back: `decision: REJECT` exit 1, with a reason saying the two
+files disagree on a corpus, for a pair where neither declares one that can be
+compared, and advice to re-score both artifacts when the real fault is one
+corrupt field. Re-scoring is the expensive remedy in this system, so a false
+reason here costs judge budget as well as trust.
+
+The tell was available without the review. `_checked_corpus` is the
+authoritative reader and it raises on four things: a non-string, a
+non-matching string, and by extension every value that is not a whole digest.
+`_corpus_header` is the best-effort peek at the same field, and it answered
+`None` for all four. Two functions reading one field disagreed about how many
+outcomes that field has. Whenever a best-effort reader shadows an
+authoritative one, the cheap check is to line up their branches and count: if
+the peek has fewer answers than the reader has outcomes, the missing ones are
+being laundered into whichever answer the peek does have. The fix makes the
+peek mirror the reader by construction rather than by enumeration, so the next
+value `_checked_corpus` learns to refuse is covered without a second edit.
+
+Two things made this a small correction rather than a repeat investigation.
+The negative control from round thirty-nine was still in the suite, so the
+question "did the widening eat the anti-strip rule" was answered by running
+the tests rather than by reasoning. And the README already documented the
+correct behavior, in a sentence written two rounds earlier: a truncated or
+upper-case value is a config error and exits 2. The documentation was right
+and the implementation had drifted from it. That inverts shape 57, where
+writing the sentence found the defect. Here the sentence was already written,
+and nothing was checking that the code still agreed with it. A documented
+contract with no test behind it is a claim, and this one was false for two
+rounds before a reviewer read both.
+
+The audit that followed is worth recording so nobody repeats it. Seven
+peek-and-authority pairs exist across the three files: the corpus header, the
+`_absent` probe, the holdout-coverage check, the degraded-rule scan, the buffer
+dedup, the ledger reader, and the `min_sel` default. Only two readers in the
+whole codebase swallow an exception and return a domain value; every other
+`except` re-raises. The corpus header was the only pair whose missing branch
+reached something that emits a decision. The ledger has no pre-lock peek at
+all, which is what the round-thirty-nine docstring implied and this confirmed.
+
+That gives the rule a sharper edge than "peeks must be complete." A peek is
+dangerous exactly when its answer can reach a decision emitter. The
+degraded-rule scan has strictly fewer branches than the scorer it shadows and
+is safe anyway, because everything it misses raises in the authority and
+`extract` never emits a verdict; the gap costs a blunter message. The buffer
+dedup skips a non-string fingerprint and is safe because that biases toward
+re-gating an edit rather than banning one, which is the direction its own
+docstring already argued for. So the review question is not "do the branch
+counts match" but "does this answer reach a verdict, and if so do they match."
+
+One coverage gap fell out of the same review: every test for the corpus refusal
+put the bad value on the candidate, and the guard reads both headers. A test
+that only exercises one argument of a symmetric guard would pass if the guard
+dropped the other. Confirmed by mutation: deleting the incumbent check makes
+the new test fail and leaves every other test green.
+
+## Shape 60: prose that is true of the default and read as the contract
+
+A review thread on PR #3579 caught the adapter paragraph saying a skipped test
+scores as a failure "rather than being dropped", with no qualifier, while
+`extract --kind hook` has always taken `--on-skip exclude`, which drops exactly
+those. The flag appeared nowhere in the README. The sentence was true of the
+default and false as a contract, which is the harder version of a doc defect:
+nothing in it is wrong, so nothing in it looks wrong.
+
+This is the fourth prose-versus-code disagreement in this file and the second
+where the prose was incomplete rather than mistaken. Shape 57 wrote a sentence
+and the sentence found a defect. F40-1 had the README right and the code drifted
+under it for two rounds. Here the code was right the whole time and the prose
+described a subset of it. The three failure directions are now all represented,
+and the common cause is the same: no test stood between the two.
+
+Underneath the doc gap sat the enabling defect. The command hardcoded
+`("fail", "exclude")` beside the adapter's own `_SKIP_POLICIES`, so one policy
+set had two representations. A third policy added to the adapter would have been
+refused by argparse before the adapter ever saw it, and the operator would have
+read an error naming the wrong layer. It also gave the README two places to
+drift from, which is why the doc test could not be written cleanly until the
+duplicate was gone. The DRY defect was not merely adjacent to the doc defect, it
+was what made the doc defect untestable.
+
+The three tests are picked for durability over precision. Pinning the sentence
+would pin today's wording and break on a rephrase, so the assertions are: the
+README names every value the flag accepts, the fingerprint cost appears beside
+the escape hatch, and every accepted value survives the command end to end. The
+last is driven through the CLI rather than read off `parser.choices`, because
+an introspection test would stay green even if the value never reached the
+adapter, and because the private-attribute spelling it would need collides with
+the suppression gate's pattern for `noqa: S`.
+
+One instrument failure worth recording, because it is the fourth this session.
+The first mutation of the doc test passed, which would have meant the test was
+worthless. The test was fine; the mutation was incomplete, since the term
+appears three times in the paragraph and the sed replaced one. A mutation that
+does not turn a test red is a claim about the mutation before it is a claim
+about the test.
+
+## Shape 61: the correction carried the defect it was correcting
+
+Round 41 ran a fourth distinct model at the shape 60 change and returned one
+critical finding. The paragraph I had just written to fix a documentation gap
+said `--on-skip exclude` "moves the split fingerprint and stops the gate". Both
+halves are false, and the sentence is not mine by invention: I copied it from
+the `pytest_results` docstring while correcting a different sentence in the same
+file, and never measured it.
+
+Measuring it took one split and two runs. Draw a split over ten tasks, drop a
+held-out id from the candidate, and the gate returns exit 1 with `REJECT`,
+`consultations: 1`, `compared: false`, and the fingerprint echoed back
+unchanged. Drop an id outside the held-out group and the run proceeds normally.
+So the fingerprint never moves, because it pins what was split rather than what
+was extracted, and the gate does not halt: it charges a consultation and returns
+a verdict that measured nothing.
+
+That is the exit-1-versus-exit-2 confusion this branch has treated as critical
+in three earlier shapes, sitting in prose written to correct the record. Shape
+60 said the common cause of a doc-code disagreement is that no test stands
+between the two. This is the same cause one level up: the sentence was carried
+between files by hand, and nothing carried the measurement with it.
+
+The gate's ordering is deliberate and stays. `optimize-artifact.py` charges the
+ledger before checking held-out coverage, and the comment above it says why: a
+refusal decided after reading the group would otherwise be free, which is what
+made the reveal worth buying. The rejection reason withholds which ids are
+missing because naming them leaks group membership. Round 41 proposed comparing
+the two mappings' key sets and refusing before charging, which is genuinely
+split-independent and therefore not a membership oracle, so the proposal is
+sound. It is also a change to charging policy, pinned by tests that predate this
+branch, on a stacked branch at the commit ceiling. Filed, not folded in.
+
+Underneath the false prose sat a defect I introduced in shape 60 while fixing
+this same class. Replacing the literal `"fail"` with `_SKIP_POLICIES[0]` removed
+a duplicate and added a worse coupling: the order of a choice set became
+load-bearing with nothing saying so. Reorder the tuple to improve help text and
+the command's default silently moves while the adapter's does not. A default
+should never be spelled as an index into a choice set.
+
+The audit that finding forced turned up two older instances of the shape 60
+duplication that I had not looked for. `--reduce` respelled the four reducer
+names beside `_REDUCERS`. `--min-score` repeated the literal `3.5` while
+`DEFAULT_MIN_ACTIVATION_SCORE` sat in the adapter's `__all__`, exported for
+exactly this use and ignored, which is the clearest instance of the three. Shape
+60 fixed the instance in front of it and called the class closed. A defect class
+is not closed by fixing the instance that surfaced it.
+
+The testing lesson is the sharpest of the two rounds, because all three shape 60
+tests were mutation-verified and still asserted the wrong thing. Mutation
+sensitivity proves a test reads its subject. It does not prove the test reads
+the right subject.
+
+- Driving each policy through the command and asserting exit zero stays green
+  when the command drops the flag on the floor. Replacing the adapter in memory
+  with one that ignores its argument left both invocations returning zero. The
+  test now asserts the command's output equals the adapter's own answer for the
+  same input, and a second test covers the reverse direction, so the word
+  "every" in a test name is earned in both directions rather than one.
+- Every window the documentation tests have used was too wide, and each was too
+  wide in its own way. A file-wide substring search passes on an unrelated
+  historical mention, which is precisely the state this gap was found in: the
+  words existed and the contract did not. A fixed character count silently
+  changes meaning as correct prose grows. Bounding at the next heading looked
+  principled and was not, and it failed in the least visible way: the enclosing
+  section already contained "consultations" three paragraphs down, so an
+  assertion written for the new sentence passed on someone else's. A
+  blank-line-delimited paragraph is the narrowest real structural unit Markdown
+  offers, and the only one of the four that cannot borrow a word from a
+  neighbour.
+
+The heading-bounded window was caught by mutation, not by review, and only
+because two mutations passed together. One passing mutation is ambiguous, since
+the mutation itself may be incomplete, which is the trap recorded in shape 60.
+Two passing mutations against the same window are a finding about the window.
+
+## Shape 62: a test can read the wrong module and still be mutation-sensitive
+
+Shape 61 recorded that mutation sensitivity proves a test reads its subject but
+not that it reads the right subject, and offered three examples. Round 42 found
+a fourth in the fix itself, and it is the cleanest instance of the rule the
+branch has produced.
+
+The five tests added in shape 61 assert that a parsed flag default equals the
+constant that owns it. They read that constant off the module under test. Both
+sides of every comparison therefore resolve through the same module, so the
+assertion is about that module agreeing with itself, which nothing threatens.
+Delete the import and hardcode a different copy beside the parser, which is
+exactly the duplication the class exists to catch, and all five stay green while
+the command answers `median` and the adapter answers `mean`.
+
+Every one of those five was mutation-verified last round. The mutations moved
+the constant, and moving a shared constant moves both sides of a tautology at
+once, so the test went red and looked sound. A tautology is not insensitive. It
+is sensitive to the wrong thing, and no amount of mutating the thing it does
+read will say so. The only mutation that exposes it is the one that breaks the
+sharing, which is also the only mutation that reproduces the real defect. So the
+rule is narrower than shape 61 stated: a mutation has to be the defect, not
+merely a change the test can feel.
+
+The audit was incomplete for the second round running, which is now a pattern
+rather than an accident. Round 41 found two instances after round 40 declared
+the class closed; round 42 found six more after round 41 declared it closed
+again. Twice the audit stopped at the instances that shared a shape with the one
+that surfaced, and both times the remainder differed only in where the canonical
+value lived. `--reduce` and `--min-score` were found because a named constant
+existed to point at. The six missed ones declare their defaults in function
+signatures, so there was no name to grep for and nothing to notice.
+
+That is the useful part. An audit anchored on the fix rather than on the defect
+finds the instances that look like the fix. The defect is a value with two
+authors; where the first author keeps the value is incidental, and searching for
+the shape of the first fix is what hid two thirds of the class twice.
+
+The six are pinned rather than single-sourced. Extracting six constants would
+add six names to remove six literals and leave the same relationship implicit.
+Reading the owner's signature compares the two directly, needs nothing new in
+production, and covers whatever flag is added next. The table earned itself
+immediately by failing: walking `action.required` misses `--tasks`, because
+argparse records a mutually exclusive requirement on the group rather than on
+its members.
+
+The paragraph window failed on invisible input. A blank line carrying one space
+still separates paragraphs to every Markdown renderer, and the newline-pair
+search walks past it into the neighbour, restoring precisely the borrowing that
+the heading-bounded window was replaced to prevent. Shape 61 called a
+blank-line-delimited paragraph the narrowest real structural unit Markdown
+offers. That was right about Markdown and wrong about the code, which was
+matching a stricter thing than the format defines. The fourth window treats a
+line of whitespace as a break and refuses a marker that occurs more than once.
+
+Four windows, four failures, and each failure was a place where the code's idea
+of a boundary was narrower or wider than the format's. Worth stating plainly
+because the next one will be too: a window over prose is a parser, and a parser
+written from an example rather than from the format is wrong in whichever
+direction the example did not vary.
+
+Round 42 also reported that the new `--on-skip` paragraph conflates two withheld
+groups, on the grounds that `split` draws both `sel` and `test`. Checked and
+rejected. `_optimizer_core.split_tasks` documents its partition as "optimize,
+held-out, and reserve", so `test` is the reserve group and not a held-out one,
+and the README's own table already says no command scores it. Measured to be
+sure: dropping a `test` id yields `compared: true` and the run proceeds, which
+is what the paragraph says happens outside the held-out group. The finding was
+right that the drift is invisible there and wrong that the prose claims
+otherwise.
+
+## Shape 63: a duplication is not a defect until drift can happen quietly
+
+Round 42's second task was the audit re-anchored on the defect rather than on
+the shape of the previous fix. It returned six values with two authors and, for
+each, a sentence beginning "if X renamed, Y would break". Every one of those
+sentences was a prediction, and four of them were wrong.
+
+Renaming a verdict string in `_optimizer_core` turns 31 tests red. Renaming a
+task group raises `AttributeError` through the `getattr(redrawn, g)` over
+`_GROUPS`. Renaming a rule score key fails at runtime with a refusal that names
+the missing keys. The pre-gate dict literals are asserted on every refusal path
+the CLI has. Four couplings, all real, all held, none of them defects.
+
+The two that survived measurement are both prose. `scripts/eval/README.md`
+spells the results schema and both non-zero exit codes as literals. Prose is
+the author no mutation reaches: rename the constant and its own tests go red
+while the paragraph keeps describing the old value, unchanged, and first in the
+operator's path.
+
+So the audit was necessary and its severity reasoning was not evidence. The
+rule the last four rounds keep arriving at from different directions: a
+duplication is a defect only when drift is both possible and silent. Possible
+is cheap to establish by reading. Silent has to be measured, and measuring it
+is one mutation per author.
+
+## Shape 64: a mutation harness that caches can invent agreement
+
+The six mutations for shape 63 ran as a loop. The first pass reported five red
+and one green, which would have meant one pin was worthless. The second pass,
+same script, reported a different five red and a different one green. A harness
+that answers differently on identical input is not measuring the thing it
+names.
+
+The cause is that `oa` loads through `importlib.util.spec_from_file_location`,
+which writes and reuses bytecode keyed on source size and mtime in whole
+seconds. Every mutation here was a single character replaced by another single
+character, so the file size never moved, and consecutive cases ran inside the
+same second. Case N could therefore execute case N-1's module.
+
+That is worse than noise, because of what it did on the first pass. Case five
+set `EXIT_CONFIG = 9` in code. Case six restored the code and changed the
+README to read `exit 9`. The stale module still held `9`, so the assertion
+compared the previous case's code against this case's prose, found them equal,
+and reported the pin as insensitive to a drift it actually catches. Two
+unrelated mutations were made to agree by a cache.
+
+This is round 42's tautology with a different mechanism. There the two sides of
+an assertion resolved through one module, so a mutation moved both at once.
+Here a stale module did the same thing across two runs. Both times a real
+disagreement was hidden because something upstream of the assertion made the
+sides move together, and both times the individual result looked plausible
+enough to act on.
+
+Cleared caches per case and re-ran: six for six, both authors of all three
+values, with an unmutated negative control still green. The general form, and
+the seventh instrument failure this session: a mutation result is a claim about
+the harness before it is a claim about the test, and a harness that reuses any
+state between cases can turn independent edits into a matched pair.
+
+## Shape 65: the obvious guard for a real defect can be undetectable
+
+A commit hash written into prose is a reference nothing checks. This stack
+produced the defect twice. Once in a session log that named a commit an amend
+had already replaced, and once in a review reply on #3579 that named
+`32ab12dbe` shortly before a rebase rewrote every hash on the branch. Both are
+the same event: a hash is a name for a specific history, and any rewrite of that
+history silently invalidates every copy of the name that lives outside it. A
+stacked branch makes this routine rather than rare, because the parent merging
+by squash rewrites the whole child.
+
+The obvious response is a validator: scan the durable artifacts for hashes and
+fail when one no longer resolves. It is cheap to write, so it was worth
+measuring before writing.
+
+Measured. Over the session log and this file, a token rule of seven to twelve
+lowercase hex characters not adjacent to more hex found forty six candidates,
+thirty five of which resolved to real commits. The remaining eleven were the
+finding the validator would have reported. All eleven were wrong.
+
+They were: `0078125`, from the decimal `0.0078125`, which is a p-value this very
+document quotes; `cceeded`, which is the interior of the English word
+"succeeded"; `20260528` and `20260531`, which are dates inside run directory
+names; `70c6ae97`, `5f4d8ad4` and `60538bcf`, which are the random suffixes of
+those same run directories; and `06f74397`, `77e97462`, `be99fa1b1180` and
+`26136df314d6`, which are truncated corpus fingerprints. Every one is
+legitimately hex shaped, and several are values this stack deliberately writes
+down. The false positive rate on the only bucket the validator would have
+surfaced was one hundred percent, and the true positive count was zero, because
+both real instances had already been corrected by hand.
+
+A gate whose first run is entirely false positives does not get tightened. It
+gets an ignore list, then a skip flag, then nobody reads it. This stack already
+documented that pattern from the other direction in the guard maturity work.
+
+The general form, and the eighth instrument failure this session: prose does not
+record intent, so a detector over prose can only match shape, and hex is a shape
+that dates, probabilities, digests, identifiers and ordinary English words all
+share. The durable fix is not detection. It is to stop writing the ambiguous
+token. A pull request number is stable across every rewrite, resolves for a
+reader without a checkout, and cannot be confused with a p-value.
+
+## Shape 66: the plan's stated reason was false, and the fix built on it would have been a false positive
+
+Round 45 found a real defect in the test that pins each flag's default. The bar
+compared through `float()`, so a default respelled as
+`"0.4000000000000000000000000001"` compared equal to `0.4` and the test stayed
+green while the argparse default had changed. That much was measured and is
+true.
+
+The plan for the fix carried a justification: compare the strings exactly,
+because the split fingerprint is computed over the JSON string, so any
+respelling is a real change the fingerprint would see. It reads like a
+derivation. It was wrong.
+
+`split_fingerprint` does not hash the string it is given. It calls
+`_canonical_ratio`, which runs the value through `Fraction` and emits
+`numerator/denominator`. Measured on the real function: `0.4`, `"0.4"` and
+`"0.40"` all produce fingerprint `fa2b51a4f24c8cb2`; only the long-decimal
+respelling produces a different one. An exact-string bar would have failed on
+`"0.40"`, a respelling the product cannot distinguish from `0.4` anywhere it
+matters. The fix would have been a test that reports drift the system does not
+have.
+
+The bar that shipped compares through `core._canonical_ratio` itself, the
+product's own canonicalization, so the test cannot drift from the thing it
+protects. Verified on six cases: the Fraction bar is correct on all six, the
+float bar is wrong on exactly the one that matters, and mutating the argparse
+default to the long decimal fails the new bar and passes the old one.
+
+The general form, and the ninth instrument failure this session: a finding can
+be true while the reason attached to it is invented. The defect was found by
+measurement; the justification was produced by plausible reasoning about code
+that had not been read. Reasoning about a function you have not opened produces
+prose of the same confidence as reasoning about one you have. The cheap
+discipline is to read the cited function before the justification is written
+into a commit message, because a wrong reason does not stay inert, it selects
+the wrong fix.
