@@ -781,7 +781,7 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     assert str(repo_root / "tests") in bulk_targets
 
     targeted_marker, _, targeted_ignores = targeted[0]
-    assert targeted_marker == "not safe_push_transport"
+    assert targeted_marker == "not integration and not safe_push_transport"
     assert safe_push_tests not in targeted_ignores
 
     # The transport tests must never run under pre-push, so no command may
@@ -793,6 +793,7 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
             repo_root / "tests"
         ) in targets
         if reaches_module:
+            assert "not integration" in marker, (marker, targets)
             assert "not safe_push_transport" in marker, (marker, targets)
 
 

@@ -826,7 +826,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
             "WARNING: {push_files} empty; cannot determine documentation-only or "
-            "trivial-session bypass—retrospective evidence still required",
+            "trivial-session bypass, retrospective evidence still required",
             file=sys.stderr,
         )
     if paths and _documentation_only(paths):
@@ -2978,7 +2978,7 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "pytest",
             "-m",
-            "not safe_push_transport",
+            "not integration and not safe_push_transport",
             str(safe_push_tests),
         ],
     ]
