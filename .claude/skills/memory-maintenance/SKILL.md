@@ -178,7 +178,7 @@ change. Re-run the relevant check to verify the result.
 |-------|---------------------|
 | `memory` | Router for search, reflexion, or gate operations |
 | `memory-search` | Tier 1 semantic lookup, not a maintenance check |
-| `memory-reflexion` | Record a completed session as an episode and causal update |
+| `memory-reflexion` | Record a completed session as an episode |
 | `curating-memories` | Content maintenance (obsolete, deduplicate, link) |
 
 ## Troubleshooting
