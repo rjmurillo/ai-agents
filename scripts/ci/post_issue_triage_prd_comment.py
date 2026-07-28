@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
-DEFAULT_OUTPUT = Path("/tmp/prd-comment.md")
+CONFIG_ERROR = 2
+DEFAULT_OUTPUT = Path(os.environ.get("RUNNER_TEMP", ".")) / "prd-comment.md"
 
 
 def _prd_depth(complexity_score: int) -> str:
@@ -87,18 +89,27 @@ def post_comment(*, issue_number: str, body_file: Path) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     if argv:
-        return 2
+        print("::error::unexpected command line arguments", file=sys.stderr)
+        return CONFIG_ERROR
+    issue_number = os.environ.get("ISSUE_NUMBER", "")
+    if not issue_number:
+        print("::error::ISSUE_NUMBER is required", file=sys.stderr)
+        return CONFIG_ERROR
     output = DEFAULT_OUTPUT
-    comment = build_prd_comment(
-        prd_content=os.environ.get("PRD_CONTENT", ""),
-        complexity_score=os.environ.get("COMPLEXITY_SCORE", ""),
-        escalation_criteria=os.environ.get("ESCALATION_CRITERIA", ""),
-        repository=os.environ.get("GITHUB_REPOSITORY", ""),
-        server_url=os.environ.get("SERVER_URL", ""),
-        run_id=os.environ.get("RUN_ID", ""),
-    )
+    try:
+        comment = build_prd_comment(
+            prd_content=os.environ.get("PRD_CONTENT", ""),
+            complexity_score=os.environ.get("COMPLEXITY_SCORE", ""),
+            escalation_criteria=os.environ.get("ESCALATION_CRITERIA", ""),
+            repository=os.environ.get("GITHUB_REPOSITORY", ""),
+            server_url=os.environ.get("SERVER_URL", ""),
+            run_id=os.environ.get("RUN_ID", ""),
+        )
+    except ValueError:
+        print("::error::COMPLEXITY_SCORE must be an integer", file=sys.stderr)
+        return CONFIG_ERROR
     output.write_text(comment + "\n", encoding="utf-8")
-    return post_comment(issue_number=os.environ.get("ISSUE_NUMBER", ""), body_file=output)
+    return post_comment(issue_number=issue_number, body_file=output)
 
 
 if __name__ == "__main__":
