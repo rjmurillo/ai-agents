@@ -79,12 +79,17 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Round 2 targeted eval tests passed locally. Full validation pending final pre-push run."
+        "Evidence": "Full pytest passed under the default system TMPDIR. build_all --check and pre_pr passed. Ruff and mypy results match origin/main behavior."
       },
       "adrReviewEvidence": {
         "level": "MUST",
         "Complete": true,
         "Evidence": "adr-review skill invoked again for amended ADR-088. Debate log .agents/critique/ADR-088-debate-log.md records round 2 accept or disagree-and-commit convergence with no P0 or P1 blockers."
+      },
+      "retrospectiveEvidence": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Learnings captured: Round 2 caught two process lessons. Behavioral tests need a reviewed negative control, and ADR rollback triggers need real wiring or an issue before the ADR claims them."
       }
     }
   },
