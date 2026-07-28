@@ -47,6 +47,7 @@ from checks_spec import (  # noqa: E402
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
+    validate_traceability,
     validate_vendor_portability,
 )
 from checks_tooling import (  # noqa: E402
@@ -207,6 +208,12 @@ def run_all_validations(
         "Spec ID Uniqueness",
         state,
         lambda: validate_spec_id_uniqueness(repo_root),
+    )
+
+    run_validation(
+        "Traceability",
+        state,
+        lambda: validate_traceability(repo_root),
     )
 
     # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
