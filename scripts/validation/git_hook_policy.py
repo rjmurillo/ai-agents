@@ -3509,6 +3509,11 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
 def _print_process_output(result: subprocess.CompletedProcess[str]) -> None:
     if result.stdout:
         print(result.stdout, end="")
+        # lefthook pipes stdout, so Python block-buffers it while stderr stays
+        # unbuffered. Without this flush a later stderr write overtakes the
+        # stdout it explains, and the reason surfaces under the next hook's
+        # group header where it reads as that hook's output. Refs #3627.
+        sys.stdout.flush()
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
 
