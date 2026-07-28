@@ -248,3 +248,78 @@ needs its own review.
 
 Rerouting to a target proves the target resolves. It does not prove the target
 can do the work.
+
+## The fix for one review round opened the hole found in the next
+
+Round three flagged that pruning worktree container names at every depth would
+hide a real skill named `worktrees`. The fix scoped pruning to the walk root
+and a test pinned it. Round four then found that root-only pruning walks a
+`node_modules` or `.venv` inside a skill, and that the interpreter symlinks a
+virtualenv carries trip the gate's own symlink refusal at exit 2. The round
+three fix turned a hidden-content risk into a blocks-every-push risk.
+
+Both reviewers had probed pruning. One declared it correct after testing a
+nested worktree symlink, which the symlink refusal does catch. The other found
+the hole with a nested real `node_modules`. Same surface, different probe,
+opposite verdicts. Neither reviewer was wrong; the surface needed both probes.
+
+The corrected rule is path-shaped rather than name-shaped: prune by name at
+every depth, exempting directories directly under `<root>/skills`. A skill is
+always a direct child of that namespace, so every legitimate name collision is
+covered and everything deeper is tooling output. Both constraints hold at once
+because they were never actually in conflict; the name-shaped framing made them
+look like they were.
+
+## Deleting a test to make a fix pass, defensibly
+
+The G2 fix failed a round-three test asserting that a `venv` nested inside a
+skill is scanned. Changing a test to make a fix pass is how defects ship, so
+the burden is on the change.
+
+What made it defensible: measurement first, cost asymmetry second. Zero `venv`,
+`.venv` and `node_modules` directories exist in the three live plugin roots, and
+no skill directory is named any pruned name, so both the old test's scenario
+and the new one are hypothetical. With prevalence tied at zero, the asymmetry
+decides: a stray virtualenv blocks every push in the repository, while a content
+directory named `venv` only skips a check. The replacement tests keep the old
+test's real protective intent at the level where it is right, that a skill
+directory named `venv` is still scanned, and add the policy the old test denied.
+
+A test that pins a defect is not a guarantee worth keeping. Say so in the test
+body, with the measurement, so the next reader can re-litigate it on evidence.
+
+## Verify that your own fix did not shrink the scan
+
+The pruning change could have silently reduced coverage, which is the same
+fail-open class the gate exists to prevent. Counting scanned files before and
+after, 906 both ways, is what separates a fix from a hopeful edit. A gate's own
+changes need the gate's own discipline.
+
+The same discipline caught a vacuous check elsewhere in the session: a PR
+description validation returned clean for both the real body and a poisoned
+control. A passing check is worthless until a control that should fail does.
+
+## An optional capture group can erase what it matched
+
+The route pattern makes the name optional so a bare `Skill:` is reported
+malformed rather than skipped. That same optionality made the pattern match a
+code span holding only the keyword, so the span was blanked as syntax
+documentation and the route's keyword disappeared with it. The predicate tested
+the match when it should have tested the group.
+
+Two rounds of review read that line and neither caught it by reading. It took
+a fixture. Predicates built on a regex with an optional group need a probe, not
+a reading.
+
+## Declining a finding needs the same evidence as accepting one
+
+One round-four finding was real and left unfixed: a route inside a raw HTML
+`<code>` tag is read as a route while the same route in a backtick span is
+treated as documentation. Zero table cells across the three plugin roots contain
+a `<code>` tag, the current behaviour fails closed, and the workaround is one
+backtick. Closing it would add HTML token-depth tracking, and a new fail-open
+path, to a markdown parser several gates share.
+
+The decision is recorded in the module docstring and pinned by a test that
+states the reasoning, so it is a documented trade rather than an oversight. A
+finding declined without evidence is indistinguishable from a finding missed.

@@ -194,6 +194,39 @@
     },
     {
       "step": "Verified no regression: 54 gate tests pass, 877 markdown and portability tests pass, and the full validation suite reports 1272 passed and 1 skipped, up 10 from the 1262 recorded earlier in this session. ruff check is clean on all five changed files; the 20 errors under scripts/ are the pre-existing baseline, confirmed by stashing the change and re-running."
+    },
+    {
+      "step": "Ran a fourth adversarial review round on two model families (gpt-5.6-sol, gemini-3.1-pro-preview) against the round-three commits. Both returned DO NOT SHIP with six findings between them. Verified every claim by execution using the suite's own shipped_skill_routes_helpers rather than a hand-rolled fixture layout; the first hand-rolled probe produced all-rc=2 noise because it used the wrong directory shape."
+    },
+    {
+      "step": "Fixed G1, a fail-open defect: a code span holding only the keyword, as in `Skill:` ghost, matched the route pattern because the name group is optional, so the span was blanked and the dangling route disappeared entirely. The span is now blanked only when a name was actually captured."
+    },
+    {
+      "step": "Fixed G2, a push-blocking false positive: pruning applied at the walk root only, so a node_modules or .venv inside a skill was scanned. Third-party prose read as drift, and the interpreter symlinks a virtualenv carries tripped the symlink refusal at exit 2, which would block every push in the repository. Pruning is now by name at every depth, exempting directories directly under <root>/skills so a real skill whose name collides with a tooling name is still scanned."
+    },
+    {
+      "step": "Fixed G3, a second false positive: only the right end of a captured name was stripped, so Skill: (autoplan) and Skill: \"autoplan\" reported malformed. Added a leading punctuation set and strip both ends."
+    },
+    {
+      "step": "Fixed S2: _present returned False for a path that existed with the wrong kind, so making a plugin manifest a directory dropped that root silently and let its sibling carry the pass. Split the stat policy into three functions: _stat_mode holds the single fail-closed stat, _present asserts a required kind and raises on a mismatch, and _is_directory sifts candidates where a non-directory is an ordinary answer. Sifting src/ children with the assertion form was the bug that broke root discovery on first attempt, because src/AGENTS.md sits beside the roots."
+    },
+    {
+      "step": "Fixed S3: os.walk follows its own starting path, so a symlinked plugin root was walked while symlinked directories inside a root were refused. iter_markdown now rejects a symlinked root, applying one policy to the whole tree."
+    },
+    {
+      "step": "Declined S1 on measured evidence: a route inside a raw HTML <code> tag is read as a route while the same route in a backtick span is treated as documentation. Zero table cells across the three plugin roots contain a <code> tag, the current behaviour is the fail-closed direction, and the workaround is one backtick. Closing it would add HTML token-depth tracking, and a new fail-open path, to a markdown parser several gates share. Recorded as a known limitation in the module docstring and pinned by a test that states the reasoning."
+    },
+    {
+      "step": "Replaced a round-three test that pinned the G2 defect. test_route_under_a_directory_named_venv_is_still_checked asserted that a venv nested inside a skill is scanned, which is what the fix stops. Measured zero venv, .venv and node_modules directories across the three live plugin roots and zero skill directories named any pruned name, so both scenarios are hypothetical and cost asymmetry decides: a stray virtualenv blocks every push, a content directory named venv only skips a check. Three tests now pin the corrected policy, including that a skill directory named venv is still scanned."
+    },
+    {
+      "step": "Proved the pruning change did not silently shrink the live scan, which is the fail-open risk of the fix itself: 906 markdown files with the new all-depth rule, 906 with the old root-only rule measured by stashing the change. Live gate unchanged at 34 routes across 3 roots in 2.83s."
+    },
+    {
+      "step": "Extended the mutation battery from 18 to 25 with one mutation per new defence: bare-keyword blanking, root-only pruning restored, unconditional all-depth pruning, leading punctuation kept, wrong-kind path reported absent, symlinked root followed, skills directory sifted rather than asserted, stat OSError swallowed, and a non-directory sibling asserted as a root. 25 caught, 0 survived."
+    },
+    {
+      "step": "Verified after the fixes: 70 gate tests pass, up from 54; 1337 passed and 1 skipped across the shared markdown parser and the full validation suite; ruff clean on all three changed files; 0 em-dash and en-dash bytes."
     }
   ],
   "endingCommit": "4149f75801",

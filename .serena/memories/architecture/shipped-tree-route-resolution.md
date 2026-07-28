@@ -175,3 +175,50 @@ behind one passed. The gate refuses such a directory rather than setting
 `followlinks=True`: a symlink cycle costs dozens of redundant walks before the
 OS limit stops it, and a file reachable two ways is reported twice. No plugin
 root ships one today.
+
+## Pruning must be path-shaped, not name-shaped
+
+Pruning worktree container names at the walk root only, chosen so a real skill
+named `worktrees` would still be scanned, left `node_modules` and `.venv`
+inside a skill in the scan. That reads third-party prose as drift and trips the
+symlink refusal on the interpreter links every virtualenv carries, which exits
+2 and blocks every push in the repository. Pruning the same names at every
+depth without an exemption hides a real skill whose name collides.
+
+The rule that holds both: prune by name at every depth, exempting directories
+directly under `<root>/skills`. A skill is always a direct child of the skills
+namespace, so the exemption covers every legitimate collision, and everything
+deeper is tooling output.
+
+Measured before changing it: zero `venv`, `.venv` and `node_modules`
+directories exist in the three live plugin roots, and no skill directory is
+named any pruned name. Both the old and new rules therefore yield the same 906
+files today. Cost asymmetry decided the design rather than prevalence: a stray
+virtualenv blocks every push, while a content directory named `venv` only skips
+a check.
+
+## Separate the stat that asserts from the stat that sifts
+
+One `_present(path, *, directory)` served two questions and got one wrong.
+Raising when a path exists with the wrong kind is right for a manifest, whose
+kind is part of the contract; it is wrong for sifting `src/*` children, where
+`src/AGENTS.md` sits beside the roots and a non-directory is an ordinary
+answer. The split is `_stat_mode` for the single fail-closed stat, `_present`
+to assert a required kind, `_is_directory` to sift. Applying the assertion form
+at the sifting site broke root discovery on the live repository immediately.
+
+`os.walk` follows its own starting path, so a symlinked plugin root was walked
+while symlinked directories inside a root were refused. One policy must cover
+the whole tree, so the root is rejected before the walk begins.
+
+## An optional capture group can erase what it matched
+
+`_ROUTE_RE` makes the name group optional so a bare `Skill:` is reported
+malformed rather than skipped. That made the pattern match a code span holding
+only the keyword, as in `` `Skill:` ghost ``, so the span was blanked as syntax
+documentation, the keyword vanished, and the dangling route went unreported.
+Blank only when a name was actually captured. Any predicate built on a regex
+with an optional group must test the group, not the match.
+
+Strip wrapping punctuation from both ends. `_TRAILING` alone left
+`Skill: (autoplan)` reported malformed, a false positive that blocks the push.
