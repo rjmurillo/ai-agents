@@ -237,14 +237,6 @@ agent-explainer:
           - "src/vs-code-agents/explainer.agent.md"
           - "templates/agents/explainer.shared.md"
 
-agent-memory:
-  - changed-files:
-      - any-glob-to-any-file:
-          - "src/claude/memory.md"
-          - "src/copilot-cli/agents/memory.agent.md"
-          - "src/vs-code-agents/memory.agent.md"
-          - "templates/agents/memory.shared.md"
-
 agent-retrospective:
   - changed-files:
       - any-glob-to-any-file:
