@@ -1,7 +1,7 @@
 ---
 name: taste-lints
 version: 1.0.0
-description: Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly. Use when writing or reviewing code to catch style violations early. Use to catch taste/style invariants (file size, naming, structured logging) on code. Do NOT use for a full review (use review).
+description: Use when you say `run taste lints`, `check file size`, or `lint taste invariants`. Custom lints with agent-readable remediation instructions for file size, naming conventions, structured logging, and complexity.
 license: MIT
 ---
 
@@ -71,7 +71,11 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 3. Apply suggested fixes
 4. Re-run to confirm compliance
 
-## Usage
+## Scripts
+
+| Script | Platform | Usage |
+|--------|----------|-------|
+| `scripts/taste_lints.py` | Python 3.11+ | Scan staged files, diff scopes, directories, or explicit files for taste invariant violations |
 
 ```bash
 # Scan staged files
@@ -100,6 +104,15 @@ python3 .claude/skills/taste-lints/scripts/taste_lints.py --rules file-size,nami
 | 0 | No violations found |
 | 1 | Script error (bad arguments, file not found) |
 | 10 | Violations detected |
+
+## Verification
+
+After execution:
+
+- [ ] Script exits with code 0 for clean input or 10 when violations are expected
+- [ ] Output lists every scanned file count and violation count
+- [ ] AGENT_REMEDIATION blocks include actionable fixes for each violation
+- [ ] JSON output parses when `--format json` is used
 
 ## Suppression
 
