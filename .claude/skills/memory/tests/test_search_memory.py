@@ -251,7 +251,7 @@ class TestSearchEpisodes:
 class TestMainFunction:
     """Tests for the main CLI entry point."""
 
-    def test_valid_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_valid_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
         (serena / "git-hooks.md").write_text("# Git Hooks\nTest content")
@@ -273,7 +273,7 @@ class TestMainFunction:
         assert isinstance(output["Results"], list)
 
     def test_searches_episodes_alongside_serena(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
@@ -298,7 +298,7 @@ class TestMainFunction:
         assert output["Diagnostic"]["Episodes"]["MemoryCount"] == 1
 
     def test_episode_path_traversal_rejected(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         result = main([
             "alpha",
@@ -308,7 +308,7 @@ class TestMainFunction:
         assert result == 2
         assert "traversal" in json.loads(capsys.readouterr().out)["Error"]
 
-    def test_table_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_table_format(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
         episodes = tmp_path / "episodes"
@@ -325,11 +325,11 @@ class TestMainFunction:
         captured = capsys.readouterr()
         assert "No results found" in captured.out
 
-    def test_invalid_query_returns_1(self, capsys: pytest.CaptureFixture) -> None:
+    def test_invalid_query_returns_1(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = main(["test<invalid>"])
         assert result == 1
 
-    def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
         episodes = tmp_path / "episodes"

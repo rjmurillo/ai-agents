@@ -142,16 +142,19 @@ def test_forgetful_available(host: str = "localhost", port: int = 8020) -> bool:
         return False
 
 
-def get_memory_router_status(serena_path: Path, episodes_path: Path | None = None) -> dict:
+def get_memory_router_status(
+    serena_path: Path, episodes_path: Path | None = None
+) -> dict[str, dict[str, object]]:
     """Return diagnostic status of memory systems."""
     serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
         serena_count = len(list(serena_path.glob("*.md")))
 
-    episodes_available = episodes_path is not None and episodes_path.is_dir()
+    episodes_available = False
     episode_count = 0
-    if episodes_available:
+    if episodes_path is not None and episodes_path.is_dir():
+        episodes_available = True
         episode_count = len(list(episodes_path.glob("episode-*.json")))
 
     forgetful_available = test_forgetful_available()
