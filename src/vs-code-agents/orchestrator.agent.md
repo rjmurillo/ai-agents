@@ -108,13 +108,8 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **issue-feature-review** | Triage feature requests | sonnet | Already prioritized |
 | **milestone-planner** | Epic → milestones with exit criteria | sonnet | Task-level decomposition |
 | **qa** | Test strategy, user-outcome validation | sonnet | Unit test details only |
-<<<<<<< HEAD
-||||||| ec823bba
-| **quality-auditor** | Domain grading, gap analysis | sonnet | Single-file review |
-=======
 | **pr-test-analyzer** | PR test coverage gaps | sonnet | No PR or diff |
 | **quality-auditor** | Domain grading, gap analysis | sonnet | Single-file review |
->>>>>>> origin/main
 | **retrospective** | Post-mortem, learning extraction | sonnet | Real-time debugging |
 | **roadmap** | Strategic prioritization, outcome sequencing | opus | Tactical execution |
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
