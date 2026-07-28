@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import inspect
 import io
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -40,6 +42,13 @@ try:
     oa = importlib.util.module_from_spec(_spec)
     sys.modules["optimize_artifact"] = oa
     _spec.loader.exec_module(oa)
+    # Loaded separately rather than read off `oa`. A test that compares
+    # `oa.X` to the parser `oa` built resolves both sides through the
+    # module under test, so it passes even when that module stops
+    # importing the constant and hardcodes its own copy, which is the one
+    # defect the comparison exists to catch.
+    adapters = importlib.import_module("_optimizer_adapters")
+    core = importlib.import_module("_optimizer_core")
 finally:
     if _path_added and str(_EVAL_DIR) in sys.path:
         sys.path.remove(str(_EVAL_DIR))
@@ -168,11 +177,19 @@ def _readme_paragraph(marker: str) -> str:
             rewritten and the test needs updating rather than quietly widening.
     """
     text = (_EVAL_DIR / "README.md").read_text(encoding="utf-8")
-    at = text.find(marker)
-    assert at != -1, f"README no longer contains {marker!r}"
-    start = text.rfind("\n\n", 0, at)
-    end = text.find("\n\n", at)
-    return text[0 if start == -1 else start + 2 : len(text) if end == -1 else end]
+    found = [m.start() for m in re.finditer(re.escape(marker), text)]
+    assert len(found) == 1, (
+        f"README contains {marker!r} {len(found)} times; a marker that is not "
+        "unique picks an arbitrary paragraph, so choose a longer one"
+    )
+    at = found[0]
+    # A blank line carrying a space is still a paragraph break to every
+    # Markdown renderer, and a bare "\n\n" search walks straight past it into
+    # the neighbour this window exists to exclude.
+    breaks = [m for m in re.finditer(r"\n[^\S\n]*\n", text)]
+    start = max((m.end() for m in breaks if m.end() <= at), default=0)
+    end = min((m.start() for m in breaks if m.start() >= at), default=len(text))
+    return text[start:end]
 
 
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
@@ -5989,20 +6006,78 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         path.write_text("{}", encoding="utf-8")
         return ["extract", "--kind", kind, "--input", str(path)]
 
-    def test_the_skip_default_is_the_adapters_own(self, tmp_path):
-        argv = self._extract_args(tmp_path, "hook", "j.xml")
-        assert oa.build_parser().parse_args(argv).on_skip == oa._DEFAULT_SKIP_POLICY
+    # Every flag whose value a module owns, paired with the function whose
+    # signature is that owner. `Ratio` is `float | str`, so the two split
+    # ratios are compared numerically: argparse keeps the string because the
+    # value is parsed downstream, and the digits are what must agree.
+    _OWNED_DEFAULTS = (
+        ("extract", "pass_threshold", "agent_results"),
+        ("extract", "reduce", "rule_results_multi"),
+        ("extract", "min_score", "rule_results_multi"),
+        ("extract", "on_skip", "pytest_results"),
+        ("split", "sel_ratio", "split_tasks"),
+        ("split", "test_ratio", "split_tasks"),
+        ("split", "min_sel", "split_tasks"),
+        ("budget", "max_edits", "edit_budget"),
+        ("budget", "min_edits", "edit_budget"),
+    )
 
-    def test_the_reduce_default_is_a_reducer_the_adapter_owns(self, tmp_path):
-        argv = self._extract_args(tmp_path, "rule", "r.json")
-        parsed = oa.build_parser().parse_args(argv)
-        assert parsed.reduce == oa._DEFAULT_REDUCER
-        assert parsed.reduce in oa._REDUCERS
+    # The minimum argv each subcommand accepts. Built by hand because
+    # argparse reports a mutually exclusive requirement on the group rather
+    # than on its members, so walking `action.required` misses `--tasks`.
+    # A wrong entry here fails loudly at parse time rather than passing
+    # quietly, which is how the missing `--tasks` surfaced.
+    _MINIMUM_ARGV = {
+        "extract": ("--kind", "rule", "--input", "{path}"),
+        "split": ("--seed", "s", "--tasks", "{path}", "--out", "{path}"),
+        "budget": ("--step", "1", "--total", "2"),
+    }
 
-    def test_the_min_score_default_is_the_exported_constant(self, tmp_path):
-        argv = self._extract_args(tmp_path, "rule", "r.json")
-        parsed = oa.build_parser().parse_args(argv)
-        assert parsed.min_score == oa.DEFAULT_MIN_ACTIVATION_SCORE
+    def _parse(self, command, tmp_path):
+        path = tmp_path / "x.json"
+        path.write_text("[]", encoding="utf-8")
+        argv = [a.format(path=path) for a in self._MINIMUM_ARGV[command]]
+        return oa.build_parser().parse_args([command, *argv])
+
+    @pytest.mark.parametrize(("command", "dest", "owner"), _OWNED_DEFAULTS)
+    def test_a_flag_default_equals_the_default_of_the_function_that_owns_it(
+        self, tmp_path, command, dest, owner
+    ):
+        """The command must not carry its own copy of a value it does not own.
+
+        Nine flags reach a function that already declares the same default.
+        When the two drift, nothing fails: the command keeps answering with a
+        value the owner never chose, and the README has two places to describe.
+
+        Read from the owning module rather than through the module under test.
+        Comparing what the command imported against what the command parsed is
+        a tautology that survives the command hardcoding its own copy, which is
+        exactly the defect this pins.
+        """
+        fn = getattr(adapters, owner, None) or getattr(core, owner)
+        expected = inspect.signature(fn).parameters[dest].default
+        actual = getattr(self._parse(command, tmp_path), dest)
+        if isinstance(expected, float) and isinstance(actual, str):
+            assert float(actual) == expected
+        else:
+            assert actual == expected
+
+    def test_the_pairs_above_name_a_parameter_each_owner_really_has(self):
+        """A typo in the table above would silently test nothing.
+
+        `getattr` on a missing owner raises, but a `dest` that no longer
+        matches a parameter would make every case skip its real subject, so
+        the table is checked against both signatures directly.
+        """
+        missing = [
+            (dest, owner)
+            for _, dest, owner in self._OWNED_DEFAULTS
+            if dest
+            not in inspect.signature(
+                getattr(adapters, owner, None) or getattr(core, owner)
+            ).parameters
+        ]
+        assert missing == []
 
     def test_every_reducer_the_adapter_owns_survives_the_command(
         self, tmp_path, capsys
@@ -6017,7 +6092,7 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         ])
         refused = [
             name
-            for name in oa._REDUCERS
+            for name in adapters._REDUCERS
             if _run(
                 capsys, "extract", "--kind", "rule", "--input", report,
                 "--mechanism", "full", "--reduce", name,
