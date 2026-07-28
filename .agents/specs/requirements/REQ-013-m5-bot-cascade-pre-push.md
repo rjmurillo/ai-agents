@@ -179,11 +179,11 @@ PR #1989 M5 had this exact bug with `gh api ... || true`. The corrected design r
 
 ### Requirement Statement
 
-WHEN `tests/hooks/test_bot_cascade_warning.py` runs, THE SYSTEM SHALL pin each of REQ-011-01..04 to one test case with AC traceability in the docstring, using structural verification of the Phase 5c block (string-presence plus `bash -n`).
+WHEN `tests/test_lefthook_integration.py` runs, THE SYSTEM SHALL pin each of REQ-011-01..04 to one test case with AC traceability in the docstring, using structural verification of the Phase 5c block (string-presence plus `bash -n`).
 
 ### Acceptance Criteria
 
-- [x] Test file exists at `tests/hooks/test_bot_cascade_warning.py`.
+- [x] Test file exists at `tests/test_lefthook_integration.py`.
 - [x] One test per AC: REQ-011-01 (unresolved warn), REQ-011-02 (incomplete skip), REQ-011-03 (recent review warn), REQ-011-04 (auth skip not swallow).
 - [x] Each test docstring cites the AC identifier.
 - [x] Tests use structural verification (grep on the Phase 5c block plus `bash -n`), the same pattern that covers Phase 5b drift detection.
