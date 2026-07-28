@@ -149,6 +149,7 @@ def rule_results(
     mechanism: str,
     *,
     min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
+    reduce: str = "median",
 ) -> dict[str, bool]:
     """Map rule-activation scenarios to per-scenario pass or fail.
 
@@ -170,6 +171,7 @@ def rule_results(
             `description`, or `baseline`.
         min_score: Mean of the three judge scores at or above which a positive
             scenario passes.
+        reduce: How to collapse repeated judge samples for each score key.
 
     Returns:
         Mapping from scenario id to pass or fail.
@@ -179,6 +181,11 @@ def rule_results(
             id, carries a malformed `mechanisms` or `scores` block, or holds a
             score that is not finite and numeric.
     """
+    if reduce not in _REDUCERS:
+        raise AdapterError(
+            f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
+        )
+    reducer = _REDUCERS[reduce]
     out: dict[str, bool] = {}
     for scenario in scenarios:
         if not isinstance(scenario, Mapping):
@@ -220,10 +227,44 @@ def rule_results(
             out[sid] = False
             continue
 
-        triple = [
-            _as_float(raw_scores.get(key, 0), f"scenario {sid!r} {key}")
-            for key in _RULE_SCORE_KEYS
-        ]
+        raw_samples = mech_data.get("score_samples")
+        if raw_samples is None:
+            samples = [raw_scores]
+        else:
+            if (
+                not isinstance(raw_samples, Sequence)
+                or isinstance(raw_samples, (str, bytes))
+                or not raw_samples
+            ):
+                raise AdapterError(
+                    f"scenario {sid!r} score_samples must be a non-empty list"
+                )
+            samples = []
+            for index, sample in enumerate(raw_samples):
+                if not isinstance(sample, Mapping):
+                    raise AdapterError(
+                        f"scenario {sid!r} score_samples[{index}] must be an object"
+                    )
+                if sample.get("judge_failed"):
+                    out[sid] = False
+                    break
+                missing = [key for key in _RULE_SCORE_KEYS if key not in sample]
+                if missing:
+                    raise AdapterError(
+                        f"scenario {sid!r} score_samples[{index}] missing "
+                        f"{', '.join(missing)}"
+                    )
+                samples.append(sample)
+            if sid in out:
+                continue
+
+        triple = []
+        for key in _RULE_SCORE_KEYS:
+            values = [
+                _as_float(sample.get(key, 0), f"scenario {sid!r} {key}")
+                for sample in samples
+            ]
+            triple.append(reducer(values))
         # No inversion. eval-rule-activation.py tells the judge that 5 is the
         # correct-behavior end of the scale for negative cases too ("5 means
         # the response correctly did NOT activate the rule"), so the score
