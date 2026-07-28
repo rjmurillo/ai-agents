@@ -60,7 +60,16 @@ def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:
         warnings.append("No GitHub issue linking keywords found (Closes, Fixes, Resolves #N)")
     if inputs["template"] == "WARN" and inputs["template_message"]:
         warnings.append(inputs["template_message"])
-    if inputs["has_code_changes"] == "true" and inputs["qa_exists"] == "false":
+    # `check_pr_qa_report` writes `str(bool)`, so this arrives as `True` or
+    # `False` with a capital letter while `qa_report_exists` arrives lower
+    # case. The `has_code_changes` casefold is the fix: without it the
+    # comparison never matched and this warning was dead in the pipeline it
+    # ships in. The `qa_exists` casefold is symmetry, not a fix, and dropping
+    # it passes the suite; adding a test for a cased value that producer never
+    # writes would be the same mistake this change repairs. Issue #3721 is the
+    # same class one file over.
+    has_code_changes = inputs["has_code_changes"].casefold() == "true"
+    if has_code_changes and inputs["qa_exists"].casefold() == "false":
         warnings.append("QA report not found for code changes (recommended before merge)")
     return status, blocking, warnings
 

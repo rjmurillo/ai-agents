@@ -192,6 +192,67 @@ def test_report_builds_fail_status_and_outputs_status(
     assert "- QA report not found for code changes" in text
 
 
+def test_report_reads_the_code_change_flag_the_producer_actually_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The QA warning must fire for the producer's value, not a hand-picked one.
+
+    ``check_pr_qa_report`` writes ``str(bool)``, so the workflow carries
+    ``True`` with a capital letter into ``HAS_CODE_CHANGES``. Every other test
+    here sets a lower case ``true``, which the producer never emits, so a case
+    sensitive comparison in the consumer passes the suite while the warning is
+    dead in the pipeline it ships in.
+    """
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "PASS")
+    monkeypatch.setenv("HAS_CODE_CHANGES", "True")
+    monkeypatch.setenv("QA_EXISTS", "false")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+
+    assert report_mod.main() == 0
+    assert "- QA report not found for code changes" in report.read_text(encoding="utf-8")
+
+
+def test_report_leaves_the_qa_warning_off_when_there_are_no_code_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The producer's negative value must not be read as a code change."""
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "PASS")
+    monkeypatch.setenv("HAS_CODE_CHANGES", "False")
+    monkeypatch.setenv("QA_EXISTS", "N/A")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+
+    assert report_mod.main() == 0
+    assert "- QA report not found for code changes" not in report.read_text(encoding="utf-8")
+
+
+def test_report_treats_an_empty_code_change_flag_as_no_code_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A missing upstream output must not manufacture a warning."""
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "PASS")
+    monkeypatch.setenv("HAS_CODE_CHANGES", "")
+    monkeypatch.setenv("QA_EXISTS", "false")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+
+    assert report_mod.main() == 0
+    assert "- QA report not found for code changes" not in report.read_text(encoding="utf-8")
+
+
 def test_report_empty_description_becomes_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
