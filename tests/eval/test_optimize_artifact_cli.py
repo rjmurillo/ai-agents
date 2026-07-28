@@ -10827,10 +10827,27 @@ class TestEveryFlagDocumentsItself:
                         found.append((command, option.option_strings[0], option.help))
         return found
 
+    @staticmethod
+    def _subcommand_names() -> list[str]:
+        parser = oa.build_parser()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                return list(action.choices)
+        raise AssertionError("the parser exposes no subparsers")
+
     def test_the_parser_exposes_the_flags_this_fence_guards(self):
-        """Negative control: an empty walk would pass the assertion vacuously."""
+        """Negative control: an empty or truncated walk would pass vacuously.
+
+        This used to assert a flag count of at least 40 against an actual 45,
+        which failed for a legitimate consolidation of six flags and did not
+        distinguish a walk that stopped after one subcommand from one that
+        finished. Covering every subcommand is the property the fence needs:
+        the tests below check help text across the whole surface, so a walk
+        that reaches only part of it makes them quietly weaker rather than
+        red.
+        """
         found = self._subcommand_options()
-        assert len(found) >= 40
+        assert {command for command, _, _ in found} == set(self._subcommand_names())
         assert any(command == "buffer-add" and flag == "--reason" for command, flag, _ in found)
 
     def test_every_subcommand_flag_carries_help_text(self):
