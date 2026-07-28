@@ -218,8 +218,8 @@ generated output or a contract row that cannot be expressed in the spec.
 - A maturity model with numeric thresholds: the `guard-maturity` skill
   classifies guards as Budding, Growing, Mature, Proficient, Inert, or Harmful
   from age, intercept count, and fitness, with explicit prune/promote actions.
-- A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes and
-  updates the causal graph.
+- A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes.
+  Its derived causal graph was removed by ADR-089 for having no reader.
 
 What is NOT yet built (state this in any pitch):
 
