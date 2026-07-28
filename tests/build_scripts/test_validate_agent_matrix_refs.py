@@ -24,8 +24,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import frontmatter
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -116,27 +116,23 @@ def _canonical_file(name: str) -> str:
 def _has_agent_frontmatter(path: Path) -> bool:
     """Independent oracle for agent membership, used only by the real-repo test.
 
-    Deliberately implemented a different way from the module under test: a line
-    scan for the two fences plus a real YAML parse, rather than a string prefix
-    test, a regex search for the closing fence, and a regex search for the key.
-    An oracle that reuses the implementation cannot disagree with it, so it
-    proves nothing.
+    Deliberately implemented a different way from the module under test. The
+    implementation locates the block itself and hands the text to PyYAML; this
+    oracle delegates the whole job to ``python-frontmatter``, a separate library
+    with its own idea of where a block starts and ends. An oracle that reuses
+    the implementation's approach cannot disagree with it, so it proves nothing,
+    and the implementation moved onto PyYAML after review showed a textual key
+    search admitted frontmatter that no host can load.
     """
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
-    if not lines or lines[0].strip() != "---":
+    try:
+        parsed = frontmatter.loads(text)
+    except Exception:
         return False
-    for index in range(1, len(lines)):
-        if lines[index].strip() != "---":
-            continue
-        try:
-            block = yaml.safe_load("\n".join(lines[1:index]))
-        except yaml.YAMLError:
-            return False
-        return isinstance(block, dict) and "description" in block
-    return False
+    return "description" in parsed.keys()
 
 
 class TestKnownAgents:
@@ -235,6 +231,45 @@ class TestKnownAgents:
         """
         (tmp_path / "malformed.md").write_text(
             f"---\ndescription: not an agent\n{closing}\n\n# Doc\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    @pytest.mark.parametrize(
+        ("label", "block"),
+        [
+            ("unclosed flow sequence", "description: ["),
+            ("unclosed flow mapping", "description: {"),
+            ("tab indentation", "description: x\n\tnested: y"),
+            ("unclosed quote", 'description: "unterminated'),
+            ("undefined alias", "description: *missing"),
+            ("block sequence under a scalar", "description: x\n- item"),
+        ],
+    )
+    def test_frontmatter_that_is_not_loadable_yaml_is_excluded(self, tmp_path, label, block):
+        """A block no host can parse cannot define an agent.
+
+        The check tested for a textual ``description:`` key and never parsed the
+        block, so ``description: [`` was admitted to the roster. Review used that
+        to substitute a non-agent document for a real one, cite its stem from a
+        matrix, and pass the run. The name resolved here and nowhere a host
+        looks, which is exactly the phantom this validator exists to catch.
+        """
+        (tmp_path / "phantom.md").write_text(f"---\n{block}\n---\n\n# Doc\n", encoding="utf-8")
+        assert vamr.known_agents(tmp_path, ".md") == set(), label
+
+    def test_a_scalar_frontmatter_block_is_excluded(self, tmp_path):
+        """Valid YAML that is not a mapping has no keys to carry."""
+        (tmp_path / "scalar.md").write_text("---\njust a string\n---\n", encoding="utf-8")
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_a_sequence_frontmatter_block_is_excluded(self, tmp_path):
+        (tmp_path / "seq.md").write_text("---\n- description\n---\n", encoding="utf-8")
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_a_nested_description_key_is_excluded(self, tmp_path):
+        """The key must be top level, where a host reads it."""
+        (tmp_path / "nested.md").write_text(
+            "---\nmeta:\n  description: buried\n---\n", encoding="utf-8"
         )
         assert vamr.known_agents(tmp_path, ".md") == set()
 

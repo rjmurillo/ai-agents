@@ -120,6 +120,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
+
 # Canonical tree. Matrices originate here and propagate to the copies, so a
 # scan that finds nothing here is looking in the wrong place.
 CANONICAL_TREE = Path("templates/agents")
@@ -143,71 +147,35 @@ AGENT_TREES: tuple[tuple[Path, str], ...] = (
     (Path("src/vs-code-agents"), ".agent.md"),
 )
 
-# ``| Agent | Use For | Model | Avoid When |`` and friends. The first column
-# header is the marker; downstream columns vary per matrix. Bold, italic, and
-# backticks are tolerated because a header reformat must not silently drop a
-# whole table from the scan: an adversarial review hid a phantom row behind
-# ``| **Agent** |`` and the stricter pattern reported success.
-#
-# GitHub Flavored Markdown allows a block to be indented up to three spaces and
-# still render as a table, so every pattern here tolerates that indentation. A
-# review demonstrated a two-space indented matrix carrying a phantom row that the
-# column-zero patterns could not see at all.
-#
-# The leading pipe is optional because GFM makes it optional. A later review hid
-# a phantom row in a table written ``Agent | Focus`` with no leading pipe, which
-# GitHub renders as a table and the pipe-anchored pattern could not see.
-MATRIX_HEADER = re.compile(
-    r"^ {0,3}\|?\s*(\*{1,3}|_{1,3})?\s*`?Agent`?\s*(?(1)\1)\s*\|",
-    re.IGNORECASE,
-)
+# Agent names are lowercase kebab-case. A first-column cell inside a matrix that
+# does not match this is not ignored; it is reported as a parse gap, because a
+# malformed row is exactly how a phantom name hid from an earlier version.
+AGENT_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
-# ``|-------|---------|`` alignment row directly under a header, with the outer
-# pipes optional. GFM requires this row for a table to render at all, so it is
-# what promotes a bare ``| Agent |`` line into a table rather than prose. Cells
-# must be real alignment cells: ``[\s:|-]+`` also matched a row of stray colons.
-TABLE_SEPARATOR = re.compile(r"^ {0,3}\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
+# The first-column header that marks a table as a capability matrix.
+MATRIX_HEADER_CELL = "agent"
 
-# Any line that continues a table body: a non-blank line, indented no more than
-# the table itself, carrying at least one cell separator. A matrix runs until the
-# first line that does not match this.
-TABLE_LINE = re.compile(r"^ {0,3}\S[^\n]*\|")
-
-# A fenced code block opener or closer. Content inside a fence renders as code,
-# not as a table, so a documentation example of the matrix format must not be
-# enforced as routing. A review appended a fenced example matrix to an agent and
-# the validator failed the run on the example's illustrative row.
-CODE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-
-# ``| **implementer** | ... |``, ``| implementer | ... |``,
-# ``| `implementer` | ... |``, or ``| *implementer* | ... |``. Agent names are
-# lowercase kebab-case. Emphasis and backticks are optional: the orchestrator
-# matrix bolds the name, the per-category tables in ``AGENTS.md`` do not, and
-# either could gain code or italic formatting in a reformat. The ``| Agent |``
-# header is what establishes that column one holds an agent name, so every one of
-# those spellings is in scope and none is a false positive. A row inside a matrix
-# that matches none of them is not ignored; it is reported as a parse gap.
+# A CommonMark parser with the GFM table extension, which is what GitHub renders.
 #
-# The closing delimiter is a conditional backreference rather than a second
-# independent optional group, because underscore is a legal name character. With
-# an independent closing group, ``__implementer__`` parsed as an agent literally
-# named ``implementer__``: the opening ``__`` was consumed as emphasis and the
-# closing ``__`` was swallowed by the name. The backreference also rejects
-# asymmetric emphasis such as ``*name**``, which does not render as emphasis
-# either. Three delimiters are allowed because ``***name***`` renders as bold
-# italic.
+# This replaced roughly a hundred and twenty lines of hand-written regex that
+# approximated the same grammar and disagreed with the rendered page in four
+# separate ways found by review: a fenced example nested in a list item was
+# enforced as routing, a fence opener whose info string contained a backtick hid
+# a real table, a blockquote or heading after a table was recorded as a broken
+# row, and a delimiter row whose cell count did not match the header opened a
+# table that GitHub renders as a setext heading. Each was a separate patch to the
+# regex. The library already implements the specification the patches were
+# converging on, and ``markdown-it-py`` is a declared dependency of this project.
 #
-# The leading pipe is optional for the same reason it is optional in the header.
-# The pattern is only applied inside a table already established by a header and
-# an alignment row, so the optional pipe cannot reach ordinary prose.
-MATRIX_ROW = re.compile(
-    r"^ {0,3}\|?\s*(\*{1,3}|_{1,3})?\s*`?([a-z0-9][a-z0-9._-]*)`?\s*(?(1)\1)\s*\|"
-)
+# The ``linkify`` rule of the ``gfm-like`` preset needs ``linkify-it-py``, which
+# is not a dependency, so the table plugin is enabled on the CommonMark preset
+# instead. Link autodetection has no bearing on table structure.
+MARKDOWN = MarkdownIt("commonmark").enable("table")
 
 # A frontmatter key every agent definition carries, in every tree. Presence of a
-# frontmatter block containing this key is what separates an agent from a sibling
-# document that happens to share the tree's filename suffix.
-FRONTMATTER_DESCRIPTION = re.compile(r"^description:", re.MULTILINE)
+# frontmatter block whose YAML parses to a mapping containing this key is what
+# separates an agent from a sibling document sharing the tree's filename suffix.
+FRONTMATTER_KEY = "description"
 
 # The closing delimiter of a frontmatter block, which must be a line holding
 # nothing but three hyphens. Searching for the substring ``\n---`` instead
@@ -247,8 +215,8 @@ class ScanResult:
         reasons: list[str] = []
         if not self.files_with_matrix:
             reasons.append(
-                "no capability matrix found in any scanned tree; either "
-                "MATRIX_HEADER no longer matches the table format or "
+                "no capability matrix found in any scanned tree; either the "
+                f"first-column header is no longer {MATRIX_HEADER_CELL!r} or "
                 "AGENT_TREES is stale"
             )
         elif not any(path.is_relative_to(CANONICAL_TREE) for path in self.files_with_matrix):
@@ -281,12 +249,17 @@ def is_agent_definition(path: Path) -> bool:
     a bare ``.md`` it admits any sibling markdown file, which is how
     ``claude-instructions.template.md`` became a citable agent name.
 
-    Both fences are required and the key must be anchored to the start of a line
-    inside the block. Without the opening fence a body-level ``---`` horizontal
-    rule turns any prose above it into a pseudo-block; without the anchor a key
-    such as ``x-description:`` satisfies the check. The closing fence must be a
-    line holding nothing but three hyphens: a substring search for ``\n---``
-    accepted ``---not-a-closing-fence`` and admitted a malformed document.
+    Both fences are required. Without the opening fence a body-level ``---``
+    horizontal rule turns any prose above it into a pseudo-block. The closing
+    fence must be a line holding nothing but three hyphens: a substring search
+    for ``\n---`` accepted ``---not-a-closing-fence`` and admitted a malformed
+    document.
+
+    The block is parsed as YAML rather than pattern matched. A textual search for
+    the key reported success on ``description: [``, which no host can load, so a
+    document that cannot be an agent anywhere still supplied a citable name. The
+    parsed result must be a mapping: a block holding a bare scalar or a list has
+    no keys to carry.
 
     A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
     no separate ``is_file`` guard is needed.
@@ -300,7 +273,11 @@ def is_agent_definition(path: Path) -> bool:
     close = FRONTMATTER_CLOSE.search(text, 4)
     if close is None:
         return False
-    return bool(FRONTMATTER_DESCRIPTION.search(text[4 : close.start()]))
+    try:
+        block = yaml.safe_load(text[4 : close.start()])
+    except yaml.YAMLError:
+        return False
+    return isinstance(block, dict) and FRONTMATTER_KEY in block
 
 
 def known_agents(tree_root: Path, suffix: str) -> set[str]:
@@ -319,97 +296,103 @@ def known_agents(tree_root: Path, suffix: str) -> set[str]:
     return names
 
 
-def _closes_fence(opener: str, line: str) -> bool:
-    """Report whether ``line`` closes a code fence opened by ``opener``.
+def _cell_text(inline: Token) -> str:
+    """Return the plain text of one table cell, with formatting removed.
 
-    A closing fence uses the same character, runs at least as long, and carries
-    no info string.
+    ``**memory**``, ```memory```, and ``memory`` all yield ``memory``. The parser
+    has already resolved emphasis and code spans into their own tokens, so the
+    delimiters never reach this string. Hand-written patterns had to enumerate
+    the spellings, and an asymmetric one such as ``*name**`` was a live defect.
     """
-    match = CODE_FENCE.match(line)
-    if match is None:
-        return False
-    run = match.group(1)
-    return run[0] == opener[0] and len(run) >= len(opener) and not match.group(2).strip()
+    return "".join(
+        child.content for child in (inline.children or []) if child.type in ("text", "code_inline")
+    ).strip()
+
+
+def _matrices(text: str) -> list[list[tuple[Token, Token | None]]]:
+    """Return the body rows of every capability matrix in ``text``.
+
+    A table qualifies when its header's first cell reads ``Agent``. Each body row
+    is paired with the inline token of its first cell, or ``None`` when the row
+    has no cells at all, which the caller reports rather than skipping. A matrix
+    with a header and no body rows is returned as an empty list, which is how a
+    real but empty table stays distinguishable from a document with no table.
+
+    Both callers share this walk. Two independent walks would eventually
+    disagree, and a file recorded as carrying a matrix from which zero rows parse
+    fails the run as a parse gap.
+    """
+    tokens = MARKDOWN.parse(text)
+    matrices: list[list[tuple[Token, Token | None]]] = []
+    index = 0
+    while index < len(tokens):
+        if tokens[index].type != "table_open":
+            index += 1
+            continue
+        in_header = False
+        header: str | None = None
+        body: list[tuple[Token, Token | None]] = []
+        cursor = index + 1
+        while cursor < len(tokens) and tokens[cursor].type != "table_close":
+            token = tokens[cursor]
+            if token.type == "thead_open":
+                in_header = True
+            elif token.type == "thead_close":
+                in_header = False
+            elif token.type == "tr_open":
+                first: Token | None = None
+                scan_at = cursor + 1
+                while scan_at < len(tokens) and tokens[scan_at].type != "tr_close":
+                    if tokens[scan_at].type == "inline" and first is None:
+                        first = tokens[scan_at]
+                    scan_at += 1
+                if in_header:
+                    header = _cell_text(first) if first is not None else ""
+                else:
+                    body.append((token, first))
+                cursor = scan_at
+            cursor += 1
+        if header is not None and header.lower() == MATRIX_HEADER_CELL:
+            matrices.append(body)
+        index = cursor + 1
+    return matrices
 
 
 def parse_matrix_rows(text: str) -> tuple[list[tuple[str, int]], list[tuple[int, str]]]:
     """Split every matrix in ``text`` into parsed rows and unparsed rows.
 
     Returns ``(rows, unparsed)`` where ``rows`` holds ``(agent_name, line)`` and
-    ``unparsed`` holds ``(line, raw_text)`` for data rows that sit inside a
-    matrix but do not yield an agent name. Line numbers are 1-based. A matrix
-    runs from a ``| Agent |`` header and its alignment row through the first line
-    that does not continue the table.
+    ``unparsed`` holds ``(line, raw_text)`` for body rows that sit inside a
+    matrix but do not yield an agent name. Line numbers are 1-based.
 
-    The alignment row is required, not merely tolerated, because GFM requires it
-    for a table to render. Without it a stray ``| Agent |`` line in prose opens a
-    table that does not exist on the rendered page.
+    Structure comes from the CommonMark parser, so a table is recognised exactly
+    when GitHub renders one. Fenced examples, tables nested in a list item or a
+    blockquote, delimiter rows whose cell count disagrees with the header, and
+    the block constructs that terminate a table are all the parser's problem
+    rather than this module's.
 
-    Fenced code blocks are skipped. A documentation example showing the matrix
-    format renders as code, not as routing, and enforcing its illustrative rows
-    fails the run on a table no agent will ever consult.
-
-    Unparsed rows are returned rather than skipped. Skipping them is what let a
-    backtick-wrapped phantom name survive an earlier version of this check: the
-    file still produced other rows, so no gap was visible and the run passed.
+    Unparsed rows are reported rather than skipped. Skipping them is what let a
+    malformed phantom row survive an earlier version of this check: the file
+    still produced other rows, so no gap was visible and the run passed.
     """
     rows: list[tuple[str, int]] = []
     unparsed: list[tuple[int, str]] = []
-    lines = text.splitlines()
-    index = 0
-    open_fence: str | None = None
-    while index < len(lines):
-        line = lines[index]
-        if open_fence is not None:
-            if _closes_fence(open_fence, line):
-                open_fence = None
-            index += 1
-            continue
-        fence = CODE_FENCE.match(line)
-        if fence:
-            open_fence = fence.group(1)
-            index += 1
-            continue
-        separator_follows = index + 1 < len(lines) and TABLE_SEPARATOR.match(lines[index + 1])
-        if not (MATRIX_HEADER.match(line) and separator_follows):
-            index += 1
-            continue
-        cursor = index + 2
-        while cursor < len(lines) and TABLE_LINE.match(lines[cursor]):
-            match = MATRIX_ROW.match(lines[cursor])
-            if match:
-                rows.append((match.group(2), cursor + 1))
-            elif not TABLE_SEPARATOR.match(lines[cursor]):
-                unparsed.append((cursor + 1, lines[cursor]))
-            cursor += 1
-        index = cursor
+    source = text.splitlines()
+    for body in _matrices(text):
+        for row_open, first in body:
+            line = (row_open.map[0] + 1) if row_open.map else 0
+            name = _cell_text(first) if first is not None else ""
+            if AGENT_NAME.match(name):
+                rows.append((name, line))
+            else:
+                raw = source[line - 1] if 0 < line <= len(source) else name
+                unparsed.append((line, raw))
     return rows, unparsed
 
 
 def has_matrix_header(text: str) -> bool:
-    """Report whether ``text`` contains a matrix header that opens a real table.
-
-    A header alone does not open a table: GFM requires the alignment row, and a
-    header inside a fenced example is code rather than routing. This mirrors
-    ``parse_matrix_rows`` so a file cannot be recorded as carrying a matrix and
-    then reported as a parse gap for a table that never rendered.
-    """
-    lines = text.splitlines()
-    open_fence: str | None = None
-    for index, line in enumerate(lines):
-        if open_fence is not None:
-            if _closes_fence(open_fence, line):
-                open_fence = None
-            continue
-        fence = CODE_FENCE.match(line)
-        if fence:
-            open_fence = fence.group(1)
-            continue
-        if MATRIX_HEADER.match(line):
-            following = lines[index + 1] if index + 1 < len(lines) else ""
-            if TABLE_SEPARATOR.match(following):
-                return True
-    return False
+    """Report whether ``text`` contains a capability matrix that actually renders."""
+    return bool(_matrices(text))
 
 
 def scan(repo_root: Path) -> ScanResult:

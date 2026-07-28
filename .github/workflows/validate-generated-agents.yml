@@ -141,7 +141,13 @@ jobs:
         # stale one, and installing below the declared floor here would run the
         # reachability suite on a pytest the project does not support.
         # Refs #3377.
-        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3'
+        #
+        # markdown-it-py backs the capability-matrix parser. It is a declared
+        # core dependency in pyproject.toml and its only transitive dependency
+        # is mdurl. The version matches the uv.lock pin so this bare-pip job and
+        # the locked pytest job parse identically; a table recognised in one and
+        # not the other would let a phantom row through whichever ran second.
+        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3' 'markdown-it-py==4.2.0'
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'

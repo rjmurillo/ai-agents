@@ -260,13 +260,29 @@ class TestIndentation:
         assert [name for name, _ in rows] == ["analyst"]
         assert unparsed == []
 
-    def test_indented_table_ends_at_a_non_table_line(self):
-        """Indent support must not swallow prose that follows the table."""
+    def test_prose_after_an_indented_table_stays_in_the_table(self):
+        """GFM breaks a table at a blank line or a block, not at prose.
+
+        Spec example 206 renders a trailing prose line as a one-cell row. The
+        hand-written parser stopped at the first line without a pipe, so a
+        phantom row placed after a sentence was invisible. Matching the renderer
+        means that row is now seen.
+        """
         text = (
             "  | Agent | Role |\n"
             "  |-------|------|\n"
             "  | **analyst** | Research |\n"
             "  Some indented prose.\n"
+            "  | notatable | x |\n"
+        )
+        assert _names(text) == ["analyst", "notatable"]
+
+    def test_a_blank_line_ends_an_indented_table(self):
+        text = (
+            "  | Agent | Role |\n"
+            "  |-------|------|\n"
+            "  | **analyst** | Research |\n"
+            "\n"
             "  | notatable | x |\n"
         )
         assert _names(text) == ["analyst"]
@@ -420,22 +436,76 @@ class TestFencedCodeBlocks:
         assert _names(text) == ["memory"]
 
 
-class TestRowAndTableLineAgree:
-    """The row pattern and the table-line gate must share an indent tolerance.
+class TestBlockStructure:
+    """Constructs whose table membership is decided by block structure.
 
-    ``parse_matrix_rows`` gates every candidate row on ``TABLE_LINE`` before it
-    reaches ``MATRIX_ROW``, so a mismatch is invisible through the parser: the
-    looser pattern is simply never consulted. It is still a latent defect. If
-    the gate is ever loosened, a row indented into a code block would parse.
+    Every case here was a disagreement between the hand-written patterns this
+    module once used and the page GitHub renders. They are kept as behavioural
+    tests rather than pattern tests so that they survive the parser being
+    replaced again.
     """
 
-    @pytest.mark.parametrize("indent", [0, 1, 2, 3, 4, 5, 8])
-    def test_the_two_patterns_accept_the_same_indents(self, indent):
-        line = " " * indent + "| **memory** | Recall |"
-        assert bool(vamr.TABLE_LINE.match(line)) == bool(vamr.MATRIX_ROW.match(line))
+    def test_a_matrix_inside_a_blockquote_is_still_a_matrix(self):
+        """GitHub renders it, so a phantom row cannot hide behind ``>``."""
+        text = "> | Agent | Focus |\n> |---|---|\n> | memory | Recall |\n"
+        assert _names(text) == ["memory"]
 
-    @pytest.mark.parametrize("indent", [4, 5, 8])
-    def test_an_indented_code_block_is_neither(self, indent):
-        line = " " * indent + "| **memory** | Recall |"
-        assert vamr.TABLE_LINE.match(line) is None
-        assert vamr.MATRIX_ROW.match(line) is None
+    def test_a_fenced_example_inside_a_blockquote_is_not_a_matrix(self):
+        text = "> ```\n> | Agent | Focus |\n> |---|---|\n> | phantom | Recall |\n> ```\n"
+        assert _names(text) == []
+
+    def test_a_matrix_inside_a_list_item_is_still_a_matrix(self):
+        text = "- context\n\n  | Agent | Focus |\n  |---|---|\n  | memory | Recall |\n"
+        assert _names(text) == ["memory"]
+
+    def test_a_fenced_example_inside_a_list_item_is_not_a_matrix(self):
+        text = (
+            "- context\n\n  ```\n  | Agent | Focus |\n  |---|---|\n  | phantom | Recall |\n  ```\n"
+        )
+        assert _names(text) == []
+
+    def test_a_setext_heading_is_not_a_table(self):
+        """``Agent | Role`` over ``---`` renders as a heading, not a matrix.
+
+        The delimiter row must carry at least one cell separator or the two
+        lines are a setext heading. Reading the second line as an alignment row
+        opened a table on a document that renders none.
+        """
+        text = "Agent | Role\n---\nmemory | Recall\n"
+        assert _names(text) == []
+
+    def test_a_delimiter_row_must_match_the_header_cell_count(self):
+        """GitHub renders no table when the counts disagree, so neither do we."""
+        text = "| Agent | Focus | Model |\n|---|---|\n| memory | Recall |\n"
+        assert _names(text) == []
+
+    def test_a_heading_after_a_matrix_is_not_an_unparsed_row(self):
+        """A block construct ends the table; it is not a broken row inside it.
+
+        Treating the terminating line as a row produced a parse gap, and a parse
+        gap fails the run, so an ordinary heading containing a pipe could break
+        the build.
+        """
+        text = "| Agent | Focus |\n|---|---|\n| analyst | Research |\n# Heading | with a pipe\n"
+        rows, unparsed = vamr.parse_matrix_rows(text)
+        assert rows == [("analyst", 3)]
+        assert unparsed == []
+
+    def test_a_blockquote_after_a_matrix_is_not_an_unparsed_row(self):
+        text = "| Agent | Focus |\n|---|---|\n| analyst | Research |\n\n> quote | with a pipe\n"
+        rows, unparsed = vamr.parse_matrix_rows(text)
+        assert rows == [("analyst", 3)]
+        assert unparsed == []
+
+    def test_an_html_comment_after_a_matrix_is_not_an_unparsed_row(self):
+        text = "| Agent | Focus |\n|---|---|\n<!-- | phantom | Recall | -->\n"
+        rows, unparsed = vamr.parse_matrix_rows(text)
+        assert rows == []
+        assert unparsed == []
+
+    def test_an_escaped_pipe_does_not_split_a_cell(self):
+        """``a \\| b`` is one cell, so the row carries no agent name."""
+        text = "| Agent | Focus |\n|---|---|\n| a \\| b | Recall |\n"
+        rows, unparsed = vamr.parse_matrix_rows(text)
+        assert rows == []
+        assert [line for line, _ in unparsed] == [3]
