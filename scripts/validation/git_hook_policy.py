@@ -1029,7 +1029,16 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
             # depends on the parent count. Naming the format should keep these
             # away; skipping them is what keeps that true if one arrives.
             continue
-        fields = line.split()
+        parts = line.split("\t")
+        if len(parts) < 2 or ADR_REVIEW_PATH_RE.search(parts[-1]) is None:
+            # `--follow` rewrites the path it tracks whenever it scores a drop
+            # and an add as a rename, which is similarity and not provenance.
+            # Crossing into a file this gate does not govern would read that
+            # file's states as states of this ADR, and they never faced ADR
+            # review. The post-image belongs to the record's destination path,
+            # so that is the path that has to qualify.
+            continue
+        fields = parts[0].split()
         if len(fields) < 4:
             continue
         blob_ids.add(fields[3])

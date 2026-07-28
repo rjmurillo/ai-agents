@@ -1426,14 +1426,27 @@ class TestAdrReviewPolicyMergeScope:
     ):
         """No user preference may change what this gate accepts.
 
-        `log.diffMerges` has five values and `-m` honours all of them, so the
-        set the gate reasons about moved with a setting the developer chose for
-        readability. Naming the format instead makes the answer the same on
-        every machine, which is the property worth asserting: not that one
-        value works, but that the setting is not an input.
+        `log.diffMerges` has seven values in git 2.43 and `-m` honours all of
+        them, so the set the gate reasons about moved with a setting the
+        developer chose for readability. Naming the format instead makes the
+        answer the same on every machine, which is the property worth
+        asserting: not that one value works, but that the setting is not an
+        input.
+
+        `remerge` is included so the enumeration is the whole set rather than
+        the values that happened to come to mind. It reconstructs the merge
+        rather than reporting it, so it is the value least like the others.
         """
         answers = {}
-        for setting in ("combined", "dense-combined", "separate", "on", "first-parent", "off"):
+        for setting in (
+            "combined",
+            "dense-combined",
+            "separate",
+            "on",
+            "first-parent",
+            "off",
+            "remerge",
+        ):
             repo, name, _ = _repo_where_main_resolved_an_adr_in_a_merge(
                 tmp_path / setting,
                 diff_merges=setting,
@@ -1496,14 +1509,27 @@ class TestAdrReviewPolicyMergeScope:
         """
         repo = tmp_path / "repo"
         repo.mkdir()
+        adr = ".agents/architecture/ADR-095-synthetic.md"
         combined = (
             "::100644 100644 100644 "
             "1111111111111111111111111111111111111111 "
             "2222222222222222222222222222222222222222 "
-            "3333333333333333333333333333333333333333 MM\tdoc.md\n"
+            "3333333333333333333333333333333333333333 MM\t" + adr + "\n"
             ":100644 100644 "
             "4444444444444444444444444444444444444444 "
-            "5555555555555555555555555555555555555555 M\tdoc.md\n"
+            "5555555555555555555555555555555555555555 M\t" + adr + "\n"
+            # Contains "ADR" and is not a path this gate governs. The
+            # membership test the records are filtered by is the gate's own,
+            # not a substring the name happens to carry.
+            ":100644 100644 "
+            "6666666666666666666666666666666666666666 "
+            "7777777777777777777777777777777777777777 M\tdocs/ADR-overview.md\n"
+            # A file moved in to become an ADR. The post-image is at the ADR
+            # path from this commit on, so the destination is what decides it,
+            # and reading the source instead would drop a state main holds.
+            ":100644 100644 "
+            "9999999999999999999999999999999999999999 "
+            "8888888888888888888888888888888888888888 R100\tnotes.md\t" + adr + "\n"
         )
         monkeypatch.setattr(
             policy,
@@ -1511,7 +1537,103 @@ class TestAdrReviewPolicyMergeScope:
             lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=combined),
         )
 
-        assert policy._origin_main_blob_ids(repo, "doc.md") == {"5" * 40}
+        assert policy._origin_main_blob_ids(repo, adr) == {"5" * 40, "8" * 40}
+
+    def test_a_lineage_the_gate_does_not_govern_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """`--follow` will cross into a file that was never an ADR.
+
+        Rename detection is similarity, not provenance. A commit that drops one
+        file and adds another is indistinguishable from a move, so `--follow`
+        rewrites the path it is tracking onto the dropped file and keeps
+        walking. Every state that file ever held then reads as a state of this
+        ADR.
+
+        When the file it crossed into is not one this gate governs, those
+        states never faced ADR review at all: an ordinary file changes under
+        ordinary review, and its contents were never a decision record. A
+        branch placing one of them at an ADR path would be exempted from the
+        review it exists to require, on content main never carried there.
+
+        Found independently by two reviewers on PR #3680.
+        """
+        repo, adr_path, foreign = _repo_where_a_merge_linked_a_non_adr_file(tmp_path)
+        moved_in = _git(repo, "rev-parse", "side:" + adr_path).stdout.strip()
+
+        carried = policy._origin_main_blob_ids(repo, adr_path)
+
+        assert foreign not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
+        # The state the file held once it was an ADR is main's to carry: the
+        # record that moved it in has the ADR as its destination. Qualifying on
+        # the source path instead would drop it and demand review evidence for
+        # a state main really held at this path.
+        assert moved_in in carried
+
+    def test_a_rename_between_two_adrs_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """Refusing foreign lineages must not refuse the one this gate wants.
+
+        The negative control for the test above. An ADR that main moved and
+        revised is the false positive the rename-aware lookup exists to
+        remove, and both of its names are paths this gate governs, so the
+        states under the former name stay carried.
+        """
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+
+        assert side_blob in policy._origin_main_blob_ids(repo, name)
+
+
+def _repo_where_a_merge_linked_a_non_adr_file(tmp_path: Path) -> tuple[Path, str, str]:
+    """Build a repo where `--follow` crosses from an ADR into an ordinary file.
+
+    One branch edits `notes.md`; another drops it and adds an ADR holding that
+    same text, which git scores as a rename. Merging the two puts the link on
+    `origin/main`, so following the ADR walks into the file's history.
+
+    Returns the repo, the ADR path, and a blob `notes.md` held before the link
+    that was never at the ADR path in any commit.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+
+    ordinary = "notes.md"
+    adr = ".agents/architecture/ADR-096-linked.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ordinary).write_bytes(b"the state that was never an adr\n")
+    _git(repo, "add", "--", ordinary)
+    _git(repo, "commit", "-qm", "an ordinary file")
+    foreign = _git(repo, "rev-parse", "HEAD:" + ordinary).stdout.strip()
+
+    _git(repo, "checkout", "-qb", "side", "HEAD")
+    _git(repo, "rm", "-q", "--", ordinary)
+    (repo / adr).write_bytes(b"carried text\n")
+    _git(repo, "add", "--", adr)
+    _git(repo, "commit", "-qm", "side drops the file and adds an adr")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / ordinary).write_bytes(b"carried text\n")
+    _git(repo, "commit", "-qam", "main edits the ordinary file")
+
+    _run(["git", "merge", "--no-edit", "side"], repo)
+    (repo / ordinary).unlink(missing_ok=True)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "merge keeps the adr and drops the file")
+
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    _git(repo, "checkout", "-qb", "feature")
+    (repo / adr).write_bytes(b"the state that was never an adr\n")
+    _git(repo, "commit", "-qam", "place the file's old text at the adr path")
+    return repo, adr, foreign
 
 
 def _repo_where_a_rename_crossed_a_merge(tmp_path: Path) -> tuple[Path, str, str]:
