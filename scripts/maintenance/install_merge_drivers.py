@@ -78,8 +78,8 @@ def _drivers(script_path: Path = _CAUSAL_GRAPH_DRIVER) -> dict[str, dict[str, st
             #
             # A bare, PATH-resolved interpreter name rather than `uv run
             # --frozen python` or an absolute venv path. The driver imports
-            # only argparse, json, sys, pathlib and typing, so it needs no
-            # project environment (any Python >=3.10 on PATH runs it), and
+            # the standard library only, so it needs no project environment
+            # (any Python >=3.10 on PATH runs it), and
             # routing it through uv would let a merge fail wherever uv cannot
             # run: offline, before the first sync, or in a clone that never
             # installed it. A failed driver is not a loud error, it is a silent

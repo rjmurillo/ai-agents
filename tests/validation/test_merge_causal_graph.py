@@ -1020,7 +1020,7 @@ class TestRegistrationIsWiredAndIdempotent:
 
         copied = common / "ai-agents-merge-drivers" / "merge_causal_graph.py"
         assert copied.read_text(encoding="utf-8") == "print('trusted')\n"
-        assert str(copied) in values["merge.causal-graph.driver"]
+        assert copied.as_posix() in values["merge.causal-graph.driver"]
         assert "scripts/validation/merge_causal_graph.py" not in values["merge.causal-graph.driver"]
 
     def test_installing_twice_writes_once(self, capsys: pytest.CaptureFixture[str]) -> None:
