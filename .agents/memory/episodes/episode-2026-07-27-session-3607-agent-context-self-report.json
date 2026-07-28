@@ -120,6 +120,18 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay.",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     }
   ],

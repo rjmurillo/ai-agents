@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T04:03:07.190457+00:00",
+  "updated": "2026-07-28T04:39:38.807981+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22780,6 +22780,15 @@
         "episode-2026-07-27-session-3607-agent-context-self-report"
       ],
       "created": "2026-07-28T04:03:07.184122+00:00"
+    },
+    {
+      "id": "9c240e38f47a",
+      "type": "milestone",
+      "label": "milestone: Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T04:39:38.801440+00:00"
     }
   ],
   "patterns": [

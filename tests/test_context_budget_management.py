@@ -177,7 +177,7 @@ def test_orchestrator_section_is_routing_scoped_not_code_scoped() -> None:
     """The orchestrator section is adapted to routing, not copied from implementer.
 
     The orchestrator does not write code, so the implementer's code-specific
-    pressure signals (stubs, TODO bodies) do not apply. This edge test confirms
+    checkpoint units (stubs, TODO bodies) do not apply. This edge test confirms
     the adaptation: the orchestrator section names synthesis and delegation, and
     does not carry the implementer's code-stub phrasing. Guards against a future
     edit that lazily pastes the implementer text into the orchestrator.
@@ -195,5 +195,5 @@ def test_orchestrator_section_is_routing_scoped_not_code_scoped() -> None:
     assert "placeholder bodies" not in body, (
         "Orchestrator Context Budget section carries the implementer's "
         "code-stub phrasing ('placeholder bodies'). The orchestrator does not "
-        "write code; adapt the pressure signals to routing and synthesis."
+        "write code; adapt the checkpoint unit to routing and synthesis."
     )
