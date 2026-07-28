@@ -351,10 +351,84 @@ it today, so the other two write `null` and the gate reports the comparison as
 unverified rather than pretending it checked. A bare `{task_id: bool}` file
 still reads, as an unknown corpus.
 
-Adapters fail closed. A fixture the variant never ran, a scenario whose judge
-errored, and a skipped test all score as failures rather than being dropped.
-Dropping a task shrinks the denominator, which raises the score, so a silent
-omission would read as an improvement.
+Adapters fail closed. By default a fixture the variant never ran and a skipped
+test both score as failures rather than being dropped; `extract --kind hook
+--on-skip exclude` opts out for plain skips. Dropping a task shrinks the
+denominator, which raises the score, so a silent omission would read as an
+improvement.
+
+That is the default and not the only policy. `extract --kind hook` takes
+`--on-skip`, which is `fail` above and `exclude` to drop a skipped test from the
+mapping instead. Reach for `exclude` only when the skips are static, because
+dropping a task is not free. A conditionally skipped test changes the task-id
+set between runs, and the split was drawn once from the full set. If the dropped
+id landed in the held-out group, the gate charges a consultation, reports
+`REJECT` at exit 1, and says `compared: false`: the operator pays out of a small
+budget for a verdict that measured nothing, and reads a rejection of a candidate
+that was never scored. If it landed outside that group the run proceeds and the
+drift is invisible. `exclude` drops only a testcase whose skip stands alone: one
+that also carries a failure or an error demonstrated something and scores false
+under either policy.
+
+`--kind rule` goes further and refuses. A scenario whose mechanism errored,
+whose scores are missing, or whose judge reported a failure is a config error
+that exits 2 and names the scenarios, rather than scoring them false. The two
+policies answer the same threat and differ on what a wasted consultation is
+worth. Scoring a failed judge as a real failure is a measurement of the judge,
+not of the rule, and the gate would spend one of a small budget of held-out
+consultations to reach a verdict that carries no information about the
+candidate. The rule path is also the one that can least afford the noise: it is
+single-shot against an LLM judge, and scoring identical rule text twice moved 5
+of 24 tasks across the pass threshold (ADR-087 Open Requirement 6, #3445),
+while the agent path averages over runs. Exit 2 is the loop's documented signal
+to stop and let an operator re-run the scorer.
+
+Calling `rule_results` from `_optimizer_adapters` directly still fails closed.
+The refusal lives in `extract`, so the library keeps one contract and the
+command that spends budget keeps a stricter one.
+
+### Reading a rule across several runs
+
+Refusing a broken judge does not help when the judge answers cleanly and
+differently each time. `--kind rule` takes more than one `--input`, one report
+per run of `eval-rule-activation.py`, and reduces each scenario across them
+before the bar is applied:
+
+```bash
+uv run --frozen python "$OA" extract --kind rule \
+    --input run1.json run2.json run3.json --reduce mean > base.json
+```
+
+The reduction is over scores, not over verdicts. Thresholding each run and then
+voting would throw away the distance from the bar, which is the only thing that
+says whether a disagreement was close. Reducing first matches what
+`agent_results` already does: collapse the runs to one number, apply the bar
+once.
+
+`--reduce` takes `mean` (the default), `min`, `max`, or `median`. `min` reads as
+"every run must clear the bar" and `max` as "any run may", so the strict and
+lenient readings are both reachable without a second flag. `--kind agent` and
+`--kind hook` still take exactly one `--input` and refuse a second, because
+`agent_results` already averages over runs and `pytest_results` is
+deterministic.
+
+One run behaves exactly as before, so an existing caller needs no change:
+`rule_results_multi([scenarios])` and `rule_results(scenarios)` agree.
+
+The runs must agree on which scenarios they scored, and a scenario with
+evidence in some runs but not others is refused rather than reduced over
+whatever is left. Both are the fail-closed policy above, applied to the shape
+this flag introduces. Scoring a partially evidenced scenario false would let a
+judge error on the incumbent's run read as a failing scenario, so a candidate
+that merely ran cleanly would look like a fail-to-pass improvement. That is the
+spurious accept the gate exists to prevent, arriving through the scorer.
+
+How many runs is a judgment, not a setting. The benchmark behind this flag
+(ADR-087 Open Requirement 6, #3445) measured a mean absolute movement of 0.49
+points on the five-point scale between two scorings of identical rule text.
+Three runs at `mean` is the cheapest configuration that can outvote one outlier.
+Nothing here enforces a count, and one run remains legal so the flag can be
+adopted without rescoring everything first.
 
 `--kind rule` does not invert negative cases. `eval-rule-activation.py` builds
 the judge prompt so 5 always means the rule behaved correctly, negative cases
@@ -372,7 +446,7 @@ OA=scripts/eval/optimize-artifact.py
 # Baseline the incumbent and fix the split once.
 uv run --frozen python "$OA" extract --kind agent --input report.json > base.json
 FP=$(uv run --frozen python "$OA" split --results base.json --seed run-7 \
-    --out split.json | python3 -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
+    --out split.json | uv run --frozen python -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
 
 # Per step: check the budget, reject a repeat, apply, rescore, gate.
 uv run --frozen python "$OA" budget --step 3 --total 12
@@ -380,7 +454,8 @@ uv run --frozen python "$OA" budget --step 3 --total 12
 # Exit 1 means this edit was already rejected, so skip it. Exit 2 means the
 # command itself failed and the loop must stop rather than treat a typo in a
 # path as a clean finish.
-uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json
+uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json \
+    --artifact target.md
 case $? in
   0) ;;
   1) continue ;;
@@ -398,8 +473,10 @@ Add `--max-p 0.05` when the held-out group is large enough for the tail to
 mean something. See "What a live run measured" below for why, and for the
 group size at which the bar starts refusing everything.
 
-On reject, revert the file and run `buffer-add` so the same edit is not
-re-proposed. On accept, the candidate becomes the incumbent.
+On reject, revert the file and run `buffer-add` with the artifact path so the
+same edit is not re-proposed against the same artifact state. On accept, the
+candidate becomes the incumbent and prior rejections against the old artifact
+state expire.
 
 ### What the gate refuses
 
@@ -475,39 +552,46 @@ optimizer cooperates:
   the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
-- A recorded charge survives a crash. The ledger is written to a temp file,
-  fsynced, renamed, and then the *parent directory* is fsynced too. Without
-  that last step the bytes were durable but the directory entry pointing at
-  them was not, so a host losing power after a reported charge could come back
-  with the rename undone and hand the consultation back for free. That is the
-  one outcome charging before scoring exists to prevent, so a charge a crash
-  can erase defeats the ordering it was written to protect. Windows cannot open
-  a directory as a descriptor and `os.replace` is atomic there regardless, so
-  the step is skipped on that platform rather than failed. A directory that
-  opens and then refuses to sync is warned about on stderr and not raised: the
-  write and the rename have already succeeded by then, and in the ledger's case
-  the consultation has already been charged, so aborting would spend a look and
-  return no verdict. That is the same trade the charging order exists to avoid,
-  pointing the other way. Every other failure in that function precedes the
-  rename and leaves the destination untouched, so those still refuse. That
-  warning goes through the same redaction the raised errors do, and cannot
-  itself fail: a diagnostic printed after a success must not become a new way
-  to lose the work it is reporting on, and must not disclose in plain text
-  what the exception path is required to redact. "Cannot fail" is enforced as
-  a rule rather than as a list of the failures anyone has demonstrated: an
-  earlier version suppressed `OSError` because that is what a reviewer's
-  closed-stream demonstration raised, and a stream closed for real raises
-  `ValueError`. There is a third rule alongside those two. The warning must
-  not land on the stream carrying the verdict. `sys.stderr` can be absent in
-  an embedded or windowed interpreter, and printing to a file of `None` does
-  not skip the write, it falls back to stdout, where the JSON a caller parses
-  is. A diagnostic that corrupts the payload it is diagnosing is worse than
-  one that crashes, because nothing reports it. "Absent" covers two cases and
-  for four rounds the code handled one. A harness can blank the attribute or
-  delete it, and the second turns reading it into an `AttributeError` raised
-  before the suppression is even entered, from the line whose only job is to
-  decide whether to warn. Reading it with `getattr` routes that case into the
-  `None` branch already there, which enforces the no-abort rule at the last
+- A recorded charge survives a crash on POSIX. The ledger is written to a temp
+  file, fsynced, renamed, and the *parent directory* is then fsynced too.
+  Without that last step the bytes were durable but the directory entry
+  pointing at them was not, so a host losing power after a reported charge
+  could come back with the rename undone and hand the consultation back for
+  free. That is the one outcome charging before scoring exists to prevent, so
+  a charge a crash can erase defeats the ordering it was written to protect.
+  Windows cannot open a directory as a descriptor, so the step is skipped on
+  that platform rather than failed, and the skip is a real gap. `os.replace`
+  is atomic on Windows, but atomicity is not the property at stake here:
+  CPython calls `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` alone, omitting
+  `MOVEFILE_WRITE_THROUGH`, the flag Microsoft documents as waiting for the
+  move to reach disk. So a Windows host can lose a recorded charge to a power
+  cut the same way an unsynced POSIX host can. The skip is silent rather than
+  warned because it holds for every write, and a warning on each one would
+  cost stderr its signal. A directory that opens and then refuses to sync is
+  warned about on stderr and not raised: the write and the rename have already
+  succeeded by then, and in the ledger's case the consultation has already
+  been charged, so aborting would spend a look and return no verdict. That is
+  the same trade the charging order exists to avoid, pointing the other way.
+  Every other failure in that function precedes the rename and leaves the
+  destination untouched, so those still refuse. That warning goes through the
+  same redaction the raised errors do, and cannot itself fail: a diagnostic
+  printed after a success must not become a new way to lose the work it is
+  reporting on, and must not disclose in plain text what the exception path is
+  required to redact. "Cannot fail" is enforced as a rule rather than as a
+  list of the failures anyone has demonstrated: an earlier version suppressed
+  `OSError` because that is what a reviewer's closed-stream demonstration
+  raised, and a stream closed for real raises `ValueError`. There is a third
+  rule alongside those two. The warning must not land on the stream carrying
+  the verdict. `sys.stderr` can be absent in an embedded or windowed
+  interpreter, and printing to a file of `None` does not skip the write, it
+  falls back to stdout, where the JSON a caller parses is. A diagnostic that
+  corrupts the payload it is diagnosing is worse than one that crashes,
+  because nothing reports it. "Absent" covers two cases and for four rounds
+  the code handled one. A harness can blank the attribute or delete it, and
+  the second turns reading it into an `AttributeError` raised before the
+  suppression is even entered, from the line whose only job is to decide
+  whether to warn. Reading it with `getattr` routes that case into the `None`
+  branch already there, which enforces the no-abort rule at the last
   expression standing outside the guard without adding a second branch to it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
@@ -723,11 +807,32 @@ naming the write. Cleanup cannot stand in for the failure it cleans up after,
 so the unlink is now suppressed on `OSError` while every other class still
 escapes. All three now answer exit 2 with a `ConfigError` document.
 
+The fourth was worse than a traceback, because it answered. `_emit` writes with
+a bare `print`, so a reader that closed early made it raise `BrokenPipeError`,
+an `OSError`, which the handler did not name. It left `main` and exited 1, and
+exit 1 on this CLI is REJECT: a verdict on a comparison that never finished. On
+`gate` the ledger write precedes the final emit, so a consultation had already
+been charged against a fixed budget and the answer it bought was discarded.
+CPython contributed a second mode on its own. When the payload fits the pipe
+buffer the write succeeds and the shutdown flush fails instead, which prints
+`Exception ignored while flushing sys.stdout` and replaces the status with 120,
+so the caller saw neither a verdict nor a config failure. Measured on this
+branch: `split` over 20000 tasks into a closed reader exited 1 with a traceback,
+and `budget` into the same exited 120. Both now exit 2 with one line on stderr.
+`main` is a thin `except OSError` guard over `_dispatch`, which holds the old
+body, and the guard covers parser construction too, because `print_help` writes
+to stderr and stderr closes for the same reasons stdout does. The handler does
+not retry the write on the stream that just failed; the exit code carries it.
+
+Catching `OSError` that broadly at the top gives up nothing. Any `OSError` that
+reached `main` before was an unhandled crash exiting 1, and exit 2 is the
+correct answer for a run that produced no decision.
+
 | Code | Meaning |
 |------|---------|
 | 0 | Accept, novel patch, or plain success |
 | 1 | Reject, already-rejected patch, or a refused patch |
-| 2 | Bad arguments, unreadable input, or malformed data |
+| 2 | Bad arguments, unreadable input, malformed data, or a stream that could not be written |
 
 ### Scope
 

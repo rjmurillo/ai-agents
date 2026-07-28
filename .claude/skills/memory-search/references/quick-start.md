@@ -27,10 +27,10 @@ for result in results:
 
 ```python
 from memory_router import search_memory
-from reflexion_memory import get_episodes, get_patterns
+from reflexion_memory import get_episodes
 
-# 1. Search memory for relevant patterns
-array_patterns = search_memory(query="arrays", max_results=5)
+# 1. Search memory for relevant knowledge
+array_knowledge = search_memory(query="arrays", max_results=5)
 
 # 2. Review past failures in similar scenarios
 past_failures = [
@@ -38,25 +38,23 @@ past_failures = [
     if "array" in ep["task"]
 ]
 
-# 3. Check for known patterns
-patterns = get_patterns(min_success_rate=0.7, min_occurrences=2)
+# 3. Read the lessons those failures recorded
+lessons = [lesson for ep in past_failures for lesson in ep["lessons"]]
 
 # 4. Make informed decision based on memory
 # ... your agent logic here ...
 ```
 
-### Check for Anti-Patterns
+### Check What Failed Before
 
 ```python
-from reflexion_memory import get_anti_patterns
+from reflexion_memory import get_episodes
 
-# Before implementing a solution, check for known anti-patterns
-anti_patterns = get_anti_patterns(max_success_rate=0.3)
-
-for ap in anti_patterns:
-    print(f"AVOID: {ap['name']}")
-    print(f"  Failure rate: {(1 - ap['success_rate']) * 100:.0f}%")
-    print(f"  Trigger: {ap['trigger']}")
+# Before implementing a solution, read the lessons from past failures
+for episode in get_episodes(outcome="failure"):
+    print(f"AVOID: {episode['task']}")
+    for lesson in episode["lessons"]:
+        print(f"  Lesson: {lesson}")
     print()
 ```
 
@@ -91,10 +89,7 @@ python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 ```bash
 # After completing a session
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
-
-# Update causal graph
-python3 .claude/skills/memory/scripts/update_causal_graph.py
+    ".agents/sessions/2026-01-01-session-130.json"
 ```
 
 ## Common Patterns
@@ -103,19 +98,16 @@ python3 .claude/skills/memory/scripts/update_causal_graph.py
 
 ```python
 from memory_router import search_memory
-from reflexion_memory import get_patterns, get_episodes
+from reflexion_memory import get_episodes
 
 # Step 1: Search for relevant knowledge
 knowledge = search_memory(query="topic", max_results=5)
 
-# Step 2: Check for proven patterns
-patterns = [
-    p for p in get_patterns(min_success_rate=0.7)
-    if "topic" in p["trigger"] or "topic" in p["action"]
-]
-
-# Step 3: Review past attempts
+# Step 2: Review past attempts
 past_attempts = [ep for ep in get_episodes() if "topic" in ep["task"]]
+
+# Step 3: Read what those attempts concluded
+lessons = [lesson for ep in past_attempts for lesson in ep["lessons"]]
 
 # Step 4: Make decision with full context
 # ... decision logic ...
@@ -157,57 +149,29 @@ for failure in failures:
             print(f"  - {rec['chosen']} (Outcome: {rec['outcome']})")
 ```
 
-### Pattern 3: Pattern Library Maintenance
+### Pattern 3: Episode Inventory
 
 ```python
-from reflexion_memory import get_patterns
+from reflexion_memory import get_episodes
 
-# Get all patterns
-all_patterns = get_patterns()
+all_episodes = get_episodes()
 
-# Categorize by success rate
-high_success = [p for p in all_patterns if p["success_rate"] >= 0.8]
-medium_success = [p for p in all_patterns if 0.5 <= p["success_rate"] < 0.8]
-low_success = [p for p in all_patterns if p["success_rate"] < 0.5]
+by_outcome: dict[str, int] = {}
+for episode in all_episodes:
+    outcome = episode.get("outcome", "unknown")
+    by_outcome[outcome] = by_outcome.get(outcome, 0) + 1
 
-print("=== Pattern Library Summary ===")
-print(f"High Success (>=80%): {len(high_success)}")
-print(f"Medium Success (50-79%): {len(medium_success)}")
-print(f"Low Success (<50%): {len(low_success)}")
+print("=== Episode Inventory ===")
+print(f"Total: {len(all_episodes)}")
+for outcome, count in sorted(by_outcome.items()):
+    print(f"  {outcome}: {count}")
 
-# Review low success patterns for archival
-for pattern in low_success:
-    print(f"\n{pattern['name']}:")
-    print(f"  Success: {pattern['success_rate'] * 100:.0f}%")
-    print(f"  Uses: {pattern['occurrences']}")
-    print("  Consider: Archival or revision")
+# Episodes with no lessons carry no reusable signal
+empty = [ep for ep in all_episodes if not ep["lessons"]]
+print(f"Episodes with no recorded lessons: {len(empty)}")
 ```
 
-### Pattern 4: Causal Tracing
-
-```python
-from reflexion_memory import get_causal_path
-
-# Find causal path from decision to outcome
-path = get_causal_path(
-    from_label="routing strategy",
-    to_label="performance target met",
-    max_depth=5,
-)
-
-if path["found"]:
-    print(f"Causal chain ({path['depth']} steps):")
-    for i, node in enumerate(path["path"]):
-        print(f"  {i + 1}. {node['label']} ({node['type']})")
-
-        # Show success rate
-        if node.get("success_rate"):
-            print(f"     Success rate: {node['success_rate'] * 100:.0f}%")
-else:
-    print(f"No causal path found: {path['error']}")
-```
-
-### Pattern 5: Session End Workflow
+### Pattern 4: Session End Workflow
 
 ```bash
 # Complete at end of every session
@@ -217,17 +181,14 @@ SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
 
 # 1. Extract episode from session log
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path "$SESSION_LOG"
+    "$SESSION_LOG"
 
-# 2. Update causal graph
-python3 .claude/skills/memory/scripts/update_causal_graph.py \
-    --episode-path ".agents/memory/episodes/episode-${SESSION_ID}.json"
 ```
 
 ```python
 from reflexion_memory import get_episode, get_reflexion_memory_status
 
-# 3. Verify extraction
+# 2. Verify extraction
 episode = get_episode(session_id="2026-01-01-session-130")
 
 print("Episode verified:")
@@ -236,12 +197,9 @@ print(f"  Decisions: {len(episode['decisions'])}")
 print(f"  Events: {len(episode['events'])}")
 print(f"  Lessons: {len(episode['lessons'])}")
 
-# 4. Check causal graph update
+# 3. Check the episode store
 status = get_reflexion_memory_status()
-print("\nCausal graph:")
-print(f"  Nodes: {status['causal_graph']['nodes']}")
-print(f"  Edges: {status['causal_graph']['edges']}")
-print(f"  Patterns: {status['causal_graph']['patterns']}")
+print(f"\nEpisodes on disk: {status['episodes']['count']}")
 ```
 
 ## Integration with Session Protocol
@@ -275,14 +233,11 @@ recent_episodes = get_episodes(since=since, max_results=5)
 
 # 1. Extract episode
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/$(date +%Y-%m-%d)-session-*.md"
+    ".agents/sessions/$(date +%Y-%m-%d)-session-*.md"
 
-# 2. Update causal graph
-python3 .claude/skills/memory/scripts/update_causal_graph.py
-
-# 3. Commit changes (including episodes and causality)
-git add .agents/memory/episodes/ .agents/memory/causality/
-git commit -m "session: Extract episode and update causal graph"
+# 2. Commit the episode
+git add .agents/memory/episodes/
+git commit -m "session: Extract episode"
 ```
 
 ## Performance Optimization
@@ -367,7 +322,7 @@ if [ ! -f "$EPISODE_PATH" ]; then
     SESSION_LOG=".agents/sessions/2026-01-01-session-126.json"
     if [ -f "$SESSION_LOG" ]; then
         python3 .claude/skills/memory/scripts/extract_session_episode.py \
-            --session-log-path "$SESSION_LOG"
+            "$SESSION_LOG"
     fi
 fi
 ```
@@ -393,18 +348,16 @@ if not available:
 ### For Agents
 
 1. **Always search before deciding**: Use `search_memory()` at task start
-2. **Check patterns**: Use `get_patterns()` to find proven approaches
-3. **Avoid anti-patterns**: Use `get_anti_patterns()` before implementing
+2. **Check past episodes**: Use `get_episodes()` to find prior attempts
+3. **Read the lessons**: Review `episode["lessons"]` before implementing
 4. **Learn from failures**: Query past failures for similar scenarios
 5. **Record decisions**: Ensure episodes capture decision rationale
 
 ### For Session Management
 
 1. **Extract episodes immediately**: Don't delay until later sessions
-2. **Update causal graph regularly**: Run after each episode extraction
-3. **Review patterns weekly**: Check for new high-success patterns
-4. **Prune stale data**: Archive low-frequency nodes periodically
-5. **Commit with context**: Include episode/graph updates in session commits
+2. **Review lessons weekly**: Read what recent episodes concluded
+3. **Commit with context**: Include the episode file in the session commit
 
 ### For Memory Queries
 
@@ -420,22 +373,19 @@ if not available:
 
 ```python
 from memory_router import search_memory
-from reflexion_memory import get_patterns, get_episodes
+from reflexion_memory import get_episodes
 
 # 1. Search for similar features
 similar = search_memory(query="feature implementation patterns", max_results=10)
 
-# 2. Check proven design patterns
-patterns = [
-    p for p in get_patterns(min_success_rate=0.8)
-    if "design" in p["trigger"] or "architecture" in p["action"]
-]
-
-# 3. Review past feature implementations
+# 2. Review past feature implementations that succeeded
 past_features = [
     ep for ep in get_episodes()
     if "implement" in ep["task"] and ep["outcome"] == "success"
 ]
+
+# 3. Read the design decisions those sessions recorded
+decisions = [d for ep in past_features for d in ep["decisions"]]
 
 # 4. Implement with full context
 # ... implementation ...
@@ -445,10 +395,10 @@ past_features = [
 
 ```python
 from memory_router import search_memory
-from reflexion_memory import get_episodes, get_patterns
+from reflexion_memory import get_episodes
 
-# 1. Search for error patterns
-error_patterns = search_memory(query="error message text", max_results=5)
+# 1. Search for the error text
+error_knowledge = search_memory(query="error message text", max_results=5)
 
 # 2. Find past similar errors
 past_errors = [
@@ -457,10 +407,10 @@ past_errors = [
            for e in ep["events"])
 ]
 
-# 3. Check recovery patterns
+# 3. Check what those sessions did to recover
 recoveries = [
-    p for p in get_patterns()
-    if "error pattern" in p["trigger"]
+    d for ep in past_errors
+    for d in ep["decisions"] if d["type"] == "recovery"
 ]
 
 # 4. Apply recovery strategy
@@ -471,13 +421,15 @@ recoveries = [
 
 ```python
 from memory_router import search_memory
-from reflexion_memory import get_anti_patterns, get_episodes
+from reflexion_memory import get_episodes
 
 # 1. Search for coding standards
 standards = search_memory(query="code style guidelines", max_results=5)
 
-# 2. Check for anti-patterns in code
-anti_patterns = get_anti_patterns()
+# 2. Read the lessons past failures recorded
+failure_lessons = [
+    lesson for ep in get_episodes(outcome="failure") for lesson in ep["lessons"]
+]
 
 # 3. Review past code review findings
 past_reviews = [

@@ -56,7 +56,7 @@ Phase 5c entry
 | REQ-013-02 | Phase 5c JSON parser | `record_skip` on `fetched_pages_complete == false` or parse fail |
 | REQ-013-03 | Phase 5c `gh api ... reviews` parser | `record_warn` on bot review age < 120s |
 | REQ-013-04 | Phase 5c reviews call | `record_skip` on non-zero exit from `gh api`; no `|| true` |
-| REQ-013-05 | `tests/hooks/test_bot_cascade_warning.py` | one test per AC |
+| REQ-013-05 | `tests/test_lefthook_integration.py` | one test per AC |
 | REQ-013-06 | Implementer runs hook against own branch before TASK-011-04 commit | output in PR description |
 
 ## Test Strategy
@@ -65,13 +65,13 @@ Phase 5c entry
 
 Phase 5c is a thin bash delegate: it parses two subprocess outputs and emits one of three recorder calls (`record_skip`, `record_warn`, `record_pass`). PATH-stubbing `gh` and `python3` to drive a runtime fixture suite was the original plan but proved unsuitable for a pre-push hook: invoking the hook end-to-end runs the full repository test suite (Phase 4) and takes about 3 minutes per test case, which is unacceptable for unit-test latency, and stubbing `gh` reliably across CI and developer machines (where PATH ordering and uv-venv `python3` differ) is fragile.
 
-The implemented suite uses the same structural verification pattern that already covers Phase 5b drift detection (`tests/hooks/test_drift_check.py`): grep the hook text inside the Phase 5c block, plus `bash -n` for syntax. One additional test asserts that each REQ-011 outcome path has at least one call site (`record_skip`, `record_warn`, `record_pass` all appear). Combined, these pin the AC contract without paying the runtime cost.
+The implemented suite uses the same structural verification pattern that already covers Phase 5b drift detection (`tests/build_scripts/test_generate_pr_quality_prompts.py`): grep the hook text inside the Phase 5c block, plus `bash -n` for syntax. One additional test asserts that each REQ-011 outcome path has at least one call site (`record_skip`, `record_warn`, `record_pass` all appear). Combined, these pin the AC contract without paying the runtime cost.
 
 Runtime evidence for the actual outcome lines is captured by exercising the hook against the current branch as part of the TASK-011-04 self-apply gate (REQ-013-06). Each of the four documented runtime paths has been exercised against a real PR; the captured output is in the PR description rather than in the test suite.
 
 ### Test cases per AC (implemented)
 
-The tests in `tests/hooks/test_bot_cascade_warning.py` pin the Phase 5c contract by scoping every assertion to the regex `# Phase 5c.*?(?=# Phase \d|\Z)` so Phase 5b assertions cannot pollute Phase 5c assertions. The exact test count is intentionally not pinned here; it grows as the contract evolves.
+The tests in `tests/test_lefthook_integration.py` pin the Phase 5c contract by scoping every assertion to the regex `# Phase 5c.*?(?=# Phase \d|\Z)` so Phase 5b assertions cannot pollute Phase 5c assertions. The exact test count is intentionally not pinned here; it grows as the contract evolves.
 
 - `test_phase_5c_header_present` (REQ-013-01): Phase 5c block exists and follows Phase 5b (asserts both positions are non-negative).
 - `test_phase_5c_calls_unresolved_threads_script` (REQ-013-01): hook invokes `get_unresolved_review_threads.py`.
