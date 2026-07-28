@@ -107,6 +107,13 @@
       "filesChanged": 1,
       "testsRun": 2,
       "testsPassed": 2
+    },
+    {
+      "sha": "pending",
+      "message": "fix(memory): correct content-derived node IDs in causal graph",
+      "filesChanged": 1,
+      "testsRun": 96,
+      "testsPassed": 96
     }
   ],
   "reviewThreadsAddressed": [
