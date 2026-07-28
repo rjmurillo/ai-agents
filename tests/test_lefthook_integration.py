@@ -21,6 +21,17 @@ from scripts.validation import git_hook_policy as policy
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
+# The Semgrep carve-out proves a `run:` body parses by shelling out to `bash -n`,
+# and fails closed when the host has no Bash. Windows runners put Git's `cmd`
+# directory on PATH but not its `bin` directory, so `bash.exe` is often absent
+# and every carve-out assertion below would fail for an environmental reason
+# rather than a behavioral one. Skip those and keep the fail-closed tests, which
+# are the ones that matter on a Bash-less host (Refs #3663).
+BASH_AVAILABLE = policy._resolve_bash() is not None
+requires_bash = pytest.mark.skipif(
+    not BASH_AVAILABLE,
+    reason="requires a Bash interpreter for `bash -n` syntax checking",
+)
 # lefthook executes `run:` strings through sh, even on Windows. A native
 # sys.executable path there (D:\...\python.exe) has its backslashes eaten by sh,
 # so embed a POSIX-style path (D:/.../python.exe) that sh accepts on both
@@ -6174,6 +6185,7 @@ def _semgrep_return_code(target: Path, error: dict[str, object], repo_root: Path
     return result.returncode
 
 
+@requires_bash
 def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
     tmp_path: Path,
 ) -> None:
@@ -6194,6 +6206,7 @@ def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> 
     assert _semgrep_return_code(target, error, tmp_path) == 0
 
 
+@requires_bash
 def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
     tmp_path: Path,
 ) -> None:
@@ -6259,6 +6272,7 @@ def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Pat
     assert _semgrep_return_code(target, error, tmp_path) == 2
 
 
+@requires_bash
 def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
     tmp_path: Path,
 ) -> None:
@@ -6324,6 +6338,7 @@ def test_bash_shells_do_not_defeat_the_bash_subparse(shell: str | None) -> None:
         "echo ${{\n  github.sha\n}}",
     ],
 )
+@requires_bash
 def test_actions_expressions_defeat_the_bash_subparse(body: str) -> None:
     assert policy._step_defeats_bash_subparse("bash", body) is True
 
@@ -6355,6 +6370,7 @@ def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Pat
     assert _semgrep_return_code(target, error, tmp_path) == 2
 
 
+@requires_bash
 def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> None:
     """A tolerated parse error must not mask a real finding.
 
@@ -6377,6 +6393,7 @@ def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> N
     assert result.returncode == 1
 
 
+@requires_bash
 def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
     tmp_path: Path,
 ) -> None:
@@ -6478,6 +6495,93 @@ def test_shells_naming_a_foreign_interpreter_are_not_treated_as_non_bash(shell: 
 
 
 @pytest.mark.parametrize(
+    "shell",
+    [
+        "node ./tools/wrapper.js {0}",
+        "node tools/wrapper.js {0}",
+        "node wrapper.js {0}",
+        "node /usr/local/lib/run {0}",
+        "pwsh -File C:\\tools\\run.ps1",
+        "pwsh -File '~/x.ps1'",
+        "cmd /C \"call build.bat\"",
+    ],
+)
+def test_shells_delegating_to_a_script_file_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python-shim {0}",
+        "python3-wrapper {0}",
+        "pythonic-thing {0}",
+        "nodejs-runner {0}",
+        "powershell.exe.evil/x {0}",
+    ],
+)
+def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
+def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+def test_resolve_bash_prefers_the_interpreter_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: "/opt/bin/bash")
+    try:
+        assert policy._resolve_bash() == "/opt/bin/bash"
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_resolve_bash_falls_back_to_git_for_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows runners expose Git's `cmd` directory but not its `bin` directory."""
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    wanted = policy.WINDOWS_BASH_FALLBACKS[0]
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: str(self) == wanted)
+    try:
+        assert policy._resolve_bash() == wanted
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_resolve_bash_returns_none_when_no_interpreter_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: False)
+    try:
+        assert policy._resolve_bash() is None
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_syntax_check_fails_closed_without_bash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A host with no Bash must block, never tolerate an unverifiable body."""
+    policy._resolve_bash.cache_clear()
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: False)
+    monkeypatch.setattr(
+        policy.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("bash must not be invoked when unresolved"),
+    )
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hello\n") is False
+        assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\n') is False
+    finally:
+        policy._resolve_bash.cache_clear()
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+@pytest.mark.parametrize(
     "body",
     [
         'if [ "${{ github.sha }}" = "x" ]; then\n  echo hi\nfi\n',
@@ -6485,6 +6589,7 @@ def test_shells_naming_a_foreign_interpreter_are_not_treated_as_non_bash(shell: 
         'echo "unterminated is fine when quoted properly"\n',
     ],
 )
+@requires_bash
 def test_valid_shell_bodies_pass_the_syntax_check(body: str) -> None:
     assert policy._body_is_valid_shell_syntax(body) is True
 
@@ -6532,6 +6637,7 @@ def test_syntax_check_fails_closed_when_bash_times_out(
         policy._body_is_valid_shell_syntax.cache_clear()
 
 
+@requires_bash
 def test_expression_path_requires_a_parseable_body() -> None:
     assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\n') is True
     assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\nif [\n') is False

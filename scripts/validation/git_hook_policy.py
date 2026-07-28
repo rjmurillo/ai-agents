@@ -99,8 +99,11 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # template syntax, which the runner substitutes before any shell sees it.
 # Semgrep reports both as warn-level errors. Tolerate only those two shapes;
 # every other scan error still blocks the push.
+# The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
+# `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
+# string makes the interpreter token exact.
 NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python|python3|node|ruby|perl|cmd)\b",
+    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
     re.IGNORECASE,
 )
 # A `shell:` value naming a second interpreter cannot be trusted to describe what
@@ -108,6 +111,18 @@ NON_BASH_SHELL_RE = re.compile(
 # form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
 # declares Python and executes Bash. Refuse to classify the latter as non-Bash.
 FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
+# A custom shell template that hands the script to a repository file says nothing
+# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
+# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
+# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
+# file means the value is delegating and must not be trusted. Windows flags such as
+# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
+SCRIPT_FILE_RE = re.compile(
+    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
+    re.IGNORECASE,
+)
+RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
+MIN_PATH_SEPARATORS = 2
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
@@ -2309,13 +2324,54 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
+def _delegates_to_a_script(remainder: str) -> bool:
+    for token in remainder.split():
+        candidate = token.strip("\"'")
+        if SCRIPT_FILE_RE.search(candidate):
+            return True
+        if candidate.startswith(RELATIVE_PATH_PREFIXES):
+            return True
+        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
+            return True
+    return False
+
+
 def _is_non_bash_shell(shell: str | None) -> bool:
     if shell is None:
         return False
     match = NON_BASH_SHELL_RE.match(shell)
     if match is None:
         return False
-    return not FOREIGN_SHELL_REFERENCE_RE.search(shell[match.end() :])
+    remainder = shell[match.end() :]
+    if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
+        return False
+    return not _delegates_to_a_script(remainder)
+
+
+WINDOWS_BASH_FALLBACKS = (
+    r"C:\Program Files\Git\bin\bash.exe",
+    r"C:\Program Files\Git\usr\bin\bash.exe",
+    r"C:\Program Files (x86)\Git\bin\bash.exe",
+)
+
+
+@lru_cache(maxsize=1)
+def _resolve_bash() -> str | None:
+    """Locate a Bash interpreter, or ``None`` when the host has none.
+
+    Bare ``subprocess.run(["bash", ...])`` does not resolve on Windows because
+    ``CreateProcess`` needs the ``.exe`` suffix, so the syntax check failed
+    closed on every Windows host and silently disabled the carve-out there.
+    ``shutil.which`` applies ``PATHEXT`` and finds Git for Windows on ``PATH``;
+    the fallbacks cover a Git install that never exported one. Refs #3663.
+    """
+    found = shutil.which("bash")
+    if found is not None:
+        return found
+    for candidate in WINDOWS_BASH_FALLBACKS:
+        if Path(candidate).is_file():
+            return candidate
+    return None
 
 
 @lru_cache(maxsize=256)
@@ -2326,9 +2382,12 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     untrusted workflow content. A missing or unusable ``bash`` fails closed:
     the caller then refuses to tolerate the Semgrep error and blocks the push.
     """
+    bash = _resolve_bash()
+    if bash is None:
+        return False
     try:
         result = subprocess.run(
-            ["bash", "-n"],
+            [bash, "-n"],
             input=run,
             capture_output=True,
             text=True,
