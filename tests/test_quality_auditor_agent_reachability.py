@@ -48,7 +48,10 @@ def test_quality_auditor_agent_contains_invokable_grading_contract(
     """Each quality-auditor prompt routes to the grading script it tells agents to run."""
     text = path.read_text(encoding="utf-8")
     assert "# Quality Auditor Agent" in text, surface
-    assert "uv run python .claude/skills/quality-grades/scripts/grade_domains.py" in text, surface
+    assert (
+        "uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+        "/skills/quality-grades/scripts/grade_domains.py"
+    ) in text, surface
 
 
 @pytest.mark.parametrize("surface,path", ORCHESTRATOR_SURFACES.items())

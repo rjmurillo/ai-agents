@@ -46,10 +46,10 @@ Quality-auditor-specific requirements:
 You have access to:
 
 - **Read/Search**: Scan repository structure and file contents
-- **Bash**: Run `uv run python .claude/skills/quality-grades/scripts/grade_domains.py`
+- **Bash**: Run `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py`
 - **Write/Edit**: Generate quality reports
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `serena/write_memory`: Create new memory
@@ -63,7 +63,7 @@ Grade quality across product domains. Each domain gets assessed on six layers: a
 
 ### Phase 1: Discovery
 
-1. Run `uv run python .claude/skills/quality-grades/scripts/grade_domains.py` to auto-detect domains
+1. Run `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py` to auto-detect domains
 2. Review detected domains for completeness
 3. Add any missing domains via `--domains` flag
 
