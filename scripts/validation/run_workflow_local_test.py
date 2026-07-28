@@ -527,6 +527,10 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"|invalid literal for int\(\) with base 10: ''"
 )
 
+_ACT_SERVER_PORT_BIND_PATTERN = re.compile(
+    r"listen tcp [0-9.]+:\d+: bind: address already in use"
+)
+
 # Known act-only limitation signatures. A nonzero act exit whose combined output
 # matches one of these rules can be a local environment gap, not a workflow
 # defect. The pull_request context rules are event-scoped in _act_limitation_hint;
@@ -550,6 +554,12 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload omits repository.default_branch, so "
         "dorny/paths-filter cannot resolve a comparison base. GitHub always "
         "populates it, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_SERVER_PORT_BIND_PATTERN.search(text)),
+        "act's local reusable-workflow server port is already bound by another "
+        "local act process. GitHub does not bind this local server in CI.",
     ),
     (
         "pull_request",

@@ -45,6 +45,7 @@ from checks_spec import (  # noqa: E402
     validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_shells,
+    validate_skill_skip_clauses,
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
@@ -240,7 +241,15 @@ def run_all_validations(
         lambda: validate_skill_shells(repo_root),
     )
 
-    # 3.767 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
+    # 3.767 Skill SKIP clauses (Issue #3484). Fails when a multi-member
+    # leading-token skill family lacks a well-formed route to a real sibling.
+    run_validation(
+        "Skill SKIP Clause Routing",
+        state,
+        lambda: validate_skill_skip_clauses(repo_root),
+    )
+
+    # 3.768 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
     # when a rule or skill has no activation scenario and is not baselined, or
     # when a scenario points at a deleted artifact. Fail-closed on any config
     # or structural fault so an unmeasured artifact never reads as clean.
