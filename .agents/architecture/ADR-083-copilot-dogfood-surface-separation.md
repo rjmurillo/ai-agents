@@ -34,6 +34,19 @@ staleness guard) is tracked in issue #3256, not a blocker. Evidence:
 shipped; phases 2, 4, and 5 remain, so `implemented: false` reflects partial
 delivery.
 
+## Amendment 2026-07-27: Security hook absence recorded, authorization not found
+
+Status of this amendment: Proposed by issue #3399 follow-up review. This section
+records observed repository state only. It does not authorize removing a security
+control from the shipped base.
+
+Observed state: the removed `invoke_security_gate` hook file and the removed
+`invoke_security_commit_gate` hook file were previously required. Both are absent
+from `.claude/hooks/` and `src/copilot-cli/hooks/` in PR #3488. No ADR was found
+that supersedes this ADR's requirement that those customer-facing security
+controls remain in the base. The absence therefore remains an implementation and
+governance gap, not a relaxed decision.
+
 ## Date
 
 2026-07-18
