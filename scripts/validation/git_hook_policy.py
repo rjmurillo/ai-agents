@@ -2838,32 +2838,6 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
     return 2 if config_failed else 0
 
 
-def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
-    result = _run_git(repo_root, ["rev-list", "--merges", update.range_spec])
-    if result.returncode != 0:
-        return False
-    return any(
-        _merge_has_main_parent(merge_sha, repo_root)
-        for merge_sha in result.stdout.splitlines()
-        if merge_sha
-    )
-
-
-def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
-    result = _run_git(repo_root, ["show", "-s", "--format=%P", merge_sha])
-    if result.returncode != 0:
-        return False
-    parents = result.stdout.split()
-    for parent in parents[1:]:
-        ancestor = _run_git(
-            repo_root,
-            ["merge-base", "--is-ancestor", parent, "origin/main"],
-        )
-        if ancestor.returncode == 0:
-            return True
-    return False
-
-
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:

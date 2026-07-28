@@ -5038,7 +5038,7 @@ def test_commit_limit_blocks_when_bypass_check_fails(
     assert policy._check_commit_limit(update, tmp_path) == 1
 
 
-def test_commit_limit_relaxes_for_merge_from_main(
+def test_commit_limit_blocks_main_merge_above_pr_validation_threshold(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5056,27 +5056,6 @@ def test_commit_limit_relaxes_for_merge_from_main(
     monkeypatch.setattr(policy, "_run_git", fake_git)
 
     assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_main_merge_detection_handles_git_errors(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update()
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
-
-    assert not policy._contains_main_merge(update, tmp_path)
-    assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-def test_main_merge_detection_rejects_non_main_second_parent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = iter([_completed(0, "first other\n"), _completed(1)])
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: next(responses))
-
-    assert not policy._merge_has_main_parent("merge", tmp_path)
 
 
 def test_review_marker_reports_git_error(
