@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
@@ -61,7 +62,7 @@ from _optimizer_adapters import (  # noqa: E402
     AdapterError,
     agent_results,
     pytest_results,
-    rule_results,
+    rule_results_multi,
 )
 from _optimizer_core import (  # noqa: E402
     Patch,
@@ -103,9 +104,53 @@ def _emit(payload: object) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+class _DuplicateKeyError(ValueError):
+    """A JSON object stated the same key more than once.
+
+    Subclasses ValueError so `_corpus_header`, which promises to answer None
+    on any content problem, keeps that promise without naming this class.
+    """
+
+    def __init__(self, keys: list[str]) -> None:
+        self.keys = keys
+        super().__init__(f"duplicate JSON key(s): {', '.join(keys)}")
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build an object, refusing any key the document states more than once.
+
+    `json.loads` keeps the last value for a repeated key and reports nothing,
+    so `{"t0": false, "t0": true}` becomes `{'t0': True}`. Every validator
+    downstream then inspects a mapping the file does not contain: a repeated
+    verdict cannot be seen by `_checked_verdicts`, and the gate divides by a
+    denominator that never held the discarded task.
+
+    Two facts entering one key is the same defect as two rules rendering one
+    task id, and it gets the same answer. The gate refuses input it cannot
+    measure rather than picking a winner from a document that states both.
+    """
+    seen: dict[str, Any] = {}
+    repeated: list[str] = []
+    for key, value in pairs:
+        if key in seen:
+            repeated.append(key)
+        seen[key] = value
+    if repeated:
+        raise _DuplicateKeyError(sorted(set(repeated)))
+    return seen
+
+
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
+        )
+    except _DuplicateKeyError as exc:
+        raise ConfigError(
+            f"{path} repeats the key(s) {', '.join(repr(k) for k in exc.keys)} "
+            "inside one object; the decoder would keep only the last value, so "
+            "the document states more than one thing and cannot be measured"
+        ) from exc
     except FileNotFoundError as exc:
         raise ConfigError(f"no such file: {path}") from exc
     except UnicodeDecodeError as exc:
@@ -242,6 +287,25 @@ _CORPUS_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 _UNPINNED = object()
 
 
+class _Unreadable:
+    """What `_corpus_header` answers when it could not parse the file at all.
+
+    A class rather than a bare `object()` so the reader's return type states
+    the three answers it actually has. `str | object | None` collapses to
+    `object` and checks nothing.
+
+    Distinct from `None`, which means the file parsed and declared no corpus.
+    The gate reads those two facts differently: an absent corpus beside a pin
+    is the envelope strip and refuses as a REJECT, while an unparseable file
+    has declared nothing and belongs to the full reader, which reports it as a
+    config failure. Answering `None` for both sent malformed input down the
+    anti-strip path and turned it into a verdict on a file nobody could read.
+    """
+
+
+_UNREADABLE = _Unreadable()
+
+
 def _checked_corpus(path: Path, value: object) -> str | None:
     """The value if it is a corpus identity, None if absent, else a refusal."""
     if value is None:
@@ -282,15 +346,23 @@ def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
     return ResultsFile(_checked_verdicts(path, results), _checked_corpus(path, data.get("corpus")))
 
 
-def _corpus_header(path: Path) -> str | None:
+def _corpus_header(path: Path) -> str | _Unreadable | None:
     """The file's declared corpus, read without validating anything else.
 
-    Best-effort on purpose: every content problem answers None rather than
-    raising. This runs before the ledger lock so the corpus refusal costs
+    Best-effort on purpose: every content problem answers `_UNREADABLE` rather
+    than raising. This runs before the ledger lock so the corpus refusal costs
     nothing, and a read that could raise there would let a malformed verdict
     mapping answer in place of the ledger. An exhausted budget is the
     authoritative refusal and must not be masked by a parse error that the full
     read, after the guards, reports properly anyway.
+
+    Three answers, not two. A parsed file that names no corpus is `None`, which
+    conflicts with a pin on purpose, because that is the envelope strip. A file
+    that would not parse is `_UNREADABLE`, which conflicts with nothing: it has
+    not declared anything, so the preflight steps aside and the full read
+    reports it as the config failure it is. Collapsing the two answered a
+    duplicate key with `decision: REJECT` and a reason saying the files
+    disagreed on a corpus they in fact agreed on.
 
     Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
     because a failing open names the file. `RecursionError` joins `ValueError`
@@ -298,11 +370,13 @@ def _corpus_header(path: Path) -> str | None:
     failing its grammar, and letting it out would break the promise above.
     """
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
+        )
     except (ValueError, RecursionError):
-        return None
+        return _UNREADABLE
     if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
-        return None
+        return _UNREADABLE
     value = data.get("corpus")
     return value if isinstance(value, str) and _CORPUS_RE.match(value) else None
 
@@ -496,7 +570,9 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     )
 
 
-def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str, bool]:
+def _extract_rules_envelope(
+    rules_runs: Sequence[Any], args: argparse.Namespace
+) -> dict[str, bool]:
     """Extract the multi-rule shape eval-rule-activation.py --output writes.
 
     Scenario ids restart at S1 inside every rule, so they are namespaced as
@@ -504,58 +580,119 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     tests/evals/rule-scenarios/ produced 24 scenarios carrying only 4 distinct
     ids; merging them raw would silently drop 20 tasks, and a smaller
     denominator reads as a higher score.
+
+    `rules_runs` holds one envelope per run of the evaluator. Every run must
+    carry the same rule names, for the same reason the adapter makes every run
+    carry the same scenario ids: reducing across different task sets compares
+    unlike things.
     """
-    if not isinstance(rules, Mapping) or not rules:
-        raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
+    for rules in rules_runs:
+        if not isinstance(rules, Mapping) or not rules:
+            raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
+    names = list(rules_runs[0])
+    expected = set(names)
+    for index, rules in enumerate(rules_runs[1:], start=2):
+        if set(rules) != expected:
+            differing = sorted(str(name) for name in expected.symmetric_difference(rules))
+            raise ConfigError(
+                f"every run must carry the same rules; run {index} of "
+                f"{len(rules_runs)} differs on: {', '.join(differing)}"
+            )
     degraded: list[str] = []
     # `list[Any]`, matching `_rule_scenarios`, not the `Sequence[object]` the
-    # degraded scan takes. `scenarios` is bound from that call above and reused
-    # as the loop variable below, so a widened element type here makes the
-    # second binding an incompatible assignment to the first.
-    entries: list[tuple[str, list[Any]]] = []
-    for name, entry in rules.items():
-        if not isinstance(entry, Mapping) or "scenarios" not in entry:
-            raise ConfigError(f"rule {name!r} has no 'scenarios' list")
-        scenarios = _rule_scenarios(entry)
-        entries.append((str(name), scenarios))
-        degraded.extend(
-            _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
-        )
-        summary = entry.get("summary")
-        if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
-            if not any(task_id.startswith(f"{name}::") for task_id in degraded):
-                degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
+    # degraded scan takes. `scenarios` is bound from that call below and reused
+    # as the loop variable, so a widened element type here makes the second
+    # binding an incompatible assignment to the first.
+    entries: list[tuple[str, list[list[Any]]]] = []
+    for name in names:
+        per_run: list[list[Any]] = []
+        for rules in rules_runs:
+            entry = rules[name]
+            if not isinstance(entry, Mapping) or "scenarios" not in entry:
+                raise ConfigError(f"rule {name!r} has no 'scenarios' list")
+            scenarios = _rule_scenarios(entry)
+            per_run.append(scenarios)
+            degraded.extend(
+                _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
+            )
+            summary = entry.get("summary")
+            if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
+                if not any(task_id.startswith(f"{name}::") for task_id in degraded):
+                    degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
+        entries.append((str(name), per_run))
     # Refuse before scoring any rule, the way the single-rule path already
     # does. Scoring inside the collection loop let an adapter error about one
     # scenario replace the scan's enumeration of every degraded scenario, and
     # the enumeration is the whole reason the scan runs ahead of the adapter.
     _refuse_degraded_rule_report(degraded)
     out: dict[str, bool] = {}
-    for name, scenarios in entries:
-        scored: dict[str, bool] = rule_results(
-            scenarios, args.mechanism, min_score=args.min_score
+    # `<rule>::<scenario>` is not injective: rule 'a' with scenario 'b::c' and
+    # rule 'a::b' with scenario 'c' both render as 'a::b::c'. A plain
+    # assignment would keep whichever is written last and drop the other, and
+    # a dropped held-out task shrinks the denominator the gate divides by, so
+    # a swallowed failure reads as a cleaner candidate. Refuse instead, the
+    # way the single-rule and JUnit adapters already refuse duplicate ids.
+    origin: dict[str, tuple[str, str]] = {}
+    for name, per_run in entries:
+        scored: dict[str, bool] = rule_results_multi(
+            per_run, args.mechanism, min_score=args.min_score, reduce=args.reduce
         )
         for sid, passed in scored.items():
-            out[f"{name}::{sid}"] = passed
+            task_id = f"{name}::{sid}"
+            previous = origin.get(task_id)
+            if previous is not None:
+                raise ConfigError(
+                    f"task id {task_id!r} is produced by two different "
+                    f"rule and scenario pairs: rule {previous[0]!r} scenario "
+                    f"{previous[1]!r}, and rule {name!r} scenario {sid!r}; "
+                    "rename one so every held-out task stays countable"
+                )
+            origin[task_id] = (name, sid)
+            out[task_id] = passed
     return out
 
 
-def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
-    # eval-rule-activation.py --output writes {"rules": {name: {...}}}. A bare
-    # scenario array and a {"scenarios": [...]} wrapper are also accepted so a
-    # caller can gate one rule without the envelope.
-    if isinstance(payload, dict) and "rules" in payload:
-        return _extract_rules_envelope(payload["rules"], args)
+def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[str, bool]:
+    """Score one or more rule reports, reducing across them.
+
+    eval-rule-activation.py --output writes {"rules": {name: {...}}}. A bare
+    scenario array and a {"scenarios": [...]} wrapper are also accepted so a
+    caller can gate one rule without the envelope.
+
+    Repeated runs are the rule path's only noise defense; see
+    `rule_results_multi`. Every run has to be the same shape, because an
+    envelope namespaces its task ids under a rule name and a bare array does
+    not, so reducing one against the other would compare `S1` with
+    `alpha::S1` and find neither.
+    """
+    envelopes = [
+        payload["rules"]
+        for payload in payloads
+        if isinstance(payload, dict) and "rules" in payload
+    ]
+    if envelopes and len(envelopes) != len(payloads):
+        raise ConfigError(
+            "every rule report must have the same shape; got a mix of the "
+            "multi-rule envelope and a bare scenario array, whose task ids are "
+            "namespaced differently and cannot be reduced against each other"
+        )
+    # Collecting the values instead of a parallel list of booleans is what lets
+    # this read them without re-indexing behind the check. `len ==` rather than
+    # a truth test so an empty input keeps taking the envelope path, which is
+    # what `all([])` did.
+    if len(envelopes) == len(payloads):
+        return _extract_rules_envelope(envelopes, args)
     # Annotated locals here and below: the sibling modules are imported by
     # path (this file is a hyphenated script), so mypy resolves them as Any
     # under ignore_missing_imports. The annotation restates the contract the
     # tests already enforce.
-    scenarios = _rule_scenarios(payload)
-    _refuse_degraded_rule_report(
-        _rule_degraded_scenario_ids(scenarios, args.mechanism)
-    )
-    extracted: dict[str, bool] = rule_results(
-        scenarios, args.mechanism, min_score=args.min_score
+    runs: list[list[Any]] = [_rule_scenarios(payload) for payload in payloads]
+    for scenarios in runs:
+        _refuse_degraded_rule_report(
+            _rule_degraded_scenario_ids(scenarios, args.mechanism)
+        )
+    extracted: dict[str, bool] = rule_results_multi(
+        runs, args.mechanism, min_score=args.min_score, reduce=args.reduce
     )
     return extracted
 
@@ -585,6 +722,24 @@ def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
         raise ConfigError(f"{flag} must be in [{lo:g}, {hi:g}], got {value}")
 
 
+def _single_input(paths: Sequence[Path], kind: str) -> Path:
+    """Refuse several reports for a kind that has no cross-report reduction.
+
+    Only `--kind rule` reduces across runs, because it is the only adapter
+    with nothing else defending it: `pytest_results` is deterministic, so a
+    second run measures nothing new, and `agent_results` already averages the
+    runs inside one report. Reducing two agent reports would average an
+    average and weight the report with fewer runs equally, which is a quieter
+    wrong answer than refusing.
+    """
+    if len(paths) > 1:
+        raise ConfigError(
+            f"--kind {kind} reads one report, got {len(paths)}; only "
+            f"--kind rule reduces across repeated runs"
+        )
+    return paths[0]
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     # Before the input is read. A bar off its scale is decidable on its own,
     # and refusing it here means an unreadable file cannot mask a bad flag.
@@ -592,12 +747,15 @@ def cmd_extract(args: argparse.Namespace) -> int:
     _on_scale("--min-score", args.min_score, 0.0, _MAX_RULE_SCORE)
     corpus: str | None = None
     if args.kind == "hook":
-        results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
+        results = pytest_results(
+            _read_text(_single_input(args.input, "hook")), on_skip=args.on_skip
+        )
     elif args.kind == "agent":
-        report = _read_json(args.input)
+        path = _single_input(args.input, "agent")
+        report = _read_json(path)
         if not isinstance(report, Mapping):
-            raise ConfigError(f"{args.input} must hold an agent report object")
-        corpus = _report_corpus(args.input, report)
+            raise ConfigError(f"{path} must hold an agent report object")
+        corpus = _report_corpus(path, report)
         results = agent_results(
             report,
             args.variant,
@@ -605,7 +763,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
             pass_threshold=args.pass_threshold,
         )
     else:
-        results = _extract_rule(_read_json(args.input), args)
+        results = _extract_rule([_read_json(path) for path in args.input], args)
     _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
     return EXIT_OK
 
@@ -1416,7 +1574,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
         pin = split.get("corpus", _UNPINNED)
         incumbent_corpus = _corpus_header(args.incumbent)
         candidate_corpus = _corpus_header(args.candidate)
-    if _corpus_conflict(pin, incumbent_corpus, candidate_corpus):
+    # A file nobody could parse gets no opinion here. It has declared no
+    # corpus, so comparing it would report a corpus disagreement as the reason
+    # a malformed file was refused, and report it as REJECT, which is a
+    # decision. The full read below raises the ConfigError that says what is
+    # actually wrong, and exits 2 like every other unreadable input.
+    if _corpus_refused(pin, incumbent_corpus, candidate_corpus):
         _emit(_corpus_refusal())
         return EXIT_LOGIC
 
@@ -1424,6 +1587,24 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # because that refusal reads no ledger and spends nothing.
     with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
+
+
+def _corpus_refused(
+    pin: object,
+    incumbent: str | _Unreadable | None,
+    candidate: str | _Unreadable | None,
+) -> bool:
+    """Whether the header preflight refuses this pair before the full read.
+
+    Standing between the headers and `_corpus_conflict` so the unreadable case
+    is answered once, by name, instead of as a condition the conflict rule has
+    to carry. It also lets the type narrow: past the two isinstance checks both
+    values are the `str | None` the conflict rule is written against, which is
+    what caught this call site when the sentinel stopped being a bare object.
+    """
+    if isinstance(incumbent, _Unreadable) or isinstance(candidate, _Unreadable):
+        return False
+    return _corpus_conflict(pin, incumbent, candidate)
 
 
 def _corpus_conflict(pin: object, incumbent: str | None, candidate: str | None) -> bool:
@@ -1910,7 +2091,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     extract = sub.add_parser("extract", help="convert a scorer's output to task pass or fail")
     extract.add_argument("--kind", choices=("agent", "rule", "hook"), required=True)
-    extract.add_argument("--input", type=Path, required=True)
+    extract.add_argument(
+        "--input",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="scorer output; --kind rule accepts several, one per run, and reduces them",
+    )
     extract.add_argument("--variant", default="agent", help="agent eval variant column")
     extract.add_argument("--reduce", default="mean", choices=("mean", "min", "max", "median"))
     extract.add_argument("--pass-threshold", type=float, default=1.0)
@@ -2003,7 +2190,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _dispatch(argv: list[str] | None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
@@ -2027,5 +2214,78 @@ def main(argv: list[str] | None = None) -> int:
     return exit_code
 
 
+def main(argv: list[str] | None = None) -> int:
+    """Run one command, answering a dead output stream with EXIT_CONFIG.
+
+    `_emit` writes with `print`, and a closed reader makes that raise
+    `BrokenPipeError`. It is an `OSError`, so it slipped past the handler in
+    `_dispatch` and left `main`, and the interpreter answers an escape with
+    exit 1, which this CLI defines as REJECT. Measured before this guard:
+    `split` over 20000 tasks piped to a closed reader exited 1 with a
+    traceback. For `gate` the ledger write precedes the final emit, so the
+    consultation was already spent when the answer was lost.
+
+    The old handler answered a failed write with a second write on the same
+    stream. This one does not try. `_warn` is already guarded and goes to the
+    other stream, and the exit code carries the rest: no decision was made.
+
+    Parser construction is inside the guard because `print_help` writes to
+    stderr, which can be closed for the same reason stdout can.
+
+    `ValueError` joins `OSError` because a closed stream raises
+    "I/O operation on closed file", which is a ValueError, so an embedding
+    harness with a closed stdout got exit 1 and a traceback while a broken
+    pipe got exit 2. This gives up nothing: the handler in `_dispatch` already
+    maps every ValueError from the body to EXIT_CONFIG, so the only ones
+    reaching here come from that handler's own write and from parser
+    construction, which are the stream cases this exists for.
+    """
+    try:
+        return _dispatch(argv)
+    except (OSError, ValueError) as exc:
+        _warn(f"optimize-artifact could not write its result: {exc}")
+        return EXIT_CONFIG
+
+
+def _final_exit_code(code: int) -> int:
+    """Flush stdout here, where a failure can still change the answer.
+
+    CPython flushes stdout during shutdown, and when that fails it prints
+    "Exception ignored while flushing sys.stdout" and replaces the exit
+    status. Measured: a small payload piped to a closed reader exited 120
+    rather than the code `main` returned, so a caller reading the status saw
+    neither the verdict nor EXIT_CONFIG.
+
+    Flushing before the interpreter does turns that into an answer. The
+    descriptor is then pointed at the void so the implicit flush has nothing
+    left to fail on. A stand-in stream with no descriptor raises
+    `io.UnsupportedOperation`, a ValueError, which is why that joins OSError
+    in the suppression: this runs on the way out and must not become the
+    failure it is reporting.
+
+    It reports for the same reason `main` does. This path rewrites the status
+    the command computed, and an exit 2 with nothing on stderr leaves the
+    operator unable to tell a dead stream from a bad flag. `_warn` carries it
+    because it suppresses its own failure, which matters here: the two streams
+    tend to close together, so the report cannot assume the other one lived.
+
+    Replacing the stream is what actually stops the 120. The broken one has to
+    stop being `sys.stdout` before the interpreter flushes it again on the way
+    out, and an in-memory stand-in is the whole fix: it needs no descriptor, so
+    it works for the stream whose `fileno` raises as well as for the real
+    broken pipe, and it cannot fail to construct, so this path has no second
+    failure mode to handle. An `os.dup2` redirect onto devnull was measured
+    against it and came out identical on both, at the cost of a descriptor to
+    open, guard, and close.
+    """
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError) as exc:
+        _warn(f"optimize-artifact could not write its result: {exc}")
+        sys.stdout = io.StringIO()
+        return EXIT_CONFIG
+    return code
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    raise SystemExit(_final_exit_code(main()))

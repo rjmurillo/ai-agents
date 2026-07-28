@@ -19,6 +19,7 @@ import io
 import json
 import os
 import stat
+import subprocess
 import sys
 import traceback
 from contextvars import copy_context
@@ -104,6 +105,46 @@ def _enveloped(corpus, results: dict) -> dict:
 def _env_file(tmp_path, name: str, corpus, n: int = 10):
     """An enveloped results file of `n` passing tasks."""
     return _write(tmp_path, name, _enveloped(corpus, {f"t{i}": True for i in range(n)}))
+
+
+class _Unflushable(io.TextIOBase):
+    """A stream whose flush fails the way a closed pipe's does.
+
+    `close` is overridden because `io.TextIOBase` finalization flushes, which
+    would raise during garbage collection and surface as
+    PytestUnraisableExceptionWarning in whichever test happened to trigger it.
+    """
+
+    def flush(self):  # noqa: ANN202
+        raise BrokenPipeError(32, "broken pipe")
+
+    def close(self):  # noqa: ANN202
+        """Finalization calls close, which would flush and raise again."""
+
+
+_LOAD_MODULE = """
+import importlib.util, io, sys
+spec = importlib.util.spec_from_file_location("oa", sys.argv[1])
+oa = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(oa)
+"""
+
+_CLOSED_STDOUT_DRIVER = _LOAD_MODULE + """
+sys.stdout.close()
+raise SystemExit(oa._final_exit_code(oa.main(["budget", "--step", "1", "--total", "9"])))
+"""
+
+_NO_FILENO_DRIVER = _LOAD_MODULE + """
+class _NoDescriptor(io.TextIOBase):
+    def flush(self):
+        raise BrokenPipeError(32, "broken pipe")
+
+    def close(self):
+        pass
+
+sys.stdout = _NoDescriptor()
+raise SystemExit(oa._final_exit_code(oa.EXIT_OK))
+"""
 
 
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
@@ -3803,7 +3844,15 @@ class TestTheCorpusPinCannotBeStrippedAway:
     def test_that_scrub_test_would_fail_without_the_scrubber(
         self, tmp_path, capsys, monkeypatch
     ):
-        """The negative control the tautological version never had."""
+        """The negative control the tautological version never had.
+
+        Aimed at `_dispatch` rather than `main`. `main` now converts every
+        escaping OSError into EXIT_CONFIG so a dead output stream cannot be
+        read as a REJECT, which means an escape is no longer observable at
+        that boundary. `_dispatch` is the layer the scrubber actually wraps,
+        so the control still watches the thing it was built to watch instead
+        of being kept green by a guard that answers a different question.
+        """
         inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe2")
         split_path = _write(tmp_path, "split.json", split)
@@ -3812,6 +3861,7 @@ class TestTheCorpusPinCannotBeStrippedAway:
             OSError(f"cannot open {key}")
         ))
         monkeypatch.setattr(oa, "_digest_scrubbed", contextlib.nullcontext)
+        monkeypatch.setattr(oa, "main", oa._dispatch)
         with pytest.raises(OSError) as caught:
             _run_gate(
                 capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
@@ -5780,7 +5830,12 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
 
         The README now says the library keeps one contract and the command that
         spends budget keeps a stricter one. If someone moved the scan down into
-        `rule_results`, this turns red and the prose becomes wrong again.
+        the adapter, this turns red and the prose becomes wrong again.
+
+        Asserted against `rule_results_multi` because that is the entry point
+        `extract` calls once the rule path gained multi-run reduction. Guarding
+        the function the command no longer reaches would have left the contract
+        unguarded while still looking green.
         """
         scenarios = [
             {"id": "S1", "negative_case": False, "mechanisms": {
@@ -5795,7 +5850,7 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
                 }},
             }},
         ]
-        assert oa.rule_results(scenarios, "full") == {"S1": True, "S2": False}
+        assert oa.rule_results_multi([scenarios], "full") == {"S1": True, "S2": False}
 
 
 @_NEEDS_PERMISSION_BARRIER
@@ -7450,3 +7505,652 @@ class TestTheBlockingAncestorWalkNeverRaises:
         ):
             with pytest.raises(NotADirectoryError):
                 make()
+
+
+class TestExtractingARulePathAcrossRepeatedRuns:
+    """`--input` takes several reports so the rule path can reduce them.
+
+    ADR-087 Open Requirement 6 measured that one LLM judge reading is not
+    evidence about an edit: identical rule text scored twice moved 5 of 24
+    tasks across the pass threshold. The adapter gained
+    `rule_results_multi`; this is the command-line surface that reaches it.
+
+    A run is a whole report because that is how the ADR's own paired
+    measurement was gathered, so nothing about `eval-rule-activation.py`
+    changes.
+    """
+
+    @staticmethod
+    def _scen(sid, triple, mech="full"):
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {
+                mech: {
+                    "scores": {
+                        "activation_score": triple[0],
+                        "citation_score": triple[1],
+                        "behavior_score": triple[2],
+                    }
+                }
+            },
+        }
+
+    def test_one_input_still_behaves_exactly_as_before(self, tmp_path, capsys):
+        path = _write(tmp_path, "r1.json", [self._scen("S1", (4, 4, 4))])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": True}
+
+    def test_two_runs_are_reduced_before_the_bar_is_applied(self, tmp_path, capsys):
+        """3.0 and 4.0 reduce to 3.5, which clears the inclusive floor.
+
+        Neither report passes this scenario on its own under the default bar,
+        so a result of True can only have come from the reduction.
+        """
+        low = _write(tmp_path, "low.json", [self._scen("S1", (3, 3, 3))])
+        high = _write(tmp_path, "high.json", [self._scen("S1", (4, 4, 4))])
+        code, out = _run(
+            capsys, "extract", "--kind", "rule", "--input", low, high
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": True}
+
+    def test_the_reduce_flag_reaches_the_rule_path(self, tmp_path, capsys):
+        low = _write(tmp_path, "low.json", [self._scen("S1", (3, 3, 3))])
+        high = _write(tmp_path, "high.json", [self._scen("S1", (5, 5, 5))])
+        code, out = _run(
+            capsys, "extract", "--kind", "rule",
+            "--input", low, high, "--reduce", "min",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": False}
+
+    def test_runs_that_score_different_scenarios_are_refused(self, tmp_path, capsys):
+        first = _write(tmp_path, "a.json", [self._scen("S1", (4, 4, 4))])
+        second = _write(tmp_path, "b.json", [self._scen("S2", (4, 4, 4))])
+        code, _ = _run(
+            capsys, "extract", "--kind", "rule", "--input", first, second
+        )
+        assert code == EXIT_CONFIG
+
+    def test_the_multi_rule_envelope_reduces_per_rule(self, tmp_path, capsys):
+        low = _write(
+            tmp_path, "e-low.json",
+            {"rules": {"alpha": {"scenarios": [self._scen("S1", (3, 3, 3))]}}},
+        )
+        high = _write(
+            tmp_path, "e-high.json",
+            {"rules": {"alpha": {"scenarios": [self._scen("S1", (4, 4, 4))]}}},
+        )
+        code, out = _run(
+            capsys, "extract", "--kind", "rule", "--input", low, high
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"alpha::S1": True}
+
+    def test_envelopes_that_disagree_on_rule_names_are_refused(self, tmp_path, capsys):
+        one = _write(
+            tmp_path, "e1.json",
+            {"rules": {"alpha": {"scenarios": [self._scen("S1", (4, 4, 4))]}}},
+        )
+        two = _write(
+            tmp_path, "e2.json",
+            {"rules": {"beta": {"scenarios": [self._scen("S1", (4, 4, 4))]}}},
+        )
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", one, two)
+        assert code == EXIT_CONFIG
+
+    def test_mixing_an_envelope_with_a_bare_array_is_refused(self, tmp_path, capsys):
+        """Two shapes cannot be reduced against each other.
+
+        A bare array names scenarios; an envelope namespaces them under a rule.
+        Reducing one against the other would compare `S1` with `alpha::S1`.
+        """
+        bare = _write(tmp_path, "bare.json", [self._scen("S1", (4, 4, 4))])
+        env = _write(
+            tmp_path, "env.json",
+            {"rules": {"alpha": {"scenarios": [self._scen("S1", (4, 4, 4))]}}},
+        )
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", bare, env)
+        assert code == EXIT_CONFIG
+
+    def test_a_degraded_scenario_in_a_later_run_is_still_refused(self, tmp_path, capsys):
+        """The degraded scan must read every run, not just the first."""
+        good = _write(tmp_path, "g.json", [self._scen("S1", (4, 4, 4))])
+        bad = _write(
+            tmp_path, "b.json",
+            [{"id": "S1", "negative_case": False,
+              "mechanisms": {"full": {"error": "judge timed out"}}}],
+        )
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", good, bad)
+        assert code == EXIT_CONFIG
+
+    def test_the_agent_kind_refuses_more_than_one_report(self, tmp_path, capsys):
+        """`agent_results` already averages runs inside one report.
+
+        Reducing two agent reports would average an average, weighting the
+        report with fewer runs equally. Refusing says so instead of guessing.
+        """
+        one = _write(tmp_path, "a1.json", {"per_fixture_pass_rates": {"F1": {"agent": [1.0]}}})
+        two = _write(tmp_path, "a2.json", {"per_fixture_pass_rates": {"F1": {"agent": [1.0]}}})
+        code, _ = _run(capsys, "extract", "--kind", "agent", "--input", one, two)
+        assert code == EXIT_CONFIG
+
+    def test_the_hook_kind_refuses_more_than_one_report(self, tmp_path, capsys):
+        """pytest is deterministic, so repeated runs measure nothing new."""
+        xml = '<testsuite><testcase classname="t" name="a"/></testsuite>'
+        one = tmp_path / "j1.xml"
+        one.write_text(xml, encoding="utf-8")
+        two = tmp_path / "j2.xml"
+        two.write_text(xml, encoding="utf-8")
+        code, _ = _run(capsys, "extract", "--kind", "hook", "--input", one, two)
+        assert code == EXIT_CONFIG
+
+    def test_the_refusal_names_the_count_it_was_given(self, tmp_path, capsys):
+        one = _write(tmp_path, "a1.json", {"per_fixture_pass_rates": {}})
+        two = _write(tmp_path, "a2.json", {"per_fixture_pass_rates": {}})
+        three = _write(tmp_path, "a3.json", {"per_fixture_pass_rates": {}})
+        code, out = _run(
+            capsys, "extract", "--kind", "agent", "--input", one, two, three
+        )
+        assert code == EXIT_CONFIG
+        assert "3" in out["error"]
+
+    def test_a_hook_run_still_reads_its_single_input(self, tmp_path, capsys):
+        xml = '<testsuite><testcase classname="t" name="a"/></testsuite>'
+        path = tmp_path / "j.xml"
+        path.write_text(xml, encoding="utf-8")
+        code, out = _run(capsys, "extract", "--kind", "hook", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"t::a": True}
+
+
+class TestTwoRulesCannotCollapseIntoOneTaskId:
+    """`<rule>::<scenario>` is only a key if the join cannot be ambiguous.
+
+    The envelope namespaces scenario ids under a rule name because ids
+    restart at S1 inside every rule. That join is not injective: rule `a`
+    with scenario `b::c` and rule `a::b` with scenario `c` both render as
+    `a::b::c`, and a plain dict assignment keeps whichever is written last.
+
+    Losing a task is not a cosmetic problem on this path. The held-out set is
+    the gate's whole evidence, so a swallowed held-out failure shrinks the
+    denominator and reads as a cleaner candidate than the one that ran. The
+    single-rule adapter and the JUnit adapter both already refuse duplicate
+    ids; this is the same refusal for the only producer that lacked it.
+    """
+
+    @staticmethod
+    def _scen(sid, value):
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {
+                "full": {
+                    "scores": {
+                        "activation_score": value,
+                        "citation_score": value,
+                        "behavior_score": value,
+                    }
+                }
+            },
+        }
+
+    def _envelope(self, pairs):
+        return {
+            "rules": {
+                name: {"scenarios": [self._scen(sid, value)]}
+                for name, sid, value in pairs
+            }
+        }
+
+    def test_a_collision_is_refused_rather_than_silently_resolved(
+        self, tmp_path, capsys
+    ):
+        """Without the guard this returns one task and reports ACCEPT-able data."""
+        payload = self._envelope([("a", "b::c", 5), ("a::b", "c", 0)])
+        path = _write(tmp_path, "e.json", payload)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "a::b::c" in out["error"]
+
+    def test_the_refusal_names_both_rules_that_produced_the_id(
+        self, tmp_path, capsys
+    ):
+        """A reader has to know which two rules to rename, not just that two exist."""
+        payload = self._envelope([("a", "b::c", 5), ("a::b", "c", 0)])
+        path = _write(tmp_path, "e.json", payload)
+        _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert "'a'" in out["error"]
+        assert "'a::b'" in out["error"]
+
+    def test_distinct_rules_that_do_not_collide_are_still_scored(
+        self, tmp_path, capsys
+    ):
+        """The guard fires on an actual collision, not on the separator."""
+        payload = self._envelope([("alpha", "S1", 5), ("beta", "S1", 5)])
+        path = _write(tmp_path, "e.json", payload)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"alpha::S1": True, "beta::S1": True}
+
+    def test_a_rule_name_holding_the_separator_is_allowed_when_unambiguous(
+        self, tmp_path, capsys
+    ):
+        """Refusing every `::` in a name would refuse measurable input.
+
+        The gate refuses what it cannot measure, not what looks unusual. This
+        envelope renders two distinct ids, so it is measurable.
+        """
+        payload = self._envelope([("a::b", "S1", 5), ("c", "S1", 5)])
+        path = _write(tmp_path, "e.json", payload)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"a::b::S1": True, "c::S1": True}
+
+    def test_the_collision_is_refused_even_when_both_sides_agree(
+        self, tmp_path, capsys
+    ):
+        """Agreement is luck, not measurement.
+
+        Two tasks that happen to share a verdict still shrink the denominator
+        by one when they merge, so the count the gate reasons about is wrong
+        whether or not the surviving value is.
+        """
+        payload = self._envelope([("a", "b::c", 5), ("a::b", "c", 5)])
+        path = _write(tmp_path, "e.json", payload)
+        code, _ = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+
+class TestARepeatedJsonKeyIsRefusedNotSilentlyCollapsed:
+    """`json.loads` keeps the last value for a repeated key.
+
+    `{"t0": false, "t0": true}` parses to `{'t0': True}` with no error, so
+    every validator downstream inspects a mapping the file does not actually
+    contain. `_checked_verdicts` cannot see a regression that the decoder
+    already discarded, and the gate divides by a denominator that never held
+    the failing task.
+
+    This is the same class of defect as the task-id collision: two facts
+    entering one key. The gate refuses input it cannot measure rather than
+    picking a winner, so the decoder refuses too.
+    """
+
+    def _raw(self, tmp_path, name, text):
+        path = tmp_path / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_a_repeated_key_is_refused_by_the_reader(self, tmp_path):
+        path = self._raw(tmp_path, "r.json", '{"t0": false, "t0": true}')
+        with pytest.raises(oa.ConfigError, match="t0"):
+            oa._read_json(path)
+
+    def test_the_refusal_says_the_key_repeats(self, tmp_path):
+        path = self._raw(tmp_path, "r.json", '{"t0": false, "t0": true}')
+        with pytest.raises(oa.ConfigError, match="repeat"):
+            oa._read_json(path)
+
+    def test_an_ordinary_document_still_parses(self, tmp_path):
+        path = self._raw(tmp_path, "r.json", '{"a": 1, "b": [1, 2], "c": {"d": 3}}')
+        assert oa._read_json(path) == {"a": 1, "b": [1, 2], "c": {"d": 3}}
+
+    def test_the_same_key_in_two_different_objects_is_not_a_repeat(self, tmp_path):
+        """Scoping matters. Only keys repeating within one object collide."""
+        path = self._raw(tmp_path, "r.json", '{"a": {"x": 1}, "b": {"x": 2}}')
+        assert oa._read_json(path) == {"a": {"x": 1}, "b": {"x": 2}}
+
+    def test_a_repeat_nested_inside_the_document_is_caught(self, tmp_path):
+        """The hook runs at every object, so depth does not hide a collision."""
+        path = self._raw(
+            tmp_path, "r.json", '{"results": {"t0": false, "t0": true}}'
+        )
+        with pytest.raises(oa.ConfigError, match="t0"):
+            oa._read_json(path)
+
+    def test_every_repeated_key_is_named_not_just_the_first(self, tmp_path):
+        path = self._raw(
+            tmp_path, "r.json", '{"a": 1, "a": 2, "b": 3, "b": 4}'
+        )
+        with pytest.raises(oa.ConfigError) as excinfo:
+            oa._read_json(path)
+        assert "a" in str(excinfo.value) and "b" in str(excinfo.value)
+
+    def test_an_empty_object_and_an_empty_array_are_unaffected(self, tmp_path):
+        path = self._raw(tmp_path, "r.json", '{"a": {}, "b": []}')
+        assert oa._read_json(path) == {"a": {}, "b": []}
+
+    def test_the_gate_refuses_a_candidate_that_hides_a_regression(
+        self, tmp_path, capsys
+    ):
+        """The impact, end to end.
+
+        Without the guard the candidate reads as all-passing, the gate finds
+        no held-out loss and can ACCEPT while the file on disk says one task
+        regressed.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        record = json.loads((tmp_path / "split.json").read_text(encoding="utf-8"))
+        pairs = ", ".join(f'"t{i}": true' for i in range(12))
+        cand = self._raw(tmp_path, "cand.json", "{" + pairs + ', "t0": false, "t0": true}')
+        code, out = _run(capsys, "gate", "--incumbent", inc, "--candidate", cand,
+                         "--split", tmp_path / "split.json",
+                         "--max-consultations", "10",
+                         "--incumbent-fingerprint", record["fingerprint"])
+        assert code == EXIT_CONFIG
+        assert "t0" in out["error"]
+
+    def test_the_corpus_preflight_reports_absence_rather_than_raising(
+        self, tmp_path
+    ):
+        """That reader promises never to raise on content, only on open."""
+        path = self._raw(
+            tmp_path,
+            "r.json",
+            '{"schema": "optimizer-results/1", "corpus": "a", "corpus": "b"}',
+        )
+        assert oa._corpus_header(path) is oa._UNREADABLE
+
+    def test_an_unreadable_header_is_not_the_same_fact_as_no_corpus(
+        self, tmp_path
+    ):
+        """Both used to answer None, and the gate reads them differently.
+
+        A file that declares no corpus conflicts with a pin on purpose: that
+        is what closes the envelope strip. A file nobody could parse has not
+        declared anything, so answering the same way sends a malformed input
+        down the anti-strip path and turns it into a verdict.
+        """
+        stripped = self._raw(
+            tmp_path, "s.json", '{"schema": "optimizer-results/1", "results": {}}'
+        )
+        assert oa._corpus_header(stripped) is None
+        assert oa._corpus_header(stripped) is not oa._UNREADABLE
+
+    def test_a_malformed_candidate_is_not_a_computed_reject(
+        self, capsys, tmp_path
+    ):
+        """The F2 refusal leaked around itself through the preflight.
+
+        With a corpus-pinned pair the preflight ran first, read the duplicate
+        key as "declares no corpus", and answered `decision: REJECT` with a
+        reason saying the files disagree on a corpus. They agree. The file is
+        unreadable, which is exit 2, and the reason given was false besides.
+        """
+        corpus = "a" * 64
+        inc = _write(tmp_path, "inc.json", _enveloped(corpus, {f"t{i}": i < 5 for i in range(10)}))
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "cp1")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = self._raw(
+            tmp_path,
+            "cand.json",
+            '{"schema": "optimizer-results/1", "corpus": "' + corpus + '", '
+            '"results": {"t0": false, "t0": true}}',
+        )
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG, out
+        assert out.get("decision") != "REJECT"
+        assert "t0" in out.get("error", "")
+
+    def test_a_stripped_candidate_is_still_a_corpus_conflict(
+        self, capsys, tmp_path
+    ):
+        """Negative control: the anti-strip rule must survive the fix.
+
+        A readable file that declares no corpus beside a pinned one is the
+        case the preflight exists for. If the fix for the malformed case
+        widened into this one, stripping the envelope would stop being caught.
+        """
+        corpus = "b" * 64
+        inc = _write(tmp_path, "inc.json", _enveloped(corpus, {f"t{i}": i < 5 for i in range(10)}))
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "cp2")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(tmp_path, "cand.json", _enveloped(None, {f"t{i}": True for i in range(10)}))
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_LOGIC, out
+        assert out["decision"] == "REJECT"
+        assert "corpus" in out["reason"]
+
+
+class TestAStdoutThatCannotBeWrittenIsNotARejectVerdict:
+    """A closed pipe must not answer the question the gate was asked.
+
+    `_emit` calls `print` unguarded. When the reader is gone the write
+    raises, and `BrokenPipeError` is an `OSError`, so it slips past the
+    `(ConfigError, AdapterError, ValueError)` handler and leaves `main`
+    entirely. The interpreter answers that with exit 1, which this CLI
+    defines as REJECT: a verdict on a comparison that never finished.
+
+    Measured on this branch before the fix, both in real subprocesses:
+    `split` over 20000 tasks piped to a closed reader exited 1 with a
+    traceback, and a small payload exited 120 because CPython overrides the
+    status when it cannot flush stdout at shutdown. Neither is EXIT_CONFIG,
+    and for `gate` the ledger write precedes the final emit, so a
+    consultation was spent and the answer thrown away.
+
+    The handler cannot report on the stream that just failed, so it stops
+    trying. The exit code carries the whole message: no decision was
+    produced.
+    """
+
+    class _Broken(io.TextIOBase):
+        def write(self, s):  # noqa: ANN001, ANN202
+            raise BrokenPipeError(32, "broken pipe")
+
+    def test_a_broken_stdout_answers_config_not_reject(self, monkeypatch):
+        monkeypatch.setattr(sys, "stdout", self._Broken())
+        assert oa.main(["budget", "--step", "1", "--total", "10"]) == EXIT_CONFIG
+
+    def test_the_error_does_not_escape_main(self, monkeypatch):
+        """Escaping is the defect. Returning any code at all is the fix."""
+        monkeypatch.setattr(sys, "stdout", self._Broken())
+        oa.main(["budget", "--step", "1", "--total", "10"])
+
+    def test_a_broken_stdout_on_the_error_path_also_answers_config(
+        self, tmp_path, monkeypatch
+    ):
+        """The old handler answered a failed write with a second write."""
+        missing = tmp_path / "nope.json"
+        monkeypatch.setattr(sys, "stdout", self._Broken())
+        assert oa.main(["extract", "--kind", "rule", "--input", str(missing)]) == (
+            EXIT_CONFIG
+        )
+
+    def test_a_gate_that_cannot_report_does_not_report_reject(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The impact. EXIT_LOGIC here would be a verdict nobody computed."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(capsys, "split", "--results", inc, "--seed", "s1",
+             "--out", tmp_path / "split.json")
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        record = json.loads((tmp_path / "split.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(sys, "stdout", self._Broken())
+        code = oa.main(["gate", "--incumbent", str(inc), "--candidate", str(cand),
+                        "--split", str(tmp_path / "split.json"),
+                        "--max-consultations", "10",
+                        "--incumbent-fingerprint", record["fingerprint"]])
+        assert code == EXIT_CONFIG
+        assert code != EXIT_LOGIC
+
+    def test_a_broken_stderr_on_the_help_path_is_not_a_traceback(
+        self, monkeypatch
+    ):
+        """`print_help` writes to stderr and sat outside the old guard."""
+        monkeypatch.setattr(sys, "stderr", self._Broken())
+        assert oa.main([]) == EXIT_CONFIG
+
+    def test_an_ordinary_run_is_untouched(self, capsys):
+        code, out = _run(capsys, "budget", "--step", "1", "--total", "10")
+        assert code == EXIT_OK
+        assert out
+
+    def test_the_installed_script_exits_config_on_a_closed_reader(self, tmp_path):
+        """End to end, on the process rather than the function.
+
+        The read end is closed before the child runs, so the write raises
+        rather than racing a shell reader that may or may not have exited.
+        """
+        big = tmp_path / "big.json"
+        big.write_text(
+            json.dumps({f"task-identifier-{i}": True for i in range(20000)}),
+            encoding="utf-8",
+        )
+        proc = subprocess.Popen(
+            [sys.executable, str(_SCRIPT), "split", "--results", str(big),
+             "--seed", "s1", "--out", str(tmp_path / "s.json")],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        assert proc.stdout is not None
+        proc.stdout.close()
+        stderr = proc.communicate()[1]
+        assert proc.returncode == EXIT_CONFIG, stderr[:400]
+        assert "Traceback" not in stderr
+
+    def test_a_flush_that_fails_replaces_the_code_it_was_given(self, monkeypatch):
+        """The 120 case, without racing a shell.
+
+        CPython replaces the status when its own shutdown flush fails, so the
+        flush happens here first and the failure becomes EXIT_CONFIG.
+        """
+        monkeypatch.setattr(sys, "stdout", _Unflushable())
+        assert oa._final_exit_code(EXIT_OK) == EXIT_CONFIG
+
+    def test_a_working_flush_keeps_the_code_it_was_given(self, monkeypatch):
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        assert oa._final_exit_code(EXIT_LOGIC) == EXIT_LOGIC
+
+    def test_a_reject_survives_a_working_flush(self, monkeypatch):
+        """A real REJECT must not be rewritten into a config failure."""
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        assert oa._final_exit_code(EXIT_LOGIC) != EXIT_CONFIG
+
+    def test_a_failed_flush_says_why_the_code_changed(self, monkeypatch, capsys):
+        """Exit 2 with an empty stderr tells the operator nothing.
+
+        This path rewrites the status the command computed, so the reason has
+        to reach someone. The write-time guard in `main` already reports, and
+        a caller that hits the flush-time mode instead should not have to
+        guess which of the two it got.
+        """
+        monkeypatch.setattr(sys, "stdout", _Unflushable())
+        assert oa._final_exit_code(EXIT_OK) == EXIT_CONFIG
+        assert "could not write" in capsys.readouterr().err
+
+    def test_a_working_flush_stays_quiet(self, monkeypatch, capsys):
+        """Negative control: the message belongs to the failure, not the path."""
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        assert oa._final_exit_code(EXIT_OK) == EXIT_OK
+        assert capsys.readouterr().err == ""
+
+    def test_reporting_a_dead_stdout_does_not_need_a_live_stderr(self, monkeypatch):
+        """Both streams close together often enough that this cannot assume one.
+
+        `_warn` already suppresses its own failure. This holds that the exit
+        path keeps relying on it rather than growing a second unguarded write.
+        """
+        monkeypatch.setattr(sys, "stdout", _Unflushable())
+        monkeypatch.setattr(sys, "stderr", _Unflushable())
+        assert oa._final_exit_code(EXIT_OK) == EXIT_CONFIG
+
+    def test_a_small_payload_into_a_closed_reader_reports_on_stderr(self, tmp_path):
+        """The end-to-end half of the two modes, measured rather than assumed.
+
+        A payload under the pipe buffer is written successfully and fails at
+        the shutdown flush, which is the mode that used to exit 120. The large
+        payload above covers the write-time mode.
+        """
+        proc = subprocess.Popen(
+            [sys.executable, str(_SCRIPT), "budget", "--step", "1", "--total", "5"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        assert proc.stdout is not None
+        proc.stdout.close()
+        stderr = proc.communicate()[1]
+        assert proc.returncode == EXIT_CONFIG, stderr[:400]
+        assert "could not write" in stderr
+        assert "Traceback" not in stderr
+
+    def test_a_closed_stream_is_refused_the_same_as_a_broken_one(self, tmp_path):
+        """A closed file raises ValueError, not OSError, so the guard missed it.
+
+        `sys.stdout.close()` then writing gives "I/O operation on closed
+        file", a ValueError. The guard named only OSError, so an embedding
+        harness with a closed stdout got exit 1, which is REJECT, plus a
+        traceback. Measured at exit 1 before this.
+        """
+        proc = subprocess.run(
+            [sys.executable, "-c", _CLOSED_STDOUT_DRIVER, str(_SCRIPT)],
+            capture_output=True, text=True,
+        )
+        assert proc.returncode == EXIT_CONFIG, proc.stderr[:400]
+        assert "Traceback" not in proc.stderr
+
+    def test_the_status_survives_a_stream_the_redirect_cannot_reach(self):
+        """The devnull fallback is what stops 120, and it can itself fail.
+
+        `os.dup2` needs a descriptor. A stand-in stream has none, so the
+        broken stream stayed installed and CPython flushed it again on the way
+        out, replacing the status with 120 after this code had already decided
+        on 2. Measured at 120 before this. The test runs in a subprocess
+        because pytest restores stdout before interpreter shutdown, so an
+        in-process assertion on the return value cannot see the override.
+        """
+        proc = subprocess.run(
+            [sys.executable, "-c", _NO_FILENO_DRIVER, str(_SCRIPT)],
+            capture_output=True, text=True,
+        )
+        assert proc.returncode == EXIT_CONFIG, proc.stderr[:400]
+        assert "Exception ignored" not in proc.stderr
+
+    def test_a_closed_stream_at_flush_time_is_also_a_config_failure(
+        self, monkeypatch, tmp_path
+    ):
+        """The unit-level half of the ValueError gap, on the exit path.
+
+        A real file object is the stand-in, not `io.StringIO`. A closed
+        StringIO's flush returns quietly, so it cannot reach this branch; the
+        stream this guards is a TextIOWrapper, whose flush raises after close.
+        """
+        stream = (tmp_path / "out").open("w", encoding="utf-8")
+        stream.close()
+        monkeypatch.setattr(sys, "stdout", stream)
+        assert oa._final_exit_code(EXIT_OK) == EXIT_CONFIG
+
+    def test_the_new_guard_does_not_leak_held_out_membership(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The guard reports the failure, so it could have reported the digest.
+
+        `main` writes `str(exc)` through `_warn`, and every ledger and lock
+        filename ends in an unsalted hash of the held-out set. The scrubber
+        turns every OSError under the ledger into a ConfigError with the name
+        replaced, so the guard never sees one carrying the digest. This holds
+        that line, because a guard added to stop a wrong verdict must not buy
+        it with a leak.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe2")
+        split_path = _write(tmp_path, "split.json", split)
+        key = oa._holdout_key(split)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: (_ for _ in ()).throw(
+            OSError(f"cannot open {key}")
+        ))
+        code, _ = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        captured = capsys.readouterr()
+        assert code == EXIT_CONFIG
+        assert key not in captured.err
+        assert key not in captured.out
