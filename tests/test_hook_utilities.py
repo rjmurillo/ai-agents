@@ -37,13 +37,13 @@ class TestGetProjectDirectory:
         assert get_project_directory() == str(tmp_path)
 
     def test_returns_cwd_when_no_git_found(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, monkeypatch: pytest.MonkeyPatch, external_tmp_path: Path
     ) -> None:
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-        monkeypatch.chdir(tmp_path)
+        monkeypatch.chdir(external_tmp_path)
         with pytest.warns(UserWarning, match="not found"):
             result = get_project_directory()
-        assert result == str(tmp_path)
+        assert result == str(external_tmp_path)
 
     def test_finds_git_by_walking_up(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)

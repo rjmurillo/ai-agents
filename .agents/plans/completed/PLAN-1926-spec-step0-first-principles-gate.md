@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-05-09 |
 | **Owner** | implementer |
 | **Complexity** | Low (Tier 1; two markdown files + optional ADR) |
@@ -12,6 +12,8 @@
 | **REQ** | REQ-016 |
 | **DESIGN** | DESIGN-016 |
 | **TASK** | TASK-016 |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: issue #1926 closed; Step 0 is present in .claude/commands/spec.md.
 
 ## Objectives
 
