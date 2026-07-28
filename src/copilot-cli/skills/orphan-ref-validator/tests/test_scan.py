@@ -60,6 +60,7 @@ extract_script_refs = _scan.extract_script_refs
 extract_skill_refs = _scan.extract_skill_refs
 extract_single_word_skill_refs = _scan.extract_single_word_skill_refs
 extract_skill_script_refs = _scan.extract_skill_script_refs
+extract_repo_path_refs = _scan.extract_repo_path_refs
 _check_skill_script_refs = _scan._check_skill_script_refs
 enumerate_skills = _scan.enumerate_skills
 main = _scan.main
@@ -178,6 +179,134 @@ def test_ac3_existing_script_path_yields_no_finding(fake_repo):
     write(target, "Run `build/scripts/real.py` for the thing.\n")
     result = scan([target], fake_repo)
     assert [f for f in result.findings if f.kind == "script_path"] == []
+
+
+# ---------- repo path detection (issue #3556): rules + instructions ----------
+
+
+def test_extract_repo_path_refs_from_structured_values_and_literals():
+    text = "\n".join([
+        '{"rule": ".claude/rules/missing-rule.md"}',
+        "paths: .github/instructions/missing.instructions.md",
+        "---",
+        "applyTo: src/copilot-cli/instructions/missing.instructions.md",
+        "---",
+        "```",
+        ".claude/rules/fenced-rule.md",
+        "```",
+        'RULE = ".claude/rules/python-rule.md"',
+    ])
+    refs = list(extract_repo_path_refs(text))
+    assert refs == [
+        (1, ".claude/rules/missing-rule.md"),
+        (2, ".github/instructions/missing.instructions.md"),
+        (4, "src/copilot-cli/instructions/missing.instructions.md"),
+        (7, ".claude/rules/fenced-rule.md"),
+        (9, ".claude/rules/python-rule.md"),
+    ]
+
+
+def test_ac3_repo_path_json_value_missing_yields_critical_finding(fake_repo):
+    target = fake_repo / "tests" / "evals" / "rule-scenarios" / "stale.json"
+    write(target, '{"rule_path": ".claude/rules/deleted-rule.md"}\n')
+    result = scan([target], fake_repo)
+    repo_findings = [f for f in result.findings if f.kind == "repo_path"]
+    assert len(repo_findings) == 1
+    assert repo_findings[0].referenced_entity == ".claude/rules/deleted-rule.md"
+    assert repo_findings[0].severity == "critical"
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_ac3_repo_path_yaml_and_frontmatter_values_are_checked(fake_repo):
+    target = fake_repo / "docs" / "frontmatter.md"
+    write(
+        target,
+        "---\n"
+        "rule: .claude/rules/missing-frontmatter.md\n"
+        "instruction: .github/instructions/missing.instructions.md\n"
+        "---\n"
+        "Body\n",
+    )
+    result = scan([target], fake_repo)
+    repo_findings = [f for f in result.findings if f.kind == "repo_path"]
+    assert {f.referenced_entity for f in repo_findings} == {
+        ".claude/rules/missing-frontmatter.md",
+        ".github/instructions/missing.instructions.md",
+    }
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_ac3_repo_path_bare_fenced_code_path_is_checked(fake_repo):
+    target = fake_repo / "docs" / "fenced.md"
+    write(target, "```\n.claude/rules/missing-fenced.md\n```\n")
+    result = scan([target], fake_repo)
+    repo_findings = [f for f in result.findings if f.kind == "repo_path"]
+    assert [f.referenced_entity for f in repo_findings] == [
+        ".claude/rules/missing-fenced.md"
+    ]
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_ac3_existing_repo_paths_yield_no_finding(fake_repo):
+    write(fake_repo / ".claude" / "rules" / "live.md", "# live rule\n")
+    write(
+        fake_repo / ".github" / "instructions" / "live.instructions.md",
+        "# live instruction\n",
+    )
+    write(
+        fake_repo / "src" / "copilot-cli" / "instructions" / "live.instructions.md",
+        "# live copilot instruction\n",
+    )
+    target = fake_repo / "docs" / "live.md"
+    write(
+        target,
+        "Refs .claude/rules/live.md, "
+        ".github/instructions/live.instructions.md, and "
+        "src/copilot-cli/instructions/live.instructions.md.\n",
+    )
+    result = scan([target], fake_repo)
+    assert [f for f in result.findings if f.kind == "repo_path"] == []
+    assert result.verdict == "PASS"
+
+
+def test_ac3_repo_path_ignore_directive_suppresses_line(fake_repo):
+    target = fake_repo / "docs" / "ignored.md"
+    write(
+        target,
+        ".claude/rules/missing.md <!-- orphan-ref-ignore -->\n"
+        ".claude/rules/other-missing.md\n",
+    )
+    result = scan([target], fake_repo)
+    repo_findings = [f for f in result.findings if f.kind == "repo_path"]
+    assert [f.referenced_entity for f in repo_findings] == [
+        ".claude/rules/other-missing.md"
+    ]
+
+
+def test_ac3_repo_path_partial_prefix_is_not_matched():
+    refs = list(extract_repo_path_refs("x.claude/rules/not-a-ref.md\n"))
+    assert refs == []
+
+
+def test_ac3_python_string_literal_in_explicit_python_target_is_checked(fake_repo):
+    target = fake_repo / "scripts" / "probe.py"
+    write(target, 'RULE_PATH = ".claude/rules/missing-python.md"\n')
+    result = scan([target], fake_repo)
+    repo_findings = [f for f in result.findings if f.kind == "repo_path"]
+    assert len(repo_findings) == 1
+    assert repo_findings[0].referenced_entity == ".claude/rules/missing-python.md"
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_cli_exit_code_critical_fail_for_missing_repo_path(fake_repo, capsys):
+    target = fake_repo / "docs" / "missing-rule.md"
+    write(target, "Use .claude/rules/missing-cli.md\n")
+    rc = main([
+        "--targets", str(target),
+        "--repo-root", str(fake_repo),
+    ])
+    assert rc == 1
+    assert "VERDICT: CRITICAL_FAIL" in capsys.readouterr().out
 
 
 # ---------- AC3 broad (PR2, issue #1994): .ps1 script paths ----------
