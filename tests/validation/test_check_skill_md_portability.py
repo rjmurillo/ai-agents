@@ -237,6 +237,109 @@ class TestDotPrefixedUpstreamBoundary:
         assert cmp.count_upstream_refs(text + "\n") == 1
 
 
+class TestTerminatorWordBoundary:
+    """Issue #3482: a bare directory reference that ends at a word boundary.
+
+    The older terminator ``(?:[\\/]+|['\"?#]|$)`` ended a reference only at a
+    path separator, a quote, ``?``, ``#`` or end of string. A directory name
+    that ended at a space, a period, a comma, a closing bracket or most other
+    punctuation was therefore invisible. The widened terminator
+    ``(?:[\\/]+|(?![\\w-])(?!\\.[\\w]))`` ends the reference at any
+    non-identifier boundary while still rejecting a longer directory name and a
+    file-extension dot.
+
+    Each positive below returned 0 under the old terminator and 1 under the new
+    one; the revert proof in the PR body pins that direction. Each regression
+    guard returned 1 under both and must stay 1. Each negative returns 0 under
+    the new terminator, and the annotated ones return 1 under a plausible wrong
+    widening, so they are non-vacuous.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Generate under templates/agents for each platform.\n",  # space
+            "The source is templates/agents. It ships nowhere.\n",  # period then space
+            "See templates/agents.",  # period then end of file, no newline
+            "Use (templates/agents) as the input.\n",  # closing paren
+            "Inputs: templates/agents, platforms, and more.\n",  # comma
+            "Run `templates/agents` by hand.\n",  # backtick
+            "Root templates/agents: the generator source.\n",  # colon
+            "Root templates/agents; see below.\n",  # semicolon
+            "Delete templates/agents! Now.\n",  # exclamation
+            "A list templates/agents] closes.\n",  # closing bracket
+            "A brace templates/agents} closes.\n",  # closing brace
+            "Edit templates/agents\nthen rebuild.\n",  # interior end of line
+            "Flow templates/agents\u2192platforms today.\n",  # non-ASCII non-letter
+        ],
+    )
+    def test_new_boundary_shapes_count(self, text: str) -> None:
+        """A bare directory reference ending at a newly accepted boundary counts."""
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "See templates/agents",  # end of file via the old ``$`` alternative
+            "The templates/agents's contents ship nowhere.\n",  # possessive apostrophe
+            'He cited "templates/agents" as the source.\n',  # double quote
+            "Is it templates/agents? Yes.\n",  # question mark
+            "templates/agents#section links within.\n",  # fragment hash
+        ],
+    )
+    def test_old_boundary_shapes_still_count(self, text: str) -> None:
+        """Every shape the old terminator already counted must keep counting."""
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agentsx",  # trailing letter, longer directory name
+            "templates/agents2",  # trailing digit, longer directory name
+            "templates/agents_v2",  # trailing underscore, longer directory name
+            "templates/agents-v2",  # trailing hyphen; a bare \\b widening would match
+            "templates/agents.md",  # file extension dot; a naive widening would match
+            "templates/AGENTS.md",  # case-folded file; a naive widening would match
+            "templates/agents\u00e9",  # non-ASCII letter, longer directory name
+            "{templates/agents}",  # brace is not an anchor; template variable shape
+            "The word .agentsx is not a path.\n",  # dot-prefixed trailing letter
+        ],
+    )
+    def test_word_boundary_negatives_do_not_count(self, text: str) -> None:
+        """A partial-word match or a file-extension collision still does not count."""
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    def test_cli_new_boundary_ref_causes_drift_exit_1(self, tmp_path: Path) -> None:
+        """A skill file with a newly counted bare ref drifts from an empty baseline."""
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "Writes under .agents today.\n", encoding="utf-8"
+        )
+        # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
+        # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 1
+
+    def test_cli_glued_negative_stays_clean_exit_0(self, tmp_path: Path) -> None:
+        """A glued word that is not a directory reference does not drift."""
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "The templates/agentsx word is not a path.\n", encoding="utf-8"
+        )
+        # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
+        # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 0
+
+
 class TestPathStartAnchor:
     """The anchor that decides where a path may begin.
 
