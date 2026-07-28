@@ -224,6 +224,8 @@ Context "Pattern Tests" {
 
 ## Related Files
 
+The PowerShell test suite, runner, and workflow have been retired. `scripts/tests/`, `build/scripts/Invoke-PesterTests.ps1`, and `.github/workflows/pester-tests.yml` are all absent from the tree, and the reusable workflow passes `enable-pester: false`. Dormant support remains: `.github/actions/setup-code-env/action.yml` still accepts an `enable-pester` input and can install the framework, and pre-PR retains a skipped Pester step. Nothing enables either today. The patterns below remain useful as history; the paths do not resolve.
+
 - Test Files: `scripts/tests/*.Tests.ps1`
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - CI Workflow: `.github/workflows/pester-tests.yml`
