@@ -143,7 +143,7 @@ lefthook invokes pre-push, and as a CI step beside its sibling self-containment
 gate.
 
 Paying for it in both places needed a number, not an argument. The gate runs in
-1.3s. Local feedback saves a push-fail round trip, CI makes the enforcement
+2.8s. Local feedback saves a push-fail round trip, CI makes the enforcement
 durable, and both call the same script, so there is one source of truth.
 
 ## Three revisions, because I never searched the repository
@@ -181,12 +181,43 @@ fixed them all.
 
 Those eight tests named a defence (fenced block ignored, HTML comment ignored,
 inline code ignored) and passed whether or not the defence existed, because
-their content was never a table in the first place. Eleven mutations now back
-the suite: ten are caught, and the one that survives is a pure performance
-prefilter, which is the proof it changes no outcome.
+their content was never a table in the first place. Eighteen mutations now back
+the suite and every one is caught.
 
 A test that passes for the wrong reason is worse than a missing test, because
 it reports coverage it does not have.
+
+## A surviving mutation is a hypothesis, not a proof
+
+One mutation deliberately survived: deleting a source-text prefilter that
+skipped any file whose bytes lacked the literal word `Skill`. I wrote that
+survival down as proof the filter changed no outcome, and cited the 1.3s
+against 2.5s as the reason to keep it.
+
+A reviewer falsified it in one line. `Sk&#105;ll: ghost` renders as a route and
+contains no literal `Skill`, so the file was skipped and the drift passed. The
+mutation survived because no test covered the case, which is the same thing
+every other surviving mutation means. Labelling it "neutral by design" turned
+an untested path into a claim.
+
+The filter is gone. The check costs 2.8s instead of 1.3s, which is 0.2% of a
+push that already takes twelve minutes, and the invariant a reader has to trust
+went from "no construct renders this keyword without spelling it" to nothing.
+
+## The gate blocked more valid prose than invalid prose
+
+Round three found five defects. One was the entity bypass above, a false
+negative. Three were false positives: a code-styled name (`` Skill: `x` ``) was
+reported malformed because the parser dropped every code span, a quoted or
+bracketed name kept its punctuation, and `Meta-Skill:` and `Task/Skill:` were
+read as routes. The live tree already carries 148 of that last shape.
+
+For a push-blocking gate this is the worse failure. A missed drift ships a
+broken link. A false positive blocks work, and the author's only recourse is to
+reword prose that was correct. The fix moved code-span policy out of the shared
+parser: it now yields segments tagged as code or text, and the validator decides
+that a code span carrying a whole route is documentation while one carrying only
+a name is part of the route.
 
 ## The worst bug came from testing, not from either reviewer
 

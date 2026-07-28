@@ -56,7 +56,7 @@ The autoplan table already used this form for its orchestrator row.
 
 `scripts/validation/check_shipped_skill_routes.py`. Registered in
 `scripts/validation/checks_plugin.py` for the pre-push path and as a step in
-`.github/workflows/validate-generated-agents.yml`. Runs in roughly 1.3s.
+`.github/workflows/validate-generated-agents.yml`. Runs in roughly 2.8s.
 
 The invariant is symmetric and carries no allowlist: every plugin root must
 resolve its own `Skill: <name>` routes to `<root>/skills/<name>/SKILL.md`. A
@@ -133,3 +133,45 @@ Before excluding anything from a platform shipping set, grep the shipped tree
 for references to the excluded name. The exclusion and the references are
 edited in different files, usually in different sessions, and every gate stays
 green in between.
+
+## Rendering is the contract, not source bytes
+
+A source-text prefilter that skipped any file whose bytes lacked the literal
+word `Skill` cut the run from 2.8s to 1.3s and looked free. It was not.
+`Sk&#105;ll: ghost` renders as a route, contains no literal `Skill`, and passed
+silently. The filter is deleted. What a consumer reads is the rendered document,
+so the gate reads the rendered document.
+
+The same reasoning retired a mutation that "survived by design". A surviving
+mutation means no test covers the case. It never means the code is neutral.
+
+## False positives are the expensive failure
+
+For a push-blocking gate, wrongly blocking valid prose costs more than missing
+one drifted route. The author's only recourse is to reword text that was
+correct. Round three found three of these and one false negative:
+
+- `` Skill: `merge-resolver` `` was reported malformed because every code span
+  was dropped from the cell text. The shared parser now yields segments tagged
+  code or text; the validator blanks a code span only when that span carries a
+  whole route, so `` `Skill: x` `` stays documentation and `` Skill: `x` ``
+  stays a route. Policy belongs to the caller, not to `markdown_parser.py`.
+- `"Skill: x"` and `[Skill: x]` kept their punctuation. `_TRAILING` now strips
+  quotes, brackets and braces.
+- `Meta-Skill:` and `Task/Skill:` matched. The lookbehind is
+  `(?<![\w./\\-])`. The live tree carries 148 compound forms.
+
+## Fail closed on anything unscannable
+
+`Path.is_file` and `Path.is_dir` answer False for a path the process cannot
+stat, which silently dropped a whole plugin root and left its siblings to carry
+the pass. Discovery uses `stat()` and treats only `FileNotFoundError` and
+`NotADirectoryError` as absent; every other `OSError` is exit 2. Discovery also
+runs inside the config-error boundary so a permission error is exit 2 rather
+than a traceback.
+
+`os.walk` does not descend into a symlinked directory, so a drifted route
+behind one passed. The gate refuses such a directory rather than setting
+`followlinks=True`: a symlink cycle costs dozens of redundant walks before the
+OS limit stops it, and a file reachable two ways is reported twice. No plugin
+root ships one today.

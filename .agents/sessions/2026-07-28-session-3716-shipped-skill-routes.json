@@ -155,12 +155,51 @@
     },
     {
       "step": "Verified no regression in the shared parser's other consumers: 358 markdown-related tests pass and the full validation suite reports 1262 passed and 1 skipped, up exactly 17 from the 1245 baseline, matching the 44 minus 27 test growth."
+    },
+    {
+      "step": "Removed the '# noqa: E402' that blocked the push under security-suppression-policy. The sibling validator check_skill_md_portability.py inserts the repository root on sys.path and imports scripts.utils.*, which ruff does not flag; matching that convention removed the suppression instead of justifying it. Folded into the commit that introduced it, since all four commits were unpushed."
+    },
+    {
+      "step": "Round-3 adversarial review on two model families returned DO NOT SHIP independently. gpt-5.6-sol reported five findings with reproduction output; gemini-3.1-pro-preview reported seven, four of them the same defects. Every finding was re-verified by execution before any code changed."
+    },
+    {
+      "step": "Confirmed a false negative: the source-text prefilter skipped any file whose bytes lacked the literal word 'Skill', so 'Sk&#105;ll: ghost' rendered as a route and passed. Deleted the prefilter rather than widening it. The check now costs 2.8s against 1.3s, measured three times, which is 0.2% of a push that takes twelve minutes."
+    },
+    {
+      "step": "Retracted the claim that a surviving mutation proved the prefilter neutral. A surviving mutation means no test covers the case. The retrospective now records that."
+    },
+    {
+      "step": "Confirmed three false positives, the more expensive failure for a push-blocking gate: a code-styled name reported malformed because every code span was dropped, quoted and bracketed names keeping their punctuation, and 'Meta-Skill:' and 'Task/Skill:' read as routes. The live tree carries 148 of that last shape."
+    },
+    {
+      "step": "Moved code-span policy out of the shared parser. iter_table_cell_text now yields CellSegment values tagged code or text; the validator blanks a code span only when that span carries a whole route, so '`Skill: x`' stays documentation and 'Skill: `x`' stays a route. Testing the span against the route pattern keeps one definition of a route and avoids breaking the live 'Skill: SkillForge' name."
+    },
+    {
+      "step": "Made root discovery fail closed. Path.is_file and Path.is_dir answer False for a path they cannot stat, which dropped a whole plugin root and left its siblings to carry the pass. Discovery now uses stat(), treats only FileNotFoundError and NotADirectoryError as absent, and runs inside the config-error boundary so a permission error is exit 2 rather than a traceback."
+    },
+    {
+      "step": "Refuted one reviewer claim by execution. The symlink reproduction placed the drift in a real directory that os.walk visits, and the gate caught it. Drift reachable only through a symlink pointing outside the root did pass, so the finding is real but the reproduction was not."
+    },
+    {
+      "step": "Chose refusal over followlinks=True for symlinked directories. Measured a symlink cycle costing 82 redundant directory walks before the OS limit stopped it, and a file reachable two ways is reported twice. No plugin root ships a symlinked directory today, so the gate exits 2 with a message naming the path."
+    },
+    {
+      "step": "Refuted the proposal to drop empty route names. 'Skill:' with no name would be skipped to protect prose such as 'Select a Skill:'. Scanned every table cell in the 97 repository markdown files that mention the keyword and found zero instances, so the silent hole would cost more than the hypothetical false positive. Pinned the current behaviour with a test."
+    },
+    {
+      "step": "Fixed one more vacuous test found by the second reviewer. test_blockquote_support_does_not_readmit_indented_code carried no '>' marker, so it exercised a top-level indented code block rather than the blockquote path its name claims. The fixture now carries both shapes."
+    },
+    {
+      "step": "Extended the mutation battery from 11 to 18 and every mutation is now caught, with none surviving. The seven new mutations cover the entity prefilter, the compound-word boundary, quote and bracket stripping, three separate code-span policies, lenient stat, lenient iterdir, the symlink refusal, and skipping empty names."
+    },
+    {
+      "step": "Verified no regression: 54 gate tests pass, 877 markdown and portability tests pass, and the full validation suite reports 1272 passed and 1 skipped, up 10 from the 1262 recorded earlier in this session. ruff check is clean on all five changed files; the 20 errors under scripts/ are the pre-existing baseline, confirmed by stashing the change and re-running."
     }
   ],
-  "endingCommit": "c97b5b3f7b",
+  "endingCommit": "4149f75801",
   "nextSteps": [
-    "Merge resolution on Copilot is still broken. The route now lands on an agent that ships but has had no shell tool since issue #1280, so its Phase 0 returns BLOCKED. Filed as issue #3719 rather than bundled here, because granting shell to a consumer-facing agent is security-relevant and needs its own review.",
-    "The gate scans for Skill: labels inside markdown tables only. A routing table that names a skill in another shape, for example a bare markdown link into a skill directory, is not covered. That is a wider scan with a worse false-positive profile and needs its own change.",
-    "iter_table_cell_text now lives in the shared scripts/utils/markdown_parser.py rather than in the validator. That avoids a near-duplicate of canonical infrastructure but widens the blast radius of any future change to it."
+    "Open the PR with Fixes #3716. The description must state plainly that this fixes the route, not merge resolution on Copilot: project-toolkit:merge-resolver still returns BLOCKED in Phase 0 because it has no shell tool (issue #3719). Bundling the toolset grant is security-relevant and stays separate.",
+    "Resume the knowledge audit at the wiki concept 'Self-Improvement Needs a Stop Condition'. The repository prunes individual guards through guard-maturity and has a held-out eval surface, but has no loop-level convergence gate and nothing that stops repeated rediscovery of known findings.",
+    "Consider a duplicate-test-name guard. Appending a test whose name already existed in the same module silently replaced the original definition, and only a collected-count check surfaced it."
   ]
 }
