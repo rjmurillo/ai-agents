@@ -4,7 +4,7 @@
 # Regenerates all agents from templates and fails if committed files differ.
 #
 # Local developers and AI agents can run the same validation using:
-#   python3 build/generate_agents.py --validate
+#   uv run python build/generate_agents.py --validate
 
 name: Validate Generated Agents
 
@@ -155,7 +155,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: |
           echo "Running agent generation in validation mode..."
-          uv run python3 build/generate_agents.py --validate
+          uv run python build/generate_agents.py --validate
 
       - name: Build-all staleness check (REQ-003-005)
         if: steps.should-run.outputs.skip != 'true'
@@ -164,11 +164,11 @@ jobs:
         # "forgot to regenerate skills/agents" class of error before merge.
         run: |
           echo "Running build_all.py --check..."
-          uv run python3 build/scripts/build_all.py --check
+          uv run python build/scripts/build_all.py --check
 
       - name: Validate platform template schema (REQ-003-002)
         if: steps.should-run.outputs.skip != 'true'
-        run: uv run python3 build/scripts/validate_templates_schema.py
+        run: uv run python build/scripts/validate_templates_schema.py
 
       - name: Validate plugin frontmatter self-containment (issue #3565)
         if: steps.should-run.outputs.skip != 'true'
@@ -178,6 +178,12 @@ jobs:
         # how PR #3497 landed `docs/agent-metrics.md` two PRs after the rule
         # shipped. See .claude/rules/plugin-self-containment.md.
         run: uv run python scripts/validation/check_plugin_frontmatter_self_containment.py
+
+      - name: Validate agent capability matrix references
+        if: steps.should-run.outputs.skip != 'true'
+        # Matrix rows are model-routing contracts. A row that names an agent
+        # absent from its own install tree points the model at a dead route.
+        run: uv run python build/scripts/validate_agent_matrix_refs.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
@@ -196,7 +202,7 @@ jobs:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
-          uv run python3 scripts/validation/run_install_parity_ci.py
+          uv run python scripts/validation/run_install_parity_ci.py
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
@@ -209,7 +215,7 @@ jobs:
         # the lib copy would silently fall behind.
         run: |
           echo "Running sync_plugin_lib.py --check..."
-          uv run python3 scripts/sync_plugin_lib.py --check
+          uv run python scripts/sync_plugin_lib.py --check
 
       - name: Plugin manifest version parity check (Issue #2222)
         if: steps.should-run.outputs.skip != 'true'
@@ -220,14 +226,14 @@ jobs:
         # Exits 1 on mismatch, 2 on malformed input, 0 on parity.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
-          uv run python3 build/scripts/check_plugin_manifest_parity.py
+          uv run python build/scripts/check_plugin_manifest_parity.py
 
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
         shell: bash
         run: |
           echo "Validating GitHub Actions SHA pinning..."
-          uv run python3 scripts/validation/sha_pinning.py --ci
+          uv run python scripts/validation/sha_pinning.py --ci
 
       - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
         if: steps.should-run.outputs.skip != 'true'
@@ -237,9 +243,9 @@ jobs:
         # class in CI (not only the local pre_pr gate). Exit 1 on malformed.
         run: |
           echo "Validating Copilot agent frontmatter..."
-          uv run python3 scripts/validation/validate_copilot_agent_frontmatter.py
-          uv run python3 scripts/validation/validate_argument_hint.py
-          uv run python3 scripts/validation/agent_registry.py
+          uv run python scripts/validation/validate_copilot_agent_frontmatter.py
+          uv run python scripts/validation/validate_argument_hint.py
+          uv run python scripts/validation/agent_registry.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
@@ -249,7 +255,7 @@ jobs:
           echo ""
 
           # Regenerate without validation to get the expected content
-          uv run python3 build/generate_agents.py
+          uv run python build/generate_agents.py
 
           # Show which files changed
           CHANGED_FILES=$(git diff --name-only)
@@ -263,7 +269,7 @@ jobs:
             echo ""
             echo "To fix this issue:"
             echo "  1. Edit the source template in templates/agents/*.shared.md"
-            echo "  2. Run: python3 build/generate_agents.py"
+            echo "  2. Run: uv run python build/generate_agents.py"
             echo "  3. Commit the regenerated files"
             echo ""
             echo "=== Detailed diff ==="
