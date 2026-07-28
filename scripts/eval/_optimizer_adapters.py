@@ -88,7 +88,13 @@ def _as_rate(value: object, context: str) -> float:
 
 
 def _as_rule_score(value: object, context: str) -> int:
-    if not isinstance(value, int) or isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise AdapterError(
+            f"{context} must be a numeric integer score, got {value!r}"
+        )
+    if not math.isfinite(value):
+        raise AdapterError(f"{context} must be a finite integer score, got {value!r}")
+    if not isinstance(value, int):
         raise AdapterError(f"{context} must be an integer score, got {value!r}")
     if not 0 <= value <= 5:
         raise AdapterError(f"{context} must be in [0, 5], got {value!r}")
