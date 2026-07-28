@@ -467,17 +467,17 @@ def check_generated_paths(kind: str, repo_root: Path) -> int:
 
 
 def _read_index_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f":{relative_path}"])
+    result = _run_git_bytes(repo_root, ["show", f":{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"HEAD:{relative_path}"])
+    result = _run_git_bytes(repo_root, ["show", f"HEAD:{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def check_branch(repo_root: Path) -> int:
@@ -995,10 +995,19 @@ def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
 
 
 def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"{commit}:{relative_path}"])
+    """Read a blob as the bytes git stored, not as text that survived a decode.
+
+    The three readers here answer one question, whether two blobs are the same
+    blob, and a text pipe cannot answer it. `encoding=` puts the pipe in text
+    mode, which folds `\\r\\n` and lone `\\r` into `\\n`, and `errors="replace"`
+    turns every byte the decoder cannot read into one replacement character.
+    Both are lossy in the same direction: distinct blobs come back equal, and
+    the ADR gate reads equal as "the merge carried main's content".
+    """
+    result = _run_git_bytes(repo_root, ["show", f"{commit}:{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def _session_has_retrospective_evidence(session_log: Path) -> bool:

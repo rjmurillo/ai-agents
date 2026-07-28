@@ -147,6 +147,13 @@ def _commit(repo: Path, message: str) -> str:
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
+def _point_origin_main_at_head(repo: Path) -> str:
+    """Make the local `origin/main` cache agree with what this repo has at HEAD."""
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    return head
+
+
 def _run_real_suppression_push(repo: Path, head: str) -> int:
     stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {'0' * 40}\n")
     return policy.check_pushed_suppressions(stdin, repo)
@@ -1116,6 +1123,161 @@ class TestAdrReviewPolicyMergeScope:
 
         assert policy.check_adr_review_policy([path], tmp_path) == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_line_endings_alone_do_not_make_a_staged_adr_mains_content(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """The exemption is byte identity, so it has to be read in bytes.
+
+        The blob readers ran `git show` through a text-mode pipe, which
+        translates every `\\r\\n` and every lone `\\r` to `\\n` before the bytes are
+        handed back. Two blobs that differ only in how they end their lines
+        arrived identical, so a staged ADR the merge never carried satisfied
+        both blob halves of the rule and left through main's exemption.
+
+        Found by adversarial review round 51.
+        """
+        repo = _merge_carrying_main_adr(
+            tmp_path, b"# ADR 090\n\nmain wrote this.\n", "ADR-090-endings.md"
+        )
+        relative = ".agents/architecture/ADR-090-endings.md"
+        (repo / relative).write_bytes(b"# ADR 090\r\n\r\nmain wrote this.\r\n")
+        _git(repo, "add", relative)
+
+        assert policy._read_index_blob(repo, relative) != policy._read_head_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_two_different_undecodable_blobs_are_not_one_blob(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Decoding with `errors="replace"` collapses distinct bytes to one.
+
+        Every byte the decoder cannot read becomes U+FFFD, so any two blobs
+        that differ only inside undecodable runs compared equal. This is the
+        same defect as the line-ending case and the wider half of it: the
+        collision needs no agreement about what the differing bytes mean.
+
+        Found by adversarial review round 51.
+        """
+        repo = _merge_carrying_main_adr(
+            tmp_path, b"# ADR 091\n\nmain \xff\xfe wrote this.\n", "ADR-091-endings.md"
+        )
+        relative = ".agents/architecture/ADR-091-endings.md"
+        (repo / relative).write_bytes(b"# ADR 091\n\nmain \x80\x81 wrote this.\n")
+        _git(repo, "add", relative)
+
+        assert policy._read_index_blob(repo, relative) != policy._read_head_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_merge_that_carries_crlf_content_keeps_mains_exemption(
+        self,
+        tmp_path,
+    ):
+        """Reading the merge parent as text costs the exemption it should grant.
+
+        This is the same normalization seen from the other side. When main's
+        own ADR ends its lines with `\r\n`, a text-mode read of the parent
+        hands back `\n` while the staged blob still holds what git stored, so
+        the two stop matching and an ADR the author never opened is reported
+        as branch-authored. Nothing is let through, but review evidence is
+        demanded for someone else's file, which is how a gate loses its
+        audience.
+
+        Found by adversarial review round 51.
+        """
+        relative = ".agents/architecture/ADR-094-carried.md"
+        carried = b"# ADR 094\r\n\r\nmain wrote this.\r\n"
+        repo = _merge_carrying_main_adr(tmp_path, carried, "ADR-094-carried.md")
+
+        assert policy._read_index_blob(repo, relative) == carried
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+    def test_crlf_content_the_merge_left_alone_is_still_unchanged_from_head(
+        self,
+        tmp_path,
+    ):
+        """A path the merge did not touch is recognized by HEAD's bytes.
+
+        The branch wrote this ADR itself and the merge brought something
+        else, so the staged copy is what HEAD already had and no merge
+        exemption is involved. A text-mode read of HEAD folds the `\r\n`
+        endings the branch committed, the staged copy no longer matches, and
+        an untouched file is pushed down the merge-exemption path to be
+        reported as authored by a merge that never saw it.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        _git(repo, "branch", "local")
+
+        (repo / "README.md").write_text("main moved on\n", encoding="utf-8")
+        _commit(repo, "main work")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "local")
+        relative = ".agents/architecture/ADR-095-branch.md"
+        (repo / relative).parent.mkdir(parents=True)
+        (repo / relative).write_bytes(b"# ADR 095\r\n\r\nthe branch wrote this.\r\n")
+        _commit(repo, "branch adr")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        assert policy._read_head_blob(repo, relative) == policy._read_index_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:
+    """Build a repo mid-merge whose staged ADR is the one main contributed.
+
+    The exemption holds here, which is the point: each caller then restages
+    bytes that differ from main's only in ways a text-mode pipe erases, so a
+    test that still sees an exemption is reporting the normalization and not
+    the rule.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(repo, "base")
+    _git(repo, "branch", "local")
+
+    adr_dir = repo / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / name).write_bytes(adr_bytes)
+    _commit(repo, "adr on main")
+    _point_origin_main_at_head(repo)
+
+    _git(repo, "checkout", "local")
+    (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+    _commit(repo, "local work")
+    merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+    assert merge.returncode == 0, merge.stderr
+    return repo
 
 
 if __name__ == "__main__":
