@@ -364,6 +364,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -410,6 +411,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -458,6 +460,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -504,6 +507,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -552,6 +556,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -614,6 +619,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": []},
                 },
@@ -640,6 +646,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [{"commit": {"statusCheckRollup": None}}],
@@ -684,6 +691,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -731,6 +739,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -787,6 +796,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -844,6 +854,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -882,6 +893,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
                 },
@@ -910,6 +922,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -930,6 +943,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -982,6 +996,7 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
                 },
@@ -1237,6 +1252,45 @@ class TestBuildOutputAdditional:
         assert output["AllPassing"] is False
         assert output["MergeRefUsable"] is False
         assert "dirty merge state" in output["MergeStateWarning"]
+
+    def test_null_merge_state_status_blocks_all_passing(self):
+        """An explicit null mergeStateStatus is unknown, so it must fail closed."""
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "MERGEABLE",
+            "MergeStateStatus": None,
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["MergeStateStatus"] == "UNKNOWN"
+        assert output["MergeRefUsable"] is False
+        assert output["AllPassing"] is False
+        assert "merge state status is unknown" in output["MergeStateWarning"]
+
+    def test_absent_merge_state_status_defaults_to_clean(self):
+        """A legacy payload that never queried the field keeps the CLEAN default."""
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "MERGEABLE",
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["MergeStateStatus"] == "CLEAN"
+        assert output["MergeRefUsable"] is True
+        assert output["AllPassing"] is True
+        assert output["MergeStateWarning"] == ""
 
     def test_no_checks_not_all_passing(self):
         """No checks means AllPassing is False."""

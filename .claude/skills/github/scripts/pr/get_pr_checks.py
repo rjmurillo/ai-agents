@@ -461,7 +461,17 @@ def build_output(
         merge_state = "UNKNOWN" if merge_state_value is None else str(merge_state_value)
     else:
         merge_state = "MERGEABLE"
-    merge_state_status = check_data.get("MergeStateStatus")
+    # Same fail-closed shape as MergeState above. An explicit None means the
+    # GraphQL field came back null, so the state is unknown and must block; a
+    # missing key means a legacy caller that never queried the field, which
+    # keeps the historical CLEAN default.
+    if "MergeStateStatus" in check_data:
+        merge_state_status_value = check_data.get("MergeStateStatus")
+        merge_state_status = (
+            "UNKNOWN" if merge_state_status_value is None else str(merge_state_status_value)
+        )
+    else:
+        merge_state_status = "CLEAN"
     merge_ref_usable = (
         merge_state not in _BLOCKING_MERGE_STATES
         and merge_state_status not in _BLOCKING_MERGE_STATE_STATUSES
