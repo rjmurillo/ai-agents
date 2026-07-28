@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -240,7 +241,11 @@ def split_tasks(
         cleaned.append(raw)
 
     if len(set(cleaned)) != len(cleaned):
-        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
+        # One pass, not `cleaned.count(tid)` per element. The old form was
+        # quadratic (18.5s at 40k ids) and this is a refusal path, so the
+        # operator is already waiting to be told which id they repeated.
+        counts = Counter(cleaned)
+        duplicates = sorted(tid for tid, seen in counts.items() if seen > 1)
         raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
 
     total = len(cleaned)

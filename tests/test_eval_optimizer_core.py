@@ -11,6 +11,7 @@ branch that changes user-facing output.
 from __future__ import annotations
 
 import sys
+import time
 from decimal import localcontext
 from fractions import Fraction
 from pathlib import Path
@@ -1269,3 +1270,49 @@ class TestTheBudgetRefusalOnlyAdvisesMovesTheCliAllows:
     def test_a_budget_with_room_left_is_still_silent(self):
         """Control: the wording change must not make the guard fire early."""
         assert guard_refusal(sel_consultations=4, max_consultations=5) is None
+
+
+class TestDuplicateTaskIdsAreNamedWithoutRescanningTheList:
+    """Duplicate detection is a refusal path, so it must be cheap to reach.
+
+    `split_tasks` refuses duplicate ids because two tasks sharing a key are
+    one task to every downstream mapping, and a smaller denominator reads as
+    a higher score. Naming them cost `list.count` per element, which is
+    quadratic: measured 1.16s at 10k ids, 4.59s at 20k, and 18.48s at 40k.
+
+    A caller reaches this with `split --tasks` on a generated id list, so the
+    cost lands on an operator who already made a mistake and is waiting to be
+    told which one. The counting is one pass now; the message is unchanged.
+    """
+
+    def test_a_clean_list_still_splits(self):
+        split = split_tasks([f"t{i}" for i in range(10)], seed="s")
+        assert len(split.opt) + len(split.sel) + len(split.test) == 10
+
+    def test_a_duplicate_is_still_refused(self):
+        with pytest.raises(ValueError, match="duplicate task ids"):
+            split_tasks(["a", "b", "a"], seed="s")
+
+    def test_the_refusal_names_every_repeated_id_once_and_in_order(self):
+        """Sorted and deduplicated, so the message is stable across runs."""
+        with pytest.raises(ValueError) as excinfo:
+            split_tasks(["b", "a", "b", "a", "b", "c"], seed="s")
+        assert "duplicate task ids: a, b" in str(excinfo.value)
+
+    def test_an_id_repeated_many_times_is_named_once(self):
+        with pytest.raises(ValueError) as excinfo:
+            split_tasks(["x"] * 50, seed="s")
+        assert str(excinfo.value).endswith("duplicate task ids: x")
+
+    def test_naming_duplicates_in_a_large_list_stays_within_budget(self):
+        """40k ids took 18.5s before this; the bound is 9x under that.
+
+        A timing assertion is the only way to hold a complexity fix, so the
+        margin is wide enough that ordinary machine noise cannot reach it
+        while a return to `list.count` per element cannot pass it.
+        """
+        ids = [f"t{index % 2}" for index in range(40000)]
+        started = time.perf_counter()
+        with pytest.raises(ValueError, match="duplicate task ids"):
+            split_tasks(ids, seed="s")
+        assert time.perf_counter() - started < 2.0
