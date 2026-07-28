@@ -53,7 +53,14 @@ from scripts.github_core.api import resolve_repo_params  # noqa: E402
 # Commit-count thresholds (issue #362). A PR above BLOCK_THRESHOLD is
 # blocked by the downstream Enforce Blocking Issues step unless it carries the
 # commit-limit-bypass label. The comparison is strict so this agrees with the
-# local pre-push hook, which allows ``commit_count <= 20`` (issue #3721).
+# default local pre-push limit (issue #3721). The local hook in
+# ``git_hook_policy._check_commit_limit`` allows ``commit_count <= limit``,
+# where ``limit`` is this same 20 by default but widens to 40 when the update
+# contains a merge of main. This check has no notion of that widening, so a
+# main-merge push the hook accepts at 21 through 40 still lands a blocked pull
+# request; the commit-limit-bypass label is the escape hatch for that case.
+# Aligning the widening too would need the workflow to know the push shape,
+# which it does not receive.
 WARNING_THRESHOLD = 10
 ALERT_THRESHOLD = 15
 BLOCK_THRESHOLD = 20

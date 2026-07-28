@@ -59,9 +59,17 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
     """The two enforcement points must draw the line in the same place.
 
     The local hook in ``scripts/validation/git_hook_policy.py`` allows a push
-    when ``commit_count <= 20``, and ``AGENTS.md`` states the rule as ``<=20``.
-    A count of 20 that pushes cleanly and then fails the pull request check
-    gives an author a red pull request with no local signal (issue #3721).
+    when ``commit_count <= limit``, and ``AGENTS.md`` states the rule as
+    ``<=20``. That ``limit`` is 20 by default, so at the default the two
+    points now agree: 20 passes both, 21 fails both. A count of 20 that
+    pushed cleanly and then failed the pull request check gave an author a red
+    pull request with no local signal (issue #3721).
+
+    The hook widens ``limit`` to 40 when the update contains a merge of main.
+    This check never sees the push shape, so it cannot mirror that widening,
+    and a main-merge push of 21 through 40 still needs the
+    commit-limit-bypass label. That gap is out of scope here and is not what
+    this test pins.
     """
     assert (mod.classify_count(count) == "BLOCKED") is blocked
 
