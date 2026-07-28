@@ -394,3 +394,27 @@ def test_covered_ids_requires_positive_case(tmp_path: Path) -> None:
     (tmp_path / "tests" / "evals" / "skill-scenarios").mkdir(parents=True)
     with pytest.raises(gate.CoverageConfigError):
         gate.covered_ids(tmp_path, "rule")
+
+
+def test_unreadable_baseline_is_config_error(tmp_path: Path) -> None:
+    _make_tree(tmp_path)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_bytes(b"\xff\xfe\x00broken")
+    assert _run(tmp_path, baseline) == gate.EXIT_CONFIG
+
+
+def test_unwritable_baseline_update_is_config_error(tmp_path: Path) -> None:
+    _make_tree(tmp_path)
+    baseline = tmp_path / "no-such-dir" / "baseline.json"
+    assert _run(tmp_path, baseline, update=True) == gate.EXIT_CONFIG
+
+
+def test_empty_scenario_dir_is_config_error(tmp_path: Path) -> None:
+    _make_tree(tmp_path)
+    scenario_dir = tmp_path / "tests" / "evals" / "rule-scenarios"
+    for path in scenario_dir.glob("*.json"):
+        path.unlink()
+    baseline = _write_baseline(
+        tmp_path, ["bare-rule", "covered-rule"], ["bare-skill"]
+    )
+    assert _run(tmp_path, baseline) == gate.EXIT_CONFIG

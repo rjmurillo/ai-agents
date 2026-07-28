@@ -195,8 +195,15 @@ def covered_ids(repo_root: Path, kind: str) -> set[str]:
             f"{kind} scenario directory not found: {scenario_dir}"
         )
 
+    scenario_paths = sorted(scenario_dir.glob("*.json"))
+    if not scenario_paths:
+        raise CoverageConfigError(
+            f"{kind} scenario directory has no scenarios, so the gate would "
+            f"pass without measuring anything: {scenario_dir}"
+        )
+
     covered: set[str] = set()
-    for path in sorted(scenario_dir.glob("*.json")):
+    for path in scenario_paths:
         data = _read_scenario_json(path)
         target = data.get(target_key)
         other = data.get(other_key)
@@ -247,6 +254,8 @@ def load_baseline(path: Path) -> tuple[set[str], set[str]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CoverageConfigError(f"baseline is not valid JSON: {path}: {exc}") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CoverageConfigError(f"baseline is unreadable: {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise CoverageConfigError(f"baseline must be a JSON object: {path}")
     rules = _load_id_list(data, BASELINE_RULE_KEY, path)
@@ -286,9 +295,12 @@ def build_baseline_payload(
 def write_baseline(
     path: Path, uncovered_rules: set[str], uncovered_skills: set[str]
 ) -> None:
-    """Write the baseline payload with a trailing newline."""
+    """Write the baseline payload with a trailing newline, failing closed."""
     payload = build_baseline_payload(uncovered_rules, uncovered_skills)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    try:
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise CoverageConfigError(f"baseline is not writable: {path}: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
