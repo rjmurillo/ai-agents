@@ -20,4 +20,4 @@
 
 ## Notes for Review (LOW confidence)
 
-- `$GITHUB_OUTPUT` requires heredoc delimiter syntax for multiline values. Writing `key=value` where value contains newlines causes each line after the first to be parsed as a separate output entry. Lines not matching `key=value` format trigger `##[error]Invalid format`. The `write_output()` helper in `scripts/ai_review_common.py` does not handle this. Filed as issue #1386. (PR #1361, 2026-03-04)
+- `$GITHUB_OUTPUT` requires heredoc delimiter syntax for multiline values. Writing `key=value` where value contains newlines causes each line after the first to be parsed as a separate output entry. Lines not matching `key=value` format trigger `##[error]Invalid format`. At the time of PR #1361 the `write_output()` helper did not handle this; filed as issue #1386 and since fixed. The current helper in `scripts/ai_review_common/issue_triage.py` emits a heredoc delimiter for multiline values (lines 136-139). (PR #1361, 2026-03-04)
