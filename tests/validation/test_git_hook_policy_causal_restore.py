@@ -1,18 +1,31 @@
-"""Snapshot restoration must fail closed, not traceback (Issue #3389).
+"""The push gate's suppression parser and ADR-review merge scope must hold.
 
-``update_causal_graph`` snapshots the generated causal graph, runs the updater,
-and restores the snapshot when the updater fails. The restore itself was
-unguarded: an ``OSError`` from ``Path.write_bytes`` or ``Path.unlink`` escaped
-the function, so the operator got a traceback naming neither failure, and the
-graph could be left partially written.
+``check_pushed_suppressions`` reads the diff a push would send and blocks
+unjustified lint suppressions. Its bypasses are all parser-shaped: a bare
+ruff-honored comment, a notebook cell the textual diff renders differently, a
+new branch with no merge base, a shallow clone. Each one is a way to land a
+suppression the gate was built to catch, so each gets a test.
 
-Two failures are in play whenever this path runs, and the operator needs both:
-the updater failed, and the attempt to undo it also failed. A message naming
-only one of them sends the reader to the wrong repair.
+``check_adr_review_policy`` blocks an ADR change carrying no adr-review
+evidence. The exception is a merge in progress: an ADR reviewed on main arrives
+in the merge commit with no evidence of its own, and blocking there would wedge
+every merge that touches architecture.
 
-The success-shaped line matters as much as the exit code. ``original graph
-restored`` printed after a failed restore is worse than silence, because it
-tells the reader the thing they most need to doubt.
+The filename is stale and this file no longer tests causal restore. Three
+classes covering the causal graph's snapshot-and-restore path were removed with
+the graph itself (ADR-089). The two suites left never touched causality; they
+shared this file only because both exercise ``git_hook_policy``.
+
+Do not run ``ruff format`` on this file. The fixtures below split their
+suppression tokens across adjacent string literals on purpose, so the push
+gate's own scanner does not flag this file as introducing what it tests for.
+Joining them, which the formatter does, re-arms the trap. Nothing in CI or the
+hooks runs ``ruff format``, so the split form survives.
+
+The honest fix for the name is a rename, and it is blocked. The gate diffs with
+``--no-renames`` on purpose, so a rename reads as a wholesale add and the one
+real suppression here, the ``E402`` on the import below, trips it. Renaming
+requires teaching the gate to skip pure renames first. Filed as issue 3635.
 """
 
 from __future__ import annotations
@@ -31,153 +44,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from scripts.validation import git_hook_policy as policy  # noqa: E402
-
-_GRAPH = ".agents/memory/causality/causal-graph.json"
-
-
-@pytest.fixture
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A repo whose staged set is nonempty and whose updater always fails."""
-    monkeypatch.setattr(
-        policy, "_staged_episode_paths", lambda root, flt: ["ep.md"] if flt == "ACMR" else []
-    )
-    monkeypatch.setattr(policy, "_apply_causal_graph_updates", lambda *a, **k: 1)
-    return tmp_path
-
-
-def _write_graph(repo_root: Path, text: str = '{"nodes": []}') -> Path:
-    path = repo_root / _GRAPH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-class TestARestoreFailureBlocks:
-    def test_a_write_failure_returns_two(self, repo, monkeypatch, capsys):
-        """The graph existed, so restoration writes the snapshot back."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("disk full"))
-        )
-        assert policy.update_causal_graph(repo) == 2
-        assert "disk full" in capsys.readouterr().err
-
-    def test_an_unlink_failure_returns_two(self, repo, monkeypatch, capsys):
-        """The graph did not exist, so restoration removes what the updater made.
-
-        The snapshot is None on this path, which is the branch that reaches
-        Path.unlink rather than Path.write_bytes.
-        """
-        monkeypatch.setattr(
-            Path, "unlink", lambda self, missing_ok=False: (_ for _ in ()).throw(OSError("EPERM"))
-        )
-        assert policy.update_causal_graph(repo) == 2
-        assert "EPERM" in capsys.readouterr().err
-
-    def test_it_never_claims_the_graph_was_restored(self, repo, monkeypatch, capsys):
-        """The line that must not print. It is the one the reader trusts."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        assert "original graph restored" not in capsys.readouterr().err
-
-    def test_it_names_both_failures(self, repo, monkeypatch, capsys):
-        """One failure caused the other; a message naming one misdirects."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        err = capsys.readouterr().err
-        assert "causal graph update failed" in err
-        assert "restoring the original causal graph also failed" in err
-
-    def test_it_names_the_graph_and_the_repair(self, repo, monkeypatch, capsys):
-        """A blocked commit with no next step is a blocked commit twice."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        err = capsys.readouterr().err.replace("\\", "/")
-        assert _GRAPH in err
-        # The word "rebuild" is not the repair. An operator staring at a blocked
-        # commit needs the command, and a command missing any of these flags
-        # rebuilds the wrong file or from the wrong source (issue #3370).
-        assert "python3" in err, f"no runnable command in stderr: {err!r}"
-        repair = err[err.index("python3") :]
-        for flag in ("--reset-graph", "--episode-path", "--graph-path"):
-            assert flag in repair, f"repair command omits {flag}: {repair!r}"
-        assert _GRAPH in repair, f"repair command does not name the graph: {repair!r}"
-
-    def test_it_does_not_raise(self, repo, monkeypatch):
-        """The point of the change: an exit code, not a traceback."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-
-
-class TestTheOrdinaryPathsAreUnchanged:
-    """Negative controls. A guard that swallows the success path is not a guard."""
-
-    def test_a_successful_restore_still_warns_and_passes(self, repo, capsys):
-        _write_graph(repo, '{"nodes": ["original"]}')
-        assert policy.update_causal_graph(repo) == 0
-        err = capsys.readouterr().err
-        assert "original graph restored" in err
-
-    def test_a_successful_restore_puts_the_bytes_back(self, repo, monkeypatch):
-        """The mutation has to happen after the snapshot, or the test is vacuous.
-
-        ``update_causal_graph`` snapshots at entry. Mutating the file before the
-        call puts the mutation *into* the snapshot, so the end state matches
-        whether restore ran or not. Writing it from inside the failing updater
-        is the only ordering that makes the assertion discriminate.
-        """
-        graph = _write_graph(repo, '{"nodes": ["original"]}')
-
-        def _mutate_then_fail(*_a, **_k) -> int:
-            graph.write_text('{"nodes": ["mutated"]}', encoding="utf-8")
-            return 1
-
-        monkeypatch.setattr(policy, "_apply_causal_graph_updates", _mutate_then_fail)
-        assert policy.update_causal_graph(repo) == 0
-        assert json.loads(graph.read_text(encoding="utf-8"))["nodes"] == ["original"]
-
-    def test_no_staged_episodes_is_a_no_op(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(policy, "_staged_episode_paths", lambda root, flt: [])
-        assert policy.update_causal_graph(tmp_path) == 0
-
-    def test_a_successful_update_never_reaches_the_restore(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            policy, "_staged_episode_paths", lambda root, flt: ["ep.md"] if flt == "ACMR" else []
-        )
-        monkeypatch.setattr(policy, "_apply_causal_graph_updates", lambda *a, **k: 0)
-        monkeypatch.setattr(policy, "_stage_causal_graph", lambda *a, **k: 0)
-
-        def _boom(*_a, **_k):
-            raise AssertionError("restore ran on the success path")
-
-        monkeypatch.setattr(policy, "_restore_file", _boom)
-        assert policy.update_causal_graph(tmp_path) == 0
-
-
-class TestTheHarnessActuallyExercisesRestore:
-    """Vacuity control: these tests are worthless if restore never runs."""
-
-    def test_the_failing_updater_reaches_restore(self, repo, monkeypatch):
-        seen: list[bytes | None] = []
-
-        def _record(path: Path, snapshot: bytes | None) -> None:
-            seen.append(snapshot)
-
-        monkeypatch.setattr(policy, "_restore_file", _record)
-        policy.update_causal_graph(repo)
-        assert len(seen) == 1
 
 
 def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:

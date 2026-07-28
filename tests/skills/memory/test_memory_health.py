@@ -1,6 +1,5 @@
 """Tests for test_memory_health.py."""
 
-import json
 import sys
 from pathlib import Path
 
@@ -54,41 +53,6 @@ class TestEpisodesAvailable:
 
     def test_unavailable_when_missing(self, tmp_path):
         result = test_memory_health.test_episodes_available(tmp_path / "nonexistent")
-        assert result["available"] is False
-
-
-class TestCausalGraphAvailable:
-    """Tests for test_causal_graph_available function."""
-
-    def test_directory_missing(self, tmp_path):
-        result = test_memory_health.test_causal_graph_available(tmp_path / "nonexistent")
-        assert result["available"] is False
-        assert result["nodes"] == 0
-
-    def test_directory_exists_no_graph(self, tmp_path):
-        causality = tmp_path / "causality"
-        causality.mkdir(parents=True)
-
-        result = test_memory_health.test_causal_graph_available(causality)
-        assert result["available"] is True
-        assert result["nodes"] == 0
-
-    def test_graph_with_data(self, tmp_path):
-        causality = tmp_path / "causality"
-        causality.mkdir(parents=True)
-        graph = {"nodes": [{"id": "n1"}], "edges": [], "patterns": []}
-        (causality / "causal-graph.json").write_text(json.dumps(graph))
-
-        result = test_memory_health.test_causal_graph_available(causality)
-        assert result["available"] is True
-        assert result["nodes"] == 1
-
-    def test_corrupted_graph(self, tmp_path):
-        causality = tmp_path / "causality"
-        causality.mkdir(parents=True)
-        (causality / "causal-graph.json").write_text("not json{")
-
-        result = test_memory_health.test_causal_graph_available(causality)
         assert result["available"] is False
 
 
