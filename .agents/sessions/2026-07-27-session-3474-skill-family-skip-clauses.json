@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3474,
+    "date": "2026-07-27",
+    "branch": "fix/skill-family-skip-clauses",
+    "startingCommit": "9638552a6",
+    "objective": "Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/skill-family-skip-clauses before any commit"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries and .claude/rules/universal.md read this session"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree reset to origin/main at 9638552a6, then branch fix/skill-family-skip-clauses created from it"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/skill-family-skip-clauses"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project and initial_instructions both returned success at session start"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Measured the standard mechanically across all 96 skills rather than reading descriptions by hand"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Decision memory records the measured scope reduction from 7 candidate edits to 3 real violations, the predicate that measurement used, and what it does not cover."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 excludes .claude/skills and src/copilot-cli/skills, so a scoped run reports 0 files; frontmatter validated with skill_frontmatter.py instead"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Four canonical SKILL.md edits, four regenerated mirrors, and two parity manifest bumps to 0.6.138, committed in family-sized commits."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "skill_frontmatter.py: Failed 0. skill_size.py: all within limits. check_agent_skill_discriminator.py: no changed agent definitions. validate_plugin_version_bump.py --base origin/main: plugin-version-bump: OK. Post-edit family measurement: 0 members without a SKIP clause."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3479 filed with the measurement before this branch was pushed. Issue #3484 filed afterwards for the rule-interpretation gaps that adversarial review surfaced."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; three description edits with their generated mirrors and a parity bump."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger."
+    },
+    {
+      "step": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer."
+    },
+    {
+      "step": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3."
+    },
+    {
+      "step": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard."
+    },
+    {
+      "step": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it."
+    },
+    {
+      "step": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash."
+    },
+    {
+      "step": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge."
+    },
+    {
+      "step": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count."
+    },
+    {
+      "step": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first."
+    },
+    {
+      "step": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Issue #3484 tracks the three ambiguities in the SKIP-clause standard and proposes a validator so the rule stops drifting unobserved.",
+    "The reciprocity rule is scoped to within-family pairs and carries a chaining-parent escape. A raw cross-family scan reports many more pairs and must not be used as a violation count.",
+    "Any referent check must search agents and commands as well as skills. panning-for-gold was flagged only because an earlier check looked at skills alone, and its clause names the analyst agent.",
+    "endingCommit is left empty because the final commit SHA is not known at write time; the validator accepts an empty value."
+  ]
+}

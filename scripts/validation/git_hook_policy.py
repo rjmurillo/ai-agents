@@ -24,6 +24,7 @@ from typing import TextIO, cast
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -502,6 +503,51 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     return probe.returncode == 0
 
 
+def _is_linked_worktree(repo_root: Path) -> bool:
+    """Return True when ``repo_root`` is a linked worktree, not the primary checkout.
+
+    A linked worktree has its own ``.git`` directory under the primary one's
+    ``worktrees/``, so the two paths differ. Comparing them is the only probe
+    git offers that does not depend on how the caller spelled the path.
+
+    Fails closed: any indeterminate answer reports False and the caller keeps
+    its normal behaviour.
+    """
+    own = _run_git(repo_root, ["rev-parse", "--absolute-git-dir"])
+    shared = _run_git(repo_root, ["rev-parse", "--git-common-dir"])
+    if own.returncode != 0 or shared.returncode != 0:
+        return False
+    own_text = own.stdout.strip()
+    shared_text = shared.stdout.strip()
+    if not own_text or not shared_text:
+        return False
+    try:
+        own_path = Path(own_text).resolve()
+        shared_path = (repo_root / shared_text).resolve()
+    except OSError:
+        return False
+    return own_path != shared_path
+
+
+def _is_committed_here(repo_root: Path, path: Path) -> bool:
+    """Return True when ``path`` exists in the current checkout's ``HEAD``.
+
+    In a linked worktree, presence in HEAD indicates the file arrived with
+    the checkout rather than being created in the working tree during this
+    session.  The proxy is imperfect: a log committed during the current
+    session would also satisfy this test.  The guard is acceptable because
+    the worktree exemption only fires in combination with
+    ``_is_linked_worktree``, and linked-worktree users do not typically
+    commit session logs to their feature branch mid-session.
+    """
+    try:
+        relative = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return False
+    probe = _run_git(repo_root, ["cat-file", "-e", f"HEAD:{relative}"])
+    return probe.returncode == 0
+
+
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
@@ -695,6 +741,11 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
     gated_paths = _gated_adr_review_paths(paths, repo_root)
     if not gated_paths:
         return 0
+    if _merge_in_progress(repo_root):
+        from_main = _paths_on_merge_head(gated_paths, repo_root)
+        gated_paths = [p for p in gated_paths if p not in from_main]
+        if not gated_paths:
+            return 0
 
     session_log = _today_session_log(repo_root / ".agents" / "sessions")
     if session_log is None or not _session_has_adr_review(session_log):
@@ -835,7 +886,7 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks. Two
+    Only a determinate ``current_branch != session_branch`` blocks. Three
     exemptions. A merge in progress is exempt: a merge legitimately imports
     another branch's newer session log into the tree, which would otherwise
     read as a mismatch. A committed merge is exempt on the same grounds but
@@ -846,6 +897,15 @@ def check_branch_context(repo_root: Path) -> int:
     history rather than a claim about current work (issue #3343). A log
     authored on another local branch is not upstream, so the co-mingling case
     from issue #682 still blocks.
+
+    A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
+    checkout of some branch's history, so a log present in ``HEAD`` names
+    whatever that branch last recorded and says nothing about the developer's
+    current work. Blocking on it forced ``--no-verify`` on every worktree
+    commit, which disabled every other hook to silence this one (issue #3408).
+    The exemption is limited to logs present in the worktree's own ``HEAD``
+    (the ``_is_committed_here`` probe): a log that exists only as an untracked
+    working-tree file is a live claim, so a real mismatch there still blocks.
     """
     try:
         if _merge_in_progress(repo_root):
@@ -867,6 +927,8 @@ def check_branch_context(repo_root: Path) -> int:
         if _session_log_for_branch(sessions_dir, current_branch) is not None and _is_merged_history(
             repo_root, session_log
         ):
+            return 0
+        if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
             return 0
         print(
             "ERROR: branch context mismatch: "
@@ -901,6 +963,26 @@ def _merge_in_progress(repo_root: Path) -> bool:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     return merge_head.is_file()
+
+
+def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
+    """Return the subset of *paths* that exist on MERGE_HEAD.
+
+    Used by ``check_adr_review_policy`` to exempt only the ADR paths that
+    came from the merge parent (main) while still gating branch-authored
+    ADR content.  Returns the empty set on any git error (fail open to the
+    caller's gating logic).
+    """
+    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return set()
+    merge_head = result.stdout.strip()
+    present: set[str] = set()
+    for path in paths:
+        check = _run_git(repo_root, ["cat-file", "-e", f"{merge_head}:{path}"])
+        if check.returncode == 0:
+            present.add(path)
+    return present
 
 
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
@@ -1693,14 +1775,10 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
-        head_violations = _head_suppression_violations(
-            update.head,
-            paths,
-            repo_root,
-        )
-        if head_violations is None:
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
             return 2
-        violations.extend(head_violations)
+        violations.extend(added_violations)
     if not violations:
         return 0
     print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
@@ -1709,19 +1787,53 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     return 1
 
 
-def _head_suppression_violations(
-    head: str,
+def _added_suppression_violations(
+    update: PushUpdate,
     paths: Sequence[str],
     repo_root: Path,
 ) -> list[str] | None:
+    scan_paths = [path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES]
+    if not scan_paths:
+        return []
+    if ".." not in update.range_spec:
+        # No base available; `git diff <sha>` would compare against the
+        # working tree, not against a parent commit.  Fail open: the SHA
+        # gate at push time remains the hard safety boundary.
+        return []
+    result = _run_git(
+        repo_root,
+        ["diff", "--unified=0", "--no-color", update.range_spec, "--", *scan_paths],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _suppression_violations_in_diff(update.head, result.stdout)
+
+
+def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
     violations: list[str] = []
-    for path in paths:
-        if Path(path).suffix.lower() not in SEMGREP_SUFFIXES:
+    current_path: str | None = None
+    current_line: int | None = None
+    for line in diff_text.splitlines():
+        file_match = DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None:
+            current_path = _normalize_ratchet_path(file_match.group("path"))
+            current_line = None
             continue
-        content = _read_commit_blob(head, path, repo_root)
-        if content is None:
-            return None
-        violations.extend(_suppression_violations_in_text(head, path, content))
+        hunk_match = DIFF_HUNK_RE.match(line)
+        if hunk_match is not None:
+            current_line = int(hunk_match.group("start"))
+            continue
+        if current_path is None or current_line is None or line.startswith("\\"):
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            if SECURITY_SUPPRESSION_RE.search(line[1:]):
+                violations.append(f"{head[:12]}:{current_path}:{current_line}")
+            current_line += 1
+            continue
+        if line.startswith("-") and not line.startswith("---"):
+            continue
+        current_line += 1
     return violations
 
 
@@ -2863,8 +2975,11 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
+    # Exclude @pytest.mark.integration tests: integration tests invoke real
+    # network operations (git push, GitHub API) which must never run inside a
+    # pre-push hook. The hook validates local correctness only (issue #3412).
     result = _run_command(
-        [sys.executable, "-m", "pytest", str(repo_root / "tests")],
+        [sys.executable, "-m", "pytest", "-m", "not integration", str(repo_root / "tests")],
         repo_root,
         process_env=env,
         timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,
@@ -3011,11 +3126,12 @@ def run_cli_e2e(test_file: str, repo_root: Path) -> int:
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
-        result = _run_command(
-            [sys.executable, "scripts/validate_session_json.py", path],
-            repo_root,
-        )
+        command = [sys.executable, "scripts/validate_session_json.py", path]
+        if path not in new_logs:
+            command.append("--existing-log")
+        result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0
     return 1 if failed else 0

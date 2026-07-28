@@ -59,6 +59,371 @@ class TestCountUpstreamRefs:
         assert cmp.count_upstream_refs(text) == 0
 
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Use templates/agents for generation.",
+            "Use `.agents` for state.",
+            "[state](/.agents)",
+            "![state](/templates/agents)",
+            "See .claude/lib in the plugin.",
+            "Use .claude/review-axes, then report findings.",
+        ],
+    )
+    def test_counts_bare_directory_refs_at_word_boundary(self, text: str) -> None:
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agentsx should not count.",
+            ".agentship should not count.",
+            ".claude/libx should not count.",
+            ".claude/review-axesx should not count.",
+        ],
+    )
+    def test_ignores_partial_word_directory_refs(self, text: str) -> None:
+        assert cmp.count_upstream_refs(text) == 0
+    def test_counts_templates_agents_and_platforms(self) -> None:
+        # Both hold generator inputs that never ship in the plugin, so a
+        # consumer following either reference lands on nothing (issue #3459).
+        text = (
+            "Canonical source: `templates/agents/security.shared.md`. "
+            "Event mapping: `templates/platforms/copilot-cli.yaml`.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_counts_templates_windows_separators_and_mixed_case(self) -> None:
+        text = "See TEMPLATES\\AGENTS\\x.md and templates\\Platforms\\y.yaml.\n"
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_does_not_count_bare_templates_dir(self) -> None:
+        # Bare templates/ is overloaded: a Flask or Django render directory and
+        # a file-relative asset directory bundled inside a skill both use it,
+        # and both resolve consumer-side. Only the agents/ and platforms/
+        # segments name upstream-only generator inputs.
+        text = (
+            "Render from templates/ at request time, and the bundled "
+            "templates/report.md ships beside this skill.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_does_not_count_templates_nested_under_another_dir(self) -> None:
+        """A second segment is required, so this probes the real nested shape.
+
+        The earlier version of this test used ``assets/templates/foo.md``,
+        which matches no pattern at all because ``foo.md`` is not ``agents``
+        or ``platforms``. It passed against a regex that did not exclude a
+        leading path separator, so it proved nothing.
+        """
+        text = "The file assets/templates/agents/foo.md ships with the skill.\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/templates/agents/x.md",
+            "assets/templates/platforms/x.yaml",
+            "https://example.com/templates/agents/x.md",
+            "../templates/agents/x.md",
+            r"src\templates\agents\x.md",
+            "mytemplates/agents/x.md",
+            "https://x.com/awesome-templates/agents/x.md",
+            "--templates/agents/x",
+            "templates/agentsfoo",
+        ],
+    )
+    def test_does_not_count_paths_that_resolve_elsewhere(self, text: str) -> None:
+        """Paths nested under another directory do not name the upstream dir.
+
+        A non-dot separator or parent-directory prefix before ``templates`` means it resolves
+        somewhere else and ships with its container. Windows and POSIX must
+        agree; an earlier regex rejected the Windows nested form and accepted
+        the POSIX one.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agents/x.md",
+            "./templates/agents/x.md",
+            r".\templates\agents\x.md",
+            "/templates/agents/x.md",
+            "See /templates/platforms/x.yaml here",
+            r"\templates\agents\x.md",
+            "- templates/agents/x.md",
+            "  - templates/platforms/x.yaml",
+            "`templates/agents/x.md`",
+            "|templates/agents/x.md|",
+            "(templates/agents/x.md)",
+            "'templates/agents'",
+            "Templates/Agents/x.md",
+            "templates/agents?raw=1",
+            "templates/agents#section",
+            "templates/agents",
+        ],
+    )
+    def test_counts_paths_that_name_the_upstream_dir(self, text: str) -> None:
+        """Every shape that really does name the source-tree directory.
+
+        Covers an optional ``./`` prefix, Markdown bullets, nested list
+        items, inline code, table cells, parentheses, quotes, case
+        insensitivity, and a query string or anchor after a bare directory
+        reference.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    def test_does_not_count_hyphenated_or_glued_templates(self) -> None:
+        # A URL segment like awesome-templates/agents/ and a glued word like
+        # mytemplates/agents/ are not the repo-root templates/ directory.
+        text = (
+            "See https://example.com/awesome-templates/agents/x and the "
+            "mytemplates/agents/y file.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
+
+class TestDotPrefixedUpstreamBoundary:
+    """The ``.agents``, ``.claude/lib`` and ``.claude/review-axes`` families.
+
+    These three patterns predate the ``templates/`` families and carried a
+    lookbehind that omitted the forward slash, so any nested or URL-embedded
+    occurrence counted as an upstream reference. All five patterns now share
+    one boundary, so the same shapes must resolve the same way.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/.agents/foo.md",
+            "https://example.com/.agents/foo.md",
+            "vendor/.claude/lib/foo.py",
+            "https://example.com/.claude/lib/foo.py",
+            "src/.claude/review-axes/x.md",
+            "../.agents/x.md",
+            "x.agents/foo",
+        ],
+    )
+    def test_nested_dot_prefixed_paths_do_not_count(self, text: str) -> None:
+        """A dot directory under another path is not the upstream directory.
+
+        ``src/.agents/`` ships with ``src/``; a consumer following it does not
+        land on nothing, so counting it overstates the portability debt.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            ".agents/specs/x.md",
+            "/.agents/specs/x.md",
+            "./.agents/specs/x.md",
+            ".claude/lib/foo.py",
+            "/.claude/lib/foo.py",
+            ".claude/review-axes/x.md",
+            "/.claude/review-axes/x.md",
+            r"\.agents\specs\x.md",
+            r"\.claude\lib\foo.py",
+            r"\.claude\review-axes\x.md",
+        ],
+    )
+    def test_root_anchored_dot_prefixed_paths_count(self, text: str) -> None:
+        """A repository-root-relative link is still an upstream reference.
+
+        GitHub renders a leading-slash link relative to the repository root,
+        so ``/.agents/specs/x.md`` names the same directory as ``.agents/``.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+
+class TestPathStartAnchor:
+    """The anchor that decides where a path may begin.
+
+    An earlier revision tested the character before the path with a negative
+    lookbehind, ``(?<![\\w.\\-/\\\\])``, applied ahead of an optional separator.
+    Any character outside that set therefore opened a match, so a home-relative
+    path, a Windows drive, a shell or batch variable expansion, a ``file://``
+    URL, a protocol-relative URL and a URL fragment all counted as
+    repository-root references. The anchor now names the characters that may
+    precede a path instead of naming the ones that may not.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "~/templates/agents/x.md",
+            "~/.agents/x.md",
+            "${ROOT}/templates/agents/x.md",
+            "${ROOT}/.agents/x.md",
+            "%ROOT%\\templates\\agents\\x.md",
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\x.md",
+            "file:///templates/agents/x.md",
+            "//templates/agents/x.md",
+            "[x](https://example.com/#/templates/agents/x.md)",
+            "[x](https://example.com/?next=/.agents/x.md)",
+        ],
+    )
+    def test_paths_rooted_somewhere_else_do_not_count(self, text: str) -> None:
+        """None of these resolve from the repository root.
+
+        A home directory, a drive letter, a variable expansion and a URL
+        authority each supply their own root, so the path that follows is not
+        the upstream directory even though the text after the separator matches.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "/templates/agents/x.md",
+            "[x](/templates/agents/x.md)",
+            "See /templates/platforms/x.yaml for the shape.",
+            "| /templates/agents/x.md | generated |",
+            '<img src="/templates/agents/x.md">',
+            "`templates/agents/x.md`",
+            "Prose line.\n/templates/agents/x.md",
+            ">/templates/agents/x.md",
+        ],
+    )
+    def test_paths_at_a_real_start_of_context_count(self, text: str) -> None:
+        """A path may open the document, follow whitespace, or follow a delimiter.
+
+        Markdown link parentheses, table pipes, HTML attribute quotes and inline
+        code backticks all introduce a path without changing where it resolves
+        from, so each one still counts. A tight blockquote marker counts too, so
+        it agrees with the spaced form that whitespace already accepts.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]:/templates/agents/x.md",
+            "path:/templates/agents/x.md",
+            "<img src=/templates/agents/x.md>",
+        ],
+    )
+    def test_labelled_and_attribute_contexts_count(self, text: str) -> None:
+        """A colon or equals in a named context introduces a real path.
+
+        A link reference definition and a ``path:`` label both put a colon
+        before the path; an unquoted HTML attribute puts an equals sign there.
+        Only the ``[label]:`` form is a CommonMark construct, a link reference
+        definition; ``path:`` is a project convention and the unquoted attribute
+        is HTML. The validator treats each as a path reference by naming the
+        context, so each counts.
+
+        Naming the context is what makes this safe. Admitting a raw ``:`` would
+        also count the Windows drive letters ``C:\\templates\\`` and
+        ``C:\\.agents\\``; admitting a raw ``=`` would also count the URL query
+        parameter ``?next=/.agents/x``. The guards below pin those out (issue
+        #3489).
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]: /templates/agents/x.md",
+            "[x]:   /templates/agents/x.md",
+            "[x]:\t/templates/agents/x.md",
+            "[x]:\n/templates/agents/x.md",
+            "path:   /templates/agents/x.md",
+            "<img src= /templates/agents/x.md>",
+        ],
+    )
+    def test_label_definition_whitespace_after_colon_still_counts(self, text: str) -> None:
+        """Whitespace between the label colon and the path still counts.
+
+        CommonMark allows optional spaces, tabs, and up to one line ending
+        between a link reference definition's colon and its destination. A
+        review asked to widen ``_LABEL_ANCHOR`` and ``_ATTR_ANCHOR`` to accept
+        that gap, but no widening is needed: the whitespace is itself an anchor
+        character, a space, tab or newline, so the path anchors on the gap
+        rather than on the label. Widening the label anchors would only re-match
+        what the whitespace anchor already matches, which is dead regex. This
+        pins the deliberate limit so the label anchors stay tight-only.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\specs\\x.md",
+            "[x](https://example.com/p?next=/.agents/x)",
+            "file:/templates/agents/x.md",
+            "note:/templates/agents/x.md",
+            "https://example.com/path:/templates/agents/x.md",
+            "https://example.com/?src=/templates/agents/x.md",
+        ],
+    )
+    def test_shapes_that_raw_colon_or_equals_anchors_would_break(self, text: str) -> None:
+        """Negative control for the contextual anchors above.
+
+        Each of these carries a colon or an equals sign immediately before a
+        path-looking string, and none of them names the repository root. A
+        colon anchors a path only when the literal ``path`` or a bracketed
+        label sits at an anchor before it: a Windows drive letter, a URI scheme,
+        and a bare prose word (``note:``) are none of those, and a URL query
+        parameter has no enclosing tag for the attribute anchor. If someone
+        replaces the contextual anchors with a raw ``:`` or ``=`` in the
+        character set, these start counting and this test fails, which is the
+        intended warning.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+
+class TestBlockquotedFence:
+    """A fenced block inside a blockquote is still a code block.
+
+    GitHub admonitions put an example inside ``>``-prefixed lines. CommonMark
+    parses blockquote content as Markdown once the marker is removed, so the
+    fence has to be recognised there or the example counts as prose.
+    """
+
+    def test_fence_inside_a_blockquote_is_stripped(self) -> None:
+        text = "> [!NOTE]\n> ```bash\n> cp /templates/agents/x.md .\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_blockquoted_prose_still_counts(self) -> None:
+        """Only the fence is exempt; a quoted prose reference is a real one."""
+        assert cmp.count_upstream_refs("> Copy /templates/agents/x.md first.\n") == 1
+
+    def test_quoted_line_does_not_close_a_top_level_fence(self) -> None:
+        """A close must match the context its open was found in.
+
+        Otherwise a ``>``-prefixed backtick line inside a top-level fence would
+        end the block early and expose the rest of the example as prose.
+        """
+        text = "```\n> ```\n/templates/agents/x.md\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_unquoted_line_ends_a_quoted_fence(self) -> None:
+        """A fenced block has no lazy continuation, so it dies with its quote.
+
+        The unquoted line is top-level prose, not fence body, so a reference on
+        it is a real dependency and must count.
+        """
+        text = "> ```\n> code .agents/a\nplain /templates/agents/b\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_unterminated_quoted_fence_does_not_swallow_later_prose(self) -> None:
+        text = "> ```\n> code .agents/a\nreal prose /templates/agents/b\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_line_ending_a_quoted_fence_is_re_read_at_top_level(self) -> None:
+        """Ending the blockquote must not skip fence detection on that line.
+
+        The bare fence marker leaves the blockquote and opens a top-level fence,
+        so the lines after it are code and must not count.
+        """
+        text = "> ```bash\n> echo hi\n```\n> cp .agents/x .\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+
 class TestCodeBlockAndInlineHandling:
     def test_ignores_fenced_code_blocks(self) -> None:
         text = (
@@ -171,6 +536,210 @@ class TestScan:
         assert cmp.scan_skill_markdown(skills_dir) == {}
 
 
+class TestPluginRootScan:
+    """Every plugin root's skills tree must be scanned, not just the first one."""
+
+    def _skill_md(self, root: Path, plugin_root: str, rel: str, body: str) -> None:
+        path = root / plugin_root / "skills" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    def test_skills_dirs_skips_roots_without_one(self, tmp_path: Path) -> None:
+        """A root with no skills tree is absent, not an error.
+
+        ``src/claude`` ships agents and rules but no skills, so a missing tree
+        is the normal case rather than a misconfiguration.
+        """
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "prose\n")
+        assert cmp.skills_dirs(tmp_path) == [tmp_path / ".claude" / "skills"]
+
+    def test_skills_dirs_preserves_declared_order(self, tmp_path: Path) -> None:
+        """Scan order fixes baseline diff order, so it must not follow the filesystem."""
+        for name in reversed(cmp.PLUGIN_ROOTS):
+            self._skill_md(tmp_path, name, "a/SKILL.md", "prose\n")
+        found = [d.parent.relative_to(tmp_path).as_posix() for d in cmp.skills_dirs(tmp_path)]
+        assert found == list(cmp.PLUGIN_ROOTS)
+
+    def test_a_second_root_is_scanned(self, tmp_path: Path) -> None:
+        """The defect this closes: refs in a shipped mirror were invisible.
+
+        ``src/copilot-cli/skills`` is generated from ``.claude/commands``, so it
+        was covered by neither the commands tree nor the ``.claude/skills``
+        scan. Thirty nine references lived there unratcheted. Refs #3578.
+        """
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        assert cmp.scan_plugin_roots(tmp_path) == {
+            "src/copilot-cli/skills/a/SKILL.md": 1
+        }
+
+    def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
+        """Keys are repository relative because both roots hold ``skills/spec``.
+
+        A key relative to the skills dir parent is ``skills/spec/SKILL.md`` in
+        both roots, so one count would overwrite the other and half the surface
+        would vanish from the baseline while still reporting clean.
+        """
+        self._skill_md(tmp_path, ".claude", "spec/SKILL.md", "Reads .agents/x\n")
+        self._skill_md(
+            tmp_path, "src/copilot-cli", "spec/SKILL.md", "Reads .agents/x and .agents/y\n"
+        )
+        assert cmp.scan_plugin_roots(tmp_path) == {
+            ".claude/skills/spec/SKILL.md": 1,
+            "src/copilot-cli/skills/spec/SKILL.md": 2,
+        }
+
+    def test_drift_in_the_second_root_returns_exit_1(self, tmp_path: Path) -> None:
+        """End to end proof that the widened scan reaches the CLI exit code."""
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        code = cmp.main(
+            ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
+        )
+        assert code == 1
+
+    @pytest.mark.parametrize("absent", sorted(cmp.REQUIRED_SKILLS_ROOTS))
+    def test_exit_2_when_a_required_root_is_missing(
+        self, tmp_path: Path, absent: str
+    ) -> None:
+        """A partial scan must fail, not narrow silently.
+
+        This is the same failure shape as issue #3578 one level up. If a
+        required root vanishes, the remaining roots still produce files, still
+        compare cleanly against the baseline, and still exit 0, so nothing
+        reports that a whole shipped tree went unread. Adversarial review
+        caught this: the first version of the multi root scan failed only when
+        every root was missing.
+
+        Parametrized over each required root so that dropping any single entry
+        from ``REQUIRED_SKILLS_ROOTS`` fails a test. A test that omitted only
+        one fixed root would let the other silently leave the set.
+        """
+        for name in sorted(cmp.REQUIRED_SKILLS_ROOTS - {absent}):
+            self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        assert cmp.missing_required_roots(tmp_path) == [absent]
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 2
+
+    def test_an_optional_root_without_skills_is_not_an_error(self, tmp_path: Path) -> None:
+        """``src/claude`` ships agents and rules and has no skills tree today."""
+        for name in cmp.REQUIRED_SKILLS_ROOTS:
+            self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
+        assert cmp.missing_required_roots(tmp_path) == []
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 0
+
+    def test_every_required_root_is_a_declared_root(self) -> None:
+        """A required root missing from ``PLUGIN_ROOTS`` would never be scanned."""
+        assert cmp.REQUIRED_SKILLS_ROOTS <= set(cmp.PLUGIN_ROOTS)
+
+    def test_every_root_with_a_skills_tree_is_required(self) -> None:
+        """Reality, not the constant, decides which roots are required.
+
+        Anchoring on the filesystem is the point. Mutation testing showed that
+        the parametrized case above derives its cases from
+        ``REQUIRED_SKILLS_ROOTS``, so shrinking that set shrinks the test with
+        it and the mutant survives. This assertion reads the repository
+        instead: a root that ships a skills tree today must be required, so
+        removing one from the set fails here.
+
+        It also self-maintains. The day ``src/claude`` grows a skills tree,
+        this test fails and names the root to add.
+        """
+        root = Path(__file__).resolve().parents[2]
+        have_skills = {
+            name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()
+        }
+        assert have_skills, "no plugin root has a skills tree; the scan would be empty"
+        assert have_skills <= cmp.REQUIRED_SKILLS_ROOTS, (
+            f"these roots ship skills but are not required: "
+            f"{sorted(have_skills - cmp.REQUIRED_SKILLS_ROOTS)}"
+        )
+
+    def test_this_repo_has_every_required_root(self) -> None:
+        """Pins the two sets against reality so the required list cannot rot."""
+        root = Path(__file__).resolve().parents[2]
+        assert cmp.missing_required_roots(root) == []
+
+    def test_exit_2_when_no_root_has_a_skills_dir(self, tmp_path: Path) -> None:
+        """An empty scan must fail loudly rather than report a clean zero."""
+        assert cmp.main(["--repo-root", str(tmp_path)]) == 2
+
+
+class TestReport:
+    """The output branches. None had coverage before ``_report`` was extracted."""
+
+    def _args(self, **over: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "regressions": [],
+            "improvements": [],
+            "current": {},
+            "baseline": {},
+            "scanned": [Path("/repo/.claude/skills")],
+            "root": Path("/repo"),
+            "output_format": "text",
+        }
+        base.update(over)
+        return base
+
+    def test_json_format_emits_the_four_totals(self, capsys: pytest.CaptureFixture[str]) -> None:
+        cmp._report(
+            **self._args(
+                regressions=["a: 2 refs"],
+                improvements=["b: 1 ref"],
+                current={"a": 2},
+                baseline={"a": 1, "b": 1},
+                output_format="json",
+            )
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "regressions": ["a: 2 refs"],
+            "improvements": ["b: 1 ref"],
+            "current_total": 2,
+            "baseline_total": 2,
+        }
+
+    def test_json_format_prints_no_prose(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Machine output must stay parseable, so the human lines cannot leak in."""
+        cmp._report(**self._args(regressions=["a: 2 refs"], output_format="json"))
+        assert "DRIFT" not in capsys.readouterr().out
+
+    def test_drift_suppresses_the_clean_line(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Reporting both a drift list and a no-drift summary would contradict itself."""
+        cmp._report(**self._args(regressions=["a: 2 refs"]))
+        out = capsys.readouterr().out
+        assert "[DRIFT] a: 2 refs" in out
+        assert "No Markdown vendor-portability drift" not in out
+
+    def test_improvements_print_alongside_the_clean_line(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An improvement is not drift, so the run is still clean and says so."""
+        cmp._report(**self._args(improvements=["b: 1 ref"], baseline={"b": 1}))
+        out = capsys.readouterr().out
+        assert "[IMPROVED] b: 1 ref" in out
+        assert "No Markdown vendor-portability drift" in out
+
+    def test_the_clean_line_names_every_scanned_root(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Reading 'across 0 files' as 'scanned 0 files' is what hid issue #3578."""
+        cmp._report(
+            **self._args(
+                scanned=[
+                    Path("/repo/.claude/skills"),
+                    Path("/repo/src/copilot-cli/skills"),
+                ]
+            )
+        )
+        assert "Scanned .claude/skills, src/copilot-cli/skills." in capsys.readouterr().out
+
+
 class TestDiff:
     def test_regression_when_count_rises(self) -> None:
         regressions, improvements = cmp.diff_against_baseline(
@@ -199,11 +768,22 @@ class TestDiff:
 
 
 class TestMainCli:
+    def _required_roots(self, root: Path) -> None:
+        """Create an empty skills tree in every required root.
+
+        Empty trees contribute no counts, so the tests keep their original
+        expectations while satisfying the required-root check that closes the
+        silent-narrowing hole.
+        """
+        for name in cmp.REQUIRED_SKILLS_ROOTS:
+            (root / name / "skills").mkdir(parents=True, exist_ok=True)
+
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
         assert rc == 2
 
     def test_update_baseline_writes_and_exits_zero(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         (tmp_path / ".claude" / "skills" / "a").mkdir(parents=True)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Writes .agents/x\n", encoding="utf-8"
@@ -214,9 +794,10 @@ class TestMainCli:
         )
         assert rc == 0
         data = json.loads(baseline.read_text(encoding="utf-8"))
-        assert data["files"] == {"skills/a/SKILL.md": 1}
+        assert data["files"] == {".claude/skills/a/SKILL.md": 1}
 
     def test_drift_returns_exit_1(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text(
@@ -224,12 +805,13 @@ class TestMainCli:
         )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
-            json.dumps({"files": {"skills/a/SKILL.md": 1}}), encoding="utf-8"
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
         )
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
 
     def test_clean_repo_returns_zero(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
@@ -262,13 +844,65 @@ class TestCommittedRepoHasNoDrift:
 
     def test_repo_markdown_matches_baseline(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        skills_dir = root / ".claude" / "skills"
-        if not skills_dir.is_dir():
-            pytest.skip("no .claude/skills in this checkout")
+        if not cmp.skills_dirs(root):
+            pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = (
             root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         )
-        current = cmp.scan_skill_markdown(skills_dir)
+        current = cmp.scan_plugin_roots(root)
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+    def test_the_baseline_covers_every_scanned_root(self) -> None:
+        """Guards the vacuous pass this test had while the scan was single root.
+
+        ``diff_against_baseline`` reports a baseline entry with no current file
+        as an improvement, not a regression. So a scan narrower than the
+        baseline stays green while ignoring whole roots. Asserting that the
+        baseline's roots are a subset of the scanned roots catches a future
+        narrowing that the drift assertion alone would let through.
+        """
+        root = Path(__file__).resolve().parents[2]
+        if not cmp.skills_dirs(root):
+            pytest.skip("no plugin root has a skills dir in this checkout")
+        baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
+        scanned = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
+        recorded = {
+            key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)
+        }
+        assert recorded <= scanned, f"baseline names unscanned roots: {recorded - scanned}"
+
+
+class TestBlockquoteFenceDepth:
+    """A quoted fence remembers the depth it opened at, not just that it was quoted.
+
+    Tracking only a boolean loses both directions of the question. Each case
+    below was cross-checked against CommonMark via markdown-it, which is the
+    arbiter for what is code and what is prose (issue #3489).
+    """
+
+    def test_deeper_marker_does_not_close_a_shallower_fence(self) -> None:
+        """``>>`` inside a ``>`` fence is content, not the closing marker.
+
+        Stripping every marker made the depth-2 line look like a bare closing
+        fence, which ended the block early and exposed the following code line
+        as prose. CommonMark keeps the path inside a fence token.
+        """
+        text = "> ```\n>> ```\n> /templates/agents/x.md\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_dropping_below_the_opening_depth_ends_the_fence(self) -> None:
+        """A fence opened at depth 2 ends when the document returns to depth 1.
+
+        The depth-1 line has left the blockquote the fence opened in, so it is
+        prose. Testing only for the presence of a marker kept the fence open and
+        hid it. CommonMark puts the path in an inline token.
+        """
+        text = ">> ```\n>> code\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_same_depth_marker_still_closes(self) -> None:
+        """The ordinary case keeps working: a marker at the opening depth closes."""
+        text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1

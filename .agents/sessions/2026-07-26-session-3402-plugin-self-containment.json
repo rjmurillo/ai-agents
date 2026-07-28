@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3402,
+    "date": "2026-07-26",
+    "branch": "docs/plugin-self-containment-rule",
+    "startingCommit": "c05b686eb3",
+    "objective": "Bake the plugin self-containment boundary into binding knowledge after the user reported that plugin-shipped content cannot reference paths outside its plugin root"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned docs/plugin-self-containment-rule"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and .claude/rules/*.md loaded as session context; knowledge-persistence.md consulted to choose the persistence surface"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from main after a fast-forward pull; git status reviewed before every commit"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read at session start and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = docs/plugin-self-containment-rule"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena activate_project run at session start; .serena/memories edited this session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Enumerated the portability validators under scripts/validation/ before writing the rule, which changed the deliverable"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "usage-mandatory read during Serena init"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md absent from git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Augmented .serena/memories/ci/deployment-001-agent-self-containment.md rather than adding a duplicate memory"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown-autofix and markdown-check ran in the pre-commit hook on all four changed markdown files"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit 120528e74c carries the rule, both mirrors, and the memory; a follow-up commit carries the manifest bumps"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "validate_plugin_version_bump.py reported OK; generate_rules.py produced no drift; taste-lints found no violations"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Tracked as an atomic PR; described in workLog"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Deferred to the objective-level retrospective; the knowledge audit is still open"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Verify the boundary and measure it",
+      "actions": [
+        "Read both marketplace manifests and confirmed exactly three directories ship: .claude, src/claude, src/copilot-cli",
+        "Measured outbound references with git ls-files rather than a repository-wide grep, because several worktrees in the tree inflate counts by orders of magnitude",
+        "Recorded 3,192 matching lines across 538 files so the number in the rule is reproducible from the command the rule ships"
+      ],
+      "outcome": "The boundary is verified from the manifests, and every number in the rule comes from a command a reader can rerun"
+    },
+    {
+      "phase": "Adversarial review, which changed the deliverable",
+      "actions": [
+        "Ran a code-review agent on gpt-5.6-sol against the draft rule; it returned one blocker and eight further findings",
+        "Verified each finding independently rather than accepting it: the manifests were genuinely unbumped, and the worked example was genuinely wrong",
+        "Found that the reported docs/agent-catalog.md instance already carries an explicit vendor-portability declaration, so it is a declared reference rather than a defect"
+      ],
+      "outcome": "The draft was materially wrong in three ways and the review caught all three"
+    },
+    {
+      "phase": "Search before building, applied late",
+      "actions": [
+        "Discovered the repository already solves this: a paths.py helper, a vendor-portability declaration used by 170 files, four portability ratchets, and a dedicated CI workflow, all from issue #2050",
+        "Rewrote the rule to point at that mechanism instead of restating the principle from scratch",
+        "Read check_skill_md_portability.py and confirmed its pattern list covers only .agents/, .claude/lib/, and .claude/review-axes/"
+      ],
+      "outcome": "The rule now documents an existing system rather than competing with it"
+    },
+    {
+      "phase": "Establish the distinction that makes the rule usable",
+      "actions": [
+        "Tested the reviewer claim that the draft banned legitimate behavior and confirmed it: shipped agents write to consumer paths such as .agents/planning/ by design",
+        "Separated bundled dependency, consumer-workspace path, and upstream-only path, and made only the third a defect",
+        "Measured 32 undeclared references and classified them, finding docs/ and build/ ambiguous while templates/ is unambiguously upstream-only"
+      ],
+      "outcome": "The rule distinguishes the three cases a grep cannot, and the coverage gap it reports is scoped to what the data supports"
+    },
+    {
+      "phase": "Persist without duplicating",
+      "actions": [
+        "Deleted the standalone Serena memory after confirming deployment-001-agent-self-containment.md already carries the principle",
+        "Augmented that memory with only the context the rule does not carry: the roots, the three-kind distinction, the declaration, the ratchet caveat, and the gap",
+        "Bumped both project-toolkit manifests to 0.6.131 after main advanced to 0.6.130 mid-review, stacked above the open plugin PRs"
+      ],
+      "outcome": "One canonical rule, one augmented memory, no third representation to drift"
+    }
+  ],
+  "endingCommit": "d3eefa86b0",
+  "nextSteps": [
+    "Add templates/ to UPSTREAM_PATTERNS in check_skill_md_portability.py and regenerate the baseline, which closes the measured gap",
+    "Revisit whether contributor-facing knowledge skills should ship to consumers at all, which is the deeper fix behind most vendor-portability declarations"
+  ]
+}

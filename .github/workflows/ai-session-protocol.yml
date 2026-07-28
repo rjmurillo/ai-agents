@@ -207,7 +207,13 @@ jobs:
             # JSON format - simple schema validation
             # --json-output leaves stdout human-readable and writes a
             # machine-readable summary the MUST counter below can trust.
-            $result = & python3 ./scripts/validate_session_json.py $sessionFile --json-output validation-summary.json 2>&1
+            # --scope-from-git: a log already in the merge base is being
+            # edited, not claimed. No edit can make "markdownlint ran" true
+            # for a session that already ended, so it is validated as a
+            # record (issue #3385). The rule lives in
+            # scripts/validation/session_scope.py, shared with the git hook,
+            # so the two cannot disagree (ADR-006: no logic in YAML).
+            $result = & python3 ./scripts/validate_session_json.py $sessionFile --scope-from-git --json-output validation-summary.json 2>&1
             $exitCode = $LASTEXITCODE
             $format = 'JSON'
           } else {

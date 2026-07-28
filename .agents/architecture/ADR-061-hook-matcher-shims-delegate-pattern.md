@@ -14,7 +14,7 @@ This ADR was withdrawn before acceptance after a 6-agent debate (architect, crit
 
 1. **Zero drift on `main` today.** Direct `diff` between multi-matcher shims of the same canonical hook produces no output. The drift evidence cited in the Context section is entirely from the unmerged PR 1763 branch, where partial regeneration during PR development produced divergent matcher shims. That is a workflow failure, not a structural defect of the inline-body design.
 2. **Alternative B is a 2-hour fix.** Deterministic full-tree regeneration (`generate_hooks.py` always regenerates every matcher shim from canonical on every run) plus a CI step (`git diff --exit-code src/copilot-cli/hooks/` after generation) eliminates the drift root cause at one-tenth the cost. No spec amendment. No `_impl/` import surface. No additional attack surface.
-3. **Delegate-shim reintroduces drift one layer deeper.** The analyst surfaced that after the refactor, a direct edit to `_impl/invoke_X.py` would pass all three parity rules proposed in this ADR while drifting from the canonical `.claude/hooks/<Event>/<hook>.py`. A fourth rule would be required, which is itself the same shape of drift the ADR claims to eliminate, just one layer down.
+3. **Delegate-shim reintroduces drift one layer deeper.** The analyst surfaced that after the withdrawn refactor, a direct edit to the superseded `_impl/invoke_X.py` layout would pass all three parity rules proposed in this ADR while drifting from the canonical `.claude/hooks/<Event>/<hook>.py`. A fourth rule would be required, which is itself the same shape of drift the ADR claims to eliminate, just one layer down.
 4. **Premature abstraction.** On `main`, only three hooks have two matchers each. The ADR projected toward "all hooks multi-matcher" without growth evidence. Per `.claude/rules/philosophy-of-software-design.md`, this is a speculative-generality smell.
 5. **Opportunity cost.** Holding PR 1763 for a multi-day structural refactor while alternative B unblocks it in 2 hours has negative ROI against the projected (not observed) failure rate.
 
@@ -47,7 +47,7 @@ The design produces correct shims on first generation. It does not stay correct 
 
 ### Drift evidence (PR 1763, observed 2026-05-26)
 
-PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) registers `invoke_false_completion_gate` against four matchers: `Bash`, `Bash(gh pr create*)`, `Bash(gh pr merge*)`, `Bash(git commit*)(git ci*)`. The generator produced four shim files. `diff` between them shows divergent wrapped-body content:
+PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) previously registered `invoke_false_completion_gate` against four matchers: `Bash`, `Bash(gh pr create*)`, `Bash(gh pr merge*)`, `Bash(git commit*)(git ci*)`. The generator produced four shim files. `diff` between them shows divergent wrapped-body content:
 
 | File pair | Divergence |
 |-----------|------------|
@@ -55,15 +55,15 @@ PR 1763 (`feature/1703-lifecycle-hook-infrastructure`) registers `invoke_false_c
 | Same pair | One has midnight-spanning session-log fallback; the other does not |
 | Same pair | One imports `from datetime import UTC, datetime`; the other adds `timedelta` |
 
-Same hook, four files, divergent gate logic. Runtime behavior depends on which matcher fires. The canonical `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` was edited; some shims got regenerated, some did not.
+Same hook, four files, divergent gate logic. Runtime behavior depends on which matcher fires. The previously canonical `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` was edited; some shims got regenerated, some did not.
 
 ### Cost evidence (current main, multi-matcher hooks)
 
 | Hook | Canonical size | Shim count | Total bytes | Amplification |
 |------|----------------|------------|-------------|---------------|
-| `invoke_false_completion_gate` (PR 1763) | 27 KB | 4 | 133 KB | 4.9x |
-| `invoke_branch_protection_guard` | 3 KB | 3 | 26 KB | 7.9x |
-| `invoke_session_log_guard` | 7 KB | 3 | 38 KB | 5.5x |
+| Historical `invoke_false_completion_gate` (PR 1763) | 27 KB | 4 | 133 KB | 4.9x |
+| Historical `invoke_branch_protection_guard` | 3 KB | 3 | 26 KB | 7.9x |
+| Historical `invoke_session_log_guard` | 7 KB | 3 | 38 KB | 5.5x |
 
 On main, only multi-matcher hooks (4 today) carry the amplification. PR 1763 and future lifecycle-hook PRs increase it.
 
@@ -100,14 +100,14 @@ invoke_<hook>__<MatcherTokens>_<hash>.py   # thin delegate shim (one per matcher
 
 Single source of truth per concern: hook body in `_impl/invoke_<hook>.py`, dispatch logic in `_impl/_shim_runtime.py`, matcher metadata in the thin shim.
 
-A source edit to `.claude/hooks/<Event>/invoke_X.py` regenerates exactly one file (`_impl/invoke_X.py`). All matcher shims for that hook continue to delegate to it. Drift between matchers of the same hook becomes structurally impossible.
+The superseded proposal expected a source edit to `.claude/hooks/<Event>/invoke_X.py` to regenerate exactly one file (`_impl/invoke_X.py`). All matcher shims for that hook would continue to delegate to it. Drift between matchers of the same hook would become structurally impossible.
 
 ## Prior Art Investigation
 
 ### What Currently Exists
 
 - **Structure being changed**: per-matcher inline-body shim, written by `build/scripts/generate_hooks.py::inject_shim` (line 474). Each shim is a self-contained Python module.
-- **When introduced**: REQ-003 M5-T2 (matcher shim injector), captured in `.agents/plans/active/req-003-multi-tool-artifact-build.md:79`. The plan explicitly anticipates this alternative at M7-T3.
+- **When introduced**: REQ-003 M5-T2 (matcher shim injector), captured in `.agents/archive/plans/req-003-multi-tool-artifact-build.md:79`. The plan explicitly anticipates this alternative at M7-T3.
 - **Original author and context**: REQ-003-007 author chose inline-body to keep shim files self-contained, removing any runtime import dependency in the install tree. Per the plan, the alternative was captured as a fallback.
 
 ### Historical Rationale
@@ -180,14 +180,14 @@ The cost is a runtime import surface. The shim cannot work without `_impl/` sibl
 | `build/scripts/build_all.py --check` | Indirect | Drift detection must understand new layout (one body file + many thin shims) | Medium |
 | Copilot CLI hook runtime (dev, user-install, system-install modes) | Indirect | Must launch shim with `sys.path` allowing `from _impl import ...` under all three install modes | High (BLOCKER if any mode fails) |
 | `pytest.ini` / pytest discovery configuration | Direct | Add `_impl/` to `norecursedirs` or rely on leading-underscore convention to prevent test collection from invoking canonical bodies as tests | Medium |
-| `build/scripts/validate_install_parity.py` | Direct | Extend parity rules: (a) every thin shim has sibling `_impl/invoke_X.py`; (b) no two thin shims contain divergent body bytes; (c) `_shim_runtime.py` exists exactly once per event dir | Medium |
+| `build/scripts/validate_install_parity.py` | Direct | Superseded layout rule: every thin shim has sibling `_impl/invoke_X.py`; no two thin shims contain divergent body bytes; `_shim_runtime.py` exists exactly once per event dir | Medium |
 
 ## Implementation Phasing
 
 1. **Spike Copilot CLI runtime (BLOCKER)**: install a delegate-shim test hook into a clean Copilot CLI repo under all three install modes (dev, user-install, system-install). Trigger the hook. Confirm `from _impl._shim_runtime import shim_dispatch` and `from _impl.invoke_X import _original_main` resolve under every mode. Validate: working directory at hook launch, hook invocation form (`python shim.py` vs `python -m`), install copy fidelity (does the installer preserve subdirectories or flatten them). If any mode fails, this ADR is blocked; reopen alternative-design discussion.
 2. **Amend REQ-003-007 spec text** to mandate delegate-shim layout. Preserve sentinel and crash-policy clauses verbatim.
 3. **Rewrite generator** (`_build_shim`, `inject_shim`, `strip_shim`, `_wrap_body_in_function` retired in favor of new `_emit_canonical_body`, `_emit_delegate_shim`, `_emit_shim_runtime`).
-4. **Rewrite tests**. Snapshot fixtures regenerated. Property tests target the new format. Add: drift detection test that mutates `_impl/invoke_X.py` and confirms all shim files still execute the new body via delegation.
+4. **Rewrite tests**. Snapshot fixtures regenerated. Property tests target the new format. Add: drift detection test that mutates the superseded `_impl/invoke_X.py` layout and confirms all shim files still execute the new body via delegation.
 5. **Regenerate** `src/copilot-cli/hooks/` install trees. Delete pre-refactor shim files. Add `_impl/` subdirs.
 6. **Extend** `build/scripts/validate_install_parity.py` with the three rules listed in Impact above.
 7. **Configure pytest** to exclude `_impl/` from collection.
@@ -199,7 +199,7 @@ Exit codes per ADR-035: 0 success, 1 logic, 2 config.
 
 Compliance verified by the extended `validate_install_parity.py`:
 
-- **Rule 1**: every thin shim (`invoke_X__*.py` at the event-dir root) has a sibling `_impl/invoke_X.py`.
+- **Superseded Rule 1**: every thin shim (`invoke_X__*.py` at the event-dir root) has a sibling `_impl/invoke_X.py`.
 - **Rule 2**: no two thin shims for the same source hook contain divergent body bytes (the body lives in `_impl/`; thin shims only differ in matcher metadata).
 - **Rule 3**: `_shim_runtime.py` exists exactly once per event directory under `_impl/`.
 
@@ -219,7 +219,7 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 ## References
 
 - `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md` step 5 (REQ-003-007). Source of the inline-body mandate.
-- `.agents/plans/active/req-003-multi-tool-artifact-build.md:79,114`. M5-T2 implementation task; M7-T3 captures one-body-many-matchers as the alternative.
+- `.agents/archive/plans/req-003-multi-tool-artifact-build.md:79,114`. M5-T2 implementation task; M7-T3 captures one-body-many-matchers as the alternative.
 - `build/scripts/generate_hooks.py`. Current generator implementation.
 - `.claude/rules/pragmatic-programmer.md`. DRY at the knowledge level.
 - `.claude/rules/canonical-source-mirror.md`. Mirror claims must match canonical.

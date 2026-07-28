@@ -17,7 +17,9 @@ tells the reader the thing they most need to doubt.
 
 from __future__ import annotations
 
+import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -98,9 +100,16 @@ class TestARestoreFailureBlocks:
             Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
         )
         policy.update_causal_graph(repo)
-        err = capsys.readouterr().err
-        assert _GRAPH in err.replace("\\", "/")
-        assert "--reset-graph" in err
+        err = capsys.readouterr().err.replace("\\", "/")
+        assert _GRAPH in err
+        # The word "rebuild" is not the repair. An operator staring at a blocked
+        # commit needs the command, and a command missing any of these flags
+        # rebuilds the wrong file or from the wrong source (issue #3370).
+        assert "python3" in err, f"no runnable command in stderr: {err!r}"
+        repair = err[err.index("python3") :]
+        for flag in ("--reset-graph", "--episode-path", "--graph-path"):
+            assert flag in repair, f"repair command omits {flag}: {repair!r}"
+        assert _GRAPH in repair, f"repair command does not name the graph: {repair!r}"
 
     def test_it_does_not_raise(self, repo, monkeypatch):
         """The point of the change: an exit code, not a traceback."""
@@ -168,6 +177,157 @@ class TestTheHarnessActuallyExercisesRestore:
         monkeypatch.setattr(policy, "_restore_file", _record)
         policy.update_causal_graph(repo)
         assert len(seen) == 1
+
+
+def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["git"], returncode, stdout, "")
+
+
+def _run_suppression_push(
+    monkeypatch: pytest.MonkeyPatch,
+    repo_root: Path,
+    diff_text: str,
+    changed_paths: tuple[str, ...] = ("pkg/module.py",),
+) -> int:
+    head = "a" * 40
+    remote = "b" * 40
+    base = "c" * 40
+    expected_range = f"{base}..{head}"
+    monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
+    monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: base)
+
+    def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[:4] == ["diff", "--name-only", "--diff-filter=ACMRT", "-z"]:
+            assert args[4] == expected_range
+            return _completed("\0".join(changed_paths) + "\0")
+        if args[:4] == ["diff", "--unified=0", "--no-color", expected_range]:
+            assert args[4] == "--"
+            assert tuple(args[5:]) == changed_paths
+            return _completed(diff_text)
+        raise AssertionError(f"unexpected git call: {args!r}")
+
+    monkeypatch.setattr(policy, "_run_git", _run_git)
+    stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {remote}\n")
+    return policy.check_pushed_suppressions(stdin, repo_root)
+
+
+class TestPushedSuppressionPolicy:
+    def test_newly_added_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
+        suppression = "# type" ": ignore[arg-type]"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -1,0 +2 @@
++value = call()  {suppression}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        err = capsys.readouterr().err
+        assert "security suppression comments detected" in err
+        assert "pkg/module.py:2" in err
+
+    def test_pre_existing_type_ignore_touched_elsewhere_is_allowed(self, tmp_path, monkeypatch):
+        diff = """diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -2 +2 @@
+-old = 1
++new = 1
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+    def test_added_file_with_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
+        suppression = "# type" ": ignore[assignment]"
+        diff = f"""diff --git a/pkg/new.py b/pkg/new.py
+new file mode 100644
+--- /dev/null
++++ b/pkg/new.py
+@@ -0,0 +1,2 @@
++from pkg import value
++result = value  {suppression}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/new.py",)) == 1
+        assert "pkg/new.py:2" in capsys.readouterr().err
+
+    def test_type_ignore_on_context_line_adjacent_to_edit_is_allowed(self, tmp_path, monkeypatch):
+        suppression = "# type" ": ignore[arg-type]"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -1,2 +1,2 @@
+ value = call()  {suppression}
+-old = 1
++new = 1
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
+
+    def test_no_base_range_spec_fails_open(self, tmp_path, monkeypatch):
+        """When resolve_push_update cannot compute a base, range_spec has no '..'."""
+        head = "a" * 40
+        remote = "0" * 40  # zero SHA = new branch
+        monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
+        monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: None)
+
+        def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[:4] == ["ls-tree", "-r", "-z", "--name-only"]:
+                return _completed("pkg/module.py\0")
+            if args[:4] == ["diff", "--unified=0", "--no-color", head]:
+                raise AssertionError("should not reach diff with bare SHA")
+            return _completed("")
+
+        monkeypatch.setattr(policy, "_run_git", _run_git)
+        stdin = io.StringIO(f"refs/heads/new-branch {head} refs/heads/new-branch {remote}\n")
+        # Fails open: no violations reported because diff is unreliable
+        assert policy.check_pushed_suppressions(stdin, tmp_path) == 0
+
+
+class TestAdrReviewPolicyMergeScope:
+    def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+
+        result = policy.check_adr_review_policy(
+            [".agents/architecture/ADR-999-test.md"],
+            tmp_path,
+        )
+
+        assert result == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
+        adr_path = ".agents/architecture/ADR-120-reviewed-on-main.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(
+            policy, "_paths_on_merge_head", lambda paths, root: {adr_path}
+        )
+
+        result = policy.check_adr_review_policy([adr_path], tmp_path)
+
+        assert result == 0
+
+    def test_merge_in_progress_with_branch_authored_adr_is_still_gated(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_paths_on_merge_head", lambda paths, root: set())
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+
+        result = policy.check_adr_review_policy(
+            [".agents/architecture/ADR-999-branch-authored-during-merge.md"],
+            tmp_path,
+        )
+
+        assert result == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
 
 if __name__ == "__main__":

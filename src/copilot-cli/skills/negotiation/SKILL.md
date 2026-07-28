@@ -11,6 +11,7 @@ metadata:
 
 # Negotiation Skill
 
+
 Codifies deal intelligence behavior. Use when reviewing any offer or
 designing how an agentic system should analyze and counter-propose.
 The full crystallized skill set lives in `references/skills.md`.
@@ -116,7 +117,7 @@ Output is acceptable when ALL of the following hold:
   domain better.
 - **Agent integration**: when wiring the skill into an agentic
   system, include `model_tier: opus` (or equivalent senior tier) in
-  the agent template. See `templates/agents/negotiation.shared.md`.
+  the agent template.
 
 ## References
 

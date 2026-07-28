@@ -181,7 +181,7 @@ pytest tests/test_orchestrate_sh.py::TestOrchestrateShHelp -v
 
 ## Chain Definitions
 
-Chain definitions in `orchestrate.sh` are synchronized with `.agents/planning/v0.3.0/PLAN.md`.
+Chain definitions in `orchestrate.sh` are synchronized with `.agents/archive/planning/v0.3.0/PLAN.md`.
 
 **Source of Truth**: PLAN.md is authoritative. If the schedule or chain structure changes:
 

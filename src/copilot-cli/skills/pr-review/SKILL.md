@@ -85,10 +85,11 @@ The completion gate is dispatchable: each criterion in `completion_criteria` run
 
 ```bash
 resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
@@ -101,10 +102,11 @@ resolve_pr_scripts_dir() {
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 resolve_pr_review_config() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   for root in \
     "${COPILOT_PLUGIN_ROOT:-}" \
     "${CLAUDE_PLUGIN_ROOT:-}" \
-    ".claude" \
+    "$repo_root/.claude" \
     "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
     "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
     "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do

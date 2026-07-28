@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation.pr_description import extract_mentioned_files, validate_pr_description
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = str(
     _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "validate_pr_description.py"
@@ -394,7 +396,7 @@ class TestInlineCitationStripping:
     def test_from_change_claim_still_collected(self):
         """The word from is a change cue, not a citation cue."""
         extract = self._import_extract()
-        body = "Moved logic from `scripts/old.py` to `scripts/new.py`."
+        body = "## Changes\nMoved logic from `scripts/old.py` to `scripts/new.py`."
         mentioned = extract(body)
         assert "scripts/old.py" in mentioned
         assert "scripts/new.py" in mentioned
@@ -402,13 +404,13 @@ class TestInlineCitationStripping:
     def test_citation_cue_requires_word_boundary(self):
         """Citation cues must not match suffixes of longer words."""
         extract = self._import_extract()
-        body = "The proper `scripts/config.py` file is part of this change."
+        body = "## Changes\nThe proper `scripts/config.py` file is part of this change."
         assert "scripts/config.py" in extract(body)
 
     def test_citation_cue_does_not_cross_line_boundary(self):
         """A cue on one line must not suppress a claim on the next line."""
         extract = self._import_extract()
-        body = "See\n`scripts/next_line.py`: updated validator logic."
+        body = "## Changes\nSee\n`scripts/next_line.py`: updated validator logic."
         assert "scripts/next_line.py" in extract(body)
 
 
@@ -438,13 +440,13 @@ class TestMarkdownLinkTargetExtraction:
     @pytest.mark.parametrize(
         ("body", "expected"),
         [
-            ("Updated [label](config.json) for the gate.", "config.json"),
+            ("## Changes\nUpdated [label](config.json) for the gate.", "config.json"),
             (
-                "See [the workflow](.github/workflows/ci.yml) for details.",
+                "## Changes\nSee [the workflow](.github/workflows/ci.yml) for details.",
                 ".github/workflows/ci.yml",
             ),
             (
-                "Touched [parser](scripts/validation/pr_description.py) here.",
+                "## Changes\nTouched [parser](scripts/validation/pr_description.py) here.",
                 "scripts/validation/pr_description.py",
             ),
         ],
@@ -456,7 +458,7 @@ class TestMarkdownLinkTargetExtraction:
     def test_label_form_still_extracted(self):
         """The pre-existing [config.json] label form keeps working."""
         extract = _import_extract_mentioned_files()
-        body = "The `[config.json]` reference still resolves."
+        body = "## Changes\nThe `[config.json]` reference still resolves."
         assert "config.json" in extract(body)
 
     def test_link_target_respects_double_extension_boundary(self):
@@ -476,7 +478,7 @@ class TestMarkdownLinkTargetExtraction:
     def test_link_target_last_segment_extension_matches(self):
         """A genuine multi-dotted filename whose last segment is a known ext matches."""
         extract = _import_extract_mentioned_files()
-        body = "Generated [config](build/tsconfig.spec.json) output."
+        body = "## Changes\nGenerated [config](build/tsconfig.spec.json) output."
         assert "build/tsconfig.spec.json" in extract(body)
 
     @pytest.mark.parametrize(
@@ -495,3 +497,59 @@ class TestMarkdownLinkTargetExtraction:
         body = f"Check [the linked file]({url}) for details."
         assert url not in extract(body)
         assert Path(url).name not in extract(body)
+
+
+class TestChangeClaimContextContract:
+    """ADR-067 coverage for the production PR-description validator."""
+
+    @staticmethod
+    def _critical_files(description: str, pr_files: list[str]) -> list[str]:
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=pr_files, mentioned_files=mentioned)
+        return [issue.file for issue in issues if issue.severity == "CRITICAL"]
+
+    def test_pr_2214_inline_reference_in_per_file_changes_is_not_flagged(self):
+        description = (
+            "## Per-file changes\n"
+            "The loader now handles the reference path `.claude/commands/spec.md`.\n"
+            "- `scripts/foo.py`: rewires the loader.\n"
+        )
+        offenders = self._critical_files(description, ["scripts/foo.py"])
+        assert ".claude/commands/spec.md" not in offenders
+
+    def test_pr_2225_inline_reference_under_testing_is_not_flagged(self):
+        description = (
+            "## Testing\n"
+            "Ran the validator described by "
+            "`.agents/architecture/ADR-035-exit-code-standardization.md`.\n"
+        )
+        offenders = self._critical_files(description, ["scripts/validation/pre_pr.py"])
+        assert ".agents/architecture/ADR-035-exit-code-standardization.md" not in offenders
+
+    def test_pr_1873_inline_reference_under_author_preflight_is_not_flagged(self):
+        description = (
+            "## Author Pre-flight\n"
+            "Code follows project style guidelines (`.gemini/styleguide.md`).\n"
+        )
+        offenders = self._critical_files(description, ["scripts/eval/report.py"])
+        assert ".gemini/styleguide.md" not in offenders
+
+    def test_inline_backtick_under_changes_is_flagged_when_missing_from_diff(self):
+        offenders = self._critical_files("## Changes\nChanged `foo.py`.\n", ["bar.py"])
+        assert offenders == ["foo.py"]
+
+    def test_bold_in_summary_still_flags_when_missing_from_diff(self):
+        offenders = self._critical_files("## Summary\nChanged **foo.py**.\n", ["bar.py"])
+        assert offenders == ["foo.py"]
+
+    def test_bullet_in_summary_still_flags_when_missing_from_diff(self):
+        offenders = self._critical_files("## Summary\n- bar.py\n", ["foo.py"])
+        assert offenders == ["bar.py"]
+
+    @pytest.mark.parametrize(
+        "heading",
+        ["## Changes", "## per-file changes", "## Files Changed", "## changed files"],
+    )
+    def test_change_claim_heading_variants_accept_inline_paths(self, heading: str):
+        offenders = self._critical_files(f"{heading}\nChanged `foo.py`.\n", ["bar.py"])
+        assert offenders == ["foo.py"]

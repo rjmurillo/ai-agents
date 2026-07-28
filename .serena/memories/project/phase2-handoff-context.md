@@ -33,12 +33,12 @@ Additional work:
 ```bash
 git checkout copilot/remediate-coderabbit-pr-43-issues
 git pull
-cat .agents/planning/phase2-handoff.md
+cat .agents/archive/planning/phase2-handoff.md
 ```
 
 ## Key Documents
 
-- Handoff: `.agents/planning/phase2-handoff.md`
+- Handoff: `.agents/archive/planning/phase2-handoff.md`
 - Phase 1 Summary: `.agents/planning/phase1-completion-summary.md`
 - Original Plan: `.agents/planning/pr43-remediation-plan.md`
 

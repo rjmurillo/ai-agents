@@ -72,7 +72,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
 
@@ -99,7 +99,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -130,14 +130,14 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 2
 
     def test_no_hooks_section(self, tmp_path):
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps({"other": "config"}))
+        settings_path.write_text(json.dumps({"other": "config"}), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -158,7 +158,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 1
@@ -180,7 +180,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, violations = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -190,7 +190,7 @@ class TestParseSettings:
     def test_malformed_group_skipped(self, tmp_path):
         settings = {"hooks": {"PreToolUse": [None]}}
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -198,7 +198,7 @@ class TestParseSettings:
     def test_malformed_hook_skipped(self, tmp_path):
         settings = {"hooks": {"PreToolUse": [{"hooks": [None]}]}}
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -213,7 +213,7 @@ class TestValidateScriptExists:
     def test_existing_script(self, tmp_path):
         script = tmp_path / ".claude" / "hooks" / "guard.py"
         script.parent.mkdir(parents=True)
-        script.write_text("# hook")
+        script.write_text("# hook", encoding="utf-8")
 
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -378,7 +378,8 @@ class TestValidateExitCodeDocs:
                 0 = Allow
                 2 = Block
             """
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -393,7 +394,8 @@ class TestValidateExitCodeDocs:
             textwrap.dedent('''\
             """Simple guard hook."""
             import sys
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -406,7 +408,7 @@ class TestValidateExitCodeDocs:
 
     def test_non_blocking_hook_skips_check(self, tmp_path):
         script = tmp_path / "hook.py"
-        script.write_text('"""No exit docs."""\n')
+        script.write_text('"""No exit docs."""\n', encoding="utf-8")
         entry = hook_contracts.HookEntry(
             hook_type="PostToolUse",
             script_path="hook.py",
@@ -448,7 +450,8 @@ class TestValidateExitCodeDocs:
             textwrap.dedent('''\
             """Hook that can block operations."""
             import sys
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -462,7 +465,7 @@ class TestValidateExitCodeDocs:
         # None here would treat it as "docs present"; instead it must flag an
         # unreadable_script violation (issue #2809).
         script = tmp_path / "hook.py"
-        script.write_text('"""Guard hook."""\n')
+        script.write_text('"""Guard hook."""\n', encoding="utf-8")
 
         def _raise(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
             raise PermissionError("permission denied")
@@ -550,7 +553,7 @@ class TestValidateAll:
     def _create_settings(self, tmp_path, hooks_config):
         settings_path = tmp_path / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(json.dumps({"hooks": hooks_config}))
+        settings_path.write_text(json.dumps({"hooks": hooks_config}), encoding="utf-8")
         return settings_path
 
     def _create_script(self, tmp_path, script_path, content=""):
@@ -565,7 +568,8 @@ class TestValidateAll:
                 0 = Allow
                 2 = Block
             """
-        ''')
+        '''),
+            encoding="utf-8",
         )
         return full
 
@@ -723,14 +727,14 @@ class TestMain:
     def test_invalid_json(self, tmp_path):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text("{invalid json}")
+        (settings_dir / "settings.json").write_text("{invalid json}", encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 2
 
     def test_valid_settings_returns_zero(self, tmp_path):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}))
+        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 0
 
@@ -751,7 +755,7 @@ class TestMain:
                 ],
             }
         }
-        (settings_dir / "settings.json").write_text(json.dumps(settings))
+        (settings_dir / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         exit_code = hook_contracts.main(
             [
                 "--path",
@@ -779,14 +783,14 @@ class TestMain:
                 ],
             }
         }
-        (settings_dir / "settings.json").write_text(json.dumps(settings))
+        (settings_dir / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 0
 
     def test_json_output_format(self, tmp_path, capsys):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}))
+        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         hook_contracts.main(
             [
                 "--path",
@@ -801,7 +805,7 @@ class TestMain:
 
     def test_custom_settings_path(self, tmp_path):
         custom = tmp_path / "custom.json"
-        custom.write_text(json.dumps({"hooks": {}}))
+        custom.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         exit_code = hook_contracts.main(
             [
                 "--path",
@@ -1164,7 +1168,9 @@ class TestDispatcherExpansion:
 
     def test_a_malformed_dispatch_groups_file_is_reported(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"))
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("{ not json")
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            "{ not json", encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
@@ -1178,7 +1184,7 @@ class TestDispatcherExpansion:
     def test_dispatch_groups_with_non_object_root_is_reported(self, tmp_path):
         """A JSON array or primitive root must be reported, not raise AttributeError."""
         _tree(tmp_path, settings=_dispatch("g1"))
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]")
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("must be a JSON object" in v.message for v in report.violations)
@@ -1201,7 +1207,9 @@ class TestDispatcherExpansion:
             },
             shims=["A/a.py"],
         )
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"groups": null}')
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            '{"groups": null}', encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("'groups' property must be an object" in v.message for v in report.violations)
@@ -1224,7 +1232,9 @@ class TestDispatcherExpansion:
             },
             shims=["A/a.py"],
         )
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"version": 1}')
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            '{"version": 1}', encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("missing" in v.message for v in report.violations)
@@ -1302,7 +1312,7 @@ class TestPluginSurfaceIsCovered:
     def test_a_malformed_plugin_hooks_file_is_reported(self, tmp_path):
         """Invalid JSON in hooks.json must be caught and reported as a violation."""
         _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
 
@@ -1515,20 +1525,20 @@ class TestMalformedPluginHooksAreAttributed:
 
     def test_malformed_plugin_json_is_its_own_category(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert "invalid_plugin_hooks" in {v.category for v in report.violations}
 
     def test_the_message_names_the_plugin_file(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         messages = [v.message for v in report.violations if v.category == "invalid_plugin_hooks"]
         assert messages and "cannot be read" in messages[0]
 
     def test_a_non_object_plugin_file_is_attributed(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("[1, 2, 3]")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("[1, 2, 3]", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert "invalid_plugin_hooks" in {v.category for v in report.violations}
 
@@ -1691,3 +1701,271 @@ class TestAnUnusableManifestReportsOnceNotOncePerRegistration:
         """
         report = self._report(tmp_path, json.dumps({"groups": {"other": {}}}))
         assert any(v.category == "unknown_dispatch_group" for v in report.violations)
+
+
+# ---------------------------------------------------------------------------
+# Copilot CLI surface coverage (issue #3384)
+# ---------------------------------------------------------------------------
+
+
+def _copilot_tree(root, *, event="PreToolUse", manifest=..., shims=("guard.py",), dispatcher=_DOC):
+    """Build the Copilot half of a checkout.
+
+    The Claude half is written too but left empty, because validate_all reads
+    both and a missing settings.json is a read error rather than a contract
+    violation. Keeping it present isolates what these tests are about.
+    """
+    (root / ".claude").mkdir(parents=True, exist_ok=True)
+    (root / ".claude" / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+
+    hooks = root / "src" / "copilot-cli" / "hooks"
+    event_dir = hooks / event
+    event_dir.mkdir(parents=True)
+    if dispatcher is not None:
+        (event_dir / "_dispatch.py").write_text(dispatcher, encoding="utf-8")
+    for shim in shims:
+        (event_dir / shim).write_text(_DOC, encoding="utf-8")
+    if manifest is ...:
+        manifest = {"event": event, "shims": list(shims)}
+    if manifest is not None:
+        (event_dir / "_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    command = (
+        "python3 -u "
+        '"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/' + event + '/_dispatch.py"'
+    )
+    hooks.joinpath("hooks.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    event: [
+                        {
+                            "bash": command,
+                            "cwd": ".",
+                            "matcher": "Bash",
+                            "type": "command",
+                            "timeoutSec": 30,
+                        }
+                    ]
+                },
+                "version": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return root
+
+
+def _categories(report):
+    return {violation.category for violation in report.violations}
+
+
+def _run(root):
+    return hook_contracts.validate_all(root / ".claude" / "settings.json", root)
+
+
+class TestTheCopilotSurfaceIsValidated:
+    """A registration that ships to Copilot users is a registration.
+
+    Before #3384 the validator read the Claude files only, so a Copilot
+    registration naming a script that does not exist reported
+    "All hook contracts valid".
+    """
+
+    def test_a_healthy_copilot_tree_passes(self, tmp_path):
+        report = _run(_copilot_tree(tmp_path))
+        assert report.is_valid, [v.message for v in report.violations]
+
+    def test_a_copilot_registration_naming_a_missing_dispatcher_fails(self, tmp_path):
+        report = _run(_copilot_tree(tmp_path, dispatcher=None))
+        assert "missing_script" in _categories(report)
+
+    def test_a_shim_missing_on_the_copilot_surface_alone_fails(self, tmp_path):
+        # The manifest names two shims; only one is written. The Claude surface
+        # is untouched, so nothing but the Copilot half can produce this.
+        root = _copilot_tree(
+            tmp_path,
+            manifest={"event": "PreToolUse", "shims": ["guard.py", "absent.py"]},
+        )
+        report = _run(root)
+        missing = [v for v in report.violations if v.category == "missing_script"]
+        assert [v.script for v in missing] == [
+            "src/copilot-cli/hooks/PreToolUse/absent.py"
+        ], [v.message for v in report.violations]
+
+    def test_a_copilot_dispatcher_missing_exit_code_docs_fails(self, tmp_path):
+        report = _run(_copilot_tree(tmp_path, dispatcher='"""No contract here."""\n'))
+        missing = [v for v in report.violations if v.category == "missing_exit_docs"]
+        assert [v.script for v in missing] == ["src/copilot-cli/hooks/PreToolUse/_dispatch.py"]
+
+    def test_violations_name_the_surface_they_came_from(self, tmp_path):
+        # Every violation carries a repo-relative script path, and the two
+        # surfaces live under different roots, so the path is the attribution.
+        # No separate surface field is needed, and one would have to be threaded
+        # through every validator to arrive.
+        report = _run(_copilot_tree(tmp_path, dispatcher=None))
+        missing = [v for v in report.violations if v.category == "missing_script"]
+        assert missing, "expected the missing dispatcher to be reported"
+        assert all(v.script.startswith("src/copilot-cli/") for v in missing)
+
+
+class TestTheCopilotManifestIsTheShimSourceOfTruth:
+    """The dispatcher reads the manifest at startup and fails closed.
+
+    So an absent or unusable manifest breaks every hook for that event, and
+    reporting it is the difference between a gate and a formality.
+    """
+
+    def test_a_missing_manifest_is_a_violation(self, tmp_path):
+        report = _run(_copilot_tree(tmp_path, manifest=None))
+        assert "missing_dispatch_manifest" in _categories(report)
+
+    def test_an_unparseable_manifest_is_attributed_to_the_manifest(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_manifest.json").write_text(
+            "{ not json", encoding="utf-8"
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_dispatch_manifest"]
+        assert [v.script for v in bad] == ["src/copilot-cli/hooks/PreToolUse/_manifest.json"]
+
+    def test_a_manifest_listing_no_shims_is_a_violation(self, tmp_path):
+        report = _run(_copilot_tree(tmp_path, manifest={"event": "PreToolUse", "shims": []}))
+        assert "invalid_dispatch_manifest" in _categories(report)
+
+    def test_a_non_path_shim_entry_is_reported_without_losing_the_rest(self, tmp_path):
+        root = _copilot_tree(
+            tmp_path,
+            manifest={"event": "PreToolUse", "shims": ["guard.py", 7]},
+        )
+        report = _run(root)
+        assert "malformed_shim" in _categories(report)
+        # The good shim still made it into the entry list.
+        assert any(
+            entry.script_path == "src/copilot-cli/hooks/PreToolUse/guard.py"
+            for entry in report.entries
+        )
+
+    def test_the_manifest_supplies_the_per_shim_timeout(self, tmp_path):
+        root = _copilot_tree(
+            tmp_path,
+            manifest={"event": "PreToolUse", "shims": ["guard.py"], "timeouts": {"guard.py": 12}},
+        )
+        report = _run(root)
+        shim = next(
+            e for e in report.entries if e.script_path.endswith("PreToolUse/guard.py")
+        )
+        assert shim.timeout == 12
+
+
+class TestTheCopilotSurfaceIsOptional:
+    """A checkout that publishes only the Claude plugin is legitimate."""
+
+    def test_no_copilot_file_produces_no_violations(self, tmp_path):
+        root = _tree(tmp_path, settings={"hooks": {}})
+        report = _run(root)
+        assert report.is_valid
+
+    def test_an_unreadable_copilot_file_is_attributed_to_it(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            "{ not json", encoding="utf-8"
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert [v.script for v in bad] == ["src/copilot-cli/hooks/hooks.json"]
+
+    def test_a_non_object_hooks_field_is_reported_not_ignored(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": []}), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" in _categories(report)
+
+    def test_a_file_with_no_hooks_key_is_reported_not_ignored(self, tmp_path):
+        """The #3384 failure mode: a present file the validator never read."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"version": 1}), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" in _categories(report)
+
+    def test_a_top_level_non_object_is_reported_not_ignored(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps([{"hooks": {}}]), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" in _categories(report)
+
+    def test_a_non_list_event_is_reported_not_ignored(self, tmp_path):
+        """A malformed event must not read like an event with nothing on it."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": {"type": "command", "bash": "x"}}}),
+            encoding="utf-8",
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert bad, "a non-list event value produced no violation"
+        assert any(v.hook_type == "PreToolUse" for v in bad)
+
+    def test_a_non_object_registration_is_reported_not_ignored(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": ["not-an-object"]}}), encoding="utf-8"
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert bad, "a non-object registration produced no violation"
+        assert any(v.hook_type == "PreToolUse" for v in bad)
+
+    def test_a_well_formed_empty_event_is_still_accepted(self, tmp_path):
+        """The guards above must not turn a legitimately empty event red."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" not in _categories(report)
+
+
+class TestThePluginRootResolvesPerSurface:
+    """The same expansion text means a different directory on each surface.
+
+    Resolving both to .claude was the blocker recorded in #3384: a Copilot
+    registration pointed at a Claude path that does not exist.
+    """
+
+    def test_the_claude_root_is_still_the_default(self):
+        assert (
+            hook_contracts.extract_script_path("python3 -u ${CLAUDE_PLUGIN_ROOT}/hooks/h.py")
+            == ".claude/hooks/h.py"
+        )
+
+    def test_the_copilot_root_is_used_when_asked_for(self):
+        command = (
+            'python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}'
+            '/hooks/PreToolUse/_dispatch.py"'
+        )
+        assert (
+            hook_contracts.extract_script_path(command, hook_contracts.COPILOT_ROOT)
+            == "src/copilot-cli/hooks/PreToolUse/_dispatch.py"
+        )
+
+
+class TestTheShippedCopilotTreeSatisfiesTheContract:
+    """The gate has to pass on the tree it guards, or it will be turned off."""
+
+    def test_the_repo_passes(self):
+        report = _run(PROJECT_ROOT)
+        copilot = [v for v in report.violations if "copilot-cli" in v.script]
+        assert copilot == [], [v.message for v in copilot]
+
+    def test_the_copilot_surface_actually_contributed_entries(self):
+        # Guards the whole suite above: if the reader silently returned nothing,
+        # every "passes" test would pass for the wrong reason.
+        report = _run(PROJECT_ROOT)
+        assert [e for e in report.entries if e.script_path.startswith("src/copilot-cli/")]

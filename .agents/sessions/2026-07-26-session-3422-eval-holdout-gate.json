@@ -1,0 +1,279 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3422,
+    "date": "2026-07-26",
+    "branch": "docs/eval-holdout-gate-round-13",
+    "startingCommit": "2b3bf6dd5",
+    "objective": "Give the eval harness a held-out-gated optimization loop for agents, rules, and hooks (issue #3422)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; initial_instructions and list_memories returned project data"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read before any edit"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; it is the read-only stale dashboard, left unchanged"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the external skillopt skill bundle and the full scripts/eval catalog before designing"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first table and boundaries read from always-on instructions"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "TESTING-RIGOR.md read; ADR-010, ADR-057, ADR-058 read to place the change"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena list_memories on topic eval returned eval/eval-multiprovider-transport"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/eval-holdout-gated-optimizer at session start; rebased to fix/eval-holdout-gate-digest-leak after PR #3430 squash-merged and deleted the original; cut docs/eval-holdout-gate-round-13 off origin/main after PR #3458 squash-merged mid-session and deleted that branch too. git branch --show-current confirms docs/eval-holdout-gate-round-13."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branched off main at 2b3bf6dd5 before the first edit"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected at session start; found and repaired a stale stash conflict that blocked all commits"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2b3bf6dd5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every MUST item below carries evidence from a command run this session"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/eval/eval-held-out-gated-optimization.md written with the seam, the budget lesson, and the discipline-not-security framing"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on scripts/eval/README.md: 0 issues. ADR-087 byte-checked for em/en dashes: 0"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "16 commits merged to main as 98caa0e54 via PR #3430; six later commits rebased onto main as fix/eval-holdout-gate-digest-leak for the follow-up PR"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py: RESULT: All validations passed. 372 optimizer tests, 100% line coverage on all three modules. Full suite 14863 passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Filed issue #3422 recording the missing-split defect and the acceptance criteria"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. Three adversarial review rounds already produced the findings a retro would look for, and they are recorded in ADR-087 Open Requirements and issues #3436 to #3440 and #3445"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Read the external skillopt skill bundle and the whole scripts/eval catalog. Confirmed the harness measures but never gates an artifact edit, and that no fixture set carries a train/held-out split despite the Fixture docstring calling fixtures held-out."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Placed the change against prior art. ADR-010 is a runtime output-quality loop, ADR-057 is before/after regression on one artifact, ADR-058 is agent versus baseline. None gates an artifact edit on data withheld from the author. SkillOpt-gated commits b4070e7ad and 869a03ed9 prove the discipline works here but used an out-of-repo harness on skills only."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Three TDD cycles produced the decision core (split, fingerprint, budget, gate, refusal guards, exact McNemar; pure, no I/O), the adapters converging agent reports, rule scenario scores, and pytest JUnit onto one task-id-to-bool seam, and the CLI an optimizing agent drives. The boolean seam is what generalizes the discipline past skills: a fixture id, a scenario id, and a pytest node id are the same kind of thing to the decider."
+    },
+    {
+      "phase": "review",
+      "summary": "First adversarial round (gpt-5.6-sol, gemini-3.1-pro-preview, both non-Claude per the user instruction). Found a CRITICAL double inversion the README had advertised as a feature: rule_results flipped negative cases and the caller flipped them again, so a lower activation score read as an improvement. Fixed with the failing case pinned."
+    },
+    {
+      "phase": "review",
+      "summary": "Second adversarial round returned REJECT on the ADR draft and found the held-out discipline was, in the reviewer phrase, an honor system wrapped in a hash. Three exposure holes, all real: split printed held-out membership to the stream the optimizing agent reads; score accepted --group sel and test unmetered, which is exactly the read the consultation budget exists to charge for; and --allow-regressions let any caller accept a broken held-out task. All three closed."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Replaced the consultation counter with a ledger the gate writes. --consultations defaulted to 0 and arrived on every invocation, so a loop that passed zero each time had an unlimited budget while looking capped; the reviewer reproduced ACCEPT twice under a cap of one. The ledger is bound to the split fingerprint so redrawing cannot reset it. Two defects found while testing it: guard_refusal turned a cap below one into a permanently exhausted budget indistinguishable from real discipline, and an except ValueError arm was unreachable once its inputs were validated upstream."
+    },
+    {
+      "phase": "correction",
+      "summary": "The second review falsified six claims in my own ADR draft, three of which were about this repository governance. The worst: I described ADR-057 as enforcing only an aggregate mean and used that to justify an override flag. ADR-057 in fact blocks every pass-to-fail flip and states it has no mechanism to accept a justified regression, so my flag was a weaker rule shipping under the same name. Removed the flag, corrected the ADR, and added an Open Requirements section naming what still blocks acceptance."
+    },
+    {
+      "phase": "validation",
+      "summary": "356 tests and 100% line coverage on all three modules. Full repository suite 14863 passed, 28 skipped, 45 xfailed. Live end-to-end runs confirmed split redaction, tamper refusal, budget exhaustion across separate invocations, and a ledger refusing a split redrawn mid-run. Agent path validated against a real 24-fixture report (baseline 15, agent 13; the gate correctly refused a real regression) and the hook path against real pytest JUnit output (532 node ids). Rule path exercised on real error-path output only: the live judge call returned HTTP 400 on an account usage limit until 2026-08-01."
+    },
+    {
+      "phase": "correction",
+      "summary": "Third review round found the ledger had fixed the count and left everything around it on the command line. Three ways back out, each the same defect wearing a different hat: the cap defaulted to unlimited so the ordinary invocation had no budget, a caller that hit the cap could raise it, and pointing --ledger at a fresh path restored the whole budget because a missing ledger starts at zero. Fixed by pinning the cap in the ledger, deriving the ledger path from the split, and requiring the incumbent fingerprint that had been optional. The general rule extracted: any part of a budget the caller restates each time is not part of the budget."
+    },
+    {
+      "phase": "correction",
+      "summary": "Fourth review round reproduced a rounding alias in the ledger key. The fingerprint hashes the selection's inputs (seed, task ids, ratios) rather than its result, and group sizes round, so ten tasks at --sel-ratio 0.40 and at 0.41 hold out the same four tasks under two different fingerprints, giving one held-out group two budgets. Rekeyed the ledger, its lock, and the ledger's own identity field onto a digest of the sorted held-out membership. Declined the reviewer's corpus namespace, because a caller-supplied key is the defect class being closed."
+    },
+    {
+      "phase": "correction",
+      "summary": "Same round found the last free read of the held-out group. score() and mcnemar_exact() name the ids they cannot find, which is correct everywhere except the gate, where those ids are the withheld ones, and an empty candidate results file printed the whole membership before the ledger advanced. Added a one-bit coverage predicate and moved the consultation reserve ahead of scoring, which also closed the crash window that let a killed process retry a comparison for free. A count was rejected as a membership oracle, since split publishes the held-out size."
+    },
+    {
+      "phase": "correction",
+      "summary": "Fifth review round found the fix had relocated the disclosure again, the fourth consecutive round in which that happened. The new ledger key is an unsalted digest of the held-out ids, and three error paths printed it: lock contention carried the lock path, two ledger errors carried the ledger path and both digests, and none was charged a consultation. Redacted all three to the ledger directory alone. Also fixed an injectivity defect: joining ids on NUL is not injective when an id may contain one."
+    },
+    {
+      "phase": "finding",
+      "summary": "Verifying that review finding produced the session's most important result. The reviewer argued the digest was reversible from the published group sizes. It is, but reversal is unnecessary: split publishes opt in full, the task universe is the caller's own results file, and --test-ratio defaults to 0.0, so sel = universe - opt by subtraction. Verified live on a twelve-task run. Held-out membership is public by construction and closing that would break the loop, since an optimizer that cannot name the group it must not touch cannot avoid touching it. The property that has to hold is that held-out outcomes do not cross back, not that held-out identity is secret. Both the ADR and the README now say so; several sentences had read as though the task list were hidden."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Closed the sixth review's code finding. Three hand-written ledger errors had been redacted in round five, but every generic I/O failure under the ledger root still printed a filename ending in the digest of the held-out membership. Added a _digest_scrubbed contextmanager at the seam rather than sanitizing three more call sites, so paths added later inherit it, and nested the lock-contention branch inside so its operator-facing message survives. Also corrected two source comments the review found stale. 410 tests, 100% coverage, ruff and mypy clean. Commit 81ad4283b."
+    },
+    {
+      "phase": "documentation",
+      "summary": "Rewrote the README seam section around the reviewer's characterization: a consultation-budgeted comparison over a public benchmark relying on a cooperating optimizer, not held-out validation of unseen tasks. Recorded that cmd_extract emits every task's outcome with no group argument, that task ids resolve to readable fixtures carrying their own grading criteria, and that the gate returns six fields rather than one bit. Separated what the mechanism enforces regardless of cooperation from what it merely encourages. Commit 7a08a60b5."
+    },
+    {
+      "phase": "documentation",
+      "summary": "Rewrote ADR-087 for the eight claims the sixth review falsified. Weakened the Decision statement from validation on withheld tasks to validation under a counted consultation budget, recording the falsification rather than hiding it. Replaced the identity-public-outcomes-withheld argument with four paragraphs explaining why both halves are false, why the loop needs no knowledge of sel at all, and why Dwork's reusable holdout assumes an access path this does not have. Added round six to the defeat table and restated Open Requirement 1 as a prerequisite for the central claim."
+    },
+    {
+      "phase": "planning",
+      "summary": "Opened #3452 (make extract group-aware, replace the one-bit coverage predicate with a whole-universe check) and #3453 (budget what each consultation discloses, not just how many there are). Both deferred rather than built: each changes behavior and needs its own review round, and this PR is already about 5,400 lines. #3453 records the tension that a --diagnostics flag the loop passes itself would be the same caller-supplied-restriction defect the ADR catalogs six times."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Seventh adversarial review returned REJECT with two blocking findings, both verified at source. The digest scrub covered the lock's acquire and left its release outside: the unlink in the finally block names the lock, the lock's name is the digest, and main() catches ConfigError but not OSError, so a cleanup failure printed the held-out group as an uncaught traceback one line below where the leak was closed. Widened the scrub over the whole lifecycle, safe because LedgerMismatchError is a sibling of ConfigError rather than a subclass. Regression test asserts on raw stdout since release runs after the decision is emitted. Commit 97817c0ba."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Rebased onto cd56ce09f, an incoming commit addressing seven PR review threads. It dropped all three optimizer modules from 100% to 99% coverage by shipping four defensive branches with no test. Added positive, negative, and edge cases for each: guard_refusal on a negative spend, agent_results on a non-list run value (with the string trap, since str is a Sequence), _read_split on four wrong group shapes plus a well-formed control, and _write_atomic on a non-OSError so an interrupt keeps its type. 925 tests, 100% coverage restored. Commit 148bfd8a8."
+    },
+    {
+      "phase": "documentation",
+      "summary": "Corrected six more README claims the seventh review falsified, each verified at source first. The budget bounds gate comparisons, not selection pressure, since extract and score reach results without touching the ledger. The path root and the first cap value are not membership-derived. The fingerprint covers the split's inputs rather than its drawn result, and catching a moved task takes the redraw comparison as well. A consultation is reserved before the group is read and before coverage is checked. No command scores the test group at all. Commit f690ce24b."
+    },
+    {
+      "phase": "documentation",
+      "summary": "Applied the same corrections to ADR-087 and to the two deferred issues. Requirement 1's heading no longer claims the decision group is withheld. The Decision statement now says the loop cannot move the mechanism through its own arguments, which is what holds. Commented on #3452 that its two changes do not compose without a controller owning the complete mapping, and on #3453 that there is no fixed multiplier to document, so the statable property is the output alphabet."
+    },
+    {
+      "phase": "review",
+      "summary": "Ran the adr-review skill against ADR-087 across seven rounds, every reviewer a non-Claude model (gpt-5.6-sol, gemini-3.1-pro-preview) per the objective's adversarial-review requirement. Every round falsified at least one load-bearing claim, so the ADR carries a defeat table instead of a clean argument. Round 6 was the most expensive: it showed that withholding the decision group's membership bounds nothing, because cmd_extract emits every task's outcome with no group argument and because task ids resolve to definitions carrying their own grading criteria. Round 7 returned REJECT on two blocking findings, both verified at source before fixing: the digest scrub left lock release uncovered, and both documents claimed the budget bounds selection pressure when it bounds gate comparisons only. Each finding was verified independently rather than accepted on the reviewer's authority; all held. Deferred design changes opened as #3452 and #3453 rather than rushed into this PR."
+    },
+    {
+      "phase": "implementation",
+      "summary": "PR #3430 was squash-merged as 98caa0e54 and its branch deleted while six commits were still unpushed, so the merged code carries the per-call-site digest scrub but not the seam-level one, not the lock-release fix, not the coverage for the four branches the review-thread commit added, and none of the corrected documents. Rebased all six onto main as fix/eval-holdout-gate-digest-leak and confirmed they apply cleanly: 426 tests pass with 100% coverage on all three optimizer modules, ruff and mypy clean. The follow-up PR carries the round-seven blocking fix, which is a real leak of the withheld group on a cleanup failure, so it should not wait."
+    },
+    {
+      "phase": "review",
+      "summary": "An eighth review, this one Copilot's on PR #3458, found a defect inside the round-seven fix. The scrub re-raised OSError untouched when the message lacked the digest, and main catches ConfigError, AdapterError, and ValueError but not OSError, so pathless ledger failures escaped as tracebacks instead of JSON. os.write on a full disk and os.close hitting EIO both qualify and both sit inside the lock. Reproduced with a failing end-to-end test before fixing. Checked two adjacent claims the reviewer did not raise: LedgerMismatchError derives from Exception rather than ConfigError so the scrub never touches it, and its two messages name path.parent rather than the digest-bearing filename. Both held, so neither was changed. 432 tests, 100% coverage on all three modules."
+    },
+    {
+      "timestamp": "2026-07-27T09:10:00Z",
+      "action": "Fixed the two round-nine findings: the digest reachable through __cause__, and cleanup failure rewriting an already-emitted decision",
+      "outcome": "Both reproduced by execution before any code moved. Fix 1 raises `from None` on the two branches that provably carry the digest and keeps `from exc` where str(exc) has no filename. Fix 2 catches OSError inside the finally and warns on stderr naming the lock's directory, so stdout keeps exactly one document and a passing gate keeps its exit code. One round-seven test asserted the two-document behavior; its assertions now cover the leak invariant across both streams. 440 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean on the touched files.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T09:55:00Z",
+      "action": "Ran a tenth adversarial round (gpt-5.6-terra) with explicit permission to return ACCEPT, then fixed the finding it returned",
+      "outcome": "REJECT again, one finding with two legs, both reproduced by execution. The mkdir of the ledger root sat one line above the scrub that covers everything below it. The weaker leg is a leak only when $EVAL_LEDGER_DIR itself names the digest, which means the caller already knows it. The stronger leg needs no digest: an unwritable ledger root raised PermissionError past main's handler list, so a read-only home got a traceback where the docstring promises a JSON error document. That is the round-eight defect still live at the one unprotected line. Fix moves the mkdir inside the seam and gives redaction one definition, _scrub, used by the seam and by the round-nine warning, which was a second hand-written redaction site and was wrong. 448 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T10:40:00Z",
+      "action": "Ran an eleventh adversarial round (gpt-5.6-luna), fixed three of its four findings and declined the fourth with the reason recorded",
+      "outcome": "The seam's first line had moved rather than vanished: round ten pulled the mkdir inside the scrub and left _ledger_root() above it, and Path.home() raises RuntimeError when HOME is unset and the uid has no passwd entry, which is an ordinary container and fires on the default configuration. main does not catch RuntimeError. Also fixed a lock descriptor that leaked when os.write failed, and case-sensitive redaction against a hex digest that has an uppercase spelling. Declined the double-root-resolution finding: it reproduces only by mutating EVAL_LEDGER_DIR mid-process, and no in-process environment mutation exists in any of the three modules. 458 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T11:20:00Z",
+      "action": "Ran a twelfth adversarial round (gpt-5.6-sol) and fixed the single finding, which was the round-eleven fix applied to half the pair",
+      "outcome": "Round 11 taught _scrub to fold case; the line deciding whether to call it kept reading `if holdout_key in text`, which does not, so an uppercase digest failed the guard and skipped the corrected scrub. Reproduced through the real gate entry point with only stdlib Path.mkdir patched. Fixed by deleting the second predicate: _scrub returning a different string answers both questions. The more useful half of the finding is the tests: round 11's four case-folding tests all called _scrub directly, so they passed while the CLI printed the digest. The eight new tests go through the seam and through main. 466 tests pass, 100% line coverage on all three optimizer modules, ruff and mypy clean, and the reviewer's own repro now redacts.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T12:05:00Z",
+      "action": "Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "outcome": "It probed path-bearing OSErrors through a read-only XDG_STATE_HOME and a directory planted at the ledger path, pathless OSErrors, internal ConfigError propagation, and types outside the catch tuple. Its claim was that the last branch keeps __cause__ but main renders only str(exc). Re-verified rather than accepted: constructed an exception whose __str__ hides a path it still carries, and the key appears in neither str() nor the rendered traceback, because traceback rendering also goes through __str__, so the seam and the renderer read the same surface. Confirmed main formats no traceback and that OSError.__str__ renders filename2 as well as filename. Stopping the review loop at thirteen: the marginal round now returns ACCEPT and the accepting model is the same family that rejected in round 9.",
+      "artifacts": [
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".serena/memories/eval/eval-held-out-gated-optimization.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T12:30:00Z",
+      "action": "Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
+      "outcome": "A push failed with a remote ref-lock error; the retry reported [new branch], which meant the branch had been deleted rather than that the push was transiently unlucky. PR #3458 merged at 09:26Z as 4b854ad2b with head 7686d85d5, so everything through round 12 is in main and the retry had resurrected a merged PR's branch. Verified main carries the round-12 fix, its tests, and the round-12 debate log. Cherry-picked the round-13 docs commit onto a branch off the new main and deleted the resurrected branch.",
+      "artifacts": [
+        ".agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json"
+      ]
+    }
+  ],
+  "endingCommit": "e9f28051d",
+  "nextSteps": [
+    "Drive PR #3430 CI to green.",
+    "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",
+    "Open Requirement 11 (a lock lease with renewal and a fencing token) and 12 (a corpus namespace with a trusted source) are both live and unowned.",
+    "Live LLM eval spend is unavailable until 2026-08-01, so the rule adapter has been validated against real error-path output only."
+  ]
+}

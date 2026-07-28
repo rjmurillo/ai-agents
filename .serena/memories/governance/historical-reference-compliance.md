@@ -65,5 +65,5 @@ gh issue view {number} --json createdAt --jq '.createdAt[:10]'
 ## Related
 
 - Protocol: `.agents/governance/historical-reference-protocol.md`
-- Compliance plan: `.agents/planning/historical-reference-compliance-plan.md`
+- Compliance plan: `.agents/archive/planning/historical-reference-compliance-plan.md`
 - Session: `.agents/sessions/2026-01-01-session-123-historical-reference-compliance.md`

@@ -95,6 +95,67 @@ class TestDeclaredConstraints:
         path = _pyproject(tmp_path, '[project]\nname="x"\ndependencies=["!!!", "pytest>=9"]\n')
         assert set(gate.declared_constraints(path)) == {"pytest"}
 
+    def test_a_mixed_list_keeps_its_strings_rather_than_being_dropped(self, tmp_path):
+        """PEP 735 groups mix requirement strings with include-group tables.
+
+        This repo's own [dependency-groups] lint is one. Rejecting the whole
+        list on the first non-string would silently un-guard every requirement
+        beside it, which is the outcome this gate exists to prevent.
+        """
+        path = _pyproject(
+            tmp_path,
+            '[project]\nname="x"\ndependencies=["pytest>=9"]\n'
+            "[dependency-groups]\n"
+            'lint=["ruff>=0.15.16", {include-group="dev"}, 7]\n',
+        )
+        assert set(gate.declared_constraints(path)) == {"pytest", "ruff"}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param('project = "oops"\n', id="project-is-not-a-table"),
+            pytest.param('[project]\nname="x"\ndependencies="pytest>=9"\n', id="deps-is-a-string"),
+            pytest.param(
+                '[project]\nname="x"\ndependencies=[1, 2]\n',
+                id="deps-holds-non-strings",
+            ),
+            pytest.param(
+                '[project]\nname="x"\noptional-dependencies=["pytest>=9"]\n',
+                id="extras-is-a-list",
+            ),
+            pytest.param(
+                '[project]\nname="x"\n[project.optional-dependencies]\ndev="oops"\n',
+                id="one-extra-is-a-string",
+            ),
+            pytest.param(
+                '[project]\nname="x"\n[project.optional-dependencies]\ndev=[1]\n',
+                id="one-extra-holds-non-strings",
+            ),
+            pytest.param('dependency-groups = "oops"\n', id="groups-is-not-a-table"),
+        ],
+    )
+    def test_a_malformed_table_yields_no_constraints_rather_than_a_traceback(self, tmp_path, body):
+        """Every dependency table degrades the same way.
+
+        This gate runs in CI ahead of the tests that would diagnose a broken
+        pyproject, so a TypeError or AttributeError here surfaces as a pin
+        failure and sends the reader to the wrong file. Note that a non-string
+        item cannot be caught downstream either: ``Requirement(1)`` raises
+        ``TypeError``, not ``InvalidRequirement``, so it escapes the handler in
+        ``declared_constraints``.
+        """
+        assert gate.declared_constraints(_pyproject(tmp_path, body)) == {}
+
+    def test_a_malformed_section_does_not_suppress_a_healthy_one(self, tmp_path):
+        """Negative control: degrading one table must not blank the others."""
+        path = _pyproject(
+            tmp_path,
+            '[project]\nname="x"\ndependencies=["pytest>=9"]\n'
+            "optional-dependencies=[]\n"
+            '[dependency-groups]\ndev="oops"\n',
+        )
+        assert set(gate.declared_constraints(path)) == {"pytest"}
+
 
 class TestFindPins:
     def test_it_reports_the_line_number(self, tmp_path):
