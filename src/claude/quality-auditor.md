@@ -9,7 +9,7 @@ tools:
   - shell
   - cloudmcp-manager/*
   - serena/*
-model: claude-sonnet-4.6
+model: sonnet
 tier: integration
 ---
 # Quality Auditor Agent
