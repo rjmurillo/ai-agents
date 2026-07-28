@@ -184,3 +184,38 @@ def test_pre_pr_sequence_wires_skip_clause_after_skill_shells() -> None:
 
     idx = recorded.index("Skill Shell Detection")
     assert recorded[idx + 1] == "Skill SKIP Clause Routing"
+
+
+def test_missing_skills_dir_is_config_error(tmp_path: Path) -> None:
+    """Negative: a repo-root with no .claude/skills exits 2 (fail-closed)."""
+    assert skip_clauses.main(["--repo-root", str(tmp_path)]) == 2
+
+
+def test_use_instead_route_form(tmp_path: Path) -> None:
+    """Positive: 'use X instead' is a recognized SKIP route form."""
+    _write_skill(
+        tmp_path,
+        "eta-one",
+        "Use for one. Do NOT use for two; use eta-two instead.",
+    )
+    _write_skill(
+        tmp_path,
+        "eta-two",
+        "Use for two. Do NOT use for one (use eta-one).",
+    )
+    assert skip_clauses.main(["--repo-root", str(tmp_path)]) == 0
+
+
+def test_semicolon_use_route_form(tmp_path: Path) -> None:
+    """Positive: '; use X' is a recognized SKIP route form."""
+    _write_skill(
+        tmp_path,
+        "theta-one",
+        "Use for one. Do NOT use for two; use theta-two.",
+    )
+    _write_skill(
+        tmp_path,
+        "theta-two",
+        "Use for two. Do NOT use for one; use theta-one.",
+    )
+    assert skip_clauses.main(["--repo-root", str(tmp_path)]) == 0

@@ -82,7 +82,7 @@ def parse_skill_file(path: Path) -> Skill:
 def load_skills(skills_dir: Path) -> list[Skill]:
     """Load all skill frontmatter records from a skills directory."""
     if not skills_dir.exists():
-        return []
+        raise FileNotFoundError(f"skills directory does not exist: {skills_dir}")
     if not skills_dir.is_dir():
         raise NotADirectoryError(f"skills path is not a directory: {skills_dir}")
 
