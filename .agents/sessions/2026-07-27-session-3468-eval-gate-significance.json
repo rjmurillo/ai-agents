@@ -758,9 +758,27 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Phase forty-five: auditing the defect class rather than the defect",
+      "actions": [
+        "Sent the reviewer back with the generalized question: find every best-effort peek that shadows an authoritative reader with fewer branches, since that is the shape F40-1 and the round thirty-nine finding both had. Seven pairs exist across the three files. Only two readers in the codebase swallow an exception and return a domain value; every other except re-raises.",
+        "Result: the corpus header was the only pair whose missing branch could reach a decision emitter. The ledger has no pre-lock peek at all, which the round thirty-nine docstring had implied and this confirmed. No second Critical.",
+        "Closed the coverage gap the audit exposed. Every test for the corpus refusal put the bad value on the candidate, and the guard reads both headers. Added a symmetry test and verified it is real by mutation: deleting the incumbent check makes it fail at exit 1 while the rest of the suite stays green. Suite 1703."
+      ],
+      "decisions": [
+        "Keep the sharper rule rather than the blunt one. 'Peeks must carry every branch' would demand edits to the degraded-rule scan and the buffer dedup, which are safe as they are: everything they miss raises in the authority behind them, and extract never emits a verdict. The rule that survives contact is that a peek is dangerous exactly when its answer can reach a decision emitter.",
+        "Put the rule in the _corpus_header docstring rather than only in the debate log. A reader editing that function is the person who needs it, and the debate log is not on their path.",
+        "Record the audit's negative result in the debate log too. Seven pairs checked, one dangerous, is a fact worth having so the next reviewer does not repeat the enumeration."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "67b0dcb0d",
+  "endingCommit": "d6d3cdaa6",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

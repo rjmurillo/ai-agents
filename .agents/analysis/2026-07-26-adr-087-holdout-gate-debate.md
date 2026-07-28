@@ -2513,3 +2513,28 @@ writing the sentence found the defect. Here the sentence was already written,
 and nothing was checking that the code still agreed with it. A documented
 contract with no test behind it is a claim, and this one was false for two
 rounds before a reviewer read both.
+
+The audit that followed is worth recording so nobody repeats it. Seven
+peek-and-authority pairs exist across the three files: the corpus header, the
+`_absent` probe, the holdout-coverage check, the degraded-rule scan, the buffer
+dedup, the ledger reader, and the `min_sel` default. Only two readers in the
+whole codebase swallow an exception and return a domain value; every other
+`except` re-raises. The corpus header was the only pair whose missing branch
+reached something that emits a decision. The ledger has no pre-lock peek at
+all, which is what the round-thirty-nine docstring implied and this confirmed.
+
+That gives the rule a sharper edge than "peeks must be complete." A peek is
+dangerous exactly when its answer can reach a decision emitter. The
+degraded-rule scan has strictly fewer branches than the scorer it shadows and
+is safe anyway, because everything it misses raises in the authority and
+`extract` never emits a verdict; the gap costs a blunter message. The buffer
+dedup skips a non-string fingerprint and is safe because that biases toward
+re-gating an edit rather than banning one, which is the direction its own
+docstring already argued for. So the review question is not "do the branch
+counts match" but "does this answer reach a verdict, and if so do they match."
+
+One coverage gap fell out of the same review: every test for the corpus refusal
+put the bad value on the candidate, and the guard reads both headers. A test
+that only exercises one argument of a symmetric guard would pass if the guard
+dropped the other. Confirmed by mutation: deleting the incumbent check makes
+the new test fail and leaves every other test green.

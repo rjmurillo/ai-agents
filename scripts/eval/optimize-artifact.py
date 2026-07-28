@@ -376,6 +376,14 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     because a failing open names the file. `RecursionError` joins `ValueError`
     because a deeply nested array exhausts the decoder's stack rather than
     failing its grammar, and letting it out would break the promise above.
+
+    The rule that makes this one strict while the file's other best-effort
+    readers can stay lax: a peek is dangerous exactly when its answer can reach
+    something that emits a decision. This one feeds `_corpus_conflict`, which
+    emits REJECT, so it has to carry every outcome the authoritative reader
+    carries. A peek whose worst answer resolves to a refusal, the degraded-rule
+    scan or the buffer dedup, can afford fewer branches, because the authority
+    behind it raises rather than deciding.
     """
     try:
         data = json.loads(

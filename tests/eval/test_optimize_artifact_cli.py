@@ -7938,6 +7938,29 @@ class TestARepeatedJsonKeyIsRefusedNotSilentlyCollapsed:
         assert out.get("decision") != "REJECT", (label, out)
         assert "corpus" in out.get("error", ""), (label, out)
 
+    def test_the_incumbent_side_refuses_the_same_way(self, capsys, tmp_path):
+        """The guard reads both headers, so both sides must answer alike.
+
+        The preflight calls `_corpus_header` twice and refuses if either answer
+        is unreadable. Every other case here puts the bad corpus on the
+        candidate, which would pass just as well if the guard only looked at
+        one argument.
+        """
+        pin = "d" * 64
+        clean = _write(tmp_path, "clean.json", _enveloped(pin, {f"t{i}": i < 5 for i in range(10)}))
+        _, split = _split(capsys, tmp_path, "--results", clean, "--seed", "cp4")
+        split_path = _write(tmp_path, "split.json", split)
+        bad = _write(
+            tmp_path, "bad.json", _enveloped("not-a-hash", {f"t{i}": i < 5 for i in range(10)})
+        )
+        cand = _write(tmp_path, "cand.json", _enveloped(pin, {f"t{i}": True for i in range(10)}))
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", bad, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG, out
+        assert out.get("decision") != "REJECT", out
+
     def test_only_an_absent_or_null_corpus_reads_as_declaring_none(self, tmp_path):
         """The two answers that must stay `None`, and the ones that must not.
 
