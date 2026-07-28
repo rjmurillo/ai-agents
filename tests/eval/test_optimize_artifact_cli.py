@@ -1517,6 +1517,25 @@ class TestSplitFileIsSelfValidating:
         assert code == EXIT_OK
         assert out["decision"] == "ACCEPT"
 
+    def test_legacy_numeric_false_test_ratio_is_a_schema_error(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = False
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", path
+        )
+
+        assert code == EXIT_CONFIG
+        assert "legacy numeric schema or both use string schema" in out["error"]
+
     @pytest.mark.parametrize(
         ("sel_ratio", "test_ratio"),
         [
@@ -1704,7 +1723,13 @@ class TestSplitFileIsSelfValidating:
         assert code == EXIT_OK
         assert len(out["sel"]) == 3
 
-    def test_split_million_digit_ratio_has_a_subprocess_deadline(self, tmp_path):
+    @staticmethod
+    def _assert_truncated_ratio_value(message: str, original_length: int) -> None:
+        assert "..." in message
+        assert f"(length {original_length})" in message
+        assert len(message) < 200
+
+    def test_split_million_digit_ratio_uses_text_length_guard(self, tmp_path):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
         out_path = tmp_path / "split.json"
         script = f"""
@@ -1717,6 +1742,10 @@ module = importlib.util.module_from_spec(spec)
 sys.modules["optimize_artifact"] = module
 assert spec is not None and spec.loader is not None
 spec.loader.exec_module(module)
+class BoomDecimal:
+    def __init__(self, *_args, **_kwargs):
+        raise AssertionError("Decimal must not parse overlong ratios")
+sys.modules["_optimizer_core"].Decimal = BoomDecimal
 code = module.main([
     "split",
     "--results",
@@ -1741,30 +1770,55 @@ print(code)
         assert result.returncode == 0
         assert result.stdout.splitlines()[-1] == str(EXIT_CONFIG)
         payload = json.loads("\n".join(result.stdout.splitlines()[:-1]))
-        assert len(payload["error"]) < 200
+        assert "at most 128 characters" in payload["error"]
+        assert "coefficient digits" not in payload["error"]
+        self._assert_truncated_ratio_value(payload["error"], 1_000_002)
 
+    @pytest.mark.parametrize(
+        ("argv", "pattern", "lengths"),
+        [
+            (("--sel-ratio", "0." + "0" * 64), "strictly between 0 and 1", (66,)),
+            (("--test-ratio", "1." + "0" * 63), "test_ratio must be in", (65,)),
+            (
+                ("--sel-ratio", "0." + "9" * 64, "--test-ratio", "0." + "1" * 64),
+                "leave at least one opt task",
+                (66, 66),
+            ),
+            (
+                ("--sel-ratio", "0." + "4" * 64, "--test-ratio", "0." + "4" * 64),
+                "leaves no opt tasks",
+                (66, 66),
+            ),
+            (("--sel-ratio", "0." + "0" * 63 + "1"), "holds out no tasks", (66,)),
+        ],
+    )
     def test_split_semantic_ratio_errors_truncate_long_values(
+        self, tmp_path, capsys, argv, pattern, lengths
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(2)})
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         *argv, "--min-sel", "0", "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert pattern in out["error"]
+        for original_length in lengths:
+            self._assert_truncated_ratio_value(out["error"], original_length)
+
+    def test_legacy_min_sel_shortfall_error_truncates_long_values(
         self, tmp_path, capsys
     ):
-        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
-        ratio = "0." + "0" * 125
-        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
-                         "--sel-ratio", ratio, "--min-sel", "0",
-                         "--out", tmp_path / "zero.json")
-        assert code == EXIT_CONFIG
-        assert "strictly between 0 and 1" in out["error"]
-        assert len(out["error"]) < 200
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        split["min_sel"] = int("1" * 309)
+        path = _write(tmp_path, "split.json", split)
 
-    def test_split_ratio_sum_error_truncates_both_values(self, tmp_path, capsys):
-        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
-        sel_ratio = "0." + "9" * 64
-        test_ratio = "0." + "1" * 64
-        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
-                         "--sel-ratio", sel_ratio, "--test-ratio", test_ratio,
-                         "--min-sel", "0", "--out", tmp_path / "sum.json")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", path
+        )
+
         assert code == EXIT_CONFIG
-        assert "leave at least one opt task" in out["error"]
-        assert len(out["error"]) < 200
+        assert "below min_sel" in out["error"]
+        self._assert_truncated_ratio_value(out["error"], 309)
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
