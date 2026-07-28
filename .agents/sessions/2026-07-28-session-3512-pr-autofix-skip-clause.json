@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3512,
+    "date": "2026-07-28",
+    "branch": "fix/3484-skip-clause-standard",
+    "startingCommit": "7621dab9f7",
+    "objective": "Process PR #3512 under pr-autofix: fix fail-closed contract violation in load_skills() and add route-form test coverage per review threads."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Isolated worktree at /tmp/pr-3512-worktree on fix/3484-skip-clause-standard"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "PR description, issue #3484, and review threads read before mutation"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git worktree add --detach then checkout -B tracking origin branch"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "PR autofix protocol read; lease acquired at 03:34 UTC"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3484-skip-clause-standard, not main"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Not applicable for pr-autofix CLI sessions"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Not applicable for pr-autofix CLI sessions"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All review threads addressed, fix committed"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No handoff file modified"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Not applicable for pr-autofix CLI sessions"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pre-commit markdown-check passed"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pre-PR validation 36 checks, 0 failures"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit d673cbba9 on fix/3484-skip-clause-standard"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Identified 3 unresolved review threads from copilot-pull-request-reviewer"
+    },
+    {
+      "step": "Fixed load_skills() fail-closed bug: missing skills_dir now raises FileNotFoundError instead of returning empty list"
+    },
+    {
+      "step": "Added test_missing_skills_dir_is_config_error for the fail-closed contract"
+    },
+    {
+      "step": "Added test_use_instead_route_form and test_semicolon_use_route_form covering all three supported SKIP clause patterns"
+    },
+    {
+      "step": "All 16 tests pass, ruff clean, mypy clean, pre-PR validation passes with 0 failures"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push and resolve review threads after CI passes"
+  ]
+}

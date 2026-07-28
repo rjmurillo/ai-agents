@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:49:56.862028+00:00",
+  "updated": "2026-07-28T04:40:15.939070+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21915,6 +21915,69 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
       "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "ad1c190e241b",
+      "type": "milestone",
+      "label": "milestone: Identified 3 unresolved review threads from copilot-pull-request-reviewer",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.932711+00:00"
+    },
+    {
+      "id": "201690d119c5",
+      "type": "milestone",
+      "label": "milestone: Fixed load_skills() fail-closed bug: missing skills_dir now raises FileNotFoundError instead of returning empty list",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.932808+00:00"
+    },
+    {
+      "id": "4f36636f319a",
+      "type": "milestone",
+      "label": "milestone: Added test_missing_skills_dir_is_config_error for the fail-closed contract",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.932895+00:00"
+    },
+    {
+      "id": "8385d7a62b0d",
+      "type": "milestone",
+      "label": "milestone: Added test_use_instead_route_form and test_semicolon_use_route_form covering all three supported SKIP clause patterns",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.932977+00:00"
+    },
+    {
+      "id": "bf3f334fb4fa",
+      "type": "milestone",
+      "label": "milestone: All 16 tests pass, ruff clean, mypy clean, pre-PR validation passes with 0 failures",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.933061+00:00"
+    },
+    {
+      "id": "998b4c825c3b",
+      "type": "commit",
+      "label": "commit: Commit: d673cbba9",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.933142+00:00"
+    },
+    {
+      "id": "1ed6c5adca1d",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3512 under pr-autofix: fix fail-closed contract violation in load_skills() and add route-form test coverage per review threads.",
+      "episodes": [
+        "episode-2026-07-28-session-3512-pr-autofix-skip-clause"
+      ],
+      "created": "2026-07-28T04:40:15.933226+00:00"
     }
   ],
   "patterns": [
