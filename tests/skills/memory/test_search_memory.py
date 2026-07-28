@@ -65,6 +65,50 @@ class TestSearchSerena:
         assert results == []
 
 
+class TestSearchEpisodes:
+    """Tests for the Tier 2 episode reader (Issue #3630)."""
+
+    @staticmethod
+    def _episode(directory, name, task="", lessons=None):
+        import json as _json
+        (directory / f"{name}.json").write_text(
+            _json.dumps({"id": name, "task": task, "lessons": lessons or []}),
+        )
+
+    def test_finds_episode_by_slug(self, tmp_path):
+        self._episode(tmp_path, "episode-2026-01-02-session-9-ruff-ratchet")
+        self._episode(tmp_path, "episode-2026-01-02-session-8-unrelated")
+
+        results = search_memory.search_episodes("ruff", tmp_path, 10)
+        assert len(results) == 1
+        assert results[0]["Source"] == "Episodes"
+
+    def test_finds_episode_by_task(self, tmp_path):
+        self._episode(tmp_path, "episode-2026-01-02-session-9", task="repair the ratchet")
+        assert len(search_memory.search_episodes("ratchet", tmp_path, 10)) == 1
+
+    def test_structural_tokens_do_not_match_everything(self, tmp_path):
+        for index in range(4):
+            self._episode(tmp_path, f"episode-2026-01-02-session-{index}-topic-{index}")
+
+        assert search_memory.search_episodes("episode", tmp_path, 10) == []
+        assert search_memory.search_episodes("session", tmp_path, 10) == []
+        assert len(search_memory.search_episodes("topic", tmp_path, 10)) == 4
+
+    def test_missing_directory(self, tmp_path):
+        assert search_memory.search_episodes("alpha", tmp_path / "missing", 10) == []
+
+    def test_malformed_json_skipped(self, tmp_path):
+        (tmp_path / "episode-2026-01-02-session-1-alpha.json").write_text("{ bad")
+        assert search_memory.search_episodes("alpha", tmp_path, 10) == []
+
+    def test_newest_wins_a_tie(self, tmp_path):
+        self._episode(tmp_path, "episode-2026-01-02-session-1-alpha")
+        self._episode(tmp_path, "episode-2026-06-30-session-2-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert results[0]["Name"].startswith("episode-2026-06-30")
+
+
 class TestGetMemoryRouterStatus:
     """Tests for get_memory_router_status function."""
 
@@ -82,3 +126,12 @@ class TestGetMemoryRouterStatus:
         with patch.object(search_memory, "test_forgetful_available", return_value=False):
             status = search_memory.get_memory_router_status(tmp_path)
             assert status["Forgetful"]["Available"] is False
+
+    def test_reports_episode_store(self, tmp_path):
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+        (episodes / "episode-2026-01-02-session-1-alpha.json").write_text('{"task": "a"}')
+        with patch.object(search_memory, "test_forgetful_available", return_value=False):
+            status = search_memory.get_memory_router_status(tmp_path, episodes)
+        assert status["Episodes"]["Available"] is True
+        assert status["Episodes"]["MemoryCount"] == 1
