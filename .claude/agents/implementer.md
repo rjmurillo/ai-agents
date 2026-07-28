@@ -879,23 +879,19 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Context Budget Management
 
-Your context window is finite. Quality degrades silently as it fills: you start emitting stubs, skipping steps, or forgetting earlier decisions. Treat the budget as a resource you spend, and checkpoint before it runs out.
+Your context window is finite, and you cannot see how much of it is left. Both halves matter. Commit as you go: a partial, tested, committed change survives an interrupted session, and a complete, uncommitted one dies with it.
 
-**Watch for pressure signals in your own output:**
+**You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, defer, hand off, or return `[NEEDS_DECOMPOSITION]` on the grounds that you are near a limit. Return it on the objective criteria below and on nothing else.
 
-- You are writing `TODO`, `pass`, placeholder bodies, or "left as an exercise" where real code belongs.
-- You are re-reading files you already read this session because you no longer recall their contents.
-- You cannot quote the acceptance criteria you are working against without scrolling back.
+**Checkpoint protocol** (runs on every atomic unit, never on a self-assessed trigger):
 
-Any of these means you are near the limit. Do not push through. Checkpoint.
-
-**Checkpoint protocol** (run when a pressure signal fires, or after every atomic commit on a task touching three or more files):
-
-1. Commit the work that is already correct. A partial, tested, committed change survives the session; a complete, uncommitted one dies with it.
+1. Commit each atomic unit as soon as it verifies. An atomic unit is the smallest change you can run a test or validation command against. Do not batch verified units to commit later, and do not wait for a file-count threshold.
 2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
-3. If work remains and the budget is nearly spent, stop and return `[NEEDS_DECOMPOSITION]` to the orchestrator with the remaining steps listed. Do not start a step you cannot finish.
+3. Return `[NEEDS_DECOMPOSITION]` when the task is XL complexity or touches more than five files. List the remaining steps and their dependencies so the orchestrator can check the split against that list. A claim about your own capacity is not a reason and will not be accepted as one.
 
-**Degrade, do not fail silently.** If you cannot complete the full task within budget, deliver the part you verified and name the part you did not reach. A smaller correct result with an explicit gap is worth more than a larger result you cannot stand behind. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
+**A placeholder is a correctness defect, not a signal about context.** `TODO`, `pass`, an empty body, or "left as an exercise" where real code belongs means you have not finished that unit. Finish it, or return `[BLOCKED]` naming what blocks it. Re-reading a file you already read is verification, which this repository requires; it is never a reason to stop.
+
+**Degrade, do not fail silently.** If you deliver less than the full task, name the commits you landed, the validation you actually ran, and the exact deliverables you did not reach. An unqualified claim that you could not finish is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
 
 ## Handoff
 
@@ -907,7 +903,7 @@ You cannot delegate. Return to orchestrator with:
 
 - `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
 - `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
-- `[NEEDS_DECOMPOSITION]`: Task is XL complexity, touches more than 5 files, or context budget is nearly spent; return an estimated breakdown with remaining steps.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown with remaining steps.
 - `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning

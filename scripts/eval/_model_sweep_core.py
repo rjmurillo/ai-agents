@@ -146,6 +146,31 @@ def check_comparable(results: list[ModelResult]) -> None:
         )
 
 
+def refuse_degraded_results(results: list[ModelResult]) -> None:
+    """Reject model reports that contain errored fixture outcomes."""
+    degraded: list[str] = []
+    malformed: list[str] = []
+    for result in results:
+        error_count = result.error_count
+        if not isinstance(error_count, int) or isinstance(error_count, bool):
+            malformed.append(f"{result.model_id}: error_count={error_count!r}")
+        elif error_count < 0:
+            malformed.append(f"{result.model_id}: error_count={error_count}")
+        elif error_count > 0:
+            degraded.append(f"{result.model_id}: error_count={error_count}")
+    if malformed:
+        raise SweepDecisionError(
+            "model sweep report has invalid error_count values: "
+            + "; ".join(malformed)
+        )
+    if degraded:
+        raise SweepDecisionError(
+            "refusing to decide model sweep from degraded reports: "
+            + "; ".join(degraded)
+            + "; rerun until every report has error_count=0"
+        )
+
+
 def common_fixture_ids(results: list[ModelResult]) -> list[str]:
     """Sorted intersection of fixture ids present (and stable) for every model.
 
@@ -302,6 +327,7 @@ def decide(
     """
     if not results:
         raise SweepDecisionError("no model results to decide on")
+    refuse_degraded_results(results)
     check_comparable(results)
     by_id = {r.model_id: r for r in results}
     if default_model not in by_id:
@@ -436,7 +462,7 @@ def build_report(
     decision: SweepDecision,
     min_effect: float,
     seed: int,
-) -> dict:
+) -> dict[str, object]:
     """Machine-readable sweep artifact.
 
     Downstream consumers (Issue #2840): the CI governance check that fails a

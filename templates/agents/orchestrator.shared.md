@@ -258,23 +258,21 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 ## Context Budget Management
 
-Your context window is finite. Quality degrades silently as it fills: synthesis gets shallow, you re-delegate work an agent already returned, or you lose the handoff context a downstream agent needs. Treat the budget as a resource you spend, and checkpoint before it runs out.
+Your context window is finite, and you cannot see how much of it is left. Both halves matter. Synthesize and persist as you go: returns you have not folded into a coherent output die with the session, and a partial synthesis recorded in the session log survives it.
 
-**Watch for pressure signals in your own output:**
+**You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-- Your synthesis is collapsing into "analyst said X, architect said Y" because you can no longer hold the full set of returns in view to resolve conflicts.
-- You are about to re-delegate a task you already routed this session because you no longer recall the agent returned it.
-- You cannot restate the original task and its success criteria without scrolling back.
+**Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
-Any of these means you are near the limit. Do not push through. Checkpoint.
-
-**Checkpoint protocol** (run when a pressure signal fires, or before fanning out a new parallel routing wave):
-
-1. Synthesize and persist the work that is already complete. Returns you have not yet folded into a coherent output die with the session; a partial synthesis recorded in the session log survives it.
+1. Fold each return into the synthesis as it arrives rather than holding the whole set until the last one lands. A wide wave that compacts mid-flight loses every return you were still holding.
 2. Record progress in the session log per the Session Capture Protocol: delegations returned, conflicts resolved, the next concrete routing step. That is the state the next session inherits.
-3. If work remains and the budget is nearly spent, stop and hand the remaining route plan to the next session through the per-issue handoff. Do not open a delegation you cannot synthesize.
+3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
 
-**Degrade, do not fail silently.** This extends the graceful-degradation principle below from a single agent failure to your own budget. If you cannot synthesize the full set of returns within budget, deliver the synthesis you can stand behind and name the returns you did not reach. A smaller coherent output with an explicit gap beats a wider one you cannot make coherent. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
+**Check the session log before you route, not your recall.** Do not re-delegate a task you already routed this session. It wastes an agent and can return output that conflicts with the return you already hold. The log of open delegations is the authority on what is in flight; your memory of it is not. Re-reading a return you already read is verification, which this repository requires; it is never a reason to stop.
+
+**Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
+
+**Degrade, do not fail silently.** This extends the graceful-degradation principle below from a single agent failure to your own output. If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
 
 ## Reliability Principles
 
