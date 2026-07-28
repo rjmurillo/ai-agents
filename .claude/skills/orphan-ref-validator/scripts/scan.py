@@ -62,6 +62,7 @@ if __package__ in (None, ""):
     from filters import is_known_kebab_word, is_known_single_word_skill
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_repo_path_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
@@ -82,6 +83,7 @@ else:
     from .filters import is_known_kebab_word, is_known_single_word_skill
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_repo_path_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
@@ -158,6 +160,10 @@ def scan_file(
     )
     findings.extend(skill_script_findings)
     refs_checked += skill_script_refs
+
+    repo_path_findings, repo_path_refs = _check_repo_path_refs(text, rel, repo_root)
+    findings.extend(repo_path_findings)
+    refs_checked += repo_path_refs
 
     return findings, refs_checked
 
@@ -304,6 +310,33 @@ def _check_skill_script_refs(
                     "Check the exact filename (a missing word like `review` is "
                     "the issue #1987 failure mode); update the reference or "
                     "restore the script."
+                ),
+            )
+        )
+    return findings, refs_checked
+
+
+def _check_repo_path_refs(
+    text: str, rel: str, repo_root: Path
+) -> tuple[list[Finding], int]:
+    """Emit repo_path findings for missing rule and instruction paths."""
+    findings: list[Finding] = []
+    refs_checked = 0
+    for lineno, repo_path_ref in extract_repo_path_refs(text):
+        refs_checked += 1
+        if _exists_under_repo(repo_root, repo_root / repo_path_ref):
+            continue
+        findings.append(
+            Finding(
+                kind="repo_path",
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=repo_path_ref,
+                recommendation=(
+                    f"Repo path `{repo_path_ref}` not present on disk. "
+                    "Update the reference, restore the rule or instruction, "
+                    "or remove the stale mention."
                 ),
             )
         )

@@ -23,7 +23,7 @@ from pathlib import Path
 
 LOGGER = logging.getLogger("orphan_ref_validator")
 
-SCAN_FILE_SUFFIXES: tuple[str, ...] = (".md", ".json", ".yaml", ".yml")
+SCAN_FILE_SUFFIXES: tuple[str, ...] = (".md", ".json", ".yaml", ".yml", ".py")
 
 # Five vendor/VCS names plus two skill-progressive-disclosure subtrees.
 # Frozen for safety.

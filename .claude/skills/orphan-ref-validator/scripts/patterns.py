@@ -42,6 +42,19 @@ SKILL_SCRIPT_REF_RE = re.compile(
     r"/scripts/[a-zA-Z0-9_/-]+\.py(?!\w)",
     re.IGNORECASE,
 )
+# Repo-local rule and instruction paths can appear as Markdown links,
+# backticked refs, JSON/YAML/frontmatter values, bare fenced-code paths,
+# or Python string literals. The scanner validates these three canonical
+# generated-rule surfaces as ordinary repo paths (issue #3556).
+REPO_PATH_REF_RE = re.compile(
+    r"(?<![\w/])"
+    r"("
+    r"\.claude/rules/[A-Za-z0-9_.-]+\.md"
+    r"|\.github/instructions/[A-Za-z0-9_.-]+\.instructions\.md"
+    r"|src/copilot-cli/instructions/[A-Za-z0-9_.-]+\.instructions\.md"
+    r")"
+    r"(?![\w/.-])"
+)
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
@@ -104,6 +117,25 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
         seen: set[str] = set()
         for match in SKILL_SCRIPT_REF_RE.finditer(line):
             path = match.group(0)
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
+def extract_repo_path_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield repo-local rule and instruction paths from scanned text.
+
+    This extractor is intentionally syntax-agnostic. The same canonical
+    path can sit inside Markdown, JSON, YAML/frontmatter, fenced code, or
+    Python string literals. Existence checking happens in scan.py.
+    """
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        seen: set[str] = set()
+        for match in REPO_PATH_REF_RE.finditer(line):
+            path = match.group(1)
             if path in seen:
                 continue
             seen.add(path)
