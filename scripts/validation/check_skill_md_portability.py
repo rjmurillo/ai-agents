@@ -81,8 +81,9 @@ from scripts.validation.portability_common import (
 # which covers script files; this validator covers .md files. The .claude/skills/
 # pattern is excluded here: in prose a bare reference to a sibling skill by
 # ``.claude/skills/`` resolves through the install root, so it is not an
-# upstream-only dependency. ``.agents/``, ``.claude/lib/``, and
-# ``.claude/review-axes/`` have no consumer-side analogue.
+# upstream-only dependency. ``.agents/``, ``.claude/lib/``,
+# ``.claude/review-axes/``, ``templates/agents/``, and ``templates/platforms/``
+# have no consumer-side analogue.
 #
 # ``templates/agents/`` and ``templates/platforms/`` hold the agent sources and
 # platform manifests the generators read. Neither ships in the plugin, so a
@@ -153,19 +154,27 @@ _ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
 
 _BOUNDARY = rf"(?:{_ANCHOR}|{_LABEL_ANCHOR}|{_ATTR_ANCHOR})" + r"(?:\.[\\/]|[\\/])?"
 
+# Bare-ref terminator: a reference is counted when the path segment ends at a
+# word boundary (\b), a separator, a quoting delimiter, or end-of-line. The
+# lookahead avoids consuming the delimiter so overlapping contexts are not
+# missed. Without the \b alternative, references like ``.agents`` at the end of
+# a sentence (followed by period, comma, or whitespace) go uncounted (issue
+# #3482).
+_UPSTREAM_REF_TERMINATOR = r"(?=\b|[\\/]+|['\"?#]|$)"
+
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
-    re.compile(_BOUNDARY + r"\.claude[\\/]+lib(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.agents" + _UPSTREAM_REF_TERMINATOR, re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.claude[\\/]+lib" + _UPSTREAM_REF_TERMINATOR, re.IGNORECASE),
     re.compile(
-        _BOUNDARY + r"\.claude[\\/]+review-axes(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"\.claude[\\/]+review-axes" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+agents" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+platforms" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
 )

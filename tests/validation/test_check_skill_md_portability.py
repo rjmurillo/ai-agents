@@ -58,6 +58,32 @@ class TestCountUpstreamRefs:
         text = "Run .claude/skills/memory/scripts/search_memory.py here.\n"
         assert cmp.count_upstream_refs(text) == 0
 
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Use templates/agents for generation.",
+            "Use `.agents` for state.",
+            "[state](/.agents)",
+            "![state](/templates/agents)",
+            "See .claude/lib in the plugin.",
+            "Use .claude/review-axes, then report findings.",
+        ],
+    )
+    def test_counts_bare_directory_refs_at_word_boundary(self, text: str) -> None:
+        assert cmp.count_upstream_refs(text) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agentsx should not count.",
+            ".agentship should not count.",
+            ".claude/libx should not count.",
+            ".claude/review-axesx should not count.",
+        ],
+    )
+    def test_ignores_partial_word_directory_refs(self, text: str) -> None:
+        assert cmp.count_upstream_refs(text) == 0
     def test_counts_templates_agents_and_platforms(self) -> None:
         # Both hold generator inputs that never ship in the plugin, so a
         # consumer following either reference lands on nothing (issue #3459).
