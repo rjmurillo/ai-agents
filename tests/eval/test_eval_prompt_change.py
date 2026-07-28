@@ -8,6 +8,7 @@ Targets the controlled-vocabulary verdict matching introduced for issue #1755:
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
@@ -43,6 +44,45 @@ try:
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
+
+
+def _capturing_subprocess_calls(path: Path) -> list[ast.Call]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr == "run"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "subprocess"
+        ):
+            continue
+        keywords = {kw.arg: kw.value for kw in node.keywords if kw.arg is not None}
+        capture_output = keywords.get("capture_output")
+        if isinstance(capture_output, ast.Constant) and capture_output.value is True:
+            calls.append(node)
+    return calls
+
+
+def test_eval_subprocess_readers_pin_utf8_decoding():
+    for filename in (
+        "eval-prompt-change.py",
+        "eval-reviewer-asymmetry.py",
+        "eval-suite.py",
+    ):
+        calls = _capturing_subprocess_calls(EVAL_DIR / filename)
+        assert calls, f"{filename} has no captured subprocess readers"
+        for call in calls:
+            keywords = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
+            encoding = keywords.get("encoding")
+            errors = keywords.get("errors")
+            assert isinstance(encoding, ast.Constant)
+            assert encoding.value == "utf-8"
+            assert isinstance(errors, ast.Constant)
+            assert errors.value == "replace"
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3475,
+    "date": "2026-07-27",
+    "branch": "fix/3464-memory-causal-order",
+    "startingCommit": "734cc457e",
+    "objective": "Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions returned the coding tool manual"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read as read-only dashboard"
+      },
+      "issueHandoffChecked": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "find .agents/sessions/handoffs -name '*-3464-handoff.md' returned no files"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3464-memory-causal-order"
+      },
+      "recentCommitsChecked": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git log --oneline -5 read after worktree creation"
+      },
+      "issueContextRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "gh issue view 3464 --comments, gh issue view 3260 --comments, and gh pr view 3463 --comments read before edits"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP tool catalog loaded for this repository session"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created .agents/sessions/2026-07-27-session-3475-memory-causal-order.json"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3464-memory-causal-order"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log updated with context, decision, validation, and existing episode decision"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md left unmodified"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No new binding convention; the causal-order decision is implemented in tests and source comments"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest .claude/skills/memory/tests/test_extract_session_episode.py -q: 70 passed; uv run pytest src/copilot-cli/skills/memory/tests/test_extract_session_episode.py -q: 70 passed; uv run ruff check changed Python: passed; validate_plugin_version_bump.py --base origin/main: OK"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits f633ad31c9, bb2d29e1c4, 4de79677af, and 735cc876f7 created for code, tests, mirrors, plugin manifests, and session artifacts; this metadata refresh follows."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No changed Markdown files require markdownlint; changed files are Python, JSON, and generated mirrors"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Context and Chesterton fence read",
+      "actions": [
+        "Created a new worktree at ../ai-agents-3464 from origin/main on branch fix/3464-memory-causal-order",
+        "Read issue #3464, issue #3260, and PR #3463 including comments",
+        "Read session-log schema and the real session 3459 log plus its generated episode"
+      ],
+      "outcome": "Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work"
+    },
+    {
+      "phase": "Design decision",
+      "actions": [
+        "Checked .agents/schemas/session-log.schema.json and found workLog items are unconstrained objects, not an enum with stable ordinals",
+        "Checked session 3459 and found phase is free text such as Measure the gap and Review",
+        "Chose sparse rank-only edges over inventing a pre-code marker or rewriting historical episodes"
+      ],
+      "outcome": "Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp"
+    },
+    {
+      "phase": "Validation",
+      "actions": [
+        "Added red tests for issue #3464, mixed pre-code and post-code milestones, same-timestamp rank-only ties, and CLI exit code 0 on the real 3459 log",
+        "Kept the issue #3260 regression passing by proving commit events are never caused by later review milestones",
+        "Ran Claude and Copilot memory extractor tests separately because their conftest modules collide in one pytest process"
+      ],
+      "outcome": "Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed"
+    },
+    {
+      "phase": "Full validation and root tests",
+      "actions": [
+        "Updated tests/skills/memory/test_extract_session_episode.py so the repository-level suite expects sparse rank-only edges",
+        "Removed upstream-path references from mirrored skill tests by embedding the real 3459 fixture data",
+        "Ran tests/ with pytest and pre_pr.py after the adjustment"
+      ],
+      "outcome": "uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed"
+    }
+  ],
+  "endingCommit": "735cc876f7",
+  "nextSteps": [
+    "Do not regenerate existing .agents/memory/episodes artifacts in this PR; they are historical generated records and rewriting them would alter memory history. The code fix prevents new rank-only false edges."
+  ],
+  "retrospective": {
+    "summary": "## Retrospective\n\nDocstring must track behavioral contract. Test names must describe assertion not setup.",
+    "learnings": [
+      "Docstring must track behavioral contract when edge-emission rules change",
+      "Test names must describe the assertion not the setup"
+    ]
+  }
+}
