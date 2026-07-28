@@ -219,7 +219,12 @@ def _markdown_block(text: str, marker: str) -> str:
         ):
             narrowest = (start, end)
     if narrowest is None:
-        raise AssertionError(f"{marker!r} landed on a blank line")
+        raise AssertionError(
+            f"{marker!r} is on no block the renderer draws, so there is no "
+            "window to assert on: it is on a blank line, or inside a "
+            "construct the parser consumes without emitting, such as a link "
+            "reference definition"
+        )
     return "\n".join(text.split("\n")[narrowest[0]:narrowest[1]])
 
 
@@ -6655,6 +6660,24 @@ class TestMarkdownBlockStopsAtEveryBlockBoundary:
         """
         text = "| head | cols |\n| --- | --- |\n| contract | cell |\n\nafter\n"
         assert _markdown_block(text, "contract") == "| contract | cell |"
+
+
+    def test_a_marker_the_renderer_draws_no_block_for_is_refused_accurately(self):
+        """A link reference definition is consumed, not drawn.
+
+        The parser gives it no line range, so no window covers the marker.
+        Round 46 still reported that as "landed on a blank line", which is a
+        false statement about a reachable input and sends a reader looking
+        for whitespace that is not there. The refusal names both reasons.
+        """
+        text = "[contract]: http://example.com\n\nafter\n"
+        with pytest.raises(AssertionError, match="no block the renderer draws"):
+            _markdown_block(text, "contract")
+
+    def test_a_marker_on_a_blank_line_is_still_refused(self):
+        """The other half of the same refusal, which must not regress."""
+        with pytest.raises(AssertionError, match="no block the renderer draws"):
+            _markdown_block("first\n  \nsecond\n", "  ")
 
 
 class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
