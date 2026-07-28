@@ -9240,6 +9240,112 @@ class TestExtractingARulePathAcrossRepeatedRuns:
         assert code == EXIT_OK
         assert out["results"] == {"S1": False}
 
+    @staticmethod
+    def _sampled(sid, *triples, mech="full"):
+        """A scenario carrying repeated judge samples, one per triple."""
+        samples = [
+            {
+                "activation_score": t[0],
+                "citation_score": t[1],
+                "behavior_score": t[2],
+            }
+            for t in triples
+        ]
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {
+                mech: {"scores": dict(samples[0]), "score_samples": samples}
+            },
+        }
+
+    def test_the_rule_reduce_flag_reaches_the_sample_path(self, tmp_path, capsys):
+        """The flag has to move a verdict, not merely parse.
+
+        An outside review pointed out that the audit table only proved
+        `--rule-reduce` declares the same default its owner does. A wrapper
+        that accepted `reduce_samples` and dropped it left all 1355 tests in
+        the primary suites green, because nothing asserted the value arrived.
+
+        One outlier sample per run, so `median` ignores it and `mean` does
+        not, and the two answers land on opposite sides of the bar.
+        """
+        one = _write(tmp_path, "s1.json", [self._sampled("S1", (5, 5, 5), (5, 5, 5), (0, 0, 0))])
+        two = _write(tmp_path, "s2.json", [self._sampled("S1", (5, 5, 5), (5, 5, 5), (0, 0, 0))])
+
+        code, out = _run(
+            capsys, "extract", "--kind", "rule",
+            "--input", one, two, "--rule-reduce", "median",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": True}
+
+        code, out = _run(
+            capsys, "extract", "--kind", "rule",
+            "--input", one, two, "--rule-reduce", "mean",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": False}
+
+    def test_the_rule_reduce_flag_reaches_the_single_input_path_too(
+        self, tmp_path, capsys
+    ):
+        """`extract` has two rule paths and only one is the multi-run one.
+
+        A single `--input` takes the plain branch, which forwards the flag
+        separately. Pinning both stops a fix to one from leaving the other
+        reading its own default.
+        """
+        one = _write(tmp_path, "s1.json", [self._sampled("S1", (5, 5, 5), (5, 5, 5), (0, 0, 0))])
+        assert _run(
+            capsys, "extract", "--kind", "rule", "--input", one,
+            "--rule-reduce", "median",
+        )[1]["results"] == {"S1": True}
+        assert _run(
+            capsys, "extract", "--kind", "rule", "--input", one,
+            "--rule-reduce", "mean",
+        )[1]["results"] == {"S1": False}
+
+    def test_the_rule_reduce_flag_reaches_the_envelope_path(self, tmp_path, capsys):
+        """`extract --kind rule` has a third rule path, and it forwards alone.
+
+        The multi-rule envelope, `{"rules": {...}}`, produces `<rule>::<id>`
+        task ids through its own `rule_results_multi` call. Hardcoding the
+        reducer at that call left all 731 tests green even after the flat
+        paths above were pinned, so the envelope needs its own assertion.
+        """
+        scen = self._sampled("S1", (5, 5, 5), (5, 5, 5), (0, 0, 0))
+        one = _write(
+            tmp_path, "env1.json", {"rules": {"alpha": {"scenarios": [scen]}}}
+        )
+        two = _write(
+            tmp_path, "env2.json", {"rules": {"alpha": {"scenarios": [scen]}}}
+        )
+        assert _run(
+            capsys, "extract", "--kind", "rule", "--input", one, two,
+            "--rule-reduce", "median",
+        )[1]["results"] == {"alpha::S1": True}
+        assert _run(
+            capsys, "extract", "--kind", "rule", "--input", one, two,
+            "--rule-reduce", "mean",
+        )[1]["results"] == {"alpha::S1": False}
+
+    def test_a_report_without_samples_is_unmoved_by_the_flag(self, tmp_path, capsys):
+        """The negative control, and the compatibility claim the README makes.
+
+        Every report written before `score_samples` existed has to read the
+        same under all four reducers, or this flag silently rescored history.
+        """
+        path = _write(tmp_path, "plain.json", [self._scen("S1", (4, 4, 4))])
+        seen = {
+            r: _run(
+                capsys, "extract", "--kind", "rule", "--input", path,
+                "--rule-reduce", r,
+            )[1]["results"]["S1"]
+            for r in ("mean", "min", "max", "median")
+        }
+        assert seen == {"mean": True, "min": True, "max": True, "median": True}
+
     def test_runs_that_score_different_scenarios_are_refused(self, tmp_path, capsys):
         first = _write(tmp_path, "a.json", [self._scen("S1", (4, 4, 4))])
         second = _write(tmp_path, "b.json", [self._scen("S2", (4, 4, 4))])
