@@ -20,15 +20,19 @@ NEW (eyes=0, isResolved=false)
 - **REPLIED**: `reactions.eyes > 0` AND `isResolved = false` AND `has reply`
 - **RESOLVED**: `reactions.eyes > 0` AND `isResolved = true`
 
-**Functions**:
-- `Get-UnacknowledgedComments`: Detects NEW only (unacknowledged)
-- `Get-UnaddressedComments`: Detects NEW + ACKNOWLEDGED + REPLIED (all unresolved)
+**Functions**: originally `Get-UnacknowledgedComments` (detects NEW only) and
+`Get-UnaddressedComments` (detects NEW + ACKNOWLEDGED + REPLIED, all unresolved).
+The ADR-042 migration consolidated both into one Python implementation; see
+Implementation below.
 
 **Key Insight**: **Acknowledged ≠ Resolved**
 - Acknowledgment = eyes reaction added (human saw it)
 - Resolution = thread marked resolved (issue fixed, thread closed)
 
-**Implementation**: `scripts/Invoke-PRMaintenance.ps1` lines 588-753
+**Implementation**: `.claude/skills/github/scripts/pr/get_unaddressed_comments.py`.
+The state classifier is at lines 103-123 and `get_unaddressed_comments` at line 132.
+Originally `scripts/Invoke-PRMaintenance.ps1` lines 588-753; the ADR-042 migration
+removed that script and consolidated the two PowerShell helpers into this file.
 
 **Documentation**: `.agents/architecture/bot-author-feedback-protocol.md`
 
