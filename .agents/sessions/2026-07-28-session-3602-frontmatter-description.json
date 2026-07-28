@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3602,
+    "date": "2026-07-28",
+    "branch": "fix/3602-frontmatter-description-validation",
+    "startingCommit": "e4e0a826294e1cfc7dd822e6a264e01afa6adcf7",
+    "objective": "Issue #3602: reject a frontmatter description that is null, blank, non-string, or written twice, and name the file in the reason."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3602-frontmatter-description-validation origin/main"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3602-frontmatter-description-validation"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Issue #3602 body and comment thread read via gh issue view"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole session"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole session"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "AGENTS.md and .claude/rules read via the harness instruction bundle"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Fix, tests, negative controls, and adversarial battery all run"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Committed on fix/3602-frontmatter-description-validation"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "ruff clean, mypy clean, 1448 tests pass in tests/build_scripts/, validator exits 0 on the real repo"
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No QA skip taken"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown authored in this change"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Reproduced the defect with the real implementation. Five fixture files under /tmp/p3602: null, blank string, list, duplicate key, and a valid control. All five returned is_agent_definition True, so four shapes every host rejects were counted as shipping agents."
+    },
+    {
+      "step": 2,
+      "action": "Measured the real corpus before choosing the narrowing. 181 agents across the six AGENT_TREES; zero would be newly rejected. Confirms the issue's latent classification and proves the tightening breaks nothing that ships."
+    },
+    {
+      "step": 3,
+      "action": "Added DuplicateFrontmatterKey, a YAMLError subclass carrying both block-relative line numbers. Subclassing keeps every existing parse-failure handler correct: a caller that treats a YAMLError as not-an-agent still does."
+    },
+    {
+      "step": 4,
+      "action": "Added FrontmatterLoader.construct_mapping, which scans composed key nodes for a repeated description before delegating. It runs before super() because the base implementation calls flatten_mapping first, which rewrites node.value when a merge key is present."
+    },
+    {
+      "step": 5,
+      "action": "Scoped duplicate detection to the description key alone. Only that key decides agent-hood, so only its duplication makes the validator disagree with the host. Firing on any repeated key would also fire on sibling documents that are not agents, turning a targeted signal into noise."
+    },
+    {
+      "step": 6,
+      "action": "Required description to be a non-empty string. Split reason reporting from path display: is_agent_definition collects reasons, known_agents prefixes the file. Both new parameters are optional, so the 15 existing known_agents call sites keep their shape."
+    },
+    {
+      "step": 7,
+      "action": "Routed the reasons into ScanResult.config_errors, the channel the CLI already exits 2 on and the one an unreadable markdown file uses. Without it a malformed definition drops out silently and the only symptom is a matrix row naming an agent nobody ships, which points at the citation rather than the broken file."
+    },
+    {
+      "step": 8,
+      "action": "Wrote 30 tests in tests/build_scripts/test_validate_agent_matrix_refs.py, class TestDescriptionMustBeUsable, including a permanent pin that the real repository ships no unusable description."
+    },
+    {
+      "step": 9,
+      "action": "Ran an adversarial battery of 34 cases against the real implementation: 19 unusable-value shapes, 8 duplicate spellings including quoted keys, flow mappings, and explicit keys, and 7 valid controls. Zero unexpected results. Promoted the seven strongest evasion classes into permanent tests."
+    },
+    {
+      "step": 10,
+      "action": "Negative control A: reverted the implementation entirely, all 23 tests then failing. Negative control B isolated each half: removing the non-empty-string check fails 14 tests, removing duplicate detection fails 7. Restored, all 30 pass."
+    },
+    {
+      "step": 11,
+      "action": "Checked the CI wiring rather than assuming it. .github/workflows/validate-generated-agents.yml invokes the validator in two jobs and its dorny/paths-filter covers all six agent trees, so an added agent file reaches the gate. No filter gap here, unlike the one found on issue #3633."
+    },
+    {
+      "step": 12,
+      "action": "Verified no mirror exists for build/scripts/, so nothing needs syncing and no plugin manifest bump is required."
+    }
+  ],
+  "endingCommit": ""
+}

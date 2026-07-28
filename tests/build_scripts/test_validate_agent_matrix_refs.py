@@ -29,6 +29,7 @@ from pathlib import Path
 
 import frontmatter
 import pytest
+import yaml
 from markdown_it.token import Token
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -1133,3 +1134,253 @@ class TestRealRepository:
         result = vamr.scan(REPO_ROOT)
         names = {str(p) for p in result.files_with_matrix}
         assert any("orchestrator" in n for n in names)
+
+
+class TestDescriptionMustBeUsable:
+    """Issue #3602: a description a host rejects must not count as shipping.
+
+    ``is_agent_definition`` decided agent-hood on key presence alone. A
+    ``description`` written with no value loaded as ``None`` and passed, and the
+    key written twice passed because PyYAML keeps the last occurrence and
+    reports nothing. In both cases the validator says the agent ships and every
+    host disagrees, so a matrix row citing it looks resolved while the agent is
+    unloadable.
+
+    Silent exclusion is not enough on its own. A file dropped without a reason
+    surfaces only as a matrix row naming an agent nobody ships, which points the
+    reader at the citation rather than at the broken definition. The reason has
+    to name the file, and for a duplicate it has to name both lines, or the
+    author cannot find what to fix.
+    """
+
+    @staticmethod
+    def _write(directory: Path, filename: str, frontmatter_body: str) -> Path:
+        path = directory / filename
+        path.write_text(f"---\n{frontmatter_body}---\n\n# body\n", encoding="utf-8")
+        return path
+
+    def test_null_description_is_not_an_agent(self, tmp_path):
+        path = self._write(tmp_path, "nulled.md", "name: nulled\ndescription:\n")
+        assert vamr.is_agent_definition(path) is False
+
+    def test_null_description_reason_names_the_key_and_the_value(self, tmp_path):
+        path = self._write(tmp_path, "nulled.md", "description:\n")
+        reasons: list[str] = []
+        vamr.is_agent_definition(path, reasons)
+        assert len(reasons) == 1
+        assert "description" in reasons[0]
+        assert "null" in reasons[0]
+
+    def test_blank_string_description_is_not_an_agent(self, tmp_path):
+        """``description: ""`` parses as a string and carries no dispatch text."""
+        path = self._write(tmp_path, "blank.md", 'description: ""\n')
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert "blank string" in reasons[0]
+
+    def test_whitespace_only_description_is_not_an_agent(self, tmp_path):
+        path = self._write(tmp_path, "spaces.md", 'description: "   "\n')
+        assert vamr.is_agent_definition(path) is False
+
+    def test_non_scalar_description_is_not_an_agent(self, tmp_path):
+        """A list parses cleanly and is still not dispatch text."""
+        path = self._write(tmp_path, "listed.md", "description:\n  - one\n  - two\n")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert "a list" in reasons[0]
+
+    def test_numeric_description_is_not_an_agent(self, tmp_path):
+        path = self._write(tmp_path, "numeric.md", "description: 42\n")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert "an int" in reasons[0]
+
+    def test_duplicate_description_is_not_an_agent(self, tmp_path):
+        path = self._write(
+            tmp_path, "twice.md", "description: first\nmodel: sonnet\ndescription: second\n"
+        )
+        assert vamr.is_agent_definition(path) is False
+
+    def test_duplicate_description_reason_carries_both_line_numbers(self, tmp_path):
+        """The acceptance criterion. Both lines, counted from the file start.
+
+        The frontmatter block begins on the line after the opening fence, so a
+        reason computed from the YAML mark alone is off by two. The fixture puts
+        the two keys on file lines 2 and 4 to catch an off-by-one that a
+        symmetric fixture would hide.
+        """
+        body = "description: first\nmodel: x\ndescription: last\n"
+        path = self._write(tmp_path, "twice.md", body)
+        reasons: list[str] = []
+        vamr.is_agent_definition(path, reasons)
+        assert len(reasons) == 1
+        assert "lines 2 and 4" in reasons[0], reasons[0]
+
+    def test_duplicate_line_numbers_track_the_real_positions(self, tmp_path):
+        """A deeper block proves the offset is applied, not a constant guess."""
+        body = "name: deep\nmodel: sonnet\ndescription: first\ntools: []\ndescription: last\n"
+        path = self._write(tmp_path, "deep.md", body)
+        reasons: list[str] = []
+        vamr.is_agent_definition(path, reasons)
+        assert "lines 4 and 6" in reasons[0], reasons[0]
+
+    def test_three_occurrences_report_the_first_collision(self, tmp_path):
+        body = "description: a\ndescription: b\ndescription: c\n"
+        path = self._write(tmp_path, "thrice.md", body)
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert "lines 2 and 3" in reasons[0], reasons[0]
+
+    def test_duplicate_of_another_key_is_not_reported(self, tmp_path):
+        """The check is scoped to the key that decides agent-hood.
+
+        Every key is worth writing once, but only ``description`` decides
+        whether the file counts as a shipping agent. Firing on any repeated key
+        would also fire on sibling documents that are not agents at all, which
+        turns a targeted signal into noise.
+        """
+        path = self._write(tmp_path, "dupmodel.md", "model: a\nmodel: b\ndescription: real text\n")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is True
+        assert reasons == []
+
+    def test_a_valid_agent_still_passes_and_reports_nothing(self, tmp_path):
+        path = self._write(tmp_path, "good.md", "name: good\ndescription: Real dispatch text.\n")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is True
+        assert reasons == []
+
+    def test_a_document_without_the_key_reports_nothing(self, tmp_path):
+        """Absence is the normal case for a sibling doc, not a defect."""
+        path = self._write(tmp_path, "notes.md", "applyTo: '**'\n")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert reasons == []
+
+    def test_a_file_with_no_frontmatter_reports_nothing(self, tmp_path):
+        path = tmp_path / "prose.md"
+        path.write_text("# Heading\n\nProse.\n", encoding="utf-8")
+        reasons: list[str] = []
+        assert vamr.is_agent_definition(path, reasons) is False
+        assert reasons == []
+
+    def test_known_agents_excludes_the_unusable_file(self, tmp_path):
+        self._write(tmp_path, "good.md", "description: Real dispatch text.\n")
+        self._write(tmp_path, "nulled.md", "description:\n")
+        assert vamr.known_agents(tmp_path, ".md") == {"good"}
+
+    def test_known_agents_prefixes_each_reason_with_the_file(self, tmp_path):
+        """The acceptance criterion: the reason names the file."""
+        self._write(tmp_path, "nulled.md", "description:\n")
+        problems: list[str] = []
+        vamr.known_agents(tmp_path, ".md", problems)
+        assert len(problems) == 1
+        assert problems[0].startswith(str(tmp_path / "nulled.md") + ":")
+
+    def test_known_agents_displays_paths_against_the_repo_root(self, tmp_path):
+        """Matches the path style of every other config error in the report."""
+        tree = tmp_path / "agents"
+        tree.mkdir()
+        self._write(tree, "nulled.md", "description:\n")
+        problems: list[str] = []
+        vamr.known_agents(tree, ".md", problems, tmp_path)
+        assert problems[0].startswith("agents/nulled.md:")
+
+    def test_known_agents_reports_nothing_for_a_clean_tree(self, tmp_path):
+        self._write(tmp_path, "good.md", "description: Real dispatch text.\n")
+        (tmp_path / "AGENTS.md").write_text("# Instructions\n", encoding="utf-8")
+        problems: list[str] = []
+        assert vamr.known_agents(tmp_path, ".md", problems) == {"good"}
+        assert problems == []
+
+    def test_known_agents_without_a_problem_list_still_works(self, tmp_path):
+        """The 15 existing call sites pass no list and must keep their shape."""
+        self._write(tmp_path, "good.md", "description: Real dispatch text.\n")
+        self._write(tmp_path, "nulled.md", "description:\n")
+        assert vamr.known_agents(tmp_path, ".md") == {"good"}
+
+    def test_duplicate_key_error_is_a_yaml_error(self, tmp_path):
+        """Subclassing keeps every existing parse-failure handler correct."""
+        assert issubclass(vamr.DuplicateFrontmatterKey, yaml.YAMLError)
+
+    def test_scan_routes_the_reason_into_config_errors(self, tmp_path, monkeypatch):
+        """A malformed definition must fail the run, not drop out quietly.
+
+        ``config_errors`` is the channel the CLI already exits 2 on, and it is
+        what an unreadable markdown file uses. A file that claims to be an agent
+        and cannot load is the same class of problem.
+        """
+        tree = tmp_path / "agents"
+        tree.mkdir()
+        self._write(tree, "nulled.md", "description:\n")
+        monkeypatch.setattr(vamr, "AGENT_TREES", ((Path("agents"), ".md"),))
+        result = vamr.scan(tmp_path)
+        assert any("nulled.md" in error for error in result.config_errors)
+
+    def test_cli_exits_two_when_a_definition_is_unusable(self, tmp_path, monkeypatch, capsys):
+        tree = tmp_path / "agents"
+        tree.mkdir()
+        self._write(tree, "good.md", "description: Real dispatch text.\n")
+        self._write(tree, "nulled.md", "description:\n")
+        monkeypatch.setattr(vamr, "AGENT_TREES", ((Path("agents"), ".md"),))
+        assert vamr.main(["--repo-root", str(tmp_path)]) == 2
+        assert "CONFIG ERROR" in capsys.readouterr().err
+
+    def test_the_repository_ships_no_unusable_description(self):
+        """Permanent pin over the real corpus.
+
+        Issue #3602 recorded the defect as latent: 181 agents pass today and
+        none carries a null, blank, non-string, or repeated description. This
+        asserts that stays true, so the tightening cannot be satisfied by a
+        later relaxation and a real regression fails here rather than in a host.
+        """
+        problems: list[str] = []
+        for tree, suffix in vamr.AGENT_TREES:
+            directory = REPO_ROOT / tree
+            if directory.is_dir():
+                vamr.known_agents(directory, suffix, problems, REPO_ROOT)
+        assert problems == [], "\n".join(problems)
+
+    def test_a_quoted_duplicate_key_is_caught(self, tmp_path):
+        """Spelling one of the two keys in quotes must not evade the check.
+
+        These cases exist because the obvious implementation is a line-oriented
+        scan for ``description:``. Every shape below defeats that scan and is
+        the same document to a YAML reader, so the check reads composed key
+        nodes rather than text.
+        """
+        path = self._write(tmp_path, "q.md", '"description": a\ndescription: b\n')
+        assert vamr.is_agent_definition(path) is False
+
+    def test_a_flow_mapping_duplicate_is_caught(self, tmp_path):
+        path = self._write(tmp_path, "flow.md", "{description: a, description: b}\n")
+        assert vamr.is_agent_definition(path) is False
+
+    def test_an_explicit_key_duplicate_is_caught(self, tmp_path):
+        path = self._write(tmp_path, "explicit.md", "? description\n: a\ndescription: b\n")
+        assert vamr.is_agent_definition(path) is False
+
+    def test_an_empty_block_scalar_is_not_dispatch_text(self, tmp_path):
+        """``description: |`` with no body loads as the empty string."""
+        path = self._write(tmp_path, "block.md", "description: |\n")
+        assert vamr.is_agent_definition(path) is False
+
+    def test_a_boolean_description_is_not_dispatch_text(self, tmp_path):
+        """``description: true`` loads as ``bool``, not as the text "true"."""
+        path = self._write(tmp_path, "flag.md", "description: true\n")
+        assert vamr.is_agent_definition(path) is False
+
+    def test_a_nested_description_does_not_collide_with_the_top_level_one(self, tmp_path):
+        """The scan is per mapping, so an inner key is not a duplicate.
+
+        A false positive here would reject a legitimate agent, which is worse
+        than the defect being fixed: the agent ships and the validator would
+        claim it does not.
+        """
+        body = "meta:\n  description: inner note\ndescription: Real dispatch text.\n"
+        path = self._write(tmp_path, "nested.md", body)
+        assert vamr.is_agent_definition(path) is True
+
+    def test_a_multiline_folded_description_is_still_an_agent(self, tmp_path):
+        path = self._write(tmp_path, "folded.md", "description: >\n  Real dispatch text.\n")
+        assert vamr.is_agent_definition(path) is True
