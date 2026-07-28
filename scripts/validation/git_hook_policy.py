@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 import warnings
 from collections.abc import Mapping, Sequence
@@ -2997,12 +2998,25 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
+    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
+    # command. Splitting the suite across processes must not multiply how long
+    # pre-push can block, or the hook outlives lefthook's own deadline and the
+    # timeout looks nondeterministic.
+    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
     for command in _pytest_commands(repo_root):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(
+                "ERROR: pytest suite exceeded the "
+                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                file=sys.stderr,
+            )
+            return 1
         result = _run_command(
             command,
             repo_root,
             process_env=env,
-            timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,
+            timeout_seconds=remaining,
         )
         _print_process_output(result)
         if result.returncode != 0:

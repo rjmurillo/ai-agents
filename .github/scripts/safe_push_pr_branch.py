@@ -44,7 +44,12 @@ def _load_object_id_validator(
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load object id validator from {module_path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except (OSError, SyntaxError) as exc:
+        raise RuntimeError(
+            f"cannot load object id validator from {module_path}: {exc}"
+        ) from exc
     try:
         validator = vars(module)["is_full_object_id"]
     except KeyError as exc:

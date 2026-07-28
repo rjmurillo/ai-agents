@@ -8,6 +8,7 @@ import importlib.util
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -715,30 +716,72 @@ def test_main_failure_emits_populated_audit(
 # ---------------------------------------------------------------------------
 
 
+def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[str]]:
+    """Split a pytest argv into its marker expression, targets, and ignores.
+
+    Parsing the argv instead of comparing it verbatim keeps the guard on the
+    two invariants that carry the safety (which marker deselects run, and which
+    module is targeted versus ignored) while tolerating benign additions such
+    as ``-q`` or ``--maxfail``.
+    """
+    marker = ""
+    targets: list[str] = []
+    ignores: list[str] = []
+    index = 0
+    while index < len(command):
+        token = command[index]
+        if token == "-m":
+            marker = command[index + 1]
+            index += 2
+            continue
+        if token == "--ignore":
+            ignores.append(command[index + 1])
+            index += 2
+            continue
+        if token.startswith("--ignore="):
+            ignores.append(token.split("=", 1)[1])
+            index += 1
+            continue
+        if not token.startswith("-") and index > 2:
+            targets.append(token)
+        index += 1
+    return marker, targets, ignores
+
+
 def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    safe_push_tests = str(repo_root / "tests" / "test_safe_push_pr_branch.py")
 
-    assert git_hook_policy._pytest_commands(repo_root) == [
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-m",
-            "not integration",
-            str(repo_root / "tests"),
-            "--ignore",
-            str(safe_push_tests),
-        ],
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-m",
-            "not safe_push_transport",
-            str(safe_push_tests),
-        ],
-    ]
+    commands = git_hook_policy._pytest_commands(repo_root)
+    parsed = [_pytest_marker_and_paths(command) for command in commands]
+
+    for command in commands:
+        assert command[:3] == [sys.executable, "-m", "pytest"]
+
+    bulk = [entry for entry in parsed if safe_push_tests in entry[2]]
+    targeted = [entry for entry in parsed if safe_push_tests in entry[1]]
+
+    assert len(bulk) == 1, parsed
+    assert len(targeted) == 1, parsed
+
+    bulk_marker, bulk_targets, _ = bulk[0]
+    assert bulk_marker == "not integration"
+    assert str(repo_root / "tests") in bulk_targets
+
+    targeted_marker, _, targeted_ignores = targeted[0]
+    assert targeted_marker == "not safe_push_transport"
+    assert safe_push_tests not in targeted_ignores
+
+    # The transport tests must never run under pre-push, so no command may
+    # reach this module without deselecting the safe_push_transport marker.
+    for marker, targets, ignores in parsed:
+        if safe_push_tests in ignores:
+            continue
+        reaches_module = safe_push_tests in targets or str(
+            repo_root / "tests"
+        ) in targets
+        if reaches_module:
+            assert "not safe_push_transport" in marker, (marker, targets)
 
 
 def test_object_id_validator_loads_from_real_module() -> None:
@@ -777,7 +820,97 @@ def test_object_id_validator_non_callable_symbol_names_path(tmp_path: Path) -> N
 def test_object_id_validator_absent_file_names_path(tmp_path: Path) -> None:
     module_path = tmp_path / "missing_object_id.py"
 
-    with pytest.raises((RuntimeError, FileNotFoundError)) as excinfo:
+    with pytest.raises(RuntimeError) as excinfo:
         safe_push_pr_branch._load_object_id_validator(module_path)
 
     assert str(module_path) in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, FileNotFoundError)
+
+
+def test_object_id_validator_unparsable_module_names_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "object_id.py"
+    module_path.write_text("def is_full_object_id(:\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        safe_push_pr_branch._load_object_id_validator(module_path)
+
+    assert str(module_path) in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, SyntaxError)
+
+
+# ---------------------------------------------------------------------------
+# Pre-push suite timeout is a whole-suite budget, not a per-command timeout
+# ---------------------------------------------------------------------------
+
+
+def _record_pytest_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    elapsed_per_command: float,
+    returncode: int = 0,
+) -> list[float]:
+    seen: list[float] = []
+    clock = {"now": 1_000.0}
+
+    def fake_monotonic() -> float:
+        return clock["now"]
+
+    def fake_run_command(
+        args: Any,
+        repo_root: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs["timeout_seconds"])
+        clock["now"] += elapsed_per_command
+        return subprocess.CompletedProcess(list(args), returncode, "", "")
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+    return seen
+
+
+def test_run_pytest_shares_one_timeout_budget_across_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    spent = 30.0
+    seen = _record_pytest_timeouts(monkeypatch, elapsed_per_command=spent)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 0
+
+    assert len(seen) == len(git_hook_policy._pytest_commands(tmp_path))
+    assert seen[0] == pytest.approx(budget)
+    for index, timeout in enumerate(seen):
+        assert timeout == pytest.approx(budget - spent * index)
+    assert sum(seen) <= budget * len(seen)
+    assert seen[-1] < budget
+
+
+def test_run_pytest_refuses_to_start_a_command_past_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    seen = _record_pytest_timeouts(monkeypatch, elapsed_per_command=budget + 1)
+
+    assert git_hook_policy.run_pytest(tmp_path) == 1
+
+    assert len(seen) == 1
+    assert "exceeded" in capsys.readouterr().err
+
+
+def test_run_pytest_stops_on_the_first_failing_command(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seen = _record_pytest_timeouts(
+        monkeypatch,
+        elapsed_per_command=1.0,
+        returncode=3,
+    )
+
+    assert git_hook_policy.run_pytest(tmp_path) == 3
+    assert len(seen) == 1
