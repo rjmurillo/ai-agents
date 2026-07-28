@@ -1631,6 +1631,43 @@ class TestAdrReviewPolicyMergeScope:
         # a state main really held at this path.
         assert moved_in in carried
 
+    def test_a_file_merely_ending_in_the_protocol_name_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """A suffix match is not a path this gate governs.
+
+        The ADR half of the path test is anchored to a path segment, so
+        `docs/not-ADR-096-x.md` is correctly foreign. The protocol half was
+        not, so any name ending in the protocol's filename matched it:
+        `docs/fake-SESSION-PROTOCOL.md` read as governed, and a lineage
+        `--follow` crossed into it was admitted as one main had carried.
+
+        Found by review on PR #3680.
+        """
+        repo, adr_path, foreign = _repo_where_a_merge_linked_a_non_adr_file(
+            tmp_path,
+            ordinary="docs/fake-SESSION-PROTOCOL.md",
+        )
+
+        carried = policy._origin_main_blob_ids(repo, adr_path)
+
+        assert foreign not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
+
+    def test_the_protocol_itself_is_still_a_path_this_gate_governs(
+        self,
+        tmp_path,
+    ):
+        """The negative control for the test above.
+
+        Anchoring the protocol half must not narrow it past the real file,
+        which lives one directory down and is the reason the alternative
+        exists. Checked at both the segment boundary and the repository root.
+        """
+        assert policy.ADR_REVIEW_PATH_RE.search(".agents/SESSION-PROTOCOL.md")
+        assert policy.ADR_REVIEW_PATH_RE.search("SESSION-PROTOCOL.md")
+
     def test_a_rename_between_two_adrs_is_still_carried(
         self,
         tmp_path,
@@ -1647,7 +1684,10 @@ class TestAdrReviewPolicyMergeScope:
         assert side_blob in policy._origin_main_blob_ids(repo, name)
 
 
-def _repo_where_a_merge_linked_a_non_adr_file(tmp_path: Path) -> tuple[Path, str, str]:
+def _repo_where_a_merge_linked_a_non_adr_file(
+    tmp_path: Path,
+    ordinary: str = "notes.md",
+) -> tuple[Path, str, str]:
     """Build a repo where `--follow` crosses from an ADR into an ordinary file.
 
     One branch edits `notes.md`; another drops it and adds an ADR holding that
@@ -1664,9 +1704,9 @@ def _repo_where_a_merge_linked_a_non_adr_file(tmp_path: Path) -> tuple[Path, str
     _git(repo, "config", "user.name", "Test User")
     _git(repo, "config", "diff.renames", "true")
 
-    ordinary = "notes.md"
     adr = ".agents/architecture/ADR-096-linked.md"
     (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ordinary).parent.mkdir(parents=True, exist_ok=True)
     (repo / ordinary).write_bytes(b"the state that was never an adr\n")
     _git(repo, "add", "--", ordinary)
     _git(repo, "commit", "-qm", "an ordinary file")

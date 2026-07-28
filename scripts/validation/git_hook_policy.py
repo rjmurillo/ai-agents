@@ -36,7 +36,7 @@ PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_REVIEW_PATH_RE = re.compile(
-    r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|SESSION-PROTOCOL\.md$",
+    r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|(?:^|[\\/])SESSION-PROTOCOL\.md$",
     re.IGNORECASE,
 )
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
