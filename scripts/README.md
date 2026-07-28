@@ -157,7 +157,8 @@ See [docs/WORKFLOW-VALIDATION.md](../docs/WORKFLOW-VALIDATION.md) for complete d
 
 ### Other Validation Scripts
 
-- `scripts/validation/consistency.py` - Cross-document consistency
+- `scripts/validation/hook_contracts.py` - Hook registration contract checks, wired by Hook Contract Check
+- `scripts/validation/traceability.py` - Spec link traceability, wired by pre-PR sequence step 10
 - `sync_mcp_config.py` - MCP configuration sync
 - `check_skill_exists.py` - Skill availability check
 - `invoke_batch_pr_review.py` - Batch PR review automation

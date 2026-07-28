@@ -177,6 +177,14 @@
         "Bumped both manifests to 0.6.146 after main reached 0.6.145",
         "Full suite green after the merge: 15800 passed, 26 skipped, 0 failed"
       ]
+    },
+    {
+      "phase": "Merge 4",
+      "actions": [
+        "Merged main again. The only conflict was causal-graph.json, for the fourth consecutive merge",
+        "Measured the recurrence rather than assuming it: 6 of the last 8 commits on main modify causal-graph.json, so this branch conflicts with nearly every merge to main and will keep doing so until it lands",
+        "That recurrence is the deletion's own argument. An artifact that no reader consumes should not be able to conflict with unrelated work six times in eight commits"
+      ]
     }
   ],
   "endingCommit": "",
