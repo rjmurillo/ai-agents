@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-28T06:46:04.100514+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -4469,7 +4469,7 @@
       "created": "2026-06-03T14:22:54.415002+00:00"
     },
     {
-      "id": "8e549dc0b906",
+      "id": "787ed7cb3277",
       "type": "test",
       "label": "test: uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-068",
       "episodes": [
@@ -4487,7 +4487,7 @@
       "created": "2026-06-03T14:22:54.415038+00:00"
     },
     {
-      "id": "a6f3243a724d",
+      "id": "d54f9c3e3328",
       "type": "milestone",
       "label": "milestone: ADR-068 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
       "episodes": [
@@ -4521,24 +4521,6 @@
         "episode-2026-06-02-session-1874"
       ],
       "created": "2026-06-04T06:52:32.373944+00:00"
-    },
-    {
-      "id": "787ed7cb3277",
-      "type": "test",
-      "label": "test: uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-068",
-      "episodes": [
-        "episode-2026-06-03-session-1874"
-      ],
-      "created": "2026-06-03T14:22:54.415020+00:00"
-    },
-    {
-      "id": "d54f9c3e3328",
-      "type": "milestone",
-      "label": "milestone: ADR-068 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
-      "episodes": [
-        "episode-2026-06-03-session-1874"
-      ],
-      "created": "2026-06-03T14:22:54.415056+00:00"
     },
     {
       "id": "529c3fe1602d",
@@ -5445,7 +5427,7 @@
       "created": "2026-06-07T20:00:30.168469+00:00"
     },
     {
-      "id": "5a5e021b2b74",
+      "id": "6de8da1ebae4",
       "type": "test",
       "label": "test: uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (manifest versions bumped), Install Parity PASS, Em/en-dash PASS.",
       "episodes": [
@@ -5488,15 +5470,6 @@
         "episode-2026-06-07-session-2375-triage-open-issues-sweep-fix"
       ],
       "created": "2026-06-07T04:59:38.914577+00:00"
-    },
-    {
-      "id": "6de8da1ebae4",
-      "type": "test",
-      "label": "test: uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (manifest versions bumped), Install Parity PASS, Em/en-dash PASS.",
-      "episodes": [
-        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude"
-      ],
-      "created": "2026-06-07T20:00:30.168574+00:00"
     },
     {
       "id": "6584c4b86a5f",
@@ -7588,7 +7561,7 @@
       "created": "2026-06-20T20:03:54.934603+00:00"
     },
     {
-      "id": "4cf2d8176fb1",
+      "id": "ee39d97b180d",
       "type": "commit",
       "label": "commit: Commit: 042a217de",
       "episodes": [
@@ -7667,15 +7640,6 @@
         "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
       ],
       "created": "2026-06-20T20:09:10.583103+00:00"
-    },
-    {
-      "id": "ee39d97b180d",
-      "type": "commit",
-      "label": "commit: Commit: 042a217de",
-      "episodes": [
-        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
-      ],
-      "created": "2026-06-20T20:03:54.934630+00:00"
     },
     {
       "id": "467f4b010f26",
@@ -12370,7 +12334,7 @@
       "created": "2026-07-08T13:57:03.566060+00:00"
     },
     {
-      "id": "7fa565ace1de",
+      "id": "4a28017206e9",
       "type": "commit",
       "label": "commit: Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
       "episodes": [
@@ -12458,15 +12422,6 @@
         "episode-2026-07-08-session-2614"
       ],
       "created": "2026-07-08T14:41:50.366890+00:00"
-    },
-    {
-      "id": "4a28017206e9",
-      "type": "commit",
-      "label": "commit: Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
-      "episodes": [
-        "episode-2026-07-08-session-2814-adr006ci"
-      ],
-      "created": "2026-07-08T14:41:50.370092+00:00"
     },
     {
       "id": "3196ea13675f",
@@ -13145,7 +13100,7 @@
       "created": "2026-07-19T23:21:35.418183+00:00"
     },
     {
-      "id": "d9f479373a90",
+      "id": "dd99f40afc84",
       "type": "commit",
       "label": "commit: Commit: 27df92abe",
       "episodes": [
@@ -16818,15 +16773,6 @@
         "episode-2026-07-26-session-3400-orphaned-test-hardening"
       ],
       "created": "2026-07-26T21:44:36.625585+00:00"
-    },
-    {
-      "id": "dd99f40afc84",
-      "type": "commit",
-      "label": "commit: Commit: 27df92abe",
-      "episodes": [
-        "episode-2026-07-19-session-3248-adr033-routing-gates"
-      ],
-      "created": "2026-07-19T23:21:35.418280+00:00"
     },
     {
       "id": "c227b14d5ea7",
@@ -23419,6 +23365,15 @@
         "episode-2026-07-27-session-3607-agent-context-self-report"
       ],
       "created": "2026-07-28T04:39:38.801440+00:00"
+    },
+    {
+      "id": "754b168b27cc",
+      "type": "commit",
+      "label": "commit: Commit: 0f824c400",
+      "episodes": [
+        "episode-2026-07-28-session-3561"
+      ],
+      "created": "2026-07-28T06:46:04.093984+00:00"
     }
   ],
   "patterns": [

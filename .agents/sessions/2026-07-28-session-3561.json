@@ -77,19 +77,36 @@
     {
       "action": "fix",
       "description": "Deferred sqlite3 availability check returns exit 3 per ADR-035",
-      "files": ["scripts/forgetful/import_forgetful_memories.py"]
+      "files": [
+        "scripts/forgetful/import_forgetful_memories.py"
+      ]
     },
     {
       "action": "fix",
       "description": "Custom tmp_path fixture reproduces pytest retention cleanup",
-      "files": ["conftest.py"]
+      "files": [
+        "conftest.py"
+      ]
     },
     {
       "action": "retrospective",
       "description": "Captured learnings from adversarial review",
-      "files": [".agents/retrospective/2026-07-28-pr-3561-pytest-isolation.md"]
+      "files": [
+        ".agents/retrospective/2026-07-28-pr-3561-pytest-isolation.md"
+      ]
+    },
+    {
+      "action": "fix",
+      "description": "Repair stale causal-graph node IDs after merge from main",
+      "files": [
+        ".agents/memory/causality/causal-graph.json"
+      ]
     }
   ],
-  "endingCommit": "c590117fc",
-  "nextSteps": ["Verify CI passes", "Reply to review", "Merge PR 3561"]
+  "endingCommit": "0f824c400",
+  "nextSteps": [
+    "Verify CI passes",
+    "Reply to review",
+    "Merge PR 3561"
+  ]
 }
