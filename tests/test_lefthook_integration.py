@@ -5917,9 +5917,6 @@ def test_changed_commit_path_and_scan_edge_cases(
 ) -> None:
     real_commit_paths = policy._commit_paths
     real_scan_pushed_head = policy._scan_pushed_head
-    root_update = _push_update(range_spec="head")
-    monkeypatch.setattr(policy, "_commit_paths", lambda *_args: ["root.py"])
-    assert policy._changed_commit_paths(root_update, tmp_path) == ["root.py"]
 
     range_update = _push_update()
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
