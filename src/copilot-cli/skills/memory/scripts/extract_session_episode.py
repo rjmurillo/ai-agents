@@ -1443,7 +1443,7 @@ def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]
 
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
-    """Populate ``caused_by``/``leads_to`` as a lifecycle-ordered chain.
+    """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
     reflexion retrieval can walk a connected causal graph, but every

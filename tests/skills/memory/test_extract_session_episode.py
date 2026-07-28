@@ -1300,7 +1300,7 @@ class TestSequentialEventLinks:
             "leads_to": [],
         }
 
-    def test_multi_event_chain(self):
+    def test_cross_rank_ties_produce_no_edges(self):
         events = [self._evt("e001"), self._evt("e002", "test"), self._evt("e003", "commit")]
         extract_session_episode._link_sequential_events(events)
         assert [e["id"] for e in events] == ["e001", "e002", "e003"]
@@ -1352,7 +1352,7 @@ class TestSequentialEventLinks:
         assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == ["e003"]
         assert events[2]["caused_by"] == ["e002"] and events[2]["leads_to"] == []
 
-    def test_unknown_type_sorts_at_default_rank(self):
+    def test_unknown_type_at_default_rank_produces_no_edges(self):
         events = [
             self._evt("e001", "error", "boom"),
             self._evt("e002", "mystery", "?"),
