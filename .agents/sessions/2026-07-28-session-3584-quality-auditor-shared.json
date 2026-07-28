@@ -85,6 +85,9 @@
     },
     {
       "step": "Revert check in sibling worktree ai-agents-3584-revert restored the five new agent surfaces to origin/main while keeping tests. Result: all 15 tests failed, proving the tests are not tautological."
+    },
+    {
+      "step": "Learnings captured: route reachability is a cross-surface contract. A matrix row is not enough unless every install has the named agent prompt and the generated mirrors validate from the shared source."
     }
   ],
   "endingCommit": "6a98b368",

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T01:47:36.446443+00:00",
+  "updated": "2026-07-28T03:31:32.479838+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22762,6 +22762,15 @@
         "episode-2026-07-28-session-3584-quality-auditor-shared"
       ],
       "created": "2026-07-28T01:47:36.440470+00:00"
+    },
+    {
+      "id": "b98d960d1c2e",
+      "type": "milestone",
+      "label": "milestone: Learnings captured: route reachability is a cross-surface contract. A matrix row is not enough unless every install has the named agent prompt and the generated mirrors validate from the shared source.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T03:31:32.473282+00:00"
     }
   ],
   "patterns": [
