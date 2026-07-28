@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T05:22:12.156585+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15573,7 +15573,8 @@
       "episodes": [
         "episode-2026-07-25-session-3275-smoke-signal",
         "episode-2026-07-26-session-2612",
-        "episode-2026-07-26-session-3342-harness-reference-size"
+        "episode-2026-07-26-session-3342-harness-reference-size",
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
       ],
       "created": "2026-07-26T09:39:53.610242+00:00"
     },
@@ -22681,6 +22682,60 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "8ef645d46b80",
+      "type": "milestone",
+      "label": "milestone: Prove issue #3575 still real",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.149509+00:00"
+    },
+    {
+      "id": "263365cc2639",
+      "type": "milestone",
+      "label": "milestone: Decide relation to PR #3561",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.149611+00:00"
+    },
+    {
+      "id": "bae8c87ef35e",
+      "type": "milestone",
+      "label": "milestone: Implement supported full-suite path",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.149704+00:00"
+    },
+    {
+      "id": "6a4003be1d15",
+      "type": "test",
+      "label": "test: Full suite with PYTEST_NON_TMP_ROOT=../ai-agents-test-state/issue3575-full-non-tmp-final passed: 15873 passed, 26 skipped, 2 warnings in 258.75s.",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.149788+00:00"
+    },
+    {
+      "id": "fe67560a713f",
+      "type": "commit",
+      "label": "commit: Commit: 71abbcaf",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.149925+00:00"
+    },
+    {
+      "id": "3c0785ceba69",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3575 by providing one passing full-suite pytest configuration that does not depend on system /tmp.",
+      "episodes": [
+        "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+      ],
+      "created": "2026-07-28T05:22:12.150006+00:00"
     }
   ],
   "patterns": [

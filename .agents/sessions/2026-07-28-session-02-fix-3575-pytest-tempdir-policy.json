@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2,
+    "date": "2026-07-28",
+    "branch": "fix/3575-pytest-tempdir-policy",
+    "startingCommit": "bbe26780",
+    "objective": "Fix issue #3575 by providing one passing full-suite pytest configuration that does not depend on system /tmp.",
+    "id": "2026-07-28-session-02-fix-3575-pytest-tempdir-policy"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded during this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier in this session as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this JSON log under .agents/sessions/ for issue #3575."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch fix/3575-pytest-tempdir-policy was created from origin/main and merged current origin/main before final validation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All #3575 changes are on fix/3575-pytest-tempdir-policy, not main."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3575, PR #3561, and repository instructions supplied the relevant context."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before session log creation."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #3575 still reproduced on current main, then passed with the non-/tmp runner and pytest basetemp allowlist."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new durable convention was created. The supported configuration is encoded in CI and tests."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed for #3575, so scoped markdown lint had no target."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code change committed on this branch before this session-log commit. Current HEAD before log commit was 71abbcaf."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest, ruff, mypy, build_all --check, pre_pr, security review, negative controls, and full non-/tmp pytest suite passed. Learnings captured in this session log."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3575 PR preparation is complete once this session log is committed and pushed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Prove issue #3575 still real",
+      "outcome": "Outside-worktree non-/tmp TMPDIR plus basetemp failed two log-session-end tests on main. In-tree TMPDIR plus basetemp failed the build_all fake non-repo test on main.",
+      "evidence": "Outside config exited 1 with two failures. In-tree config exited 1 with ignored_paths receiving .claude/hooks/audit.log."
+    },
+    {
+      "task": "Decide relation to PR #3561",
+      "outcome": "#3575 is not fully subsumed by #3561. PR #3561 addresses the in-tree #3511 failure class; #3575 also covers an outside-worktree non-/tmp full-suite configuration that #3561 does not implement.",
+      "evidence": "PR #3561 changes conftest.py, forgetful sqlite handling, and plugin-manifest tests. It does not change log_session_end_skip allowed roots or CI pytest invocation."
+    },
+    {
+      "task": "Implement supported full-suite path",
+      "outcome": "CI now runs pytest through scripts/ci/run_pytest_non_tmp.py with PYTEST_NON_TMP_ROOT under runner.temp. conftest.py exports pytest basetemp, and log_session_end_skip accepts that root.",
+      "evidence": "Full suite with PYTEST_NON_TMP_ROOT=../ai-agents-test-state/issue3575-full-non-tmp-final passed: 15873 passed, 26 skipped, 2 warnings in 258.75s."
+    },
+    {
+      "task": "Negative controls",
+      "outcome": "Seven added tests failed when production changes were reverted in a scratch worktree outside the repository.",
+      "evidence": "See ../ai-agents-test-state/logs/3575-negative-controls-2.tsv."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "A passing no-/tmp pytest policy needs both TMPDIR and basetemp outside the repository",
+        "context": "Issue #3575",
+        "application": "Use a CI wrapper that rejects repository-contained temp roots and passes --basetemp explicitly."
+      }
+    ]
+  },
+  "endingCommit": "71abbcaf",
+  "nextSteps": [
+    "Open PR with Fixes #3575 and wait for CI review."
+  ],
+  "developmentPhase": {
+    "current": "completion",
+    "history": [
+      {
+        "phase": "completion",
+        "gate": "passed"
+      }
+    ]
+  }
+}
