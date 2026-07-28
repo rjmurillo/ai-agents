@@ -100,6 +100,21 @@ def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
+def _write_file(repo: Path, relative_path: str, content: str) -> None:
+    """Write a worktree file as the bytes it was handed.
+
+    `Path.write_text` translates `\n` to `os.linesep`, so a caller asking for
+    `a\nb` puts `a\r\nb` on disk under Windows. `_commit_file` writes bytes, so
+    a test that seeded a path one way and revised it the other produced two
+    revisions differing on every line, and any diff taken across them was of
+    the line endings rather than the edit. This is the same primitive, so the
+    two agree on every platform.
+    """
+    path = repo / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content.encode("utf-8"))
+
+
 def _copy_runtime_config(repo: Path) -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     for hook_name in ("commit-msg", "pre-commit", "pre-push"):
@@ -1461,7 +1476,7 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     _commit_file(repo, "source.py", "before\n")
     _git(repo, "add", "lefthook.yml", "fixer.py")
     _git(repo, "commit", "-qm", "test: add formatter")
-    (repo / "source.py").write_text("changed\n", encoding="utf-8")
+    _write_file(repo, "source.py", "changed\n")
     _git(repo, "add", "source.py")
 
     _run_lefthook(repo, "run", "pre-commit", "--force")
@@ -1949,9 +1964,9 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
-    (repo / "doc.md").write_text("working tree clean\n", encoding="utf-8")
+    _write_file(repo, "doc.md", "working tree clean\n")
 
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
     assert policy.check_staged_dashes([], repo) == 0
@@ -2174,7 +2189,7 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
     monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
     generated.unlink()
 
@@ -2399,7 +2414,7 @@ def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     _init_repo(repo)
     _commit_file(repo, ".vscode/mcp.json", '{"version": 1}\n')
     (repo / ".factory").mkdir()
-    (repo / ".vscode/mcp.json").write_text('{"version": 2}\n', encoding="utf-8")
+    _write_file(repo, ".vscode/mcp.json", '{"version": 2}\n')
     (repo / ".factory/mcp.json").write_text("{}\n", encoding="utf-8")
     (repo / "unrelated.txt").write_text("do not stage\n", encoding="utf-8")
 
@@ -2676,7 +2691,7 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
-    (repo / "nested/source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = True\n")
     (repo / ".gitattributes").write_text(
         "nested/source.py export-ignore\n",
         encoding="utf-8",
@@ -2707,10 +2722,7 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.js", "const safe = true;\n")
-    (repo / "source.js").write_text(
-        "const value = '$Format:a%eval(userInput);$';\n",
-        encoding="utf-8",
-    )
+    _write_file(repo, "source.js", "const value = '$Format:a%eval(userInput);$';\n")
     (repo / ".gitattributes").write_text("source.js export-subst\n", encoding="utf-8")
     _git(repo, "add", "source.js", ".gitattributes")
     _git(repo, "commit", "-qm", "test: substitute pushed finding")
@@ -2738,7 +2750,7 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.py", "dangerous = False\n")
-    (repo / "source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "source.py", "dangerous = True\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -4097,10 +4109,7 @@ def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
     base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
-    (repo / "mod.py").write_text(
-        "line one\nline TWO changed\nline three\nline four\nline five\n",
-        encoding="utf-8",
-    )
+    _write_file(repo, "mod.py", "line one\nline TWO changed\nline three\nline four\nline five\n")
     _git(repo, "add", "--", "mod.py")
     _git(repo, "commit", "-qm", "test: modify mod.py")
 
@@ -4574,6 +4583,58 @@ def test_a_committed_lone_carriage_return_is_not_expanded(tmp_path: Path) -> Non
     _commit_file(repo, "tracked", "a\rb")
 
     assert policy._read_head_blob(repo, "tracked") == b"a\rb"
+
+
+def test_a_worktree_write_stores_the_bytes_it_was_handed(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "tracked", "one\ntwo\n")
+
+    assert (repo / "tracked").read_bytes() == b"one\ntwo\n"
+
+
+def test_a_worktree_write_leaves_carriage_returns_alone(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "tracked", "one\r\ntwo\r")
+
+    assert (repo / "tracked").read_bytes() == b"one\r\ntwo\r"
+
+
+def test_a_worktree_write_creates_the_parent_directory(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "nested/deeper/tracked", "content\n")
+
+    assert (repo / "nested/deeper/tracked").read_bytes() == b"content\n"
+
+
+def test_seeding_and_revising_a_file_differ_only_where_the_text_differs(
+    tmp_path: Path,
+) -> None:
+    """Pin the two fixture writers against each other.
+
+    `_commit_file` seeds a path and `_write_file` revises it, so a diff across
+    the pair has to show the edited line and nothing else. When the two used
+    different newline handling this diff was every line under Windows, which is
+    how `test_changed_line_map_reads_real_git_diff` failed there while passing
+    everywhere else. `os.linesep` is `\n` on Linux, so this cannot go red here;
+    Windows CI is what exercises it.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "mod.py", "one\ntwo\nthree\n")
+    _write_file(repo, "mod.py", "one\nTWO\nthree\n")
+    _git(repo, "add", "--", "mod.py")
+    _git(repo, "commit", "-qm", "test: revise mod.py")
+
+    changed = policy._changed_line_map(["mod.py"], repo, base)
+
+    assert changed is not None
+    assert changed["mod.py"] == {2}
 
 
 def test_the_head_blob_reader_returns_none_for_a_path_no_commit_holds(
