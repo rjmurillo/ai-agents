@@ -42,14 +42,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -104,8 +106,21 @@ def _read_json(path: Path) -> object:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise ConfigError(f"no such file: {path}") from exc
+    except UnicodeDecodeError as exc:
+        # UnicodeDecodeError subclasses ValueError, so `main` caught it and the
+        # loop kept running, but the error document named the decoder's class
+        # instead of ConfigError. `_read_text` already wraps it; two readers of
+        # the same bytes reported the same failure two ways.
+        raise ConfigError(f"{path} is not valid UTF-8: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
+    except RecursionError as exc:
+        # Deeply nested arrays exhaust the decoder's stack rather than failing
+        # its grammar, so this is a second exception family out of one call
+        # that every caller reads as one. The gate's preflight promises it
+        # cannot raise on content; leaving this uncaught let a nested file
+        # crash the run ahead of an exhausted-budget refusal.
+        raise ConfigError(f"{path} is nested too deeply to parse") from exc
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
 
@@ -143,10 +158,104 @@ def _covers_holdout(results: Mapping[str, Any], sel_ids: list[str]) -> bool:
     return all(isinstance(results.get(task_id), bool) for task_id in sel_ids)
 
 
-def _read_results(path: Path) -> dict[str, bool]:
+class ResultsFile(NamedTuple):
+    """A scored task set plus the identity of the corpus it was scored against.
+
+    The two travel together because a verdict about the first is meaningless
+    without the second. `corpus` is None when the upstream scorer publishes no
+    corpus identity, which is the honest answer for the rule and hook paths
+    today; it is never synthesized from the task ids, because ids matching is
+    exactly the condition under which a mismatched pair slips through.
+    """
+
+    results: dict[str, bool]
+    corpus: str | None
+
+
+_RESULTS_SCHEMA = "optimizer-results/1"
+
+# A corpus identity is the producer's sha256 hex digest of the task set. The
+# form is checked rather than taken on faith because an unchecked string makes
+# the guard report success on values that identify nothing: two reports both
+# carrying `fixture_set_sha: ""` compared as verified until a fifteenth review
+# pointed at it. Lowercase only, because `hexdigest()` has exactly one spelling
+# and accepting a second would make two names for one corpus look like two
+# corpora.
+_CORPUS_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+
+# A split written before the pin existed says nothing about the corpus, which is
+# different from one that pinned an unknown. A sentinel keeps the two apart;
+# `None` cannot, because `None` is a legal pin. JSON cannot produce this value,
+# so no split file can forge an absent pin.
+_UNPINNED = object()
+
+
+def _checked_corpus(path: Path, value: object) -> str | None:
+    """The value if it is a corpus identity, None if absent, else a refusal."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigError(f"{path} corpus must be a string or null, got {type(value).__name__}")
+    if not _CORPUS_RE.match(value):
+        raise ConfigError(
+            f"{path} corpus is not a sha256 hex digest. A corpus identity that "
+            "is not one cannot be compared against another, and an empty or "
+            "truncated value would report a verified match it never made."
+        )
+    return value
+
+
+def _read_results(path: Path) -> ResultsFile:
     data = _read_json(path)
     if not isinstance(data, dict):
         raise ConfigError(f"{path} must hold a JSON object of task id to boolean")
+    # A bare mapping is all-boolean by construction, so a string-valued
+    # `schema` is unambiguous. Keying on the presence of the word alone would
+    # misread a legacy file whose task happened to be named `schema`.
+    if isinstance(data.get("schema"), str):
+        return _read_results_envelope(path, data)
+    return ResultsFile(_checked_verdicts(path, data), None)
+
+
+def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
+    schema = data["schema"]
+    if schema != _RESULTS_SCHEMA:
+        raise ConfigError(
+            f"{path} declares schema {schema!r}, which this build cannot read; "
+            f"expected {_RESULTS_SCHEMA!r}"
+        )
+    results = data.get("results")
+    if not isinstance(results, dict):
+        raise ConfigError(f"{path} envelope needs a 'results' object of task id to boolean")
+    return ResultsFile(_checked_verdicts(path, results), _checked_corpus(path, data.get("corpus")))
+
+
+def _corpus_header(path: Path) -> str | None:
+    """The file's declared corpus, read without validating anything else.
+
+    Best-effort on purpose: every content problem answers None rather than
+    raising. This runs before the ledger lock so the corpus refusal costs
+    nothing, and a read that could raise there would let a malformed verdict
+    mapping answer in place of the ledger. An exhausted budget is the
+    authoritative refusal and must not be masked by a parse error that the full
+    read, after the guards, reports properly anyway.
+
+    Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
+    because a failing open names the file. `RecursionError` joins `ValueError`
+    because a deeply nested array exhausts the decoder's stack rather than
+    failing its grammar, and letting it out would break the promise above.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
+        return None
+    value = data.get("corpus")
+    return value if isinstance(value, str) and _CORPUS_RE.match(value) else None
+
+
+def _checked_verdicts(path: Path, data: dict[str, Any]) -> dict[str, bool]:
     bad = [k for k, v in data.items() if not isinstance(v, bool)]
     if bad:
         raise ConfigError(
@@ -188,6 +297,24 @@ def _read_split(path: Path) -> dict[str, Any]:
             raise ConfigError(
                 f"{path} group '{group}' must be a list of strings"
             )
+    if not isinstance(data["fingerprint"], str):
+        # Same defect as the `corpus` pin below, in the same field position.
+        # An unhashable fingerprint reaches a set membership test in
+        # `_split_drifted` that sits one line past the `except TypeError`
+        # written to catch exactly this, so it escaped on scope rather than
+        # on intent. Checked here because this is where the file's shape is
+        # already settled for both callers.
+        raise ConfigError(
+            f"{path} fingerprint must be a string, not "
+            f"{type(data['fingerprint']).__name__}. A split file that cannot "
+            "be re-fingerprinted cannot be verified; re-run split."
+        )
+    if "corpus" in data:
+        # Optional, and caller-supplied like the rest of the file. Unvalidated
+        # it reached the conflict rule as-is, where a list pin raised
+        # `TypeError` out of a set comprehension and a truncated string named a
+        # corpus that identifies nothing.
+        data["corpus"] = _checked_corpus(path, data["corpus"])
     return data
 
 
@@ -210,34 +337,61 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         seed = str(split["seed"])
         raw_sel_ratio = split["sel_ratio"]
         raw_test_ratio = split["test_ratio"]
-        sel_ratio = str(raw_sel_ratio)
-        test_ratio = str(raw_test_ratio)
-        redrawn = split_tasks(
-            tasks,
-            seed=seed,
-            sel_ratio=sel_ratio,
-            test_ratio=test_ratio,
-            min_sel=int(split.get("min_sel", 3)),
-        )
-        compatible_fingerprints = {redrawn.fingerprint}
-        if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
-            compatible_fingerprints.add(
-                _legacy_numeric_split_fingerprint(
-                    tasks,
-                    seed=seed,
-                    sel_ratio=float(raw_sel_ratio),
-                    test_ratio=float(raw_test_ratio),
-                )
+        min_sel = int(split.get("min_sel", 3))
+        numeric_schema = _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio)
+        string_schema = isinstance(raw_sel_ratio, str) and isinstance(raw_test_ratio, str)
+        if numeric_schema:
+            sel_ratio = _legacy_numeric_ratio("sel_ratio", raw_sel_ratio)
+            test_ratio = _legacy_numeric_ratio("test_ratio", raw_test_ratio)
+            redrawn_groups, redrawn_fingerprint = _legacy_numeric_split_groups(
+                tasks,
+                seed=seed,
+                sel_ratio=sel_ratio,
+                test_ratio=test_ratio,
+                min_sel=min_sel,
             )
-    except (TypeError, ValueError) as exc:
+            compatible_fingerprints = {redrawn_fingerprint}
+        elif string_schema:
+            redrawn = split_tasks(
+                tasks,
+                seed=seed,
+                sel_ratio=str(raw_sel_ratio),
+                test_ratio=str(raw_test_ratio),
+                min_sel=min_sel,
+            )
+            redrawn_groups = {
+                "opt": redrawn.opt,
+                "sel": redrawn.sel,
+                "test": redrawn.test,
+            }
+            compatible_fingerprints = {redrawn.fingerprint}
+        else:
+            raise ValueError(
+                "sel_ratio and test_ratio must both use legacy numeric schema "
+                "or both use string schema"
+            )
+    except (TypeError, ValueError, OverflowError) as exc:
+        # `OverflowError` is a sibling of `ValueError`, not a subclass, so a
+        # JSON `Infinity` in `min_sel` walked through a clause written to
+        # turn exactly this into a refusal.
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
     if split["fingerprint"] not in compatible_fingerprints:
         return True
-    return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
+    return any(sorted(redrawn_groups[g]) != sorted(split[g]) for g in _GROUPS)
 
 
 def _is_json_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _legacy_numeric_ratio(name: str, value: object) -> float:
+    try:
+        ratio = float(cast(int | float, value))
+    except OverflowError as exc:
+        raise ValueError(f"{name} numeric value is too large") from exc
+    if not math.isfinite(ratio):
+        raise ValueError(f"{name} numeric value must be finite")
+    return ratio
 
 
 def _legacy_numeric_split_fingerprint(
@@ -254,6 +408,84 @@ def _legacy_numeric_split_fingerprint(
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _legacy_numeric_split_groups(
+    task_ids: Sequence[str],
+    *,
+    seed: str,
+    sel_ratio: float,
+    test_ratio: float,
+    min_sel: int,
+) -> tuple[dict[str, tuple[str, ...]], str]:
+    if not task_ids:
+        raise ValueError("split_tasks requires at least one task id")
+    if not seed or not seed.strip():
+        raise ValueError("split_tasks requires a non-empty seed")
+    if not 0.0 < sel_ratio < 1.0:
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+    if not 0.0 <= test_ratio < 1.0:
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+    if min_sel < 0:
+        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+    if sel_ratio + test_ratio >= 1.0:
+        raise ValueError(
+            f"sel_ratio + test_ratio must leave at least one opt task, "
+            f"got {sel_ratio} + {test_ratio}"
+        )
+
+    cleaned: list[str] = []
+    for raw in task_ids:
+        if raw != raw.strip():
+            raise ValueError(
+                f"task id {raw!r} carries leading or trailing whitespace; "
+                f"ids must match the keys the scorer emits exactly"
+            )
+        if not raw:
+            raise ValueError("split_tasks requires non-empty task ids")
+        cleaned.append(raw)
+    if len(set(cleaned)) != len(cleaned):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for tid in cleaned:
+            if tid in seen:
+                duplicates.add(tid)
+            else:
+                seen.add(tid)
+        raise ValueError(
+            f"split_tasks received duplicate task ids: {', '.join(sorted(duplicates))}"
+        )
+
+    total = len(cleaned)
+    n_sel = int(total * sel_ratio + 0.5)
+    n_test = int(total * test_ratio + 0.5)
+    if total - n_sel - n_test < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"leaves no opt tasks"
+        )
+    if n_sel < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"a gate needs at least one held-out task"
+        )
+    if n_sel < min_sel:
+        raise ValueError(
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"widen the eval set or lower min_sel to gate on it"
+        )
+
+    ranked = sorted(
+        cleaned,
+        key=lambda tid: hashlib.sha256(f"{seed}\x00{tid}".encode()).hexdigest(),
+    )
+    return {
+        "sel": tuple(ranked[:n_sel]),
+        "test": tuple(ranked[n_sel : n_sel + n_test]),
+        "opt": tuple(ranked[n_sel + n_test :]),
+    }, _legacy_numeric_split_fingerprint(
+        cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -289,10 +521,7 @@ def _rule_degraded_scenario_ids(
             degraded.append(task_id)
             continue
         scores = mech_data.get("scores")
-        if isinstance(scores, Mapping) and scores.get("judge_failed"):
-            degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
             continue
         samples = mech_data.get("score_samples")
@@ -306,6 +535,24 @@ def _rule_degraded_scenario_ids(
                 degraded.append(task_id)
                 break
     return degraded
+
+
+def _rule_score_block_is_degraded(scores: object) -> bool:
+    if not isinstance(scores, Mapping) or not scores:
+        return True
+    if scores.get("judge_failed"):
+        return True
+    for field in ("activation_score", "citation_score", "behavior_score"):
+        value = scores.get(field)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value < 0
+            or value > 5
+        ):
+            return True
+    return False
 
 
 def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
@@ -373,13 +620,41 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
+    if "error_count" not in report:
+        raise ConfigError(
+            "refusing to extract agent report with missing error_count; "
+            "rerun with a current report writer"
+        )
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count!r}; expected a non-negative integer"
+        )
+    if error_count < 0:
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count}; expected a non-negative integer"
+        )
+    if error_count == 0:
+        return
+    raise ConfigError(
+        "refusing to extract degraded agent report: "
+        f"error_count={error_count}; rerun until all records succeed"
+    )
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
+    corpus: str | None = None
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
     elif args.kind == "agent":
         report = _read_json(args.input)
         if not isinstance(report, Mapping):
             raise ConfigError(f"{args.input} must hold an agent report object")
+        _refuse_degraded_agent_report(report)
+        corpus = _report_corpus(args.input, report)
         results = agent_results(
             report,
             args.variant,
@@ -388,8 +663,24 @@ def cmd_extract(args: argparse.Namespace) -> int:
         )
     else:
         results = _extract_rule(_read_json(args.input), args)
-    _emit(results)
+    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
     return EXIT_OK
+
+
+def _report_corpus(path: Path, report: Mapping[str, Any]) -> str | None:
+    """The agent report's own answer to "which task set was this scored on".
+
+    `eval-agent-vs-baseline.py` writes `fixture_set_sha` and its docstring says
+    the field exists so a report consumer can verify two runs hit the same set.
+    This is the consumer. Reading it here is the whole fix: on 2026-07-27 a pair
+    that disagreed on this field was gated, accepted, and published as a null
+    control, because the comparison tool ignored the field that falsifies the
+    comparison.
+
+    Absent stays absent. Older reports predate the field and a value invented
+    for them would assert a match this function cannot know.
+    """
+    return _checked_corpus(path, report.get("fixture_set_sha"))
 
 
 # ---------------------------------------------------------------------------
@@ -398,8 +689,16 @@ def cmd_extract(args: argparse.Namespace) -> int:
 
 
 def cmd_split(args: argparse.Namespace) -> int:
+    pinned: dict[str, Any] = {}
     if args.results:
-        task_ids = sorted(_read_results(args.results))
+        source = _read_results(args.results)
+        task_ids = sorted(source.results)
+        # The baseline commitment carries the corpus rather than the comparison
+        # inferring it from the pair. Without the pin, a mismatch is reachable
+        # by omission: stripping the envelope off either side leaves two
+        # unknowns, and two unknowns have nothing to disagree about. The pin
+        # gives the gate a value neither results file can delete.
+        pinned["corpus"] = source.corpus
     else:
         task_ids = [
             line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()
@@ -423,6 +722,7 @@ def cmd_split(args: argparse.Namespace) -> int:
         "sel_ratio": args.sel_ratio,
         "test_ratio": args.test_ratio,
         "min_sel": args.min_sel,
+        **pinned,
     }
     _write_atomic(args.out, json.dumps(record, indent=2, sort_keys=True) + "\n")
     # The full record goes to the file the gate reads. Stdout, which is what
@@ -469,7 +769,25 @@ def _score_group(results: dict[str, bool], split: dict[str, Any], group: str) ->
 
 def cmd_score(args: argparse.Namespace) -> int:
     split = _read_split(args.split)
-    results = _read_results(args.results)
+    if _split_drifted(split):
+        # `_read_split` refuses a file it cannot re-fingerprint and says the
+        # reason is that such a file cannot be verified. It then does not
+        # verify, which left this command echoing a fingerprint below that no
+        # longer describes the groups it just scored: two documents, one
+        # fingerprint, different numbers. `gate` covers itself with this same
+        # call and refuses, so nothing unsound reached a verdict; the cost was
+        # that the operator learned it after paying for the candidates rather
+        # than at the first read. Raising rather than emitting a refusal keeps
+        # this the same class of report as a malformed split, which is what a
+        # hand-edited one is. `gate` still emits `decision: REJECT` because its
+        # caller is a loop that branches on the document.
+        raise ConfigError(
+            f"{args.split} does not match its own recorded inputs; the groups "
+            "or the seed were edited after the split was drawn. Scoring it "
+            "would report a number under a fingerprint that no longer names "
+            "it. Re-split and re-baseline."
+        )
+    results = _read_results(args.results).results
     value = _score_group(results, split, args.group)
     # The fingerprint rides along because `gate` requires it and this is the
     # only command that reads the split on the caller's behalf. Without it the
@@ -606,6 +924,91 @@ def _scrub(text: str, holdout_key: str) -> str:
     return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
 
 
+_ACTIVE_HOLDOUT_KEY: ContextVar[str | None] = ContextVar(
+    "_ACTIVE_HOLDOUT_KEY", default=None
+)
+
+
+def _warn(message: str) -> None:
+    """Report a loss that must not abort the caller and must not leak.
+
+    Three rules that kept being written separately and therefore kept being
+    missed one at a time. Rounds twenty and twenty-one each fixed the rule in
+    front of them and each left the next one open, so they are named here
+    together rather than discovered in sequence a fourth time.
+
+    The stream is the only state this reads outside the guard, and it is read
+    totally. It has to be outside, because it decides the early return that
+    keeps the message off stdout, and `sys.stderr` is an attribute lookup, so
+    a harness that deletes it rather than blanking it turns the read itself
+    into the abort. `getattr` routes that case into the `None` branch already
+    here instead of adding a second one.
+
+    The key read was outside too and had no reason to be. Rounds twenty
+    through twenty-five each answered "why is this one safe" for a different
+    expression out there, and the sixth answer is that the question was
+    avoidable: the key is read where it is used, under the guard, so nothing
+    about `_ACTIVE_HOLDOUT_KEY` has to hold for the caller to survive. It is
+    still declared with `default=None`, which after the move buys a printed
+    diagnostic rather than an unaborted caller. What remains outside is the
+    guard's own construction, which no docstring can promise against a caller
+    who reassigns this module's globals.
+
+    One reason this paragraph is shorter than the argument that produced it.
+    It was wrong in four consecutive rounds, each time immediately after being
+    corrected, and the corrections were not careless: it asserted a count of
+    the expressions out here, a line distance to a declaration, and a number
+    of tests, and every one of those rotted. A sentence that can be falsified
+    by adding a test is a liability in a docstring, so the counts are in the
+    review log where they are dated. Everything
+    that can do work is inside the guard, including the redaction. Writing the
+    opposite down is what exposed it: a redaction that raises would leave the
+    message unprinted either way, so suppressing costs a diagnostic and
+    excluding it costs the caller the abort that rounds twenty through
+    twenty-two were all spent removing. Nothing reaches `print` unredacted,
+    because a raise from `_scrub` skips the print with the message still bound
+    to its unscrubbed value.
+
+    It must not leak. `_digest_scrubbed` is a seam over raised exceptions, and
+    its own reasoning is that a wrapper covers the paths someone remembered
+    while a seam covers the one added next year. A diagnostic that prints and
+    returns never reaches that seam, so the next one added inherits none of
+    its protection: a twenty-first review found exactly that, at a warning
+    added in the twentieth, naming a `$EVAL_LEDGER_DIR` root in full one round
+    after the tenth review fixed the same leak at the lock warning by hand.
+    Reading the key from the active scrub rather than taking it as an argument
+    is what makes this a seam too. A caller who has no key to pass is the
+    caller most likely to be the one that leaks.
+
+    It must not fail. Every caller here is reporting something that already
+    succeeded or that is being cleaned up after, so the decision is either on
+    stdout already or about to be. Both sites sit inside a region that
+    converts `OSError` into a refusal, so an unguarded warning hands back the
+    abort it was written to avoid. Losing the warning to a broken stream costs
+    a diagnostic; raising costs a charged consultation and returns no verdict.
+    So the write suppresses `Exception` and not `OSError`: a twenty-first
+    review demonstrated the crash with a double whose `write` raised
+    `OSError(32)`, the guard was written to that demonstration, and a
+    twenty-second review closed a real stream and got `ValueError: I/O
+    operation on closed file` straight through it. Guarding the exception a
+    reviewer happened to raise is not the same as guarding the rule.
+
+    It must not land on stdout. `sys.stderr` is `None` under a pythonw-style
+    launcher and after a harness detaches it, and `print(file=None)` does not
+    silence the line, it redirects it to `sys.stdout`, which carries the JSON
+    verdict the caller parses. A diagnostic that corrupts the payload is worse
+    than one that is lost, so a missing stream drops the message.
+    """
+    stream = getattr(sys, "stderr", None)
+    if stream is None:
+        return
+    with suppress(Exception):
+        key = _ACTIVE_HOLDOUT_KEY.get()
+        if key is not None:
+            message = _scrub(message, key)
+        print(message, file=stream)
+
+
 @contextmanager
 def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     """Keep the held-out digest out of whatever goes wrong under the ledger.
@@ -629,7 +1032,15 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
     same shape of defect the scrub exists to fix, one layer down. A
     `ConfigError` without the digest is re-raised as itself rather than
     rewrapped, so nothing that inspects the exception object loses it.
+
+    The key is published while the block runs so `_warn` can reach it. A
+    warning prints and returns, so it never passes through the handler below,
+    and a twenty-first review found one naming a digest-bearing ledger root in
+    full. Publishing it here rather than threading it through every signature
+    keeps the same property the handler has: the site added next year is
+    covered without being told to be.
     """
+    token = _ACTIVE_HOLDOUT_KEY.set(holdout_key)
     try:
         yield
     except (ConfigError, OSError) as exc:
@@ -650,6 +1061,27 @@ def _digest_scrubbed(holdout_key: str) -> Iterator[None]:
         if isinstance(exc, ConfigError):
             raise
         raise ConfigError(text) from exc
+    finally:
+        # Restoring the previous value rather than clearing: the seam nests,
+        # and an inner block that cleared unconditionally would leave the
+        # outer one unprotected for the rest of its body.
+        #
+        # A `ContextVar` token rather than a module global and a saved
+        # variable. A twenty-second review ran two scopes concurrently and got
+        # both a disclosed key and a stale one left active after both had
+        # exited, because a global is shared by every thread that reads it. A
+        # context variable is not. What a token does not fix is unwinding two
+        # scopes in one context in the order they were entered rather than the
+        # reverse, which leaves the first one's value behind; nothing here can
+        # do that, because both scopes are `with` statements and a `with`
+        # statement unwinds last-entered-first. What a token also does not fix
+        # is exiting a scope in a different context than it was entered in:
+        # `reset` refuses a foreign token with `ValueError`, where the global
+        # it replaced would have restored something. Every scope here is a
+        # plain `with` in straight-line synchronous code, so no call site can
+        # reach it, and guarding an unreachable path would only hide the day
+        # one appears.
+        _ACTIVE_HOLDOUT_KEY.reset(token)
 
 
 def _ledger_path(holdout_key: str) -> Path:
@@ -714,23 +1146,23 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
                 # would hide a lock that now blocks the next run, so it goes to
                 # stderr, named by its directory rather than by itself.
                 #
-                # Through _scrub, because naming the directory was justified in
+                # Through _warn, because naming the directory was justified in
                 # review by the claim that a directory carries no digest, and a
-                # tenth review falsified it: $EVAL_LEDGER_DIR can name one.
-                print(
-                    _scrub(
-                        f"warning: could not remove the lock under {lock.parent} "
-                        f"({exc.strerror or exc.errno}); the next gate against "
-                        f"this held-out group reports contention until it is "
-                        f"removed. Its name is withheld: the name digests the "
-                        f"membership.",
-                        holdout_key,
-                    ),
-                    file=sys.stderr,
+                # tenth review falsified it: $EVAL_LEDGER_DIR can name one. A
+                # twenty-first review then found this print unguarded: it sits
+                # in a finally after the decision is already on stdout, so a
+                # closed stderr would replace a completed comparison with a
+                # traceback about the cleanup.
+                _warn(
+                    f"warning: could not remove the lock under {lock.parent} "
+                    f"({exc.strerror or exc.errno}); the next gate against "
+                    f"this held-out group reports contention until it is "
+                    f"removed. Its name is withheld: the name digests the "
+                    f"membership."
                 )
 
 
-def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
+def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) -> int:
     """Return the consultations already spent against this split.
 
     The count lives here rather than on the command line because a budget the
@@ -739,6 +1171,13 @@ def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
     reason. Pinning only the count left the limit re-suppliable, so a caller
     that hit the budget could raise it and carry on, which is the defect the
     ledger was written to close wearing a different hat.
+
+    The significance bar is pinned for exactly that reason too. A candidate
+    refused at 0.05 could otherwise be gated again at 0.1 against the same
+    held-out group until it passed. Its absence is pinned as firmly as its
+    presence, because omitting the flag is the loosest setting there is. An
+    older ledger written before the bar existed records no key, which reads as
+    the absent policy it was in fact opened under.
 
     The ledger records the held-out key it was opened under. That is the same
     value its filename carries, so the check catches a ledger moved or renamed
@@ -776,12 +1215,44 @@ def _read_ledger(path: Path, holdout_key: str, cap: int) -> int:
             f"this invocation asks for {cap}; the budget for a held-out group "
             f"is fixed when the run starts, so re-split to change it"
         )
+    recorded_bar = data.get("max_p")
+    if recorded_bar is not None and (
+        isinstance(recorded_bar, bool) or not isinstance(recorded_bar, (int, float))
+    ):
+        raise ConfigError(
+            f"the ledger under {path.parent} needs max_p to be a number or absent"
+        )
+    if recorded_bar is not None and not 0.0 <= recorded_bar <= 1.0:
+        raise ConfigError(
+            f"the ledger under {path.parent} has max_p={recorded_bar}, "
+            f"which is outside [0, 1]; this is a corrupted ledger, not a "
+            f"gate refusal"
+        )
+    if recorded_bar != max_p:
+        raise LedgerMismatchError(
+            f"this held-out group was opened under a significance bar of "
+            f"{_bar_name(recorded_bar)} and this invocation asks for "
+            f"{_bar_name(max_p)}; the bar is fixed when the run starts, so "
+            f"re-split to change it. A bar you can loosen after seeing a "
+            f"refusal is not a bar"
+        )
     return spent
 
 
-def _write_ledger(path: Path, holdout_key: str, spent: int, cap: int) -> None:
+def _bar_name(bar: float | None) -> str:
+    return "none" if bar is None else f"{bar:g}"
+
+
+def _write_ledger(
+    path: Path, holdout_key: str, spent: int, cap: int, max_p: float | None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"consultations": spent, "holdout": holdout_key, "max_consultations": cap}
+    payload = {
+        "consultations": spent,
+        "holdout": holdout_key,
+        "max_consultations": cap,
+        "max_p": max_p,
+    }
     _write_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
@@ -806,6 +1277,12 @@ def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> st
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
+    # Before anything reads the split or the ledger. A bar outside [0, 1] is
+    # decidable without the held-out group, so it must not cost a consultation
+    # and must not be masked by an exhausted budget refusing first.
+    if args.max_p is not None and not 0.0 <= args.max_p <= 1.0:
+        raise ConfigError(f"--max-p must be in [0, 1], got {args.max_p}")
+
     split = _read_split(args.split)
     if _split_drifted(split):
         _emit(
@@ -822,10 +1299,77 @@ def cmd_gate(args: argparse.Namespace) -> int:
         )
         return EXIT_LOGIC
 
+    # Headers only, and before the lock, so the corpus refusal costs nothing.
+    # Reading them is not a reveal: the caller supplied both files, and the
+    # refusal below prints neither task ids nor verdicts. The scrubber is here
+    # because a failing open names the file, and the ledger directory can carry
+    # the digest.
+    with _digest_scrubbed(_holdout_key(split)):
+        pin = split.get("corpus", _UNPINNED)
+        incumbent_corpus = _corpus_header(args.incumbent)
+        candidate_corpus = _corpus_header(args.candidate)
+    if _corpus_conflict(pin, incumbent_corpus, candidate_corpus):
+        _emit(_corpus_refusal())
+        return EXIT_LOGIC
+
     # The lock spans read, compare, and write. A drifted split never reaches it
     # because that refusal reads no ledger and spends nothing.
     with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
+
+
+def _corpus_conflict(pin: object, incumbent: str | None, candidate: str | None) -> bool:
+    """Whether the split and the two results files name more than one corpus.
+
+    One rule covers every case worth refusing. A pinned digest that a file does
+    not carry conflicts, which is what closes the strip: stripping the envelope
+    turns a digest into an unknown, and an unknown beside a pin is a
+    disagreement rather than a pair of blanks. One known corpus beside an
+    unknown one conflicts for the same reason even with no pin at all, because
+    a pair scored on one corpus does not have one side that forgot.
+
+    Unknown everywhere is not a conflict. The rule and hook paths publish no
+    corpus identity, so refusing there would disable the gate for two of the
+    three artifact classes to guard a case it cannot detect there anyway. The
+    verdict reports `corpus_verified` instead, which is the difference between
+    a check that passed and a check that never ran.
+    """
+    declared = (pin, incumbent, candidate)
+    return len({d for d in declared if d is not _UNPINNED}) > 1
+
+
+def _corpus_refusal() -> dict[str, object]:
+    """The one refusal both corpus checks emit.
+
+    The preflight reads headers and the gate reads bodies. Two call sites
+    phrasing the same refusal would let the caller tell which read caught it,
+    and would drift the moment one of them is edited.
+
+    The gate's copy briefly added `sel_consultations`, which broke the first
+    property by key set alone. It was also the wrong number to report there.
+    `_guard` runs before the recheck, so an exhausted budget has already
+    refused by then, and prior ledger spend cannot change what the caller must
+    do next. Both sites report `consultations: 0` instead, which is the one
+    claim each can make honestly: this run charged nothing.
+
+    The advice restates `_corpus_conflict`'s rule rather than naming a file to
+    copy a value from. `(_UNPINNED, SHA_A, SHA_B)` is a refusing row, so a
+    split that names no corpus can reach here, and advice to re-score against
+    the corpus the split names sends that caller to a key their split does not
+    have. The rule is the one instruction true for every refusing row, and it
+    is falsified only by editing the predicate above.
+    """
+    return {
+        "decision": "REJECT",
+        "reason": (
+            "the split and the two results files do not agree on one corpus, "
+            "so a comparison between them measures the corpus change as well "
+            "as the edit. Re-score both artifacts so that only one corpus is "
+            "named across all three, and gate again."
+        ),
+        "compared": False,
+        "consultations": 0,
+    }
 
 
 def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
@@ -834,13 +1378,20 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     ledger = _ledger_path(holdout_key)
     try:
         with _digest_scrubbed(holdout_key):
-            spent = _read_ledger(ledger, holdout_key, args.max_consultations)
+            spent = _read_ledger(ledger, holdout_key, args.max_consultations, args.max_p)
     except LedgerMismatchError as exc:
         _emit({
             "decision": "REJECT",
             "reason": str(exc),
             "compared": False,
-            "sel_consultations": 0,
+            # No running total. The count parses before the mismatch is
+            # raised, so a number exists, but on a key mismatch it belongs to
+            # a different group and naming it would leak that group's history
+            # through a refusal that deliberately withholds the group itself.
+            # The old literal 0 was worse than silence: it claimed nothing had
+            # ever been spent, which is false whenever the ledger holds a
+            # count, and false in the direction that invites another look.
+            "consultations": 0,
             "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
         })
@@ -855,6 +1406,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             {
                 "decision": "REJECT",
                 "reason": refusal,
+                "consultations": 0,
                 "sel_consultations": spent,
                 "compared": False,
                 "group": _GATE_GROUP,
@@ -863,8 +1415,24 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         )
         return EXIT_LOGIC
 
-    incumbent_results = _read_results(args.incumbent)
-    candidate_results = _read_results(args.candidate)
+    # The full read lands here, after the guards and before the charge. Doing
+    # it before the lock would let a bad verdict mapping answer in place of an
+    # exhausted budget, which tells the caller to fix the wrong thing; doing it
+    # after the charge would bill a consultation for a file that never parsed.
+    incumbent_file = _read_results(args.incumbent)
+    candidate_file = _read_results(args.candidate)
+
+    # The preflight read headers; this read produced the numbers the comparison
+    # is scored from. Only the second pair is authoritative, so the conflict
+    # rule runs again against it. Without this the two reads never had to
+    # agree, and the gap between them was a window a file could change in.
+    pin = split.get("corpus", _UNPINNED)
+    if _corpus_conflict(pin, incumbent_file.corpus, candidate_file.corpus):
+        _emit(_corpus_refusal())
+        return EXIT_LOGIC
+
+    incumbent_results = incumbent_file.results
+    candidate_results = candidate_file.results
     sel_ids = _group_ids(split, _GATE_GROUP)
 
     # Charge before reading the group, not after reaching a verdict. Two things
@@ -874,7 +1442,12 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     # free, which is what made the reveal below worth buying.
     spent_after = spent + 1
     with _digest_scrubbed(holdout_key):
-        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations)
+        _write_ledger(ledger, holdout_key, spent_after, args.max_consultations, args.max_p)
+    # Derived rather than written as 1 twice below. The charge and the ledger
+    # would then be two numbers that have to agree, and this session has
+    # already paid for one figure copied into several places and corrected in
+    # only some of them.
+    charged = spent_after - spent
 
     if not _covers_holdout(incumbent_results, sel_ids) or not _covers_holdout(
         candidate_results, sel_ids
@@ -889,6 +1462,7 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
                     "naming them would say which of the two withheld groups "
                     "each one belongs to."
                 ),
+                "consultations": charged,
                 "sel_consultations": spent_after,
                 "compared": False,
                 "group": _GATE_GROUP,
@@ -900,15 +1474,23 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     incumbent = _score_group(incumbent_results, split, _GATE_GROUP)
     candidate = _score_group(candidate_results, split, _GATE_GROUP)
     gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
-    result = gate(
-        candidate,
-        incumbent,
-        sel_consultations=spent,
-        max_consultations=args.max_consultations,
-        split_fingerprint=split["fingerprint"],
-        incumbent_fingerprint=args.incumbent_fingerprint,
-        discordant_loss=loss,
-    )
+    try:
+        result = gate(
+            candidate,
+            incumbent,
+            sel_consultations=spent,
+            max_consultations=args.max_consultations,
+            split_fingerprint=split["fingerprint"],
+            incumbent_fingerprint=args.incumbent_fingerprint,
+            discordant_loss=loss,
+            p_value=p_value,
+            max_p=args.max_p,
+        )
+    except ValueError as exc:
+        # Defense in depth. cmd_gate rejects an out-of-range bar before the
+        # ledger is touched, so reaching this is a caller contract violation
+        # rather than operator error, and the consultation is already spent.
+        raise ConfigError(str(exc)) from exc
 
     _emit(
         {
@@ -917,15 +1499,43 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
             "candidate": result.candidate,
             "incumbent": result.incumbent,
             # Discordant pairs are the only tasks that carry evidence about the
-            # edit. p is the one-sided exact McNemar tail, reported rather than
-            # enforced: a three-task held-out group cannot reach 0.05, so
-            # enforcing a conventional floor would make the common case
-            # unpassable instead of informative.
+            # edit. p is the one-sided exact McNemar tail. It is reported
+            # always and enforced only when --max-p is set: a three-task
+            # held-out group cannot reach 0.05, so enforcing a conventional
+            # floor by default would make the common case unpassable instead
+            # of informative.
             "discordant_gain": gain,
             "discordant_loss": loss,
             "p_value": p_value,
+            # Both bars travel with the verdict so a reader can tell an accept
+            # under no bar from an accept that cleared one, and so the
+            # Bonferroni correction is visible rather than implied.
+            "max_p": args.max_p,
+            "max_p_per_comparison": (
+                None if args.max_p is None else args.max_p / args.max_consultations
+            ),
+            # Two counts, two questions. `consultations` is what this run
+            # charged, which is the field a caller checks to learn whether a
+            # refusal was free. `sel_consultations` is the running total
+            # against the held-out group including that charge, which is the
+            # field a caller checks against the cap.
+            "consultations": charged,
             "sel_consultations": spent_after,
             "compared": result.compared,
+            # False means the check never ran, not that it failed: a mismatch
+            # refuses before this point. It is reported so an accept on a path
+            # with no corpus source cannot be read as an accept that was
+            # checked.
+            "corpus_verified": incumbent_file.corpus is not None
+            and incumbent_file.corpus == candidate_file.corpus,
+            # Whether the split named the corpus the results carry. A caller
+            # who deletes the split's `corpus` key leaves two agreeing files
+            # and nothing to contradict them, so the guard cannot refuse that
+            # pair; refusing it would also disable the gate for the rule and
+            # hook paths, which pin nothing at all. The verdict names the
+            # weaker guarantee rather than letting `corpus_verified` be read
+            # as the stronger one.
+            "corpus_pinned": pin is not _UNPINNED and pin is not None,
             "group": _GATE_GROUP,
             "fingerprint": split["fingerprint"],
         }
@@ -936,6 +1546,50 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
 # ---------------------------------------------------------------------------
 # buffer
 # ---------------------------------------------------------------------------
+
+
+def _fsync_dir(directory: Path) -> None:
+    """Persist the directory entry that ``os.replace`` just created.
+
+    Fsyncing the temporary file makes its bytes durable. It does not make the
+    rename durable: the entry pointing at those bytes lives in the parent
+    directory, and a host that loses power before that entry reaches the disk
+    comes back with the rename undone. For the consultation ledger that hands
+    back a charged look for free, which is the one outcome charging before
+    scoring exists to prevent, so a charge a crash can erase defeats the
+    ordering it was written to protect.
+
+    Failure here is reported, not raised, and the split matters. Every other
+    failure in ``_write_atomic`` precedes ``os.replace`` and leaves the
+    destination untouched, so refusing costs the caller nothing. This one
+    fires after the write has already succeeded, and in the ledger's case
+    after a consultation has already been charged, so raising would spend a
+    look and return no verdict: a durability fix turned into an availability
+    regression. Staying silent is equally wrong, because it leaves the caller
+    believing a guarantee that did not hold. So the loss goes through
+    ``_warn``, which withholds the held-out digest a ledger root can carry and
+    cannot itself fail, onto stderr, which the exit-code contract keeps free
+    for exactly this while stdout carries the one JSON document a caller
+    parses.
+
+    Windows cannot open a directory as a descriptor, so there is nothing to
+    sync and ``os.replace`` is atomic there regardless. That is a skip rather
+    than a warning.
+    """
+    if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
+        return
+    try:
+        fd = os.open(str(directory), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        _warn(
+            f"warning: wrote and renamed into {directory}, but could not fsync the "
+            f"directory ({exc}); the file is intact and its durability across a "
+            "host crash is not guaranteed"
+        )
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -953,20 +1607,44 @@ def _write_atomic(path: Path, text: str) -> None:
     except OSError:
         mode = None
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    try:
+        fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    except OSError as exc:
+        # This call sat outside the block below, which is the only place that
+        # turns a write failure into a ConfigError. A missing or unwritable
+        # parent therefore left the CLI as a traceback on stderr rather than
+        # one JSON document on stdout, and `split --out` into a directory that
+        # does not exist is an ordinary caller mistake, not a crash.
+        raise ConfigError(f"could not write {path}: {exc}") from exc
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            # os.fdopen did not take ownership, so nothing else closes it. The
+            # comment that used to sit in the handler below claimed this was
+            # already done. It was not: no call closed the descriptor, so this
+            # path leaked one while the comment said otherwise.
+            os.close(fd)
+            raise
+        with handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         if mode is not None:
             os.chmod(tmp, mode)
         os.replace(tmp, path)
+        _fsync_dir(path.parent)
     except BaseException as exc:
-        # Close the fd if os.fdopen failed (fd not yet owned by the handle).
-        # If os.fdopen succeeded, the with-block already closed it.
-        tmp.unlink(missing_ok=True)
+        # Cleanup cannot stand in for the failure it cleans up after. An
+        # OSError raised here would propagate from inside the handler, so the
+        # caller got a traceback naming the unlink instead of one JSON
+        # document naming the write. A parent whose permissions are revoked
+        # after mkstemp fails both calls, which is the pair that produces it.
+        # After a successful replace the temp name is already gone, so this is
+        # a no-op and never touches the destination.
+        with suppress(OSError):
+            tmp.unlink(missing_ok=True)
         if isinstance(exc, OSError):
             raise ConfigError(f"could not write {path}: {exc}") from exc
         raise
@@ -1020,6 +1698,40 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _arith_int(text: str) -> int:
+    """An integer this tool can still do arithmetic with.
+
+    `type=int` accepts any magnitude, because Python integers are unbounded,
+    but five of these arguments reach float arithmetic: the budget curve
+    multiplies a span by 0.5 and divides a step by a total, and the Bonferroni
+    correction divides `--max-p` by the consultation cap. Past the float range
+    each raises `OverflowError`, a sibling of `ValueError` rather than a
+    subclass, so it escaped every clause written to turn unusable numbers into
+    refusals.
+
+    Refused here rather than caught at the arithmetic, because `gate` charges
+    the consultation to the held-out ledger before it reaches its second
+    division. A value caught later has already spent budget and written its
+    own cap into the ledger, where it refuses every later run against that
+    group for asking a different cap. The remedy that refusal offers is to
+    re-split, which destroys the held-out group. Parsing finishes before any
+    command runs, so a value rejected here has charged nothing.
+
+    The bar is what the arithmetic can carry, not a policy ceiling. No rule
+    here says a budget of 10 ** 300 is wrong, only that a number the tool
+    cannot compute with is not a number it can accept.
+    """
+    value = int(text)
+    try:
+        float(value)
+    except OverflowError:
+        raise argparse.ArgumentTypeError(
+            f"{text} is too large to compute with; pass a value inside the "
+            "range this tool can convert to a float"
+        ) from None
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="optimize-artifact.py",
@@ -1061,10 +1773,10 @@ def build_parser() -> argparse.ArgumentParser:
     split.set_defaults(func=cmd_split)
 
     budget = sub.add_parser("budget", help="edits allowed at this step")
-    budget.add_argument("--step", type=int, required=True)
-    budget.add_argument("--total", type=int, required=True)
-    budget.add_argument("--max-edits", type=int, default=5)
-    budget.add_argument("--min-edits", type=int, default=1)
+    budget.add_argument("--step", type=_arith_int, required=True)
+    budget.add_argument("--total", type=_arith_int, required=True)
+    budget.add_argument("--max-edits", type=_arith_int, default=5)
+    budget.add_argument("--min-edits", type=_arith_int, default=1)
     budget.set_defaults(func=cmd_budget)
 
     score_cmd = sub.add_parser("score", help="fraction of one split group passing")
@@ -1093,7 +1805,7 @@ def build_parser() -> argparse.ArgumentParser:
     # No --ledger either: see _ledger_path for why the caller does not choose it.
     gate_cmd.add_argument(
         "--max-consultations",
-        type=int,
+        type=_arith_int,
         required=True,
         help="how many comparisons this split may ever answer; fixed at the first gate",
     )
@@ -1101,6 +1813,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--incumbent-fingerprint",
         required=True,
         help="split fingerprint the incumbent was scored against; `score` reports it",
+    )
+    gate_cmd.add_argument(
+        "--max-p",
+        type=float,
+        default=None,
+        help=(
+            "largest one-sided exact McNemar tail this gate accepts; "
+            "omit on a small held-out group, where no tail can clear a "
+            "conventional floor"
+        ),
     )
     gate_cmd.set_defaults(func=cmd_gate)
 

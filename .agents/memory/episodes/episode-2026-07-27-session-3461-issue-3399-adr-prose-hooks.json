@@ -1,0 +1,291 @@
+{
+  "id": "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks",
+  "session": "2026-07-27-session-3461-issue-3399-adr-prose-hooks",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added ADR prose hook reference scanning",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected stale ADR prose hook references",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR Review Protocol",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR prose batch 1",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR prose batch 2",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR prose batch 3",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR prose batch 4",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 22c786aff6aa249b640309157526f4119afe1f74",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner after adversarial review",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected remaining stale ADR prose references after adversarial review",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 133534d99315",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 32d681173ddf",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f1e77bf6b1dc",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a729ddc7c174",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b016d5deaf15",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6b41483632d0",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner for review r2",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected ADR-062 and ADR-083 review r2 prose",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 211cc69f2d61",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2c99107e1cd5",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened ADR prose scanner for review r3",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored ADR-083 accepted security-control requirement",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected review r3 stale hook prose",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 6
+  },
+  "lessons": []
+}

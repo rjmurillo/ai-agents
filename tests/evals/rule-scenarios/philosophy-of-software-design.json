@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/philosophy-of-software-design.md",
   "rule_id": "philosophy-of-software-design",
   "scenarios": [
     {
@@ -41,5 +40,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Genuine deep module: small interface hides large variation. Not pass-through. Rule should not flag."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/philosophy-of-software-design.md"
 }

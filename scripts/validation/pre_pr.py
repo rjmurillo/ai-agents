@@ -15,8 +15,9 @@ Validation sequence:
     7b. Spec Contradiction Check (PR/issue vs committed frontmatter; advisory)
     8. YAML Style (check YAML style with yamllint) [skip if --quick]
     9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-   10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-   11. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+   10. Traceability (validate spec links)
+   11. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+   12. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -46,6 +47,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
+from active_plan_closeout import validate_active_plan_closeout
 from checks_common import (  # noqa: E402, F401
     MissingScriptSkip,
     _gh_base_ref,

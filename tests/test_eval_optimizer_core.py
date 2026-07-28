@@ -10,6 +10,8 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from decimal import localcontext
 from fractions import Fraction
@@ -240,6 +242,54 @@ class TestSplitTasks:
     def test_rejects_absurd_decimal_exponents_before_fraction_conversion(self, ratio):
         with pytest.raises(ValueError, match="decimal ratio"):
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+
+    def test_rejects_absurd_decimal_coefficients_before_fraction_conversion(self):
+        ratio = "0." + "1" * 65
+        with pytest.raises(ValueError, match="coefficient digits") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_accepts_the_largest_allowed_decimal_coefficient(self):
+        ratio = "0." + "1" * 64
+        split = split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(split.sel) == 3
+
+    def test_million_digit_ratio_rejection_has_a_subprocess_deadline(self):
+        script = """
+import sys
+from _optimizer_core import split_tasks
+
+try:
+    split_tasks([f"t{i}" for i in range(25)], seed="s", sel_ratio="0." + "1" * 1_000_000, min_sel=0)
+except ValueError as exc:
+    print(len(str(exc)))
+    sys.exit(0)
+sys.exit(1)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=False,
+            capture_output=True,
+            cwd=_REPO_ROOT,
+            env={**os.environ, "PYTHONPATH": str(_EVAL_DIR)},
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0
+        assert int(result.stdout.strip()) < 200
+
+    def test_semantic_ratio_errors_truncate_long_values(self):
+        ratio = "0." + "0" * 125
+        with pytest.raises(ValueError, match="strictly between 0 and 1") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_ratio_sum_error_truncates_both_values(self):
+        sel_ratio = "0." + "9" * 64
+        test_ratio = "0." + "1" * 64
+        with pytest.raises(ValueError, match="leave at least one opt task") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=sel_ratio, test_ratio=test_ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
 
     def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
         with pytest.raises(ValueError, match="leaves no opt tasks"):
@@ -1048,3 +1098,224 @@ class TestGuardRefusalValidatesItsOwnCap:
 
     def test_a_zero_spend_is_accepted(self):
         assert guard_refusal(sel_consultations=0, max_consultations=3) is None
+
+
+class TestSignificanceCanBeEnforcedNotJustReported:
+    """`max_p` turns the reported McNemar tail into a refusal.
+
+    Motivated by a live run (see scripts/eval/README.md, "What a live run
+    measured"): scoring the same rule text twice flipped 5 of 24 tasks, and
+    the held-out group moved 6/10 -> 7/10 with no input change at all. A
+    strictly-greater rule alone therefore accepts scorer variance. `p_value`
+    was already computed and printed; it just could not refuse anything.
+
+    Default stays None so a small held-out group, which cannot reach a
+    conventional floor, is still informative rather than unpassable.
+    """
+
+    def test_a_gain_whose_tail_exceeds_the_bar_is_refused(self):
+        result = gate(0.8, 0.6, p_value=0.25, max_p=0.05, max_consultations=1)
+        assert result.decision == "REJECT"
+        assert "0.25" in result.reason and "0.05" in result.reason
+
+    def test_the_same_gain_is_accepted_when_no_bar_is_set(self):
+        assert gate(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
+
+    def test_a_gain_whose_tail_clears_the_bar_is_accepted(self):
+        assert (
+            gate(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
+        )
+
+    def test_p_equal_to_the_corrected_bar_passes(self):
+        """The bar is a maximum, so equality is inside it, not outside."""
+        assert gate(0.8, 0.6, p_value=0.01, max_p=0.05, max_consultations=5).decision == "ACCEPT"
+
+    def test_a_bar_with_no_p_value_refuses_to_run(self):
+        """Fail closed. An unknown tail is not evidence that it clears the bar."""
+        with pytest.raises(ValueError, match="p_value"):
+            gate(0.8, 0.6, max_p=0.05, max_consultations=5)
+
+    def test_a_regression_still_outranks_the_significance_bar(self):
+        """Both refuse; the broken task is the one worth naming first."""
+        result = gate(
+            0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05, max_consultations=1
+        )
+        assert result.decision == "REJECT"
+        assert "regressed" in result.reason
+
+    def test_a_tie_is_still_a_tie_under_a_bar(self):
+        result = gate(0.6, 0.6, p_value=0.001, max_p=0.05, max_consultations=1)
+        assert result.decision == "REJECT"
+        assert "tie" in result.reason
+
+    @pytest.mark.parametrize("bad", [-0.1, 1.1, 2.0])
+    def test_a_bar_outside_the_unit_interval_is_refused(self, bad):
+        with pytest.raises(ValueError, match="max_p must be in"):
+            gate(0.8, 0.6, p_value=0.25, max_p=bad, max_consultations=1)
+
+    @pytest.mark.parametrize("bad", [-0.1, 1.1])
+    def test_a_p_value_outside_the_unit_interval_is_refused(self, bad):
+        with pytest.raises(ValueError, match="p_value must be in"):
+            gate(0.8, 0.6, p_value=bad, max_p=0.05, max_consultations=1)
+
+    @pytest.mark.parametrize("edge", [0.0, 1.0])
+    def test_the_unit_interval_endpoints_are_legal(self, edge):
+        gate(0.8, 0.6, p_value=edge, max_p=1.0, max_consultations=1)
+        gate(0.8, 0.6, p_value=0.0, max_p=edge, max_consultations=1)
+
+    def test_a_bar_of_zero_refuses_every_nonzero_tail(self):
+        """0.0 is a legal bar and means only a certain result passes."""
+        assert (
+            gate(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
+        )
+        assert (
+            gate(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
+        )
+
+    def test_the_bar_never_rescues_a_guard_refusal(self):
+        """A moved fingerprint is not comparable, significant or not."""
+        result = gate(
+            0.8,
+            0.6,
+            split_fingerprint="a",
+            incumbent_fingerprint="b",
+            p_value=0.0,
+            max_p=0.05,
+            max_consultations=1,
+        )
+        assert result.decision == "REJECT"
+        assert result.compared is False
+
+
+class TestOneBarSpentFiveTimesIsNotThatBar:
+    """Round fourteen: a per-comparison threshold does not bound a family.
+
+    An adversarial review pointed out that the loop's own documented recipe
+    permits five consultations, and that applying 0.05 independently to each
+    does not leave the family at 0.05. Round eighteen sharpened the figure: the
+    dependence-agnostic union bound is 5 * 0.05 = 0.25, while the exact
+    1 - 0.95**5, about 0.226, assumes the five comparisons are independent,
+    which five looks at one selection group are not. The bar an operator asks
+    for is the one they believe governs the run, so it is read as the family
+    bar and divided across the declared budget by Bonferroni, which holds under
+    arbitrary dependence between the comparisons. Round nineteen added the
+    missing half: that guarantee still assumes each per-comparison p-value is
+    valid on its own, and this harness's rule-path null control reproduced two
+    gains under a byte-identical no-op, so its outcomes are correlated and that
+    assumption is not free.
+    """
+
+    def test_the_bar_is_divided_across_the_declared_budget(self):
+        """0.05 over five consultations is 0.01 per comparison."""
+        assert (
+            gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
+        )
+        assert gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=2).decision == "ACCEPT"
+
+    def test_the_refusal_names_both_the_family_bar_and_the_corrected_one(self):
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "0.05" in result.reason
+        assert "0.01" in result.reason
+
+    def test_a_single_consultation_budget_leaves_the_bar_alone(self):
+        """With a family of one there is nothing to correct."""
+        assert gate(0.8, 0.6, p_value=0.05, max_p=0.05, max_consultations=1).decision == "ACCEPT"
+        assert (
+            gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
+        )
+
+    def test_a_bar_without_a_declared_budget_refuses_to_run(self):
+        """An undeclared family size cannot be corrected for, so fail closed."""
+        with pytest.raises(ValueError, match="max_consultations"):
+            gate(0.8, 0.6, p_value=0.01, max_p=0.05)
+
+    def test_no_bar_still_needs_no_budget(self):
+        """The correction is only owed when a bar was asked for."""
+        assert gate(0.8, 0.6, p_value=0.9).decision == "ACCEPT"
+
+    def test_the_correction_cannot_be_escaped_by_raising_the_budget(self):
+        """A larger budget buys more looks, each held to a stricter bar."""
+        strict = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=100)
+        assert strict.decision == "REJECT"
+
+
+class TestBothBarsAreLabeledInTheRefusal:
+    """Round eighteen: two bare numbers in one sentence do not say which is which.
+
+    A reviewer read "above the 0.01 this comparison is allowed" as a sentence
+    missing a word, and could not tell the family bar from the value it had been
+    corrected to. Both numbers were already present; the round-fourteen test
+    asserted only that. Presence is not legibility: the operator reading a
+    refusal has to know which number they asked for and which one the correction
+    produced, because only the second explains why this p value lost.
+    """
+
+    def test_each_number_carries_the_label_that_says_which_bar_it_is(self):
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert result.decision == "REJECT"
+        assert "per-comparison bar of 0.01" in result.reason
+        assert "0.05 family bar" in result.reason
+
+    def test_the_refusal_shows_the_arithmetic_that_produced_the_corrected_bar(self):
+        """Naming both bars is not enough; the reader must be able to check them."""
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "divided across 5 consultation(s)" in result.reason
+
+    def test_the_ambiguous_fragment_is_gone(self):
+        """Negative control: the exact phrasing the reviewer could not parse."""
+        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        assert "this comparison is allowed" not in result.reason
+
+    def test_a_family_of_one_still_labels_both_bars_and_states_the_division(self):
+        """Edge: dividing by one is a no-op, so both numbers are equal.
+
+        The sentence has to stay honest and checkable when the correction
+        changes nothing, rather than dropping the arithmetic and leaving the
+        reader unable to tell a corrected bar from an uncorrected one.
+        """
+        result = gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1)
+        assert result.decision == "REJECT"
+        assert "per-comparison bar of 0.05" in result.reason
+        assert "0.05 family bar" in result.reason
+        assert "divided across 1 consultation(s)" in result.reason
+
+
+class TestTheBudgetRefusalOnlyAdvisesMovesTheCliAllows:
+    """Round twenty: the refusal named an invocation the parser rejects.
+
+    The exhausted-budget message ended "refresh the split or report on the
+    test group". `score --group` accepts only "opt", so the second half sent
+    an operator who had just run out of budget into a dead end that the CLI's
+    own argument parser refuses statically.
+
+    The fix removes the advice rather than implementing it. Widening the
+    choice would hand the loop unmetered reads of the group held back as a
+    final unbiased look, and "score --group opt refuses to read any other
+    group" is listed in the README as a property enforced whether or not the
+    optimizer cooperates. The methodological point behind the advice is sound
+    and the tooling for a one-shot final read does not exist; that is a
+    capability gap to file, not a string to keep true by weakening an enforced
+    boundary.
+    """
+
+    def test_the_refusal_does_not_send_the_operator_to_the_test_group(self):
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "test group" not in reason
+
+    def test_the_refusal_still_names_the_count_and_the_limit(self):
+        """Control: making the advice honest must not drop the diagnosis."""
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "5" in reason
+        assert "exhausted" in reason
+
+    def test_the_refusal_still_names_a_move_the_operator_can_make(self):
+        """A refusal that diagnoses without advising leaves the loop stuck."""
+        reason = guard_refusal(sel_consultations=5, max_consultations=5)
+        assert reason is not None
+        assert "split" in reason
+
+    def test_a_budget_with_room_left_is_still_silent(self):
+        """Control: the wording change must not make the guard fire early."""
+        assert guard_refusal(sel_consultations=4, max_consultations=5) is None
