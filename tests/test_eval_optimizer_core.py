@@ -11,8 +11,6 @@ branch that changes user-facing output.
 from __future__ import annotations
 
 import math
-import os
-import subprocess
 import sys
 import time
 from decimal import localcontext
