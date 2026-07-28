@@ -53,11 +53,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
-from scripts.utils.markdown_parser import blank_code_block_lines
+from scripts.utils.markdown_parser import (
+    MarkdownNestingError,
+    blank_code_block_lines,
+)
 from scripts.validation.portability_common import (
     build_portability_parser,
     write_baseline,
@@ -241,28 +246,60 @@ def count_file_refs(text: str) -> int:
     return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
 
 
-def scan_skill_markdown(skills_dir: Path) -> dict[str, int]:
-    """Return {relative_posix_path: count} for skill ``.md`` files with >0 refs.
+class MarkdownScan(NamedTuple):
+    """Result of scanning the skill tree for upstream path references.
 
-    Paths are relative to the skills dir's parent, so they begin with
-    ``skills/`` and stay POSIX-normalized for cross-OS stability. Files that
-    self-declare via the marker contribute 0 and are omitted.
+    ``counts`` maps each offending file (refs > 0) to its count. ``scanned`` is
+    every ``.md`` file actually read. Reporting ``scanned`` separately keeps a
+    zero-file scan (empty tree, unreadable dir, mistargeted root) from looking
+    identical to a healthy scan that simply found no offenders: both leave
+    ``counts`` empty, but only a real scan leaves ``scanned`` positive.
+    """
+
+    counts: dict[str, int]
+    scanned: int
+
+
+def scan_skill_markdown(skills_dir: Path) -> MarkdownScan:
+    """Return offending counts and the scanned-file total for skill ``.md`` files.
+
+    Paths in ``counts`` are relative to the skills dir's parent, so they begin
+    with ``skills/`` and stay POSIX-normalized for cross-OS stability. Files
+    that self-declare via the marker contribute 0 to ``counts`` but still count
+    as scanned.
+
+    Traversal errors surface rather than being swallowed. ``Path.rglob`` hides a
+    permission error on a subdirectory and walks on, so a partial scan reports
+    as clean; ``os.walk`` with a re-raising ``onerror`` refuses instead. A
+    broken ``.md`` symlink is a configuration error, not a file to skip
+    silently, because ``Path.is_file`` follows the link and returns False for a
+    dangling target, which would drop it from the scan unnoticed.
     """
     counts: dict[str, int] = {}
+    scanned = 0
     base = skills_dir.parent
-    for path in sorted(skills_dir.rglob("*")):
-        if not path.is_file() or path.suffix != MARKDOWN_SUFFIX:
-            continue
-        if "__pycache__" in path.parts:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-        n = count_file_refs(text)
-        if n > 0:
-            counts[path.relative_to(base).as_posix()] = n
-    return counts
+
+    def _reraise(error: OSError) -> None:
+        raise error
+
+    for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise):
+        dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+        directory = Path(dirpath)
+        for name in sorted(filenames):
+            path = directory / name
+            if path.suffix != MARKDOWN_SUFFIX:
+                continue
+            if path.is_symlink() and not path.exists():
+                raise OSError(f"Broken .md symlink (configuration error): {path}")
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+            scanned += 1
+            n = count_file_refs(text)
+            if n > 0:
+                counts[path.relative_to(base).as_posix()] = n
+    return MarkdownScan(counts, scanned)
 
 
 def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
@@ -316,6 +353,51 @@ def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
     )
 
 
+def _print_report(
+    output_format: str,
+    current: dict[str, int],
+    baseline: dict[str, int],
+    regressions: list[str],
+    improvements: list[str],
+    scanned: int,
+) -> None:
+    """Print the drift report in the requested format.
+
+    Extracted from :func:`main` so the entry point stays a flat guard-and-dispatch
+    sequence and the reporting branches are independently testable.
+    """
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "regressions": regressions,
+                    "improvements": improvements,
+                    "current_total": sum(current.values()),
+                    "baseline_total": sum(baseline.values()),
+                    "files_scanned": scanned,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if improvements:
+        print("Portability improved (tighten the baseline with --update-baseline):")
+        for line in improvements:
+            print(f"  [IMPROVED] {line}")
+    if regressions:
+        print("Markdown vendor-portability drift detected (issue #2050):")
+        for line in regressions:
+            print(f"  [DRIFT] {line}")
+    else:
+        print(
+            f"No Markdown vendor-portability drift. "
+            f"{sum(current.values())} grandfathered refs across "
+            f"{scanned} files scanned "
+            f"({len(current)} offending; baseline {sum(baseline.values())})."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -332,10 +414,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        current = scan_skill_markdown(skills_dir)
-    except OSError as exc:
+        scan = scan_skill_markdown(skills_dir)
+    except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
         return 2
+
+    if scan.scanned == 0:
+        print(
+            f"No .md files scanned under {skills_dir}; refusing an empty scan "
+            "as a configuration error (a mistargeted root or an unreadable tree "
+            "must not read as clean).",
+            file=sys.stderr,
+        )
+        return 2
+
+    current = scan.counts
 
     if args.update_baseline:
         return _write_baseline(baseline_path, current)
@@ -347,35 +440,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-
-    if args.output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "regressions": regressions,
-                    "improvements": improvements,
-                    "current_total": sum(current.values()),
-                    "baseline_total": sum(baseline.values()),
-                },
-                indent=2,
-            )
-        )
-    else:
-        if improvements:
-            print("Portability improved (tighten the baseline with --update-baseline):")
-            for line in improvements:
-                print(f"  [IMPROVED] {line}")
-        if regressions:
-            print("Markdown vendor-portability drift detected (issue #2050):")
-            for line in regressions:
-                print(f"  [DRIFT] {line}")
-        else:
-            print(
-                f"No Markdown vendor-portability drift. "
-                f"{sum(current.values())} grandfathered refs across "
-                f"{len(current)} files (baseline {sum(baseline.values())})."
-            )
-
+    _print_report(
+        args.output_format, current, baseline, regressions, improvements, scan.scanned
+    )
     return 1 if regressions else 0
 
 
