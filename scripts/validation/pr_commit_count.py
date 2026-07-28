@@ -56,6 +56,12 @@ from scripts.github_core.api import resolve_repo_params  # noqa: E402
 WARNING_THRESHOLD = 10
 ALERT_THRESHOLD = 15
 BLOCK_THRESHOLD = 20
+# Issue #3596: ADR-008 relieves the ceiling to 40 for a branch that merges main,
+# and the pre-push hook has always honoured that. CI never did, so a branch the
+# hook let through was blocked on arrival. These two numbers are the single
+# source of truth; `scripts/validation/git_hook_policy.py` imports them rather
+# than restating them.
+MAIN_MERGE_BLOCK_THRESHOLD = 40
 
 # Sentinel status emitted when a transient API failure prevents a real count.
 STATUS_UNKNOWN = "UNKNOWN"
@@ -91,17 +97,51 @@ class CountResult:
     status: str
     count: int | None
     transient: bool
+    limit: int = BLOCK_THRESHOLD
 
 
-def classify_count(count: int) -> str:
-    """Map a commit count to a threshold status (issue #362)."""
-    if count >= BLOCK_THRESHOLD:
+def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
+    """Map a commit count to a threshold status (issue #362).
+
+    ``limit`` is the effective block ceiling: BLOCK_THRESHOLD normally, or
+    MAIN_MERGE_BLOCK_THRESHOLD when the branch carries a merge from the base
+    (issue #3596). The advisory WARNING and ALERT rungs are unchanged.
+    """
+    if count >= limit:
         return "BLOCKED"
     if count >= ALERT_THRESHOLD:
         return "ALERT"
     if count >= WARNING_THRESHOLD:
         return "WARNING"
     return "OK"
+
+
+def contains_base_merge(commits: list[Any]) -> bool:
+    """Return True when the PR carries a merge commit from outside the branch.
+
+    The commits endpoint returns exactly the commits unique to the head branch.
+    A merge commit inside that list whose parents are not all in the list merged
+    something the branch did not author, which is the base branch. That is the
+    server-side equivalent of the hook's `merge-base --is-ancestor` check
+    against origin/main.
+    """
+    own_shas = {
+        commit.get("sha")
+        for commit in commits
+        if isinstance(commit, dict) and commit.get("sha")
+    }
+    for commit in commits:
+        if not isinstance(commit, dict):
+            continue
+        parents = commit.get("parents")
+        if not isinstance(parents, list) or len(parents) < 2:
+            continue
+        if any(
+            isinstance(parent, dict) and parent.get("sha") not in own_shas
+            for parent in parents[1:]
+        ):
+            return True
+    return False
 
 
 def is_transient_error(stderr: str) -> bool:
@@ -180,11 +220,12 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
         )
 
     count = len(commits)
-    return CountResult(classify_count(count), count, transient=False)
+    limit = MAIN_MERGE_BLOCK_THRESHOLD if contains_base_merge(commits) else BLOCK_THRESHOLD
+    return CountResult(classify_count(count, limit), count, transient=False, limit=limit)
 
 
-def _write_github_output(status: str, count: int | None) -> None:
-    """Append status/count key=value lines to $GITHUB_OUTPUT when set."""
+def _write_github_output(status: str, count: int | None, limit: int = BLOCK_THRESHOLD) -> None:
+    """Append status/count/limit key=value lines to $GITHUB_OUTPUT when set."""
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
         return
@@ -192,6 +233,7 @@ def _write_github_output(status: str, count: int | None) -> None:
     with open(output_path, "a", encoding="utf-8") as handle:
         handle.write(f"status={status}\n")
         handle.write(f"commit_count={count_value}\n")
+        handle.write(f"commit_limit={limit}\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -237,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
 
-    _write_github_output(outcome.status, outcome.count)
+    _write_github_output(outcome.status, outcome.count, outcome.limit)
 
     if outcome.transient:
         print(
@@ -251,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PR #{args.pr_number} has {count} commits (status: {outcome.status})")
     if outcome.status == "BLOCKED":
         print(
-            f"::error::PR exceeds commit limit ({count} >= {BLOCK_THRESHOLD}). "
+            f"::error::PR exceeds commit limit ({count} >= {outcome.limit}). "
             "Consider splitting this PR."
         )
     elif outcome.status == "ALERT":

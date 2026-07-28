@@ -315,7 +315,9 @@ jobs:
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
-        # The real 20-commit cap is enforced in `Enforce Blocking Issues`.
+        # The real cap is enforced in `Enforce Blocking Issues`. The ceiling is
+        # 20, or 40 when the branch merges main (ADR-008 relief, issue #3596);
+        # both numbers live in scripts/validation/pr_commit_count.py.
         # `continue-on-error` is the belt; warnings (not throws) in the body
         # are the suspenders, so a label API outage shows as an annotation
         # rather than a red step outline.
@@ -349,7 +351,7 @@ jobs:
             "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" `
             --input -
           if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to add advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the 20-commit cap is still enforced by 'Enforce Blocking Issues'."
+            Write-Warning "Failed to add advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the commit cap is still enforced by 'Enforce Blocking Issues'."
             exit 0
           }
           Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
@@ -395,6 +397,7 @@ jobs:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
           COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
           COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
+          COMMIT_LIMIT: ${{ steps.commit-check.outputs.commit_limit }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
@@ -412,7 +415,7 @@ jobs:
             if ($labels -contains 'commit-limit-bypass') {
               Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
             } else {
-              Write-Error "PR has $env:COMMIT_COUNT commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR."
+              Write-Error "PR has $env:COMMIT_COUNT commits (limit: $env:COMMIT_LIMIT). Add 'commit-limit-bypass' label to override or split this PR."
               exit 1
             }
           }

@@ -285,3 +285,114 @@ def test_main_blocked_emits_error_annotation(
     rc = mod.main(["--pr-number", "42"])
     assert rc == 0
     assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Issue #3596: the ADR-008 main-merge relief must apply in CI, not only in the
+# pre-push hook, and both ceilings must come from this module.
+# ---------------------------------------------------------------------------
+
+
+def _merge_commits_json(n: int, external_parent: bool) -> str:
+    """Build a commits payload whose last entry is a merge commit.
+
+    ``external_parent`` decides whether the merge's second parent is outside the
+    PR's own commit list, which is what marks a merge as coming from the base.
+    """
+    commits: list[dict[str, object]] = [
+        {"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(n - 1)
+    ]
+    second = "f" * 40 if external_parent else f"{0:040x}"
+    commits.append(
+        {"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]}
+    )
+    return json.dumps(commits)
+
+
+def test_contains_base_merge_is_false_for_a_linear_branch() -> None:
+    payload = json.loads(_merge_commits_json(5, external_parent=False))
+    assert mod.contains_base_merge(payload) is False
+
+
+def test_contains_base_merge_is_true_when_a_merge_parent_is_outside_the_branch() -> None:
+    payload = json.loads(_merge_commits_json(5, external_parent=True))
+    assert mod.contains_base_merge(payload) is True
+
+
+def test_contains_base_merge_ignores_a_merge_between_two_branch_commits() -> None:
+    """An internal merge is the branch's own history, not a merge from main."""
+    payload = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "c" * 40, "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}]},
+    ]
+    assert mod.contains_base_merge(payload) is False
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        ["not-a-dict"],
+        [{"sha": "a" * 40}],
+        [{"sha": "a" * 40, "parents": "not-a-list"}],
+        [{"sha": "a" * 40, "parents": [{"sha": "b" * 40}, "not-a-dict"]}],
+    ],
+    ids=["empty", "non-dict", "no-parents", "parents-not-list", "parent-not-dict"],
+)
+def test_contains_base_merge_fails_closed_on_malformed_payloads(
+    payload: list[object],
+) -> None:
+    """Malformed data must not grant the relief: False keeps the stricter 20."""
+    assert mod.contains_base_merge(payload) is False
+
+
+def test_classify_count_honours_an_explicit_limit() -> None:
+    assert mod.classify_count(20, mod.BLOCK_THRESHOLD) == "BLOCKED"
+    assert mod.classify_count(20, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(39, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(40, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "BLOCKED"
+
+
+def test_classify_count_default_limit_is_unchanged() -> None:
+    """The default argument keeps every pre-existing caller on the 20 ceiling."""
+    assert mod.classify_count(20) == "BLOCKED"
+    assert mod.classify_count(19) == "ALERT"
+
+
+def test_a_branch_merging_main_is_not_blocked_below_forty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """25 commits with a merge from main passes CI, matching the pre-push hook."""
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True))
+    )
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    assert mod.main(["--pr-number", "42"]) == 0
+    assert "::error::PR exceeds commit limit" not in capsys.readouterr().out
+    written = (tmp_path / "gh_out").read_text(encoding="utf-8")
+    assert "status=ALERT" in written
+    assert f"commit_limit={mod.MAIN_MERGE_BLOCK_THRESHOLD}" in written
+
+
+def test_a_linear_branch_of_twenty_five_is_still_blocked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control: the relief must not fire without a merge from the base."""
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False))
+    )
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    assert mod.main(["--pr-number", "42"]) == 0
+    assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+    written = (tmp_path / "gh_out").read_text(encoding="utf-8")
+    assert "status=BLOCKED" in written
+    assert f"commit_limit={mod.BLOCK_THRESHOLD}" in written
+
+
+def test_the_hook_and_ci_read_the_same_two_ceilings() -> None:
+    """Issue #3596: one number in one place. A second literal would drift."""
+    from scripts.validation import git_hook_policy
+
+    assert git_hook_policy.BLOCK_THRESHOLD is mod.BLOCK_THRESHOLD
+    assert git_hook_policy.MAIN_MERGE_BLOCK_THRESHOLD is mod.MAIN_MERGE_BLOCK_THRESHOLD
