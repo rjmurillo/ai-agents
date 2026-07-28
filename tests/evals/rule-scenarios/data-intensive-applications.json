@@ -1,0 +1,46 @@
+{
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/data-intensive-applications.md",
+  "rule_id": "data-intensive-applications",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Schema evolution across deployed readers",
+      "input": "We need to rename column status to state in a table read by old workers and new workers during rolling deploy. What migration shape should we use? Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "backward compatible",
+        "forward compatible",
+        "expand",
+        "contract",
+        "schema evolution"
+      ],
+      "expected_gate": "expand-contract-migration",
+      "rationale": "Rolling deploy readers require schema evolution discipline, not a single breaking rename."
+    },
+    {
+      "id": "S2",
+      "desc": "Event ordering and duplicate delivery",
+      "input": "Our queue can deliver AccountCredited events twice and out of order. The handler updates balances and writes audit rows. How should the receiver be designed? Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "idempotent",
+        "ordering",
+        "at-least-once",
+        "dedupe",
+        "consumer"
+      ],
+      "expected_gate": "idempotent-receiver",
+      "rationale": "Delivery semantics and ordering are central. Data-intensive guidance should reject exactly-once assumptions."
+    },
+    {
+      "id": "S3",
+      "desc": "Single in-memory calculation negative case",
+      "input": "I need a function that converts Fahrenheit to Celsius for one input value. Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "formula",
+        "unit conversion"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No storage, ordering, replication, or schema concern exists."
+    }
+  ]
+}

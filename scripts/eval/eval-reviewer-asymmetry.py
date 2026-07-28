@@ -39,7 +39,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -95,6 +95,8 @@ def load_template(rel_path: str, ref: str | None) -> str:
         ["git", "show", f"{ref}:{rel_path}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=30,
         cwd=str(REPO_ROOT),
@@ -191,9 +193,12 @@ def _parse_verdict(raw: str) -> dict[str, str]:
     if not obj_match:
         return {"verdict": "PARSE_ERROR", "reason": raw[:200]}
     try:
-        return json.loads(obj_match.group())
+        parsed = json.loads(obj_match.group())
     except json.JSONDecodeError:
         return {"verdict": "PARSE_ERROR", "reason": raw[:200]}
+    if not isinstance(parsed, dict):
+        return {"verdict": "PARSE_ERROR", "reason": raw[:200]}
+    return cast(dict[str, str], parsed)
 
 
 # ---------------------------------------------------------------------------

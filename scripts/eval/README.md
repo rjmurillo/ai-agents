@@ -110,27 +110,29 @@ Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
 
 ## Rule Activation Eval
 
-`eval-rule-activation.py` measures whether a `.claude/rules/*.md` file actually
-changes agent behavior across three loading mechanisms:
+`eval-rule-activation.py` measures whether a `.claude/rules/*.md` rule or a
+skill reference actually changes agent behavior across three loading
+mechanisms:
 
 1. **baseline**. Empty system prompt (control).
-2. **description**. Only the rule's frontmatter `description` is in the system prompt. Mimics an agent reading `.claude/rules/` and matching descriptions.
-3. **full**. Entire rule body in the system prompt. Mimics `@import` from CLAUDE.md or `alwaysApply: true`.
+2. **description**. Rules expose only their frontmatter `description`. Skill references expose only the umbrella skill catalog entry first, then the skill router must select the reference before the response can use it. Mimics progressive disclosure through the real front door.
+3. **full**. Entire rule body, or skill router plus selected reference body, is in the system prompt. This is a diagnostic ceiling only.
 
 Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
-The eval passes when the best non-baseline mechanism averages ≥3.5 and beats
-baseline by ≥0.5. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
+The eval passes only when the `description` mechanism averages ≥3.5 and beats
+baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
 overriding the score-based gate. A scenarios file that contains no positive
 cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
 also a failing verdict because activation cannot be validated by negative
 cases alone.
 
-Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
+Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
 ```json
 {
-  "rule_path": ".claude/rules/working-with-legacy-code.md",
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/working-with-legacy-code.md",
   "rule_id": "working-with-legacy-code",
   "scenarios": [
     {
@@ -153,12 +155,13 @@ Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 }
 ```
 
-Adding a new rule eval:
+Adding a new activation eval:
 
 1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
-2. Run `python3 scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the rule.
-3. Run live (without `--dry-run`) to score. Cost is ~$0.25 per rule (24 calls × ~3500 tokens).
-4. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
+2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
+3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
+4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
+5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 
 ## Skill Overlap Eval
 
@@ -741,8 +744,8 @@ through `EVAL_PROVIDER=github`. Read the numbers before trusting an accept.
 
 **The run.** `extract` produced 24 tasks with 12 passing. `split --seed
 live-2026-07-27` drew 14 optimize and 10 held out. Acting as the optimizer,
-only the 14 optimize ids were read. The chosen edit went to
-`.claude/rules/working-with-legacy-code.md`, whose two visible failures both
+only the 14 optimize ids were read. The chosen edit went to the then-existing
+working-with-legacy-code rule file, whose two visible failures both
 scored 2.33 with the judge saying the behavior was right but the answer
 "lacks the expected vocabulary", while the rule bound its vocabulary to "PR
 descriptions and review comments" alone. The edit widened that binding and

@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -50,7 +51,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -336,24 +337,38 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         seed = str(split["seed"])
         raw_sel_ratio = split["sel_ratio"]
         raw_test_ratio = split["test_ratio"]
-        sel_ratio = str(raw_sel_ratio)
-        test_ratio = str(raw_test_ratio)
-        redrawn = split_tasks(
-            tasks,
-            seed=seed,
-            sel_ratio=sel_ratio,
-            test_ratio=test_ratio,
-            min_sel=int(split.get("min_sel", 3)),
-        )
-        compatible_fingerprints = {redrawn.fingerprint}
-        if _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio):
-            compatible_fingerprints.add(
-                _legacy_numeric_split_fingerprint(
-                    tasks,
-                    seed=seed,
-                    sel_ratio=float(raw_sel_ratio),
-                    test_ratio=float(raw_test_ratio),
-                )
+        min_sel = int(split.get("min_sel", 3))
+        numeric_schema = _is_json_number(raw_sel_ratio) and _is_json_number(raw_test_ratio)
+        string_schema = isinstance(raw_sel_ratio, str) and isinstance(raw_test_ratio, str)
+        if numeric_schema:
+            sel_ratio = _legacy_numeric_ratio("sel_ratio", raw_sel_ratio)
+            test_ratio = _legacy_numeric_ratio("test_ratio", raw_test_ratio)
+            redrawn_groups, redrawn_fingerprint = _legacy_numeric_split_groups(
+                tasks,
+                seed=seed,
+                sel_ratio=sel_ratio,
+                test_ratio=test_ratio,
+                min_sel=min_sel,
+            )
+            compatible_fingerprints = {redrawn_fingerprint}
+        elif string_schema:
+            redrawn = split_tasks(
+                tasks,
+                seed=seed,
+                sel_ratio=str(raw_sel_ratio),
+                test_ratio=str(raw_test_ratio),
+                min_sel=min_sel,
+            )
+            redrawn_groups = {
+                "opt": redrawn.opt,
+                "sel": redrawn.sel,
+                "test": redrawn.test,
+            }
+            compatible_fingerprints = {redrawn.fingerprint}
+        else:
+            raise ValueError(
+                "sel_ratio and test_ratio must both use legacy numeric schema "
+                "or both use string schema"
             )
     except (TypeError, ValueError, OverflowError) as exc:
         # `OverflowError` is a sibling of `ValueError`, not a subclass, so a
@@ -362,11 +377,21 @@ def _split_drifted(split: Mapping[str, Any]) -> bool:
         raise ConfigError(f"split file holds unusable seed or ratios: {exc}") from exc
     if split["fingerprint"] not in compatible_fingerprints:
         return True
-    return any(sorted(getattr(redrawn, g)) != sorted(split[g]) for g in _GROUPS)
+    return any(sorted(redrawn_groups[g]) != sorted(split[g]) for g in _GROUPS)
 
 
 def _is_json_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _legacy_numeric_ratio(name: str, value: object) -> float:
+    try:
+        ratio = float(cast(int | float, value))
+    except OverflowError as exc:
+        raise ValueError(f"{name} numeric value is too large") from exc
+    if not math.isfinite(ratio):
+        raise ValueError(f"{name} numeric value must be finite")
+    return ratio
 
 
 def _legacy_numeric_split_fingerprint(
@@ -383,6 +408,84 @@ def _legacy_numeric_split_fingerprint(
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _legacy_numeric_split_groups(
+    task_ids: Sequence[str],
+    *,
+    seed: str,
+    sel_ratio: float,
+    test_ratio: float,
+    min_sel: int,
+) -> tuple[dict[str, tuple[str, ...]], str]:
+    if not task_ids:
+        raise ValueError("split_tasks requires at least one task id")
+    if not seed or not seed.strip():
+        raise ValueError("split_tasks requires a non-empty seed")
+    if not 0.0 < sel_ratio < 1.0:
+        raise ValueError(f"sel_ratio must be strictly between 0 and 1, got {sel_ratio}")
+    if not 0.0 <= test_ratio < 1.0:
+        raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
+    if min_sel < 0:
+        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+    if sel_ratio + test_ratio >= 1.0:
+        raise ValueError(
+            f"sel_ratio + test_ratio must leave at least one opt task, "
+            f"got {sel_ratio} + {test_ratio}"
+        )
+
+    cleaned: list[str] = []
+    for raw in task_ids:
+        if raw != raw.strip():
+            raise ValueError(
+                f"task id {raw!r} carries leading or trailing whitespace; "
+                f"ids must match the keys the scorer emits exactly"
+            )
+        if not raw:
+            raise ValueError("split_tasks requires non-empty task ids")
+        cleaned.append(raw)
+    if len(set(cleaned)) != len(cleaned):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for tid in cleaned:
+            if tid in seen:
+                duplicates.add(tid)
+            else:
+                seen.add(tid)
+        raise ValueError(
+            f"split_tasks received duplicate task ids: {', '.join(sorted(duplicates))}"
+        )
+
+    total = len(cleaned)
+    n_sel = int(total * sel_ratio + 0.5)
+    n_test = int(total * test_ratio + 0.5)
+    if total - n_sel - n_test < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} test_ratio={test_ratio} "
+            f"leaves no opt tasks"
+        )
+    if n_sel < 1:
+        raise ValueError(
+            f"split of {total} tasks at sel_ratio={sel_ratio} holds out no tasks; "
+            f"a gate needs at least one held-out task"
+        )
+    if n_sel < min_sel:
+        raise ValueError(
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"widen the eval set or lower min_sel to gate on it"
+        )
+
+    ranked = sorted(
+        cleaned,
+        key=lambda tid: hashlib.sha256(f"{seed}\x00{tid}".encode()).hexdigest(),
+    )
+    return {
+        "sel": tuple(ranked[:n_sel]),
+        "test": tuple(ranked[n_sel : n_sel + n_test]),
+        "opt": tuple(ranked[n_sel + n_test :]),
+    }, _legacy_numeric_split_fingerprint(
+        cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -418,12 +521,27 @@ def _rule_degraded_scenario_ids(
             degraded.append(task_id)
             continue
         scores = mech_data.get("scores")
-        if isinstance(scores, Mapping) and scores.get("judge_failed"):
-            degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
     return degraded
+
+
+def _rule_score_block_is_degraded(scores: object) -> bool:
+    if not isinstance(scores, Mapping) or not scores:
+        return True
+    if scores.get("judge_failed"):
+        return True
+    for field in ("activation_score", "citation_score", "behavior_score"):
+        value = scores.get(field)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value < 0
+            or value > 5
+        ):
+            return True
+    return False
 
 
 def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
@@ -491,6 +609,31 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
+    if "error_count" not in report:
+        raise ConfigError(
+            "refusing to extract agent report with missing error_count; "
+            "rerun with a current report writer"
+        )
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count!r}; expected a non-negative integer"
+        )
+    if error_count < 0:
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count}; expected a non-negative integer"
+        )
+    if error_count == 0:
+        return
+    raise ConfigError(
+        "refusing to extract degraded agent report: "
+        f"error_count={error_count}; rerun until all records succeed"
+    )
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     corpus: str | None = None
     if args.kind == "hook":
@@ -499,6 +642,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         report = _read_json(args.input)
         if not isinstance(report, Mapping):
             raise ConfigError(f"{args.input} must hold an agent report object")
+        _refuse_degraded_agent_report(report)
         corpus = _report_corpus(args.input, report)
         results = agent_results(
             report,
