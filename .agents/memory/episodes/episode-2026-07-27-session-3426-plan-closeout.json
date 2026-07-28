@@ -11,7 +11,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Read issue #3426",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -97,6 +99,16 @@
         "e007"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b02150b671",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -104,7 +116,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []

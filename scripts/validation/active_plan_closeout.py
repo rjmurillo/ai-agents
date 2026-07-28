@@ -20,7 +20,7 @@ TERMINAL_STATES = frozenset({"CLOSED", "MERGED"})
 NONTERMINAL_STATES = frozenset({"OPEN", "DRAFT", "LOCKED"})
 KNOWN_STATES = TERMINAL_STATES | NONTERMINAL_STATES
 ISSUE_REF_RE = re.compile(
-    r"(?:https://github\.com/[^/\s]+/[^/\s]+/issues/|(?<![A-Za-z0-9/])#)(\d+)"
+    r"(?:https://github\.com/[^/\s]+/[^/\s]+/(?:issues|pull)/|(?<![A-Za-z0-9/])#)(\d+)"
 )
 
 
@@ -100,6 +100,9 @@ def _print_lookup_advisory(issue_number: int, message: str) -> None:
     )
 
 
+_REPO_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
 def gh_issue_state(
     issue_number: int,
     *,
@@ -107,6 +110,9 @@ def gh_issue_state(
     env: Mapping[str, str] | None = None,
 ) -> str | None:
     """Return a GitHub issue state, or None when lookup cannot prove closure."""
+    if not _REPO_RE.fullmatch(repo):
+        _print_lookup_advisory(issue_number, f"invalid repo format: {repo!r}")
+        return None
     command = [
         "gh",
         "issue",
@@ -159,7 +165,10 @@ def validate_active_plan_closeout(repo_root: Path) -> bool:
         issue_state_lookup=lambda issue: gh_issue_state(issue, repo=repo),
     )
     if not warnings:
-        print("[PASS] Active plan closeout advisory found no closed active plans")
+        print(
+            "[PASS] Active plan closeout advisory: "
+            "no active plans with all tracking issues closed"
+        )
         return True
 
     print("[WARNING] Active execution plans have closed tracking issues:")

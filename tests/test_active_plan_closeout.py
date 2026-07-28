@@ -169,3 +169,20 @@ def test_gh_timeout_is_advisory(monkeypatch, capsys) -> None:
 
     captured = capsys.readouterr()
     assert "could not inspect #101: gh lookup timed out" in captured.out
+
+
+def test_issue_refs_captures_pull_request_urls() -> None:
+    markdown = (
+        "Tracked by https://github.com/rjmurillo/ai-agents/pull/1633 "
+        "and #1574."
+    )
+
+    assert issue_refs(markdown) == (1574, 1633)
+
+
+def test_gh_issue_state_rejects_invalid_repo_format(capsys) -> None:
+    result = gh_issue_state(101, repo="invalid repo; echo pwned")
+
+    assert result is None
+    captured = capsys.readouterr()
+    assert "invalid repo format" in captured.out
