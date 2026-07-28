@@ -4,13 +4,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Abandoned |
 | **Created** | 2026-05-06 |
 | **Owner** | agent (Claude Opus 4.7) |
 | **Complexity** | Medium |
 | **Source spec** | REQ-005 / DESIGN-005 / TASK-005 |
 | **Authoring branch** | `docs/spec-005-command-skill-bundling` (commit `db9f24cb`) |
 | **Implementation branches** | TBD per milestone (one branch per milestone) |
+
+> **Closeout note:** Abandoned on 2026-07-27. Evidence: the bundle registry landed only in advisory mode and issue #3424 now tracks the stale registry replacement.
 
 ## Objectives
 

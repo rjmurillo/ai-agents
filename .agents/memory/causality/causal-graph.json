@@ -23482,6 +23482,96 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution"
       ],
       "created": "2026-07-28T04:28:48.065013+00:00"
+    },
+    {
+      "id": "a3dbd8d7226a",
+      "type": "milestone",
+      "label": "milestone: Read issue #3426",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808804+00:00"
+    },
+    {
+      "id": "c720677ae3c8",
+      "type": "milestone",
+      "label": "milestone: Closed stale execution plans",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808894+00:00"
+    },
+    {
+      "id": "009bd2621d26",
+      "type": "milestone",
+      "label": "milestone: Added active plan advisory",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808974+00:00"
+    },
+    {
+      "id": "46c04904a58c",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809050+00:00"
+    },
+    {
+      "id": "79ea5b5c5d73",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check.",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809125+00:00"
+    },
+    {
+      "id": "bd574610ca7a",
+      "type": "milestone",
+      "label": "milestone: Committed closeout docs",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:43:54.519216+00:00"
+    },
+    {
+      "id": "8d477003135d",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:44:42.128789+00:00"
+    },
+    {
+      "id": "a76f1303445a",
+      "type": "milestone",
+      "label": "milestone: Committed completed plan batch",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:45:48.675324+00:00"
+    },
+    {
+      "id": "24368d5c21ec",
+      "type": "milestone",
+      "label": "milestone: Committed single plan closeout",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:48:08.258840+00:00"
+    },
+    {
+      "id": "f640dc8c090f",
+      "type": "commit",
+      "label": "commit: Commit: b02150b671",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-28T03:56:21.060656+00:00"
     }
   ],
   "patterns": [
