@@ -856,7 +856,13 @@ def _blob_arrived_through_the_merge(
     path: str,
     blob: bytes,
 ) -> bool:
-    """Report whether a staged blob is main's content carried in by the merge.
+    """Report whether a staged blob looks like content the merge carried in.
+
+    "Looks like" is the honest verb. Every comparison here is against the
+    local `refs/remotes/origin/main`, which is a cached answer to what main
+    held at the last fetch, not what main holds now. The gate is offline and
+    cannot do better, so it is proving a resemblance rather than provenance,
+    and that is the ceiling on what this function can be trusted for.
 
     Three questions, each closing a way past the other two.
 
@@ -868,9 +874,9 @@ def _blob_arrived_through_the_merge(
     Those two alone still lose to an author who builds the merge: branch off
     the newer commit, commit the older text there, merge it back, and both
     hold. So the third question asks about the copy this branch already has.
-    Main's content arriving is an upgrade, and the copy being replaced is one
-    main has carried at some point. A reversion is not, because the newer text
-    it overwrites was written locally and main has never seen it.
+    Content arriving from main is an upgrade, and the copy being replaced is
+    one that ref has carried at some point. A reversion is not, because the
+    newer text it overwrites was written locally and never pushed.
     """
     if not _blob_is_at_any(repo_root, merge_parents, path, blob):
         return False
@@ -880,12 +886,17 @@ def _blob_arrived_through_the_merge(
 
 
 def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
-    """Report whether HEAD's copy of a path is a state main has ever held.
+    """Report whether HEAD's copy of a path is a state `origin/main` has held.
 
     A path HEAD does not carry cannot be a regression of local work, so it
     passes. Otherwise the copy has to appear somewhere in `origin/main`'s
     history for that path. Walking the path's own history keeps this to the
     handful of commits that touched one ADR rather than the whole branch.
+
+    `origin/main` is a local cache of main, so a branch that has not fetched
+    in a while can fail this on content main really does carry. That
+    direction is the safe one: the answer is review evidence demanded for a
+    file that did not need it, and a fetch clears it.
     """
     head_blob = _read_head_blob(repo_root, path)
     if head_blob is None:
