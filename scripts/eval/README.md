@@ -489,39 +489,46 @@ optimizer cooperates:
   the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
-- A recorded charge survives a crash. The ledger is written to a temp file,
-  fsynced, renamed, and then the *parent directory* is fsynced too. Without
-  that last step the bytes were durable but the directory entry pointing at
-  them was not, so a host losing power after a reported charge could come back
-  with the rename undone and hand the consultation back for free. That is the
-  one outcome charging before scoring exists to prevent, so a charge a crash
-  can erase defeats the ordering it was written to protect. Windows cannot open
-  a directory as a descriptor and `os.replace` is atomic there regardless, so
-  the step is skipped on that platform rather than failed. A directory that
-  opens and then refuses to sync is warned about on stderr and not raised: the
-  write and the rename have already succeeded by then, and in the ledger's case
-  the consultation has already been charged, so aborting would spend a look and
-  return no verdict. That is the same trade the charging order exists to avoid,
-  pointing the other way. Every other failure in that function precedes the
-  rename and leaves the destination untouched, so those still refuse. That
-  warning goes through the same redaction the raised errors do, and cannot
-  itself fail: a diagnostic printed after a success must not become a new way
-  to lose the work it is reporting on, and must not disclose in plain text
-  what the exception path is required to redact. "Cannot fail" is enforced as
-  a rule rather than as a list of the failures anyone has demonstrated: an
-  earlier version suppressed `OSError` because that is what a reviewer's
-  closed-stream demonstration raised, and a stream closed for real raises
-  `ValueError`. There is a third rule alongside those two. The warning must
-  not land on the stream carrying the verdict. `sys.stderr` can be absent in
-  an embedded or windowed interpreter, and printing to a file of `None` does
-  not skip the write, it falls back to stdout, where the JSON a caller parses
-  is. A diagnostic that corrupts the payload it is diagnosing is worse than
-  one that crashes, because nothing reports it. "Absent" covers two cases and
-  for four rounds the code handled one. A harness can blank the attribute or
-  delete it, and the second turns reading it into an `AttributeError` raised
-  before the suppression is even entered, from the line whose only job is to
-  decide whether to warn. Reading it with `getattr` routes that case into the
-  `None` branch already there, which enforces the no-abort rule at the last
+- A recorded charge survives a crash on POSIX. The ledger is written to a temp
+  file, fsynced, renamed, and the *parent directory* is then fsynced too.
+  Without that last step the bytes were durable but the directory entry
+  pointing at them was not, so a host losing power after a reported charge
+  could come back with the rename undone and hand the consultation back for
+  free. That is the one outcome charging before scoring exists to prevent, so
+  a charge a crash can erase defeats the ordering it was written to protect.
+  Windows cannot open a directory as a descriptor, so the step is skipped on
+  that platform rather than failed, and the skip is a real gap. `os.replace`
+  is atomic on Windows, but atomicity is not the property at stake here:
+  CPython calls `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` alone, omitting
+  `MOVEFILE_WRITE_THROUGH`, the flag Microsoft documents as waiting for the
+  move to reach disk. So a Windows host can lose a recorded charge to a power
+  cut the same way an unsynced POSIX host can. The skip is silent rather than
+  warned because it holds for every write, and a warning on each one would
+  cost stderr its signal. A directory that opens and then refuses to sync is
+  warned about on stderr and not raised: the write and the rename have already
+  succeeded by then, and in the ledger's case the consultation has already
+  been charged, so aborting would spend a look and return no verdict. That is
+  the same trade the charging order exists to avoid, pointing the other way.
+  Every other failure in that function precedes the rename and leaves the
+  destination untouched, so those still refuse. That warning goes through the
+  same redaction the raised errors do, and cannot itself fail: a diagnostic
+  printed after a success must not become a new way to lose the work it is
+  reporting on, and must not disclose in plain text what the exception path is
+  required to redact. "Cannot fail" is enforced as a rule rather than as a
+  list of the failures anyone has demonstrated: an earlier version suppressed
+  `OSError` because that is what a reviewer's closed-stream demonstration
+  raised, and a stream closed for real raises `ValueError`. There is a third
+  rule alongside those two. The warning must not land on the stream carrying
+  the verdict. `sys.stderr` can be absent in an embedded or windowed
+  interpreter, and printing to a file of `None` does not skip the write, it
+  falls back to stdout, where the JSON a caller parses is. A diagnostic that
+  corrupts the payload it is diagnosing is worse than one that crashes,
+  because nothing reports it. "Absent" covers two cases and for four rounds
+  the code handled one. A harness can blank the attribute or delete it, and
+  the second turns reading it into an `AttributeError` raised before the
+  suppression is even entered, from the line whose only job is to decide
+  whether to warn. Reading it with `getattr` routes that case into the `None`
+  branch already there, which enforces the no-abort rule at the last
   expression standing outside the guard without adding a second branch to it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,

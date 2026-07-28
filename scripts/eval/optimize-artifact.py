@@ -1625,8 +1625,23 @@ def _fsync_dir(directory: Path) -> None:
     parses.
 
     Windows cannot open a directory as a descriptor, so there is nothing to
-    sync and ``os.replace`` is atomic there regardless. That is a skip rather
-    than a warning.
+    sync and the step is skipped. The skip is a real gap, not a no-op, and
+    the reason usually offered for it answers a different question than the
+    one this function asks. ``os.replace`` is atomic on Windows, but the
+    paragraph above is about durability, not atomicity. CPython calls
+    ``MoveFileExW`` with ``MOVEFILE_REPLACE_EXISTING`` alone (see
+    ``Modules/posixmodule.c``), omitting ``MOVEFILE_WRITE_THROUGH``, the flag
+    Microsoft documents as waiting for the move to reach disk. A Windows host
+    that loses power just after a ledger charge can therefore come back with
+    the charge undone, which is the same loss an unsynced POSIX host takes.
+
+    The skip stays silent rather than warning like the failure path above,
+    because it is a property of the platform and not an anomaly in this run.
+    It holds for every write, so warning on each one would spend the stderr
+    channel's signal and teach the operator to ignore it. Recording it here
+    is the report. Closing it needs a Windows-only write-through path that
+    this repo's CI cannot exercise, so it is tracked in issue #3591 rather
+    than guessed at here.
     """
     if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
         return
