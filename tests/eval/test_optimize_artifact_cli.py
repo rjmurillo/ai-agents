@@ -186,7 +186,10 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}}},
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}},
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
@@ -196,7 +199,7 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
+            {"error_count": 0, "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
         )
         code, out = _run(
             capsys,
@@ -212,6 +215,46 @@ class TestExtract:
         )
         assert code == EXIT_OK
         assert out["results"] == {"C1": True}
+
+    def test_agent_report_refuses_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": 1,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "degraded agent report" in out["error"]
+        assert "error_count=1" in out["error"]
+
+    @pytest.mark.parametrize("error_count", ["1", None, -1])
+    def test_agent_report_refuses_malformed_error_count(
+        self, tmp_path, capsys, error_count
+    ):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": error_count,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
+
+    def test_agent_report_refuses_missing_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}}},
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
@@ -358,6 +401,33 @@ class TestExtract:
         assert code == EXIT_CONFIG
         assert "refactoring::S3" in out["error"]
 
+    @pytest.mark.parametrize(
+        "scores",
+        [
+            {},
+            {"activation_score": 5, "citation_score": 5},
+            {"activation_score": 5, "citation_score": "5", "behavior_score": 5},
+        ],
+    )
+    def test_rule_extract_refuses_malformed_judge_scores(
+        self, tmp_path, capsys, scores
+    ):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S4",
+                    "negative_case": False,
+                    "mechanisms": {"full": {"scores": scores}},
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S4" in out["error"]
+
     def test_a_scenario_that_is_not_an_object_is_not_called_degraded(self, tmp_path, capsys):
         """A non-object entry has no id to report, so the scan skips it.
 
@@ -403,7 +473,15 @@ class TestExtract:
                         {
                             "id": "S4",
                             "negative_case": False,
-                            "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 5,
+                                        "citation_score": 5,
+                                        "behavior_score": 5,
+                                    }
+                                }
+                            },
                         }
                     ],
                 }
@@ -424,7 +502,15 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                        "mechanisms": {
+                            "full": {
+                                "scores": {
+                                    "activation_score": 1,
+                                    "citation_score": 1,
+                                    "behavior_score": 1,
+                                }
+                            }
+                        },
                     }
                 ]
             },
@@ -476,7 +562,9 @@ class TestExtractRealRuleEnvelope:
     """The shape eval-rule-activation.py --output actually writes.
 
     Verified against a live run over tests/evals/rule-scenarios/*.json: the
-    file is {"rules": {<rule-name>: {"rule_path", "scenarios", "summary"}}}.
+    file is {"rules": {<rule-name>: {"target_path", "reference_path",
+    "scenarios", "summary"}}}. `reference_path` is present when the target is a
+    progressive-disclosure skill reference rather than an always-on rule.
     Scenario ids restart at S1 inside every rule, so 24 real scenarios carry
     only 4 distinct ids and must be namespaced before they can be task ids.
     """
@@ -501,12 +589,20 @@ class TestExtractRealRuleEnvelope:
         return {
             "rules": {
                 "clean-architecture": {
-                    "rule_path": ".claude/rules/clean-architecture.md",
+                    "target_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library/"
+                        "references/clean-architecture.md"
+                    ),
                     "scenarios": [self._scenario("S1", 5), self._scenario("S2", 1)],
                     "summary": {"verdict": "PASS"},
                 },
                 "refactoring": {
-                    "rule_path": ".claude/rules/refactoring.md",
+                    "target_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library/"
+                        "references/refactoring.md"
+                    ),
                     "scenarios": [self._scenario("S1", 1)],
                     "summary": {"verdict": "PASS"},
                 },
@@ -3421,7 +3517,8 @@ class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
     def _agent_report(self, tmp_path, name, corpus, rates=None):
         payload = {
             "per_fixture_pass_rates": rates
-            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
+            "error_count": 0,
         }
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
@@ -3481,7 +3578,11 @@ class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
         across two reports that meant different things."""
         report = _write(
             tmp_path, "r.json",
-            {"per_fixture_pass_rates": {"t0": {"agent": [1.0]}}, "fixture_set_sha": 17},
+            {
+                "per_fixture_pass_rates": {"t0": {"agent": [1.0]}},
+                "fixture_set_sha": 17,
+                "error_count": 0,
+            },
         )
         code, _ = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_CONFIG
@@ -3682,7 +3783,8 @@ class TestTheCorpusPinCannotBeStrippedAway:
     def _report(self, tmp_path, name, corpus, rates=None):
         payload = {
             "per_fixture_pass_rates": rates
-            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
+            "error_count": 0,
         }
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
