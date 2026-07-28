@@ -110,27 +110,29 @@ Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
 
 ## Rule Activation Eval
 
-`eval-rule-activation.py` measures whether a `.claude/rules/*.md` file actually
-changes agent behavior across three loading mechanisms:
+`eval-rule-activation.py` measures whether a `.claude/rules/*.md` rule or a
+skill reference actually changes agent behavior across three loading
+mechanisms:
 
 1. **baseline**. Empty system prompt (control).
-2. **description**. Only the rule's frontmatter `description` is in the system prompt. Mimics an agent reading `.claude/rules/` and matching descriptions.
-3. **full**. Entire rule body in the system prompt. Mimics `@import` from CLAUDE.md or `alwaysApply: true`.
+2. **description**. Rules expose only their frontmatter `description`. Skill references expose only the umbrella skill catalog entry first, then the skill router must select the reference before the response can use it. Mimics progressive disclosure through the real front door.
+3. **full**. Entire rule body, or skill router plus selected reference body, is in the system prompt. This is a diagnostic ceiling only.
 
 Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
-The eval passes when the best non-baseline mechanism averages ≥3.5 and beats
-baseline by ≥0.5. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
+The eval passes only when the `description` mechanism averages ≥3.5 and beats
+baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
 overriding the score-based gate. A scenarios file that contains no positive
 cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
 also a failing verdict because activation cannot be validated by negative
 cases alone.
 
-Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
+Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
 ```json
 {
-  "rule_path": ".claude/rules/working-with-legacy-code.md",
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/working-with-legacy-code.md",
   "rule_id": "working-with-legacy-code",
   "scenarios": [
     {
@@ -153,12 +155,13 @@ Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 }
 ```
 
-Adding a new rule eval:
+Adding a new activation eval:
 
 1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
-2. Run `python3 scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the rule.
-3. Run live (without `--dry-run`) to score. Cost is ~$0.25 per rule (24 calls × ~3500 tokens).
-4. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
+2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
+3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
+4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
+5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 
 ## Skill Overlap Eval
 
@@ -306,7 +309,7 @@ one-fixture gate, which measures nothing.
 
 | Subcommand | Purpose |
 |------------|---------|
-| `extract` | Convert an existing scorer's output to `{task_id: bool}`. |
+| `extract` | Convert an existing scorer's output to the results envelope. |
 | `split` | Partition task ids into `opt`, `sel`, and `test`. |
 | `budget` | Edits allowed at this step, cosine-decayed from `max` to `min`. |
 | `score` | Fraction of one group passing. |
@@ -321,11 +324,32 @@ one-fixture gate, which measures nothing.
 already has a scorer; each reports in its own shape, and `extract` converges
 them on the one shape the gate reads.
 
-| `--kind` | Input | Task id |
-|----------|-------|---------|
-| `agent` | An agent eval `report.json` | Fixture id |
-| `rule` | `eval-rule-activation.py` scenario output | Scenario id |
-| `hook` | `pytest --junitxml` output | Test node id |
+| `--kind` | Input | Task id | Corpus identity |
+|----------|-------|---------|-----------------|
+| `agent` | An agent eval `report.json` | Fixture id | `fixture_set_sha` |
+| `rule` | `eval-rule-activation.py` scenario output | Scenario id | none published |
+| `hook` | `pytest --junitxml` output | Test node id | none published |
+
+`extract` writes an envelope, not a bare mapping:
+
+```json
+{
+  "schema": "optimizer-results/1",
+  "corpus": "26136df314d6c7b57fb85b8557440ac61d49c8728529f3040b930c8ff7ca02ef",
+  "results": {"A001": true, "A002": false}
+}
+```
+
+`corpus` answers "which task set was this scored against", as the producer's
+sha256 hex digest of that set, and `gate` refuses a pair that does not agree on
+it. The reader accepts exactly sixty-four lowercase hex characters, or `null`;
+a truncated, upper-case, or otherwise short value is a config error and exits
+2, because a value that is not a whole digest cannot be compared and would
+report a verified match it never made. `split` pins the value it was drawn from
+so the answer cannot be stripped back out. Only the agent path has a source for
+it today, so the other two write `null` and the gate reports the comparison as
+unverified rather than pretending it checked. A bare `{task_id: bool}` file
+still reads, as an unknown corpus.
 
 Adapters fail closed. A fixture the variant never ran, a scenario whose judge
 errored, and a skipped test all score as failures rather than being dropped.
@@ -371,6 +395,10 @@ uv run --frozen python "$OA" gate --incumbent base.json --candidate cand.json \
     --split split.json --incumbent-fingerprint "$FP" --max-consultations 5
 ```
 
+Add `--max-p 0.05` when the held-out group is large enough for the tail to
+mean something. See "What a live run measured" below for why, and for the
+group size at which the bar starts refusing everything.
+
 On reject, revert the file and run `buffer-add` with the artifact path so the
 same edit is not re-proposed against the same artifact state. On accept, the
 candidate becomes the incumbent and prior rejections against the old artifact
@@ -385,6 +413,28 @@ on an artifact costs review attention forever.
 The gate reads `sel` and only `sel`. There is no flag to point it at another
 group, because a gate that can be aimed at the group the author has been
 reading is not a gate.
+
+`score` refuses too, on the one condition it shares with the gate. Both read
+the split file, and both redraw it from its own recorded seed, task set, and
+ratios to check that the recorded groups are what those inputs produce. A file
+that fails redraw was hand-edited or corrupted after `split` wrote it, and
+`score` will not put a number on it.
+
+The reason is what `score` prints beside the number. It echoes the split's
+fingerprint so the loop can pass it to `gate --incumbent-fingerprint` without
+opening the file, and on an edited split that fingerprint no longer names the
+groups just scored: two runs of `score` return one fingerprint and different
+numbers, which is exactly the confusion the fingerprint exists to prevent.
+Nothing unsound reaches a verdict either way, because `gate` runs the same
+check and rejects. What the refusal buys is where the operator finds out. The
+gate is the end of a step that has already paid for a candidate, so a check
+that only fires there charges for the discovery.
+
+The two commands report it differently on purpose. `gate` emits
+`decision: REJECT` because its caller is a loop that branches on the document.
+`score` raises a `ConfigError` and exits 2, the same way it reports a split
+whose keys are missing, because a hand-edited split is a malformed one and
+`score` has no decision vocabulary to refuse in.
 
 ### What the seam does and does not protect
 
@@ -428,6 +478,40 @@ optimizer cooperates:
   the root.
 - Concurrent gates against one split serialize on a lock, so a parallel pair
   cannot spend one budget twice.
+- A recorded charge survives a crash. The ledger is written to a temp file,
+  fsynced, renamed, and then the *parent directory* is fsynced too. Without
+  that last step the bytes were durable but the directory entry pointing at
+  them was not, so a host losing power after a reported charge could come back
+  with the rename undone and hand the consultation back for free. That is the
+  one outcome charging before scoring exists to prevent, so a charge a crash
+  can erase defeats the ordering it was written to protect. Windows cannot open
+  a directory as a descriptor and `os.replace` is atomic there regardless, so
+  the step is skipped on that platform rather than failed. A directory that
+  opens and then refuses to sync is warned about on stderr and not raised: the
+  write and the rename have already succeeded by then, and in the ledger's case
+  the consultation has already been charged, so aborting would spend a look and
+  return no verdict. That is the same trade the charging order exists to avoid,
+  pointing the other way. Every other failure in that function precedes the
+  rename and leaves the destination untouched, so those still refuse. That
+  warning goes through the same redaction the raised errors do, and cannot
+  itself fail: a diagnostic printed after a success must not become a new way
+  to lose the work it is reporting on, and must not disclose in plain text
+  what the exception path is required to redact. "Cannot fail" is enforced as
+  a rule rather than as a list of the failures anyone has demonstrated: an
+  earlier version suppressed `OSError` because that is what a reviewer's
+  closed-stream demonstration raised, and a stream closed for real raises
+  `ValueError`. There is a third rule alongside those two. The warning must
+  not land on the stream carrying the verdict. `sys.stderr` can be absent in
+  an embedded or windowed interpreter, and printing to a file of `None` does
+  not skip the write, it falls back to stdout, where the JSON a caller parses
+  is. A diagnostic that corrupts the payload it is diagnosing is worse than
+  one that crashes, because nothing reports it. "Absent" covers two cases and
+  for four rounds the code handled one. A harness can blank the attribute or
+  delete it, and the second turns reading it into an `AttributeError` raised
+  before the suppression is even entered, from the line whose only job is to
+  decide whether to warn. Reading it with `getattr` routes that case into the
+  `None` branch already there, which enforces the no-abort rule at the last
+  expression standing outside the guard without adding a second branch to it.
 - The split record is structurally tamper-evident, in two parts because
   neither alone suffices. The fingerprint covers the split's *inputs* (seed,
   task-id set, ratios), which catches an added or removed task but not a task
@@ -541,12 +625,49 @@ Every compared verdict reports `discordant_gain`, `discordant_loss`, and
 pass-to-fail, and the one-sided exact McNemar tail on those counts. Tasks that
 did not move carry no evidence about the edit, so they are not in the test.
 
-The `p` is reported, never enforced. A held-out group with three discordant
-tasks cannot produce a `p` below 0.125 no matter how one-sided the result, so
-enforcing a conventional 0.05 floor would make the ordinary case unpassable
-rather than informative. Read it as a resolution limit: at these sizes a single
-task flip moves the verdict, so a one-step accept is weak evidence and a run of
-them is worth more than any single number.
+The `p` is reported always and enforced only when you ask, with `--max-p`. It
+is off by default for a reason that is arithmetic, not taste. A held-out group
+with three discordant tasks cannot produce a `p` below 0.125 no matter how
+one-sided the result, so a conventional 0.05 floor makes the ordinary case
+unpassable rather than informative. Read the default as a resolution limit: at
+these sizes a single task flip moves the verdict, so a one-step accept is weak
+evidence and a run of them is worth more than any single number.
+
+When you do pass `--max-p`, it is the **family** bar, not the per-comparison
+one. A budget of five consultations each judged at 0.05 does not deliver 0.05.
+Bounding the family without assuming anything about dependence gives
+`5 * 0.05 = 0.25` by the union bound; the exact `1 - 0.95**5`, about 0.226,
+holds only if the five comparisons are independent, and five looks at one
+selection group are not. Either way it is roughly five times the number an
+operator asking for 0.05 believes they are getting. So the gate spends the bar
+across the declared budget by Bonferroni: each comparison is held to
+`--max-p / --max-consultations`. Bonferroni is used rather than a sharper
+independence-dependent correction precisely because it controls the family bar
+under arbitrary dependence between the comparisons. The verdict reports both as
+`max_p` and `max_p_per_comparison`. That control is conditional, and the
+condition is worth naming: Bonferroni tolerates any dependence between the
+comparisons, but it still assumes each per-comparison p-value is valid on its
+own. The exact McNemar tail earns that only if the discordant pairs behave as
+independent fair coin flips under the null, and correlated scorer noise breaks
+it. That is not hypothetical here. The rule-path null control described above
+restored the artifact byte for byte and reproduced both gains, which is direct
+evidence that outcomes on this harness move together. Read the family bar as
+holding under any dependence between the comparisons **given** per-comparison
+validity, and treat the second half as something this harness does not
+guarantee. Two further consequences worth stating plainly. Raising the
+budget buys more looks at a stricter bar, never a cheaper one, so there is no
+way to buy an accept by declaring more consultations. And the correction makes
+the power problem worse, not better: at ten held-out tasks a one-sided exact
+McNemar tail needs five one-directional discordant pairs to clear 0.05, and
+seven to clear the 0.01 that a budget of five implies. A bar this strict
+refuses genuine improvements too. That is the honest trade, and it is why the
+flag defaults to absent. Power comes from more tasks or repeated sampling, not
+from tuning the bar.
+
+The bar is pinned in the ledger like the consultation cap, and its absence is
+pinned as firmly as its presence. A candidate refused at 0.05 cannot be gated
+again at 0.1, or with the flag dropped, against the same held-out group. To
+change the bar, re-split.
 
 The seam is boolean, so an edit that lifts every held-out task from 0.50 to
 0.99 without crossing the threshold scores as no change and rejects as a tie.
@@ -562,6 +683,49 @@ a reject from a broken input reads `decision` rather than inferring from the
 code. Argument errors from `argparse` are the exception and print plain text to
 stderr, exit 2, as with every other script here.
 
+Two accounting keys appear in those documents and answer different questions.
+`consultations` is what **this run** charged: zero on every refusal that
+declines before charging, one on the paths that charged and went on to score.
+It is present at every emit site, so the key answering "what did this cost me"
+is never missing exactly where the answer is nonzero. `sel_consultations` is
+the **running total** for the selection group, the charge included, and appears
+only where that total is both known and this group's. On a ledger key mismatch
+the recorded count belongs to a different group, so it is withheld rather than
+reported as a zero that was never true; absence is the honest answer when the
+number on disk is not yours to quote.
+
+`group` and `fingerprint` follow the same shape for the same reason. Both name
+the held-out group whose ledger this run opened, so they appear on the
+documents the gate emits once it holds that lock, and are absent from the
+refusals decided before it takes one: a drifted split, and the corpus
+preflight. The corpus refusal is the single exception, and it is deliberate.
+It is one document emitted from both sides of the lock, so it carries only
+what the earlier side can say, which is what keeps the key set from answering
+which of the two reads caught the disagreement.
+
+Filling those keys into every refusal looks like a schema cleanup and is not.
+On a drifted split the recorded fingerprint is the value the drift check has
+just disproved, so a payload carrying both would report a fingerprint beside a
+reason saying that fingerprint does not describe the file. The rule across all
+four keys is one rule: a verdict carries the facts the site emitting it can
+state honestly, and an absent key is the honest answer, not a gap.
+
+That promise has been broken three times by exceptions that reached the top
+level under a class the handler did not name, and each cost a traceback where a
+caller was parsing stdout. `_write_atomic` created its temp file before the
+block that
+turns a write failure into a `ConfigError`, so `split --out` into a directory
+that does not exist raised `FileNotFoundError` uncaught. `_read_json` did not
+name `UnicodeDecodeError`, which subclasses `ValueError` rather than `OSError`,
+so a binary input was reported under the decoder's own class while `_read_text`
+reported the same bytes as a config problem. The third was the cleanup itself:
+`_write_atomic` unlinked its temp file inside the handler without guarding the
+unlink, so a parent whose permissions were revoked after `mkstemp` failed both
+calls and the caller got a traceback naming the cleanup instead of a document
+naming the write. Cleanup cannot stand in for the failure it cleans up after,
+so the unlink is now suppressed on `OSError` while every other class still
+escapes. All three now answer exit 2 with a `ConfigError` document.
+
 | Code | Meaning |
 |------|---------|
 | 0 | Accept, novel patch, or plain success |
@@ -573,6 +737,225 @@ stderr, exit 2, as with every other script here.
 This tool makes no API calls. It decides; the scorers it wraps do the spending.
 That is why `--dry-run` applies only to `apply`, and why the whole decision path
 is unit-tested without eval budget.
+
+### What a live run measured
+
+The loop above had never been driven by a real model until 2026-07-27. It was
+then run end to end against `eval-rule-activation.py` over the seven files in
+`tests/evals/rule-scenarios/`, 24 scenarios, scored by `openai/gpt-4o-mini`
+through `EVAL_PROVIDER=github`. Read the numbers before trusting an accept.
+
+**The run.** `extract` produced 24 tasks with 12 passing. `split --seed
+live-2026-07-27` drew 14 optimize and 10 held out. Acting as the optimizer,
+only the 14 optimize ids were read. The chosen edit went to the then-existing
+working-with-legacy-code rule file, whose two visible failures both
+scored 2.33 with the judge saying the behavior was right but the answer
+"lacks the expected vocabulary", while the rule bound its vocabulary to "PR
+descriptions and review comments" alone. The edit widened that binding and
+added a two-gate summary.
+
+**The verdict.** `gate` returned ACCEPT: held-out 0.6 to 0.8, two discordant
+gains, no losses, p=0.25, one consultation of five.
+
+**Why that accept was wrong.** Post-hoc, the edited rule's own four scenarios
+had not moved: three still failing, one still passing. Every flip came from a
+rule the edit never touched. So the incumbent rule text was restored
+byte-for-byte and the identical scorer run again as a null control:
+
+- 13 of 24 tasks changed score at all; 5 crossed the 3.5 pass threshold.
+- Mean absolute movement was 0.49 points on the five-point judge scale, with a
+  maximum of 3.00.
+- The held-out group moved 6/10 to 7/10 on its own.
+- Both held-out gains that earned the ACCEPT also flipped under the null run,
+  and they were the two largest movements in the whole benchmark: 0.75 to 3.75
+  and 1.75 to 3.75.
+
+Gating that byte-identical no-op returned REJECT, but only because the noise
+happened to break one task and the no-regression clause caught it. The real
+edit and the no-op gained the same two held-out tasks. The verdict was decided
+by which way the variance fell, not by the edit.
+
+These are magnitudes observed in a single paired re-run, not an estimated
+error rate. One replication cannot put an interval on any of them. It is
+enough to establish that the noise is larger than the effect being measured,
+which is the only claim made here.
+
+### A retracted agent-path claim, and the guard it produced
+
+An earlier revision of this section claimed the architect spike reproduced the
+rule finding: two runs of the same model against the same eight fixtures, five
+of eight moving, and a null control that earned an ACCEPT. **That claim was
+wrong and is withdrawn.** The two runs did not use the same fixtures.
+
+Every agent report carries `fixture_set_sha`, and the schema comment says what
+it is for: it "allows the report consumer to verify that two runs hit the same
+set." The two architect runs report `be99fa1b1180` and `26136df314d6`. All eight
+individual `fixture_sha` values differ as well. The fixtures were committed once,
+on 2026-05-29, after both runs, and the committed copies match the later run, so
+the earlier run's corpus is not recoverable. The pair cannot support a null
+control because the corpus is a second changed variable.
+
+The two supporting pairs fail the same test for a different reason. The critic
+and high-level-advisor comparisons hold `fixture_set_sha` constant but differ in
+`agent_prompt_sha`, so the prompt is the changed variable. The "twelve of
+twenty-four" figure pooled three confounded comparisons and is withdrawn in full.
+
+There is no agent-path null control in this repository. The honest state of the
+evidence is one path measured, not three:
+
+- **Rule path, measured.** The artifact was restored byte-for-byte and verified
+  identical to `origin/main` before the re-run, so the corpus and the artifact
+  were both held fixed. That control stands, and it is the one that matters:
+  both held-out gains that earned the ACCEPT reproduced under the no-op.
+- **Agent path, unmeasured.** Running it requires two runs that agree on
+  `fixture_set_sha` and on `agent_prompt_sha`. No committed pair does.
+- **Hook path, deterministic by construction.** `pytest_results` re-runs to the
+  same mapping.
+
+The error was worth more than the claim would have been. The report schema
+already carried the field that falsifies it, the comparison tool never read that
+field, and nothing in the loop would have stopped anyone else from making the
+same mistake. `gate` now refuses a comparison whose two sides disagree about the
+corpus. See "Refusing an incomparable pair" below.
+
+### What this means for running the loop
+
+> **A `gate` ACCEPT is only as trustworthy as the benchmark under it.** `gate`
+> without `--max-p` guards against an optimizing agent gaming its own benchmark.
+> It does not guard against the benchmark being noisy. Those are different
+> threats and only the first is closed by default. On the one path where a
+> control was run, the default issued an ACCEPT for gains a no-op reproduced.
+
+Practical consequences, until repeated sampling lands:
+
+- Against `rule_results` or `agent_results`, run a null control alongside any
+  accept before citing it, and pass `--max-p`. Restore the artifact
+  byte-for-byte, re-run the identical scorer, gate the result. If the no-op
+  earns an accept, or gains the same tasks the real edit gained, the loop is
+  measuring its own variance.
+- Hold the corpus fixed and prove it, do not assume it. Two runs of the same
+  agent are not comparable unless they agree on `fixture_set_sha`. `gate` now
+  checks this for you and refuses when they disagree, because the one time this
+  was done by eye it was done wrong.
+- If the tasks that moved are not the tasks your edit touched, that is the
+  cheap early signal. The rule finding showed it before the control was run.
+- Against `pytest_results` neither applies. That path is deterministic, so a
+  repeated run of the same suite against the same tree gives the same mapping,
+  and an accept there means what it says.
+
+**What changed as a result.** `--max-p` was added so the exact tail the gate
+already computed can refuse. Replaying both runs under `--max-p 0.05` turns
+the false accept into a reject that names the 0.25 tail. It defaults to absent
+because a small held-out group cannot reach a conventional floor, and a bar
+nothing can clear is not a gate.
+
+**What did not change, and is the real limit.** At ten held-out tasks a
+one-sided exact McNemar tail cannot reach 0.05 without five one-directional
+discordant pairs, so on this benchmark `--max-p 0.05` refuses nearly
+everything, genuine improvements included. More tasks, or repeated sampling
+per task with a majority vote, is what buys power. A different threshold does
+not. Until then, treat a single-sample accept on a nondeterministic scorer as
+a hypothesis, and run the null control before believing it.
+
+### Refusing an incomparable pair
+
+`split` records the corpus of the results it was drawn from, and `gate` refuses
+when the split's pin and the two results files name more than one corpus
+between them. A results file that names no corpus says so, as `"corpus": null`,
+and that counts as a value like any other, so a known corpus beside a null one
+is a disagreement. A split with no `corpus` key at all names nothing and is
+dropped before counting, which is why a pinless split beside two files agreeing
+on one corpus is not refused. Null everywhere is one value rather than two, so
+it is reported as `corpus_verified: false` instead of refused, which is what
+keeps the gate usable on the rule and hook paths that publish no corpus
+identity:
+
+```text
+decision: REJECT   compared: false   consultations: 0
+reason: the split and the two results files do not agree on one corpus, so a
+        comparison between them measures the corpus change as well as the edit.
+```
+
+That output is a replay, not an illustration. Extracting the two tracked
+architect reports, `20260528T051601Z-70c6ae97` and `20260528T055934Z-5f4d8ad4`,
+and gating them exactly as the false accept was produced now returns the refusal
+above, exit 1, with no ledger file written.
+
+Seven properties, each chosen against a specific failure:
+
+- **It costs nothing.** The decision comes from three header fields, so it lands
+  beside the split-drift refusal and ahead of the ledger. A mismatched pair is
+  unusable at any budget, so charging for it would sell the caller a
+  consultation it can never spend.
+- **An exhausted budget does not mask it.** Same precedent as the `--max-p`
+  range check. A refusal decidable without the held-out group must not be
+  reordered behind one that needs the ledger, or the operator is told to buy
+  budget for a comparison that can never be valid. The converse also holds: the
+  preflight reads headers only and answers "unknown" to every content problem,
+  so a malformed verdict mapping can never answer in place of the ledger. The
+  full read happens after the guards, where it reports properly.
+- **Stripping a results envelope does not delete it.** The first cut compared
+  the two files against each other and refused only when both declared a corpus
+  and the two disagreed. That made the refusal reachable by omission: piping
+  either side through anything that emits a bare mapping, which is what every
+  consumer wrote before the envelope existed, turned "known to differ" into
+  "unknown", and unknown compared. Two changes close it. The split pins the
+  corpus, so the value lives in the baseline commitment rather than being
+  inferred from the pair. And one known corpus beside an unknown one is a
+  conflict, because a pair scored on one corpus does not have one side that
+  forgot.
+- **Deleting the split's pin is reported, not refused.** Removing the `corpus`
+  key leaves two agreeing results files and nothing to contradict them, so the
+  conflict rule has no disagreement to find. Refusing that shape would also
+  refuse every `--tasks` split and both artifact classes that pin nothing at
+  all. The verdict carries `corpus_pinned` instead: `true` means the split named
+  the corpus both results carry, `false` means only the two results were checked
+  against each other. A sixteenth review found the earlier wording claiming this
+  case was refused when it was not.
+- **What was scored is what was checked.** The preflight reads file headers; the
+  comparison is scored from a second, full read. Only the second is
+  authoritative, so the conflict rule runs again against the loaded values
+  before a consultation is charged. Without that, the two reads never had to
+  agree and the gap between them was a window a file could change in.
+- **Both checks speak with one voice.** The two refusals are the same document.
+  The gate's copy briefly added the ledger's prior spend, so the key set alone
+  told the caller which of the two reads caught the mismatch, which is the
+  property the shared builder exists to prevent. It was also the wrong number
+  to report: the budget guard runs before the recheck, so budget is never
+  exhausted by the time it fires, and prior spend cannot change what the caller
+  does next. Both report `consultations: 0`, the one claim each can make
+  honestly, which is that this run charged nothing.
+- **It leaks nothing.** The reason names neither task ids nor the holdout key,
+  so a caller cannot use repeated mismatches to probe the held-out group. The
+  preflight runs under the same digest scrubber as the ledger paths.
+- **Unknown everywhere is reported, not refused.** Only the agent path publishes
+  a corpus identity. Refusing unknown on all three would disable the gate for
+  rules and hooks to guard a case it cannot detect there anyway, so the verdict
+  carries `corpus_verified` instead. `false` means the check never ran. A real
+  mismatch never reaches a verdict at all.
+
+A corpus identity has to look like one: 64 lowercase hex characters, the form
+`hexdigest()` emits. An unchecked string reports success on values that identify
+nothing, and two reports both carrying `fixture_set_sha: ""` compared as
+verified until a fifteenth review pointed at it.
+
+Task ids are not a substitute for this check, which is the whole reason it
+exists. All eight fixture ids matched across the two architect runs while every
+one of the eight fixture files differed. Identity of the keys says nothing about
+identity of what the keys point at.
+
+**The limit, stated plainly.** The split file is caller-supplied and its corpus
+pin is outside the fingerprint, so a caller who edits the split can still get an
+incomparable pair through: delete the pin, and two results files scored on one
+corpus compare against a split drawn from another. The verdict reports
+`corpus_pinned: false` when that happens, but nothing refuses it. Closing it
+needs authenticated provenance, which this does not have. What it defends against is
+omission: a field going unread, an envelope getting stripped, a pair being
+eyeballed instead of checked. That is the failure that actually happened.
+
+The remaining gap is that two of the three paths have no corpus source to read.
+That is ADR-087 open requirement 12: an identity derived from task contents,
+which needs a seam that carries them.
 
 ## Scenario File Format
 

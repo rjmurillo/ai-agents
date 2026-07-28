@@ -13,11 +13,16 @@ which is precisely the overfitting the gate exists to stop.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
+import stat
+import subprocess
 import sys
 import traceback
+from contextvars import copy_context
 from pathlib import Path
 
 import pytest
@@ -80,6 +85,16 @@ def _isolated_ledger_root(tmp_path_factory, monkeypatch):
     that assert on the contents of `tmp_path` should not see it.
     """
     monkeypatch.setenv("EVAL_LEDGER_DIR", str(tmp_path_factory.mktemp("ledgers")))
+
+
+def _enveloped(corpus, results: dict) -> dict:
+    """A results file in the envelope the extractor writes."""
+    return {"schema": "optimizer-results/1", "corpus": corpus, "results": results}
+
+
+def _env_file(tmp_path, name: str, corpus, n: int = 10):
+    """An enveloped results file of `n` passing tasks."""
+    return _write(tmp_path, name, _enveloped(corpus, {f"t{i}": True for i in range(n)}))
 
 
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
@@ -171,17 +186,20 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}}},
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}},
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
-        assert out == {"C1": True, "C2": False}
+        assert out["results"] == {"C1": True, "C2": False}
 
     def test_agent_report_honors_variant_and_threshold(self, tmp_path, capsys):
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
+            {"error_count": 0, "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
         )
         code, out = _run(
             capsys,
@@ -196,7 +214,47 @@ class TestExtract:
             "0.5",
         )
         assert code == EXIT_OK
-        assert out == {"C1": True}
+        assert out["results"] == {"C1": True}
+
+    def test_agent_report_refuses_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": 1,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "degraded agent report" in out["error"]
+        assert "error_count=1" in out["error"]
+
+    @pytest.mark.parametrize("error_count", ["1", None, -1])
+    def test_agent_report_refuses_malformed_error_count(
+        self, tmp_path, capsys, error_count
+    ):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": error_count,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
+
+    def test_agent_report_refuses_missing_error_count(self, tmp_path, capsys):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}}},
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "error_count" in out["error"]
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
@@ -220,7 +278,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": True}
+        assert out["results"] == {"S1": True}
 
     def test_rule_extract_refuses_errored_mechanism(self, tmp_path, capsys):
         scenarios = _write(
@@ -312,7 +370,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S2": True}
+        assert out["results"] == {"S2": True}
 
     def test_rule_extract_refuses_judge_failure_verdict(self, tmp_path, capsys):
         envelope = {
@@ -343,6 +401,97 @@ class TestExtract:
         assert code == EXIT_CONFIG
         assert "refactoring::S3" in out["error"]
 
+    @pytest.mark.parametrize(
+        "scores",
+        [
+            {},
+            {"activation_score": 5, "citation_score": 5},
+            {"activation_score": 5, "citation_score": "5", "behavior_score": 5},
+        ],
+    )
+    def test_rule_extract_refuses_malformed_judge_scores(
+        self, tmp_path, capsys, scores
+    ):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S4",
+                    "negative_case": False,
+                    "mechanisms": {"full": {"scores": scores}},
+                }
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S4" in out["error"]
+
+    def test_a_scenario_that_is_not_an_object_is_not_called_degraded(self, tmp_path, capsys):
+        """A non-object entry has no id to report, so the scan skips it.
+
+        The degraded scan reports task ids. A bare string or number in the
+        array supplies none, so naming it would mean inventing one. The
+        scorer refuses the same input on its own terms, which is where a
+        malformed array should be caught.
+        """
+        scenarios = _write(tmp_path, "scen.json", ["not-an-object"])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded" not in out["error"]
+
+    def test_a_scenario_with_no_mechanisms_block_is_degraded(self, tmp_path, capsys):
+        """No mechanisms block at all is the same loss as an errored one.
+
+        A scenario that never ran and a scenario that ran and failed both
+        yield no score. Treating the absent block as a pass would score a
+        measurement that does not exist.
+        """
+        scenarios = _write(
+            tmp_path, "scen.json", [{"id": "S9", "negative_case": False}]
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
+        assert code == EXIT_CONFIG
+        assert "degraded rule report" in out["error"]
+        assert "S9" in out["error"]
+
+    def test_a_judge_failure_verdict_is_reported_when_no_scenario_carries_it(
+        self, tmp_path, capsys
+    ):
+        """The summary verdict is the only witness when the scenarios look clean.
+
+        A report whose scenarios all scored but whose summary says the judge
+        failed is still degraded, and nothing under that rule names the loss.
+        The placeholder id exists so the refusal has something to point at.
+        """
+        envelope = {
+            "rules": {
+                "refactoring": {
+                    "summary": {"verdict": "FAIL_JUDGE_ERRORS"},
+                    "scenarios": [
+                        {
+                            "id": "S4",
+                            "negative_case": False,
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 5,
+                                        "citation_score": 5,
+                                        "behavior_score": 5,
+                                    }
+                                }
+                            },
+                        }
+                    ],
+                }
+            }
+        }
+        path = _write(tmp_path, "rules.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "refactoring::<FAIL_JUDGE_ERRORS>" in out["error"]
+
     def test_rule_scenarios_accept_a_wrapped_object(self, tmp_path, capsys):
         """A bare scenario list may also arrive wrapped in a 'scenarios' key."""
         scenarios = _write(
@@ -353,14 +502,22 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                        "mechanisms": {
+                            "full": {
+                                "scores": {
+                                    "activation_score": 1,
+                                    "citation_score": 1,
+                                    "behavior_score": 1,
+                                }
+                            }
+                        },
                     }
                 ]
             },
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == {"S1": False}
+        assert out["results"] == {"S1": False}
 
     def test_hook_junit(self, tmp_path, capsys):
         junit = tmp_path / "j.xml"
@@ -373,7 +530,7 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "hook", "--input", junit)
         assert code == EXIT_OK
-        assert out == {"tests.test_a::test_x": True, "tests.test_a::test_y": False}
+        assert out["results"] == {"tests.test_a::test_x": True, "tests.test_a::test_y": False}
 
     def test_missing_input_is_a_config_error(self, tmp_path, capsys):
         code, _ = _run(capsys, "extract", "--kind", "agent", "--input", tmp_path / "nope.json")
@@ -405,7 +562,9 @@ class TestExtractRealRuleEnvelope:
     """The shape eval-rule-activation.py --output actually writes.
 
     Verified against a live run over tests/evals/rule-scenarios/*.json: the
-    file is {"rules": {<rule-name>: {"rule_path", "scenarios", "summary"}}}.
+    file is {"rules": {<rule-name>: {"target_path", "reference_path",
+    "scenarios", "summary"}}}. `reference_path` is present when the target is a
+    progressive-disclosure skill reference rather than an always-on rule.
     Scenario ids restart at S1 inside every rule, so 24 real scenarios carry
     only 4 distinct ids and must be namespaced before they can be task ids.
     """
@@ -430,12 +589,20 @@ class TestExtractRealRuleEnvelope:
         return {
             "rules": {
                 "clean-architecture": {
-                    "rule_path": ".claude/rules/clean-architecture.md",
+                    "target_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library/"
+                        "references/clean-architecture.md"
+                    ),
                     "scenarios": [self._scenario("S1", 5), self._scenario("S2", 1)],
                     "summary": {"verdict": "PASS"},
                 },
                 "refactoring": {
-                    "rule_path": ".claude/rules/refactoring.md",
+                    "target_path": ".claude/skills/software-engineering-library/SKILL.md",
+                    "reference_path": (
+                        ".claude/skills/software-engineering-library/"
+                        "references/refactoring.md"
+                    ),
                     "scenarios": [self._scenario("S1", 1)],
                     "summary": {"verdict": "PASS"},
                 },
@@ -451,7 +618,7 @@ class TestExtractRealRuleEnvelope:
     def test_namespaces_scenario_ids_by_rule(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", self._envelope())
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {
+        assert out["results"] == {
             "clean-architecture::S1": True,
             "clean-architecture::S2": False,
             "refactoring::S1": False,
@@ -466,7 +633,7 @@ class TestExtractRealRuleEnvelope:
         envelope = {"rules": {"refactoring": {"scenarios": [self._scenario("S1", 5)]}}}
         path = _write(tmp_path, "rules.json", envelope)
         _, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
-        assert out == {"refactoring::S1": True}
+        assert out["results"] == {"refactoring::S1": True}
 
     def test_a_non_mapping_rules_value_is_a_config_error(self, tmp_path, capsys):
         path = _write(tmp_path, "rules.json", {"rules": ["not", "a", "mapping"]})
@@ -1381,6 +1548,76 @@ class TestSplitFileIsSelfValidating:
         assert code == 0
         assert out["decision"] == "ACCEPT"
 
+    def test_legacy_numeric_inexact_ratio_redraws_with_legacy_membership(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(25)})
+        tasks = [f"t{i}" for i in range(25)]
+        ranked = sorted(
+            tasks,
+            key=lambda task_id: oa.hashlib.sha256(
+                f"s1\x00{task_id}".encode()
+            ).hexdigest(),
+        )
+        split = {
+            "opt": ranked[14:],
+            "sel": ranked[:14],
+            "test": [],
+            "fingerprint": _legacy_split_fingerprint(
+                tasks, seed="s1", sel_ratio=0.58, test_ratio=0.0
+            ),
+            "seed": "s1",
+            "sel_ratio": 0.58,
+            "test_ratio": 0.0,
+            "min_sel": 0,
+        }
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert len(split["sel"]) == 14
+        assert code == 0
+        assert out["decision"] == "ACCEPT"
+
+    def test_legacy_numeric_plain_integer_test_ratio_gates_normally(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_OK
+        assert out["decision"] == "ACCEPT"
+
+    @pytest.mark.parametrize(
+        ("sel_ratio", "test_ratio"),
+        [
+            (None, 0.0),
+            (True, 0.0),
+            (10 ** 309, 0.0),
+            ({"value": 0.4}, 0.0),
+            (0.4, "0.0"),
+        ],
+    )
+    def test_unusable_split_ratio_schemas_are_config_errors(
+        self, tmp_path, capsys, sel_ratio, test_ratio
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = sel_ratio
+        split["test_ratio"] = test_ratio
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+                         "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "split file holds unusable seed or ratios" in out["error"]
+
     def test_legacy_numeric_fingerprint_does_not_alias_precise_string_ratio(
         self, tmp_path, capsys
     ):
@@ -1410,6 +1647,13 @@ class TestSplitFileIsSelfValidating:
                          "--split", path)
         assert code == 0
         assert out["decision"] == "ACCEPT"
+
+    def test_string_schema_inexact_ratio_uses_exact_membership(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                        "--sel-ratio", "0.58", "--min-sel", "0")
+        assert len(split["sel"]) == 15
+        assert len(split["opt"]) == 10
 
     def test_a_task_moved_between_groups_is_refused(self, tmp_path, capsys):
         """The union is unchanged, so only recomputation catches this."""
@@ -1516,6 +1760,89 @@ class TestSplitFileIsSelfValidating:
                          "--sel-ratio", ratio, "--out", tmp_path / "split.json")
         assert code == EXIT_CONFIG
         assert "decimal ratio" in out["error"]
+
+    def test_split_rejects_absurd_decimal_coefficients_without_traceback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        ratio = "0." + "1" * 65
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "coefficient digits" in out["error"]
+        assert len(out["error"]) < 200
+
+    def test_split_accepts_the_largest_allowed_decimal_coefficient(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        ratio = "0." + "1" * 64
+        code, out = _split(capsys, tmp_path, "--results", inc, "--seed", "s1",
+                           "--sel-ratio", ratio, "--min-sel", "0")
+        assert code == EXIT_OK
+        assert len(out["sel"]) == 3
+
+    def test_split_million_digit_ratio_has_a_subprocess_deadline(self, tmp_path):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        out_path = tmp_path / "split.json"
+        script = f"""
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location("optimize_artifact", {str(_SCRIPT)!r})
+module = importlib.util.module_from_spec(spec)
+sys.modules["optimize_artifact"] = module
+assert spec is not None and spec.loader is not None
+spec.loader.exec_module(module)
+code = module.main([
+    "split",
+    "--results",
+    {str(inc)!r},
+    "--seed",
+    "s1",
+    "--sel-ratio",
+    "0." + "1" * 1_000_000,
+    "--out",
+    {str(out_path)!r},
+])
+print(code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=False,
+            capture_output=True,
+            cwd=_EVAL_DIR,
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0
+        assert result.stdout.splitlines()[-1] == str(EXIT_CONFIG)
+        payload = json.loads("\n".join(result.stdout.splitlines()[:-1]))
+        assert len(payload["error"]) < 200
+
+    def test_split_semantic_ratio_errors_truncate_long_values(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        ratio = "0." + "0" * 125
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", ratio, "--min-sel", "0",
+                         "--out", tmp_path / "zero.json")
+        assert code == EXIT_CONFIG
+        assert "strictly between 0 and 1" in out["error"]
+        assert len(out["error"]) < 200
+
+    def test_split_ratio_sum_error_truncates_both_values(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
+        sel_ratio = "0." + "9" * 64
+        test_ratio = "0." + "1" * 64
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         "--sel-ratio", sel_ratio, "--test-ratio", test_ratio,
+                         "--min-sel", "0", "--out", tmp_path / "sum.json")
+        assert code == EXIT_CONFIG
+        assert "leave at least one opt task" in out["error"]
+        assert len(out["error"]) < 200
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
@@ -1744,6 +2071,27 @@ class TestConsultationLedgerIsHeldByTheGate:
     def test_a_malformed_ledger_is_a_config_error(self, tmp_path, capsys, payload):
         inc, cand, split, ledger = self._fixture(tmp_path, capsys)
         ledger.write_text(payload, encoding="utf-8")
+        code, _ = self._gate(capsys, inc, cand, split, ledger)
+        assert code == EXIT_CONFIG
+
+    @pytest.mark.parametrize("bad_bar", [1.5, -0.1, 2.0, -1])
+    def test_a_ledger_with_out_of_range_max_p_is_a_config_error(
+        self, tmp_path, capsys, bad_bar
+    ):
+        """An out-of-range max_p in the ledger is data corruption, not a gate refusal."""
+        inc, cand, split, ledger = self._fixture(tmp_path, capsys)
+        record = json.loads(split.read_text(encoding="utf-8"))
+        holdout_key = oa._holdout_key(record)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({
+                "consultations": 0,
+                "holdout": holdout_key,
+                "max_consultations": 100,
+                "max_p": bad_bar,
+            }),
+            encoding="utf-8",
+        )
         code, _ = self._gate(capsys, inc, cand, split, ledger)
         assert code == EXIT_CONFIG
 
@@ -3015,3 +3363,2338 @@ class TestTheGuardIsNotASecondDefinitionOfRedaction:
             with oa._digest_scrubbed("e" * 64):
                 raise original
         assert caught.value is original
+
+
+class TestTheReportedTailCanAlsoRefuse:
+    """`--max-p` promotes the printed McNemar tail into a gate.
+
+    A live run over the seven files in tests/evals/rule-scenarios/ scored the
+    identical rule text twice. Five of 24 tasks flipped with no input change
+    and the held-out group moved 6/10 to 7/10, so on a nondeterministic scorer
+    a strictly-greater rule accepts variance. The tail was already computed
+    and printed; before this flag it could not refuse anything.
+
+    Default stays absent: a held-out group of three cannot reach a
+    conventional floor, and a bar nothing can clear is not a gate.
+    """
+
+    def _gate(self, tmp_path, capsys, *extra, cap=1, seed="s1"):
+        """Budget of one by default: the bar is family-wise, so a larger
+        budget divides it and these cases are about the bar itself. `seed`
+        draws a different held-out group, and so a different ledger, for
+        cases that gate twice under different settings."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, *extra, cap=cap,
+        )
+
+    def test_the_bar_is_divided_across_the_budget_it_was_declared_with(
+        self, tmp_path, capsys
+    ):
+        """A tail that clears the bar at a budget of one misses it at ten."""
+        _, tight = self._gate(tmp_path, capsys, "--max-p", "0.1", cap=1)
+        assert tight["decision"] == "ACCEPT"
+        _, spread = self._gate(tmp_path, capsys, "--max-p", "0.1", cap=10, seed="s2")
+        assert spread["decision"] == "REJECT"
+        assert spread["max_p_per_comparison"] == pytest.approx(0.01)
+
+    def test_without_the_flag_a_win_with_a_wide_tail_still_accepts(self, tmp_path, capsys):
+        code, out = self._gate(tmp_path, capsys)
+        assert out["p_value"] == pytest.approx(0.0625)
+        assert out["decision"] == "ACCEPT"
+        assert code == EXIT_OK
+
+    def test_the_same_win_is_refused_under_a_conventional_bar(self, tmp_path, capsys):
+        code, out = self._gate(tmp_path, capsys, "--max-p", "0.05")
+        assert out["decision"] == "REJECT"
+        assert code == EXIT_LOGIC
+        assert "0.0625" in out["reason"] and "0.05" in out["reason"]
+
+    def test_a_bar_the_tail_clears_still_accepts(self, tmp_path, capsys):
+        _, out = self._gate(tmp_path, capsys, "--max-p", "0.1")
+        assert out["decision"] == "ACCEPT"
+
+    def test_the_reported_tail_is_unchanged_by_the_bar(self, tmp_path, capsys):
+        """The bar decides; it must not edit the evidence it decided on."""
+        _, loose = self._gate(tmp_path, capsys, "--max-p", "1.0")
+        assert loose["p_value"] == pytest.approx(0.0625)
+
+    def test_a_refused_win_still_spends_its_consultation(self, tmp_path, capsys):
+        """The held-out group was read to compute the tail. Reading is the cost."""
+        _, out = self._gate(tmp_path, capsys, "--max-p", "0.0")
+        assert out["decision"] == "REJECT"
+        assert out["sel_consultations"] == 1
+
+    def test_a_bar_outside_the_unit_interval_is_a_config_error(self, tmp_path, capsys):
+        code, _ = self._gate(tmp_path, capsys, "--max-p", "1.5")
+        assert code == EXIT_CONFIG
+
+    def test_a_non_numeric_bar_is_refused_by_the_parser(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            self._gate(tmp_path, capsys, "--max-p", "nope")
+
+
+class TestTheBarIsPinnedLikeTheBudget:
+    """Round fourteen: a re-suppliable bar is not a bar.
+
+    An adversarial reviewer (gpt-5.6-terra, 2026-07-27) pointed out that the
+    ledger pins the consultation cap precisely so a caller who hits the budget
+    cannot raise it and carry on, but left `--max-p` re-suppliable. A candidate
+    refused at 0.05 could be gated again at 0.1 against the same held-out group
+    and accepted. That is the mutable-cap defect wearing a different hat, so it
+    gets the same treatment: the bar is fixed when the group is opened, and its
+    absence is pinned just as firmly as its presence.
+
+    Validating the flag before the ledger write matters for the same reason the
+    write happens early. A nonsense bar is decidable without reading the group,
+    so it must not cost a consultation.
+    """
+
+    def _fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 2 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, record = _split(capsys, tmp_path, "--results", inc, "--seed", "pin")
+        return inc, cand, _write(tmp_path, "split.json", record), record
+
+    def _gate(self, capsys, inc, cand, split, record, *extra, cap="4"):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", cap,
+            "--incumbent-fingerprint", str(record["fingerprint"]), *extra,
+        )
+
+    def test_a_bar_cannot_be_loosened_after_the_group_was_opened(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+        assert "0.05" in out["reason"]
+
+    def test_a_bar_cannot_be_dropped_after_the_group_was_opened(self, tmp_path, capsys):
+        """Omitting the flag is the loosest setting of all, so it is pinned too."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+
+    def test_a_bar_cannot_be_added_after_the_group_was_opened_without_one(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record)
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        assert (code, out["decision"]) == (EXIT_LOGIC, "REJECT")
+
+    def test_the_same_bar_twice_is_not_a_mismatch(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert out.get("reason", "") == "" or "opened under" not in out["reason"]
+        assert code in (EXIT_OK, EXIT_LOGIC)
+
+    def test_a_pinned_bar_mismatch_does_not_publish_the_key(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        self._gate(capsys, inc, cand, split, record, "--max-p", "0.05")
+        _, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert key not in json.dumps(out)
+
+    def test_a_nonsense_bar_costs_no_consultation(self, tmp_path, capsys):
+        """Decidable without reading the group, so it must not charge for one."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        code, _ = self._gate(capsys, inc, cand, split, record, "--max-p", "1.5")
+        assert code == EXIT_CONFIG
+        assert not oa._ledger_path(oa._holdout_key(record)).exists()
+
+    def test_a_nonsense_bar_is_config_error_even_on_an_exhausted_budget(self, tmp_path, capsys):
+        """The flag is wrong whether or not the budget would have refused."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        for _ in range(2):
+            self._gate(capsys, inc, cand, split, record, "--max-p", "0.5", cap="2")
+        code, _ = self._gate(capsys, inc, cand, split, record, "--max-p", "-1", cap="2")
+        assert code == EXIT_CONFIG
+
+    def test_the_verdict_reports_the_bar_it_applied(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert out["max_p"] == 0.5
+        assert out["max_p_per_comparison"] == 0.125
+
+    def test_the_verdict_reports_an_absent_bar_as_absent(self, tmp_path, capsys):
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        _, out = self._gate(capsys, inc, cand, split, record)
+        assert out["max_p"] is None and out["max_p_per_comparison"] is None
+
+    def test_a_malformed_bar_in_the_ledger_is_named(self, tmp_path, capsys):
+        """A hand-edited ledger says so rather than comparing a string to a float."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps(
+                {
+                    "consultations": 0,
+                    "holdout": key,
+                    "max_consultations": 4,
+                    "max_p": "loose",
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert code == EXIT_CONFIG
+        assert "max_p" in out["error"] and key not in json.dumps(out)
+
+    def test_a_ledger_written_before_the_bar_existed_reads_as_no_bar(
+        self, tmp_path, capsys
+    ):
+        """An absent key is the absent policy, so old ledgers keep working."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+        key = oa._holdout_key(record)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({"consultations": 0, "holdout": key, "max_consultations": 4}),
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, cand, split, record)
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert out["max_p"] is None
+
+    def test_a_contract_violation_inside_the_gate_exits_as_config(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Defense in depth: cmd_gate screens the flag, but the library still
+        refuses an incoherent call rather than escaping as a traceback."""
+        inc, cand, split, record = self._fixture(tmp_path, capsys)
+
+        def _explode(*_args, **_kwargs):
+            raise ValueError("max_p needs a p_value to judge")
+
+        monkeypatch.setattr(oa, "gate", _explode)
+        code, out = self._gate(capsys, inc, cand, split, record, "--max-p", "0.5")
+        assert code == EXIT_CONFIG
+        assert "p_value" in out["error"]
+
+
+# The two corpus identities the architect incident actually disagreed on,
+# padded to the sha256 width the producer emits.
+_CORPUS_ONE = "be99fa1b1180".ljust(64, "0")
+_CORPUS_TWO = "26136df314d6".ljust(64, "0")
+
+
+class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
+    """A comparison of two results files says nothing unless both scored the
+    same tasks, and until now the seam could not tell.
+
+    On 2026-07-27 two architect-spike runs were gated against each other and
+    read as a null control. They agreed on `model_id` and `agent_prompt_sha`
+    and disagreed on `fixture_set_sha`: every one of the eight fixture files
+    had changed between them. The accept was published before the mismatch was
+    found. The report format already carried the falsifier, and
+    `_fixture_set_sha`'s own docstring says it exists so a report consumer can
+    verify two runs hit the same set. `extract` never read it.
+
+    Task ids do not substitute. All eight ids matched across those two runs
+    while the contents behind them differed, so a key-set comparison would
+    have passed the pair through.
+    """
+
+    def _agent_report(self, tmp_path, name, corpus, rates=None):
+        payload = {
+            "per_fixture_pass_rates": rates
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
+            "error_count": 0,
+        }
+        if corpus is not None:
+            payload["fixture_set_sha"] = corpus
+        return _write(tmp_path, name, payload)
+
+    def _extract(self, capsys, report, out_name, tmp_path):
+        _, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        return _write(tmp_path, out_name, out)
+
+    def _gate_pair(self, tmp_path, capsys, inc_corpus, cand_corpus, seed="c1"):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "ri.json", inc_corpus), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys,
+            self._agent_report(
+                tmp_path,
+                "rc.json",
+                cand_corpus,
+                rates={f"t{i}": {"agent": [1.0]} for i in range(10)},
+            ),
+            "cand.json",
+            tmp_path,
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        return code, out, split
+
+    # -- extract carries it forward ----------------------------------------
+
+    def test_extract_carries_the_report_s_own_corpus_identity(self, tmp_path, capsys):
+        report = self._agent_report(tmp_path, "r.json", _CORPUS_ONE)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] == _CORPUS_ONE
+        assert out["results"]["t0"] is True
+        assert out["schema"] == "optimizer-results/1"
+
+    def test_a_report_without_the_field_extracts_an_unknown_corpus(self, tmp_path, capsys):
+        """Absent is null, never a value invented from the task ids.
+
+        A synthesized id would make two unrelated corpora compare equal
+        whenever their ids matched, which is the exact failure this guards.
+        """
+        report = self._agent_report(tmp_path, "r.json", None)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] is None
+
+    def test_a_non_string_corpus_field_in_the_report_is_refused(self, tmp_path, capsys):
+        """A corpus identity that is not an identity is a config error, not a
+        value to coerce. Coercing it would let `17` and `"17"` compare equal
+        across two reports that meant different things."""
+        report = _write(
+            tmp_path, "r.json",
+            {
+                "per_fixture_pass_rates": {"t0": {"agent": [1.0]}},
+                "fixture_set_sha": 17,
+                "error_count": 0,
+            },
+        )
+        code, _ = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+
+    def test_the_hook_path_has_no_corpus_source_and_says_so(self, tmp_path, capsys):
+        junit = tmp_path / "j.xml"
+        junit.write_text(
+            '<testsuite><testcase classname="tests.a" name="test_x"/></testsuite>',
+            encoding="utf-8",
+        )
+        code, out = _run(capsys, "extract", "--kind", "hook", "--input", junit)
+        assert code == EXIT_OK
+        assert out["corpus"] is None
+        assert out["results"]
+
+    # -- the reader ---------------------------------------------------------
+
+    def test_a_bare_mapping_still_reads_as_results_with_an_unknown_corpus(self, tmp_path):
+        path = _write(tmp_path, "legacy.json", {"a": True, "b": False})
+        parsed = oa._read_results(path)
+        assert parsed.results == {"a": True, "b": False}
+        assert parsed.corpus is None
+
+    def test_a_task_named_schema_does_not_masquerade_as_an_envelope(self, tmp_path):
+        """The discriminator is a string-valued `schema`, not the key alone.
+
+        Bare mappings are all-boolean by construction, so a task id that
+        collides with the envelope's key still parses as a task.
+        """
+        path = _write(tmp_path, "legacy.json", {"schema": True, "results": False})
+        parsed = oa._read_results(path)
+        assert parsed.results == {"schema": True, "results": False}
+        assert parsed.corpus is None
+
+    def test_an_unrecognized_envelope_version_is_refused_not_guessed(self, tmp_path):
+        path = _write(
+            tmp_path, "future.json",
+            {"schema": "optimizer-results/2", "corpus": None, "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="optimizer-results/2"):
+            oa._read_results(path)
+
+    def test_an_envelope_whose_corpus_is_not_a_string_is_refused(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": 17, "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="corpus"):
+            oa._read_results(path)
+
+    def test_an_envelope_without_results_is_refused(self, tmp_path):
+        path = _write(tmp_path, "bad.json", {"schema": "optimizer-results/1", "corpus": None})
+        with pytest.raises(oa.ConfigError, match="results"):
+            oa._read_results(path)
+
+    def test_non_boolean_verdicts_are_still_refused_inside_an_envelope(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": None, "results": {"a": 1}},
+        )
+        with pytest.raises(oa.ConfigError, match="non-boolean"):
+            oa._read_results(path)
+
+    # -- the refusal --------------------------------------------------------
+
+    def test_two_known_and_different_corpora_are_refused_uncompared(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+        assert "corpus" in out["reason"]
+
+    def test_the_refusal_spends_no_consultation(self, tmp_path, capsys):
+        """Decidable from two header fields, so it must be free.
+
+        A mismatch that cost a consultation would let a caller burn a budget
+        it can never spend usefully, and the pair is unusable no matter how
+        much budget remains.
+        """
+        code, out, split = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO)
+        assert out["consultations"] == 0
+        assert not oa._ledger_path(oa._holdout_key(split)).exists()
+
+    def test_matching_corpora_gate_normally(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_ONE, seed="c2")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is True
+
+    def test_an_unknown_corpus_beside_a_known_one_is_refused(self, tmp_path, capsys):
+        """This assertion is the inverse of the one it replaces.
+
+        The first cut let unknown pass beside known, on the reasoning that the
+        rule and hook paths publish no corpus and refusing unknown would
+        disable the gate for them. That reasoning holds for a pair where
+        *neither* side knows, and a fifteenth review showed it does not survive
+        the asymmetric case: it made the refusal deletable, since stripping the
+        envelope off either file turns a known mismatch into an unknown that
+        compares. A pair scored on one corpus does not have one side that
+        forgot.
+        """
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, _CORPUS_TWO, seed="c3")
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+
+    def test_two_unknown_corpora_are_reported_rather_than_silently_allowed(
+        self, tmp_path, capsys
+    ):
+        """Unknown on both sides is not refused: the rule and hook paths have
+        no corpus source at all, so refusing there would disable the gate for
+        two of three artifact classes. It is reported so an operator reading
+        the verdict knows the comparison was never checked."""
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, None, seed="c3b")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_both_unknown_gates_and_reports_unverified(self, tmp_path, capsys):
+        code, out, _ = self._gate_pair(tmp_path, capsys, None, None, seed="c4")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_the_mismatch_refusal_names_no_held_out_task(self, tmp_path, capsys):
+        _, out, split = self._gate_pair(tmp_path, capsys, _CORPUS_ONE, _CORPUS_TWO, seed="c5")
+        blob = json.dumps(out)
+        for task_id in split["sel"] + split["test"]:
+            assert task_id not in blob
+        assert oa._holdout_key(split) not in blob
+
+    def test_an_exhausted_budget_does_not_mask_the_mismatch(self, tmp_path, capsys):
+        """Same precedent as the `--max-p` range check: a refusal decidable
+        without the held-out group must not be reordered behind one that needs
+        the ledger, or the caller is told to buy budget for a comparison that
+        can never be valid."""
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "ri.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys, self._agent_report(tmp_path, "rc.json", _CORPUS_TWO), "cand.json", tmp_path
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c6")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert out["decision"] == "REJECT"
+        assert "corpus" in out["reason"]
+
+    # -- the other readers keep working -------------------------------------
+
+    def test_split_reads_an_envelope(self, tmp_path, capsys):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "r.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c7")
+        assert code == EXIT_OK
+        assert len(split["opt"]) + len(split["sel"]) + len(split["test"]) == 10
+
+    def test_score_reads_an_envelope(self, tmp_path, capsys):
+        inc = self._extract(
+            capsys, self._agent_report(tmp_path, "r.json", _CORPUS_ONE), "inc.json", tmp_path
+        )
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "c8")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run(
+            capsys, "score", "--results", inc, "--split", split_path, "--group", "opt"
+        )
+        assert code == EXIT_OK
+        assert 0.0 <= out["score"] <= 1.0
+
+
+_SHA_A = "a" * 64
+_SHA_B = "b" * 64
+
+
+class TestTheCorpusPinCannotBeStrippedAway:
+    """A refusal a caller can delete their way past is not a refusal.
+
+    The first cut of the corpus guard refused only when both files declared a
+    corpus and the two disagreed. That left the mismatch reachable by omission:
+    piping either side through anything that emits a bare mapping, which is
+    what every consumer wrote before the envelope existed, turned the pair from
+    "known to differ" into "unknown", and unknown compared. The bypass needed no
+    intent. It is the same shape as the incident it was built for, where nobody
+    edited anything and the field simply went unread.
+
+    Two changes close it. `split` pins the corpus of the results it was drawn
+    from, so the baseline commitment carries the corpus rather than the
+    comparison inferring it. And one known corpus beside an unknown one is a
+    conflict, because the asymmetry is itself the evidence: a pair scored on one
+    corpus does not have one side that forgot.
+
+    The limit is worth stating. The split file is caller-supplied and its
+    corpus pin is outside the fingerprint, so a caller who edits two files in
+    concert can still defeat this. That is not what it defends against. It
+    defends against omission, which is the failure that actually happened.
+    """
+
+    def _report(self, tmp_path, name, corpus, rates=None):
+        payload = {
+            "per_fixture_pass_rates": rates
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
+            "error_count": 0,
+        }
+        if corpus is not None:
+            payload["fixture_set_sha"] = corpus
+        return _write(tmp_path, name, payload)
+
+    def _extract(self, capsys, report, out_name, tmp_path):
+        _, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        return _write(tmp_path, out_name, out)
+
+    def _pair(self, tmp_path, capsys, inc_corpus, cand_corpus):
+        """Two enveloped results files that differ only in verdicts and corpus."""
+        inc = self._extract(
+            capsys, self._report(tmp_path, "ri.json", inc_corpus), "inc.json", tmp_path
+        )
+        cand = self._extract(
+            capsys,
+            self._report(
+                tmp_path, "rc.json", cand_corpus,
+                rates={f"t{i}": {"agent": [1.0]} for i in range(10)},
+            ),
+            "cand.json",
+            tmp_path,
+        )
+        return inc, cand
+
+    def _bare(self, tmp_path, name, path):
+        """The same results with the envelope stripped, as an old consumer emits."""
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        return _write(tmp_path, name, payload["results"])
+
+    def _gate(self, tmp_path, capsys, inc, cand, seed, split_from=None, **kw):
+        _, split = _split(capsys, tmp_path, "--results", split_from or inc, "--seed", seed)
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5, **kw
+        )
+
+    # -- the pin ------------------------------------------------------------
+
+    def test_split_records_the_corpus_of_the_results_it_was_drawn_from(
+        self, tmp_path, capsys
+    ):
+        inc = self._extract(
+            capsys, self._report(tmp_path, "r.json", _SHA_A), "inc.json", tmp_path
+        )
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p1")
+        assert code == EXIT_OK
+        assert split["corpus"] == _SHA_A
+
+    def test_a_split_drawn_from_a_task_list_pins_nothing(self, tmp_path, capsys):
+        tasks = tmp_path / "tasks.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(10)), encoding="utf-8")
+        code, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "p2")
+        assert code == EXIT_OK
+        assert "corpus" not in split
+
+    def test_a_split_drawn_from_a_bare_mapping_pins_unknown(self, tmp_path, capsys):
+        legacy = _write(tmp_path, "legacy.json", {f"t{i}": i < 5 for i in range(10)})
+        code, split = _split(capsys, tmp_path, "--results", legacy, "--seed", "p3")
+        assert code == EXIT_OK
+        assert split["corpus"] is None
+
+    # -- the bypass, closed -------------------------------------------------
+
+    def test_stripping_one_envelope_does_not_buy_a_comparison(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        stripped = self._bare(tmp_path, "cand-bare.json", cand)
+        code, out = self._gate(tmp_path, capsys, inc, stripped, "p4")
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+        assert out["consultations"] == 0
+
+    def test_stripping_both_envelopes_does_not_buy_a_comparison(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        code, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p5")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path,
+            "--incumbent", self._bare(tmp_path, "i-bare.json", inc),
+            "--candidate", self._bare(tmp_path, "c-bare.json", cand),
+            "--split", split_path, cap=5,
+        )
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_one_known_corpus_beside_an_unknown_one_conflicts_without_a_pin(
+        self, tmp_path, capsys
+    ):
+        """No pin at all, so the conflict has to come from the pair itself."""
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, None)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p6")
+        split.pop("corpus")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    # -- what must keep working ---------------------------------------------
+
+    def test_two_unknown_corpora_still_compare(self, tmp_path, capsys):
+        """The rule and hook paths publish no corpus and must not be disabled."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        code, out = self._gate(tmp_path, capsys, inc, cand, "p7")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is False
+
+    def test_a_matching_digest_on_both_sides_compares_and_reports_verified(
+        self, tmp_path, capsys
+    ):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_A)
+        code, out = self._gate(tmp_path, capsys, inc, cand, "p8")
+        assert out["compared"] is True
+        assert out["corpus_verified"] is True
+
+    def test_a_pinned_digest_that_both_files_match_compares(self, tmp_path, capsys):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_A)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "p9")
+        assert split["corpus"] == _SHA_A
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert out["compared"] is True
+
+    # -- the digest has to look like one ------------------------------------
+
+    @pytest.mark.parametrize(
+        "bad", ["", "   ", "be99fa1b1180", "A" * 64, "g" * 64, "a" * 63, "a" * 65]
+    )
+    def test_a_corpus_that_is_not_a_sha256_digest_is_refused_at_extract(
+        self, tmp_path, capsys, bad
+    ):
+        report = self._report(tmp_path, "r.json", bad)
+        code, _ = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+
+    def test_a_lowercase_sha256_digest_survives_extract(self, tmp_path, capsys):
+        report = self._report(tmp_path, "r.json", _SHA_A)
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_OK
+        assert out["corpus"] == _SHA_A
+
+    def test_an_envelope_whose_corpus_is_not_a_digest_is_refused(self, tmp_path):
+        path = _write(
+            tmp_path, "bad.json",
+            {"schema": "optimizer-results/1", "corpus": "", "results": {"a": True}},
+        )
+        with pytest.raises(oa.ConfigError, match="corpus"):
+            oa._read_results(path)
+
+    # -- ordering: a parse error must not stand in for the ledger's answer ---
+
+    def test_malformed_results_do_not_preempt_an_exhausted_ledger(
+        self, tmp_path, capsys
+    ):
+        """The budget refusal is the authoritative one and has to survive.
+
+        Reading both files before the lock is what makes the corpus refusal
+        free. Doing the *whole* read there would let a bad verdict mapping
+        answer in place of the ledger, which tells the caller to fix the wrong
+        thing.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pa")
+        split_path = _write(tmp_path, "split.json", split)
+        bad = _write(tmp_path, "cand.json", {f"t{i}": "yes" for i in range(10)})
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", bad,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "consultation" in out["reason"]
+
+    def test_unreadable_results_do_not_preempt_an_exhausted_ledger(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pb")
+        split_path = _write(tmp_path, "split.json", split)
+        junk = tmp_path / "cand.json"
+        junk.write_text("{not json", encoding="utf-8")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", junk,
+            "--split", split_path, cap=1, spent=1,
+        )
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert "consultation" in out["reason"]
+
+    def test_malformed_results_still_fail_loudly_when_the_budget_allows(
+        self, tmp_path, capsys
+    ):
+        """Deferring the full read must not swallow it."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pc")
+        split_path = _write(tmp_path, "split.json", split)
+        bad = _write(tmp_path, "cand.json", {f"t{i}": "yes" for i in range(10)})
+        code, _ = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", bad,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+
+    def test_the_preflight_refusal_names_no_task_and_no_digest(
+        self, tmp_path, capsys
+    ):
+        inc, cand = self._pair(tmp_path, capsys, _SHA_A, _SHA_B)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pd")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        blob = json.dumps(out)
+        assert oa._holdout_key(split) not in blob
+        assert not any(t in blob for t in split["sel"] + split["test"])
+
+    def test_a_preflight_read_failure_leaves_the_digest_out_of_the_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Whatever goes wrong under the preflight is still scrubbed.
+
+        The error lands on stdout as JSON, not on stderr: `main` turns a
+        `ConfigError` into a payload so a driver can tell a refusal from a
+        config failure by reading a field. An earlier version of this test read
+        stderr after `_run_gate` had already drained the capture, so it asserted
+        the digest was absent from an empty string and could not have failed.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe")
+        split_path = _write(tmp_path, "split.json", split)
+        key = oa._holdout_key(split)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: (_ for _ in ()).throw(
+            OSError(f"cannot open {key}")
+        ))
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert key not in json.dumps(out)
+        assert oa._HELD_OUT_PLACEHOLDER in out["error"]
+
+    def test_that_scrub_test_would_fail_without_the_scrubber(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The negative control the tautological version never had."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pe2")
+        split_path = _write(tmp_path, "split.json", split)
+        key = oa._holdout_key(split)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: (_ for _ in ()).throw(
+            OSError(f"cannot open {key}")
+        ))
+        monkeypatch.setattr(oa, "_digest_scrubbed", contextlib.nullcontext)
+        with pytest.raises(OSError) as caught:
+            _run_gate(
+                capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+                "--split", split_path, cap=5,
+            )
+        assert key in str(caught.value)
+
+    # -- the predicate on its own -------------------------------------------
+
+    @pytest.mark.parametrize(
+        ("pin", "inc", "cand", "conflict"),
+        [
+            (oa._UNPINNED, None, None, False),
+            (oa._UNPINNED, _SHA_A, _SHA_A, False),
+            (None, None, None, False),
+            (_SHA_A, _SHA_A, _SHA_A, False),
+            (oa._UNPINNED, _SHA_A, _SHA_B, True),
+            (oa._UNPINNED, _SHA_A, None, True),
+            (oa._UNPINNED, None, _SHA_A, True),
+            (_SHA_A, _SHA_A, None, True),
+            (_SHA_A, None, None, True),
+            (_SHA_A, _SHA_B, _SHA_B, True),
+            (None, _SHA_A, _SHA_A, True),
+        ],
+    )
+    def test_the_conflict_rule_is_more_than_one_declared_corpus(
+        self, pin, inc, cand, conflict
+    ):
+        assert oa._corpus_conflict(pin, inc, cand) is conflict
+
+    def test_an_absent_pin_is_not_the_same_as_a_pin_of_unknown(self):
+        """`None` is a legal pin, so absence needs a value JSON cannot produce.
+
+        Collapsing the two would make a split written before the pin existed
+        assert that its corpus was unknown, which would refuse every enveloped
+        pair gated against an older split.
+        """
+        assert oa._corpus_conflict(oa._UNPINNED, _SHA_A, _SHA_A) is False
+        assert oa._corpus_conflict(None, _SHA_A, _SHA_A) is True
+        assert json.loads(json.dumps({"corpus": None}))["corpus"] is None
+
+    def test_the_refusal_advises_nothing_the_split_may_not_carry(self):
+        """The rule refuses splits that name no corpus, so the advice cannot name one.
+
+        `(_UNPINNED, SHA_A, SHA_B)` is a refusing row, and it is what a
+        `--tasks` split looks like beside two results that disagree. Advice to
+        re-score against the corpus the split names sends that operator to a
+        key their split does not have.
+
+        The advice restates the guard's own rule instead. That is the one
+        claim true for every refusing row, and the only wording here that a
+        reader can check against `_corpus_conflict` rather than against a
+        particular caller's files.
+        """
+        assert oa._corpus_conflict(oa._UNPINNED, _SHA_A, _SHA_B) is True
+        reason = str(oa._corpus_refusal()["reason"])
+        assert "the corpus the split" not in reason
+        assert "only one corpus" in reason
+
+
+class TestWhatTheVerdictClaimsWasChecked:
+    """Round sixteen: the pin is caller-supplied, so say when it was absent.
+
+    `corpus_verified` reports that the two results agree. It cannot report that
+    the split was drawn from the corpus they name, because a caller who deletes
+    the split's `corpus` key leaves two agreeing files and nothing to contradict
+    them. Refusing that pair would disable the gate for the rule and hook paths,
+    which pin nothing at all, so the verdict names the weaker guarantee instead
+    of hiding it behind the stronger one.
+    """
+
+    def test_a_pinned_split_that_agrees_reports_both_facts(self, tmp_path, capsys):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-a")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is True
+
+    def test_deleting_the_pin_is_visible_in_the_verdict(self, tmp_path, capsys):
+        """The one-file edit the guard cannot refuse is the one it must report."""
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-b")
+        del split["corpus"]
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is False
+
+    def test_a_task_list_split_pins_nothing_and_says_so(self, tmp_path, capsys):
+        tasks = tmp_path / "ids.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(10)), encoding="utf-8")
+        _, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "pin-c")
+        split_path = _write(tmp_path, "split.json", split)
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is True
+        assert out["corpus_pinned"] is False
+
+    def test_legacy_files_claim_neither(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pin-d")
+        split_path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+        assert out["corpus_verified"] is False
+        assert out["corpus_pinned"] is False
+
+
+class TestTheCorpusIsRecheckedAgainstWhatWasActuallyScored:
+    """Round sixteen: the preflight reads headers, the gate reads bodies.
+
+    Two reads of one path can disagree, whether because a writer moved under
+    them or because the two parsers drift. The values the comparison is scored
+    from are the ones in `ResultsFile`, so those are the ones that have to
+    agree before a consultation is charged.
+    """
+
+    def _swapped(self, tmp_path, capsys, monkeypatch, header_says):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "toc")
+        split_path = _write(tmp_path, "split.json", split)
+        real = oa._corpus_header
+        monkeypatch.setattr(
+            oa, "_corpus_header",
+            lambda p: header_says if Path(p) == Path(cand) else real(p),
+        )
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+
+    def test_a_file_that_changes_after_the_preflight_is_refused(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        code, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_ONE)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_the_recheck_refuses_before_the_consultation_is_charged(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Round seventeen strengthened this.
+
+        It read `sel_consultations`, which reports prior ledger spend and was
+        therefore zero here whether or not this run charged. The claim worth
+        making is that no ledger exists at all afterward.
+        """
+        _, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_ONE)
+        assert out["consultations"] == 0
+        record = json.loads((tmp_path / "split.json").read_text(encoding="utf-8"))
+        assert not oa._ledger_path(oa._holdout_key(record)).exists()
+
+    def test_an_honest_preflight_still_compares(self, tmp_path, capsys, monkeypatch):
+        code, out = self._swapped(tmp_path, capsys, monkeypatch, _CORPUS_TWO)
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert "corpus" in out["reason"]
+
+
+class TestASplitCannotCarryACorpusThatIsNotOne:
+    """Round sixteen: the pin comes off a caller-supplied file unvalidated."""
+
+    def _gate_with_pin(self, tmp_path, capsys, pin):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "bad-pin")
+        split["corpus"] = pin
+        split_path = _write(tmp_path, "split.json", split)
+        return _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=5,
+        )
+
+    @pytest.mark.parametrize("pin", [[], {}, 7, True, "nope", _CORPUS_ONE.upper()])
+    def test_a_pin_that_is_not_a_digest_is_a_config_error(self, tmp_path, capsys, pin):
+        code, out = self._gate_with_pin(tmp_path, capsys, pin)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "corpus" in out["error"]
+
+    def test_an_unhashable_pin_does_not_reach_the_set(self, tmp_path, capsys):
+        """A list pin used to raise `TypeError` out of the conflict rule."""
+        code, out = self._gate_with_pin(tmp_path, capsys, [])
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_null_pin_is_still_legal(self, tmp_path, capsys):
+        code, out = self._gate_with_pin(tmp_path, capsys, None)
+        assert code == EXIT_LOGIC
+        assert out["decision"] == "REJECT"
+        assert out["compared"] is False
+
+    def test_a_real_digest_pin_is_accepted(self, tmp_path, capsys):
+        code, out = self._gate_with_pin(tmp_path, capsys, _CORPUS_ONE)
+        assert out.get("corpus_pinned") is True
+
+
+class TestAParserFailureNeverPreemptsTheLedger:
+    """Round sixteen: `_read_json` promised one exception family and had two."""
+
+    def _deep(self, tmp_path, name):
+        path = tmp_path / name
+        path.write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+        return path
+
+    def test_deeply_nested_json_is_a_config_error_not_a_traceback(
+        self, tmp_path, capsys
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "deep")
+        split_path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc,
+            "--candidate", self._deep(tmp_path, "cand.json"),
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_an_exhausted_budget_still_answers_first(self, tmp_path, capsys):
+        """The defect: a parse crash in the preflight outranked the ledger."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "deep2")
+        split_path = _write(tmp_path, "split.json", split)
+        _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", inc,
+            "--split", split_path, cap=1,
+        )
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc,
+            "--candidate", self._deep(tmp_path, "cand.json"),
+            "--split", split_path, cap=1,
+        )
+        assert code == EXIT_LOGIC
+        assert "consultation" in out["reason"]
+        assert out["compared"] is False
+
+
+class TestEveryWriteFailurePrintsOneJsonDocument:
+    """Round seventeen: `mkstemp` sat outside the block that wraps `OSError`.
+
+    `_write_atomic` carries two promises. The artifact is never left half
+    written, and a failure prints one JSON document like every other failure
+    the CLI reports. The temp file was created before the `try` that turns
+    `OSError` into `ConfigError`, so a missing or unwritable parent escaped as
+    a raw traceback and a caller parsing stdout as JSON crashed on it.
+    """
+
+    def _tasks(self, tmp_path, n: int = 30):
+        path = tmp_path / "tasks.txt"
+        path.write_text("\n".join(f"t{i}" for i in range(n)) + "\n", encoding="utf-8")
+        return path
+
+    def _split_into(self, tmp_path, capsys, out):
+        return _run(
+            capsys, "split", "--tasks", self._tasks(tmp_path), "--seed", "w", "--out", out
+        )
+
+    def test_a_missing_parent_directory_is_a_config_error(self, tmp_path, capsys):
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "absent" / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_write_and_the_path(self, tmp_path, capsys):
+        target = tmp_path / "absent" / "split.json"
+        _, out = self._split_into(tmp_path, capsys, target)
+        assert "could not write" in out["error"]
+        assert str(target) in out["error"]
+
+    def test_a_parent_that_refuses_the_temp_file_is_a_config_error(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        def _refuse(*_args, **_kwargs):
+            raise OSError(13, "permission denied")
+
+        monkeypatch.setattr(oa.tempfile, "mkstemp", _refuse)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_non_io_failure_from_mkstemp_still_escapes(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: the new arm must not swallow unrelated failures."""
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(oa.tempfile, "mkstemp", _boom)
+        with pytest.raises(RuntimeError, match="boom"):
+            self._split_into(tmp_path, capsys, tmp_path / "split.json")
+
+    def test_a_writable_parent_still_writes_the_split(self, tmp_path, capsys):
+        """Positive control: the wrapping did not break the normal path."""
+        target = tmp_path / "split.json"
+        code, _ = self._split_into(tmp_path, capsys, target)
+        assert code == EXIT_OK
+        assert json.loads(target.read_text(encoding="utf-8"))["sel"]
+
+
+class TestABinaryFileIsAConfigErrorWhereverItIsRead:
+    """Round seventeen: `_read_json` let `UnicodeDecodeError` through by name.
+
+    `_read_text` wraps it because it subclasses `ValueError` rather than
+    `OSError`, so the `OSError` arm never caught it. `_read_json` reads text
+    the same way and did not, so one reader called a binary artifact a config
+    problem and the other reported the decoder's own class instead. The error
+    document is part of the contract, so the two readers have to agree.
+    """
+
+    def _split_from(self, tmp_path, capsys, name, blob: bytes):
+        path = tmp_path / name
+        path.write_bytes(blob)
+        return _run(
+            capsys, "split", "--results", path, "--seed", "u", "--out", tmp_path / "o.json"
+        )
+
+    def test_invalid_utf8_is_a_config_error(self, tmp_path, capsys):
+        code, out = self._split_from(tmp_path, capsys, "bad.json", b"\xff\xfe\x00{")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_utf8_the_way_the_text_reader_does(self, tmp_path, capsys):
+        _, out = self._split_from(tmp_path, capsys, "bad.json", b"\xff\xfe\x00{")
+        assert "is not valid UTF-8" in out["error"]
+
+    def test_valid_utf8_that_is_not_json_still_reports_json(self, tmp_path, capsys):
+        """Edge: the two failures are different and must stay distinguishable."""
+        _, out = self._split_from(tmp_path, capsys, "bad.json", b"not json at all")
+        assert out["type"] == "ConfigError"
+        assert "is not valid JSON" in out["error"]
+
+    def test_valid_utf8_json_still_parses(self, tmp_path, capsys):
+        """Positive control."""
+        blob = json.dumps({f"t{i}": True for i in range(30)}).encode("utf-8")
+        code, _ = self._split_from(tmp_path, capsys, "good.json", blob)
+        assert code == EXIT_OK
+
+
+class TestBothCorpusChecksSpeakWithOneVoice:
+    """Round seventeen: the recheck carried a key the preflight did not.
+
+    `_corpus_refusal` says in its own docstring that two call sites phrasing
+    the same refusal would let the caller tell which read caught it. The
+    recheck then emitted `_corpus_refusal() | {"sel_consultations": spent}`,
+    so the key set alone answered the question the docstring said it must not.
+    Reporting the ledger there was also the wrong fact to add: `_guard` runs
+    first, so budget is never exhausted by the time the recheck fires, and the
+    only honest number both call sites share is that this run charged nothing.
+    """
+
+    def _pair(self, tmp_path, capsys):
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "voice")
+        split_path = _write(tmp_path, "split.json", split)
+        return ("--incumbent", inc, "--candidate", cand, "--split", split_path)
+
+    def _both(self, tmp_path, capsys, monkeypatch):
+        argv = self._pair(tmp_path, capsys)
+        _, early = _run_gate(capsys, tmp_path, *argv, cap=5)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        _, late = _run_gate(capsys, tmp_path, *argv, cap=5)
+        return early, late
+
+    def test_the_two_refusals_are_one_document(self, tmp_path, capsys, monkeypatch):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert early == late
+
+    def test_neither_refusal_reports_the_ledger(self, tmp_path, capsys, monkeypatch):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert "sel_consultations" not in early
+        assert "sel_consultations" not in late
+
+    def test_both_report_that_this_run_charged_nothing(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        early, late = self._both(tmp_path, capsys, monkeypatch)
+        assert early["consultations"] == 0
+        assert late["consultations"] == 0
+
+    def test_the_patched_run_really_reaches_the_second_check(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: with an agreeing preflight the bodies must be read.
+
+        Without this the comparison above could be two preflight refusals, and
+        the identity it asserts would hold for a reason that proves nothing.
+        """
+        argv = self._pair(tmp_path, capsys)
+        seen: list[Path] = []
+        real = oa._read_results
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        monkeypatch.setattr(
+            oa, "_read_results", lambda p: (seen.append(Path(p)), real(p))[1]
+        )
+        code, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert len(seen) == 2
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+
+
+class TestEveryVerdictNamesWhatThisRunCharged:
+    """Round nineteen: `consultations` was missing exactly where it was not zero.
+
+    `_corpus_refusal` established the contract in its own docstring: the
+    honest claim a refusal can make is that this run charged nothing, reported
+    as `consultations: 0`. The charged paths never reported the other half.
+    A caller reading `consultations` got 0 on every refusal and a missing key
+    on every verdict, so the one field that answers "what did this cost me"
+    was absent from the only outcomes with a nonzero answer.
+
+    `sel_consultations` is the running total against the held-out group after
+    this run's charge, which is why the guard refusal reports `spent` and the
+    verdict reports `spent + 1`: nothing is charged before the guard. The
+    ledger-mismatch refusal reported a literal 0, which is a running total it
+    had no basis for. The count is parsed before the mismatch is raised, so
+    the number exists, but on a key mismatch it belongs to a different group
+    and naming it would leak that group's history through a refusal that
+    deliberately withholds the group itself. Absence is the honest report.
+    """
+
+    def _pair(self, tmp_path, capsys, cand_all_true=True):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "n19")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(tmp_path, "cand.json", {f"t{i}": cand_all_true for i in range(12)})
+        return ("--incumbent", inc, "--candidate", cand, "--split", split_path)
+
+    def test_a_charged_verdict_reports_one(self, tmp_path, capsys):
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert out["consultations"] == 1
+
+    def test_a_charged_verdict_still_reports_the_running_total(self, tmp_path, capsys):
+        """The running total includes this run's charge, so a first gate reads 1."""
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, cap=5)
+        assert out["sel_consultations"] == 1
+
+    def test_the_two_counts_are_different_numbers_on_a_later_run(
+        self, tmp_path, capsys
+    ):
+        """Edge: with prior spend the charge stays 1 while the total moves.
+
+        Asserting both on a first run cannot distinguish them, because the
+        charge and the total are both 1 there.
+        """
+        argv = self._pair(tmp_path, capsys)
+        _, out = _run_gate(capsys, tmp_path, *argv, spent=3, cap=9)
+        assert out["consultations"] == 1
+        assert out["sel_consultations"] == 4
+
+    def test_a_coverage_refusal_reports_the_charge_it_took(self, tmp_path, capsys):
+        """The coverage refusal is charged, so it must not report zero."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "n19c")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(tmp_path, "cand.json", {"t0": True})
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert out["consultations"] == 1
+
+    def test_a_guard_refusal_reports_no_charge(self, tmp_path, capsys):
+        """Negative: an exhausted budget spends nothing, so the charge is zero."""
+        argv = self._pair(tmp_path, capsys)
+        code, out = _run_gate(capsys, tmp_path, *argv, spent=2, cap=2)
+        assert code == EXIT_LOGIC
+        assert out["consultations"] == 0
+        assert out["sel_consultations"] == 2
+
+    def test_a_ledger_mismatch_claims_no_running_total(self, tmp_path, capsys):
+        """A cap it cannot honour is not a licence to report a total of zero."""
+        argv = self._pair(tmp_path, capsys)
+        _run_gate(capsys, tmp_path, *argv, spent=2, cap=9)
+        code, out = _run_gate(capsys, tmp_path, *argv, cap=4)
+        assert code == EXIT_LOGIC
+        assert out["consultations"] == 0
+        assert "sel_consultations" not in out
+
+    def test_every_gate_outcome_names_the_charge(self, tmp_path, capsys):
+        """One key set for the field that answers what this run cost.
+
+        Four outcomes, reached by four different routes: a verdict, a charged
+        coverage refusal, an uncharged guard refusal, and an uncharged drift
+        refusal. Each is checked for the same key rather than for its own.
+        """
+        argv = self._pair(tmp_path, capsys)
+        seen = [_run_gate(capsys, tmp_path, *argv, cap=5)[1]]
+        seen.append(_run_gate(capsys, tmp_path, *argv, spent=2, cap=2)[1])
+
+        drift_inc = _write(tmp_path, "d_inc.json", {f"t{i}": True for i in range(12)})
+        _, split = _split(capsys, tmp_path, "--results", drift_inc, "--seed", "n19d")
+        split["sel"] = list(split["sel"])[:-1]
+        drift_split = _write(tmp_path, "d_split.json", split)
+        drift_cand = _write(tmp_path, "d_cand.json", {f"t{i}": True for i in range(12)})
+        seen.append(
+            _run_gate(
+                capsys, tmp_path, "--incumbent", drift_inc, "--candidate", drift_cand,
+                "--split", drift_split, cap=5,
+            )[1]
+        )
+        assert [out.get("consultations", "MISSING") for out in seen] == [1, 0, 0]
+
+
+class TestWhichRefusalsNameTheGroupTheyOpened:
+    """Round twenty-seven: two more keys come and go, and no rule said so.
+
+    `consultations` and `sel_consultations` each have a written presence rule
+    and a test class of their own. `group` and `fingerprint` vary the same way
+    with neither, which is why a reviewer reading the payloads alone called the
+    schema inconsistent and proposed filling every refusal in.
+
+    The rule they follow: both keys name the held-out group whose ledger this
+    run opened. They appear on the documents `_gate_decision` emits under
+    `_ledger_held`, and are absent from the refusals `cmd_gate` reaches before
+    it takes that lock. The corpus refusal is the one exception, because it is
+    a single document emitted from both sides of the lock and can carry only
+    what the earlier side is able to say.
+
+    Filling them in is wrong twice over. On a drifted split the recorded
+    fingerprint is the value the drift check has just disproved, so echoing it
+    would report a fact the same document denies. On the corpus refusal a
+    second key set would answer which of the two reads caught the disagreement,
+    which is the question the one-voice class above exists to keep unanswered.
+    """
+
+    def _pair(self, tmp_path, capsys, seed):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", seed)
+        return inc, cand, split
+
+    def test_a_verdict_reached_under_the_lock_names_the_group(self, tmp_path, capsys):
+        """Positive control: the compared path carries both keys."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g1")
+        path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert out["compared"] is True
+        assert out["group"] == oa._GATE_GROUP
+        assert out["fingerprint"] == split["fingerprint"]
+
+    def test_a_refusal_reached_under_the_lock_still_names_the_group(
+        self, tmp_path, capsys
+    ):
+        """An exhausted budget refuses inside the lock, so the group is known."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g2")
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, "--max-consultations", "3", spent=3,
+        )
+        assert code == EXIT_LOGIC
+        assert out["compared"] is False
+        assert out["group"] == oa._GATE_GROUP
+        assert out["fingerprint"] == split["fingerprint"]
+
+    def test_a_drifted_split_names_no_group_because_none_was_opened(
+        self, tmp_path, capsys
+    ):
+        """Negative: the drift refusal is decided before the lock is taken."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g3")
+        split["fingerprint"] = "0" * 64
+        path = _write(tmp_path, "split.json", split)
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert code == EXIT_LOGIC
+        assert "group" not in out
+        assert "fingerprint" not in out
+
+    def test_the_refusal_does_not_echo_the_fingerprint_the_check_disproved(
+        self, tmp_path, capsys
+    ):
+        """Edge: the recorded value is exactly what drift means is wrong."""
+        inc, cand, split = self._pair(tmp_path, capsys, "g4")
+        split["fingerprint"] = "0" * 64
+        path = _write(tmp_path, "split.json", split)
+        _, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", path, cap=5,
+        )
+        assert "0" * 64 not in json.dumps(out)
+
+    def test_the_corpus_refusal_names_no_group_from_either_side(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the recheck runs under the lock and still carries neither.
+
+        This is the exception the rule needs, and it is not an oversight. Both
+        call sites emit one document, so the later one carries only what the
+        earlier one can say.
+        """
+        inc = _env_file(tmp_path, "inc.json", _CORPUS_ONE)
+        cand = _env_file(tmp_path, "cand.json", _CORPUS_TWO)
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "g5")
+        path = _write(tmp_path, "split.json", split)
+        argv = ("--incumbent", inc, "--candidate", cand, "--split", path)
+        _, early = _run_gate(capsys, tmp_path, *argv, cap=5)
+        monkeypatch.setattr(oa, "_corpus_header", lambda _p: _CORPUS_ONE)
+        _, late = _run_gate(capsys, tmp_path, *argv, cap=5)
+        for out in (early, late):
+            assert "group" not in out
+            assert "fingerprint" not in out
+        assert early == late
+
+
+class TestAFailedCleanupDoesNotReplaceTheFailureItCleansUpAfter:
+    """Round nineteen: the unlink in the handler could raise out of the handler.
+
+    Round seventeen moved `mkstemp` inside the guarded block so a write
+    failure printed one JSON document instead of a traceback. The cleanup
+    itself stayed unguarded. An `OSError` from `tmp.unlink` inside the
+    `except` arm propagates in place of the exception being handled, so the
+    caller gets a traceback again, and it names the unlink rather than the
+    write that actually failed. A parent whose permissions are revoked after
+    `mkstemp` fails both calls, which is the pair that produces it.
+
+    The comment in that handler also claimed the descriptor is closed when
+    `os.fdopen` fails. It was not: nothing called `os.close`, so that path
+    leaked a descriptor while the comment said it did not.
+    """
+
+    def _tasks(self, tmp_path):
+        path = tmp_path / "tasks.txt"
+        path.write_text("\n".join(f"t{i}" for i in range(30)) + "\n", encoding="utf-8")
+        return path
+
+    def _split_into(self, tmp_path, capsys, out):
+        return _run(
+            capsys, "split", "--tasks", self._tasks(tmp_path), "--seed", "n19", "--out", out
+        )
+
+    def _both_fail(self, monkeypatch):
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        def _no_unlink(*_args, **_kwargs):
+            raise OSError(13, "unlink denied")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        monkeypatch.setattr(oa.Path, "unlink", _no_unlink)
+
+    def test_a_failed_cleanup_is_still_one_json_document(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        self._both_fail(monkeypatch)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_message_names_the_write_not_the_cleanup(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The failure a caller must act on is the write, not the tidy-up."""
+        self._both_fail(monkeypatch)
+        _, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert "replace denied" in out["error"]
+        assert "unlink denied" not in out["error"]
+
+    def test_a_cleanup_that_works_is_unchanged(self, tmp_path, capsys, monkeypatch):
+        """Positive control: the ordinary failure path still reports the write."""
+
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        code, out = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert "replace denied" in out["error"]
+
+    def test_a_non_io_cleanup_failure_still_escapes(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative control: the new arm must not swallow a real bug."""
+
+        def _no_replace(*_args, **_kwargs):
+            raise OSError(13, "replace denied")
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("cleanup boom")
+
+        monkeypatch.setattr(oa.os, "replace", _no_replace)
+        monkeypatch.setattr(oa.Path, "unlink", _boom)
+        with pytest.raises(RuntimeError, match="cleanup boom"):
+            self._split_into(tmp_path, capsys, tmp_path / "split.json")
+
+    def test_a_descriptor_is_closed_when_fdopen_fails(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the one path where the with-block never takes the descriptor."""
+        closed: list[int] = []
+        real_close = oa.os.close
+
+        def _no_fdopen(fd, *_args, **_kwargs):
+            raise OSError(13, "fdopen denied")
+
+        monkeypatch.setattr(oa.os, "fdopen", _no_fdopen)
+        monkeypatch.setattr(
+            oa.os, "close", lambda fd: (closed.append(fd), real_close(fd))[1]
+        )
+        code, _ = self._split_into(tmp_path, capsys, tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert closed
+
+
+class TestTheLedgerRenameIsMadeDurableNotJustTheBytes:
+    """Round nineteen: `fsync` on the file does not persist the rename.
+
+    `_write_atomic` fsyncs the temporary file and then calls `os.replace`.
+    The bytes are durable; the directory entry that points at them is not.
+    A host that loses power after the gate reports a charged consultation can
+    come back with the rename undone, which restores the previous ledger and
+    hands the caller the consultation again. The whole point of charging
+    before scoring is that a crash must not return a free look, so a charge
+    that a crash can erase defeats the ordering it was written to protect.
+    """
+
+    def _dir_fsyncs(self, monkeypatch):
+        kinds: list[bool] = []
+        real = oa.os.fsync
+
+        def _record(fd):
+            kinds.append(stat.S_ISDIR(os.fstat(fd).st_mode))
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _record)
+        return kinds
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_parent_directory_is_fsynced(self, tmp_path, monkeypatch):
+        kinds = self._dir_fsyncs(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert any(kinds)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_file_is_still_fsynced_too(self, tmp_path, monkeypatch):
+        """Positive control: the directory fsync must not have replaced it."""
+        kinds = self._dir_fsyncs(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert not all(kinds)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_directory_fsync_follows_the_rename(self, tmp_path, monkeypatch):
+        """Edge: fsyncing the directory before the rename persists nothing."""
+        order: list[str] = []
+        real_fsync = oa.os.fsync
+        real_replace = oa.os.replace
+
+        def _fsync(fd):
+            order.append("dir" if stat.S_ISDIR(os.fstat(fd).st_mode) else "file")
+            return real_fsync(fd)
+
+        def _replace(src, dst):
+            order.append("replace")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(oa.os, "fsync", _fsync)
+        monkeypatch.setattr(oa.os, "replace", _replace)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert order.index("dir") > order.index("replace")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_directory_that_refuses_fsync_does_not_undo_the_write(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The bytes and the rename already landed, so the file must stay.
+
+        Round twenty: the first version of this guard raised ConfigError here.
+        That made a durability fix into an availability regression. os.replace
+        was previously the last operation in the function, so every failure
+        path preceded the rename and left the destination untouched. Adding a
+        step after the rename created the first failure that can fire once the
+        write has already succeeded, and in the ledger's case once a
+        consultation has already been charged.
+        """
+        real = oa.os.fsync
+        target = tmp_path / "ledger.json"
+        target.write_text("{}\n", encoding="utf-8")
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(target, '{"spent": 1}\n')
+        assert target.read_text(encoding="utf-8") == '{"spent": 1}\n'
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_directory_that_refuses_fsync_does_not_abort_the_caller(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: aborting after the charge costs a look and returns none.
+
+        _write_atomic writes the ledger before the gate scores. Raising after
+        os.replace succeeds means the consultation is spent and the caller
+        gets an exception instead of a verdict, which is the one trade the
+        charge-before-scoring order exists to avoid in the other direction.
+        """
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_lost_guarantee_is_reported_on_stderr(self, tmp_path, capsys, monkeypatch):
+        """Not raising is not the same as not saying.
+
+        Silently continuing would leave the caller believing a durability
+        guarantee that did not hold, which is the shape this file keeps
+        correcting. stderr is the right channel: the exit-code contract
+        reserves stdout for the one JSON document a caller parses.
+        """
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        captured = capsys.readouterr()
+        assert "durab" in captured.err.lower()
+        assert captured.out == ""
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_does_not_claim_the_write_failed(self, tmp_path, capsys, monkeypatch):
+        """Negative: the write succeeded, so saying otherwise is a false claim."""
+        real = oa.os.fsync
+
+        def _refuse(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return real(fd)
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert "could not write" not in capsys.readouterr().err
+
+    def test_a_file_fsync_failure_still_refuses(self, tmp_path, capsys, monkeypatch):
+        """Control: before the rename nothing landed, so it is still an error.
+
+        The distinction is what makes the change above a correction rather
+        than a loosening. A failure that precedes os.replace leaves the
+        destination untouched, so refusing is both honest and free.
+        """
+
+        def _refuse(fd):
+            raise OSError(5, "file fsync denied")
+
+        monkeypatch.setattr(oa.os, "fsync", _refuse)
+        with pytest.raises(oa.ConfigError, match="could not write"):
+            oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+
+class TestARefusalDoesNotAdviseAnInvocationTheParserRejects:
+    """Round twenty: the budget refusal named a command that does not exist.
+
+    The exhausted-budget message told the operator to "report on the test
+    group". `score --group` accepts only "opt", and by design: the README
+    lists "score --group opt refuses to read any other group" as a property
+    the mechanism enforces whether or not the optimizer cooperates. Widening
+    the choice to reach the test group would hand the loop unmetered reads of
+    the one group held back as a final unbiased look, which is the opposite of
+    what the advice was reaching for.
+
+    So the advice is removed rather than implemented. The wording itself is
+    asserted in tests/test_eval_optimizer_core.py, next to the function that
+    produces it; what belongs here is the boundary that made the advice false.
+    """
+
+    def test_the_parser_still_refuses_the_group_the_message_named(self, capsys, tmp_path):
+        """Control: the enforced boundary is unchanged by this fix."""
+        with pytest.raises(SystemExit) as excinfo:
+            oa.main(["score", "--kind", "rule", "--input", "x.json", "--group", "test"])
+        assert excinfo.value.code == EXIT_CONFIG
+        assert "invalid choice" in capsys.readouterr().err
+
+
+class TestADiagnosticNeitherLeaksNorFails:
+    """Round twenty-one: a warning is still a way out of the process.
+
+    Round twenty stopped the directory-fsync failure from aborting a caller
+    whose consultation was already charged, by printing instead of raising.
+    That moved the failure rather than removing it. `print` itself raises when
+    stderr is closed or broken, and `_write_atomic` converts any `OSError` from
+    that region into a `ConfigError`, so the abort round twenty removed came
+    straight back one layer down.
+
+    The leak is the same shape. `_digest_scrubbed` is a seam over raised
+    exceptions, and its own docstring gives the reason: "a wrapper covers the
+    paths someone remembered; a seam covers the one added next year." A warning
+    that prints and returns never reaches that seam, so the new diagnostic
+    named a ledger directory in full, and `$EVAL_LEDGER_DIR` can carry the
+    held-out digest. The tenth review already found and fixed exactly that at
+    the lock-cleanup warning; this reintroduced it two rounds later at a site
+    the seam does not cover.
+
+    Both are one rule, and it was written down zero times: a diagnostic must
+    not leak what raised diagnostics redact, and must not fail where the code
+    it reports on already succeeded.
+    """
+
+    @staticmethod
+    def _stderr_that_refuses(monkeypatch):
+        class _Closed:
+            def write(self, _text):
+                raise OSError(32, "stderr closed")
+
+            def flush(self):
+                pass
+
+        monkeypatch.setattr(oa.sys, "stderr", _Closed())
+
+    @staticmethod
+    def _fsync_refuses(monkeypatch):
+        def _fsync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(13, "dir fsync denied")
+            return None
+
+        monkeypatch.setattr(oa.os, "fsync", _fsync)
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_broken_stderr_does_not_abort_the_write_that_succeeded(
+        self, tmp_path, monkeypatch
+    ):
+        """The exact regression round twenty fixed, one layer down."""
+        self._fsync_refuses(monkeypatch)
+        self._stderr_that_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert (tmp_path / "ledger.json").read_text(encoding="utf-8") == '{"n": 1}\n'
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_broken_stderr_is_not_reported_as_a_failed_write(
+        self, tmp_path, monkeypatch
+    ):
+        """`_write_atomic` turns any OSError from that region into ConfigError."""
+        self._fsync_refuses(monkeypatch)
+        self._stderr_that_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_withholds_a_digest_bearing_directory(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """`$EVAL_LEDGER_DIR` can name the held-out digest; the tenth review
+        found the lock warning printing one and fixed it there only."""
+        key = "b" * 64
+        root = tmp_path / f"ledger-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert key not in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_withheld_digest_is_replaced_not_dropped(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """An error naming nothing is a worse trade than the leak, so the
+        placeholder must survive where the digest was."""
+        key = "c" * 64
+        root = tmp_path / f"ledger-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_an_uppercase_digest_is_withheld_too(self, tmp_path, capsys, monkeypatch):
+        """Edge: the same case-folding the twelfth review had to add to `_scrub`."""
+        key = "d" * 64
+        root = tmp_path / f"ledger-{key.upper()}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        with oa._digest_scrubbed(key):
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert key.upper() not in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_warning_still_reaches_stderr_outside_a_scrub(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Positive control: withholding must not become silence."""
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert "durab" in capsys.readouterr().err.lower()
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_scrub_does_not_outlive_its_block(self, tmp_path, capsys, monkeypatch):
+        """Negative control: a key left active would redact a later run's
+        unrelated output, and hex is common enough in these paths to matter."""
+        key = "e" * 64
+        with oa._digest_scrubbed(key):
+            pass
+        root = tmp_path / f"dir-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(root / "ledger.json", "{}\n")
+        assert key in capsys.readouterr().err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_the_scrub_is_cleared_when_its_block_raises(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the seam exists to catch exceptions, so the unwinding path is
+        the one that must restore state, not the falling-off-the-end path."""
+        key = "f" * 64
+        with pytest.raises(oa.ConfigError):
+            with oa._digest_scrubbed(key):
+                raise OSError(5, "nothing to do with the digest")
+        root = tmp_path / f"dir-{key}"
+        root.mkdir()
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(root / "ledger.json", "{}\n")
+        assert key in capsys.readouterr().err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_stream_closed_for_real_does_not_abort_the_write(self, tmp_path, monkeypatch):
+        """A closed Python stream raises ValueError, not OSError.
+
+        Round twenty-one demonstrated the crash with a double whose `write`
+        raised `OSError(32)`, and the guard was written to the demonstration
+        rather than to the class. A genuinely closed stream raises
+        `ValueError: I/O operation on closed file`, which walks straight
+        through an `OSError`-only suppression into the same abort.
+        """
+        stream = io.StringIO()
+        stream.close()
+        monkeypatch.setattr(sys, "stderr", stream)
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_stderr_that_is_absent_is_treated_like_one_that_is_none(
+        self, tmp_path, monkeypatch
+    ):
+        """Edge: `sys.stderr` can be missing, not only `None` or broken.
+
+        The docstring claimed only the stream check sat outside the guard. The
+        stream read sat outside it too, and `sys.stderr` is an attribute lookup
+        that raises `AttributeError` when an embedding harness deletes it. That
+        raise is the abort rounds twenty through twenty-three were each spent
+        removing, arriving through the one expression none of them guarded.
+        Reading it totally routes the missing case into the `None` branch that
+        already existed, so the rule is enforced without a second one.
+        """
+        monkeypatch.delattr(sys, "stderr")
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", '{"n": 1}\n')
+        assert json.loads((tmp_path / "ledger.json").read_text()) == {"n": 1}
+
+    def test_the_scrub_key_reads_as_none_when_no_scrub_is_active(self):
+        """The default is what lets an unscrubbed warning still get printed.
+
+        `_warn` reads the key under the guard, so a raise here costs the
+        diagnostic rather than the caller. It should cost neither. The
+        `ContextVar` carries `default=None`, and one declared without a
+        default raises `LookupError` from `get()` outside a set scope, which
+        the guard would swallow into silence. The other tests that fail
+        without it report a missing warning, which points at the stream rather
+        than at the declaration. This one names the declaration.
+        """
+        assert oa._ACTIVE_HOLDOUT_KEY.get() is None
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_a_warning_never_lands_on_the_stream_carrying_the_verdict(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """`print(file=None)` writes to stdout, and stdout carries the payload.
+
+        `sys.stderr` is `None` under a pythonw-style launcher and after a
+        harness detaches it. Passing that through as the `file` argument does
+        not silence the warning, it redirects it onto the one stream whose
+        every byte the caller parses as JSON.
+        """
+        monkeypatch.setattr(sys, "stderr", None)
+        self._fsync_refuses(monkeypatch)
+        oa._write_atomic(tmp_path / "ledger.json", "{}\n")
+        assert capsys.readouterr().out == ""
+
+    def test_the_lock_cleanup_warning_withholds_the_digest(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: the leak claim said 'both sites' and tested one.
+
+        Round twenty-one reported it had covered the leak and the crash at
+        both warning sites. It had not; all eight tests drove `_write_atomic`.
+        A twenty-second review read the tests rather than the prose.
+        """
+        monkeypatch.setattr(oa, "_ledger_root", lambda: tmp_path)
+        key = "d" * 64
+
+        def _refuse(self, **kwargs):
+            raise OSError(13, f"cannot unlink {self}")
+
+        with oa._ledger_held(key):
+            monkeypatch.setattr(Path, "unlink", _refuse)
+        monkeypatch.undo()
+        err = capsys.readouterr().err
+        assert key not in err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows cannot open a directory fd")
+    def test_an_inner_scrub_restores_the_outer_key_and_not_none(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Edge: the claim was 'key restore under nesting', which had no test.
+
+        `_ledger_held` scrubs for the whole lock lifecycle and the contention
+        branch nests a second scrub inside it, so nesting is not hypothetical
+        here. Clearing on the inner exit rather than restoring the outer key
+        would unprotect the rest of the outer block, and every existing test
+        would still pass because none of them nests.
+        """
+        outer = "a" * 64
+        inner = "b" * 64
+        with oa._digest_scrubbed(outer):
+            with oa._digest_scrubbed(inner):
+                pass
+            root = tmp_path / f"dir-{outer}"
+            root.mkdir()
+            self._fsync_refuses(monkeypatch)
+            oa._write_atomic(root / "ledger.json", "{}\n")
+        err = capsys.readouterr().err
+        assert outer not in err
+        assert oa._HELD_OUT_PLACEHOLDER in err
+
+    def test_a_redaction_that_raises_costs_the_message_and_not_the_caller(
+        self, capsys, monkeypatch
+    ):
+        """Negative: the guard has to cover the redaction, not just the write.
+
+        The first draft of the three-rule docstring asserted the opposite,
+        that `_scrub` belonged outside the suppression so a broken redactor
+        would fail loudly. Writing that sentence down is what disproved it. A
+        redaction that raises leaves the message unprinted either way, because
+        the exception skips the `print` with `message` still bound to its
+        unscrubbed value. So excluding it buys no leak protection at all and
+        costs the caller the abort that rounds twenty through twenty-two were
+        spent removing.
+        """
+        key = "e" * 64
+
+        def _explode(text, holdout_key):
+            raise RuntimeError("redactor is broken")
+
+        monkeypatch.setattr(oa, "_scrub", _explode)
+        with oa._digest_scrubbed(key):
+            oa._warn(f"cannot sync {key}")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert key not in captured.out
+
+    def test_a_scrub_set_in_another_context_cannot_overwrite_this_one(self):
+        """Edge: two live scopes at once, which one shared global cannot hold.
+
+        A twenty-second review ran two scopes concurrently against the module
+        global this replaced and got a key disclosed under the wrong scope and
+        a stale key left active after both had exited.
+
+        No threads here, deliberately. The first draft of this test used two
+        and passed against the very global it exists to rule out: the barrier
+        releases both, but they still run one at a time, and the second thread
+        finished its restore before the first resumed, so each read its own
+        key by scheduling luck. A test that passes against the mutation is
+        worth less than no test, because it also reports as covered.
+        `copy_context` asks the same question with the scheduler removed.
+
+        A twenty-third review pointed out that the first working version drove
+        the `ContextVar` directly rather than this module's own scope, which
+        tests the standard library instead of the seam. Its proposed repair,
+        abandoning a generator mid-scope, does not discriminate as written:
+        CPython drops the generator's last reference when the function
+        returns, closes it, and runs the very `finally` the test needs left
+        undone, so it passes against a module global too. Measured, not
+        argued. Holding the reference is what abandons the scope for real.
+
+        Closing it happens inside the same `Context` that opened it. Dropping
+        the reference from out here instead leaves CPython to close the
+        generator during collection, where `reset` is handed a token from a
+        context it is no longer in, refuses it, and pytest reports the
+        ignored exception as a warning. That is the limitation the `finally`
+        in `_digest_scrubbed` discloses, reached from a test rather than from
+        a call site.
+        """
+        outer = "a" * 64
+        inner = "b" * 64
+        abandoned = []
+
+        def abandon_a_key_without_restoring_it():
+            def never_finishes():
+                with oa._digest_scrubbed(inner):
+                    yield
+
+            generator = never_finishes()
+            abandoned.append(generator)
+            next(generator)
+
+        def close_what_was_abandoned():
+            while abandoned:
+                abandoned.pop().close()
+
+        context = copy_context()
+        try:
+            with oa._digest_scrubbed(outer):
+                context.run(abandon_a_key_without_restoring_it)
+                assert oa._ACTIVE_HOLDOUT_KEY.get() == outer
+            assert oa._ACTIVE_HOLDOUT_KEY.get() is None
+        finally:
+            context.run(close_what_was_abandoned)
+
+
+class TestScoreWillNotVouchForASplitItCannotVerify:
+    """Round twenty-eight: the one reader that skipped the check it enables.
+
+    `_read_split` refuses a file missing any key needed to re-fingerprint it,
+    and says why: "A split file that cannot be re-fingerprinted cannot be
+    verified; re-run split." It then never verifies. `cmd_gate` covers that by
+    calling `_split_drifted` on the line after the read. `cmd_score` did not,
+    and it echoes `split["fingerprint"]` so the caller can forward it to the
+    gate without opening the file.
+
+    So a hand-edited split produced two score documents carrying one
+    fingerprint and different numbers, and the fingerprint exists to make that
+    impossible. Nothing unsound reached a verdict, because the gate runs the
+    check and refuses. The cost was where the operator learns it: after
+    however many scored candidates, rather than at the first read.
+
+    `score` raises `ConfigError` rather than emitting a refusal document. A
+    drifted file is the same class of problem as a malformed one, which that
+    command already reports that way, and `score` has no decision vocabulary
+    to refuse in. `gate` keeps emitting `decision: REJECT` because its caller
+    is a loop that branches on the document.
+    """
+
+    def _drifted(self, tmp_path, capsys, mutate, name="drifted.json"):
+        """Draw a real split, then edit it the way an operator would."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        mutate(split)
+        path = tmp_path / name
+        path.write_text(json.dumps(split), encoding="utf-8")
+        return results, path
+
+    def test_an_undrifted_split_still_scores_and_still_forwards(self, tmp_path, capsys):
+        """Positive control: the check costs the honest caller nothing."""
+        results, path = self._drifted(tmp_path, capsys, lambda s: None)
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        recorded = json.loads(path.read_text(encoding="utf-8"))["fingerprint"]
+        assert code == EXIT_OK
+        assert out["fingerprint"] == recorded
+        assert out["n"] == len(json.loads(path.read_text(encoding="utf-8"))["opt"])
+
+    def test_a_dropped_task_refuses_instead_of_scoring(self, tmp_path, capsys):
+        """Negative: the half of the check the fingerprint alone can make."""
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "Re-split and re-baseline." in out["error"]
+
+    def test_a_moved_task_refuses_though_the_fingerprint_matches(self, tmp_path, capsys):
+        """Edge: the half only redrawing catches, reached through `score`.
+
+        Moving a task between groups leaves the hashed union unchanged, so the
+        recorded fingerprint still verifies. Only redrawing the split from the
+        recorded inputs disagrees. This pins that `score` gets both halves of
+        `_split_drifted` rather than the cheap one.
+        """
+        def move(split):
+            split["sel"] = [*split["sel"], split["opt"][0]]
+            split["opt"] = split["opt"][1:]
+
+        results, path = self._drifted(tmp_path, capsys, move)
+        moved = json.loads(path.read_text(encoding="utf-8"))
+        tasks = [t for group in ("opt", "sel", "test") for t in moved[group]]
+        assert sorted(tasks) == sorted(set(tasks)) and len(tasks) == 10
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_refusal_publishes_no_number_the_caller_could_bank(self, tmp_path, capsys):
+        """Edge: a refusal that still printed a score would be worse than none.
+
+        The whole cost of the defect was a number the caller could mistake for
+        a baseline, so the repair is not allowed to keep printing one.
+        """
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        _, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert "score" not in out
+        assert "fingerprint" not in out
+        assert "n" not in out
+        assert sorted(out) == ["error", "type"]
+
+    def test_score_and_gate_refuse_a_drifted_split_in_one_vocabulary(self, tmp_path, capsys):
+        """Edge: two commands, one diagnosis, so the operator reads it once."""
+        results, path = self._drifted(
+            tmp_path, capsys, lambda s: s.__setitem__("opt", s["opt"][:-1])
+        )
+        score_code, scored = _run(capsys, "score", "--results", results,
+                                  "--split", path)
+        gate_code, gated = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", path,
+        )
+        assert score_code == EXIT_CONFIG and gate_code == EXIT_LOGIC
+        remedy = "Re-split and re-baseline."
+        assert remedy in scored["error"] and remedy in gated["reason"]
+        assert gated["decision"] == "REJECT"
+
+
+class TestTheDriftGuardCatchesWhatItsExceptClauseNames:
+    """Round twenty-nine: a guard defeated one line past its own scope.
+
+    `_split_drifted` wraps its redraw in `except (TypeError, ValueError)` and
+    turns either into `ConfigError`, so the author had already decided that a
+    split holding an unusable value is a config problem and not a crash. Two
+    values escaped that decision anyway.
+
+    The fingerprint comparison sits one line below the `except`, outside the
+    block, so a fingerprint that is a list or a dict raises the very
+    `TypeError` the clause names and escapes it on a technicality of scope.
+    And `int(split["min_sel"])` on a JSON `Infinity` raises `OverflowError`,
+    which is a sibling of `ValueError` rather than a subclass, so the clause
+    misses it.
+
+    `_read_split` had already fixed this exact bug once, in this exact
+    function, for `corpus`: its comment records that an unvalidated list pin
+    "raised `TypeError` out of a set comprehension". `fingerprint` is that
+    field's twin and went unfixed, which is why the check now sits beside it.
+
+    The harm has a low ceiling and it is worth naming. Both commands die
+    before any comparison, so no unsound ACCEPT and no consultation charge is
+    reachable. What the operator loses is the contract: a malformed split is
+    supposed to exit 2 with a document naming the file, and instead the
+    process exits 1 with a traceback, colliding with the exit code that means
+    the candidate lost. A loop that branches on the exit code cannot tell a
+    lost candidate from an unreadable file.
+
+    Round twenty-eight widened this from one command to two. `cmd_gate` has
+    called `_split_drifted` since the beginning; `cmd_score` began calling it
+    in the commit before this one, so the fix is owed here.
+    """
+
+    def _mangled(self, tmp_path, capsys, key, value, name="mangled.json"):
+        """Draw a real split, then put one unusable value in one field."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, split = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split[key] = value
+        path = tmp_path / name
+        path.write_text(json.dumps(split), encoding="utf-8")
+        return results, path
+
+    def test_an_unusable_split_is_still_refused_by_the_honest_path(
+        self, tmp_path, capsys
+    ):
+        """Positive control: the guard still lets a usable split through."""
+        results, path = self._mangled(tmp_path, capsys, "seed", "s1")
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_OK
+        assert out["fingerprint"] == json.loads(
+            path.read_text(encoding="utf-8")
+        )["fingerprint"]
+
+    def test_a_list_fingerprint_is_refused_not_raised(self, tmp_path, capsys):
+        """Negative: the `TypeError` raised past the clause that names it."""
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", [])
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "fingerprint" in out["error"]
+
+    def test_a_dict_fingerprint_is_refused_too(self, tmp_path, capsys):
+        """Edge: the other unhashable JSON type reaches the same set."""
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", {"a": 1})
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_the_gate_refuses_a_list_fingerprint_as_a_config_error(
+        self, tmp_path, capsys
+    ):
+        """Negative: the older of the two callers, unfixed since the start.
+
+        A malformed split is a `ConfigError` from `gate` as well. Only drift
+        earns `decision: REJECT`, because only drift is a fact about a
+        readable file.
+        """
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", [])
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", path,
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_an_infinite_min_sel_is_refused_not_raised(self, tmp_path, capsys):
+        """Negative: `OverflowError` is a sibling of `ValueError`, not a child."""
+        results, path = self._mangled(tmp_path, capsys, "min_sel", float("inf"))
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_merely_wrong_fingerprint_still_reports_drift(self, tmp_path, capsys):
+        """Edge: a usable value that is simply wrong keeps its old answer.
+
+        The repair must reject unusable fingerprints without turning a
+        readable-but-stale one into a config error, because that is the case
+        the drift refusal exists to report.
+        """
+        results, path = self._mangled(tmp_path, capsys, "fingerprint", "0" * 64)
+        code, out = _run(capsys, "score", "--results", results, "--split", path)
+        assert code == EXIT_CONFIG
+        assert "Re-split and re-baseline." in out["error"]
+
+
+class TestNumbersTooLargeToComputeWithNeverReachTheLedger:
+    """Round twenty-nine, follow-up: the crash that spends before it dies.
+
+    `--max-consultations` and the two budget bounds are `type=int`, and Python
+    integers have no ceiling, so `10 ** 400` is accepted as a cap. Three
+    arithmetic sites then convert one to a float: the budget curve multiplies
+    a span by 0.5, and the Bonferroni correction divides `--max-p` by the cap,
+    once inside the decision and once again when the verdict is built.
+
+    Each raises `OverflowError`, a sibling of `ValueError` rather than a
+    subclass, so it escaped every clause written to turn unusable numbers into
+    refusals. That is the same taxonomy gap as the `min_sel` fix in the
+    previous commit, one argument surface further out.
+
+    The gate makes it expensive. It charges the consultation before it reads
+    the held-out group, deliberately, so that a crash cannot hand back a free
+    comparison on retry. The second division sits after that charge. Measured
+    end to end, one typo cost a consultation, wrote `max_consultations` of
+    `10 ** 400` into the ledger, and printed no verdict; every later run
+    against that group was then refused for asking for a different cap, and
+    the remedy the refusal offers is to re-split, which destroys the held-out
+    group. One malformed argument bricks the resource the gate exists to
+    protect.
+
+    So the check is at the boundary rather than at the three use sites. A
+    value rejected by `argparse` has not charged anything, because parsing
+    finishes before any command runs. Catching `OverflowError` at the
+    divisions would leave the ledger already written.
+    """
+
+    _TOO_BIG = str(10**400)
+
+    def test_a_usable_cap_still_gates(self, tmp_path, capsys):
+        """Positive control: ordinary numbers are untouched."""
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, path = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split_path = tmp_path / "sp.json"
+        split_path.write_text(json.dumps(path), encoding="utf-8")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", results, "--candidate", results,
+            "--split", split_path, "--max-p", "0.05",
+        )
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert "decision" in out
+
+    def test_an_unusable_cap_never_reaches_the_ledger(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: the whole point, so the assertion is about the ledger.
+
+        A refusal that still charged would be the bug wearing a better error
+        message. The ledger directory has to be untouched.
+        """
+        ledgers = tmp_path / "ledgers"
+        ledgers.mkdir()
+        monkeypatch.setenv("EVAL_LEDGER_DIR", str(ledgers))
+        results = _write(tmp_path, "r.json", {f"t{i}": i % 2 == 0 for i in range(10)})
+        _, drawn = _split(capsys, tmp_path, "--results", results, "--seed", "s1")
+        split_path = tmp_path / "sp.json"
+        split_path.write_text(json.dumps(drawn), encoding="utf-8")
+        with pytest.raises(SystemExit) as excinfo:
+            _run(
+                capsys, "gate", "--incumbent", results, "--candidate", results,
+                "--split", split_path, "--max-p", "0.05",
+                "--max-consultations", self._TOO_BIG,
+                "--incumbent-fingerprint", drawn["fingerprint"],
+            )
+        assert excinfo.value.code == EXIT_CONFIG
+        assert list(ledgers.iterdir()) == []
+
+    def test_budget_refuses_an_unusable_total(self, capsys):
+        """Negative: the second arithmetic site, in the budget curve."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(capsys, "budget", "--step", "1", "--total", self._TOO_BIG)
+        assert excinfo.value.code == EXIT_CONFIG
+
+    def test_budget_refuses_an_unusable_max_edits(self, capsys):
+        """Negative: the third site, the span the curve multiplies."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(
+                capsys, "budget", "--step", "1", "--total", "3",
+                "--max-edits", self._TOO_BIG,
+            )
+        assert excinfo.value.code == EXIT_CONFIG
+
+    def test_a_large_but_usable_number_is_accepted(self, capsys):
+        """Edge: the bar is what the arithmetic can carry, not a product cap.
+
+        `10 ** 300` is absurd as a budget and no business rule here forbids
+        it. The check refuses values the tool cannot compute with, and
+        inventing a smaller ceiling would be a policy decision wearing a bug
+        fix's clothes.
+        """
+        code, out = _run(
+            capsys, "budget", "--step", "1", "--total", "3",
+            "--max-edits", str(10**300),
+        )
+        assert code == EXIT_OK
+        assert out["budget"] >= 1
+
+    def test_a_non_numeric_cap_is_still_refused(self, capsys):
+        """Edge: the new callable must not swallow the old rejection."""
+        with pytest.raises(SystemExit) as excinfo:
+            _run(capsys, "budget", "--step", "1", "--total", "not-a-number")
+        assert excinfo.value.code == EXIT_CONFIG

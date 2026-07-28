@@ -166,6 +166,43 @@ class TestScan:
             "src/copilot-cli/skills/beta/SKILL.md": 2,
         }
 
+    def test_scan_collects_reference_docs_and_script_readmes(self, tmp_path: Path) -> None:
+        self._skill_md(tmp_path, (".claude", "skills"), "alpha/SKILL.md", "clean\n")
+        self._skill_md(
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/references/guide.md",
+            "python3 .claude/skills/alpha/scripts/tool.py\n",
+        )
+        self._skill_md(
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/scripts/README-tool.md",
+            "bash .claude/skills/alpha/scripts/tool.sh\n"
+            "sh .claude/skills/alpha/scripts/other.sh\n",
+        )
+        self._skill_md(
+            tmp_path,
+            (".claude", "skills"),
+            "alpha/scripts/not-readme.md",
+            "python3 .claude/skills/alpha/scripts/ignored.py\n",
+        )
+        self._skill_md(tmp_path, ("src", "copilot-cli", "skills"), "beta/SKILL.md", "clean\n")
+        self._skill_md(
+            tmp_path,
+            ("src", "copilot-cli", "skills"),
+            "beta/references/ref.md",
+            "./.claude/skills/beta/scripts/run.sh\n",
+        )
+
+        counts = cep.scan_skill_execs(tmp_path)
+
+        assert counts == {
+            ".claude/skills/alpha/references/guide.md": 1,
+            ".claude/skills/alpha/scripts/README-tool.md": 2,
+            "src/copilot-cli/skills/beta/references/ref.md": 1,
+        }
+
     def test_scan_skips_marked_files(self, tmp_path: Path) -> None:
         self._skill_md(
             tmp_path, (".claude", "skills"), "alpha/SKILL.md",
@@ -287,3 +324,18 @@ class TestCommittedRepoHasNoDrift:
         baseline = cep._load_baseline(baseline_path)
         regressions, _ = cep.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+
+class TestWorkflowPathFilter:
+    def test_workflow_triggers_on_reference_docs_and_script_readmes(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        workflow = root / ".github" / "workflows" / "validate-vendor-portability.yml"
+        text = workflow.read_text(encoding="utf-8")
+
+        for pattern in (
+            "'.claude/skills/**/references/**/*.md'",
+            "'.claude/skills/**/scripts/README-*.md'",
+            "'src/copilot-cli/skills/**/references/**/*.md'",
+            "'src/copilot-cli/skills/**/scripts/README-*.md'",
+        ):
+            assert pattern in text

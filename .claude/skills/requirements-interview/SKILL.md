@@ -1,7 +1,7 @@
 ---
 name: requirements-interview
 version: 0.1.0
-description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer.
+description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", or "walk the design tree".
 allowed-tools:
   - Read
   - Glob
@@ -112,6 +112,6 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 - Upstream: <https://github.com/mattpocock/skills>
 - [Circle of Competence](references/mental-models-circle-of-competence.md) - Calibrate confidence in a recommended answer by whether the decision sits inside the team's tested knowledge
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
-- Related rules: `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/security.md`
+- Related references: `software-engineering-library` clean-architecture and domain-driven-design references, plus `.claude/rules/security.md`
 
 <!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .agents/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a .claude/rules/security.md fallback named inline. Issue #2050. -->
