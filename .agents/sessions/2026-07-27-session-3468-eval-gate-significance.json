@@ -980,6 +980,16 @@
         "Whether both surfaces should survive long term, and which the README and ADR should call canonical, is an architecture call for @rjmurillo. Flagged, not folded in.",
         "The directory case keeps its errno text. _read_text prefixes it with 'could not read <path>' so the file is named first, and for unusual OS failures the detail is the only thing that says what went wrong. The guarantee tested is that the peek stops being the layer that answers, not that errno text disappears."
       ]
+    },
+    {
+      "phase": "Repairing a causal graph main broke, because it blocked the push",
+      "actions": [
+        "The push gate failed on tests/skills/memory/test_update_causal_graph.py, which asserts every committed episode is reachable from the causal graph. The orphan is episode-2026-07-28-session-3629-memory-stale-script-refs, landed by PR #3636. Confirmed pre-existing rather than mine by running the same test against a pristine origin/main worktree: it fails there too. Not my change, but it blocks my branch, so repairing it was the only way forward.",
+        "Ran the idempotent full pass the test's own docstring prescribes: .claude/skills/memory/scripts/update_causal_graph.py. Audited the delta rather than trusting the summary, because 476 inserted lines is more than one orphan episode should cost. 32 nodes added across exactly two episodes, the orphan from #3636 and my own, which had grown since it was last processed. One node removed: a commit node whose commit no longer appears anywhere in its source episode file. The graph is derived state and the episodes are the source, so pruning a node the source stopped naming is the repair working, not data loss. 379 memory tests pass."
+      ],
+      "decisions": [
+        "Repaired rather than routed around. A pre-existing break on main that blocks every branch is a broken window on the path, and the fix is the sanctioned idempotent script, not a hand edit. Flagged to @rjmurillo because the hook that maintains this graph reads staged episodes only, so any episode landing through a path that does not stage it will orphan again. That is the recurring defect, and it is the fourth time this drift has been recorded (#3350, #3356)."
+      ]
     }
   ],
   "endingCommit": "691dcfb0e",
