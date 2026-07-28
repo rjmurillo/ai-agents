@@ -157,9 +157,9 @@ def agent_results(
                 f"got a {type(per_variant).__name__}"
             )
         runs = per_variant.get(variant)
-        if not runs:
-            # Variant never ran this fixture, or ran it zero times. Fail
-            # closed rather than dropping the id.
+        if runs is None:
+            # Variant never ran this fixture. Fail closed rather than
+            # dropping the id.
             out[str(fixture_id)] = False
             continue
         if not isinstance(runs, Sequence) or isinstance(runs, str):
@@ -167,6 +167,13 @@ def agent_results(
                 f"fixture {fixture_id!r} variant {variant!r} must be a list "
                 f"of scores, got {type(runs).__name__}"
             )
+        if not runs:
+            # Ran the fixture zero times. Same fail-closed path as never
+            # having run it, but reached only after the value proved to be a
+            # list, so `{}`, `""`, `0` and `False` are refused above rather
+            # than scored as a measured loss.
+            out[str(fixture_id)] = False
+            continue
         values = [
             _as_float(
                 v,
