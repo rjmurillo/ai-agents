@@ -23,7 +23,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from active_plan_closeout import validate_active_plan_closeout  # noqa: E402
+from active_plan_closeout import validate_active_plan_closeout
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
