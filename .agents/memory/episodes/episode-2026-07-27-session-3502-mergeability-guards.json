@@ -188,8 +188,8 @@
     "tool_calls": 0,
     "errors": 5,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 15
   },
   "lessons": []
 }
