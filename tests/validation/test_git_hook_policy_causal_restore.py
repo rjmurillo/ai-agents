@@ -670,6 +670,198 @@ class TestAdrReviewPolicyMergeScope:
         assert result == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
+    def test_merge_of_a_shared_branch_tip_allows_content_already_on_main(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """The exemption has to follow the content, not the merge parent.
+
+        `_approved_merge_head_commits` keeps only parents that are ancestors of
+        `origin/main`, so it covers merging main in directly. It does not cover
+        the other way a branch takes main's work: someone else merges main into
+        the shared branch and pushes, and the next author merges that remote
+        tip. The parent is then the branch, not main, so every ADR main
+        contributed reads as branch-authored and the gate demands review
+        evidence for a file the author never opened.
+
+        Comparing the staged blob against `origin/main` closes that without
+        widening the gate, because content that already sits on main already
+        cleared this policy on the pull request that put it there.
+        """
+        path = ".agents/architecture/ADR-089-arrived-through-the-branch.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"main adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: [],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: (
+                b"main adr" if commit == "origin/main" else None
+            ),
+            raising=False,
+        )
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 0
+
+    def test_a_real_merge_of_a_shared_branch_tip_exempts_the_adr_main_contributed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """End-to-end proof against a real repository, no git calls stubbed.
+
+        The monkeypatched checks above describe the shape of the bug. This one
+        reproduces it: main gains an ADR, a collaborator merges main into the
+        shared branch and the next author merges that branch tip, so MERGE_HEAD
+        names the branch and not main. The staged ADR is byte-identical to
+        main's copy, so the gate must let it through.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        # `local` is cut here rather than by start-point later: the suite's
+        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
+        # commit as a branch point while that trace is on.
+        _git(repo, "branch", "local")
+
+        _git(repo, "checkout", "-b", "shared")
+        (repo / "branch.txt").write_text("branch work\n", encoding="utf-8")
+        _commit(repo, "branch work")
+
+        _git(repo, "checkout", "main")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-089-from-main.md"
+        adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
+        _commit(repo, "adr on main")
+        main_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+
+        # A collaborator merges main into the shared branch and pushes.
+        _git(repo, "checkout", "shared")
+        _git(repo, "merge", "--no-edit", "main")
+
+        # The author, still on the old branch point, merges that shared tip.
+        _git(repo, "checkout", "local")
+        (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-089-from-main.md"
+        assert policy._merge_in_progress(repo) is True
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 0
+
+    def test_a_real_merge_still_gates_an_adr_the_author_wrote_on_the_branch(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Negative control for the real-repository check above.
+
+        Same repository shape, but the staged ADR differs from main's copy
+        because the author edited it during the merge. Nothing on main carries
+        that content, so no exemption applies and the gate blocks.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        # `local` is cut here rather than by start-point later: the suite's
+        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
+        # commit as a branch point while that trace is on.
+        _git(repo, "branch", "local")
+
+        _git(repo, "checkout", "-b", "shared")
+        (repo / "branch.txt").write_text("branch work\n", encoding="utf-8")
+        _commit(repo, "branch work")
+
+        _git(repo, "checkout", "main")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-089-from-main.md"
+        adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
+        _commit(repo, "adr on main")
+        main_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+
+        _git(repo, "checkout", "shared")
+        _git(repo, "merge", "--no-edit", "main")
+
+        _git(repo, "checkout", "local")
+        (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-089-from-main.md"
+        (repo / relative).write_text("# ADR 089\n\nthe author rewrote this.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_merge_of_a_shared_branch_tip_still_gates_content_main_does_not_have(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Negative control for the check above.
+
+        An ADR written on the branch during the same merge differs from main's
+        copy, or main has no copy at all, so the blob comparison must not
+        exempt it. Without this the previous test would pass just as well
+        against a check that exempted every path once a merge was underway.
+        """
+        path = ".agents/architecture/ADR-999-written-during-the-merge.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: [],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: (
+                b"main adr" if commit == "origin/main" else None
+            ),
+            raising=False,
+        )
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

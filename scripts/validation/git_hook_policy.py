@@ -817,7 +817,16 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
-    parent_commits = _approved_merge_head_commits(repo_root)
+    # `origin/main` is checked alongside the approved parents because a branch
+    # takes main's work two ways and only one of them leaves a main ancestor in
+    # MERGE_HEAD. Merging main in directly does. Merging the shared branch's
+    # own remote tip, after a collaborator merged main there and pushed, does
+    # not: the parent is the branch. Without this every ADR main contributed
+    # reads as branch-authored and the gate demands review evidence for a file
+    # the author never opened. Comparing content rather than ancestry does not
+    # widen the gate, since a blob already on main cleared this same policy on
+    # the pull request that put it there.
+    parent_commits = [*_approved_merge_head_commits(repo_root), "origin/main"]
     authored: list[str] = []
     for path in paths:
         staged_blob = _read_index_blob(repo_root, path)
