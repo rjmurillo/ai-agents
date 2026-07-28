@@ -6955,3 +6955,241 @@ class TestAnIncompleteScoreMappingIsRefusedBeforeItIsReduced:
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
         assert code == EXIT_CONFIG
         assert "S5" in out["error"]
+
+
+class TestADanglingSymlinkIsNotAnAbsentFile:
+    """Absence was asked with a call that follows the link, so a broken one lied.
+
+    `_absent` used `Path.stat`, which resolves the symlink before answering.
+    A link whose target is gone therefore raised `FileNotFoundError` and read
+    as "the file is not there", even though the directory entry is right there
+    and `ls` shows it.
+
+    Both readers fail open on absence by design, and that design is only safe
+    when absence is true. A missing buffer is an empty buffer, so a dangling
+    buffer link un-rejects every patch recorded in it. A missing ledger is an
+    unspent budget, so a dangling ledger link resets the consultation count,
+    which is the one integrity property the ledger exists to hold.
+
+    The realistic way to get here is not an attack. It is a symlinked state
+    directory pointing into a volume that did not mount, which is an ops
+    mistake that should stop the run rather than silently restore the budget.
+
+    `lstat` asks about the directory entry instead of the target, so the entry
+    exists and absence is false. The dangling case is then named on its own
+    rather than left to the reader, which would report "no such file" about a
+    path the operator can see.
+    """
+
+    def _dangling(self, tmp_path, name):
+        link = tmp_path / name
+        link.symlink_to(tmp_path / "gone-target")
+        return link
+
+    def _patches(self, tmp_path):
+        return _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+
+    def test_buffer_check_refuses_a_dangling_buffer(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("seen") is None
+
+    def test_buffer_add_refuses_a_dangling_buffer(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+            "--reason",
+            "r",
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("added") is None
+
+    def test_buffer_add_leaves_the_dangling_link_in_place(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+            "--reason",
+            "r",
+        )
+        assert link.is_symlink()
+        assert not link.exists()
+
+    def test_the_refusal_names_the_missing_target(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_CONFIG
+        assert "gone-target" in out["error"]
+
+    def test_a_truly_absent_buffer_is_still_absent(self, tmp_path, capsys):
+        """Control: the fail-open path this protects must still work."""
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            tmp_path / "none.json",
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_a_symlink_to_a_real_buffer_is_read_through(self, tmp_path, capsys):
+        """Control: only the broken link is refused, not every link."""
+        real = _write(tmp_path, "real.json", [])
+        link = tmp_path / "b.json"
+        link.symlink_to(real)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def _gate_fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(
+            capsys, "split", "--results", inc, "--seed", "s1",
+            "--out", tmp_path / "split.json",
+        )
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        split = tmp_path / "split.json"
+        record = json.loads(split.read_text(encoding="utf-8"))
+        return inc, cand, split, record["fingerprint"]
+
+    def _dangling_ledger(self, split):
+        ledger = oa._ledger_root() / f"{_key_of(split)}.ledger"
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.symlink_to(ledger.parent / "unmounted-volume.ledger")
+        return ledger
+
+    def test_a_dangling_ledger_does_not_reset_the_budget(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        self._dangling_ledger(split)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("decision") is None
+        assert out.get("consultations") is None
+
+    def test_a_dangling_ledger_is_left_in_place(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        ledger = self._dangling_ledger(split)
+        _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert ledger.is_symlink()
+        assert not ledger.exists()
+
+    def test_an_absent_ledger_still_means_an_unspent_budget(self, tmp_path, capsys):
+        """Control: the gate must still run its first consultation."""
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert out["consultations"] == 1
+
+
+class TestAbsenceAsksAboutTheEntryNotTheTarget:
+    """Unit-level enumeration of what `_absent` must answer for each entry."""
+
+    def test_a_missing_entry_is_absent(self, tmp_path):
+        assert oa._absent(tmp_path / "nothing") is True
+
+    def test_a_regular_file_is_present(self, tmp_path):
+        path = tmp_path / "f"
+        path.write_text("{}", encoding="utf-8")
+        assert oa._absent(path) is False
+
+    def test_a_symlink_to_a_regular_file_is_present(self, tmp_path):
+        target = tmp_path / "t"
+        target.write_text("{}", encoding="utf-8")
+        link = tmp_path / "l"
+        link.symlink_to(target)
+        assert oa._absent(link) is False
+
+    def test_a_dangling_symlink_is_neither_absent_nor_readable(self, tmp_path):
+        link = tmp_path / "l"
+        link.symlink_to(tmp_path / "missing")
+        with pytest.raises(oa.ConfigError, match="missing"):
+            oa._absent(link)
+
+    def test_a_symlink_loop_is_refused_rather_than_read_as_absent(self, tmp_path):
+        """ELOOP is an OSError that is not FileNotFoundError."""
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        a.symlink_to(b)
+        b.symlink_to(a)
+        with pytest.raises(oa.ConfigError):
+            oa._absent(a)
+
+    def test_a_directory_is_present(self, tmp_path):
+        assert oa._absent(tmp_path) is False
+
+
+class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
+    """Characterization, not a contract: `os.replace` swaps the entry.
+
+    `_write_atomic` renames a temp file over the destination path. When the
+    destination is a symlink, POSIX rename replaces the link itself, so the
+    target keeps its old contents and the link is gone. Writing through the
+    link instead would need the caller to resolve it first, and that is a
+    behavior change with its own risks: it would follow a link out of the
+    intended directory, which is the reason rename does not do it.
+
+    This test exists so the next reader learns the behavior from the suite
+    rather than from a surprise, and so a deliberate change to it fails here
+    first. It asserts what the code does today. It does not claim that is the
+    right answer for every caller.
+    """
+
+    def test_a_symlinked_buffer_is_replaced_and_its_target_is_untouched(
+        self, tmp_path, capsys
+    ):
+        real = _write(tmp_path, "real.json", [])
+        link = tmp_path / "b.json"
+        link.symlink_to(real)
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, _ = _run(
+            capsys, "buffer-add", "--buffer", link, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_OK
+        assert not link.is_symlink()
+        assert json.loads(real.read_text(encoding="utf-8")) == []
+        assert json.loads(link.read_text(encoding="utf-8")) != []

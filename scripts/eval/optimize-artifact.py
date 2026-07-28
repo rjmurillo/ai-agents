@@ -138,16 +138,42 @@ def _absent(path: Path) -> bool:
     reads as an empty one, which un-rejects every patch in it, and an
     unreadable ledger reads as an unspent budget.
 
+    Absence is asked of the directory entry with `lstat`, not of the target
+    with `stat`. A symlink whose target is gone is an entry that exists, and
+    answering "absent" for it hands both readers their fail-open path: an
+    empty buffer un-rejects every patch recorded in it, and an unspent ledger
+    resets the consultation budget. The realistic cause is a state directory
+    linked into a volume that did not mount, which should stop the run rather
+    than quietly restore the budget.
+
     Only `FileNotFoundError` means absent. Everything else is a config error,
     which is what `_read_json` already does one call further in, so the pair
     now reports one failure one way.
     """
     try:
-        path.stat()
+        path.lstat()
     except FileNotFoundError:
         return True
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
+    if path.is_symlink():
+        try:
+            path.stat()
+        except FileNotFoundError as exc:
+            # Named here rather than left to the reader, which would report
+            # "no such file" about a path the operator can see in `ls`.
+            target = "an unreadable target"
+            # readlink can fail if the entry changes underneath this handler,
+            # and an OSError raised inside it would escape `main`, which does
+            # not catch OSError, and exit 1. Exit 1 is the reject verdict.
+            with suppress(OSError):
+                target = os.readlink(path)
+            raise ConfigError(
+                f"{path} is a broken symlink to {target}: refusing to read "
+                f"it as an absent file"
+            ) from exc
+        except OSError as exc:
+            raise ConfigError(f"could not read {path}: {exc}") from exc
     return False
 
 
