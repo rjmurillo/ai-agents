@@ -511,6 +511,12 @@ same edit is not re-proposed against the same artifact state. On accept, the
 candidate becomes the incumbent and prior rejections against the old artifact
 state expire.
 
+`buffer-add --reason` is required and takes free text. It records why the edit
+was rejected so a later step, or a reader auditing the buffer, can tell a gate
+reject apart from a refused patch or an operator veto. Name the deciding
+signal, not the intent: `gate: sel score dropped 0.62 -> 0.55` tells the next
+reader something, `bad edit` does not.
+
 ### What the gate refuses
 
 A strictly-greater held-out score is the only way to earn an accept. A tie is a

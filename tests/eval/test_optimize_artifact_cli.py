@@ -13,6 +13,7 @@ which is precisely the overfitting the gate exists to stop.
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import importlib.util
@@ -10525,3 +10526,50 @@ class TestDuplicateKeysAreRefusedBeforeAnythingReadsTheObject:
         the subclassing is what keeps that promise true.
         """
         assert issubclass(oa._DuplicateKeyError, ValueError)
+
+
+class TestEveryFlagDocumentsItself:
+    """A flag with no help text is undiscoverable from the CLI. Refs #3616.
+
+    `buffer-add --reason` was the sharp case: required, so the command could
+    not run without it, and `--help` said only that it was required. This is
+    the fence that keeps the next flag from shipping the same way.
+    """
+
+    @staticmethod
+    def _subcommand_options() -> list[tuple[str, str, str | None]]:
+        parser = oa.build_parser()
+        found: list[tuple[str, str, str | None]] = []
+        for action in parser._actions:
+            if not isinstance(action, argparse._SubParsersAction):
+                continue
+            for command, sub in action.choices.items():
+                for option in sub._actions:
+                    if option.option_strings and option.dest != "help":
+                        found.append((command, option.option_strings[0], option.help))
+        return found
+
+    def test_the_parser_exposes_the_flags_this_fence_guards(self):
+        """Negative control: an empty walk would pass the assertion vacuously."""
+        found = self._subcommand_options()
+        assert len(found) >= 40
+        assert any(command == "buffer-add" and flag == "--reason" for command, flag, _ in found)
+
+    def test_every_subcommand_flag_carries_help_text(self):
+        bare = [
+            f"{command} {flag}"
+            for command, flag, help_text in self._subcommand_options()
+            if not help_text
+        ]
+        assert bare == []
+
+    def test_the_required_buffer_reason_explains_what_belongs_there(self):
+        help_text = next(
+            help_text
+            for command, flag, help_text in self._subcommand_options()
+            if command == "buffer-add" and flag == "--reason"
+        )
+        assert help_text is not None
+        # Naming the flag is not describing it; the text has to say what to write.
+        assert "rejected" in help_text
+        assert "example" in help_text
