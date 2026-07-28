@@ -156,6 +156,16 @@
         "264 tests pass across the two extractor test trees and the inverse suite; ruff clean on all three changed files",
         "Bumped both plugin manifests to 0.6.145 after main advanced to 0.6.144 and erased my strictly-greater margin"
       ]
+    },
+    {
+      "phase": "Scope",
+      "actions": [
+        "The push scope gate blocked at 80 files against a 50-file hard limit and named SKIP_SCOPE_CHECK=1 as the sanctioned bypass for justified large PRs",
+        "Justification, atomicity: this removes one memory tier. Splitting it leaves main broken between merges, for example a deleted writer with a live schema, or a deleted graph with code still importing it. There is no ordering of the pieces that keeps every intermediate commit green",
+        "Justification, mirror doubling: 62 of the 80 files sit in .claude and src/copilot-cli, which the generator holds in byte parity, so every real edit is counted twice by repo design. The logical change is roughly half the reported number",
+        "Justification, shape: 20 of the changes are the deletions themselves and most of the remaining volume is one 1,074,565-byte JSON artifact, not reviewable logic",
+        "Used the bypass for the scope heuristic only. The security push-suppression gate was not bypassed; it passes on its own merits at exit 0"
+      ]
     }
   ],
   "endingCommit": "",
