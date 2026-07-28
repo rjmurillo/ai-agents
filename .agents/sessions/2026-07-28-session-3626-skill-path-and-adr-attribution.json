@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3626,
+    "date": "2026-07-28",
+    "branch": "fix/3626-3624-skill-paths",
+    "startingCommit": "9b7e10df57",
+    "objective": "Repair a broken executable path in the session-init skill and a false ADR-007 tier-taxonomy attribution in ADR-063 and the triage eval fixture."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3626-3624-skill-paths after checkout -b from origin/main at 9b7e10df57"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3626-3624-skill-paths, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md and the open issue backlog; 111 open issues loaded into a triage table before work started"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit so the branch-context-policy job resolves the branch"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was not reachable in this harness. Fell back to reading .serena/memories/ directly per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not available; see serenaActivated"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .claude/rules/plugin-version-bump.md for the parity gate covering the two skill trees, and .claude/rules/generated-artifacts.md for the regenerate-in-the-same-change rule"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Doubled artifact root removed from the canonical skill and its generated mirror; ADR-063 and the triage eval fixture repointed from ADR-007 to ADR-038"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Scoped markdownlint run on the two changed Markdown files"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "build/scripts/validate_plugin_manifests.py reports all manifests valid; the triage fixture reparses as JSON"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Campaign is still in flight; the retrospective belongs at the end of it"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Fixed #3626. Four occurrences of a doubled artifact root, .agents/sessions/.agents/sessions/, remained in the session-init skill. Line 352 is executable: it pointed validate_session_json.py at a path that cannot exist, so an agent following the skill literally would fail its own session-end validation. Repaired the canonical skill and regenerated the Copilot mirror."
+    },
+    {
+      "step": "Fixed #3624. ADR-063 attributed the semantic / episodic / causal taxonomy to ADR-007. ADR-007's four tiers are storage backends (AgentDB, ReasoningBank, SQLite, JSON fallback); the semantic / episodic / causal taxonomy is ADR-038. Repointed the ADR-063 alternatives table and the triage eval fixture, which also asked for four tiers naming only two and predated ADR-089 removing Tier 3."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the PR for these two repairs",
+    "Continue the backlog campaign with the workflow-hardening group (#3652, #3664)"
+  ]
+}
