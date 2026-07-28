@@ -28,7 +28,7 @@ Research evaluated tools for local GitHub Actions validation to reduce the expen
 ## Implementation Actions
 
 1. Add actionlint to .pre-commit-config.yaml (removed)
-2. Create `scripts/Validate-PrePR.ps1` unified runner
+2. Create `scripts/Validate-PrePR.ps1` unified runner (since migrated to `scripts/validation/pre_pr.py`)
 3. Document shift-left workflow in `.agents/SHIFT-LEFT.md`
 4. Pilot act with pester-tests.yml and validate-paths.yml
 
