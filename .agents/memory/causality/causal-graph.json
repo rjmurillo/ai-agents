@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T04:46:04.843177+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22843,6 +22843,69 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "e5fd312fa463",
+      "type": "milestone",
+      "label": "milestone: Created isolated worktree and acquired PR lease",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836245+00:00"
+    },
+    {
+      "id": "a08affa699d8",
+      "type": "milestone",
+      "label": "milestone: Ran live-state gate: ACT",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836344+00:00"
+    },
+    {
+      "id": "627ef07f2f80",
+      "type": "milestone",
+      "label": "milestone: Verified stale CONFLICTING state with local trial merge (clean, no conflicts)",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836427+00:00"
+    },
+    {
+      "id": "f43f084530ac",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into branch",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836509+00:00"
+    },
+    {
+      "id": "f212716a234f",
+      "type": "milestone",
+      "label": "milestone: Confirmed 15865 tests pass and 96/96 skill frontmatter valid",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836591+00:00"
+    },
+    {
+      "id": "8f3c54e23b03",
+      "type": "milestone",
+      "label": "milestone: Verified all 11 review threads already resolved by prior session",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836693+00:00"
+    },
+    {
+      "id": "36ed3d63693c",
+      "type": "outcome",
+      "label": "Outcome: success - Merge main into PR #3497 to clear stale CONFLICTING state and enable squash merge",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836784+00:00"
     }
   ],
   "patterns": [
