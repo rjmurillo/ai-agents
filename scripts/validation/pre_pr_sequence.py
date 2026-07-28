@@ -23,6 +23,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from active_plan_closeout import validate_active_plan_closeout
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
@@ -47,6 +48,7 @@ from checks_spec import (  # noqa: E402
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
+    validate_traceability,
     validate_vendor_portability,
 )
 from checks_tooling import (  # noqa: E402
@@ -209,6 +211,12 @@ def run_all_validations(
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    run_validation(
+        "Traceability",
+        state,
+        lambda: validate_traceability(repo_root),
+    )
+
     # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
     run_validation(
         "Vendor Portability",
@@ -298,6 +306,15 @@ def run_all_validations(
         "Model Pin Governance (warn)",
         state,
         lambda: validate_model_pins(repo_root),
+    )
+
+    # 3.89 Active Plan Closeout (Issue #3426). Advisory warning when every
+    # tracking issue on an active execution plan is closed, so stale plans do
+    # not silently refill .agents/plans/active/.
+    run_validation(
+        "Active Plan Closeout Advisory",
+        state,
+        lambda: validate_active_plan_closeout(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)

@@ -146,6 +146,21 @@ def test_decide_keeps_pin_on_large_consistent_lead():
     assert decision.best_candidate_delta == decision.recall_delta
 
 
+def test_decide_refuses_model_results_with_errors():
+    default = _result(
+        "default",
+        {f"f{i}": [0.0] for i in range(8)},
+        error_count=2,
+    )
+    candidate = _result(
+        "candidate",
+        {f"f{i}": [1.0] for i in range(8)},
+    )
+
+    with pytest.raises(core.SweepDecisionError, match="error_count"):
+        core.decide([default, candidate], default_model="default", seed=1)
+
+
 def test_decide_drops_pin_when_lead_below_min_effect():
     default = _result(
         "default",
@@ -240,7 +255,7 @@ def test_build_report_shape():
         {"f1": [0.9], "f2": [0.9]},
         recall=0.9,
         cost_usd=0.1234567,
-        error_count=1,
+        error_count=0,
     )
     decision = core.decide([default, candidate], default_model="default", seed=1)
     report = core.build_report(
@@ -262,7 +277,7 @@ def test_build_report_shape():
     assert report["models"][0]["mean_recall"] == 0.9
     assert report["models"][0]["agent_recall"] == 0.9
     assert report["models"][1]["tokens_in"] == 10
-    assert report["models"][0]["error_count"] == 1
+    assert report["models"][0]["error_count"] == 0
     assert len(report["ci95"]) == 2
     assert report["best_candidate_model"] == decision.best_candidate_model
     assert len(report["best_candidate_ci95"]) == 2

@@ -60,6 +60,7 @@ from _run_persistence import (
     MalformedRunRecordError,
     RunDirectoryNotFreshError,
     RunPersistence,
+    RunSeedMismatchError,
 )
 from _scoring_engine import ScoringEngine, build_default_engine
 
@@ -625,6 +626,7 @@ def _execute_one(
     agent_prompt_ref: str,
     adapter: AnthropicAPIAdapter,
     scoring_engine: ScoringEngine,
+    seed: int | None,
     skill_prompt: str | None = None,
     skill_prompt_ref: str | None = None,
 ) -> RunRecord:
@@ -677,6 +679,7 @@ def _execute_one(
         attempts=api_result.attempts,
         tokens_estimated=getattr(api_result, "tokens_estimated", True),
         system_fingerprint=api_result.system_fingerprint,
+        seed=seed,
     )
 
 
@@ -736,7 +739,9 @@ def _run_live(
     )
 
     try:
-        persistence = RunPersistence(run_dir, resume=bool(args.resume))
+        persistence = RunPersistence(
+            run_dir, resume=bool(args.resume), seed=args.seed
+        )
     except RunDirectoryNotFreshError as exc:
         # Fresh-run mode is forbidden against a populated runs.jsonl.
         print(f"error: {exc}", file=sys.stderr)
@@ -745,7 +750,7 @@ def _run_live(
         # Bad existing JSONL detected at startup.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LOGIC
-    except (SchemaVersionError, MalformedRunRecordError) as exc:
+    except (SchemaVersionError, MalformedRunRecordError, RunSeedMismatchError) as exc:
         # Existing JSONL carries an unsupported schemaVersion, or a
         # line cannot be parsed back into a record. Per DESIGN-004
         # §Failure Modes, both are config-class failures: the on-disk
@@ -811,6 +816,7 @@ def _run_live(
                         agent_prompt_ref=agent_prompt_ref,
                         adapter=adapter,
                         scoring_engine=engine,
+                        seed=args.seed,
                         skill_prompt=skill_prompt,
                         skill_prompt_ref=skill_prompt_ref,
                     )
@@ -947,6 +953,8 @@ def _generate_report(
             if isinstance(record.system_fingerprint, str)
         }
     )
+    seeds = {record.seed for record in records}
+    seed = seeds.pop() if len(seeds) == 1 else None
     try:
         aggregate = aggregator.aggregate()
     except EmptyRunError as exc:
@@ -998,6 +1006,7 @@ def _generate_report(
                 wall_clock_seconds=wall_clock_seconds,
                 recommendation="form-factor-invalid",
                 system_fingerprints=system_fingerprints,
+                seed=seed,
             )
             print(
                 json.dumps(
@@ -1029,6 +1038,7 @@ def _generate_report(
         wall_clock_seconds=wall_clock_seconds,
         recommendation="halt-due-to-flakiness" if halt else None,
         system_fingerprints=system_fingerprints,
+        seed=seed,
         form_factor=form_factor,
     )
     if halt:

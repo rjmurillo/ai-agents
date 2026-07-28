@@ -17,7 +17,7 @@ the session log JSON so downstream tools, auditors, and retrospectives can query
 rework signal without re-running git.
 
 The session log schema is governed by ADR-014 (read-only contract on HANDOFF.md)
-and the DDIA-derived rule in `.claude/rules/data-intensive-applications.md`, which
+and the DDIA-derived rule in `.claude/rules/data-intensive-applications.md`, which <!-- orphan-ref-ignore -->
 requires: explicit SoR ownership, schema evolution via optional fields with
 documented defaults, and backward compatibility (old readers must not break on new
 fields; old logs must still validate without the new field).
@@ -144,4 +144,11 @@ creates an observable gap between what the tool prints and what it records.
 
 - PR #1989: original rework warning implementation
 - Issue #2063: follow-up persistence request
-- `.claude/rules/data-intensive-applications.md`: schema evolution rules
+- `.claude/rules/data-intensive-applications.md`: schema evolution rules <!-- orphan-ref-ignore -->
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/data-intensive-applications.md`.
+
