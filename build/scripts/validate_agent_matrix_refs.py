@@ -52,10 +52,10 @@ the roster as an agent named ``claude-instructions.template``, so a matrix row
 citing that name passed. An uppercase-stem filter did not help, because the
 filename is lowercase. Membership is therefore decided by content: a file counts
 as an agent only when it opens with a YAML frontmatter block carrying a
-``description:`` key. Both fences must be complete lines: a substring search for
-``\n---`` accepted ``---not-a-closing-fence`` and admitted a malformed document
-as an agent. Measured across all six trees that rule keeps all 175 agent
-files and excludes exactly four suffix-matching sibling documents:
+non-empty string ``description:`` key. Both fences must be complete lines: a
+substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
+a malformed document as an agent. Measured across all six trees that rule keeps
+all 175 agent files and excludes exactly four suffix-matching sibling documents:
 ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
 ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
 also fully subsumes the uppercase-stem filter it replaced.
@@ -127,6 +127,7 @@ from pathlib import Path
 import yaml
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+from yaml.nodes import MappingNode, ScalarNode
 
 # Canonical tree. Matrices originate here and propagate to the copies, so a
 # scan that finds nothing here is looking in the wrong place.
@@ -176,9 +177,9 @@ MATRIX_HEADER_CELL = "agent"
 # instead. Link autodetection has no bearing on table structure.
 MARKDOWN = MarkdownIt("commonmark").enable("table")
 
-# A frontmatter key every agent definition carries, in every tree. Presence of a
-# frontmatter block whose YAML parses to a mapping containing this key is what
-# separates an agent from a sibling document sharing the tree's filename suffix.
+# A frontmatter key every agent definition carries as a non-empty string, in
+# every tree. Presence of a valid frontmatter block with this key separates an
+# agent from a sibling document sharing the tree's filename suffix.
 FRONTMATTER_KEY = "description"
 
 # The opening delimiter, anchored at the first byte. Anchoring is what stops a
@@ -214,6 +215,7 @@ class ScanResult:
     parse_gaps: list[Path] = field(default_factory=list)
     unparsed_rows: list[tuple[Path, int, str]] = field(default_factory=list)
     config_errors: list[str] = field(default_factory=list)
+    invalid_agent_definitions: list[str] = field(default_factory=list)
     trees_scanned: list[Path] = field(default_factory=list)
     empty_trees: list[Path] = field(default_factory=list)
     agents_by_tree: dict[Path, set[str]] = field(default_factory=dict)
@@ -243,6 +245,8 @@ class ScanResult:
                 "filename suffix no longer matches what the tree ships, so "
                 "every citation in it would resolve against an empty roster"
             )
+        for message in self.invalid_agent_definitions:
+            reasons.append(f"invalid agent frontmatter: {message}")
         for path in self.parse_gaps:
             reasons.append(f"matrix header present but no rows parsed: {path}")
         for path, line, text in self.unparsed_rows:
@@ -285,6 +289,56 @@ class FrontmatterLoader(yaml.SafeLoader):
         return super().compose_node(parent, index)
 
 
+def _frontmatter_block(text: str) -> tuple[str, int] | None:
+    """Return the YAML frontmatter text and its first file line number."""
+    if not (opened := FRONTMATTER_OPEN.match(text)):
+        return None
+    close = FRONTMATTER_CLOSE.search(text, opened.end())
+    if close is None:
+        return None
+    block_first_line = text[: opened.end()].count("\n") + 1
+    return text[opened.end() : close.start()], block_first_line
+
+
+def _duplicate_frontmatter_key_error(block: str, block_first_line: int) -> str | None:
+    """Return a duplicate top-level YAML key error, with file line numbers."""
+    node = yaml.compose(block, Loader=FrontmatterLoader)
+    if not isinstance(node, MappingNode):
+        return None
+    seen: dict[str, int] = {}
+    for key_node, _ in node.value:
+        key = key_node.value if isinstance(key_node, ScalarNode) else str(key_node.value)
+        line = block_first_line + key_node.start_mark.line
+        if key in seen:
+            return f"duplicate frontmatter key {key!r} on lines {seen[key]} and {line}"
+        seen[key] = line
+    return None
+
+
+def agent_definition_status(path: Path) -> tuple[bool, str | None]:
+    """Return whether ``path`` is an agent and why an agent-like file is invalid."""
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return False, None
+    parsed = _frontmatter_block(text)
+    if parsed is None:
+        return False, None
+    block_text, block_first_line = parsed
+    try:
+        if duplicate := _duplicate_frontmatter_key_error(block_text, block_first_line):
+            return False, f"{path}: {duplicate}"
+        block = yaml.load(block_text, Loader=FrontmatterLoader)
+    except yaml.YAMLError:
+        return False, None
+    if not isinstance(block, dict) or FRONTMATTER_KEY not in block:
+        return False, None
+    description = block[FRONTMATTER_KEY]
+    if not isinstance(description, str) or not description.strip():
+        return False, f"{path}: frontmatter field {FRONTMATTER_KEY!r} must be a non-empty string"
+    return True, None
+
+
 def is_agent_definition(path: Path) -> bool:
     """Report whether ``path`` is an agent definition rather than a sibling doc.
 
@@ -303,42 +357,43 @@ def is_agent_definition(path: Path) -> bool:
     The block is parsed as YAML rather than pattern matched. A textual search for
     the key reported success on ``description: [``, which no host can load, so a
     document that cannot be an agent anywhere still supplied a citable name. The
-    parsed result must be a mapping: a block holding a bare scalar or a list has
-    no keys to carry.
+    parsed result must be a mapping with a non-empty string description: a null
+    or duplicate description disagrees with stricter hosts and therefore must
+    not enter the roster.
 
     A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
     no separate ``is_file`` guard is needed.
     """
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeDecodeError):
-        return False
-    if not (opened := FRONTMATTER_OPEN.match(text)):
-        return False
-    close = FRONTMATTER_CLOSE.search(text, opened.end())
-    if close is None:
-        return False
-    try:
-        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
-    except yaml.YAMLError:
-        return False
-    return isinstance(block, dict) and FRONTMATTER_KEY in block
+    is_agent, _ = agent_definition_status(path)
+    return is_agent
 
 
 def known_agents(tree_root: Path, suffix: str) -> set[str]:
     """Return the agent names one tree ships, by stripping ``suffix``.
 
     Files not ending in ``suffix`` are not agent definitions and are excluded.
-    So are files that carry the suffix but no agent frontmatter, which is what
-    keeps ``AGENTS.md``, ``CLAUDE.md``, and ``claude-instructions.template.md``
-    out of the roster.
+    So are files that carry the suffix but no valid agent frontmatter, which is
+    what keeps ``AGENTS.md``, ``CLAUDE.md``, and
+    ``claude-instructions.template.md`` out of the roster.
     """
+    names, _ = known_agents_with_errors(tree_root, suffix)
+    return names
+
+
+def known_agents_with_errors(tree_root: Path, suffix: str) -> tuple[set[str], list[str]]:
+    """Return shipped agent names plus invalid agent-like frontmatter messages."""
     names: set[str] = set()
+    errors: list[str] = []
     for path in tree_root.glob(f"*{suffix}"):
         name = path.name[: -len(suffix)]
-        if name and is_agent_definition(path):
+        if not name:
+            continue
+        is_agent, error = agent_definition_status(path)
+        if is_agent:
             names.add(name)
-    return names
+        elif error:
+            errors.append(error)
+    return names, errors
 
 
 def _cell_text(inline: Token) -> str:
@@ -480,8 +535,9 @@ def scan(repo_root: Path) -> ScanResult:
         if not directory.is_dir():
             continue
         result.trees_scanned.append(tree)
-        agents = known_agents(directory, suffix)
+        agents, invalid_agent_definitions = known_agents_with_errors(directory, suffix)
         result.agents_by_tree[tree] = agents
+        result.invalid_agent_definitions.extend(invalid_agent_definitions)
         if not agents:
             result.empty_trees.append(tree)
         for path in sorted(directory.glob("*.md")):
