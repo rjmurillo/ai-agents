@@ -467,17 +467,17 @@ def check_generated_paths(kind: str, repo_root: Path) -> int:
 
 
 def _read_index_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f":{relative_path}"])
+    result = _run_git_bytes(repo_root, ["show", f":{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"HEAD:{relative_path}"])
+    result = _run_git_bytes(repo_root, ["show", f"HEAD:{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def check_branch(repo_root: Path) -> int:
@@ -928,8 +928,9 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
 
     A path HEAD does not carry cannot be a regression of local work, so it
     passes. Otherwise the copy has to appear somewhere in `origin/main`'s
-    history for that path. Walking the path's own history keeps this to the
-    handful of commits that touched one ADR rather than the whole branch.
+    history for that ADR. The history walk follows renames and records the path
+    name each commit used, so an ADR that main moved and revised still finds
+    older carried bytes under the former name.
 
     `origin/main` is a local cache of main, so a branch that has not fetched
     in a while can fail this on content main really does carry. That
@@ -939,15 +940,43 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
     head_blob = _read_head_blob(repo_root, path)
     if head_blob is None:
         return True
-    carried = _origin_main_commits_touching(repo_root, path)
-    return _blob_is_at_any(repo_root, carried, path, head_blob)
+    for commit, carried_path in _origin_main_path_history(repo_root, path):
+        if _read_commit_blob_bytes(repo_root, commit, carried_path) == head_blob:
+            return True
+    return False
 
 
-def _origin_main_commits_touching(repo_root: Path, path: str) -> list[str]:
-    result = _run_git(repo_root, ["rev-list", "origin/main", "--", path])
+def _origin_main_path_history(repo_root: Path, path: str) -> list[tuple[str, str]]:
+    """Return origin/main commits with the path name that commit used."""
+    result = _run_git(
+        repo_root,
+        ["log", "--follow", "--format=%H", "--name-only", "origin/main", "--", path],
+    )
     if result.returncode != 0:
         return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    history: list[tuple[str, str]] = []
+    commit: str | None = None
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _is_full_object_id(line):
+            commit = line
+            continue
+        if commit is None:
+            continue
+        safe_path = _safe_relative_path(line)
+        if safe_path is None:
+            continue
+        history.append((commit, safe_path))
+        commit = None
+    return history
+
+
+def _is_full_object_id(value: str) -> bool:
+    return len(value) in ZERO_SHA_LENGTHS and bool(value) and all(
+        character in "0123456789abcdefABCDEF" for character in value
+    )
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
@@ -995,10 +1024,10 @@ def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
 
 
 def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"{commit}:{relative_path}"])
+    result = _run_git_bytes(repo_root, ["show", f"{commit}:{relative_path}"])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def _session_has_retrospective_evidence(session_log: Path) -> bool:
