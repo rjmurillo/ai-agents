@@ -8489,3 +8489,50 @@ class TestAStdoutThatCannotBeWrittenIsNotARejectVerdict:
         assert code == EXIT_CONFIG
         assert key not in captured.err
         assert key not in captured.out
+
+
+class TestTheReadmeSpellsValuesTheCodeDeclares:
+    """A value written into prose has a second author and nothing pins it.
+
+    Rounds 40, 41 and 42 each declared the duplication class closed and each
+    was reopened, because every audit searched for the shape of the previous
+    fix rather than the shape of the defect. The defect is one value with two
+    authors, wherever the first author keeps it: a module constant, a function
+    signature, or a sentence.
+
+    Prose is the author no mutation reaches. Renaming a constant turns its own
+    tests red and leaves the paragraph describing the old value, unchanged and
+    still the first thing an operator reads. An audit anchored on argparse
+    found six duplications and missed these, which are the same defect one file
+    over.
+
+    These are not tautologies. One side is a Python constant, the other is a
+    file on disk, and nothing moves them together.
+    """
+
+    def test_the_envelope_example_carries_the_schema_extract_writes(self):
+        """The documented envelope is what a reader copies into a fixture.
+
+        `_RESULTS_SCHEMA` is what `extract` stamps and what `gate` refuses a
+        mismatch against, so a stale example teaches an operator to build a
+        file the tool rejects, and the rejection names a schema they never
+        typed.
+        """
+        block = _readme_paragraph('"schema":')
+        assert f'"schema": "{oa._RESULTS_SCHEMA}"' in block
+
+    def test_the_reject_sentence_names_the_reject_exit_code(self):
+        """A shell loop branches on this number, so prose is its interface.
+
+        Anchored on the full sentence opening rather than on `exit 1` alone.
+        Both exit codes live in one paragraph, so a bare search for the number
+        would pass on the argument-error sentence next to it and report
+        agreement that is not there.
+        """
+        para = _readme_paragraph("A reject is exit")
+        assert f"A reject is exit {oa.EXIT_LOGIC} " in para
+
+    def test_the_argument_error_sentence_names_the_config_exit_code(self):
+        """The other half of the same paragraph, anchored the same way."""
+        para = _readme_paragraph("stderr, exit")
+        assert f"stderr, exit {oa.EXIT_CONFIG}," in para
