@@ -32,27 +32,36 @@ There is no canonical allowlist, so a route naming a skill that exists nowhere
 (a typo) fails in exactly the same way as one naming a skill that was dropped
 during packaging.
 
-Precision comes from structure, not from an allowlist
------------------------------------------------------
+Precision comes from parsing, not from an allowlist
+---------------------------------------------------
 
 A bare ``Skill: <word>`` regex over prose produces false positives: heading
 text in authoring documentation, and a checklist item reading ``Skill: create
 `.claude/skills/NAME/tests/...``` where ``create`` is an English verb.
 
-Restricting the scan to markdown table rows removes all of them. Routing lives
-in tables by construction, so inside a table cell a ``Skill:`` token is a route
-and nothing else. Measured over both populated roots, table scoping finds every
-real route (17 per root) and zero false positives, while an unscoped scan of
-the same content reports six prose hits per root.
+Routing lives in markdown tables by construction, so the scan is restricted to
+table cells, where a ``Skill:`` token is a route and nothing else. That scope
+is resolved by the CommonMark parser in ``scripts/utils/markdown_parser.py``,
+not by matching pipe-shaped lines. A line-based approximation is wrong in both
+directions: it misses tables written without outer pipes, inside a blockquote,
+or indented under a list item, and it matches pipe-shaped prose that renders as
+a paragraph for want of a delimiter row. Parsing also excludes fenced and
+indented code and HTML comments for free, since none of them parse as a table.
 
 Scoping this way is what makes the no-allowlist invariant affordable, which in
 turn is what lets the gate catch typos. It also removes a case-sensitivity trap:
 an earlier revision matched only lowercase names and was blind to the live
 ``Skill: SkillForge`` route.
 
+A cell may list several skills, as ``Skill: analyze, Skill: context-gather``
+does today, so a captured name is stripped of trailing sentence punctuation
+before it is resolved. A name that is still not a legal skill identifier after
+that, ``Skill: known/ghost`` for instance, is reported as malformed rather than
+silently truncated to its leading segment and resolved against a real skill.
+
 Known limitation: a route written outside a table, say as a bullet reading
 ``- Skill: foo``, is not checked. That is a deliberate trade. Every one of the
-17 live routes per root is a table row, and the non-table ``Skill:`` hits are
+17 live routes per root is a table cell, and the non-table ``Skill:`` hits are
 all prose: five example headings in ``SkillForge/references/evolution-scoring
 .md`` and one checklist item where ``create`` is an English verb. None of them
 names a real skill. If routing outside tables ever becomes a real authoring
@@ -66,9 +75,17 @@ Plugin roots are discovered from a bounded candidate set, the repository-root
 for ``.claude-plugin/plugin.json``. This repository keeps full working copies
 under ``.cache/worktrees/``, ``.claude/worktrees/`` and ``.wt/``, so a recursive
 glob matches dozens of throwaway roots and reports findings in trees nobody is
-shipping. For the same reason the per-root walk prunes those directory names in
-place rather than filtering after the fact: pruning during the walk keeps the
-whole check at ~0.1s instead of ~11s.
+shipping. For the same reason the per-root walk prunes those directory names at
+the walk root, which keeps the whole check near 1.3s instead of ~11s.
+
+Vacuity is checked per root, not on the repository-wide route total. A root
+that ships skills and yields no routes has gone dark, and summing across roots
+would let a sibling's routes hide that.
+
+Every way this check can fail to see a file is an error, not a pass: an
+unreadable directory, an unreadable file, undecodable bytes, and input the
+markdown parser cannot fully represent all exit 2. A gate that fails open is
+worse than no gate, because it also reports success.
 """
 
 from __future__ import annotations
@@ -81,6 +98,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.utils.markdown_parser import iter_table_cell_text
+
 CANONICAL_ROOT_NAME = ".claude"
 PLATFORM_PARENT = Path("src")
 PLUGIN_MANIFEST = Path(".claude-plugin") / "plugin.json"
@@ -91,22 +112,23 @@ PRUNED_DIRS = frozenset(
     {"worktrees", "node_modules", ".git", ".venv", "venv", "__pycache__"}
 )
 
-# A markdown table row: up to three leading spaces (four would make it an
-# indented code block), a leading pipe, and a trailing pipe. Restricting the
-# route scan to these lines is what keeps the no-allowlist invariant clean.
-_TABLE_ROW_RE = re.compile(r"^\s{0,3}\|.*\|\s*$")
+# Captures whatever follows ``Skill:`` up to whitespace, so a malformed name is
+# seen rather than silently truncated to its leading legal segment. The
+# lookbehind rejects a compound word such as MetaSkill:. Matching is
+# case-sensitive on the keyword but not on the name: the live tree routes to
+# ``Skill: SkillForge``.
+_ROUTE_RE = re.compile(r"(?<!\w)Skill:\s*(\S+)?")
 
-# Rejects a leading backtick or word character so an inline-code span such as
-# `Skill: x` and a compound word such as MetaSkill: do not match. The name is
-# deliberately case-insensitive: the live tree routes to `Skill: SkillForge`.
-_ROUTE_RE = re.compile(r"(?<![`\w])Skill:\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+# A legal skill directory name.
+_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-# CommonMark fence: up to three leading spaces, then three or more backticks or
-# tildes. The closing fence must use the same character and be at least as long,
-# so a nested or longer fence does not terminate the block early.
-_FENCE_RE = re.compile(r"^\s{0,3}(?P<delim>`{3,}|~{3,})")
+# Sentence and list punctuation that can trail a name in a prose cell.
+_TRAILING = ",;.:!?)"
 
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+# Cheap prefilter. Deliberately the bare keyword rather than "Skill:" so a
+# route whose colon is separated from the word by inline markup still reaches
+# the parser.
+ROUTE_KEYWORD = "Skill"
 
 EXIT_OK = 0
 EXIT_DRIFT = 1
@@ -119,8 +141,15 @@ class Finding:
     path: str
     line: int
     skill: str
+    legal: bool = True
 
     def render(self) -> str:
+        if not self.legal:
+            shown = self.skill or "(empty)"
+            return (
+                f"{self.path}:{self.line}: routes to 'Skill: {shown}' which is "
+                "not a legal skill name"
+            )
         return (
             f"{self.path}:{self.line}: routes to 'Skill: {self.skill}' but "
             f"{self.root}/skills/{self.skill}/SKILL.md does not exist"
@@ -152,41 +181,43 @@ def discover_roots(repo_root: Path) -> list[Path]:
 
 
 def iter_markdown(root: Path) -> Iterator[Path]:
-    """Yield markdown files under ``root``, pruning nested working copies."""
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in PRUNED_DIRS]
+    """Yield markdown files under ``root``, pruning nested working copies.
+
+    Pruning applies at the walk root only. Measured over the live repository,
+    root-level pruning and all-depth pruning yield the identical 906 files at
+    the identical speed, because every nested copy sits under ``<root>/
+    worktrees`` and is unreachable once that one directory is pruned. Scoping
+    the prune to the root removes the failure mode where a real skill named
+    ``worktrees`` or a content directory named ``venv`` is skipped and the
+    routes inside it are never checked.
+
+    A directory the walk cannot read raises rather than being skipped:
+    ``os.walk`` swallows those by default, which would silently shrink the
+    scan.
+    """
+
+    def fail(exc: OSError) -> None:
+        raise CheckError(f"cannot walk {exc.filename}: {exc}")
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=fail):
+        if Path(dirpath) == root:
+            dirnames[:] = [d for d in dirnames if d not in PRUNED_DIRS]
         for name in sorted(filenames):
             if name.endswith(".md"):
                 yield Path(dirpath) / name
 
 
-def route_lines(text: str) -> list[tuple[int, str]]:
-    """Return ``(line_number, line)`` for table rows eligible for route scanning.
+def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
+    """Yield ``(line, name, is_legal)`` for every ``Skill:`` route in a table.
 
-    Excludes fenced code blocks, which hold example payloads and transcripts
-    where a routing table is illustrative rather than live, and HTML comments,
-    which are not rendered and therefore route nobody.
+    Table scope is resolved by the CommonMark parser. A malformed name is
+    yielded with ``is_legal`` false rather than dropped, so it is reported
+    instead of passing as a route nobody validated.
     """
-    # Blank the body of each comment while preserving line count so reported
-    # line numbers stay accurate.
-    text = _HTML_COMMENT_RE.sub(lambda m: "\n" * m.group(0).count("\n"), text)
-
-    out: list[tuple[int, str]] = []
-    fence: str | None = None
-    for number, line in enumerate(text.splitlines(), start=1):
-        match = _FENCE_RE.match(line)
-        if match:
-            delim = match.group("delim")
-            if fence is None:
-                fence = delim
-                continue
-            # Same character and at least as long closes the block.
-            if delim[0] == fence[0] and len(delim) >= len(fence):
-                fence = None
-            continue
-        if fence is None and _TABLE_ROW_RE.match(line):
-            out.append((number, line))
-    return out
+    for cell in iter_table_cell_text(text):
+        for match in _ROUTE_RE.finditer(cell.text):
+            raw = (match.group(1) or "").rstrip(_TRAILING)
+            yield cell.line, raw, bool(raw) and bool(_NAME_RE.match(raw))
 
 
 def scan_root(root: Path, repo_root: Path) -> tuple[list[Finding], int]:
@@ -197,23 +228,49 @@ def scan_root(root: Path, repo_root: Path) -> tuple[list[Finding], int]:
     seen = 0
     for path in iter_markdown(root):
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8")
         except OSError as exc:
             # Failing open here would let an unreadable file hide a live route.
             raise CheckError(f"cannot read {path}: {exc}") from exc
-        for number, line in route_lines(text):
-            for name in _ROUTE_RE.findall(line):
-                seen += 1
-                if name in present:
-                    continue
-                findings.append(
-                    Finding(
-                        root=relative_root,
-                        path=path.relative_to(repo_root).as_posix(),
-                        line=number,
-                        skill=name,
-                    )
+        except UnicodeDecodeError as exc:
+            # errors="replace" would silently corrupt a route into a pass.
+            raise CheckError(f"cannot decode {path}: {exc}") from exc
+        # Parsing every markdown file costs ~2.5s against ~1.3s with this
+        # filter. The literal keyword must appear in the source for any route
+        # to render, so skipping files without it cannot hide one.
+        if ROUTE_KEYWORD not in text:
+            continue
+        try:
+            found = list(route_names(text))
+        except CheckError:
+            raise
+        except Exception as exc:
+            # A file the parser cannot fully represent is an incomplete scan.
+            raise CheckError(f"cannot parse {path}: {exc}") from exc
+        for number, name, legal in found:
+            seen += 1
+            if legal and name in present:
+                continue
+            findings.append(
+                Finding(
+                    root=relative_root,
+                    path=path.relative_to(repo_root).as_posix(),
+                    line=number,
+                    skill=name,
+                    legal=legal,
                 )
+            )
+    if present and seen == 0:
+        # A root that ships skills also ships the tables that route to them.
+        # Checking this per root rather than on the repository-wide total is
+        # what stops one root from going dark while a sibling's routes keep
+        # the total above zero and the gate reporting success. Roots that ship
+        # no skills at all, such as src/claude, are exempt by construction.
+        raise CheckError(
+            f"{relative_root} ships {len(present)} skill(s) but no 'Skill:' "
+            "route was found in it; the scan matched nothing and a pass "
+            "for this root would be vacuous"
+        )
     return findings, seen
 
 

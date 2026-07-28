@@ -10,6 +10,7 @@ Exit codes follow ADR-035 when used as a standalone script.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from markdown_it import MarkdownIt
@@ -36,6 +37,14 @@ class ParsedTable:
 
     headers: list[str] = field(default_factory=list)
     rows: list[TableRow] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TableCell:
+    """A table cell's rendered text and its 1-based source line."""
+
+    text: str
+    line: int
 
 
 @dataclass
@@ -185,6 +194,47 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
         i += 1
 
     return tables
+
+
+def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
+    """Yield the rendered text of every table cell with its source line.
+
+    Only cells of tables the CommonMark parser actually recognises are
+    emitted, which is the point. A line-based scanner that calls any
+    pipe-shaped line a table row is wrong in both directions: it misses
+    tables written without outer pipes, inside a blockquote, or indented
+    under a list item, and it matches pipe-shaped prose that renders as a
+    paragraph because it has no delimiter row.
+
+    Only ``text`` children are joined, so an inline code span such as
+    ``` `Skill: x` ``` contributes nothing while emphasis such as
+    ``**Skill: x**`` contributes its text. Fenced and indented code blocks
+    and HTML comments never parse as tables, so they are excluded by
+    construction rather than by a second stripping pass.
+
+    Fails closed on input the parser cannot fully represent, for the reason
+    given in :class:`MarkdownNestingError`.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    line = 0
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token.type == "tr_open" and token.map:
+            line = token.map[0] + 1
+        elif (
+            token.type in ("th_open", "td_open")
+            and index + 1 < len(tokens)
+            and tokens[index + 1].type == "inline"
+        ):
+            children = tokens[index + 1].children or []
+            text = "".join(c.content for c in children if c.type == "text")
+            yield TableCell(text=text, line=line)
+            index += 1
+        index += 1
 
 
 def _extract_table(tokens: list, start: int) -> ParsedTable | None:
