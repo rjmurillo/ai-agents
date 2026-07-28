@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def pytest_configure(config: pytest.Config) -> None:
     basetemp = getattr(config.option, "basetemp", None)
     if basetemp:
-        os.environ["_PYTEST_BASETEMP"] = str(Path(basetemp).resolve())
+        os.environ["_PYTEST_BASETEMP"] = str(Path(os.fspath(basetemp)).resolve())
 
 
 _GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
