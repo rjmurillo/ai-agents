@@ -147,6 +147,6 @@ Do not generate these patterns unless explicitly required and justified in the P
 
 ## Relationship to Other Rules
 
-- This rule is the default. The book-specific rules in this directory (`enterprise-patterns.md`, future refactoring or DDD rules) extend it for narrower contexts.
+- This rule is the default. Book-specific depth now lives in the `software-engineering-library` skill and extends it for narrower contexts.
 - When a specialized rule and this one disagree, the specialized rule wins inside its scope. Outside that scope, this rule applies.
 - Do not load multiple book-specific rule sets together with this one when one rule alone is enough. Duplicated or overlapping instructions reduce model reliability.

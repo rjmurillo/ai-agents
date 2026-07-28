@@ -15,7 +15,7 @@ This ADR was withdrawn before acceptance after a 6-agent debate (architect, crit
 1. **Zero drift on `main` today.** Direct `diff` between multi-matcher shims of the same canonical hook produces no output. The drift evidence cited in the Context section is entirely from the unmerged PR 1763 branch, where partial regeneration during PR development produced divergent matcher shims. That is a workflow failure, not a structural defect of the inline-body design.
 2. **Alternative B is a 2-hour fix.** Deterministic full-tree regeneration (`generate_hooks.py` always regenerates every matcher shim from canonical on every run) plus a CI step (`git diff --exit-code src/copilot-cli/hooks/` after generation) eliminates the drift root cause at one-tenth the cost. No spec amendment. No `_impl/` import surface. No additional attack surface.
 3. **Delegate-shim reintroduces drift one layer deeper.** The analyst surfaced that after the withdrawn refactor, a direct edit to the superseded `_impl/invoke_X.py` layout would pass all three parity rules proposed in this ADR while drifting from the canonical `.claude/hooks/<Event>/<hook>.py`. A fourth rule would be required, which is itself the same shape of drift the ADR claims to eliminate, just one layer down.
-4. **Premature abstraction.** On `main`, only three hooks have two matchers each. The ADR projected toward "all hooks multi-matcher" without growth evidence. Per `.claude/rules/philosophy-of-software-design.md`, this is a speculative-generality smell.
+4. **Premature abstraction.** On `main`, only three hooks have two matchers each. The ADR projected toward "all hooks multi-matcher" without growth evidence. Per `.claude/rules/philosophy-of-software-design.md`, this is a speculative-generality smell. <!-- orphan-ref-ignore -->
 5. **Opportunity cost.** Holding PR 1763 for a multi-day structural refactor while alternative B unblocks it in 2 hours has negative ROI against the projected (not observed) failure rate.
 
 This ADR is preserved (not deleted) as institutional knowledge. The debate log at `.agents/critique/ADR-061-debate-log.md` records the full positions. The follow-up issue (#2112) tracks when the structural refactor should be revisited: when multi-matcher hook count exceeds 8, OR when the alternative B CI drift gate fires three or more times in a quarter (signal that the procedural fix is failing).
@@ -73,7 +73,7 @@ The inline-body design violates:
 
 - `.claude/rules/pragmatic-programmer.md` DRY at the knowledge level: business rules duplicated, not text alone.
 - `.claude/rules/canonical-source-mirror.md`: shims claim to mirror the canonical hook but the mirror is hand-regenerated per file and drifts.
-- `.claude/rules/philosophy-of-software-design.md` deep modules: each shim is shallow; it exposes the whole wrapped body to the install tree.
+- `.claude/rules/philosophy-of-software-design.md` deep modules: each shim is shallow; it exposes the whole wrapped body to the install tree. <!-- orphan-ref-ignore -->
 
 ## Decision
 
@@ -223,7 +223,7 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 - `build/scripts/generate_hooks.py`. Current generator implementation.
 - `.claude/rules/pragmatic-programmer.md`. DRY at the knowledge level.
 - `.claude/rules/canonical-source-mirror.md`. Mirror claims must match canonical.
-- `.claude/rules/philosophy-of-software-design.md`. Deep modules.
+- `.claude/rules/philosophy-of-software-design.md`. Deep modules. <!-- orphan-ref-ignore -->
 - `build/scripts/validate_install_parity.py`. Existing canonical/install parity validator (PR 2095).
 - PR 1763 (`feature/1703-lifecycle-hook-infrastructure`). Drift evidence source.
 - PR 2095 (install-parity validator). Demonstrates canonical-plus-thin pattern.
@@ -235,3 +235,10 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 *Author: Richard Murillo (drafted via session 1837)*
 *Architect review: session 1837 (REVISE_BEFORE_SAVE → R1-R7 applied)*
 *GitHub Issue: https://github.com/rjmurillo/ai-agents/issues/2112*
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/philosophy-of-software-design.md`.
+
