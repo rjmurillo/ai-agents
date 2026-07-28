@@ -104,10 +104,10 @@
       "step": "Filed issue #3572 for the measured 27-file overlap hazard and duplicate-branch hazard so #3413 stays scoped to one active holder per PR branch."
     },
     {
-      "step": "Created ADR-088 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model."
+      "step": "Created ADR-090 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model."
     },
     {
-      "step": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-088 to close P0 findings and recorded the debate in .agents/analysis/ADR-088-debate-log.md."
+      "step": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-090 to close P0 findings and recorded the debate in .agents/analysis/ADR-090-debate-log.md."
     },
     {
       "step": "Ran a focused critic recheck after revision. It found no remaining P0 blockers and three P1 clarity gaps, then the ADR was updated for base_sha semantics, v1 expiry parsing, and kill-criteria observability."
@@ -115,7 +115,7 @@
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Open an ADR-only PR for ADR-088 and wait for it to land before starting the implementation PR for issue #3413.",
+    "Open an ADR-only PR for ADR-090 and wait for it to land before starting the implementation PR for issue #3413.",
     "Implementation PR must add mocked tests for second holder blocked, stale claim reclaimed, crashed claim expiry, authorized override audit, missing holder fail-closed, and duplicate acquire no-op success."
   ]
 }

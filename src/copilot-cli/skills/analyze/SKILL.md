@@ -116,6 +116,8 @@ Commit to specific files, questions, and hypotheses per focus area. This creates
 
 Execute the investigation plan. Read files, collect evidence with file:line references and quoted code. Trace root causes across files.
 
+When analysis discovers book-depth conditions, invoke `software-engineering-library` and open the matching reference before recommending the fix. Conditions include low test coverage, old file age, hard-to-test seams, external API calls, queues, retries, transaction boundaries, event ordering, schema evolution, layer dependency direction, bounded context splits, and module interface shape. This keeps the heavy guidance deferred until evidence shows it matters.
+
 ### Phase 5: Verification (Step N-1)
 
 Audit completeness against step 3 commitments. Identify gaps. If gaps exist, increase total-steps and return to deep analysis.

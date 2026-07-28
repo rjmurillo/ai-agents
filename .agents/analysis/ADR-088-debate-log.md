@@ -1,52 +1,51 @@
-# ADR-088 Debate Log
+# ADR-088 Debate Log: Progressive Disclosure for Book-Derived Rules
 
 ## Summary
 
-ADR review ran on 2026-07-27 for `ADR-088: PR Branch Holder Lease`. The first draft got no clean approval. Reviewers agreed that the direction was correct, but found blocking gaps in rollout, identity, ordering, and override authorization.
+ADR-088 was reviewed under the adr-review skill. Verdict: accept. The decision moves situational book-derived depth from always-on rules to one on-demand skill while keeping everyday engineering synthesis rules inline.
 
-## Reviewers
+## Round 1 Reviews
 
-| Reviewer | Verdict | Main findings |
-|----------|---------|---------------|
-| architect | Needs changes | v1 to v2 migration missing, latest marker semantics unclear, generated holder fallback unsafe. |
-| independent-thinker | Approve with changes | 45 minute TTL was too long with renewal, override needed an authorization boundary, store consistency needed sharper ordering. |
-| security | Blocked until fixed | Override could become an unauthenticated bypass. Body-declared actor and owner must not authorize anything. |
-| analyst | Needs revision | Caller inventory needed `.github/actions/ai-review`; measurement needed a date window; renewal failure behavior was unspecified. |
-| critic | Revise | The draft was directionally right but incomplete on staleness, identity fallback, and migration. |
-| high-level-advisor | No-go until P0 fixed | The ADR solves the right problem at the right layer but was not implementation-ready. |
+### Architect
 
-## P0 findings and resolution
+Verdict: Accept.
 
-| Finding | Resolution in ADR-088 revision |
-|---------|--------------------------------|
-| v1 to v2 migration path missing | v2 scanners read both markers. Live v1 markers are treated as foreign live holders until expiry or authorized override. |
-| Generated invocation id undermines fail-closed | Generated holder ids are banned for enforced acquire, renew, release, override, and verify operations. |
-| Latest marker semantics ambiguous | Highest valid GitHub issue comment id wins. Timestamps never decide ordering. Edits do not create newer state. |
-| Override authorization missing | Override requires repository `maintain` or `admin` permission verified through GitHub API. |
+The boundary is coherent. Always-on rules retain every-task behavior. The new `software-engineering-library` skill owns task-specific depth. The ADR names affected generated surfaces and the budget ratchet, so the architecture stays testable.
 
-## P1 findings and resolution
+### Critic
 
-| Finding | Resolution in ADR-088 revision |
-|---------|--------------------------------|
-| 45 minute TTL crash-block too long | TTL changed to 30 minutes. Renewal changed to every 5 minutes during long operations. |
-| Renewal failure behavior unspecified | Enforcement-mode renewal failure aborts the operation with exit 3 or 4. |
-| Exit code collision with safe push | Lease checks reuse safe-push exit taxonomy and require machine-readable reasons. |
-| Scan bound missing | Scanner reads newest 100 issue comments and fails closed on store or auth failure. |
-| Replay and ordering protection missing | Comment id ordering is authoritative. Body timestamps are informational. |
-| Measurement window missing | Workflow run measurement window added: 2026-07-25T11:27:15Z to 2026-07-27T20:32:37Z. |
-| `.github/actions/ai-review` caller omitted | Caller table now lists it as read-only for this ADR's branch-mutation scope. |
+Verdict: Accept.
 
-## Remaining accepted risks
+The main risk is late retrieval. The ADR states that risk and mitigates it with concrete trigger phrases plus retained always-on synthesis. The rejected alternatives cover the likely failure modes: keeping all books inline and fragmenting into eight skills.
 
-- The PR comment store has no atomic compare-and-set. Exact-SHA push verification remains the final safety gate.
-- A crashed holder can block a branch for up to 30 minutes.
-- Raw `git push` callers remain out of scope until migrated to `safe_push_pr_branch.py`.
-- PR timelines will get more machine comments because state transitions post new markers.
+### Independent Thinker
 
-## Debate outcome
+Verdict: Accept with reservation.
 
-Revised ADR-088 is ready for PR review as a proposed ADR. It should not be marked accepted until repository review agrees that the override authorization and v1 to v2 rollout plan are sufficient.
+The move depends on skill triggering quality, which is weaker than passive context. The reservation is acceptable because the moved material is situational. Critical rules remain inline, and the budget gate prevents context creep.
 
-## Recheck
+### Security
 
-A focused critic recheck ran after the revision. It found no remaining P0 blockers. Three P1 clarity gaps were fixed in the ADR: `base_sha` is audit-only, v1 expiry parsing references ADR-076 `expires_at` and `owner: none`, and kill criteria now name their data sources plus structured lease events.
+Verdict: Accept.
+
+The change does not weaken security rules. It moves design and operations depth, not mandatory security controls. References that affect production failure handling still exist under the skill and can be invoked during resilience work.
+
+### Analyst
+
+Verdict: Accept.
+
+The evidence supports the decision. Phase 1 measured about 218 KB for code edits. Phase 2 measurement after the move is about 95 KB for code extensions. The 99 KB ceiling gives 3 KB to 5 KB headroom and locks in the reduction.
+
+### High-Level Advisor
+
+Verdict: Accept.
+
+This is the right trade. Paying 54k tokens for every code edit is not discipline. Keeping the everyday synthesis inline avoids the known indirection failure. The PR should land as a bounded corpus-curation change.
+
+## Convergence
+
+All six roles accept ADR-088. No P0 or P1 blockers remain.
+
+## Required Follow-up
+
+Criterion 3 for issue #3419, full metadata normalization, remains separate scope. This ADR should not absorb it.

@@ -46,7 +46,7 @@
       "id": "e004",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created ADR-088 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model.",
+      "content": "Created ADR-090 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model.",
       "caused_by": [
         "e003"
       ],
@@ -58,7 +58,7 @@
       "id": "e005",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-088 to close P0 findings and recorded the debate in .agents/analysis/ADR-088-debate-log.md.",
+      "content": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-090 to close P0 findings and recorded the debate in .agents/analysis/ADR-090-debate-log.md.",
       "caused_by": [
         "e004"
       ],
