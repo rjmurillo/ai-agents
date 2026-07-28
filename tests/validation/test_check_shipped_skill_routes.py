@@ -234,11 +234,36 @@ def test_nesting_past_the_parser_limit_is_refused(repo: Path) -> None:
     assert "cannot parse" in result.stdout + result.stderr
 
 
-def test_route_under_a_directory_named_venv_is_still_checked(repo: Path) -> None:
-    """Pruning by basename at every depth would skip real content."""
+def test_a_tooling_directory_nested_in_a_skill_is_pruned(repo: Path) -> None:
+    """A venv or node_modules inside a skill is tool output, not content.
+
+    Root-only pruning walked these. That scans thousands of third-party files
+    and trips the symlink refusal on the interpreter links every virtualenv
+    carries, which hard-fails the gate and blocks every push in the repo.
+    Measured across the live plugin roots, no such directory holds authored
+    content today, so the blocking failure is the expensive one to allow.
+    """
     path = repo / "src/copilot-cli/skills/autoplan/venv/notes.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n", encoding="utf-8")
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK
+
+
+def test_a_symlink_inside_a_nested_tooling_directory_does_not_block(repo: Path) -> None:
+    """npm ci leaves symlinks in node_modules/.bin. That is not a config error."""
+    nested = repo / "src/copilot-cli/skills/autoplan/node_modules"
+    nested.mkdir(parents=True, exist_ok=True)
+    (nested / ".bin").symlink_to(repo, target_is_directory=True)
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK
+
+
+def test_a_skill_named_venv_is_still_scanned(repo: Path) -> None:
+    """Pruning is exempt directly under skills/, so a name collision is safe."""
+    write_skill(
+        repo, "src/copilot-cli", "venv", "| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n"
+    )
     result = run_gate(repo)
     assert result.returncode == EXIT_DRIFT
     assert "ghost" in result.stdout
@@ -347,3 +372,48 @@ def test_symlinked_directory_inside_a_root_is_refused(repo: Path) -> None:
     result = run_gate(repo)
     assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
     assert "symlinked directory" in result.stderr
+
+
+def test_a_manifest_that_is_a_directory_is_a_config_error(repo: Path) -> None:
+    """Reporting it absent would drop that root and let a sibling carry a pass."""
+    manifest = repo / "src/copilot-cli/.claude-plugin/plugin.json"
+    manifest.unlink()
+    manifest.mkdir()
+    result = run_gate(repo)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "not a regular file" in result.stderr
+
+
+def test_a_skills_path_that_is_a_file_is_a_config_error(repo: Path) -> None:
+    """An empty skill set would report every route in that root as drift."""
+    skills = repo / "src/copilot-cli/skills"
+    for child in sorted(skills.rglob("*"), reverse=True):
+        child.unlink() if child.is_file() else child.rmdir()
+    skills.rmdir()
+    skills.write_text("not a directory\n", encoding="utf-8")
+    result = run_gate(repo)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "not a directory" in result.stderr
+
+
+def test_a_regular_file_beside_a_plugin_root_is_not_a_config_error(repo: Path) -> None:
+    """src/ holds AGENTS.md beside the roots; a non-directory sibling is normal."""
+    (repo / "src" / "AGENTS.md").write_text("# notes\n", encoding="utf-8")
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_a_symlinked_plugin_root_is_refused(repo: Path) -> None:
+    """os.walk follows its own top path, so the symlink policy would not hold.
+
+    The refusal inside a root covers directories found during the walk. A
+    root that is itself a link slips past it, which would apply one policy to
+    the root and another to everything under it.
+    """
+    elsewhere = repo / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / ".claude-plugin").mkdir()
+    (elsewhere / ".claude-plugin" / "plugin.json").write_text("{}\n", encoding="utf-8")
+    (repo / "src" / "linked").symlink_to(elsewhere, target_is_directory=True)
+    result = run_gate(repo)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "symlinked plugin root" in result.stderr

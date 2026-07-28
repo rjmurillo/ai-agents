@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tests.validation.shipped_skill_routes_helpers import (
     EXIT_DRIFT,
     EXIT_OK,
@@ -375,3 +377,92 @@ def test_route_with_no_name_is_reported(repo: Path) -> None:
     result = run_gate(repo)
     assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
     assert "not a legal skill name" in result.stdout
+
+
+def test_a_code_span_holding_only_the_keyword_does_not_hide_the_route(repo: Path) -> None:
+    """`Skill:` styles the label of a real route whose name sits outside it.
+
+    Blanking a span the route pattern merely touches deleted the keyword and
+    the route vanished, which is the fail-open direction. A span is treated
+    as syntax documentation only when it carries a name as well.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "prefix.md",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+def test_a_code_span_holding_only_the_keyword_still_resolves(repo: Path) -> None:
+    """The same shape with a real name must pass, not merely fail differently."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "prefix-ok.md",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` autoplan |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+@pytest.mark.parametrize(
+    ("label", "wrapped"),
+    [
+        ("paren", "(autoplan)"),
+        ("double", '"autoplan"'),
+        ("bracket", "[autoplan]"),
+        ("single", "'autoplan'"),
+        ("brace", "{autoplan}"),
+        ("curly", "“autoplan”"),
+    ],
+)
+def test_punctuation_wrapping_a_name_does_not_block_the_push(
+    repo: Path, label: str, wrapped: str
+) -> None:
+    """Only the right end was stripped, so a parenthesised route read malformed."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        f"wrap-{label}.md",
+        f"| I | R |\n| --- | --- |\n| M | Skill: {wrapped} |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_stripping_wrapping_punctuation_does_not_mask_drift(repo: Path) -> None:
+    """The strip must not turn a dangling route into a resolvable one."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "wrap-drift.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: (ghost) |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+def test_raw_html_code_is_read_as_a_route(repo: Path) -> None:
+    """Documents the known limitation rather than asserting it is desirable.
+
+    ``<code>Skill: x</code>`` is not a code_inline token, so the syntax-span
+    exemption does not apply to it and the route is read. That is the
+    fail-closed direction: a documentation example reads as drift rather than
+    a real route going unchecked. Measured across the three plugin roots, no
+    table cell contains a <code> tag, and the workaround is one backtick.
+    Teaching the shared parser to track HTML token depth would add a
+    fail-open path to a module several gates depend on.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "rawhtml.md",
+        "| I | R |\n| --- | --- |\n| M | <code>Skill: ghost</code> |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
