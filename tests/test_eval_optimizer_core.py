@@ -26,7 +26,6 @@ _path_added = str(_EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(_EVAL_DIR))
 
-import _optimizer_core as optimizer_core  # noqa: E402
 from _optimizer_core import (  # noqa: E402
     AmbiguousAnchorError,
     AnchorNotFoundError,
@@ -264,7 +263,7 @@ class TestSplitTasks:
             def __init__(self, *_args, **_kwargs):
                 raise AssertionError("Decimal must not parse overlong ratios")
 
-        monkeypatch.setattr(optimizer_core, "Decimal", BoomDecimal)
+        monkeypatch.setitem(split_tasks.__globals__, "Decimal", BoomDecimal)
         ratio = "0." + "1" * 1_000_000
         with pytest.raises(ValueError, match="at most 128 characters") as excinfo:
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
