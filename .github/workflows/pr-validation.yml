@@ -162,103 +162,26 @@ jobs:
         # rather than a red step outline.
         if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
         continue-on-error: true
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Read existing labels through the REST issues endpoint. Stderr stays
-          # visible so HTTP status and response messages remain in the job log.
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' label."
-            exit 0
-          }
-
-          if ($existingLabels -contains 'needs-split') {
-            Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
-            exit 0
-          }
-
-          # Add the label via the REST issues/labels endpoint. The previous
-          # `gh pr edit --add-label` call routed through GraphQL, which
-          # returns HTTP 401 for installation/fine-grained tokens that the
-          # REST reads above accept (see #2557, run 27280632030).
-          $payload = '{"labels":["needs-split"]}'
-          $payload | gh api `
-            -X POST `
-            -H "Accept: application/vnd.github+json" `
-            "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" `
-            --input -
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to add advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the 20-commit cap is still enforced by 'Enforce Blocking Issues'."
-            exit 0
-          }
-          Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
+        run: python3 scripts/ci/update_needs_split_label.py --mode add
 
       - name: Remove needs-split label when below threshold
         # Fixes #2557: same advisory-only contract as the add step.
         if: steps.commit-check.outputs.status == 'OK'
         continue-on-error: true
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Read existing labels through the REST issues endpoint. Stderr stays
-          # visible so HTTP status and response messages remain in the job log.
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' cleanup."
-            exit 0
-          }
-
-          if ($existingLabels -notcontains 'needs-split') {
-            exit 0
-          }
-
-          # Delete the label via REST. The previous `gh pr edit --remove-label`
-          # call routed through GraphQL and returned HTTP 401 for installation
-          # tokens (see #2557). REST DELETE on issues/{N}/labels/{name} accepts
-          # the same token used for the REST read above.
-          gh api `
-            -X DELETE `
-            -H "Accept: application/vnd.github+json" `
-            "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels/needs-split"
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to remove advisory 'needs-split' label (exit code: $LASTEXITCODE). Cosmetic only; the gate logic is unchanged."
-            exit 0
-          }
-          Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
+        run: python3 scripts/ci/update_needs_split_label.py --mode remove
 
       - name: Enforce Blocking Issues
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
           COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
           COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
-            Write-Error "PR validation failed: $env:OVERALL_STATUS"
-            exit 1
-          }
-
-          # Block if commit count exceeds limit (requires human override via bypass label)
-          if ($env:COMMIT_STATUS -eq "BLOCKED") {
-            # Check for bypass label through REST. This is a fail-closed gate:
-            # auth/API errors must stay visible and fail validation.
-            $labels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
-            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
-
-            if ($labels -contains 'commit-limit-bypass') {
-              Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
-            } else {
-              Write-Error "PR has $env:COMMIT_COUNT commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR."
-              exit 1
-            }
-          }
-
-          Write-Host "✓ PR validation passed"
+        run: python3 scripts/ci/enforce_pr_validation.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count (93 at audit time, 87 today) had no gate, so it could
@@ -268,7 +191,7 @@ jobs:
       # (which hosts the ruff ratchets) only runs when Python files change.
       - name: Run ADR-006 run-block ratchet
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 77
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 71
 
       # Issue #3330: workflow *schema* validation had no required CI gate. YAML
       # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,

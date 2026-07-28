@@ -26,6 +26,8 @@ def _load_module(name: str):
 description_mod = _load_module("map_pr_description_result")
 qa_mod = _load_module("check_pr_qa_report")
 report_mod = _load_module("build_pr_validation_report")
+label_mod = _load_module("update_needs_split_label")
+enforce_mod = _load_module("enforce_pr_validation")
 
 
 def _set_output(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
@@ -240,3 +242,197 @@ def test_workflow_delegates_first_pr_validation_blocks():
     assert "python3 scripts/ci/build_pr_validation_report.py" in workflow
     assert "python3 scripts/validation/pr_description.py --pr-number" not in workflow
     assert "Write-Host \"Checking for QA report...\"" not in workflow
+
+
+def test_add_needs_split_label_posts_when_missing(monkeypatch: pytest.MonkeyPatch):
+    calls: list[tuple[list[str], str | None]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((args, input_text))
+        if args[:2] == ["api", "repos/o/r/issues/42/labels"]:
+            return subprocess.CompletedProcess(args, 0, "bug\n")
+        return subprocess.CompletedProcess(args, 0, "")
+
+    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
+
+    assert label_mod.add_label("o/r", "42") == 0
+    assert calls == [
+        (["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"], None),
+        (
+            [
+                "api",
+                "-X",
+                "POST",
+                "-H",
+                "Accept: application/vnd.github+json",
+                "repos/o/r/issues/42/labels",
+                "--input",
+                "-",
+            ],
+            '{"labels":["needs-split"]}',
+        ),
+    ]
+
+
+def test_add_needs_split_label_skips_when_present(monkeypatch: pytest.MonkeyPatch):
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "needs-split\n")
+
+    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
+
+    assert label_mod.add_label("o/r", "42") == 0
+    assert calls == [["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"]]
+
+
+def test_add_needs_split_label_fetch_failure_is_advisory(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(
+        label_mod,
+        "_run_gh",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 3, ""),
+    )
+
+    assert label_mod.add_label("o/r", "42") == 0
+    assert "skipping advisory 'needs-split' label" in capsys.readouterr().err
+
+
+def test_remove_needs_split_label_deletes_when_present(monkeypatch: pytest.MonkeyPatch):
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[:2] == ["api", "repos/o/r/issues/42/labels"]:
+            return subprocess.CompletedProcess(args, 0, "needs-split\n")
+        return subprocess.CompletedProcess(args, 0, "")
+
+    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
+
+    assert label_mod.remove_label("o/r", "42") == 0
+    assert calls[-1] == [
+        "api",
+        "-X",
+        "DELETE",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "repos/o/r/issues/42/labels/needs-split",
+    ]
+
+
+def test_remove_needs_split_label_skips_when_absent(monkeypatch: pytest.MonkeyPatch):
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "bug\n")
+
+    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
+
+    assert label_mod.remove_label("o/r", "42") == 0
+    assert calls == [["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"]]
+
+
+def test_enforce_fails_on_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("OVERALL_STATUS", "ERROR")
+
+    assert enforce_mod.main() == 1
+    assert "::error::PR validation failed: ERROR" in capsys.readouterr().err
+
+
+def test_enforce_blocks_commit_limit_without_bypass(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
+    monkeypatch.setenv("COMMIT_COUNT", "21")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(
+        enforce_mod,
+        "_fetch_labels",
+        lambda repository, pr_number: (0, ["bug"]),
+    )
+
+    assert enforce_mod.main() == 1
+    assert "PR has 21 commits" in capsys.readouterr().err
+
+
+def test_enforce_allows_commit_limit_bypass(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
+    monkeypatch.setenv("COMMIT_COUNT", "21")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(
+        enforce_mod,
+        "_fetch_labels",
+        lambda repository, pr_number: (0, ["commit-limit-bypass"]),
+    )
+
+    assert enforce_mod.main() == 0
+    output = capsys.readouterr().out
+    assert "::warning::Commit limit bypassed" in output
+    assert "✓ PR validation passed" in output
+
+
+def test_enforce_label_fetch_failure_is_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("COMMIT_STATUS", "BLOCKED")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(enforce_mod, "_fetch_labels", lambda repository, pr_number: (3, []))
+
+    assert enforce_mod.main() == 1
+    assert "Failed to fetch PR labels" in capsys.readouterr().err
+
+
+def test_enforce_passes_when_no_blocking_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("COMMIT_STATUS", "OK")
+
+    assert enforce_mod.main() == 0
+    assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_workflow_delegates_all_pr_validation_blocks():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
+    assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
+    assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 71" in workflow
+    assert "gh api `\n            -X DELETE" not in workflow
+    assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
