@@ -62,7 +62,7 @@ neutral in this ADR; only the publishing repo takes prunes.
 ## Decision
 
 1. **One process per (event, matcher) group on the Claude side.**
-   `.claude/settings.json` and the plugin `hooks.json` register
+   `.claude/settings.json` and the plugin `hooks.json` contain
    `python3 -u .claude/hooks/invoke_dispatch_claude.py --group <id>` once per
    group. Membership lives in `.claude/hooks/dispatch_groups.json`.
    `.claude/lib/claude_hook_dispatch.py` runs each member in-process via
@@ -136,9 +136,9 @@ neutral in this ADR; only the publishing repo takes prunes.
 9. **Prunes (repo settings only).** `invoke_session_start_memory_first.py`
    is deregistered (duplicate of `invoke_memory_first_enforcer.py` ADR-007
    guidance) and the PostToolUse-Bash `invoke_adr_lifecycle_hook.py`
-   registration is dropped (advisory; ADR changes remain gated at commit
-   by `invoke_adr_review_guard.py` and on Write/Edit by
-   `invoke_adr_architect_gate.py`). Plugin membership is unchanged.
+   registration is dropped (advisory; ADR changes were historically gated at
+   commit by the deleted `invoke_adr_review_guard.py` and on Write/Edit by
+   the deleted `invoke_adr_architect_gate.py`). Plugin membership is unchanged.
    **Amended 2026-07-26 (Issue #3399):** both named hooks have since been
    deleted. The parenthetical recorded why the prune was safe at the time
    and is left standing as the decision's rationale, but a reader looking
@@ -207,9 +207,9 @@ Negative, accepted:
   dedupe, not a security boundary: project hook configuration is trusted code
   that can already execute arbitrary commands. The coverage-invariant test
   protects this publishing repo, not consumers or forks.
-- Consumers still receive `invoke_session_start_memory_first.py` through
-  the plugin (membership frozen here); pruning it for consumers is a
-  follow-up plugin change.
+- Consumers previously received `invoke_session_start_memory_first.py` through
+  the plugin. That consumer prune is completed; the hook and plugin membership
+  are gone.
 - Group membership exists on three surfaces (dispatch manifest, settings,
   plugin manifest); the parity tests are the drift guard.
 - Copilot matcher emission assumes matcher-aware CLI versions ignore or
