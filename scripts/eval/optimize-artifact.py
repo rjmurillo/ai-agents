@@ -59,6 +59,7 @@ from _optimizer_adapters import (  # noqa: E402
     _MAX_PASS_RATE,
     _MAX_RULE_SCORE,
     _RULE_SCORE_KEYS,
+    _SKIP_POLICIES,
     AdapterError,
     agent_results,
     pytest_results,
@@ -2121,7 +2122,7 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--pass-threshold", type=float, default=1.0)
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
     extract.add_argument("--min-score", type=float, default=3.5)
-    extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
+    extract.add_argument("--on-skip", default=_SKIP_POLICIES[0], choices=_SKIP_POLICIES)
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")

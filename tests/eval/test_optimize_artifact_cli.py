@@ -5852,6 +5852,66 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
         ]
         assert oa.rule_results_multi([scenarios], "full") == {"S1": True, "S2": False}
 
+    def test_the_readme_names_every_skip_policy_the_flag_offers(self):
+        """The same paragraph stated a policy the CLI lets you turn off.
+
+        It said a skipped test scores as a failure "rather than being dropped",
+        with no qualifier, while `extract --kind hook` has always taken
+        `--on-skip exclude`, which drops exactly those. The flag appeared
+        nowhere in the README, so the sentence read as the whole contract when
+        it described only the default.
+
+        This asserts the weaker, durable claim: every value the flag accepts is
+        named somewhere in the README. Adding a third policy without documenting
+        it turns this red. Pinning the prose itself would only pin today's
+        wording, and the defect was an omission, not a misstatement.
+        """
+        readme = (_EVAL_DIR / "README.md").read_text()
+        missing = [p for p in oa._SKIP_POLICIES if f"`{p}`" not in readme]
+        assert missing == []
+
+    def test_the_flag_offers_exactly_what_the_adapter_accepts(self, tmp_path, capsys):
+        """One policy set, not two.
+
+        The command hardcoded `("fail", "exclude")` beside the adapter's own
+        tuple, so a third policy added to the adapter would have been refused by
+        argparse before the adapter ever saw it, and the error would have named
+        the wrong layer. It also gave the README two places to drift from.
+
+        Driven through the command rather than read off the parser, because the
+        contract is what an operator can pass, and reading `choices` off a
+        private argparse attribute would pass even if the value never reached
+        the adapter.
+        """
+        xml = tmp_path / "j.xml"
+        xml.write_text(
+            '<testsuites><testsuite name="s" tests="1">'
+            '<testcase classname="t" name="a"><skipped message="no"/></testcase>'
+            "</testsuite></testsuites>",
+            encoding="utf-8",
+        )
+        refused = [
+            policy
+            for policy in oa._SKIP_POLICIES
+            if _run(
+                capsys, "extract", "--kind", "hook", "--input", xml,
+                "--on-skip", policy,
+            )[0] != EXIT_OK
+        ]
+        assert refused == []
+
+    def test_the_readme_does_not_claim_a_bare_drop_is_safe(self):
+        """Naming the escape hatch is not enough; it has to carry its cost.
+
+        A conditionally skipped test changes the task-id set between runs, which
+        moves the split fingerprint and stops the gate. The adapter docstring
+        says so. If the README gained the flag without that warning, an operator
+        would read it as a free way to quiet a noisy suite.
+        """
+        readme = (_EVAL_DIR / "README.md").read_text()
+        at = readme.index("`exclude`")
+        assert "fingerprint" in readme[at : at + 700]
+
 
 @_NEEDS_PERMISSION_BARRIER
 class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:

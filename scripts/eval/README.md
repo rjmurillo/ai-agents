@@ -353,6 +353,15 @@ score as failures rather than being dropped. Dropping a task shrinks the
 denominator, which raises the score, so a silent omission would read as an
 improvement.
 
+That is the default and not the only policy. `extract --kind hook` takes
+`--on-skip`, which is `fail` above and `exclude` to drop a skipped test from the
+mapping instead. Reach for `exclude` only when the skips are static. A
+conditionally skipped test changes the task-id set between runs, which moves the
+split fingerprint and stops the gate, so the flag trades a known bias for an
+intermittent halt. `exclude` drops only a testcase whose skip stands alone: one
+that also carries a failure or an error demonstrated something and scores false
+under either policy.
+
 `--kind rule` goes further and refuses. A scenario whose mechanism errored,
 whose scores are missing, or whose judge reported a failure is a config error
 that exits 2 and names the scenarios, rather than scoring them false. The two
