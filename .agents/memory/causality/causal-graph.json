@@ -23761,6 +23761,14 @@
         "episode-2026-07-28-session-3562-safe-push-threads"
       ],
       "created": "2026-07-28T09:01:26.129621+00:00"
+    },
+    {
+      "id": "outcome-2026-07-28-session-3629-memory-stale-script-refs",
+      "type": "outcome",
+      "label": "Outcome: success - Repair Serena memories that tell a future session to run scripts the ADR-042 PowerShell-to-Python mi",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ]
     }
   ],
   "patterns": [
