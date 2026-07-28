@@ -83,6 +83,40 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_shipped_skill_routes(repo_root: Path) -> bool:
+    """Every ``Skill: <name>`` route in a shipped tree must resolve in that tree.
+
+    Wraps ``scripts/validation/check_shipped_skill_routes.py``. Catches the
+    coordination-drift class where a skill is deliberately dropped from a
+    shipping set (``templates/platforms/copilot-cli.yaml``) but a routing table
+    keeps pointing at it. Issue #2026 dropped ``merge-resolver`` from the
+    Copilot toolkit as repo-specific; ``autoplan`` kept routing to it, so a
+    consumer with a merge conflict was sent to a skill the plugin does not
+    contain. Every gate passed because each control plane was self-consistent.
+
+    Fails closed when the validator is absent rather than raising
+    MissingScriptSkip; a silent skip would defeat the gate.
+    """
+    script = repo_root / "scripts" / "validation" / "check_shipped_skill_routes.py"
+    if not script.exists():
+        print(
+            "[ERROR] check_shipped_skill_routes.py absent; the shipped-route "
+            "gate cannot run. Hard failure: the gate is the point of "
+            "registering this validator.",
+            file=sys.stderr,
+        )
+        return False
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
+
+
 def validate_install_parity(repo_root: Path) -> bool:
     """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
 
