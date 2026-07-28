@@ -101,10 +101,10 @@ The script automatically generates human-readable filenames by extracting up to 
 
 | Session Objective | Generated Filename |
 |-------------------|--------------------|
-| "Debug recurring session validation failures" | `2026-01-06-session-374-debug-recurring-session-validation-failures.md` |
-| "Implement OAuth 2.0 authentication flow" | `2026-01-06-session-375-implement-oauth-authentication-flow.md` |
-| "Fix test coverage gaps in UserService" | `2026-01-06-session-376-fix-test-coverage-gaps-userservice.md` |
-| "Refactor PaymentProcessor for better error handling" | `2026-01-06-session-377-refactor-paymentprocessor-better-error-handling.md` |
+| "Debug recurring session validation failures" | `2026-01-06-session-374-debug-recurring-session-validation-failures.json` |
+| "Implement OAuth 2.0 authentication flow" | `2026-01-06-session-375-implement-oauth-authentication-flow.json` |
+| "Fix test coverage gaps in UserService" | `2026-01-06-session-376-fix-test-coverage-gaps-userservice.json` |
+| "Refactor PaymentProcessor for better error handling" | `2026-01-06-session-377-refactor-paymentprocessor-better-error-handling.json` |
 
 ### Benefits
 
@@ -272,7 +272,7 @@ The script automatically:
 **Example**:
 
 For objective "Debug recurring session validation failures", the filename becomes:
-`2026-01-06-session-374-debug-recurring-session-validation-failures.md`
+`2026-01-06-session-374-debug-recurring-session-validation-failures.json`
 
 Construct filename: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
