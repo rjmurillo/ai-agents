@@ -1655,11 +1655,14 @@ def _read_buffer(path: Path) -> list[dict[str, Any]]:
 
 
 def _artifact_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
     try:
-        data = path.read_bytes()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
     except OSError as exc:
         raise ConfigError(f"could not read artifact {path}: {exc}") from exc
-    return hashlib.sha256(data).hexdigest()
+    return digest.hexdigest()
 
 
 def cmd_buffer_check(args: argparse.Namespace) -> int:

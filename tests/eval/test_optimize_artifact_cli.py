@@ -14,6 +14,7 @@ which is precisely the overfitting the gate exists to stop.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -1263,7 +1264,7 @@ class TestGate:
 
 class TestBuffer:
     def _artifact(self, tmp_path: Path, text: str = "artifact v1") -> Path:
-        path = tmp_path / f"artifact-{abs(hash(text))}.md"
+        path = tmp_path / f"artifact-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}.md"
         path.write_text(text, encoding="utf-8")
         return path
 
