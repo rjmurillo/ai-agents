@@ -349,6 +349,7 @@ class TestExtract:
             "report.json",
             {
                 "error_count": 0,
+                "fixture_ids": ["C1", "C2"],
                 "per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}},
             },
         )
@@ -360,7 +361,11 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"error_count": 0, "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
+            {
+                "error_count": 0,
+                "fixture_ids": ["C1"],
+                "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}},
+            },
         )
         code, out = _run(
             capsys,
@@ -3978,6 +3983,7 @@ class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
             or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
             "error_count": 0,
         }
+        payload["fixture_ids"] = sorted(payload["per_fixture_pass_rates"])
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
         return _write(tmp_path, name, payload)
@@ -4038,6 +4044,7 @@ class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
             tmp_path, "r.json",
             {
                 "per_fixture_pass_rates": {"t0": {"agent": [1.0]}},
+                "fixture_ids": ["t0"],
                 "fixture_set_sha": 17,
                 "error_count": 0,
             },
@@ -4244,6 +4251,7 @@ class TestTheCorpusPinCannotBeStrippedAway:
             or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
             "error_count": 0,
         }
+        payload["fixture_ids"] = sorted(payload["per_fixture_pass_rates"])
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
         return _write(tmp_path, name, payload)
@@ -6624,14 +6632,13 @@ class TestBufferCleanupFailureDoesNotRewriteTheResult:
         assert capsys.readouterr().err == ""
 
 
-class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
-    """The README claimed one policy for three paths and two exist.
+class TestDegradedInputIsNotAMeasurementOfZero:
+    """A measurement not taken must not become a measured failure.
 
-    Its adapter paragraph listed "a fixture the variant never ran, a scenario
-    whose judge errored, and a skipped test" as scoring false together. Two of
-    the three do. The rule path refuses the whole report with exit 2, because
-    `extract --kind rule` runs a degraded scan the other kinds have no
-    equivalent of.
+    Its adapter paragraph used to list "a fixture the variant never ran, a
+    scenario whose judge errored, and a skipped test" as scoring false together.
+    All three now refuse the whole report with exit 2, because none of them
+    measured the candidate.
 
     A thirty-second review read that sentence, found the code disagreeing with
     it, and filed the refusal as a Critical. The code is right here: scoring a
@@ -6645,17 +6652,19 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
     per-path tests already do. The contrast is what the prose asserts.
     """
 
-    def test_a_fixture_with_no_run_under_the_variant_scores_false(self, tmp_path, capsys):
+    def test_a_fixture_with_no_run_under_the_variant_is_refused(self, tmp_path, capsys):
         report = _write(tmp_path, "r.json", {
             "per_fixture_pass_rates": {"f1": {"cand": [1.0]}, "f2": {"other": [1.0]}},
+            "fixture_ids": ["f1", "f2"],
             "error_count": 0,
         })
         code, out = _run(
             capsys, "extract", "--kind", "agent", "--input", report, "--variant", "cand"
         )
-        assert (code, out["results"]) == (EXIT_OK, {"f1": True, "f2": False})
+        assert code == EXIT_CONFIG
+        assert "no completed runs" in out["error"]
 
-    def test_a_skipped_test_scores_false(self, tmp_path, capsys):
+    def test_a_skipped_test_is_refused(self, tmp_path, capsys):
         xml = tmp_path / "j.xml"
         xml.write_text(
             '<testsuites><testsuite name="s" tests="2">'
@@ -6665,7 +6674,8 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
             encoding="utf-8",
         )
         code, out = _run(capsys, "extract", "--kind", "hook", "--input", xml)
-        assert (code, out["results"]) == (EXIT_OK, {"t::a": True, "t::b": False})
+        assert code == EXIT_CONFIG
+        assert "measurement not taken" in out["error"]
 
     def test_a_failed_judge_refuses_instead_of_scoring_false(self, tmp_path, capsys):
         scen = _write(tmp_path, "s.json", [
@@ -6765,15 +6775,13 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
             "</testsuite></testsuites>",
             encoding="utf-8",
         )
-        text = xml.read_text(encoding="utf-8")
         for policy in oa._SKIP_POLICIES:
             code, out = _run(
                 capsys, "extract", "--kind", "hook", "--input", xml,
                 "--on-skip", policy,
             )
-            assert (code, out["results"]) == (
-                EXIT_OK, oa.pytest_results(text, on_skip=policy)
-            )
+            assert code == EXIT_CONFIG
+            assert "measurement" in out["error"]
 
     def test_a_policy_the_adapter_never_accepts_is_refused(self, tmp_path, capsys):
         """The other direction, which "exactly" needs and forwarding cannot show.
@@ -8106,7 +8114,11 @@ class TestACrashOnAHugeNumberIsNotARejectVerdict:
         report = _write(
             tmp_path,
             "r.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}}, "error_count": 0},
+            {
+                "per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}},
+                "fixture_ids": ["C1"],
+                "error_count": 0,
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == 2
@@ -8153,7 +8165,11 @@ class TestACrashOnAHugeNumberIsNotARejectVerdict:
         report = _write(
             tmp_path,
             "r.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}}, "error_count": 0},
+            {
+                "per_fixture_pass_rates": {"C1": {"agent": [self.HUGE]}},
+                "fixture_ids": ["C1"],
+                "error_count": 0,
+            },
         )
         oa.main(["extract", "--kind", "agent", "--input", str(report)])
         captured = capsys.readouterr()
@@ -8164,7 +8180,11 @@ class TestACrashOnAHugeNumberIsNotARejectVerdict:
         report = _write(
             tmp_path,
             "r.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}}, "error_count": 0},
+            {
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+                "fixture_ids": ["C1"],
+                "error_count": 0,
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == 0
@@ -8375,7 +8395,11 @@ class TestABarOutsideItsScaleIsRefusedLikeAScoreOutsideIts:
         return _write(
             tmp_path,
             "r.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [rate]}}, "error_count": 0},
+            {
+                "per_fixture_pass_rates": {"C1": {"agent": [rate]}},
+                "fixture_ids": ["C1"],
+                "error_count": 0,
+            },
         )
 
     def _scen(self, tmp_path, score=3.0):
@@ -8828,8 +8852,23 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
         assert code == EXIT_OK
         assert out["seen"] is False
 
-    def test_a_symlink_to_a_real_buffer_is_read_through(self, tmp_path, capsys):
-        """Control: only the broken link is refused, not every link."""
+    def test_a_real_buffer_file_is_still_read(self, tmp_path, capsys):
+        """Control: ordinary files still take the buffer path."""
+        real = _write(tmp_path, "real.json", [])
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            real,
+            "--patches",
+            self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_a_symlink_to_a_real_buffer_is_refused(self, tmp_path, capsys):
         real = _write(tmp_path, "real.json", [])
         link = tmp_path / "b.json"
         link.symlink_to(real)
@@ -8843,8 +8882,28 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             "--artifact",
             _STATIC_ARTIFACT,
         )
-        assert code == EXIT_OK
-        assert out["seen"] is False
+        assert code == EXIT_CONFIG
+        assert out.get("seen") is None
+        assert "symlink" in out["error"]
+
+    def test_a_buffer_symlink_to_a_directory_is_refused(self, tmp_path, capsys):
+        target = tmp_path / "real-dir"
+        target.mkdir()
+        link = tmp_path / "b.json"
+        link.symlink_to(target, target_is_directory=True)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("seen") is None
+        assert "symlink" in out["error"]
 
     def _gate_fixture(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
@@ -8897,6 +8956,56 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
         assert code in (EXIT_OK, EXIT_LOGIC)
         assert out["consultations"] == 1
 
+    def test_a_real_ledger_file_is_still_read(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        key = _key_of(split)
+        ledger = oa._ledger_path(key)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(
+            json.dumps({"consultations": 1, "holdout": key, "max_consultations": 1}),
+            encoding="utf-8",
+        )
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "1",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code == EXIT_LOGIC
+        assert "exhaust" in out["reason"]
+
+    def test_a_ledger_symlink_to_a_real_file_is_refused(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        key = _key_of(split)
+        real = oa._ledger_root() / "real.ledger"
+        real.parent.mkdir(parents=True, exist_ok=True)
+        real.write_text(
+            json.dumps({"consultations": 1, "holdout": key, "max_consultations": 3}),
+            encoding="utf-8",
+        )
+        ledger = oa._ledger_path(key)
+        ledger.symlink_to(real)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("consultations") is None
+
+    def test_a_ledger_symlink_to_a_directory_is_refused(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        target = oa._ledger_root() / "real-dir"
+        target.mkdir(parents=True, exist_ok=True)
+        ledger = oa._ledger_path(_key_of(split))
+        ledger.symlink_to(target, target_is_directory=True)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("consultations") is None
+
 
 class TestAbsenceAsksAboutTheEntryNotTheTarget:
     """Unit-level enumeration of what `_absent` must answer for each entry."""
@@ -8909,12 +9018,13 @@ class TestAbsenceAsksAboutTheEntryNotTheTarget:
         path.write_text("{}", encoding="utf-8")
         assert oa._absent(path) is False
 
-    def test_a_symlink_to_a_regular_file_is_present(self, tmp_path):
+    def test_a_symlink_to_a_regular_file_is_refused(self, tmp_path):
         target = tmp_path / "t"
         target.write_text("{}", encoding="utf-8")
         link = tmp_path / "l"
         link.symlink_to(target)
-        assert oa._absent(link) is False
+        with pytest.raises(oa.ConfigError, match="symlink"):
+            oa._absent(link)
 
     def test_a_dangling_symlink_is_neither_absent_nor_readable(self, tmp_path):
         link = tmp_path / "l"
@@ -8951,7 +9061,7 @@ class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
     right answer for every caller.
     """
 
-    def test_a_symlinked_buffer_is_replaced_and_its_target_is_untouched(
+    def test_a_symlinked_buffer_is_refused_and_its_target_is_untouched(
         self, tmp_path, capsys
     ):
         real = _write(tmp_path, "real.json", [])
@@ -8970,10 +9080,9 @@ class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
             "--reason",
             "r",
         )
-        assert code == EXIT_OK
-        assert not link.is_symlink()
+        assert code == EXIT_CONFIG
+        assert link.is_symlink()
         assert json.loads(real.read_text(encoding="utf-8")) == []
-        assert json.loads(link.read_text(encoding="utf-8")) != []
 class TestARefusedLockNamesTheAncestorThatRefusedIt:
     """`mkdir` fails on an ancestor, and the lock's name does not say which.
 
