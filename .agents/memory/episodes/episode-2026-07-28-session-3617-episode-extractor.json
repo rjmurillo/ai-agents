@@ -126,7 +126,9 @@
       "type": "commit",
       "content": "Commit: abc1234",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e012",
@@ -185,6 +187,64 @@
         "e015"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0a13d4fb5",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f03f4635e",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3a62ac775",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 111fa504e",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 97cee6ea4",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -192,7 +252,7 @@
     "tool_calls": 0,
     "errors": 71,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 6,
     "files_changed": 6
   },
   "lessons": []

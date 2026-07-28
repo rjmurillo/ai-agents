@@ -59,7 +59,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Committed on fix/3617-3633-episode-extractor with hooks enabled. No --no-verify."
+        "evidence": "Committed on fix/3617-3633-episode-extractor with hooks enabled. No --no-verify. Commits: f03f4635e, 3a62ac775, 111fa504e, 97cee6ea4, 0a13d4fb5."
       },
       "validationPassed": {
         "complete": true,
@@ -160,5 +160,5 @@
     "Confirm PR #3688's Windows job is green on f6b7b16c3 and PR #3694's ADR-006 ratchet on 897ac7939.",
     "Continue the open-issue campaign: adversarial round 6 against the round-5 tokenizer rules, then the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
-  "endingCommit": ""
+  "endingCommit": "0a13d4fb5"
 }
