@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Created the requested worktree from fresh origin/main and verified branch isolation.",
       "caused_by": [
-        "e009"
+        "e016"
       ],
       "leads_to": [
         "e002"
@@ -185,7 +185,7 @@
       "leads_to": []
     },
     {
-      "id": "e009",
+      "id": "e016",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: f55ed31126928d52755009bd9ef8f241bc3cce92",
