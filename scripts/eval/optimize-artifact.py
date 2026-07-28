@@ -1037,6 +1037,23 @@ def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
             "refusing to extract agent report with missing error_count; "
             "rerun with a current report writer"
         )
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count!r}; expected a non-negative integer"
+        )
+    if error_count < 0:
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count}; expected a non-negative integer"
+        )
+    if error_count == 0:
+        return
+    raise ConfigError(
+        "refusing to extract degraded agent report: "
+        f"error_count={error_count}; rerun until all records succeed"
+    )
 
 
 def _inputs_path(paths: Sequence[Path]) -> str:
