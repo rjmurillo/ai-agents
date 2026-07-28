@@ -123,7 +123,7 @@
       "step": "Verified the retrospective gate rather than bypassing it. _today_retrospective_exists accepts today or yesterday, and the most recent retrospective was 2026-07-26, so the date rollover past midnight is what blocked the push. Wrote a real retrospective instead of setting SKIP_RETROSPECTIVE_GATE."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a4487fcfd84d39ca098dcec84f36fdedd225e994",
   "nextSteps": [
     "Reply to and resolve the three Copilot threads on PR #3568, then re-arm auto-merge.",
     "Issue #3593 tracks the 60 skill test files under .claude/skills/*/tests/ that testpaths never selects.",

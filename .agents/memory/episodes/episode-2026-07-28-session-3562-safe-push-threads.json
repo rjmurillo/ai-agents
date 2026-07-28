@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Diagnosed why PR #3568 reported BLOCKED while every required check was green. Branch protection here is a ruleset, so repos/OWNER/REPO/branches/main/protection returns 404; gh api repos/rjmurillo/ai-agents/rules/branches/main showed the code_quality rule, and the GraphQL reviewThreads query showed three unresolved Copilot threads.",
       "caused_by": [
-        "e007"
+        "e008"
       ],
       "leads_to": [
         "e002"
@@ -83,6 +83,18 @@
       "content": "Commit: 810bda7a",
       "caused_by": [],
       "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a4487fcfd84d39ca098dcec84f36fdedd225e994",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -92,8 +104,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }
