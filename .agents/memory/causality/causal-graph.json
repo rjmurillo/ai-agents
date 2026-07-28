@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:33:30.225437+00:00",
+  "updated": "2026-07-28T02:59:57.390744+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22105,6 +22105,96 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "4a8aa4aecca4",
+      "type": "milestone",
+      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189306+00:00"
+    },
+    {
+      "id": "e190568c7d5d",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189397+00:00"
+    },
+    {
+      "id": "04893c67ce46",
+      "type": "milestone",
+      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189478+00:00"
+    },
+    {
+      "id": "9e49ad65f1ed",
+      "type": "milestone",
+      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189559+00:00"
+    },
+    {
+      "id": "891703ffd915",
+      "type": "milestone",
+      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189638+00:00"
+    },
+    {
+      "id": "a948387eb20e",
+      "type": "milestone",
+      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189724+00:00"
+    },
+    {
+      "id": "3db0ad216ab1",
+      "type": "milestone",
+      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189803+00:00"
+    },
+    {
+      "id": "a1019a5fdcd2",
+      "type": "milestone",
+      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189880+00:00"
+    },
+    {
+      "id": "8a96c34dcf0c",
+      "type": "outcome",
+      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189960+00:00"
+    },
+    {
+      "id": "6493806045e3",
+      "type": "commit",
+      "label": "commit: Commit: 0f402c8e61",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:57.384897+00:00"
     }
   ],
   "patterns": [

@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-27-session-3605-skill-description-context-cost",
+  "session": "2026-07-27-session-3605-skill-description-context-cost",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0f402c8e61",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

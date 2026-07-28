@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3605,
+    "date": "2026-07-27",
+    "branch": "docs/skill-description-context-cost",
+    "startingCommit": "a65181a264",
+    "objective": "Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned docs/skill-description-context-cost after checkout -b from main at a65181a264"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = docs/skill-description-context-cost"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read earlier this session and left unmodified per ADR-014"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools are not exposed in this Copilot CLI harness. Used the fallback AGENTS.md documents: read and wrote .serena/memories directly."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same harness limitation. AGENTS.md, .claude/rules/universal.md, .claude/rules/knowledge-persistence.md, and .claude/rules/voice.md were read directly instead."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries and .claude/rules/knowledge-persistence.md read before choosing the persistence surface"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched and absent from git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Added .serena/memories/decision-skill-description-context-cost.md with the measured table, the two refuted drafts, and the unresolved invocation contradiction."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 excludes .serena/** and .agents/**, so the scoped run reported 0 issues in 0 files. Byte check for U+2014 and U+2013 on the memory returned 0."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "One commit for the decision memory, one for this session log."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Experiment carried a positive and a negative control in every arm. Order rule confirmed by permuting names against creation order. Flag arm measured at 50 skills. Invocation arm reproduced three times."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; a measurement session with no shipped code."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong."
+    },
+    {
+      "step": "Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion."
+    },
+    {
+      "step": "Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward."
+    },
+    {
+      "step": "Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft."
+    },
+    {
+      "step": "Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain."
+    },
+    {
+      "step": "Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24."
+    },
+    {
+      "step": "Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record."
+    },
+    {
+      "step": "Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation."
+    }
+  ],
+  "endingCommit": "0f402c8e61",
+  "nextSteps": [
+    "The saturation mechanism is unexplained: a skill past the ceiling still auto-invokes without searching. Settling it needs an instrument that inspects the serialized request rather than asking the model what it can see.",
+    "None of this is verified for interactive sessions, subagents, or Copilot CLI. The subagent path is documented to inject full skill content, so it may behave differently.",
+    "Wiki page AI Productivity/Procedures vs Abilities (Skill Invocation Axis).md overstates the linear cost model. Its prescription to flag skills for context savings is not supported past the saturation point.",
+    "Stray scratch files sit untracked at the repo root from an earlier session: find_uris.py, find_uris_frontmatter.py, test_uri.py, test_double.py, test_prompt.py, test_remote.py, test_all_boundaries.py, test_all_boundaries2.py, test_local_uri_optout.py, plus package.json and package-lock.json. They violate the no-scratch-in-tree boundary. Left in place because they may belong to another branch's work."
+  ]
+}
