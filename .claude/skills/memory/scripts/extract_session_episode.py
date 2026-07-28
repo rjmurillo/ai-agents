@@ -194,54 +194,41 @@ def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict
 
 def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
     """Extract events from session log."""
-    events = []
+    events: list[dict] = []
     event_index = 0
     ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
-    for line in lines:
-        evt = None
+    def add(evt_type: str, content: str) -> None:
+        nonlocal event_index
+        event_index += 1
+        events.append(
+            {
+                "id": f"e{event_index:03d}",
+                "timestamp": ts,
+                "type": evt_type,
+                "content": content,
+                "caused_by": [],
+                "leads_to": [],
+            }
+        )
 
+    for line in lines:
         # Commit events
         m = re.search(r"commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})", line)
         if not m:
             m = re.search(r"([a-f0-9]{7,40})\s+\w+\(.+\):", line)
         if m:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "commit",
-                "content": f"Commit: {m.group(1)}",
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("commit", f"Commit: {m.group(1)}")
 
         # Error events
         if re.search(r"error|fail|exception", line, re.IGNORECASE) and not line.startswith("#"):
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "error",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("error", line.strip())
 
         # Milestone events
         if re.search(r"completed?|done|finished|success", line, re.IGNORECASE) and re.match(
             r"^[-*]\s+(?!\*)", line
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Bold status markers (archive convention): the milestone rule above
         # excludes list markers followed by `**`, so an archived status bullet
@@ -255,31 +242,11 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             line,
             re.IGNORECASE,
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Test events
         if re.search(r"test[s]?\s+(pass|fail|run)", line, re.IGNORECASE) or "Pester" in line:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "test",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
-
-        if evt:
-            events.append(evt)
+            add("test", line.strip())
 
     return events
 
@@ -1443,6 +1410,26 @@ def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]
     return _causal_rank(previous) == _causal_rank(current)
 
 
+def _renumber_events(events: list) -> None:
+    """Reassign contiguous, unique ids to the final event list, in place.
+
+    Ids are positional labels, not stable identifiers: `_link_sequential_events`
+    rebuilds every edge from the list that follows this call, so no reference
+    can dangle. Only the `--preserve` path renumbered before (via
+    `_dedupe_events`), which left two ways for a shipped episode to carry ids
+    that tooling cannot index (issue #3633).
+
+    A duplicate id makes every edge touching it ambiguous. A gap comes from
+    filtering after ids are assigned: `_filter_markdown_events` drops error
+    events that fail the counted-failure guard, which is how
+    `episode-2026-05-31-session-1857.json` shipped a list starting at `e002`.
+    Numbering last makes both unrepresentable rather than merely detected.
+    """
+    for index, evt in enumerate(events, 1):
+        if isinstance(evt, dict):
+            evt["id"] = f"e{index:03d}"
+
+
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
 
@@ -1566,8 +1553,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
         task = metadata["objectives"][0] if metadata["objectives"] else metadata["title"]
 
-    # Best-effort backfill: when neither the JSON workLog nor the legacy
-    # markdown recorded a files-changed count, derive it from the staged commit.
+    # The staged commit is the primary source for files-changed; work-log prose
+    # is only a fallback. `_FILES_RE` matches any "N files" phrase, so a line
+    # like "markdownlint reported Linting: 2 files, 0 issues" would otherwise
+    # set the count to 2 and, because the backfill was guarded on a falsy value,
+    # suppress the correct staged-diff figure entirely (issue #3617). This is
+    # the same primary/fallback split `_collect_shas` already applies to SHAs.
     # The extractor runs in pre-commit, so the in-flight commit is staged even
     # though no SHA exists yet (issue #2537 item 3).
     # When --pending-stage is set, add 1 to account for the episode file that
@@ -1575,21 +1566,20 @@ def main(argv: list[str] | None = None) -> int:
     # returns, so numstat cannot see it yet). However, skip the +1 if the
     # episode file is already in the staged diff (e.g., via `git add -A`)
     # to avoid double-counting.
-    if not metrics.get("files_changed"):
-        staged = _staged_files_changed(session_log_path.parent)
-        if staged:
-            if args.pending_stage:
-                episode_path = output_path / f"episode-{session_id}.json"
-                repo_root = _repo_root()
-                try:
-                    episode_rel = episode_path.resolve().relative_to(repo_root)
-                    episode_rel_path = str(episode_rel).replace("\\", "/")
-                except ValueError:
-                    episode_rel_path = None
-                staged_paths = _staged_file_paths(session_log_path.parent)
-                if episode_rel_path is not None and episode_rel_path not in staged_paths:
-                    staged += 1
-            metrics["files_changed"] = staged
+    staged = _staged_files_changed(session_log_path.parent)
+    if staged:
+        if args.pending_stage:
+            episode_path = output_path / f"episode-{session_id}.json"
+            repo_root = _repo_root()
+            try:
+                episode_rel = episode_path.resolve().relative_to(repo_root)
+                episode_rel_path = str(episode_rel).replace("\\", "/")
+            except ValueError:
+                episode_rel_path = None
+            staged_paths = _staged_file_paths(session_log_path.parent)
+            if episode_rel_path is not None and episode_rel_path not in staged_paths:
+                staged += 1
+        metrics["files_changed"] = staged
 
     episode = {
         "id": f"episode-{session_id}",
@@ -1655,6 +1645,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
+    _renumber_events(episode["events"])
     _link_sequential_events(episode["events"])
 
     try:

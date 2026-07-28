@@ -1886,3 +1886,103 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
 
     def test_an_empty_seen_list_matches_nothing(self):
         assert not extract_session_episode._already_seen(self._FULL, [])
+
+
+class TestEventIdsAreContiguousAndUnique:
+    """`_renumber_events` numbers the final list so ids are always usable as
+    indexes (issue #3633). Before it, only the `--preserve` path renumbered,
+    and two producers could ship a list tooling cannot address: `parse_events`
+    burned an index when a line matched more than one pattern, and
+    `_filter_markdown_events` dropped events after ids were assigned.
+    """
+
+    def test_it_renumbers_a_list_with_a_burned_index(self):
+        events = [{"id": "e002", "type": "error"}, {"id": "e004", "type": "commit"}]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events] == ["e001", "e002"]
+
+    def test_it_replaces_duplicate_ids(self):
+        events = [{"id": "e001"}, {"id": "e001"}, {"id": "e001"}]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events] == ["e001", "e002", "e003"]
+
+    def test_an_empty_list_is_left_alone(self):
+        events: list = []
+        extract_session_episode._renumber_events(events)
+        assert events == []
+
+    def test_a_non_dict_entry_is_skipped_rather_than_crashing(self):
+        events = [{"id": "e005"}, "not-a-dict", {"id": "e009"}]
+        extract_session_episode._renumber_events(events)
+        assert events[0]["id"] == "e001"
+        assert events[1] == "not-a-dict"
+        assert events[2]["id"] == "e003"
+
+    def test_it_pads_past_nine(self):
+        events = [{"id": "x"} for _ in range(11)]
+        extract_session_episode._renumber_events(events)
+        assert events[9]["id"] == "e010"
+        assert events[10]["id"] == "e011"
+
+    def test_a_multi_pattern_line_yields_every_matching_event(self):
+        """A work-log line naming both a commit and a failure is two events,
+        not one. `parse_events` used to increment the counter once per pattern
+        but append only the last match, dropping the earlier event and burning
+        its id.
+        """
+        events = extract_session_episode.parse_events(["- commit abc1234 failed to apply"])
+        assert [e["type"] for e in events] == ["commit", "error"]
+        assert [e["id"] for e in events] == ["e001", "e002"]
+
+
+class TestFilesChangedPrefersTheStagedDiff:
+    """`metrics.files_changed` reads the staged diff first and falls back to
+    work-log prose (issue #3617). `_FILES_RE` matches any "N files" phrase, so
+    tool output quoted in a work log used to win over the real commit.
+    """
+
+    def _repo_with_log(self, tmp_path, action, staged):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _commit(repo, "seed.txt", "seed\n")
+        for i in range(staged):
+            (repo / f"staged{i}.txt").write_text(f"{i}\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        logs = repo / ".agents" / "sessions"
+        logs.mkdir(parents=True)
+        log = logs / f"{SESSION_DAY}-session-99.json"
+        data = _json_log([{"phase": "implementation", "summary": action}])
+        log.write_text(json.dumps(data), encoding="utf-8")
+        return repo, log
+
+    def _run(self, repo, log, out):
+        cwd = os.getcwd()
+        os.chdir(repo)
+        try:
+            rc = extract_session_episode.main([str(log), "--output-path", str(out)])
+        finally:
+            os.chdir(cwd)
+        assert rc == 0
+        written = list(out.glob("episode-*.json"))
+        assert len(written) == 1
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    def test_the_staged_diff_beats_a_misleading_prose_count(self, tmp_path):
+        repo, log = self._repo_with_log(
+            tmp_path, "markdownlint reported Linting: 2 files, 0 issues", staged=5
+        )
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 5
+
+    def test_prose_still_applies_when_nothing_is_staged(self, tmp_path):
+        repo, log = self._repo_with_log(tmp_path, "Changed 3 files in this step", staged=0)
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 3
+
+    def test_no_prose_and_no_staged_diff_leaves_zero(self, tmp_path):
+        repo, log = self._repo_with_log(tmp_path, "Reviewed the design", staged=0)
+        episode = self._run(repo, log, tmp_path / "ep")
+        assert episode["metrics"]["files_changed"] == 0
