@@ -262,8 +262,8 @@ def test_action_routes_gate_invoke_and_parse_through_one_output_path():
     shared_env = "AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}"
     assert action.count(shared_env) == 2
     assert "steps.infra_gate.outputs.infrastructure_failure" in action
-    assert 'echo "$OUTPUT" > "$AI_REVIEW_OUTPUT_FILE"' in action
-    assert 'output=$(cat "$AI_REVIEW_OUTPUT_FILE" 2>/dev/null || echo "")' in action
+    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/invoke_copilot_cli.py"' in action
+    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/parse_ai_review_output.py"' in action
     assert "/tmp/ai-review-output.txt" not in action
 
 
