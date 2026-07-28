@@ -10,9 +10,11 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
+import time
 from decimal import localcontext
 from fractions import Fraction
 from pathlib import Path
@@ -681,6 +683,40 @@ class TestMcnemarExact:
 
     def test_an_empty_task_list_is_p_one(self):
         assert mcnemar_exact({}, {}, []) == (0, 0, 1.0)
+
+    def _all_flip(self, n):
+        ids = [f"t{i}" for i in range(n)]
+        return mcnemar_exact(dict.fromkeys(ids, False), dict.fromkeys(ids, True), ids)
+
+    def test_a_p_that_underflows_the_float_stays_above_zero(self):
+        """`tail / 2**n` underflows at n=1075, and zero is never the true value.
+
+        The tail always contains the k=b term, so `tail` is at least 1 and the
+        exact probability is strictly positive for every input. Only the float
+        conversion loses it. Reporting 0.0 mattered because `--max-p 0` is the
+        strictest bar the flag can express, and `0.0 <= 0` reads as satisfied,
+        so the strictest possible bar accepted rather than rejected.
+        """
+        _, _, p = self._all_flip(1075)
+        assert p > 0.0
+
+    def test_the_underflow_floor_is_the_smallest_positive_float(self):
+        _, _, p = self._all_flip(1075)
+        assert p == math.nextafter(0.0, 1.0)
+
+    def test_one_below_the_underflow_boundary_is_untouched(self):
+        """n=1074 still converts exactly, so the clamp must not reach it."""
+        _, _, p = self._all_flip(1074)
+        assert p == 5e-324
+
+    def test_a_p_well_inside_the_float_range_is_untouched(self):
+        _, _, p = self._all_flip(1000)
+        assert p == pytest.approx(9.332636185032189e-302)
+
+    def test_the_strictest_expressible_bar_now_rejects(self):
+        """The behaviour the clamp exists for, stated as the caller sees it."""
+        _, _, p = self._all_flip(1100)
+        assert not p <= 0
 
     def test_a_missing_incumbent_result_raises(self):
         with pytest.raises(MissingResultError):
@@ -1381,3 +1417,98 @@ class TestTheBudgetRefusalOnlyAdvisesMovesTheCliAllows:
     def test_a_budget_with_room_left_is_still_silent(self):
         """Control: the wording change must not make the guard fire early."""
         assert guard_refusal(sel_consultations=4, max_consultations=5) is None
+
+
+class TestDuplicateTaskIdsAreNamedWithoutRescanningTheList:
+    """Duplicate detection is a refusal path, so it must be cheap to reach.
+
+    `split_tasks` refuses duplicate ids because two tasks sharing a key are
+    one task to every downstream mapping, and a smaller denominator reads as
+    a higher score. Naming them cost `list.count` per element, which is
+    quadratic: measured 1.16s at 10k ids, 4.59s at 20k, and 18.48s at 40k.
+
+    A caller reaches this with `split --tasks` on a generated id list, so the
+    cost lands on an operator who already made a mistake and is waiting to be
+    told which one. The counting is one pass now; the message is unchanged.
+    """
+
+    def test_a_clean_list_still_splits(self):
+        split = split_tasks([f"t{i}" for i in range(10)], seed="s")
+        assert len(split.opt) + len(split.sel) + len(split.test) == 10
+
+    def test_a_duplicate_is_still_refused(self):
+        with pytest.raises(ValueError, match="duplicate task ids"):
+            split_tasks(["a", "b", "a"], seed="s")
+
+    def test_the_refusal_names_every_repeated_id_once_and_in_order(self):
+        """Sorted and deduplicated, so the message is stable across runs."""
+        with pytest.raises(ValueError) as excinfo:
+            split_tasks(["b", "a", "b", "a", "b", "c"], seed="s")
+        assert "duplicate task ids: a, b" in str(excinfo.value)
+
+    def test_an_id_repeated_many_times_is_named_once(self):
+        with pytest.raises(ValueError) as excinfo:
+            split_tasks(["x"] * 50, seed="s")
+        assert str(excinfo.value).endswith("duplicate task ids: x")
+
+    def test_naming_duplicates_in_a_large_list_stays_within_budget(self):
+        """40k ids took 18.5s before this; the bound is 9x under that.
+
+        A timing assertion is the only way to hold a complexity fix, so the
+        margin is wide enough that ordinary machine noise cannot reach it
+        while a return to `list.count` per element cannot pass it.
+        """
+        ids = [f"t{index % 2}" for index in range(40000)]
+        started = time.perf_counter()
+        with pytest.raises(ValueError, match="duplicate task ids"):
+            split_tasks(ids, seed="s")
+        assert time.perf_counter() - started < 2.0
+
+
+class TestPatchFingerprintRefusesTheShapesItPromisesToCatch:
+    """The guard sits in `patch_fingerprint` on purpose, and that is testable.
+
+    `_check_patch_fields` runs here rather than in the two buffer commands
+    because every path that can crash on a non-string field routes through
+    this function. That placement was justified in a comment and pinned
+    nowhere: every shape test called `apply_patches`, so moving the check back
+    into `apply_patches` would have left the whole suite green while the
+    buffer commands lost their guard and crashed on an `AttributeError` deep
+    in the hash instead.
+
+    These call `patch_fingerprint` directly, which is the only spelling that
+    can tell the two placements apart.
+    """
+
+    def test_a_non_string_op_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="op must be a string"):
+            patch_fingerprint([Patch(1, None, "x")])
+
+    def test_a_non_string_anchor_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="anchor must be a string"):
+            patch_fingerprint([Patch("replace", 2, "x")])
+
+    def test_a_non_string_text_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="text must be a string"):
+            patch_fingerprint([Patch("append", None, 3)])
+
+    def test_the_error_names_the_type_it_was_handed(self):
+        """A shape error the operator can act on says what arrived."""
+        with pytest.raises(PatchShapeError, match="got list"):
+            patch_fingerprint([Patch("append", None, ["x"])])
+
+    def test_a_none_anchor_and_none_text_are_not_shape_errors(self):
+        """None is the absent field, which the op rules judge, not the types.
+
+        Without this the three tests above would also pass against a guard
+        that refused every non-string, which would break `append` (no anchor)
+        and `delete` (no text) at the fingerprint before the op rules ever saw
+        them.
+        """
+        assert len(patch_fingerprint([Patch("append", None, "x")])) == 64
+        assert len(patch_fingerprint([Patch("delete", "a", None)])) == 64
+
+    def test_a_bad_shape_anywhere_in_the_list_is_caught(self):
+        """The check is per patch, so a clean first entry is not a pass."""
+        with pytest.raises(PatchShapeError, match="text must be a string"):
+            patch_fingerprint([Patch("append", None, "fine"), Patch("append", None, 9)])
