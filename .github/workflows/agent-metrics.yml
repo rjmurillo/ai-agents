@@ -53,42 +53,23 @@ jobs:
         with:
           python-version: '3.14'
 
+      # ADR-006: source selection is a GitHub expression (configuration), and
+      # validation lives in scripts/workflows/resolve_dispatch_input.py. Two
+      # deliberate behaviour changes: the `||` fallback now supplies the
+      # declared default when the input is blank (the old `case` failed the
+      # step instead), and `days=0` is now rejected (the old digit glob let it
+      # through even though its own error message said "positive integer").
       - name: Determine analysis period
         id: period
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_DAYS: ${{ inputs.days }}
-          INPUT_FORMAT: ${{ inputs.output_format }}
+          DAYS_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.days) || '7' }}
+          FORMAT_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.output_format) || 'markdown' }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            days="$INPUT_DAYS"
-            format="$INPUT_FORMAT"
-          else
-            days=7
-            format=markdown
-          fi
-
-          # `days` reaches a shell argument downstream, so constrain it to
-          # digits here rather than trusting the dispatcher. `format` is a
-          # `type: choice` input, which GitHub validates server-side; the
-          # check restates that constraint so a later widening of the input
-          # type cannot silently reopen the hole.
-          case "$days" in
-            ''|*[!0-9]*)
-              echo "::error::days must be a positive integer" >&2
-              exit 1
-              ;;
-          esac
-          case "$format" in
-            summary|markdown|json) ;;
-            *)
-              echo "::error::output_format must be summary, markdown, or json" >&2
-              exit 1
-              ;;
-          esac
-
-          printf 'days=%s\n' "$days" >> "$GITHUB_OUTPUT"
-          printf 'format=%s\n' "$format" >> "$GITHUB_OUTPUT"
+          OUTPUT_NAME=days INPUT_VALUE="$DAYS_RAW" VALUE_KIND=integer \
+            python scripts/workflows/resolve_dispatch_input.py
+          OUTPUT_NAME=format INPUT_VALUE="$FORMAT_RAW" VALUE_KIND=choice \
+            ALLOWED_CHOICES=summary,markdown,json \
+            python scripts/workflows/resolve_dispatch_input.py
 
       - name: Collect metrics
         id: metrics

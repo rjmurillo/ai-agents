@@ -82,30 +82,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
+      # ADR-006: source selection is a GitHub expression (configuration), and
+      # validation lives in scripts/workflows/resolve_dispatch_input.py.
       - name: Determine issue number
         id: issue
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
-          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_RAW: ${{ (github.event_name == 'workflow_dispatch' && inputs.issue_number) || github.event.issue.number }}
         run: |
-          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
-            number="$INPUT_ISSUE_NUMBER"
-          else
-            number="$EVENT_ISSUE_NUMBER"
-          fi
-
-          # The dispatch input is free-form text that reaches a shell
-          # argument and a `gh` call downstream, so constrain it to digits
-          # at the boundary rather than trusting the dispatcher.
-          case "$number" in
-            ''|*[!0-9]*)
-              echo "::error::issue_number must be a positive integer" >&2
-              exit 1
-              ;;
-          esac
-
-          printf 'number=%s\n' "$number" >> "$GITHUB_OUTPUT"
+          OUTPUT_NAME=number INPUT_VALUE="$ISSUE_RAW" VALUE_KIND=integer \
+            python scripts/workflows/resolve_dispatch_input.py
 
       - name: Synthesize context and assign Copilot
         shell: pwsh -NoProfile -Command "& '{0}'"
