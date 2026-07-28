@@ -137,7 +137,6 @@ jobs:
         run: |
           git config user.name "rjmurillo-bot"
           git config user.email "rjmurillo-bot@users.noreply.github.com"
-          python3 scripts/maintenance/install_merge_drivers.py --trusted-copy
 
       - name: Checkout trusted push helper
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

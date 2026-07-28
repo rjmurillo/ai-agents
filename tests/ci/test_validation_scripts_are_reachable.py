@@ -27,11 +27,11 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield three unreachable, each of which is a
+Under that model the same 89 scripts yield two unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Two of the entries below are unreachable precisely because
+pass if run. Both of the entries below are unreachable precisely because
 they fail against the current tree, which is tracked separately. Reachability
 is the floor, not the ceiling.
 """
@@ -92,12 +92,6 @@ _NO_CALLER: dict[str, str] = {
         "network and gates nothing in a diff. It is a triage report for #2623, "
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
-    ),
-    "scripts/validation/merge_causal_graph.py": (
-        "Git executes this as a merge driver from the `merge.causal-graph.driver` "
-        "config that scripts/maintenance/install_merge_drivers.py writes. The "
-        "hook entry point registers that config instead of invoking the driver "
-        "directly, so static script reachability cannot model the caller."
     ),
 }
 

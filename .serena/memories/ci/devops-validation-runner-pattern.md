@@ -6,15 +6,15 @@ Issue #325: Create unified shift-left validation runner script.
 
 ## Solution
 
-**Script**: `scripts/Validate-PrePR.ps1`
+**Script**: `scripts/validation/pre_pr.py`
 
 Unified validation orchestration that runs all shift-left validations in optimized order.
 
 ## Key Features
 
 1. **Optimized validation order**: Fast checks first (session end, tests, markdown), slow checks last (path normalization, planning artifacts, agent drift)
-2. **Quick mode**: `-Quick` flag skips slow validations (saves ~50-90s per run)
-3. **Fail-fast**: Stop on first failure for quick feedback
+2. **Quick mode**: `--quick` flag skips slow validations (saves ~50-90s per run)
+3. **Run-all, aggregate at the end**: `run_all_validations` in `scripts/validation/pre_pr_sequence.py` issues 35 sequential `run_validation` calls with no early exit, so one failure does not stop the rest. You see every failure in one run. (Corrected 2026-07-28: this section previously claimed fail-fast, which the code has never done.)
 4. **Consistent status indicators**: [PASS], [FAIL], [WARNING], [SKIP], [RUNNING]
 5. **NO_COLOR support**: Respects CI environments
 6. **Clear fix suggestions**: Actionable error messages with remediation steps
@@ -23,11 +23,11 @@ Unified validation orchestration that runs all shift-left validations in optimiz
 ## Validation Sequence
 
 1. **Session End** (2-5s): Validate latest session log
-2. **Pester Tests** (10-30s): Run all unit tests
+2. **Unit Tests** (skipped): attempts `build/scripts/Invoke-PesterTests.ps1`, which ADR-042 removed with no Python port, so `validate_pester_tests` in `scripts/validation/checks_tooling.py` raises `MissingScriptSkip` every run. `--skip-tests` skips it explicitly. Run pytest directly with `uv run pytest tests/`
 3. **Markdown Lint** (5-10s): Auto-fix and validate markdown
-4. **Path Normalization** (15-30s, skip if -Quick): Check for absolute paths
-5. **Planning Artifacts** (10-20s, skip if -Quick): Validate planning consistency
-6. **Agent Drift** (20-40s, skip if -Quick): Detect semantic drift
+4. **Path Normalization** (15-30s, skip if --quick): Check for absolute paths
+5. **Planning Artifacts** (10-20s, skip if --quick): Validate planning consistency
+6. **Agent Drift** (20-40s, skip if --quick): Detect semantic drift
 
 ## Performance
 
@@ -40,13 +40,32 @@ Unified validation orchestration that runs all shift-left validations in optimiz
 
 ## Integration Points
 
-### Pre-Commit Hook
+### Pre-Push Hook
 
-Pre-commit hook now suggests running unified validation:
+The runner is wired into lefthook pre-push, not a `.githooks/` script (`.githooks/pre-commit` no longer exists):
+
+```yaml
+# lefthook.yml:337-341
+- name: pre-pr-validation
+  timeout: 15m
+  run: uv run --frozen python scripts/validation/pre_pr.py
+  env:
+    SKIP_AUTOFIX: "1"
+```
+
+Pytest is a **separate** pre-push job, not part of the runner:
+
+```yaml
+# lefthook.yml:343-345
+- name: python-tests
+  timeout: 30m
+  run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+```
+
+Run the runner by hand with:
 
 ```bash
-echo_info "Before creating a PR, run the full validation suite:"
-echo_info "  pwsh scripts/Validate-PrePR.ps1"
+uv run python scripts/validation/pre_pr.py
 ```
 
 ### Developer Workflow
@@ -63,22 +82,24 @@ Make changes → Quick validation → Fix → Commit → Full validation → Cre
 
 ## Future Enhancements
 
-1. **Parallel execution**: Add `-Parallel` flag for independent validations
+1. **Parallel execution**: Add a `--parallel` flag for independent validations
 2. **Incremental validation**: Skip unchanged files
 3. **Watch mode**: Auto-run on file changes
 4. **IDE integration**: VS Code task definitions
 
 ## Related Files
 
-- `scripts/Validate-PrePR.ps1` - Main validation runner
-- `.agents/SHIFT-LEFT.md` - User-facing documentation
+- `scripts/validation/pre_pr.py` - Main validation runner
+- `scripts/validation/pre_pr_sequence.py` - The ordered check sequence
 - `.agents/devops/validation-runner-pattern.md` - DevOps pattern documentation
-- `.githooks/pre-commit` - Pre-commit hook with validation suggestion
+- `lefthook.yml:337-345` - Pre-push wiring (runner, then pytest separately)
+
+Both `.agents/SHIFT-LEFT.md` and `.githooks/pre-commit` were listed here until 2026-07-28. Neither exists; lefthook replaced the `.githooks/` layout.
 
 ## Lessons Learned
 
 1. **Fast feedback is critical**: Quick mode (30s) vs Full mode (90s) dramatically changes developer behavior
-2. **Fail-fast reduces cognitive load**: Stop on first failure to focus attention
+2. **Seeing every failure at once beats stopping early**: the runner aggregates all 35 checks instead of halting, so one push surfaces the full list
 3. **Clear fix suggestions are essential**: Generic error messages are useless
 4. **Consistent status indicators improve scannability**: Text-based indicators easier to scan than emojis
 
