@@ -1,8 +1,10 @@
 ---
 type: design
 id: DESIGN-014
-requirement: REQ-004
 status: draft
+related:
+  - REQ-014
+  - TASK-014
 created: 2026-05-03
 updated: 2026-05-03
 ---
@@ -141,6 +143,6 @@ Standard PR flow:
 
 ## Traceability
 
-- Requirement: `REQ-004-pr-description-extension-boundary.md`
-- Tasks: `TASK-004-pr-description-extension-boundary.md`
+- Requirement: `REQ-014-pr-description-extension-boundary.md`
+- Tasks: `TASK-014-pr-description-extension-boundary.md`
 - Related: PR #1873, Issue #1874
