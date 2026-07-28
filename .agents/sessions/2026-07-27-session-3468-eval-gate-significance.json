@@ -3,7 +3,7 @@
   "session": {
     "number": 3468,
     "date": "2026-07-27",
-    "branch": "fix/eval-buffer-crash-exit-code",
+    "branch": "fix/eval-refuse-malformed-input",
     "startingCommit": "303f918ea8",
     "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
   },
@@ -12,12 +12,12 @@
       "branchVerified": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current returned fix/eval-buffer-crash-exit-code, branched fresh from origin/main after PR #3478 squash-merged the work's first branch as 102e9976f. The session opened on feat/eval-gate-significance-bar and moved when that branch merged."
+        "evidence": "git branch --show-current returned fix/eval-refuse-malformed-input. The session opened on feat/eval-gate-significance-bar, moved to fix/eval-buffer-crash-exit-code when PR #3478 squash-merged that work as 102e9976f, and moved again when ADR-008's twenty-commit ceiling refused the push at twenty-one. That ceiling was read as a size gate rather than an obstacle: the branch was left at twenty commits covering the crash-to-verdict findings, and the refuse-malformed-input findings continue here against issue #3588."
       },
       "notOnMain": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current = fix/eval-buffer-crash-exit-code"
+        "evidence": "git branch --show-current = fix/eval-refuse-malformed-input"
       },
       "gitStateVerified": {
         "complete": true,
