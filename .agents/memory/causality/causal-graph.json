@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T12:43:51.825917+00:00",
+  "updated": "2026-07-28T01:33:45.883345+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -21699,6 +21699,78 @@
         "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
       "created": "2026-07-27T11:58:41.229748+00:00"
+    },
+    {
+      "id": "5f569abea7c8",
+      "type": "milestone",
+      "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876782+00:00"
+    },
+    {
+      "id": "5073fd57c325",
+      "type": "milestone",
+      "label": "milestone: Forced builtin textual git diff output in the suppression scan path.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876877+00:00"
+    },
+    {
+      "id": "7c86d556c295",
+      "type": "milestone",
+      "label": "milestone: Derived Ruff scan suffixes and added Bandit pyw coverage.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876961+00:00"
+    },
+    {
+      "id": "421da8e3b371",
+      "type": "milestone",
+      "label": "milestone: Decoded notebook code cells before scanning for added suppressions.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877040+00:00"
+    },
+    {
+      "id": "a102c831c3da",
+      "type": "milestone",
+      "label": "milestone: Distinguished true orphan branches from missing history.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877118+00:00"
+    },
+    {
+      "id": "61bbe72e47c6",
+      "type": "milestone",
+      "label": "milestone: Retrospective section: recorded validation and mutation evidence.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877197+00:00"
+    },
+    {
+      "id": "cf11fa826517",
+      "type": "commit",
+      "label": "commit: Commit: a9b1f20f92",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877275+00:00"
+    },
+    {
+      "id": "c92c47681c9f",
+      "type": "outcome",
+      "label": "Outcome: success - Fix PR #3503 suppression gate analyzer bypasses reported by adversarial review.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877354+00:00"
     }
   ],
   "patterns": [

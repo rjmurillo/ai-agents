@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -192,30 +193,42 @@ def _run_suppression_push(
     base: str | None = "c" * 40,
     remote_sha: str = "b" * 40,
     diff_without_no_renames: str | None = None,
+    refs_present: bool = False,
+    shallow: bool = False,
 ) -> int:
     head = "a" * 40
-    expected_range = f"{base}..{head}" if base is not None else None
+    expected_base = base
+    if expected_base is None and refs_present and not shallow:
+        expected_base = policy.EMPTY_TREE_SHA1
+    expected_range = f"{expected_base}..{head}" if expected_base is not None else None
     monkeypatch.setattr(policy, "_check_history_integrity", lambda root: 0)
     monkeypatch.setattr(policy, "_merge_base", lambda root, base_ref, head_ref: base)
+    monkeypatch.setattr(policy, "_commit_ref_exists", lambda root, ref: refs_present)
+    monkeypatch.setattr(policy, "_is_shallow_repository", lambda root: shallow)
+    monkeypatch.setattr(policy, "_empty_tree_sha", lambda root: policy.EMPTY_TREE_SHA1)
 
     def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["ls-tree", "-r"]:
             assert args[-1] == head
             return _completed("\0".join(changed_paths) + "\0")
-        if args[:3] == ["diff", "--name-only", "--diff-filter=ACMRT"]:
+        if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
+            for flag in policy.TEXTUAL_DIFF_FLAGS:
+                assert flag in args
             assert expected_range is not None
             assert expected_range in args
             return _completed("\0".join(changed_paths) + "\0")
         if "diff" in args and "--unified=0" in args:
-            if args[3] == head:
-                return _completed("")
             assert expected_range is not None
             assert expected_range in args
+            for flag in policy.TEXTUAL_DIFF_FLAGS:
+                assert flag in args
             if "--no-renames" not in args and diff_without_no_renames is not None:
                 return _completed(diff_without_no_renames)
             separator = args.index("--")
             assert tuple(args[separator + 1 :]) == changed_paths
             return _completed(diff_text)
+        if args[0] == "show":
+            return _completed("")
         raise AssertionError(f"unexpected git call: {args!r}")
 
     monkeypatch.setattr(policy, "_run_git", _run_git)
@@ -223,7 +236,121 @@ def _run_suppression_push(
     return policy.check_pushed_suppressions(stdin, repo_root)
 
 
+def _tool(name: str) -> str:
+    resolved = shutil.which(name)
+    assert resolved is not None, f"{name} is required for this regression test"
+    return resolved
+
+
+def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    result = _run(["git", *args], repo)
+    assert result.returncode == 0, result.stderr
+    return result
+
+
+def _init_push_repo(repo: Path) -> None:
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "-m", "base")
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
+    _git(repo, "checkout", "-b", "topic")
+
+
+def _commit(repo: Path, message: str) -> str:
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", message)
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def _run_real_suppression_push(repo: Path, head: str) -> int:
+    stdin = io.StringIO(f"refs/heads/topic {head} refs/heads/topic {'0' * 40}\n")
+    return policy.check_pushed_suppressions(stdin, repo)
+
+
+def _write_ruff_notebook(path: Path, source: str) -> None:
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [source],
+            }
+        ],
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {"name": "python", "pygments_lexer": "ipython3"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    path.write_text(json.dumps(notebook), encoding="utf-8")
+
+
 class TestPushedSuppressionPolicy:
+    def test_bare_noqa_is_honored_by_ruff_and_blocked_by_push_gate(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        comment = "# no" "qa"
+        analyzer_file = tmp_path / "ruff_bare_noqa.py"
+        analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
+        analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
+        assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++import os  {comment}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
+    def test_bare_type_ignore_is_honored_by_mypy_and_blocked_by_push_gate(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        comment = "# type" ": ignore"
+        analyzer_file = tmp_path / "mypy_bare_type_ignore.py"
+        analyzer_file.write_text(f"value: int = 'wrong'  {comment}\n", encoding="utf-8")
+        analyzer = _run([_tool("mypy"), "--show-error-codes", str(analyzer_file)], _ROOT)
+        assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++value: int = 'wrong'  {comment}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
+        assert "pkg/module.py:1" in capsys.readouterr().err
+
     def test_newly_added_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
         suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
@@ -414,6 +541,167 @@ new file mode 100644
 
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
         assert "pkg/module.py:10" in capsys.readouterr().err
+
+    def test_diff_attribute_cannot_hide_added_suppression(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        suppression = "# no" "sec"
+        (repo / ".gitattributes").write_text("scripts/tls_probe.py -diff\n", encoding="utf-8")
+        script = repo / "scripts" / "tls_probe.py"
+        script.parent.mkdir()
+        script.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
+        head = _commit(repo, "add hidden suppression")
+
+        assert _run_real_suppression_push(repo, head) == 1
+
+    def test_external_diff_cannot_hide_added_suppression(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "config", "diff.external", "/bin/true")
+        suppression = "# no" "sec"
+        path = repo / "pkg" / "module.py"
+        path.parent.mkdir()
+        path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
+        head = _commit(repo, "add external hidden suppression")
+
+        assert _run_real_suppression_push(repo, head) == 1
+
+    def test_textconv_driver_cannot_hide_added_suppression(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "config", "diff.hide.textconv", "true")
+        (repo / ".gitattributes").write_text("*.py diff=hide\n", encoding="utf-8")
+        suppression = "# no" "sec"
+        path = repo / "pkg" / "module.py"
+        path.parent.mkdir()
+        path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
+        head = _commit(repo, "add textconv hidden suppression")
+
+        assert _run_real_suppression_push(repo, head) == 1
+
+    def test_suppression_suffixes_cover_ruff_count_ratchet_scan_globs(self):
+        assert policy._ruff_scan_suffixes() <= policy.SECURITY_SUPPRESSION_SUFFIXES
+        assert {".pyi", ".ipynb", ".pyw"} <= policy.SECURITY_SUPPRESSION_SUFFIXES
+
+    def test_pyi_suppression_is_honored_by_ruff_and_blocked_by_push_gate(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        comment = "# no" "qa"
+        analyzer_file = tmp_path / "stub.pyi"
+        analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
+        analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
+        assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
+        diff = f"""diff --git a/pkg/stub.pyi b/pkg/stub.pyi
+--- a/pkg/stub.pyi
++++ b/pkg/stub.pyi
+@@ -0,0 +1 @@
++import os  {comment}
+"""
+
+        assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/stub.pyi",)) == 1
+        assert "pkg/stub.pyi:1" in capsys.readouterr().err
+
+    def test_pyw_suppression_is_honored_by_bandit_and_blocked_by_push_gate(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        comment = "# no" "sec"
+        path = repo / "tools" / "legacy_tls.pyw"
+        path.parent.mkdir()
+        path.write_text(
+            "import ssl\n"
+            "ssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  "
+            f"{comment}\n",
+            encoding="utf-8",
+        )
+        analyzer = _run([_tool("bandit"), "-q", str(path)], _ROOT)
+        assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
+        head = _commit(repo, "add pyw suppression")
+
+        assert _run_real_suppression_push(repo, head) == 1
+
+    def test_notebook_unicode_escape_suppression_is_honored_by_ruff_and_blocked(
+        self,
+        tmp_path,
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "notebooks" / "analysis.ipynb"
+        path.parent.mkdir()
+        _write_ruff_notebook(path, "import os  # no" "qa\n")
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("no" "qa", "no\\u0071a"),
+            encoding="utf-8",
+        )
+        analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(path)], _ROOT)
+        assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
+        head = _commit(repo, "add notebook suppression")
+
+        assert _run_real_suppression_push(repo, head) == 1
+
+    def test_true_orphan_branch_scans_from_empty_tree(self, tmp_path, monkeypatch, capsys):
+        suppression = "# type" ": ignore[arg-type]"
+        diff = f"""diff --git a/source.py b/source.py
+new file mode 100644
+--- /dev/null
++++ b/source.py
+@@ -0,0 +1 @@
++value = call()  {suppression}
+"""
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                diff,
+                ("source.py",),
+                base=None,
+                remote_sha="0" * 40,
+                refs_present=True,
+                shallow=False,
+            )
+            == 1
+        )
+        assert "source.py:1" in capsys.readouterr().err
+
+    def test_shallow_new_branch_without_merge_base_stays_config_error(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        suppression = "# type" ": ignore[arg-type]"
+        diff = f"""diff --git a/source.py b/source.py
+new file mode 100644
+--- /dev/null
++++ b/source.py
+@@ -0,0 +1 @@
++value = call()  {suppression}
+"""
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                diff,
+                ("source.py",),
+                base=None,
+                remote_sha="0" * 40,
+                refs_present=True,
+                shallow=True,
+            )
+            == 2
+        )
+        err = capsys.readouterr().err
+        assert "could not determine push base for new branch" in err
+        assert "unshallow" in err
 
 
 class TestAdrReviewPolicyMergeScope:
