@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Commits are being created for PR #3550 round-two fixes; final SHA recorded by git history."
+        "evidence": "Round-two fixes committed through 25c80d4d; final SHA recorded by git history."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Targeted canonical and mirror pytest passed 270 tests; ruff passed; mypy passed on canonical and mirror scripts; pre_pr.py passed 31, failed 0, skipped 4."
+        "evidence": "Targeted canonical and mirror pytest passed 270 tests. Full pre-push pytest result: 15806 passed, 26 suite-level expected skips, 59 hook-deselected. Ruff passed. Mypy passed on canonical and mirror scripts. pre_pr.py passed 31 validations with 4 expected platform skips and 0 failures."
       },
       "tasksUpdated": {
         "complete": true,
@@ -97,9 +97,9 @@
         "evidence": "Issue #3556 body corrected with round-two review evidence."
       },
       "retrospectiveInvoked": {
-        "complete": false,
+        "complete": true,
         "level": "SHOULD",
-        "evidence": "Not warranted for scoped PR review fixes."
+        "evidence": "Learnings captured: fail-open scanner paths must report incomplete scans with nonzero exits; mutation proof must assert positive extraction evidence so deleted behavior fails tests."
       }
     }
   },
@@ -118,10 +118,13 @@
     },
     {
       "step": "Hardened tests with positive extraction evidence and mutation proof for the round-two survivor set."
+    },
+    {
+      "step": "Pre-push first failed on portability ratchet drift, then scanner constants and tests were adjusted to avoid new upstream path refs."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "25c80d4d",
   "nextSteps": [
-    "Push PR #3550 branch after pre-push completes; do not self-merge."
+    "Push PR #3550 branch after retrospective evidence update; do not self-merge."
   ]
 }

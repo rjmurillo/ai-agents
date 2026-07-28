@@ -11,7 +11,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged origin/main into fix/3456-orphan-ref-tests-coverage after live-state guard showed main moved.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -60,7 +62,29 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push first failed on portability ratchet drift, then scanner constants and tests were adjusted to avoid new upstream path refs.",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 25c80d4d",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -68,7 +92,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
