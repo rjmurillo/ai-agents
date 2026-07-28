@@ -217,7 +217,14 @@ def _collect_entry(
         LOGGER.warning("could not stat %s: %s", entry, exc)
         problems.append(WalkProblem(entry, reason))
         return
-    if not entry.is_file():
+    try:
+        is_file = entry.is_file()
+    except OSError as exc:
+        reason = f"could not stat entry: {exc}"
+        LOGGER.warning("could not stat %s: %s", entry, exc)
+        problems.append(WalkProblem(entry, reason))
+        return
+    if not is_file:
         return
     collected, entry_problems = _maybe_collect_file(entry, repo_root, strict=False)
     files.extend(collected)

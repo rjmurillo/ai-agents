@@ -136,7 +136,7 @@ LOGGER = logging.getLogger("orphan_ref_validator")
 def _path_under(repo_root: Path, path: Path) -> str:
     try:
         return str(path.resolve().relative_to(repo_root.resolve()))
-    except ValueError:
+    except (ValueError, OSError, RuntimeError):
         return str(path)
 
 
@@ -145,7 +145,7 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
     resolved_path = path.expanduser().resolve()
     try:
         resolved_path.relative_to(resolved_root)
-    except ValueError:
+    except (ValueError, OSError, RuntimeError):
         return False
     return resolved_path.exists()
 

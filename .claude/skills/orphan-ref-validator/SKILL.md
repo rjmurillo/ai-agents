@@ -195,7 +195,7 @@ Invoke directly with `uv run python .claude/skills/orphan-ref-validator/scripts/
 | Kind | Pattern | Source of truth |
 |---|---|---|
 | `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen); plus single-word `` `<word>` `` only when `<word>` is a curated known single-word skill name (`filters.py:KNOWN_SINGLE_WORD_SKILLS`) | `.claude/skills/<name>/SKILL.md` directories |
-| `script_path` | `` `(build/scripts\|scripts/validation\|scripts\|tests)/<path>.py` `` plus skill-local `scripts/` or `tests/` `.py` paths | file existence on disk |
+| `script_path` | `` `(build/scripts\|scripts/validation\|scripts\|tests)/<path>.{py,ps1}` `` plus skill-local `scripts/` or `tests/` `.py` paths | file existence on disk |
 | `rule_path` | `.claude/rules/<name>.md` in backticks or Markdown link targets | file existence on disk |
 | `instruction_path` | `.github/instructions/<name>.instructions.md` or `src/copilot-cli/instructions/<name>.instructions.md` in backticks or Markdown link targets | file existence on disk |
 
