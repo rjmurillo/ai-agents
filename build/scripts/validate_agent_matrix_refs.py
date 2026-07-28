@@ -309,14 +309,51 @@ def _cell_text(inline: Token) -> str:
     ).strip()
 
 
+def _first_cell(tokens: list[Token], row_open: int) -> tuple[int, Token | None]:
+    """Return the index of the row's closing token and its first cell.
+
+    The cell is ``None`` for a row that holds none, which the caller reports
+    rather than skipping.
+    """
+    cursor = row_open + 1
+    first: Token | None = None
+    while cursor < len(tokens) and tokens[cursor].type != "tr_close":
+        if tokens[cursor].type == "inline" and first is None:
+            first = tokens[cursor]
+        cursor += 1
+    return cursor, first
+
+
+def _one_table(
+    tokens: list[Token], table_open: int
+) -> tuple[int, str | None, list[tuple[Token, Token | None]]]:
+    """Walk one table, returning its closing index, header cell, and body rows."""
+    in_header = False
+    header: str | None = None
+    body: list[tuple[Token, Token | None]] = []
+    cursor = table_open + 1
+    while cursor < len(tokens) and tokens[cursor].type != "table_close":
+        token = tokens[cursor]
+        if token.type == "thead_open":
+            in_header = True
+        elif token.type == "thead_close":
+            in_header = False
+        elif token.type == "tr_open":
+            cursor, first = _first_cell(tokens, cursor)
+            if in_header:
+                header = _cell_text(first) if first is not None else ""
+            else:
+                body.append((token, first))
+        cursor += 1
+    return cursor, header, body
+
+
 def _matrices(text: str) -> list[list[tuple[Token, Token | None]]]:
     """Return the body rows of every capability matrix in ``text``.
 
-    A table qualifies when its header's first cell reads ``Agent``. Each body row
-    is paired with the inline token of its first cell, or ``None`` when the row
-    has no cells at all, which the caller reports rather than skipping. A matrix
-    with a header and no body rows is returned as an empty list, which is how a
-    real but empty table stays distinguishable from a document with no table.
+    A table qualifies when its header's first cell reads ``Agent``. A matrix with
+    a header and no body rows is returned as an empty list, which is how a real
+    but empty table stays distinguishable from a document with no table at all.
 
     Both callers share this walk. Two independent walks would eventually
     disagree, and a file recorded as carrying a matrix from which zero rows parse
@@ -329,32 +366,10 @@ def _matrices(text: str) -> list[list[tuple[Token, Token | None]]]:
         if tokens[index].type != "table_open":
             index += 1
             continue
-        in_header = False
-        header: str | None = None
-        body: list[tuple[Token, Token | None]] = []
-        cursor = index + 1
-        while cursor < len(tokens) and tokens[cursor].type != "table_close":
-            token = tokens[cursor]
-            if token.type == "thead_open":
-                in_header = True
-            elif token.type == "thead_close":
-                in_header = False
-            elif token.type == "tr_open":
-                first: Token | None = None
-                scan_at = cursor + 1
-                while scan_at < len(tokens) and tokens[scan_at].type != "tr_close":
-                    if tokens[scan_at].type == "inline" and first is None:
-                        first = tokens[scan_at]
-                    scan_at += 1
-                if in_header:
-                    header = _cell_text(first) if first is not None else ""
-                else:
-                    body.append((token, first))
-                cursor = scan_at
-            cursor += 1
+        index, header, body = _one_table(tokens, index)
         if header is not None and header.lower() == MATRIX_HEADER_CELL:
             matrices.append(body)
-        index = cursor + 1
+        index += 1
     return matrices
 
 
