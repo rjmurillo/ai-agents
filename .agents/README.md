@@ -91,7 +91,6 @@ cp AGENT-INSTRUCTIONS.md .agents/
 cp SESSION-START-PROMPT.md .agents/
 cp SESSION-END-PROMPT.md .agents/
 cp PHASE-PROMPTS.md .agents/
-cp planning/enhancement-PROJECT-PLAN.md .agents/planning/
 cp prompts/GENERATE-AGENT-SYSTEM-PROMPT.md .agents/prompts/
 
 # Generate AGENT-SYSTEM.md using the prompt

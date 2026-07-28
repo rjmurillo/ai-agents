@@ -5,6 +5,7 @@ import json
 import re
 import shlex
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -861,7 +862,42 @@ class TestTheCommittedGraphCarriesNoTestFixtures:
 
         assert wrong_shape == []
 
-    def test_every_pattern_id_has_the_shape_the_generator_produces(self):
+    def test_every_node_carries_an_id_derived_from_its_own_content(self):
+        """The sibling of the pattern check below, missing until issue #3367.
+
+        Shape alone is not identity. Thirteen nodes had a well-formed 12-char
+        id that ``generate_node_id`` did not reproduce from their type and
+        label, so the generator could not reach them: the next episode naming
+        the same thing hashed to a different id and appended a second node,
+        splitting the evidence across two records no query joins.
+
+        Repair with ``scripts/maintenance/repair_causal_graph_ids.py``.
+        """
+        mismatched = [
+            n["id"]
+            for n in self._graph()["nodes"]
+            if n["id"] != update_causal_graph.generate_node_id(n["type"], n["label"])
+        ]
+
+        assert mismatched == []
+
+    def test_no_two_nodes_share_an_id(self):
+        """Content-derived ids make a duplicate a merge that never happened."""
+        ids = [n["id"] for n in self._graph()["nodes"]]
+
+        assert [i for i, c in Counter(ids).items() if c > 1] == []
+
+    def test_every_edge_endpoint_resolves_to_a_node(self):
+        """Renaming an id without moving its edges would strand them."""
+        graph = self._graph()
+        ids = {n["id"] for n in graph["nodes"]}
+        dangling = [
+            (e["source"], e["target"])
+            for e in graph["edges"]
+            if e["source"] not in ids or e["target"] not in ids
+        ]
+
+        assert dangling == []
         wrong_shape = [
             p.get("id")
             for p in self._graph()["patterns"]
@@ -909,6 +945,69 @@ def _episode_file(directory: Path, episode_id: str, chosen: str) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+class TestReportedAddCounters:
+    """Issue #3410: counters report graph outcomes, not helper calls."""
+
+    def _run_stats(self, episode_path: Path, graph_path: Path, capsys, *extra: str):
+        rc = update_causal_graph.main(
+            ["--episode-path", str(episode_path), "--graph-path", str(graph_path), *extra]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0
+        return json.loads(captured.out), captured
+
+    def _counts(self, graph_path: Path) -> dict[str, int]:
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        return {
+            "nodes": len(graph["nodes"]),
+            "edges": len(graph["edges"]),
+            "patterns": len(graph["patterns"]),
+        }
+
+    def test_add_counters_match_graph_deltas_and_idempotent_rerun(self, tmp_path, capsys):
+        graph_path = tmp_path / "graph.json"
+        episode_dir = tmp_path / "ep"
+        _episode_file(episode_dir, "ep-1", "Use Python")
+
+        first_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        first_counts = self._counts(graph_path)
+        assert first_stats["nodes_added"] == first_counts["nodes"]
+        assert first_stats["edges_added"] == first_counts["edges"]
+        assert first_stats["patterns_added"] == first_counts["patterns"]
+
+        second_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        second_counts = self._counts(graph_path)
+        assert second_stats["nodes_added"] == second_counts["nodes"] - first_counts["nodes"] == 0
+        assert second_stats["edges_added"] == second_counts["edges"] - first_counts["edges"] == 0
+        assert second_stats["patterns_added"] == (
+            second_counts["patterns"] - first_counts["patterns"]
+        ) == 0
+
+        _episode_file(episode_dir, "ep-2", "Use Python")
+        third_stats, _ = self._run_stats(episode_dir, graph_path, capsys)
+        third_counts = self._counts(graph_path)
+        assert third_stats["nodes_added"] == third_counts["nodes"] - second_counts["nodes"] == 0
+        assert third_stats["edges_added"] == third_counts["edges"] - second_counts["edges"] == 0
+        assert third_stats["patterns_added"] == (
+            third_counts["patterns"] - second_counts["patterns"]
+        ) == 0
+        assert third_stats["nodes_merged"] > 0
+        assert third_stats["edges_merged"] > 0
+        assert third_stats["patterns_merged"] > 0
+
+    def test_dry_run_add_counters_match_printed_add_lines(self, tmp_path, capsys):
+        graph_path = tmp_path / "graph.json"
+        episode_dir = tmp_path / "ep"
+        _episode_file(episode_dir, "ep-1", "Use Python")
+
+        stats, captured = self._run_stats(episode_dir, graph_path, capsys, "--dry-run")
+
+        assert stats["nodes_added"] == captured.err.count("[DRY] Would add node:")
+        assert stats["edges_added"] == captured.err.count("[DRY] Would add edge:")
+        assert stats["patterns_added"] == captured.err.count("[DRY] Would add pattern:")
+        assert not graph_path.exists()
 
 
 class TestResetGraphIsTheDocumentedRepairPath:
@@ -1175,3 +1274,165 @@ class TestTheRepairCommandNamesThePathsInPlay:
         graph = tmp_path / "graph.json"
         assert update_causal_graph.main(argv[2:]) == 0
         assert json.loads(graph.read_text(encoding="utf-8"))["nodes"]
+
+
+class TestAnEdgeNeverOutlivesItsEndpoints:
+    """Issue #3350: reconciling every episode left three edges pointing nowhere.
+
+    Edge retraction finds an edge through the episode named in its ``episodes``
+    provenance. Pre-#3034 edges have none (their evidence is anonymous, carried
+    under the legacy prefix), so no episode's retraction reaches them, and they
+    outlived the nodes label retraction removed. Provenance is the wrong tool:
+    an edge to a node that is not in the graph says nothing, whatever evidence
+    stands behind it, so the sweep is structural.
+    """
+
+    def _graph(self, nodes, edges):
+        return {"version": "3", "nodes": nodes, "edges": edges, "patterns": []}
+
+    def test_an_edge_whose_source_is_gone_is_dropped(self):
+        graph = self._graph(
+            [{"id": "b", "episodes": ["e1"]}], [{"source": "a", "target": "b"}]
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_an_edge_whose_target_is_gone_is_dropped(self):
+        graph = self._graph(
+            [{"id": "a", "episodes": ["e1"]}], [{"source": "a", "target": "b"}]
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_an_edge_with_both_endpoints_present_survives(self):
+        edge = {"source": "a", "target": "b"}
+        graph = self._graph([{"id": "a"}, {"id": "b"}], [edge])
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+        assert graph["edges"] == [edge]
+
+    def test_a_legacy_edge_with_no_episode_provenance_is_still_swept(self):
+        """The exact shape that survived: anonymous evidence, no episodes key."""
+        graph = self._graph(
+            [{"id": "a"}],
+            [{"source": "a", "target": "gone", "contributions": {"\x00legacy:0": 1.0}}],
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_the_sweep_is_idempotent(self):
+        graph = self._graph([{"id": "a"}, {"id": "b"}], [{"source": "a", "target": "b"}])
+        update_causal_graph._drop_orphaned_edges(graph)
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+
+    def test_a_graph_with_no_edges_is_handled(self):
+        graph = self._graph([{"id": "a"}], [])
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+
+    def test_retraction_reports_the_edges_the_sweep_removed(self):
+        """The count has to reach the caller, or a silent drop looks like a no-op."""
+        graph = self._graph(
+            [{"id": "stale", "episodes": ["e1"]}, {"id": "b"}],
+            [{"source": "stale", "target": "b"}],
+        )
+        removed = update_causal_graph._retract_stale(
+            graph,
+            "e1",
+            {"nodes": {"stale"}, "edges": set(), "patterns": set()},
+            {"nodes": set(), "edges": set(), "patterns": set()},
+        )
+
+        assert removed["nodes"] == 1
+        assert removed["edges"] == 1
+        assert graph["edges"] == []
+
+
+class TestEveryCommittedEpisodeReachesTheGraph:
+    """Issue #3350: 41 of 255 episodes had no node, and nothing noticed.
+
+    The pre-commit hook updates the graph from *staged* episodes only. Every
+    episode that landed while the hook was skipped, or through a path that did
+    not stage it, was simply never processed, and no check compared the two
+    directories. The drift accumulated for months.
+
+    Repair is a full pass, which is idempotent:
+
+        uv run --frozen python \\
+            .claude/skills/memory/scripts/update_causal_graph.py
+    """
+
+    ROOT = Path(__file__).resolve().parents[3]
+    EPISODES = ROOT / ".agents" / "memory" / "episodes"
+    GRAPH = ROOT / ".agents" / "memory" / "causality" / "causal-graph.json"
+
+    def _episode_ids(self) -> set[str]:
+        ids = set()
+        for path in sorted(self.EPISODES.glob("episode-*.json")):
+            content = json.loads(path.read_text(encoding="utf-8"))
+            ids.add(content.get("id") or path.stem)
+        return ids
+
+    def _referenced(self) -> set[str]:
+        graph = json.loads(self.GRAPH.read_text(encoding="utf-8"))
+        referenced = set()
+        for collection in ("nodes", "edges", "patterns"):
+            for item in graph.get(collection, []):
+                referenced |= set(item.get("episodes") or [])
+        return referenced
+
+    def test_no_episode_on_disk_is_missing_from_the_graph(self):
+        assert sorted(self._episode_ids() - self._referenced()) == []
+
+    def test_the_episode_directory_is_where_this_thinks_it_is(self):
+        """A typo in the path would make the check above vacuously pass."""
+        assert self.EPISODES.is_dir()
+        assert len(self._episode_ids()) >= 1
+
+
+class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
+    """Episode ``type`` is an open set, so the writer has to close it.
+
+    ``update_episode_graph`` reads ``event.get("type", "unknown")``. An episode
+    missing that key used to write an ``unknown`` node that no schema enum
+    could ever cover, and the graph accumulated 3392 such violations without a
+    single failure (#3356). Losing one row from a malformed episode, loudly, is
+    the better trade.
+    """
+
+    def test_a_type_outside_the_accepted_set_is_not_added(self) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        result = update_causal_graph.add_causal_node(
+            graph, "unknown", "orphan label", "ep-1"
+        )
+
+        assert result is None
+        assert graph["nodes"] == []
+
+    def test_the_refusal_names_the_type_and_the_label(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        update_causal_graph.add_causal_node(graph, "event", "a label", "ep-1")
+
+        captured = capsys.readouterr()
+        assert "event" in captured.err
+        assert "a label" in captured.err
+
+    def test_every_accepted_type_is_still_written(self) -> None:
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        for node_type in sorted(update_causal_graph.NODE_TYPES):
+            added = update_causal_graph.add_causal_node(
+                graph, node_type, f"label for {node_type}", "ep-1"
+            )
+            assert added is not None, node_type
+
+        assert len(graph["nodes"]) == len(update_causal_graph.NODE_TYPES)
+

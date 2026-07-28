@@ -316,7 +316,7 @@ Memory Router provides unified search across Serena (canonical) and Forgetful (a
 
 ### Proposed Implementation
 
-**Detailed Plan**: `.agents/planning/phase2b-memory-sync-strategy.md`
+**Detailed Plan**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 **Tracking Issue**: #747
 
 **Hybrid Approach**:
@@ -417,7 +417,7 @@ function Sync-MemoryToForgetful {
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Planning | ✅ COMPLETE | `.agents/planning/phase2b-memory-sync-strategy.md` |
+| Planning | ✅ COMPLETE | `.agents/archive/planning/phase2b-memory-sync-strategy.md` |
 | Core Scripts | ✅ COMPLETE | `scripts/memory_sync/` (Python + MCP subprocess) |
 | Git Hook | ✅ COMPLETE | `lefthook.yml` `memory-sync-advisory` job |
 | Manual Sync | ✅ COMPLETE | `python -m memory_sync sync` / `sync-batch` CLI |
@@ -436,7 +436,7 @@ function Sync-MemoryToForgetful {
 **Related**:
 - **Issue #747**: Serena-Forgetful Memory Synchronization
 - **PR #746**: M-009 Bootstrap + Memory Sync Strategy
-- **Planning**: `.agents/planning/phase2b-memory-sync-strategy.md`
+- **Planning**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 
 ---
 

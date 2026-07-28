@@ -155,5 +155,5 @@ Baseline prompt is fixed: "Review the following input." plus OUTPUT_SHAPE_SUFFIX
 - [evals/architect-spike/fixtures/](./architect-spike/fixtures/) - triad-aware corpus example.
 - [scripts/eval/eval-agent-vs-baseline.py](../scripts/eval/eval-agent-vs-baseline.py) - runner.
 - [ADR-057](../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md) - prompt behavioral evaluation.
-- REQ-004 / DESIGN-004 / [PLAN-1854](../.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md) - harness origin.
+- REQ-004 / DESIGN-004 / [PLAN-1854](../.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md) - harness origin.
 - `~/Documents/Mobile/wiki/comparisons/Anthropic Interpretability Triad vs The Bicameral Bet.md` - source of triad-aware fixture design.

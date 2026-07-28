@@ -18,10 +18,12 @@ context injection (observed live: duplicated ADR-007 and Serena guidance
 on each prompt). In that case the dispatcher exits 0 immediately: one
 cheap spawn instead of N duplicated hook bodies.
 
-Exit codes: 0 allows the tool call, 2 blocks it. On a blocking event
-(PreToolUse, UserPromptSubmit) the harness reads exit 2 as a deny and shows
-stderr to the model, so every exit here is a policy decision, not just a
-status.
+Exit codes: 0 allows the tool call, any non-zero code denies it. On a blocking
+event (PreToolUse, UserPromptSubmit) the harness reads a non-zero exit as a deny
+and shows stderr to the model, so every exit here is a policy decision, not just
+a status. In gate mode the code returned is the FIRST denying shim's own code,
+which is not necessarily 2; 2 is what this entrypoint returns when it fails
+before or around dispatch (bad payload, unknown event, unexpected error).
 
 Failure policy: an unreadable or malformed manifest, stdin read failure, or
 unexpected grouped-runtime exception exits 2 (loud, fail-closed) regardless of mode, per

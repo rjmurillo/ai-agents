@@ -5,7 +5,7 @@
 
 **Date**: 2025-12-15
 **Branch**: feat/install-script
-**Document**: `.agents/planning/cva-install-scripts.md`
+**Document**: `.agents/archive/planning/cva-install-scripts.md`
 
 ## Key Findings
 

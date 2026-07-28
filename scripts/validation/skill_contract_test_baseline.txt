@@ -1,0 +1,11 @@
+# Skills documenting exit-code contracts with no binding test.
+# Ratchet: entries may be removed, never added. Burn down over time.
+ai-agents-build-and-env
+ai-agents-change-control
+ai-agents-debugging-playbook
+ai-agents-diagnostics-toolkit
+ai-agents-validation-and-qa
+benchmark-models
+github-url-intercept
+memory-maintenance
+prose-self-check

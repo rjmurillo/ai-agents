@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3460,
+    "date": "2026-07-27",
+    "branch": "chore/3421-decompose-change-control",
+    "startingCommit": "5d3b94e7",
+    "objective": "Fix CI (version bump), resolve Copilot review threads, merge main to unblock PR #3460"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created at /tmp/pr-3460-worktree on chore/3421-decompose-change-control at f0474d3e07"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pr-autofix skill protocol followed; adr-review skill invoked for ADR-087 merge import"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Remote HEAD verified before each push via fetch + rev-parse comparison"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch = chore/3421-decompose-change-control"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file: .agents/sessions/2026-07-27-session-3460-decompose-change-control.json"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md reviewed; no blockers for this branch"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena tools loaded and used for code navigation"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions read at session start"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pr-autofix skill read and followed"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "check_pr_live_state.py, pr_autofix_lease.py, validate_plugin_version_bump.py, generate_skills.py used"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items verified: CI green, threads resolved, version bumped"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Merge commit + 2 fix commits for review findings"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All CI checks pass; pre-push hooks pass; 10/10 skill tests pass"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "lefthook pre-commit ran markdown checks on staged files"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No memory updates needed; session is a CI fix and review response"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Merge",
+      "actions": [
+        "Merged origin/main (303f918ea8) to resolve CONFLICTING state",
+        "Resolved plugin.json conflicts: kept 0.6.136 (> main 0.6.135)",
+        "ADR-087 imported via merge from main (reviewed in session 3422)"
+      ]
+    },
+    {
+      "phase": "Review",
+      "actions": [
+        "Resolved 18 Copilot review threads: 3 fixed, 15 won't-fix with rationale",
+        "Fixed: manifest parity mentions in provenance.md and incident-history.md",
+        "Fixed: correct parity enforcer script name (check_plugin_manifest_parity.py)",
+        "Fixed: SKILL.md maintenance rule mentions both plugin manifests"
+      ]
+    }
+  ],
+  "endingCommit": "192a71cfbe",
+  "nextSteps": ["File issue for adr-review-policy merge exemption defect"]
+}

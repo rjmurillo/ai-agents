@@ -58,6 +58,7 @@ class TestCountUpstreamRefs:
         text = "Run .claude/skills/memory/scripts/search_memory.py here.\n"
         assert cmp.count_upstream_refs(text) == 0
 
+
     @pytest.mark.parametrize(
         "text",
         [
@@ -82,6 +83,344 @@ class TestCountUpstreamRefs:
         ],
     )
     def test_ignores_partial_word_directory_refs(self, text: str) -> None:
+        assert cmp.count_upstream_refs(text) == 0
+    def test_counts_templates_agents_and_platforms(self) -> None:
+        # Both hold generator inputs that never ship in the plugin, so a
+        # consumer following either reference lands on nothing (issue #3459).
+        text = (
+            "Canonical source: `templates/agents/security.shared.md`. "
+            "Event mapping: `templates/platforms/copilot-cli.yaml`.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_counts_templates_windows_separators_and_mixed_case(self) -> None:
+        text = "See TEMPLATES\\AGENTS\\x.md and templates\\Platforms\\y.yaml.\n"
+        assert cmp.count_upstream_refs(text) == 2
+
+    def test_does_not_count_bare_templates_dir(self) -> None:
+        # Bare templates/ is overloaded: a Flask or Django render directory and
+        # a file-relative asset directory bundled inside a skill both use it,
+        # and both resolve consumer-side. Only the agents/ and platforms/
+        # segments name upstream-only generator inputs.
+        text = (
+            "Render from templates/ at request time, and the bundled "
+            "templates/report.md ships beside this skill.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_does_not_count_templates_nested_under_another_dir(self) -> None:
+        """A second segment is required, so this probes the real nested shape.
+
+        The earlier version of this test used ``assets/templates/foo.md``,
+        which matches no pattern at all because ``foo.md`` is not ``agents``
+        or ``platforms``. It passed against a regex that did not exclude a
+        leading path separator, so it proved nothing.
+        """
+        text = "The file assets/templates/agents/foo.md ships with the skill.\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/templates/agents/x.md",
+            "assets/templates/platforms/x.yaml",
+            "https://example.com/templates/agents/x.md",
+            "../templates/agents/x.md",
+            r"src\templates\agents\x.md",
+            "mytemplates/agents/x.md",
+            "https://x.com/awesome-templates/agents/x.md",
+            "--templates/agents/x",
+            "templates/agentsfoo",
+        ],
+    )
+    def test_does_not_count_paths_that_resolve_elsewhere(self, text: str) -> None:
+        """Paths nested under another directory do not name the upstream dir.
+
+        A non-dot separator or parent-directory prefix before ``templates`` means it resolves
+        somewhere else and ships with its container. Windows and POSIX must
+        agree; an earlier regex rejected the Windows nested form and accepted
+        the POSIX one.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "templates/agents/x.md",
+            "./templates/agents/x.md",
+            r".\templates\agents\x.md",
+            "/templates/agents/x.md",
+            "See /templates/platforms/x.yaml here",
+            r"\templates\agents\x.md",
+            "- templates/agents/x.md",
+            "  - templates/platforms/x.yaml",
+            "`templates/agents/x.md`",
+            "|templates/agents/x.md|",
+            "(templates/agents/x.md)",
+            "'templates/agents'",
+            "Templates/Agents/x.md",
+            "templates/agents?raw=1",
+            "templates/agents#section",
+            "templates/agents",
+        ],
+    )
+    def test_counts_paths_that_name_the_upstream_dir(self, text: str) -> None:
+        """Every shape that really does name the source-tree directory.
+
+        Covers an optional ``./`` prefix, Markdown bullets, nested list
+        items, inline code, table cells, parentheses, quotes, case
+        insensitivity, and a query string or anchor after a bare directory
+        reference.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    def test_does_not_count_hyphenated_or_glued_templates(self) -> None:
+        # A URL segment like awesome-templates/agents/ and a glued word like
+        # mytemplates/agents/ are not the repo-root templates/ directory.
+        text = (
+            "See https://example.com/awesome-templates/agents/x and the "
+            "mytemplates/agents/y file.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
+
+class TestDotPrefixedUpstreamBoundary:
+    """The ``.agents``, ``.claude/lib`` and ``.claude/review-axes`` families.
+
+    These three patterns predate the ``templates/`` families and carried a
+    lookbehind that omitted the forward slash, so any nested or URL-embedded
+    occurrence counted as an upstream reference. All five patterns now share
+    one boundary, so the same shapes must resolve the same way.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "src/.agents/foo.md",
+            "https://example.com/.agents/foo.md",
+            "vendor/.claude/lib/foo.py",
+            "https://example.com/.claude/lib/foo.py",
+            "src/.claude/review-axes/x.md",
+            "../.agents/x.md",
+            "x.agents/foo",
+        ],
+    )
+    def test_nested_dot_prefixed_paths_do_not_count(self, text: str) -> None:
+        """A dot directory under another path is not the upstream directory.
+
+        ``src/.agents/`` ships with ``src/``; a consumer following it does not
+        land on nothing, so counting it overstates the portability debt.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            ".agents/specs/x.md",
+            "/.agents/specs/x.md",
+            "./.agents/specs/x.md",
+            ".claude/lib/foo.py",
+            "/.claude/lib/foo.py",
+            ".claude/review-axes/x.md",
+            "/.claude/review-axes/x.md",
+            r"\.agents\specs\x.md",
+            r"\.claude\lib\foo.py",
+            r"\.claude\review-axes\x.md",
+        ],
+    )
+    def test_root_anchored_dot_prefixed_paths_count(self, text: str) -> None:
+        """A repository-root-relative link is still an upstream reference.
+
+        GitHub renders a leading-slash link relative to the repository root,
+        so ``/.agents/specs/x.md`` names the same directory as ``.agents/``.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+
+class TestPathStartAnchor:
+    """The anchor that decides where a path may begin.
+
+    An earlier revision tested the character before the path with a negative
+    lookbehind, ``(?<![\\w.\\-/\\\\])``, applied ahead of an optional separator.
+    Any character outside that set therefore opened a match, so a home-relative
+    path, a Windows drive, a shell or batch variable expansion, a ``file://``
+    URL, a protocol-relative URL and a URL fragment all counted as
+    repository-root references. The anchor now names the characters that may
+    precede a path instead of naming the ones that may not.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "~/templates/agents/x.md",
+            "~/.agents/x.md",
+            "${ROOT}/templates/agents/x.md",
+            "${ROOT}/.agents/x.md",
+            "%ROOT%\\templates\\agents\\x.md",
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\x.md",
+            "file:///templates/agents/x.md",
+            "//templates/agents/x.md",
+            "[x](https://example.com/#/templates/agents/x.md)",
+            "[x](https://example.com/?next=/.agents/x.md)",
+        ],
+    )
+    def test_paths_rooted_somewhere_else_do_not_count(self, text: str) -> None:
+        """None of these resolve from the repository root.
+
+        A home directory, a drive letter, a variable expansion and a URL
+        authority each supply their own root, so the path that follows is not
+        the upstream directory even though the text after the separator matches.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "/templates/agents/x.md",
+            "[x](/templates/agents/x.md)",
+            "See /templates/platforms/x.yaml for the shape.",
+            "| /templates/agents/x.md | generated |",
+            '<img src="/templates/agents/x.md">',
+            "`templates/agents/x.md`",
+            "Prose line.\n/templates/agents/x.md",
+            ">/templates/agents/x.md",
+        ],
+    )
+    def test_paths_at_a_real_start_of_context_count(self, text: str) -> None:
+        """A path may open the document, follow whitespace, or follow a delimiter.
+
+        Markdown link parentheses, table pipes, HTML attribute quotes and inline
+        code backticks all introduce a path without changing where it resolves
+        from, so each one still counts. A tight blockquote marker counts too, so
+        it agrees with the spaced form that whitespace already accepts.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]:/templates/agents/x.md",
+            "path:/templates/agents/x.md",
+            "<img src=/templates/agents/x.md>",
+        ],
+    )
+    def test_labelled_and_attribute_contexts_count(self, text: str) -> None:
+        """A colon or equals in a named context introduces a real path.
+
+        A link reference definition and a ``path:`` label both put a colon
+        before the path; an unquoted HTML attribute puts an equals sign there.
+        Only the ``[label]:`` form is a CommonMark construct, a link reference
+        definition; ``path:`` is a project convention and the unquoted attribute
+        is HTML. The validator treats each as a path reference by naming the
+        context, so each counts.
+
+        Naming the context is what makes this safe. Admitting a raw ``:`` would
+        also count the Windows drive letters ``C:\\templates\\`` and
+        ``C:\\.agents\\``; admitting a raw ``=`` would also count the URL query
+        parameter ``?next=/.agents/x``. The guards below pin those out (issue
+        #3489).
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "[x]: /templates/agents/x.md",
+            "[x]:   /templates/agents/x.md",
+            "[x]:\t/templates/agents/x.md",
+            "[x]:\n/templates/agents/x.md",
+            "path:   /templates/agents/x.md",
+            "<img src= /templates/agents/x.md>",
+        ],
+    )
+    def test_label_definition_whitespace_after_colon_still_counts(self, text: str) -> None:
+        """Whitespace between the label colon and the path still counts.
+
+        CommonMark allows optional spaces, tabs, and up to one line ending
+        between a link reference definition's colon and its destination. A
+        review asked to widen ``_LABEL_ANCHOR`` and ``_ATTR_ANCHOR`` to accept
+        that gap, but no widening is needed: the whitespace is itself an anchor
+        character, a space, tab or newline, so the path anchors on the gap
+        rather than on the label. Widening the label anchors would only re-match
+        what the whitespace anchor already matches, which is dead regex. This
+        pins the deliberate limit so the label anchors stay tight-only.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "C:\\templates\\agents\\x.md",
+            "C:\\.agents\\specs\\x.md",
+            "[x](https://example.com/p?next=/.agents/x)",
+            "file:/templates/agents/x.md",
+            "note:/templates/agents/x.md",
+            "https://example.com/path:/templates/agents/x.md",
+            "https://example.com/?src=/templates/agents/x.md",
+        ],
+    )
+    def test_shapes_that_raw_colon_or_equals_anchors_would_break(self, text: str) -> None:
+        """Negative control for the contextual anchors above.
+
+        Each of these carries a colon or an equals sign immediately before a
+        path-looking string, and none of them names the repository root. A
+        colon anchors a path only when the literal ``path`` or a bracketed
+        label sits at an anchor before it: a Windows drive letter, a URI scheme,
+        and a bare prose word (``note:``) are none of those, and a URL query
+        parameter has no enclosing tag for the attribute anchor. If someone
+        replaces the contextual anchors with a raw ``:`` or ``=`` in the
+        character set, these start counting and this test fails, which is the
+        intended warning.
+        """
+        assert cmp.count_upstream_refs(text + "\n") == 0
+
+
+class TestBlockquotedFence:
+    """A fenced block inside a blockquote is still a code block.
+
+    GitHub admonitions put an example inside ``>``-prefixed lines. CommonMark
+    parses blockquote content as Markdown once the marker is removed, so the
+    fence has to be recognised there or the example counts as prose.
+    """
+
+    def test_fence_inside_a_blockquote_is_stripped(self) -> None:
+        text = "> [!NOTE]\n> ```bash\n> cp /templates/agents/x.md .\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_blockquoted_prose_still_counts(self) -> None:
+        """Only the fence is exempt; a quoted prose reference is a real one."""
+        assert cmp.count_upstream_refs("> Copy /templates/agents/x.md first.\n") == 1
+
+    def test_quoted_line_does_not_close_a_top_level_fence(self) -> None:
+        """A close must match the context its open was found in.
+
+        Otherwise a ``>``-prefixed backtick line inside a top-level fence would
+        end the block early and expose the rest of the example as prose.
+        """
+        text = "```\n> ```\n/templates/agents/x.md\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_unquoted_line_ends_a_quoted_fence(self) -> None:
+        """A fenced block has no lazy continuation, so it dies with its quote.
+
+        The unquoted line is top-level prose, not fence body, so a reference on
+        it is a real dependency and must count.
+        """
+        text = "> ```\n> code .agents/a\nplain /templates/agents/b\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_unterminated_quoted_fence_does_not_swallow_later_prose(self) -> None:
+        text = "> ```\n> code .agents/a\nreal prose /templates/agents/b\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_line_ending_a_quoted_fence_is_re_read_at_top_level(self) -> None:
+        """Ending the blockquote must not skip fence detection on that line.
+
+        The bare fence marker leaves the blockquote and opens a top-level fence,
+        so the lines after it are code and must not count.
+        """
+        text = "> ```bash\n> echo hi\n```\n> cp .agents/x .\n> ```\n"
         assert cmp.count_upstream_refs(text) == 0
 
 
@@ -298,3 +637,37 @@ class TestCommittedRepoHasNoDrift:
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
+
+
+class TestBlockquoteFenceDepth:
+    """A quoted fence remembers the depth it opened at, not just that it was quoted.
+
+    Tracking only a boolean loses both directions of the question. Each case
+    below was cross-checked against CommonMark via markdown-it, which is the
+    arbiter for what is code and what is prose (issue #3489).
+    """
+
+    def test_deeper_marker_does_not_close_a_shallower_fence(self) -> None:
+        """``>>`` inside a ``>`` fence is content, not the closing marker.
+
+        Stripping every marker made the depth-2 line look like a bare closing
+        fence, which ended the block early and exposed the following code line
+        as prose. CommonMark keeps the path inside a fence token.
+        """
+        text = "> ```\n>> ```\n> /templates/agents/x.md\n> ```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_dropping_below_the_opening_depth_ends_the_fence(self) -> None:
+        """A fence opened at depth 2 ends when the document returns to depth 1.
+
+        The depth-1 line has left the blockquote the fence opened in, so it is
+        prose. Testing only for the presence of a marker kept the fence open and
+        hid it. CommonMark puts the path in an inline token.
+        """
+        text = ">> ```\n>> code\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_same_depth_marker_still_closes(self) -> None:
+        """The ordinary case keeps working: a marker at the opening depth closes."""
+        text = "> ```\n> code\n> ```\n> /templates/agents/x.md\n"
+        assert cmp.count_upstream_refs(text) == 1
