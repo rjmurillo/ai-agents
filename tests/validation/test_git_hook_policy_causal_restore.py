@@ -1433,7 +1433,7 @@ class TestAdrReviewPolicyMergeScope:
         value works, but that the setting is not an input.
         """
         answers = {}
-        for setting in ("combined", "dense-combined", "separate", "on", "first-parent"):
+        for setting in ("combined", "dense-combined", "separate", "on", "first-parent", "off"):
             repo, name, _ = _repo_where_main_resolved_an_adr_in_a_merge(
                 tmp_path / setting,
                 diff_merges=setting,
@@ -1441,6 +1441,41 @@ class TestAdrReviewPolicyMergeScope:
             answers[setting] = policy._origin_main_blob_ids(repo, name)
 
         assert len(set(map(frozenset, answers.values()))) == 1, answers
+
+    def test_a_state_only_the_plain_traversal_reaches_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """Asking for merge diffs must not cost a state main already had.
+
+        `--follow` rewrites the path it is following each time it detects a
+        rename, so which rename it sees decides which lineage it walks. Asking
+        for merge diffs makes the merge-versus-first-parent rename visible, and
+        following that one walks main's side of the history and reports the
+        side branch's file as a deletion rather than crossing into it.
+
+        The side branch's revision is a state of this file on `origin/main`,
+        and the implementation before merge diffs were asked for returned it.
+        Trading it away for the resolution blob swaps one silent gap for
+        another: a branch sitting on that revision holds content main really
+        carried, and demanding review evidence for it is the false positive
+        this whole lookup exists to prevent.
+        """
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+
+        assert side_blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_the_resolution_and_the_side_state_are_both_carried(
+        self,
+        tmp_path,
+    ):
+        """Neither traversal alone answers the question, so both must run."""
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+        resolution = _git(repo, "rev-parse", "HEAD~1:" + name).stdout.strip()
+
+        carried = policy._origin_main_blob_ids(repo, name)
+
+        assert {side_blob, resolution} <= carried
 
     def test_a_combined_diff_record_is_never_read_as_a_post_image(
         self,
@@ -1477,6 +1512,55 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert policy._origin_main_blob_ids(repo, "doc.md") == {"5" * 40}
+
+
+def _repo_where_a_rename_crossed_a_merge(tmp_path: Path) -> tuple[Path, str, str]:
+    """Build a repo where the rename is detectable on both sides of a merge.
+
+    The side branch renames and edits, main edits the old name, and the merge
+    resolves at the new name. The bodies are long enough that both the side
+    rename and the merge-versus-first-parent rename clear git's similarity
+    threshold, which is what makes the two traversals disagree about which
+    lineage to follow. Short fixtures do not reproduce it.
+
+    Returns the repo, the followed path, and the blob the side branch left.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+    body = "header\n" + "same line\n" * 30
+
+    old_name = ".agents/architecture/ADR-097-moved.md"
+    new_name = ".agents/architecture/ADR-097-renamed.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / old_name).write_bytes((body + "base\n").encode("utf-8"))
+    _git(repo, "add", "--", old_name)
+    _git(repo, "commit", "-qm", "base")
+
+    _git(repo, "checkout", "-qb", "side")
+    _git(repo, "mv", old_name, new_name)
+    (repo / new_name).write_bytes((body + "side renamed\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "side renames and edits")
+    side_blob = _git(repo, "rev-parse", "HEAD:" + new_name).stdout.strip()
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / old_name).write_bytes((body + "main edit\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "main edits the old name")
+
+    merge = _run(["git", "merge", "--no-edit", "side"], repo)
+    assert merge.returncode != 0, "the fixture needs the merge to conflict"
+    (repo / old_name).unlink(missing_ok=True)
+    (repo / new_name).write_bytes((body + "resolved renamed\n").encode("utf-8"))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "merge resolves at the new name")
+
+    (repo / new_name).write_bytes((body + "later\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "later edit")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo, new_name, side_blob
 
 
 def _repo_where_main_resolved_an_adr_in_a_merge(

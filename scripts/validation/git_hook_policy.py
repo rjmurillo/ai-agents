@@ -991,39 +991,25 @@ def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
     return result.stdout.strip() or None
 
 
-def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
-    """Every blob `path` has held in `origin/main`, following it through renames.
+def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
+    """Blob ids from one `--follow` traversal of `path` on `origin/main`.
 
-    Asking `rev-list` for one pathname stops at the rename, so an ADR that was
-    moved and revised on main left its earlier states behind under the former
-    name. A branch that had also moved the file then held a copy main really
-    had carried, failed this check on the name alone, and had review evidence
-    demanded of it for someone else's revision.
+    Reading ids out of the raw diff rather than re-reading the file at each
+    commit is what makes `--follow` useful here: at the older commits the
+    current name does not exist yet.
 
-    `--follow` crosses the rename, and reading blob ids out of the raw diff
-    rather than re-reading the file at each commit is what makes that useful:
-    at those older commits the current name does not exist yet. The widening
-    is exactly one file's lineage, not any blob main happens to contain.
-
-    `--diff-merges=separate` is what makes merges count. `--raw` prints nothing
-    for a merge commit unless asked, so an ADR whose only appearance in some
-    state was a conflict main resolved left no id behind, and a branch sitting
-    on that resolution failed on content main really had carried. `separate`
-    splits the merge into one diff per parent, which keeps the single-parent
-    `:` raw form, so the post-image stays the fourth field.
-
-    The format is named rather than left to `-m`, which means
+    `diff_merges` is named rather than left to `-m`, which means
     `--diff-merges=on` and takes its format from the user's `log.diffMerges`.
     Set to `combined` or `dense-combined`, a merge prints one `::` record whose
-    fourth field is the first parent's pre-image, so the resolution went
-    missing again and a blob nobody asked about took its place. What this gate
-    accepts is not a readability preference.
+    fourth field is the first parent's pre-image, so the post-image this reads
+    would be the wrong blob. What this gate accepts is not a readability
+    preference.
     """
     result = _run_git(
         repo_root,
         [
             "log",
-            "--diff-merges=separate",
+            f"--diff-merges={diff_merges}",
             "--follow",
             "--format=",
             "--raw",
@@ -1049,6 +1035,39 @@ def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
         blob_ids.add(fields[3])
     blob_ids.discard("0" * 40)
     return blob_ids
+
+
+def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
+    """Every blob `path` has held in `origin/main`, following it through renames.
+
+    Asking `rev-list` for one pathname stops at the rename, so an ADR that was
+    moved and revised on main left its earlier states behind under the former
+    name. A branch that had also moved the file then held a copy main really
+    had carried, failed this check on the name alone, and had review evidence
+    demanded of it for someone else's revision.
+
+    Two traversals, because neither answers the question alone.
+
+    `separate` splits a merge into one diff per parent, which is what makes a
+    conflict main resolved leave an id behind. `--raw` prints nothing for a
+    merge otherwise, so an ADR whose only appearance in some state was a
+    resolution was invisible here.
+
+    `off` is not redundant with it. `--follow` rewrites the path it follows
+    each time it detects a rename, so which renames are visible decides which
+    lineage it walks. With merge diffs asked for, the merge-versus-first-parent
+    rename becomes visible, following it walks main's side, and a side branch
+    that renamed the file is reported as a deletion rather than crossed into.
+    The states on that side are states of this file on `origin/main`, and
+    asking for the resolution must not cost them.
+
+    Every id either traversal reports comes from a commit reachable from
+    `origin/main`, so the union widens exactly one file's lineage rather than
+    admitting any blob the branch happens to contain.
+    """
+    return _followed_blob_ids(repo_root, path, "off") | _followed_blob_ids(
+        repo_root, path, "separate"
+    )
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
