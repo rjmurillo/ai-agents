@@ -291,7 +291,7 @@ After initialization (or immediately if not a new session), plan the PR review w
 
 ### 3. Memory Inventory
 
-After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a comprehensive memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
+After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a full memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
 
 ### 4. Memory Relevance Evaluation
 
@@ -683,6 +683,30 @@ git worktree remove --force "$WT"
 
 Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push, then re-run the completion gate. After the push, GitHub recomputes mergeability from the fresh ref and clears the stale cache.
 
+Mergeability is not the only thing that goes stale, and the two do not clear
+together. GitHub also pins the comparison base used for the file list, and a
+push that only refreshes the head can leave it behind. Verified on PR #3647 on
+2026-07-28: after a plain push, `mergeable` corrected from `CONFLICTING` to
+`MERGEABLE`, while `base.sha` stayed at a main commit 30 commits old and the
+API reported 316 changed files against a real diff of 5. Every extra file was
+main's own work, attributed to the branch. Merging the current base in and
+pushing that moved `base.sha` to the base tip and the count to 5.
+
+The distinction matters when choosing the fix. A no-op merge is enough to clear
+stale mergeability, because the push alone refreshes the ref. It is not enough
+to clear a stale comparison base, because that only moves when the head
+actually advances past the base tip. So check the file count, not just
+`mergeable`, before concluding a refresh worked:
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$PR" --jq '.base.sha, .changed_files'
+git diff --stat "origin/$BASE...HEAD" | tail -1   # authoritative
+```
+
+An inflated count is worth clearing rather than ignoring. It buries the real
+change in review, and any gate that reasons over changed files, including the
+PR description validator, will judge the PR on files it does not own.
+
 ## Branch Update Against Main
 
 If `mergeStateStatus == BEHIND` (or `BLOCKED` with no other obvious cause), the branch must be updated against `main` before the PR can land. Repos with linear-history requirements will not allow squash-merge to bypass this.
@@ -735,6 +759,7 @@ When any of these signal a force-reset, restore by force-pushing the last-known-
 ## Key Commands Used
 
 **Note**: Replace placeholders with actual values:
+
 - `{owner}` → Repository owner (e.g., `rjmurillo`)
 - `{repo}` → Repository name (e.g., `ai-agents`)
 - `{number}` → PR number (e.g., `255`)
@@ -850,6 +875,7 @@ For dependency update PRs (e.g., Renovate updating the same action across branch
 **Immediate fix**: Re-run the cancelled workflow run for each affected PR.
 
 **Durable fix options**:
+
 - Remove `cancel-in-progress: true` from PR validation workflows
 - Add `renovate[bot]` to the bot skip list alongside `dependabot[bot]`
 - Filter `edited` events for bot actors in workflow conditions

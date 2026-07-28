@@ -236,6 +236,18 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published the rebased branch without a force push, then found a second staleness mode on the PR itself.",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": []
     }
   ],

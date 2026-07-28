@@ -125,6 +125,14 @@ install a driver that always fails. Differing results show only that merge
 configuration affects this merge. Equal results are inconclusive, because an
 installed driver may decline. Neither substitutes for step 3 plus a trace.
 
+**A wrong file count is not evidence of a merge problem.** GitHub pins the base
+it compares against, and that pin can lag the base branch. Verified on PR #3647:
+the API reported 316 changed files against a real diff of 5, all the extras
+being base-branch work attributed to the branch. This looks alarming mid-triage
+and means nothing about drivers. Trust `git diff --stat "origin/$BASE...HEAD"`,
+and note that it clears on a different trigger than stale mergeability does. See
+`docs/autonomous-pr-monitor.md` for both triggers.
+
 ## Resolution
 
 Only for the local-clean, server-conflicting direction. Merge `origin/main` into
