@@ -47,9 +47,17 @@ class Section:
     body: str
 
 
+_FOOTNOTE_REFERENCE_RE = re.compile(r"\[\^[^\]\n]+\]")
+
+
 def _create_parser() -> MarkdownIt:
     """Create a configured markdown-it parser with table support."""
     return MarkdownIt("commonmark").enable("table")
+
+
+def _cell_text(content: str) -> str:
+    """Normalize table cell text for validation consumers."""
+    return _FOOTNOTE_REFERENCE_RE.sub("", content).strip()
 
 
 def parse_tables(markdown: str) -> list[ParsedTable]:
@@ -109,7 +117,7 @@ def _extract_table(tokens: list, start: int) -> ParsedTable | None:
         elif token.type in ("th_open", "td_open"):
             # Next token is inline with cell content
             if i + 1 < len(tokens) and tokens[i + 1].type == "inline":
-                cell_content = tokens[i + 1].content.strip()
+                cell_content = _cell_text(tokens[i + 1].content)
                 current_row.append(cell_content)
                 i += 1  # skip inline token
             else:
