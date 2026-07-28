@@ -768,7 +768,7 @@ Honest statement of what has and has not been exercised against real data.
 
 The run produced an ACCEPT and the ACCEPT was wrong. That is the finding.
 
-A real edit to `.claude/rules/working-with-legacy-code.md` moved the held-out
+A real edit to `.claude/rules/working-with-legacy-code.md` moved the held-out <!-- orphan-ref-ignore -->
 group 0.6 to 0.8 with two discordant gains, no losses, p=0.25. Post-hoc, the
 edited rule's own four scenarios had not moved at all; every flip came from a
 rule the edit never touched. Restoring the rule byte-for-byte and re-running
@@ -895,3 +895,10 @@ on two, one of which was not measuring what it said.
   runs unattended rather than in a benchmark harness: the split is
   fingerprinted because the task set is writable, and repeated decisions are
   budgeted because a sequential decision against one group selects on it.
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/working-with-legacy-code.md`.
+

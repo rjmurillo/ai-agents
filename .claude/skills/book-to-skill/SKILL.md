@@ -1,7 +1,7 @@
 ---
 name: book-to-skill
 version: 1.0.0
-description: "Input adapter that extracts a book's method into a structured payload and hands it off to SkillForge. Use when an operator wants to turn a methodology-bearing book (The Mom Test, Make It Stick, Influence, The Pragmatic Programmer, etc.) into one or more executable skills without hand-crafting the SkillForge prompt or bypassing SkillForge's triage and review gates."
+description: Input adapter that extracts a book's method into a structured payload and hands it off to SkillForge. Use when an operator wants to turn a methodology-bearing book (The Mom Test, Make It Stick, Influence, The Pragmatic Programmer, etc.) into one or more executable skills without hand-crafting the SkillForge prompt or bypassing SkillForge's triage and review gates. Use when you say "turn this book into a skill" or "extract method from TITLE".
 license: MIT
 ---
 

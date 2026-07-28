@@ -143,7 +143,7 @@ the accepted decision record for the first decomposition phase.
   envelope schema"; ADR-051 is actually the Synthesis Panel Frontmatter
   Standard. The response-envelope / output-format constraint is ADR-056. This
   ADR cites ADR-056 and flags the stale reference for issue cleanup.)
-- `.claude/rules/philosophy-of-software-design.md`: the deep-vs-shallow module
+- `.claude/rules/philosophy-of-software-design.md`: the deep-vs-shallow module <!-- orphan-ref-ignore -->
   test informs the split. A sub-skill is justified only if it hides real
   complexity behind a small interface; a sub-skill that is one script behind a
   one-line router call is a shallow pass-through and should not be created.
@@ -297,5 +297,12 @@ the adr-review debate gate.
 - `.claude/skills/memory/SKILL.md`: the skill being decomposed
 - AGENTS.md: the "Ask First" rule for architecture changes and new ADRs, plus
   the ADR Review BLOCKING gate for ADR edits
-- `.claude/rules/philosophy-of-software-design.md`: the deep-vs-shallow module
+- `.claude/rules/philosophy-of-software-design.md`: the deep-vs-shallow module <!-- orphan-ref-ignore -->
   test that bounds which sub-skills are worth creating
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/philosophy-of-software-design.md`.
+
