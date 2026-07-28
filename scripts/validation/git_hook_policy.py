@@ -20,6 +20,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
 
@@ -92,17 +93,28 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
     r"in rule '([^'\r\n]+)'(?:,|$)"
 )
 # The GitHub Actions rules in SEMGREP_POWERSHELL_RULES parse every `run:` scalar
-# as Bash. Two shapes are not Bash and defeat that sub-parse: a scalar another
-# interpreter runs (`shell: pwsh`, `shell: python3 {0}`), and a Bash scalar
-# carrying GitHub Actions `${{ }}` template syntax, which the runner substitutes
-# before any shell sees it. Semgrep reports those as warn-level errors with zero
-# findings. Tolerate exactly those two shapes; every other scan error still
-# blocks the push.
+# as Bash. Two shapes defeat that sub-parse without meaning the step is
+# unscannable: a scalar another interpreter runs (`shell: pwsh`,
+# `shell: python3 {0}`), and a Bash scalar carrying GitHub Actions `${{ }}`
+# template syntax, which the runner substitutes before any shell sees it.
+# Semgrep reports both as warn-level errors. Tolerate only those two shapes;
+# every other scan error still blocks the push.
 NON_BASH_SHELL_RE = re.compile(
     r"^\s*(?:pwsh|powershell|python|python3|node|ruby|perl|cmd)\b",
     re.IGNORECASE,
 )
+# A `shell:` value naming a second interpreter cannot be trusted to describe what
+# actually runs the script. `pwsh -NoProfile -Command "& '{0}'"` is the idiomatic
+# form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
+# declares Python and executes Bash. Refuse to classify the latter as non-Bash.
+FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
+# `bash -n` parses without executing. A body it accepts is valid shell, so a
+# Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
+# the step is unscannable. A body it rejects is genuinely malformed, and an
+# attacker can use that to make Semgrep miss a real finding, so those still
+# block. Refs #3663.
+BASH_SYNTAX_CHECK_TIMEOUT_SECONDS = 10
 SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
@@ -2298,11 +2310,44 @@ def _semgrep_line_matches_pattern(
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
-    return shell is not None and bool(NON_BASH_SHELL_RE.match(shell))
+    if shell is None:
+        return False
+    match = NON_BASH_SHELL_RE.match(shell)
+    if match is None:
+        return False
+    return not FOREIGN_SHELL_REFERENCE_RE.search(shell[match.end() :])
+
+
+@lru_cache(maxsize=256)
+def _body_is_valid_shell_syntax(run: str) -> bool:
+    """Report whether ``bash -n`` parses ``run`` without a syntax error.
+
+    ``bash -n`` reads and parses but never executes, so this is safe on
+    untrusted workflow content. A missing or unusable ``bash`` fails closed:
+    the caller then refuses to tolerate the Semgrep error and blocks the push.
+    """
+    try:
+        result = subprocess.run(
+            ["bash", "-n"],
+            input=run,
+            capture_output=True,
+            text=True,
+            timeout=BASH_SYNTAX_CHECK_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
-    return _is_non_bash_shell(shell) or bool(ACTIONS_EXPRESSION_RE.search(run))
+    if _is_non_bash_shell(shell):
+        return True
+    if not ACTIONS_EXPRESSION_RE.search(run):
+        return False
+    # An Actions expression explains a Bash sub-parse failure only when the body
+    # is otherwise valid shell. Without this check, appending a deliberate syntax
+    # error to a malicious script suppresses the finding and the error together.
+    return _body_is_valid_shell_syntax(run)
 
 
 def _powershell_partial_parsing_spans(
