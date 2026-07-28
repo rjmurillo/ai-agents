@@ -316,6 +316,7 @@ def find_manifests(root: Path) -> list[Path]:
     import os
 
     excluded_dirs = {
+        ".agent-tmp",
         ".worktrees",
         "worktrees",
         "node_modules",
