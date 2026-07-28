@@ -156,8 +156,12 @@ raise SystemExit(oa._final_exit_code(oa.EXIT_OK))
 """
 
 
-def _readme_paragraph(marker: str) -> str:
-    """The one README paragraph containing `marker`.
+_BLOCK_START = re.compile(r"[^\S\n]*(?:#{1,6} |[-*+] |\d+[.)] |> |```|~~~)")
+_ATX_HEADING = re.compile(r"[^\S\n]*#{1,6} ")
+
+
+def _markdown_block(text: str, marker: str) -> str:
+    """The one Markdown block in ``text`` containing ``marker``.
 
     Documentation tests need a window or they assert nothing, and every window
     this file has tried was too wide. A file-wide search passes on an unrelated
@@ -168,28 +172,73 @@ def _readme_paragraph(marker: str) -> str:
     already said "consultations" three paragraphs down, so an assertion meant
     for the new prose passed on someone else's.
 
-    A blank-line-delimited paragraph is the narrowest real structural unit in
-    Markdown, so it is the only one of the four that cannot borrow a word from
-    a neighbour.
+    A blank-line-delimited paragraph was the fourth, and the closest, and it
+    still borrows from its neighbours. CommonMark lets a heading, a list, a
+    blockquote, and a fence interrupt a paragraph with no blank line before
+    them, so `prose\\n### Heading\\nmore prose` is three blocks to every
+    renderer and was one window here. Bound on those starts as well as on
+    blank lines, which is what a renderer does.
+
+    Fence-aware, because the README opens with a `bash` block whose comments
+    start with `#`. Splitting on those would report a code sample as three
+    blocks and let an assertion match a line the reader sees as one listing.
 
     Raises:
-        AssertionError: `marker` is absent, which means the paragraph was
-            rewritten and the test needs updating rather than quietly widening.
+        AssertionError: ``marker`` is absent or repeated. Absent means the
+            prose was rewritten and the test needs updating rather than
+            quietly widening; repeated means the window would be arbitrary.
     """
-    text = (_EVAL_DIR / "README.md").read_text(encoding="utf-8")
     found = [m.start() for m in re.finditer(re.escape(marker), text)]
     assert len(found) == 1, (
         f"README contains {marker!r} {len(found)} times; a marker that is not "
-        "unique picks an arbitrary paragraph, so choose a longer one"
+        "unique picks an arbitrary block, so choose a longer one"
     )
-    at = found[0]
-    # A blank line carrying a space is still a paragraph break to every
-    # Markdown renderer, and a bare "\n\n" search walks straight past it into
-    # the neighbour this window exists to exclude.
-    breaks = [m for m in re.finditer(r"\n[^\S\n]*\n", text)]
-    start = max((m.end() for m in breaks if m.end() <= at), default=0)
-    end = min((m.start() for m in breaks if m.start() >= at), default=len(text))
-    return text[start:end]
+    target = text.count("\n", 0, found[0])
+    lines = text.split("\n")
+
+    # A fence toggles on its own line, so the marker's block is only known
+    # once the fence state at every line is known. Walk once, and record the
+    # index of the block each line belongs to.
+    blocks: list[list[int]] = []
+    in_fence = False
+    after_heading = False
+    for i, line in enumerate(lines):
+        fence = line.lstrip().startswith(("```", "~~~"))
+        blank = not line.strip()
+        # Inside a fence nothing starts a block, and the closing fence stays
+        # with the block it closes.
+        starts = not in_fence and (fence or bool(_BLOCK_START.match(line)))
+        if in_fence and fence:
+            in_fence = False
+        elif fence:
+            in_fence = True
+        if blank and not in_fence:
+            blocks.append([])
+            after_heading = False
+            continue
+        if starts or after_heading or not blocks:
+            blocks.append([])
+        blocks[-1].append(i)
+        # An ATX heading is a one-line leaf block, so the next line opens a
+        # paragraph rather than continuing the heading.
+        after_heading = starts and bool(_ATX_HEADING.match(line))
+
+    for block in blocks:
+        if target in block:
+            return "\n".join(lines[block[0]:block[-1] + 1])
+    raise AssertionError(f"{marker!r} landed on a blank line")
+
+
+def _readme_paragraph(marker: str) -> str:
+    """The one block of the eval README containing `marker`.
+
+    Kept separate from `_markdown_block` so the windowing rule can be tested
+    against written-out cases rather than against whatever the README happens
+    to say today. The four earlier windows were each correct for the README
+    that motivated them, so pinning the rule to the current file is how a
+    fifth one would go unnoticed.
+    """
+    return _markdown_block((_EVAL_DIR / "README.md").read_text(encoding="utf-8"), marker)
 
 
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
@@ -6411,6 +6460,102 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
                 "--mechanism", "full", "--reduce", "sum",
             ])
         assert exc.value.code == EXIT_CONFIG
+
+
+class TestMarkdownBlockStopsAtEveryBlockBoundary:
+    """The README window has to end where a Markdown renderer ends the block.
+
+    This is the fifth window this file has tried. The first four each widened
+    quietly: a file-wide search, a fixed character count, the next heading,
+    and a blank-line paragraph. Each passed an assertion on prose written for
+    something else, which is the one failure a documentation test must not
+    have, because it reports that a contract is documented when it is not.
+
+    The blank-line window was the closest and still wrong. CommonMark lets a
+    heading, a list, a blockquote, and a fence interrupt a paragraph with no
+    blank line before them, so a README that grows one of those next to a
+    marker silently hands the assertion its neighbour's words.
+    """
+
+    _INTERRUPTED = (
+        "the contract sentence\n"
+        "### Argument errors\n"
+        "the neighbour sentence\n"
+    )
+
+    def test_a_heading_ends_the_block_without_a_blank_line(self):
+        """The case the blank-line window could not see.
+
+        No blank line anywhere, so the old window returned the whole file and
+        an assertion for the contract sentence would have passed on the
+        neighbour's words.
+        """
+        assert _markdown_block(self._INTERRUPTED, "contract") == "the contract sentence"
+
+    def test_the_block_after_an_interrupter_is_also_bounded(self):
+        """The window has to be right from both sides of the heading."""
+        assert _markdown_block(self._INTERRUPTED, "neighbour") == "the neighbour sentence"
+
+    def test_the_interrupting_heading_is_its_own_block(self):
+        """A marker on the heading line selects the heading, not the prose."""
+        assert _markdown_block(self._INTERRUPTED, "Argument") == "### Argument errors"
+
+    @pytest.mark.parametrize(
+        "interrupter",
+        ["### Heading", "- a bullet", "1. an item", "> a quote", "```json"],
+    )
+    def test_every_construct_commonmark_lets_interrupt_a_paragraph_does(
+        self, interrupter
+    ):
+        """One case each for the four block starts, plus a fence.
+
+        Pinned by construct rather than by one representative because the
+        previous windows were each correct for the example that motivated
+        them and wrong for the next one.
+        """
+        text = f"the contract sentence\n{interrupter}\nsomething else\n"
+        assert _markdown_block(text, "contract") == "the contract sentence"
+
+    def test_a_blank_line_still_ends_a_block(self):
+        """The property the previous window had is not lost by gaining this one."""
+        text = "first paragraph\n\nsecond paragraph\n"
+        assert _markdown_block(text, "first") == "first paragraph"
+
+    def test_a_blank_line_carrying_a_space_still_ends_a_block(self):
+        """Round 26's fix. A whitespace-only line renders as a break."""
+        text = "first paragraph\n \nsecond paragraph\n"
+        assert _markdown_block(text, "first") == "first paragraph"
+
+    def test_a_soft_wrapped_paragraph_stays_whole(self):
+        """The negative case. Over-splitting is as wrong as over-joining.
+
+        Every README paragraph this file asserts on is soft-wrapped across
+        several lines, so a window that stopped at every newline would make
+        each of them assert on a fragment.
+        """
+        text = "one sentence\nwrapped across lines\nand a third\n\nnext\n"
+        assert _markdown_block(text, "wrapped") == (
+            "one sentence\nwrapped across lines\nand a third"
+        )
+
+    def test_a_hash_inside_a_fence_is_not_a_heading(self):
+        """A shell comment in a `bash` block would otherwise split the fence.
+
+        The README opens with exactly this shape, so a fence-blind rule would
+        have reported the code sample as three separate blocks.
+        """
+        text = "```bash\n# a shell comment\nrun --flag\n```\n"
+        assert _markdown_block(text, "shell comment") == text.rstrip("\n")
+
+    def test_a_marker_that_appears_twice_is_refused(self):
+        """A non-unique marker picks an arbitrary block, so it is not allowed."""
+        with pytest.raises(AssertionError, match="2 times"):
+            _markdown_block("a marker here\n\nand a marker there\n", "a marker")
+
+    def test_a_marker_that_is_absent_is_refused(self):
+        """An absent marker means the prose was rewritten, not that it passes."""
+        with pytest.raises(AssertionError, match="0 times"):
+            _markdown_block("nothing to see\n", "absent")
 
 
 class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
