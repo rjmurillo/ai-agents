@@ -106,7 +106,11 @@ The guard deliberately does not require every scanned tree to carry a matrix. A
 tree holding only agent definitions and no routing table is a valid state, so
 that rule would fire on correct repositories.
 
-EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
+EXIT CODES. This script uses the 0-2 subset of the 0-4 contract in
+.agents/architecture/ADR-035-exit-code-standardization.md. Codes 3 (external
+service error) and 4 (authentication error) are unreachable here, not
+redefined: the scan reads local files only and makes no network or
+authenticated call.
   0 - Success: every cited agent name resolves within its own tree
   1 - Violations found, or the scan degenerated (no matrices, or a parse gap)
   2 - Configuration error: a configured tree is absent, or no tree yields agents

@@ -104,10 +104,11 @@ measurement; this section records the working practice to follow until it lands.
 Practical rule while the gap stands: **write shared agent prose without naming a
 tree-specific path.** Say "an agent registered in this install" rather than
 "a file at `.claude/agents/<name>.md`". The same body is copied into six trees
-across two plugin roots, so any path you name is wrong in most of them. This is
+across three plugin roots (`.claude/`, `src/claude/`, `src/copilot-cli/`, each of
+which installs standalone), so any path you name is wrong in most of them. This is
 not a style preference; it is the only way to be correct in all six copies at once.
 A draft of the orchestrator capability-matrix note did name that path, shipped it
-into both plugin roots, and no gate flagged it. A manual read caught it.
+into the plugin roots, and no gate flagged it. A manual read caught it.
 
 ## MUST
 

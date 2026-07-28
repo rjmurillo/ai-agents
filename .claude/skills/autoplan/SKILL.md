@@ -97,6 +97,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
 | Port, implement, or change cross-harness hooks | Skill: ai-agents-portability-campaign |
+| Software design depth, architecture boundaries, domain modeling, refactoring, legacy code, low coverage, old files, external APIs, queues, retries, transactions, event ordering, schema evolution, resilience | Skill: software-engineering-library, then the routed reference |
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
