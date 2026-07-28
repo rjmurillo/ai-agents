@@ -2,18 +2,25 @@
 
 ``check_pushed_suppressions`` reads the diff a push would send and blocks
 unjustified lint suppressions. Its bypasses are all parser-shaped: a bare
-``# noqa`` ruff still honors, a notebook cell the textual diff renders
-differently, a new branch with no merge base, a shallow clone. Each one is a
-way to land a suppression the gate was built to catch, so each gets a test.
+ruff-honored comment, a notebook cell the textual diff renders differently, a
+new branch with no merge base, a shallow clone. Each one is a way to land a
+suppression the gate was built to catch, so each gets a test.
 
-``check_adr_review_policy`` blocks an ADR change with no adr-review evidence.
-The exception is a merge in progress: an ADR reviewed on main arrives in the
-merge commit carrying no evidence of its own, and blocking there would wedge
+``check_adr_review_policy`` blocks an ADR change carrying no adr-review
+evidence. The exception is a merge in progress: an ADR reviewed on main arrives
+in the merge commit with no evidence of its own, and blocking there would wedge
 every merge that touches architecture.
 
-These tests lived in ``test_git_hook_policy_causal_restore.py`` until the
-causal memory tier was removed (ADR-088). They never tested causality; they
-shared that file only because both suites exercise ``git_hook_policy``.
+The filename is stale and this file no longer tests causal restore. Three
+classes covering the causal graph's snapshot-and-restore path were removed with
+the graph itself (ADR-088). The two suites left never touched causality; they
+shared this file only because both exercise ``git_hook_policy``.
+
+The honest fix is a rename, and it is blocked. This file's fixtures embed the
+very suppression tokens the push gate scans for, and the gate diffs with
+``--no-renames`` on purpose, so a rename reads as a wholesale add and every
+fixture line trips it. Renaming requires teaching the gate to follow renames
+first. Filed as issue 3635.
 """
 
 from __future__ import annotations

@@ -234,10 +234,20 @@ outright, on the strength of its name. The name was wrong about its contents:
 three of its five classes covered the graph snapshot-and-restore path, and the
 other two covered the push gate's suppression parser and the ADR-review merge
 scope, which have nothing to do with causality. They shared a file only because
-both exercise `git_hook_policy`. The two surviving classes now live in
-`tests/validation/test_git_hook_policy_push_scope.py`, unchanged except for the
-module header. Deleting by filename would have silently dropped 25 tests
+both exercise `git_hook_policy`. The three causal classes are gone; the other
+two stay, unchanged. Deleting by filename would have silently dropped 25 tests
 guarding a gate that had been hardened four days earlier.
+
+The file keeps its now-stale name, which is unsatisfying and deliberate. The
+push gate scans pushed diffs for suppression comments and runs that diff with
+`--no-renames`, so a rename reads as a wholesale add. This file's fixtures embed
+the exact tokens the gate scans for, so renaming it trips the gate on 21 fixture
+lines that are not new. The gate has no allowlist and no escape hatch, and the
+`--no-renames` flag is asserted by a test on main, so it is a deliberate
+anti-bypass choice rather than an oversight. Renaming requires teaching the gate
+to skip pure renames first. That is issue 3635. Until then the docstring carries
+the explanation and an inverse test asserts both surviving classes are still
+collected at that path, so the filename trap cannot spring twice.
 
 ## Consequences
 

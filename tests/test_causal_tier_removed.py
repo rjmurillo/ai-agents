@@ -137,14 +137,20 @@ def test_non_causal_push_gate_tests_survived_the_removal() -> None:
     ``git_hook_policy``. A first pass of ADR-088 deleted the file on the
     strength of its name and dropped 25 unrelated tests. This asserts the
     survivors are still collected.
+
+    The file keeps its stale name on purpose. The push gate diffs with
+    ``--no-renames`` to close a rename-based bypass, and this file's fixtures
+    embed the tokens that gate scans for, so a rename reads as a wholesale add
+    and trips it on every fixture line. Renaming needs the gate to follow
+    renames first; filed as issue 3635.
     """
-    path = REPO_ROOT / "tests/validation/test_git_hook_policy_push_scope.py"
+    path = REPO_ROOT / "tests/validation/test_git_hook_policy_causal_restore.py"
     assert path.is_file(), (
-        "tests/validation/test_git_hook_policy_push_scope.py is missing. It holds "
-        "the suppression-parser and ADR-merge-scope tests rescued from the "
-        "deleted causal-restore file (ADR-088 Scope)."
+        "tests/validation/test_git_hook_policy_causal_restore.py is missing. Its "
+        "name is stale but it still holds the suppression-parser and "
+        "ADR-merge-scope tests, which never covered causality (ADR-088 Scope)."
     )
 
     body = path.read_text(encoding="utf-8")
     for expected in ("class TestPushedSuppressionPolicy:", "class TestAdrReviewPolicyMergeScope:"):
-        assert expected in body, f"{expected} was dropped from the rescued push-scope tests"
+        assert expected in body, f"{expected} was dropped from the surviving push-gate tests"
