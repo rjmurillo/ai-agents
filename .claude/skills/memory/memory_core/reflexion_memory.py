@@ -12,7 +12,7 @@ Tier Architecture:
 Tier 3 causal memory was removed; the graph was a derived cache with no runtime
 reader. Episodes remain the source of truth. No code reads them today either:
 the query API below has no caller outside this module, its tests, and
-documentation examples. See ADR-088 and issue 3630.
+documentation examples. See ADR-089 and issue 3630.
 
 Exit codes (ADR-035):
     0 - Success

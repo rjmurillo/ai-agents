@@ -128,8 +128,8 @@
     {
       "phase": "Review",
       "actions": [
-        "Ran the adr-review 6-agent debate on ADR-088; 4 of 6 blocked the first round",
-        "Corrected five refuted claims in ADR-088, including two the ADR used to justify itself, and removed a fabricated consumer table from memory-reflexion",
+        "Ran the adr-review 6-agent debate on ADR-089; 4 of 6 blocked the first round",
+        "Corrected five refuted claims in ADR-089, including two the ADR used to justify itself, and removed a fabricated consumer table from memory-reflexion",
         "Added tests/test_causal_tier_removed.py, 21 inverse tests, negative-controlled by reintroducing the graph, the merge attribute, and the lefthook job",
         "Filed issues 3630 and 3631 for the two findings that outlive this change",
         "Wrote the debate log and the retrospective"

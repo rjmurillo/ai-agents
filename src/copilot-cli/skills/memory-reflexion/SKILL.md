@@ -9,7 +9,7 @@ description: Tier 2 episode extraction, the reflexion write path split out of th
   or for adding citations (use memory-enhancement).
 license: MIT
 metadata:
-  adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063, ADR-088
+  adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063, ADR-089
   type: operation
   parent: memory
 ---
@@ -27,9 +27,9 @@ and read directly by downstream consumers.
 
 > [!NOTE]
 > This sub-skill previously carried a second step that folded episodes into a
-> derived causal graph (Tier 3). ADR-088 removed that layer: nothing read it,
+> derived causal graph (Tier 3). ADR-089 removed that layer: nothing read it,
 > and its aggregated output was noise. Episodes are unaffected and remain the
-> system of record. See ADR-088 for the evidence.
+> system of record. See ADR-089 for the evidence.
 
 ## Triggers
 
@@ -75,7 +75,7 @@ git grep -n "get_episodes\|get_episode(\|get_decision_sequence" -- '*.py' \
 ```
 
 An earlier version of this section claimed three consumers. That claim was
-false and the ADR-088 review retracted it. One of the three excludes episode
+false and the ADR-089 review retracted it. One of the three excludes episode
 paths from a churn signal, one allowlists the episode path prefix, and one
 generates and stages episodes. None reads episode content.
 
@@ -84,10 +84,10 @@ what happened in a session, and their value is that they can be queried later.
 That does not make an incomplete record harmless, so the extraction rules below
 still bind.
 
-Tier 2 survived the ADR-088 removal on derivation distance and cost, not on
+Tier 2 survived the ADR-089 removal on derivation distance and cost, not on
 readership. Episodes are the primary record and are many small files. The
 removed causal graph was derived from them and was a single rewritten blob.
-Whether episodes earn their keep is an open question that ADR-088 explicitly
+Whether episodes earn their keep is an open question that ADR-089 explicitly
 declined to settle.
 
 ## Schema
@@ -174,7 +174,7 @@ troubleshooting table and the retrospective integration workflow.
 | New episode field | Extend the ADR-038 episode schema; update `extract_session_episode.py` and the reference |
 | Downstream consumer | Read episode records directly; chain through `memory-search` for retrieval |
 
-Before adding a derived aggregation over episodes, read ADR-088. The last one
+Before adding a derived aggregation over episodes, read ADR-089. The last one
 was deleted for having no reader and producing noise. A new one needs a named
 consumer that is not itself memory tooling.
 
@@ -185,5 +185,5 @@ consumer that is not itself memory tooling.
 - ADR-038: Reflexion memory schema (episode shape)
 - ADR-056: Skill output format standardization (the envelope this sub-skill emits)
 - ADR-063: Memory skill decomposition (this extraction)
-- ADR-088: Removal of the derived causal-memory tier
+- ADR-089: Removal of the derived causal-memory tier
 - [references/reflexion-memory.md](references/reflexion-memory.md): full schema and integration workflow

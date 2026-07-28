@@ -3,7 +3,7 @@
 Issue #1948 / ADR-063 (accepted 2026-06-17) decomposes the memory router by
 operation. This phase extracts the Tier 2 episode-extraction write
 path into a focused `memory-reflexion` sub-skill while `memory` remains the thin
-router. ADR-088 removed the Tier 3 causal-graph step this sub-skill once
+router. ADR-089 removed the Tier 3 causal-graph step this sub-skill once
 carried; the contract below covers the surviving episode operation. These tests
 pin the contract the sub-skill must honor:
 

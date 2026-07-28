@@ -1,8 +1,8 @@
-# ADR-088 Debate Log
+# ADR-089 Debate Log
 
 | Field | Value |
 |-------|-------|
-| Artifact | `.agents/architecture/ADR-088-remove-causal-memory-tier.md` |
+| Artifact | `.agents/architecture/ADR-089-remove-causal-memory-tier.md` |
 | Protocol | adr-review, 6-agent debate |
 | Date | 2026-07-27 |
 | Trigger | New ADR staged alongside its implementation |
@@ -187,4 +187,4 @@ necessary either way and is not an alternative to this removal.
 
 ## Status
 
-ADR-088 remains `proposed`. Acceptance is the user's call, not this debate's.
+ADR-089 remains `proposed`. Acceptance is the user's call, not this debate's.

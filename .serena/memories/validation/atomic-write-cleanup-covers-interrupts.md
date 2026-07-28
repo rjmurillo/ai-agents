@@ -22,7 +22,7 @@ Any `tempfile.mkstemp` plus `os.replace` write, and any review of one.
 
 ## Evidence
 
-`_atomic_write_text` in `scripts/validation/merge_causal_graph.py` (deleted by ADR-088; reachable in git history) landed in
+`_atomic_write_text` in `scripts/validation/merge_causal_graph.py` (deleted by ADR-089; reachable in git history) landed in
 PR #3359 with cleanup attached to `except OSError`. Probe against `3d1f3b30d2`,
 forcing a `BaseException` out of the write:
 

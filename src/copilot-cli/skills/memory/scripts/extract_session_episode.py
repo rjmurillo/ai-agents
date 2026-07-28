@@ -1450,7 +1450,7 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     reader can walk one episode's events in causal order, but every
     event-construction site emitted them empty, leaving the chain flat
     (issue #3245). These links stay inside the episode file; the separate
-    aggregated causal graph they once fed was removed by ADR-088.
+    aggregated causal graph they once fed was removed by ADR-089.
 
     The chain follows observed evidence first. ``json_events`` appends every
     commit after the work-log milestones, so a purely positional chain linked

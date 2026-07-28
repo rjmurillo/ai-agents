@@ -1,5 +1,5 @@
 ---
-id: ADR-088
+id: ADR-089
 status: proposed
 date: 2026-07-27
 decision-makers: [rjmurillo]
@@ -9,7 +9,7 @@ explainer: null
 implemented: true
 ---
 
-# ADR-088: Remove the Tier 3 Causal Memory Graph
+# ADR-089: Remove the Tier 3 Causal Memory Graph
 
 ## Status
 

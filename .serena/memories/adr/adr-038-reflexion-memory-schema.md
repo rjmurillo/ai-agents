@@ -1,17 +1,17 @@
 # ADR-038 Reflexion Memory Schema
 
-**Status**: Proposed. Tier 3 removed by ADR-088.
+**Status**: Proposed. Tier 3 removed by ADR-089.
 **Date**: 2026-01-01
 **Task**: M-004 (Phase 2A)
 
-> Tier 3 (Causal) below was implemented and then deleted. ADR-088 found it was a
+> Tier 3 (Causal) below was implemented and then deleted. ADR-089 found it was a
 > derived cache of the Tier 2 episodes that nothing read, whose aggregated
 > patterns were noise. Tiers 0 through 2 stand. Do not implement Tier 3.
 > `caused_by`/`leads_to` links inside an episode are unaffected and still ship.
 
 ## Summary
 
-Reflexion memory architecture for episodic replay. Originally four tiers; Tier 3 was removed by ADR-088.
+Reflexion memory architecture for episodic replay. Originally four tiers; Tier 3 was removed by ADR-089.
 
 ## Tiers
 
@@ -20,13 +20,13 @@ Reflexion memory architecture for episodic replay. Originally four tiers; Tier 3
 | 0 | Working | Context window | Current task focus |
 | 1 | Semantic | Serena + Forgetful | Facts, patterns, rules |
 | 2 | Episodic | `.agents/memory/episodes/` | Session transcripts, decisions |
-| 3 | Causal | REMOVED by ADR-088 | Was cause-effect graphs; had no reader |
+| 3 | Causal | REMOVED by ADR-089 | Was cause-effect graphs; had no reader |
 
 ## Key Files
 
 - `.agents/architecture/ADR-038-reflexion-memory-schema.md` - Full ADR
 - .agents/schemas/episode.schema.json (removed) - Episode JSON schema
-- `.agents/memory/causality/causal-graph.json` (removed by ADR-088)
+- `.agents/memory/causality/causal-graph.json` (removed by ADR-089)
 
 ## Episode Structure
 
@@ -45,7 +45,7 @@ Reflexion memory architecture for episodic replay. Originally four tiers; Tier 3
 
 1. Create `.claude/skills/memory/scripts/ReflexionMemory.psm1` module
 2. Implement `Extract-SessionEpisode.ps1`
-3. ~~Implement `Update-CausalGraph.ps1`~~ (built, then removed by ADR-088)
+3. ~~Implement `Update-CausalGraph.ps1`~~ (built, then removed by ADR-089)
 
 Shipped as Python, not PowerShell: `memory_core/reflexion_memory.py` and
 `scripts/extract_session_episode.py` under `.claude/skills/memory/`.

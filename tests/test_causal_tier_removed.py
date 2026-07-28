@@ -1,4 +1,4 @@
-"""Regression guard for the ADR-088 removal of Tier 3 causal memory.
+"""Regression guard for the ADR-089 removal of Tier 3 causal memory.
 
 The removal deleted six canonical test files and their per-skill mirrors. The
 tests that survive assert positive keys only, so a reintroduction of the causal
@@ -9,7 +9,7 @@ close that gap, per TESTING-RIGOR (positive, negative, edge).
 Each test names the surface it guards, so a failure tells the reader which part
 of the tier came back rather than only that something did.
 
-Reintroducing the tier deliberately is allowed. It means superseding ADR-088
+Reintroducing the tier deliberately is allowed. It means superseding ADR-089
 and deleting this file in the same change, which is the point: the removal
 becomes a decision someone has to overturn on the record.
 """
@@ -52,7 +52,7 @@ def _read(relative: str) -> str:
 @pytest.mark.parametrize("relative", DELETED_ARTIFACTS)
 def test_deleted_artifact_stays_deleted(relative: str) -> None:
     assert not (REPO_ROOT / relative).exists(), (
-        f"{relative} is back. ADR-088 removed it; reintroducing the causal tier "
+        f"{relative} is back. ADR-089 removed it; reintroducing the causal tier "
         "requires superseding that ADR."
     )
 
@@ -72,7 +72,7 @@ def test_deleted_skill_file_stays_deleted(tree: str, relative: str) -> None:
 def test_memory_core_exports_no_causal_symbol(tree: str, symbol: str) -> None:
     source = _read(f"{tree}/skills/memory/memory_core/__init__.py")
     assert symbol not in source, (
-        f"{tree} memory_core re-exports {symbol}. The causal write API was removed by ADR-088."
+        f"{tree} memory_core re-exports {symbol}. The causal write API was removed by ADR-089."
     )
 
 
@@ -92,7 +92,7 @@ def test_gitattributes_declares_no_causal_merge_driver() -> None:
 def test_lefthook_declares_no_causal_job(job: str) -> None:
     source = _read("lefthook.yml")
     assert job not in source, (
-        f"lefthook.yml declares the {job} job again. ADR-088 removed it along "
+        f"lefthook.yml declares the {job} job again. ADR-089 removed it along "
         "with the script it invoked."
     )
 
@@ -108,7 +108,7 @@ def test_git_hook_policy_has_no_causal_subcommand() -> None:
 def test_episode_schema_retains_intra_episode_causal_links() -> None:
     """Edge case: the removal must not have taken the per-event links with it.
 
-    ADR-088 keeps ``caused_by`` and ``leads_to`` inside episode files. They
+    ADR-089 keeps ``caused_by`` and ``leads_to`` inside episode files. They
     order events within one session and predate the derived graph. A cleanup
     that greps for "causal" and deletes matches would strip them, which is why
     this asserts presence rather than absence.
@@ -122,7 +122,7 @@ def test_episode_schema_retains_intra_episode_causal_links() -> None:
             return
 
     pytest.fail(
-        "No episode retains a caused_by or leads_to link. ADR-088 kept the "
+        "No episode retains a caused_by or leads_to link. ADR-089 kept the "
         "intra-episode links; only the derived graph was removed."
     )
 
@@ -134,7 +134,7 @@ def test_non_causal_push_gate_tests_survived_the_removal() -> None:
     the graph snapshot-and-restore path and went with the graph. Two covered the
     push gate's suppression parser and the ADR-review merge scope, which never
     touched causality; they shared the file only because both exercise
-    ``git_hook_policy``. A first pass of ADR-088 deleted the file on the
+    ``git_hook_policy``. A first pass of ADR-089 deleted the file on the
     strength of its name and dropped 25 unrelated tests. This asserts the
     survivors are still collected.
 
@@ -148,7 +148,7 @@ def test_non_causal_push_gate_tests_survived_the_removal() -> None:
     assert path.is_file(), (
         "tests/validation/test_git_hook_policy_causal_restore.py is missing. Its "
         "name is stale but it still holds the suppression-parser and "
-        "ADR-merge-scope tests, which never covered causality (ADR-088 Scope)."
+        "ADR-merge-scope tests, which never covered causality (ADR-089 Scope)."
     )
 
     body = path.read_text(encoding="utf-8")

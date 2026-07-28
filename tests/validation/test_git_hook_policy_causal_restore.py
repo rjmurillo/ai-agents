@@ -13,7 +13,7 @@ every merge that touches architecture.
 
 The filename is stale and this file no longer tests causal restore. Three
 classes covering the causal graph's snapshot-and-restore path were removed with
-the graph itself (ADR-088). The two suites left never touched causality; they
+the graph itself (ADR-089). The two suites left never touched causality; they
 shared this file only because both exercise ``git_hook_policy``.
 
 Do not run ``ruff format`` on this file. The fixtures below split their

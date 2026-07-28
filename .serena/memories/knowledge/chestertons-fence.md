@@ -57,7 +57,7 @@ When changing existing systems:
 - Failure episodes document edge cases encountered
 - Success episodes show what worked
 
-A Tier 3 causal graph once sat above these. ADR-088 deleted it: nothing read
+A Tier 3 causal graph once sat above these. ADR-089 deleted it: nothing read
 it, and its aggregated "patterns" were noise. Read the episodes directly.
 
 ## Enforcement (BLOCKING Gate)

@@ -6,9 +6,9 @@
 
 The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`) provides episodic replay. This implements Tier 2 of the memory architecture.
 
-ADR-088 removed the Tier 3 derived causal graph this module once maintained: nothing read it, and its aggregated output was noise. Episodes are unaffected and remain the system of record.
+ADR-089 removed the Tier 3 derived causal graph this module once maintained: nothing read it, and its aggregated output was noise. Episodes are unaffected and remain the system of record.
 
-**ADR**: ADR-038 Reflexion Memory Schema, ADR-088 Causal Tier Removal
+**ADR**: ADR-038 Reflexion Memory Schema, ADR-089 Causal Tier Removal
 
 **Task**: M-005 (Phase 2A Memory System)
 

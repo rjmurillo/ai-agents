@@ -5,7 +5,7 @@
 The pre-commit hook `.githooks/pre-commit:1406-1441` runs
 `.claude/skills/memory/scripts/extract_session_episode.py` on every commit. It
 extracts the current session's episode to `.agents/memory/episodes/episode-<session>.json`,
-then stages it. Until ADR-088 it also wrote and staged
+then stages it. Until ADR-089 it also wrote and staged
 `.agents/memory/causality/causal-graph.json`; that graph and its writer job are
 deleted, so the hook now stages one file per commit, not two.
 

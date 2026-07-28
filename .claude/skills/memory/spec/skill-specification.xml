@@ -153,7 +153,7 @@
       <extension id="EXT1">Additional tier types (spatial, relational, temporal)</extension>
       <extension id="EXT2">Alternative storage backends (new MCPs)</extension>
       <extension id="EXT3">Custom episode parsers for different log formats</extension>
-      <extension id="EXT4">Additional episode consumers with a named reader (see ADR-088)</extension>
+      <extension id="EXT4">Additional episode consumers with a named reader (see ADR-089)</extension>
     </extension_points>
 
     <obsolescence_triggers>
@@ -188,7 +188,7 @@
     <pattern id="AP4">
       <name>Derived Layer Without a Reader</name>
       <description>Building an aggregation over episodes that nothing consumes</description>
-      <why_bad>Cost accrues (size, merge conflicts, maintenance) with no offsetting use; ADR-088 removed one such layer</why_bad>
+      <why_bad>Cost accrues (size, merge conflicts, maintenance) with no offsetting use; ADR-089 removed one such layer</why_bad>
       <alternative>Name the non-memory consumer before building the derived layer</alternative>
     </pattern>
 

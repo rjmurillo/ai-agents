@@ -15,7 +15,7 @@
   across both skill trees. 97 files, 41,121 lines deleted.
 - Added `tests/test_causal_tier_removed.py`, 21 inverse tests, so the tier
   cannot return unnoticed.
-- Filed ADR-088 and its debate log.
+- Filed ADR-089 and its debate log.
 - Filed six issues for defects found and deliberately not fixed: 3623, 3624,
   3625, 3628, 3630, 3631.
 

@@ -20,7 +20,7 @@ race.
 
 Issue #3388. Commits 42d52c2bd3 and a148c51c6c. The original subject was
 `scripts/validation/merge_causal_graph.py` and its `_apply_causal_graph_updates`
-mutation. That file was deleted by ADR-088 (the causal graph had no reader), so
+mutation. That file was deleted by ADR-089 (the causal graph had no reader), so
 the code is reachable only in git history. Focused canonical and generated tests
 covered missing files, unreadable files, and snapshot failure before mutation.
 Follow-up issue #3389 tracks snapshot restoration failures.
