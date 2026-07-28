@@ -680,9 +680,9 @@ Extract learnings and recommend skill updates.
 
 ### 2.6 Support Agents
 
-#### memory
+#### memory skill and Serena tools
 
-**File**: `src/claude/memory.md`
+**File**: `.claude/skills/memory/SKILL.md`
 
 **Role**: Cross-session context management
 
@@ -697,18 +697,19 @@ Extract learnings and recommend skill updates.
 - Storage confirmation
 - Skill citations
 
-**Delegates To**: None (returns to orchestrator)
+**Delegates To**: None. This is a skill and tool contract, not an agent route.
 
-**Called By**: orchestrator (typically at session start/end)
+**Called By**: orchestrator at session start and session end.
 
 **When to Use**:
 - Session start for context retrieval
 - Milestone completion for persistence
-- Complex memory operations
+- Complex memory operations through the `memory` skill
+- Direct Serena reads and writes through `mcp__serena__read_memory` and `mcp__serena__write_memory`
 
 **Example Invocation**:
 ```text
-@memory Retrieve context about the authentication feature
+Use the memory skill to retrieve context about the authentication feature
 implementation from previous sessions.
 ```
 
