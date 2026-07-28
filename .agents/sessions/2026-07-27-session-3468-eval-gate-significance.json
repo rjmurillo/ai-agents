@@ -861,9 +861,31 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Round 43: measuring which duplications can drift quietly",
+      "actions": [
+        "Reopened PR #3608, which GitHub closed one second after #3595 merged and deleted its base branch. The closed PR made the commit-limit-bypass label unreachable, so the push gate blocked at 47 commits while naming the count as the cause.",
+        "Filed #3627: the gate prints its reason to stdout and its error to stderr, and lefthook pipes stdout, so the reason lands under the next hook's header. Verified the reordering reproduces with buffered stdout and disappears with python -u.",
+        "Pushed the round 42 commits once the label was reachable again.",
+        "Checked all six duplications round 42 reported. Renaming a verdict string turns 31 tests red, a task group rename raises AttributeError, a rule score key rename fails at runtime naming the missing keys, and the pre-gate dict keys are asserted on every refusal path.",
+        "Pinned the two that measurement left standing: the README results schema and both non-zero exit codes.",
+        "Mutated both authors of all three values. The first two passes disagreed with each other, so cleared bytecode per case and re-ran: six red, negative control green."
+      ],
+      "decisions": [
+        "Four of six reported duplications are not defects. A duplication is a defect only when drift is both possible and silent, and only the silent half needs measuring.",
+        "Pinned rather than refactored. One side is a constant and the other is a file, so a test is the only thing that can hold them together.",
+        "Anchored each exit-code assertion on its own sentence fragment. Both codes share a paragraph, so a bare search for the number passes on the neighbour.",
+        "The mutation harness reused bytecode across cases because every edit was one character and the file size never moved. That made case six compare case five's code against case six's prose and report a working pin as worthless."
+      ],
+      "filesModified": [
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "082cf653c",
+  "endingCommit": "691dcfb0e",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

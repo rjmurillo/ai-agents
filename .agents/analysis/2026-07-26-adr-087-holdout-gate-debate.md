@@ -2726,3 +2726,62 @@ sure: dropping a `test` id yields `compared: true` and the run proceeds, which
 is what the paragraph says happens outside the held-out group. The finding was
 right that the drift is invisible there and wrong that the prose claims
 otherwise.
+
+## Shape 63: a duplication is not a defect until drift can happen quietly
+
+Round 42's second task was the audit re-anchored on the defect rather than on
+the shape of the previous fix. It returned six values with two authors and, for
+each, a sentence beginning "if X renamed, Y would break". Every one of those
+sentences was a prediction, and four of them were wrong.
+
+Renaming a verdict string in `_optimizer_core` turns 31 tests red. Renaming a
+task group raises `AttributeError` through the `getattr(redrawn, g)` over
+`_GROUPS`. Renaming a rule score key fails at runtime with a refusal that names
+the missing keys. The pre-gate dict literals are asserted on every refusal path
+the CLI has. Four couplings, all real, all held, none of them defects.
+
+The two that survived measurement are both prose. `scripts/eval/README.md`
+spells the results schema and both non-zero exit codes as literals. Prose is
+the author no mutation reaches: rename the constant and its own tests go red
+while the paragraph keeps describing the old value, unchanged, and first in the
+operator's path.
+
+So the audit was necessary and its severity reasoning was not evidence. The
+rule the last four rounds keep arriving at from different directions: a
+duplication is a defect only when drift is both possible and silent. Possible
+is cheap to establish by reading. Silent has to be measured, and measuring it
+is one mutation per author.
+
+## Shape 64: a mutation harness that caches can invent agreement
+
+The six mutations for shape 63 ran as a loop. The first pass reported five red
+and one green, which would have meant one pin was worthless. The second pass,
+same script, reported a different five red and a different one green. A harness
+that answers differently on identical input is not measuring the thing it
+names.
+
+The cause is that `oa` loads through `importlib.util.spec_from_file_location`,
+which writes and reuses bytecode keyed on source size and mtime in whole
+seconds. Every mutation here was a single character replaced by another single
+character, so the file size never moved, and consecutive cases ran inside the
+same second. Case N could therefore execute case N-1's module.
+
+That is worse than noise, because of what it did on the first pass. Case five
+set `EXIT_CONFIG = 9` in code. Case six restored the code and changed the
+README to read `exit 9`. The stale module still held `9`, so the assertion
+compared the previous case's code against this case's prose, found them equal,
+and reported the pin as insensitive to a drift it actually catches. Two
+unrelated mutations were made to agree by a cache.
+
+This is round 42's tautology with a different mechanism. There the two sides of
+an assertion resolved through one module, so a mutation moved both at once.
+Here a stale module did the same thing across two runs. Both times a real
+disagreement was hidden because something upstream of the assertion made the
+sides move together, and both times the individual result looked plausible
+enough to act on.
+
+Cleared caches per case and re-ran: six for six, both authors of all three
+values, with an unmutated negative control still green. The general form, and
+the seventh instrument failure this session: a mutation result is a claim about
+the harness before it is a claim about the test, and a harness that reuses any
+state between cases can turn independent edits into a matched pair.
