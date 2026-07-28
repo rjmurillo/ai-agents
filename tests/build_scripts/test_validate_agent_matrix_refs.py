@@ -21,7 +21,9 @@ must fail this test and force a human to update the guard on purpose.
 
 from __future__ import annotations
 
+import re
 import sys
+import time
 from pathlib import Path
 
 import frontmatter
@@ -113,20 +115,56 @@ def _canonical_file(name: str) -> str:
     return f"{CANONICAL}/{name}{_suffix_for(CANONICAL)}"
 
 
-def _has_agent_frontmatter(path: Path) -> bool:
-    """Independent oracle for agent membership, used only by the real-repo test.
+def _frontmatter_text(text: str) -> str | None:
+    """Return the frontmatter block of ``text``, or ``None`` if it has none.
 
-    Deliberately implemented a different way from the module under test. The
-    implementation locates the block itself and hands the text to PyYAML; this
-    oracle delegates the whole job to ``python-frontmatter``, a separate library
-    with its own idea of where a block starts and ends. An oracle that reuses
-    the implementation's approach cannot disagree with it, so it proves nothing,
-    and the implementation moved onto PyYAML after review showed a textual key
-    search admitted frontmatter that no host can load.
+    Written independently of the module under test so the checks built on it
+    stay a second opinion. Deliberately more permissive than the
+    implementation about the opening fence: for a guard, over-reaching only
+    costs a false alarm, while under-reaching lets the thing being guarded
+    against slip past unseen.
+    """
+    opened = re.match(r"-{3,}[ \t]*\n", text)
+    if opened is None:
+        return None
+    close = re.compile(r"^-{3,}[ \t]*$", re.MULTILINE).search(text, opened.end())
+    if close is None:
+        return None
+    return text[opened.end() : close.start()]
+
+
+# A YAML alias reference (``*name``) inside a frontmatter block. Anchored to a
+# boundary so a multiplication sign or an emphasis marker in a description does
+# not read as one.
+_ALIAS_IN_FRONTMATTER = re.compile(r"(^|[\s\[{,])\*[A-Za-z0-9_-]+")
+
+
+def _has_agent_frontmatter(path: Path) -> bool:
+    """Second opinion on agent membership, used only by the real-repo test.
+
+    Independent where it counts and shared where it does not, stated plainly so
+    nobody reads more into an agreement than it earns.
+
+    Independent on block boundaries. The implementation locates the fences with
+    its own regexes; this delegates that to ``python-frontmatter``. The two are
+    genuinely different code: probed against seven malformed openings they
+    disagree on three, including a leading blank line and a fourth hyphen. An
+    oracle that reused the implementation's approach could not disagree with it,
+    so it would prove nothing.
+
+    Shared on YAML semantics. ``python-frontmatter`` hands the block to PyYAML's
+    ``SafeLoader`` too, so agreement here is not evidence. It also means this
+    oracle inherits the merge-key amplification the implementation now refuses,
+    which is why alias-bearing input is turned away below rather than parsed:
+    a test that hangs on regression is worse than no test. The implementation
+    fails closed on the same input, so refusing it keeps the comparison honest
+    rather than manufacturing agreement on a case the two would dispute.
     """
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
+        return False
+    if (block := _frontmatter_text(text)) and _ALIAS_IN_FRONTMATTER.search(block):
         return False
     try:
         parsed = frontmatter.loads(text)
@@ -288,6 +326,82 @@ class TestKnownAgents:
 
     def test_empty_directory_returns_empty_set(self, tmp_path):
         assert vamr.known_agents(tmp_path, ".md") == set()
+
+
+class TestAliasAmplification:
+    """Frontmatter must not be able to hold the scan open.
+
+    ``safe_load`` stops arbitrary object construction, not resource use.
+    ``SafeConstructor.flatten_mapping`` expands a merge key by copying every
+    entry of the mapping the alias names, so each level of a chain that
+    references the level below it nine times multiplies the entry count by nine.
+    Measured before the fix: a 433 byte block held ``is_agent_definition`` for
+    21.67 seconds, and every added level costs another factor of nine. The
+    validator runs on ``pull_request``, so a fork supplies the file.
+    """
+
+    @staticmethod
+    def _bomb(levels: int) -> str:
+        """Return frontmatter whose merge chain expands to ``9 ** levels`` entries."""
+        rows = ["a: &a {x: x}"]
+        previous = "a"
+        for name in "bcdefghijklmnop"[:levels]:
+            fanout = ", ".join(f"*{previous}" for _ in range(9))
+            rows.append(f"{name}: &{name} {{<<: [{fanout}]}}")
+            previous = name
+        return "---\n" + "\n".join(rows) + "\ndescription: bomb\n---\n\n# Doc\n"
+
+    def test_a_merge_key_chain_is_rejected_quickly(self, tmp_path):
+        """The payload that cost 21.67 seconds must now cost effectively nothing.
+
+        The assertion is on elapsed time, not only on the verdict, because a
+        loader that accepted aliases would also return ``set()`` here, after
+        expanding the chain. Only the clock separates rejection from expansion.
+
+        The depth is capped at 8 on purpose. Each level multiplies the work by
+        nine, so depth 10 runs for roughly half an hour. A regression must fail,
+        not hang: at depth 8 a loader that expands aliases trips this assertion
+        in about 22 seconds and names the cause. Do not raise the depth.
+        """
+        (tmp_path / "bomb.md").write_text(self._bomb(8), encoding="utf-8")
+        started = time.monotonic()
+        assert vamr.known_agents(tmp_path, ".md") == set()
+        assert time.monotonic() - started < 2.0
+
+    def test_a_bomb_does_not_hide_a_sibling_agent(self, tmp_path):
+        """Rejecting one file must not abort the roster scan for the rest."""
+        (tmp_path / "bomb.md").write_text(self._bomb(8), encoding="utf-8")
+        (tmp_path / "analyst.md").write_text(
+            "---\ndescription: An agent.\n---\n\n# Analyst\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_a_plain_alias_is_rejected(self, tmp_path):
+        """The guard refuses the alias itself, not only the merge key.
+
+        A merge key cannot amplify without an alias to reference, so the alias is
+        the narrower cut. Refusing it fails closed: the file drops out of the
+        roster, and a matrix citing its stem reports an unknown agent instead of
+        passing silently.
+        """
+        (tmp_path / "alias.md").write_text(
+            "---\nbase: &base a description\ndescription: *base\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_an_anchor_with_no_alias_still_defines_an_agent(self, tmp_path):
+        """An anchor that nothing references cannot amplify, so it is left alone."""
+        (tmp_path / "analyst.md").write_text(
+            "---\ndescription: &unused An agent.\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_a_merge_key_over_an_inline_mapping_still_defines_an_agent(self, tmp_path):
+        """Without an alias a merge key copies one literal mapping once."""
+        (tmp_path / "analyst.md").write_text(
+            "---\n<<: {description: An agent.}\nname: analyst\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
 
 class TestPerTreeResolution:
@@ -660,6 +774,29 @@ class TestRealRepository:
 
     def test_repository_is_clean(self):
         assert vamr.main(["--repo-root", str(REPO_ROOT)]) == 0
+
+    def test_no_shipped_agent_frontmatter_uses_an_alias(self):
+        """The alias guard costs nothing today, which is why it can fail closed.
+
+        ``TestAliasAmplification`` proves an alias is refused. This proves the
+        refusal excludes nothing real. If an agent ever adopts an alias this
+        fails first and states the tradeoff, instead of that agent silently
+        vanishing from the roster and taking its matrix rows down with it.
+        """
+        offenders = []
+        examined = 0
+        for tree, suffix in vamr.AGENT_TREES:
+            root = REPO_ROOT / tree
+            for path in sorted(root.glob(f"*{suffix}")):
+                text = path.read_text(encoding="utf-8", errors="replace")
+                block = _frontmatter_text(text)
+                if block is None:
+                    continue
+                examined += 1
+                if _ALIAS_IN_FRONTMATTER.search(block):
+                    offenders.append(str(path))
+        assert offenders == []
+        assert examined >= 175, f"only {examined} frontmatter blocks examined"
 
     def test_every_configured_tree_exists_and_is_scanned(self):
         """Guard against a tree being dropped, from the constant or from ``scan``.

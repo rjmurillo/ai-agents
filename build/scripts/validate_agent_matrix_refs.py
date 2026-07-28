@@ -241,6 +241,38 @@ class ScanResult:
         return reasons
 
 
+class FrontmatterLoader(yaml.SafeLoader):
+    """A ``SafeLoader`` that refuses YAML alias references.
+
+    ``safe_load`` blocks arbitrary object construction but not resource
+    exhaustion. ``SafeConstructor.flatten_mapping`` expands a merge key by
+    copying every entry of the mapping it references, so a chain of merge keys
+    that each reference the previous level nine times multiplies the entry count
+    by nine per level. A 433 byte frontmatter block held this scan for 21
+    seconds; two further levels reach half an hour. The validator runs on
+    ``pull_request``, so a fork supplies that file.
+
+    Anchors are harmless on their own, and a merge key cannot amplify without an
+    alias to reference, so refusing the alias closes the amplification with one
+    override. ``ComposerError`` is a ``YAMLError``, which the caller already
+    treats as "not an agent", so a file using aliases drops out of the roster.
+    That fails closed: a matrix citing such a file reports an unknown agent
+    rather than passing silently. No agent ships frontmatter that uses anchors,
+    aliases, or merge keys, so nothing legitimate is excluded.
+    """
+
+    def compose_node(self, parent: yaml.Node | None, index: int | yaml.Node | None) -> yaml.Node:
+        if self.check_event(yaml.events.AliasEvent):
+            event = self.peek_event()
+            raise yaml.composer.ComposerError(
+                None,
+                None,
+                "alias references are not allowed in agent frontmatter",
+                event.start_mark,
+            )
+        return super().compose_node(parent, index)
+
+
 def is_agent_definition(path: Path) -> bool:
     """Report whether ``path`` is an agent definition rather than a sibling doc.
 
@@ -274,7 +306,7 @@ def is_agent_definition(path: Path) -> bool:
     if close is None:
         return False
     try:
-        block = yaml.safe_load(text[4 : close.start()])
+        block = yaml.load(text[4 : close.start()], Loader=FrontmatterLoader)
     except yaml.YAMLError:
         return False
     return isinstance(block, dict) and FRONTMATTER_KEY in block
