@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/release-it.md",
   "rule_id": "release-it",
   "scenarios": [
     {
@@ -40,5 +39,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "No process boundary crossed. Stability patterns do not apply."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/release-it.md"
 }

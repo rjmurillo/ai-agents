@@ -26,7 +26,7 @@ the gap) proposes a metacognitive confidence-elicitation signal: before a
 completion claim clears, the agent surfaces "what am I least confident about
 right now?" and each item is resolved or logged as accepted-risk. The elicited
 list is meant to be a routing signal into existing verification, never a
-verdict, wired first into the false-completion gate
+verdict, originally wired first into the since-retired false-completion gate
 (`.claude/hooks/PreToolUse/invoke_false_completion_gate.py`), with a mandatory
 calibration gate: an A/B that measures whether surfaced items actually predict
 defects the critic or tests caught, and removal of the feature if they do not.
@@ -68,14 +68,14 @@ remains a separately buildable improvement:
    checks missed. Ship a mechanism only if that study passes; otherwise close
    #3016 WONTFIX with the evidence.
 
-2. **Gate hardening (the recommended alternative, buildable now).** Harden the
-   existing false-completion gate to require test or build evidence AFTER the
-   last code-changing edit, block when a failure appears after the last passing
-   evidence, and surface recent failed commands in the block message. This uses
-   external evidence already present in session logs, with no LLM self-report,
-   no critic-as-truth, and no hand-labeled corpus. It addresses the real
-   failure mode the confidence feature gestures at (claiming done on stale
-   evidence) without any of its risks.
+2. **Gate hardening (the recommended alternative, buildable now).** Add a new or
+   restored enforcement point that requires test or build evidence AFTER the last
+   code-changing edit, blocks when a failure appears after the last passing
+   evidence, and surfaces recent failed commands in the block message. This uses
+   external evidence already present in session logs, with no LLM self-report, no
+   critic-as-truth, and no hand-labeled corpus. It addresses the real failure
+   mode the confidence feature gestures at (claiming done on stale evidence)
+   without any of its risks.
 
 3. **WONTFIX.** If neither the study nor the hardening is worth the effort at P3,
    close #3016 with this ADR as the justification.
@@ -91,11 +91,11 @@ Whichever track the owner picks, three rules bind any future implementation:
 
 ### What Currently Exists
 
-- **The false-completion gate**: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
-  (771 lines, blocking, 5-second timeout in `.claude/settings.json`). Clears
+- **The retired false-completion gate**: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
+  (771 lines, blocking, 5-second timeout in `.claude/settings.json`) cleared
   completion claims in commit/PR operations on external test/build evidence in
-  the session log. Addresses 44 false-completion mentions across 80-plus retros
-  (issues #1673, #1703, ADR-008).
+  the session log. It addressed 44 false-completion mentions across 80-plus
+  retros (issues #1673, #1703, ADR-008) before removal.
 - **The silent-failure-hunter agent**: `.claude/agents/silent-failure-hunter.md`,
   catches unhandled error paths in review.
 - **The eval harness**: `scripts/eval/_scoring_engine.py` with `AssertionKind`
@@ -104,7 +104,7 @@ Whichever track the owner picks, three rules bind any future implementation:
 
 ### Historical Rationale
 
-The false-completion gate exists because keyword-plus-external-evidence checks
+The retired false-completion gate existed because keyword-plus-external-evidence checks
 were the tractable, non-circular way to catch false "done" claims. It
 deliberately avoids trusting the generator's own account of its work.
 
@@ -115,7 +115,7 @@ review found the specified mechanism (a blocking hook that elicits) impossible,
 the calibration (correlate self-report against critic judgment) circular, and
 the harness claim (the repo can measure it) false. So "change now" is not
 warranted for a shipped hook; the honest change is to reframe the measurement or
-harden the existing external-evidence gate.
+add a new or restored external-evidence gate.
 
 ## Rationale
 
@@ -159,7 +159,7 @@ the closed-loop trap the issue itself warns against.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
-| `invoke_false_completion_gate.py` | Direct (track 2 only) | Add evidence-after-last-edit and post-evidence-failure checks | Medium |
+| Retired `invoke_false_completion_gate.py` replacement | Direct (track 2 only) | Add or restore an enforcement point with evidence-after-last-edit and post-evidence-failure checks | Medium |
 | Session-log schema | Direct (track 1 only) | Add a structured confidence-items field if the study is run | Low |
 | Eval harness | Direct (track 1 only) | New offline correlation script; not a change to the fixture scorer | Medium |
 | silent-failure-hunter | Indirect | Would be the non-blocking routing target if any warn-mode signal is added | Low |
@@ -173,10 +173,10 @@ external defect labels and reports incremental precision/recall; do not touch
 `_scoring_engine.py` (its fixture-assertion model does not fit session
 correlation).
 
-If track 2 (gate hardening): extend the gate to record the last code-changing
-operation's position in the log and require a passing test/build event after it;
-add a block path when a failing event follows the last passing one; keep it local
-Python within the existing timeout.
+If track 2 (gate hardening): add a new or restored local Python gate that records
+the last code-changing operation's position in the log and requires a passing
+test/build event after it; add a block path when a failing event follows the last
+passing one; keep it within the existing timeout budget.
 
 ## Related Decisions
 
@@ -187,7 +187,7 @@ Python within the existing timeout.
 
 ## References
 
-- `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
+- Retired reference: `.claude/hooks/PreToolUse/invoke_false_completion_gate.py`
 - `scripts/eval/_scoring_engine.py`, `scripts/eval/_eval_agent_types.py`
 - `.claude/agents/silent-failure-hunter.md`
 - `.agents/analysis/ADR-081-confidence-elicitation-debate.md` (the review this

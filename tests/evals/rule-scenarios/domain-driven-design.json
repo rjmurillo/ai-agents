@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/domain-driven-design.md",
   "rule_id": "domain-driven-design",
   "scenarios": [
     {
@@ -39,5 +38,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Plain CRUD with no domain complexity. DDD ceremony does not apply."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/domain-driven-design.md"
 }
