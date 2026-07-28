@@ -107,6 +107,9 @@
     },
     {
       "step": "Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation."
+    },
+    {
+      "step": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation."
     }
   ],
   "endingCommit": "0f402c8e61",

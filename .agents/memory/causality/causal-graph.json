@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T02:59:57.390744+00:00",
+  "updated": "2026-07-28T04:11:14.080491+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22195,6 +22195,15 @@
         "episode-2026-07-27-session-3605-skill-description-context-cost"
       ],
       "created": "2026-07-28T02:59:57.384897+00:00"
+    },
+    {
+      "id": "83cd3e96c275",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:11:14.074233+00:00"
     }
   ],
   "patterns": [

@@ -98,7 +98,9 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e009",
@@ -109,6 +111,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

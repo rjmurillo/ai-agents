@@ -3,6 +3,14 @@
 Session 3605. Branch `docs/skill-description-context-cost`. One decision memory
 shipped, no code.
 
+## Failure mode classification
+
+Primary: Failure Mode #9, Confident-Incorrectness Recurrence (`.agents/governance/FAILURE-MODES.md`). The documented shape is partial signal, premature conclusion, confident delivery, multi-round correction. This session ran that loop twice before the third conclusion held. Both times the conclusion was drafted as settled and both times an adversarial reviewer on a second model family returned it.
+
+Secondary: Failure Mode #4, False Completion Markers. The first run shipped a positive control and a negative control that both passed while the instrument was measuring nothing: 264 pre-existing global skills had already saturated the budget the experiment was trying to move. A passing control reported verification that had not occurred.
+
+Neither instance reached `main`. Both were caught in review, which is the outcome the second-family requirement exists to produce.
+
 ## What this was
 
 A wiki page claims every auto-invocable skill's `description` sits in the
@@ -122,3 +130,10 @@ rather than guessed at.
    confirms the flag is nearly free. It does not follow that the flag should be
    rolled out, because the saving saturates and the flag costs automatic
    invocation. The memory records the numbers and declines the rollout.
+
+## Remediation
+
+1. Any context-measurement experiment MUST run at least one control that holds the treatment fixed and varies the environment, not only controls that vary the treatment inside one environment. Concretely: point `CLAUDE_CONFIG_DIR` at an empty config and re-measure the baseline before trusting any delta. Owner: this session, applied; recorded in the decision memory so the next measurement inherits it.
+2. Any character-to-token conversion on synthetic text MUST measure the density on that text. Do not inherit the roughly four-characters-per-token figure from English prose; the random-word fixtures here tokenized at about 1.45. Owner: this session, applied.
+3. The saturation mechanism is recorded as unresolved, not guessed. Closing it needs an instrument that inspects the serialized request rather than the reported token total. Left open rather than claimed.
+4. The refuted consequence claim ("skills past the ceiling cannot auto-invoke") is recorded as refuted in the decision memory with the invocation test that killed it, so a future session cannot re-derive it from the surviving saturation numbers.
