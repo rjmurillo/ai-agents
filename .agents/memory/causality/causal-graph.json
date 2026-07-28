@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T02:46:56.350867+00:00",
+  "updated": "2026-07-28T02:51:12.081498+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22807,6 +22807,15 @@
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
       "created": "2026-07-28T02:46:56.344118+00:00"
+    },
+    {
+      "id": "eec2b04f2508",
+      "type": "milestone",
+      "label": "milestone: Added dated amendment notes to ADR-070, ADR-076, and ADR-087 for moved book-rule references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:51:12.074687+00:00"
     }
   ],
   "patterns": [

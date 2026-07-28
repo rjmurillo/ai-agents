@@ -140,6 +140,10 @@
     {
       "phase": "Round 2 ADR reference amendments",
       "summary": "Added dated amendment notes to ADR-060, ADR-061, ADR-062, and ADR-063 for moved book-rule references."
+    },
+    {
+      "phase": "Round 2 ADR reference amendments part 2",
+      "summary": "Added dated amendment notes to ADR-070, ADR-076, and ADR-087 for moved book-rule references."
     }
   ],
   "outcomes": {
