@@ -69,7 +69,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "See endingCommit"
+        "evidence": "Commits on fix/3626-3624-skill-paths: df45cd953 the doubled session artifact root and the ADR-038 attribution, b520ca22e the stale .md session-log examples in the session-init skill."
       },
       "validationPassed": {
         "complete": true,
@@ -91,7 +91,7 @@
       "step": "Fixed #3624. ADR-063 attributed the semantic / episodic / causal taxonomy to ADR-007. ADR-007's four tiers are storage backends (AgentDB, ReasoningBank, SQLite, JSON fallback); the semantic / episodic / causal taxonomy is ADR-038. Repointed the ADR-063 alternatives table and the triage eval fixture, which also asked for four tiers naming only two and predated ADR-089 removing Tier 3."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "b520ca22e",
   "nextSteps": [
     "Open the PR for these two repairs",
     "Continue the backlog campaign with the workflow-hardening group (#3652, #3664)"
