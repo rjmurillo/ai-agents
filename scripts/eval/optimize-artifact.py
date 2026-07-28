@@ -352,10 +352,16 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
 
     Best-effort on purpose: every content problem answers `_UNREADABLE` rather
     than raising. This runs before the ledger lock so the corpus refusal costs
-    nothing, and a read that could raise there would let a malformed verdict
-    mapping answer in place of the ledger. An exhausted budget is the
-    authoritative refusal and must not be masked by a parse error that the full
-    read, after the guards, reports properly anyway.
+    nothing, and a read that could raise here would let a malformed verdict
+    mapping answer in place of the ledger. A file that parses and declares this
+    schema is understood whatever its verdicts say, so an exhausted budget
+    still outranks a bad verdict mapping.
+
+    Answering `_UNREADABLE` is not the whole story, but it is not the trigger
+    for anything either. `cmd_gate` refuses a file that will not parse through
+    `_refuse_unparseable_input`, which asks its own question rather than
+    reading this one's answer. It has to: the bare mapping form declares no
+    schema, so a valid legacy report answers `_UNREADABLE` here as well.
 
     Three answers, not two. `None` means the file parsed and names no corpus,
     which conflicts with a pin on purpose, because that is the envelope strip.
@@ -1801,11 +1807,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
         pin = split.get("corpus", _UNPINNED)
         incumbent_corpus = _corpus_header(args.incumbent)
         candidate_corpus = _corpus_header(args.candidate)
-    # A file nobody could parse gets no opinion here. It has declared no
-    # corpus, so comparing it would report a corpus disagreement as the reason
-    # a malformed file was refused, and report it as REJECT, which is a
-    # decision. The full read below raises the ConfigError that says what is
-    # actually wrong, and exits 2 like every other unreadable input.
+        _refuse_unparseable_input(args.incumbent)
+        _refuse_unparseable_input(args.candidate)
+    # A file nobody could parse gets no opinion on the corpus, and the read
+    # above already asked the authority to say why. Past this point both
+    # headers are values the conflict rule can compare.
     if _corpus_refused(pin, incumbent_corpus, candidate_corpus):
         _emit(_corpus_refusal())
         return EXIT_LOGIC
@@ -1814,6 +1820,40 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # because that refusal reads no ledger and spends nothing.
     with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
+
+
+def _refuse_unparseable_input(path: Path) -> None:
+    """Refuse a report that is not a JSON document before any guard can rule.
+
+    A missing file already outranks an exhausted budget, because the peek
+    reads through `_read_text` and that reader's `ConfigError` travels out. A
+    file that opens but does not parse reached the operator as REJECT instead:
+    `_corpus_header` catches `ValueError`, `_corpus_refused` declines to
+    decide on an unreadable file, and `_guard` is what runs next. The reason
+    said the split was exhausted, so the operator's fix was to re-split, which
+    discards a held-out group's whole history to answer a typo in a file.
+
+    Both are the same situation and the file already states the rule for it. A
+    cap below one "is a caller mistake, not a gate verdict, so it becomes a
+    config error instead of a REJECT that would read as real discipline."
+
+    The line is drawn at parsing, not at approval, and that is the whole of
+    the narrowing. This asks one question no interpretation of the document
+    can answer differently: is there a document at all. Every later judgment,
+    the schema it declares, the corpus it names, whether its verdicts are
+    booleans, stays behind the guard where an exhausted budget outranks it. A
+    bad verdict mapping still yields to the ledger, which is the ordering the
+    guards are written for and the reason this is not simply an early
+    `_read_results`.
+
+    `_read_json` is the parse and nothing above it, so it is exactly the
+    question this asks and it raises the complaint every other reader raises.
+    Repeating the decode here would mean a second place that has to remember
+    duplicate keys, a nested array exhausting the decoder's stack rather than
+    failing its grammar, and that `UnicodeDecodeError` is a `ValueError`. The
+    result is discarded; the call is made for the refusal it can raise.
+    """
+    _read_json(path)
 
 
 def _corpus_refused(
