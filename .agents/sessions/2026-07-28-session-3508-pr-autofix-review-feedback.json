@@ -127,7 +127,7 @@
       "entry": "All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6f0315519",
   "nextSteps": [
     "Push fix commit and resolve all 7 review threads.",
     "Verify CI passes and merge PR."

@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Created worktree, acquired lease, ran live-state gate (ACT).",
       "caused_by": [
-        "e004"
+        "e005"
       ],
       "leads_to": [
         "e002"
@@ -47,6 +47,18 @@
       "content": "Commit: 6c19696ac",
       "caused_by": [],
       "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6f0315519",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -56,8 +68,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 4
   },
   "lessons": []
 }

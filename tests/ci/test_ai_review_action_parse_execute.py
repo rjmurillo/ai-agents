@@ -109,3 +109,9 @@ def test_execute_post_script_returns_child_exit_code(tmp_path):
 
 def test_execute_main_returns_config_error_for_unexpected_arguments():
     assert execute.main(["extra"]) == 2
+
+
+def test_execute_run_command_catches_file_not_found_error():
+    result = execute.run_command(["__nonexistent_binary_xyz__"])
+
+    assert result.returncode == 127

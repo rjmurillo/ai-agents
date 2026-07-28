@@ -20,7 +20,10 @@ class CommandResult:
 
 
 def run_command(argv: Sequence[str]) -> CommandResult:
-    completed = subprocess.run(list(argv), check=False)
+    try:
+        completed = subprocess.run(list(argv), check=False)
+    except FileNotFoundError:
+        return CommandResult(returncode=127)
     return CommandResult(returncode=completed.returncode)
 
 
