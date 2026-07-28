@@ -776,9 +776,24 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Phase forty-six: correcting a document of record that pointed at a destroyed commit",
+      "actions": [
+        "Squashed the two unpushed commits carrying the symmetry test and the sharpened docstring, because the branch had reached forty-one commits and the ceiling is forty. Verified lossless against a temporary tag before deleting it, suite still 1703.",
+        "That squash destroyed the sha this log named as endingCommit for the second time in the session. The first time a history rewrite did it; this time a routine ceiling squash did. The value survived local gc only because the reflog still held it, so the validator passed on a sha that is not in the branch.",
+        "Pushed the branch clean at forty commits, then applied commit-limit-bypass to PR 3608 with a public justification, since correcting the field needs one commit and the branch is exactly at the ceiling."
+      ],
+      "decisions": [
+        "Took the label rather than amending the pushed tip. Amending would have needed a force push on a branch with an open PR under review, and the rule against force-pushing shared branches is worth more than one commit of headroom.",
+        "The lesson is that endingCommit is structurally fragile: it can only ever name the parent of the commit that records it, so any later rewrite silently invalidates it and nothing checks reachability. Recorded as a candidate validator improvement rather than fixed here, since it is outside this branch's scope."
+      ],
+      "filesModified": [
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "d6d3cdaa6",
+  "endingCommit": "0103a1fe8",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
