@@ -240,14 +240,23 @@ guarding a gate that had been hardened four days earlier.
 
 The file keeps its now-stale name, which is unsatisfying and deliberate. The
 push gate scans pushed diffs for suppression comments and runs that diff with
-`--no-renames`, so a rename reads as a wholesale add. This file's fixtures embed
-the exact tokens the gate scans for, so renaming it trips the gate on 21 fixture
-lines that are not new. The gate has no allowlist and no escape hatch, and the
-`--no-renames` flag is asserted by a test on main, so it is a deliberate
-anti-bypass choice rather than an oversight. Renaming requires teaching the gate
-to skip pure renames first. That is issue 3635. Until then the docstring carries
-the explanation and an inverse test asserts both surviving classes are still
+`--no-renames`, so a rename reads as a wholesale add. The fixtures in this file
+split their suppression tokens across adjacent string literals precisely so the
+gate does not flag the file that tests it, but one real suppression remains, the
+`E402` on the `sys.path` shim import, and on a rename that line reads as newly
+added. The gate has no allowlist and no escape hatch, and the `--no-renames`
+flag is asserted by a test on main, so it is a deliberate anti-bypass choice
+rather than an oversight. Renaming requires teaching the gate to skip pure
+renames first. That is issue 3635. Until then the docstring carries the
+explanation and an inverse test asserts both surviving classes are still
 collected at that path, so the filename trap cannot spring twice.
+
+The same fixtures carry a second trap worth naming, because it cost a full
+gate cycle to find. `ruff format` joins the split literals back together, which
+re-arms the very tokens the split was built to hide, and the push gate then
+reports 19 lines this change never wrote. Nothing in CI or the hooks runs
+`ruff format`, so the split form is stable as long as nobody runs it by hand.
+The file's docstring now says so.
 
 ## Consequences
 

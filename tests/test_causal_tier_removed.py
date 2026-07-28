@@ -139,9 +139,9 @@ def test_non_causal_push_gate_tests_survived_the_removal() -> None:
     survivors are still collected.
 
     The file keeps its stale name on purpose. The push gate diffs with
-    ``--no-renames`` to close a rename-based bypass, and this file's fixtures
-    embed the tokens that gate scans for, so a rename reads as a wholesale add
-    and trips it on every fixture line. Renaming needs the gate to follow
+    ``--no-renames`` to close a rename-based bypass, and the one real
+    suppression in that file, the ``E402`` on its ``sys.path`` shim import,
+    reads as newly added under a rename. Renaming needs the gate to follow
     renames first; filed as issue 3635.
     """
     path = REPO_ROOT / "tests/validation/test_git_hook_policy_causal_restore.py"

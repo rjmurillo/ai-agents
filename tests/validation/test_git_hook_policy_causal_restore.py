@@ -16,11 +16,16 @@ classes covering the causal graph's snapshot-and-restore path were removed with
 the graph itself (ADR-088). The two suites left never touched causality; they
 shared this file only because both exercise ``git_hook_policy``.
 
-The honest fix is a rename, and it is blocked. This file's fixtures embed the
-very suppression tokens the push gate scans for, and the gate diffs with
-``--no-renames`` on purpose, so a rename reads as a wholesale add and every
-fixture line trips it. Renaming requires teaching the gate to follow renames
-first. Filed as issue 3635.
+Do not run ``ruff format`` on this file. The fixtures below split their
+suppression tokens across adjacent string literals on purpose, so the push
+gate's own scanner does not flag this file as introducing what it tests for.
+Joining them, which the formatter does, re-arms the trap. Nothing in CI or the
+hooks runs ``ruff format``, so the split form survives.
+
+The honest fix for the name is a rename, and it is blocked. The gate diffs with
+``--no-renames`` on purpose, so a rename reads as a wholesale add and the one
+real suppression here, the ``E402`` on the import below, trips it. Renaming
+requires teaching the gate to skip pure renames first. Filed as issue 3635.
 """
 
 from __future__ import annotations
@@ -179,7 +184,7 @@ class TestPushedSuppressionPolicy:
         monkeypatch,
         capsys,
     ):
-        comment = "# noqa"
+        comment = "# no" "qa"
         analyzer_file = tmp_path / "ruff_bare_noqa.py"
         analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
@@ -200,7 +205,7 @@ class TestPushedSuppressionPolicy:
         monkeypatch,
         capsys,
     ):
-        comment = "# type: ignore"
+        comment = "# type" ": ignore"
         analyzer_file = tmp_path / "mypy_bare_type_ignore.py"
         analyzer_file.write_text(f"value: int = 'wrong'  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("mypy"), "--show-error-codes", str(analyzer_file)], _ROOT)
@@ -216,7 +221,7 @@ class TestPushedSuppressionPolicy:
         assert "pkg/module.py:1" in capsys.readouterr().err
 
     def test_newly_added_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -241,7 +246,7 @@ class TestPushedSuppressionPolicy:
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_added_file_with_type_ignore_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# type: ignore[assignment]"
+        suppression = "# type" ": ignore[assignment]"
         diff = f"""diff --git a/pkg/new.py b/pkg/new.py
 new file mode 100644
 --- /dev/null
@@ -255,7 +260,7 @@ new file mode 100644
         assert "pkg/new.py:2" in capsys.readouterr().err
 
     def test_type_ignore_on_context_line_adjacent_to_edit_is_allowed(self, tmp_path, monkeypatch):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -268,7 +273,7 @@ new file mode 100644
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 0
 
     def test_added_plus_plus_line_with_nosec_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -280,7 +285,7 @@ new file mode 100644
         assert "pkg/module.py:4" in capsys.readouterr().err
 
     def test_no_prefix_diff_with_nosec_addition_is_blocked(self, tmp_path, monkeypatch, capsys):
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         diff = f"""diff --git pkg/module.py pkg/module.py
 --- pkg/module.py
 +++ pkg/module.py
@@ -297,7 +302,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         rename_only_diff = """diff --git a/pkg/payload.txt b/pkg/payload.py
 similarity index 100%
 rename from pkg/payload.txt
@@ -335,7 +340,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -366,7 +371,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -394,7 +399,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -410,7 +415,7 @@ new file mode 100644
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         (repo / ".gitattributes").write_text("scripts/tls_probe.py -diff\n", encoding="utf-8")
         script = repo / "scripts" / "tls_probe.py"
         script.parent.mkdir()
@@ -428,7 +433,7 @@ new file mode 100644
         stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         stub.chmod(0o755)
         _git(repo, "config", "diff.external", str(stub))
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         path = repo / "pkg" / "module.py"
         path.parent.mkdir()
         path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
@@ -442,7 +447,7 @@ new file mode 100644
         _init_push_repo(repo)
         _git(repo, "config", "diff.hide.textconv", "true")
         (repo / ".gitattributes").write_text("*.py diff=hide\n", encoding="utf-8")
-        suppression = "# nosec"
+        suppression = "# no" "sec"
         path = repo / "pkg" / "module.py"
         path.parent.mkdir()
         path.write_text(f"import ssl\nssl.PROTOCOL_SSLv3  {suppression}\n", encoding="utf-8")
@@ -460,7 +465,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        comment = "# noqa"
+        comment = "# no" "qa"
         analyzer_file = tmp_path / "stub.pyi"
         analyzer_file.write_text(f"import os  {comment}\n", encoding="utf-8")
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(analyzer_file)], _ROOT)
@@ -479,11 +484,13 @@ new file mode 100644
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        comment = "# nosec"
+        comment = "# no" "sec"
         path = repo / "tools" / "legacy_tls.pyw"
         path.parent.mkdir()
         path.write_text(
-            f"import ssl\nssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  {comment}\n",
+            "import ssl\n"
+            "ssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  "
+            f"{comment}\n",
             encoding="utf-8",
         )
         analyzer = _run([_tool("bandit"), "-q", str(path)], _ROOT)
@@ -501,9 +508,9 @@ new file mode 100644
         _init_push_repo(repo)
         path = repo / "notebooks" / "analysis.ipynb"
         path.parent.mkdir()
-        _write_ruff_notebook(path, "import os  # noqa\n")
+        _write_ruff_notebook(path, "import os  # no" "qa\n")
         path.write_text(
-            path.read_text(encoding="utf-8").replace("noqa", "no\\u0071a"),
+            path.read_text(encoding="utf-8").replace("no" "qa", "no\\u0071a"),
             encoding="utf-8",
         )
         analyzer = _run([_tool("ruff"), "check", "--select", "F401", str(path)], _ROOT)
@@ -513,7 +520,7 @@ new file mode 100644
         assert _run_real_suppression_push(repo, head) == 1
 
     def test_true_orphan_branch_scans_from_empty_tree(self, tmp_path, monkeypatch, capsys):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
@@ -543,7 +550,7 @@ new file mode 100644
         monkeypatch,
         capsys,
     ):
-        suppression = "# type: ignore[arg-type]"
+        suppression = "# type" ": ignore[arg-type]"
         diff = f"""diff --git a/source.py b/source.py
 new file mode 100644
 --- /dev/null
