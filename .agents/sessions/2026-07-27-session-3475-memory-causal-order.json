@@ -129,5 +129,12 @@
   "endingCommit": "735cc876f7",
   "nextSteps": [
     "Do not regenerate existing .agents/memory/episodes artifacts in this PR; they are historical generated records and rewriting them would alter memory history. The code fix prevents new rank-only false edges."
-  ]
+  ],
+  "retrospective": {
+    "summary": "## Retrospective\n\nDocstring must track behavioral contract. Test names must describe assertion not setup.",
+    "learnings": [
+      "Docstring must track behavioral contract when edge-emission rules change",
+      "Test names must describe the assertion not the setup"
+    ]
+  }
 }

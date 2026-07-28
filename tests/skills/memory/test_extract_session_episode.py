@@ -1347,12 +1347,11 @@ class TestSequentialEventLinks:
     """Episode events form an evidence-ordered causal graph.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class fields (#3245); the
-    extractor links events where it has evidence. The ordering still follows the
-    session lifecycle to protect #3260, so a commit that ``json_events`` appends
-    last is never ``caused_by`` a later milestone. Rank alone no longer emits an
-    edge when every event shares one timestamp, which avoids #3464's pre-code
-    milestone inversion. Linking runs on final ids (after ``_dedupe_events``
-    reassignment) so references never dangle.
+    extractor links events where it has timestamp, git ancestry, or reporting
+    boundary evidence. Rank alone no longer emits an edge when every event
+    shares one timestamp, which avoids #3464's pre-code milestone inversion.
+    Linking runs on final ids (after ``_dedupe_events`` reassignment) so
+    references never dangle.
     """
 
     @staticmethod
@@ -1366,7 +1365,7 @@ class TestSequentialEventLinks:
             "leads_to": [],
         }
 
-    def test_multi_event_chain(self):
+    def test_cross_rank_ties_produce_no_edges(self):
         events = [self._evt("e001"), self._evt("e002", "test"), self._evt("e003", "commit")]
         extract_session_episode._link_sequential_events(events)
         assert [e["id"] for e in events] == ["e001", "e002", "e003"]
