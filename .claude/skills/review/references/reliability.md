@@ -50,7 +50,7 @@ Ground findings in the project's reliability artifacts. All paths are under `.cl
 
 - `slo-designer` skill: invoke when the change defines or affects a reliability target (latency, availability, error rate). It produces SLIs, SLO targets, alerting thresholds, and error-budget calculations.
 - `chaos-experiment` skill: invoke when the change adds a new failure mode worth a game-day or failure-injection plan. It guides steady-state baselines, hypotheses, and injection design.
-- `.claude/rules/release-it.md`: the path-scoped stability-patterns rule (timeouts, retries with backoff and jitter, circuit breakers, bulkheads, bounded queues, idempotency, graceful degradation). Cite the specific section a finding maps to.
+- `software-engineering-library` release-it reference: the production stability patterns for timeouts, retries with backoff and jitter, circuit breakers, bulkheads, bounded queues, idempotency, and graceful degradation. Cite the specific section a finding maps to.
 - `.claude/skills/observability/references/distributed-systems-fallacies.md`: the 8 Fallacies of Distributed Computing. Use it to name the failure a cross-boundary call invites: a retry that assumes the request rather than the response was lost (fallacy 1), a chatty loop that ignores latency and transport cost (fallacies 2 and 7), a config that assumes a fixed topology (fallacy 5).
 
 ## Analysis Focus Areas
@@ -171,8 +171,8 @@ Each finding MUST be reported with these structured fields:
 - **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
   precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
 - **category**: short keyword identifying the failure class, drawn from the
-  axis `category` enum in the JSON schema above (e.g. `timeout`, `retry`,
-  `circuit-breaker`). Used for clustering.
+  axis `category` enum in the JSON schema above, for example timeout, retry,
+  or circuit-breaker. Used for clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
 - **recommendation**: one-sentence imperative fix the author can act on.
 Top-level (NOT per-finding; the schema rejects `verdict` inside

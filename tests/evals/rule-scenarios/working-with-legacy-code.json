@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/working-with-legacy-code.md",
   "rule_id": "working-with-legacy-code",
   "scenarios": [
     {
@@ -55,5 +54,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Negative case: file has tests and is recent. Rule should NOT activate. Plan should proceed with normal refactoring guidance, not characterization tests."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/working-with-legacy-code.md"
 }
