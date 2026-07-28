@@ -21441,85 +21441,112 @@
       "created": "2026-07-27T11:25:54.835838+00:00"
     },
     {
-      "id": "a3dbd8d7226a",
+      "id": "1f945a2ff014",
       "type": "milestone",
-      "label": "milestone: Read issue #3426",
+      "label": "milestone: Read the wiki page Skill Description as Loadtime Trigger and .agents/governance/skill-description-trigger-standard.md. Both state the description is the only text loaded at routing time and must carry phrases the user would actually say.",
       "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:42:10.808804+00:00"
+      "created": "2026-07-27T13:16:42.511604+00:00"
     },
     {
-      "id": "c720677ae3c8",
+      "id": "3215c124d032",
       "type": "milestone",
-      "label": "milestone: Closed stale execution plans",
+      "label": "milestone: Measured trigger presence twice, wrong both times. A regex for Use (when|for|to) counted the negative clause Do NOT use to as a positive trigger, flagging 8. Stripping negative clauses gave 9. Reading all 9 by hand showed 5 were false positives because the corpus also uses Trigger on, Apply when, Run after, Use PROACTIVELY after, and Designed to be invoked.",
       "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:42:10.808894+00:00"
+      "created": "2026-07-27T13:16:42.511709+00:00"
     },
     {
-      "id": "009bd2621d26",
+      "id": "a905926914eb",
       "type": "milestone",
-      "label": "milestone: Added active plan advisory",
+      "label": "milestone: Abandoned the phrasing heuristic for a checkable predicate. 48 of 96 skills carry a ## Triggers table whose first column holds backticked user phrases. Testing case-insensitive membership of those phrases in the skill's own description found 21 skills matching zero of their own documented phrases, covering 150 phrases the router never sees.",
       "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:42:10.808974+00:00"
+      "created": "2026-07-27T13:16:42.511792+00:00"
     },
     {
-      "id": "46c04904a58c",
+      "id": "74bc526b24b8",
       "type": "milestone",
-      "label": "milestone: Committed closeout batch 1",
+      "label": "milestone: Scoped the change to the 13 of those 21 that carry no quoted user phrase of any kind. The other 8 already have some phrase surface, so choosing between two phrasings is a judgement call that belongs in a separate argument.",
       "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:42:10.809050+00:00"
+      "created": "2026-07-27T13:16:42.511872+00:00"
     },
     {
-      "id": "79ea5b5c5d73",
+      "id": "f52d3936d60e",
+      "type": "milestone",
+      "label": "milestone: Wrote the edit as a script with three assertions worked out by hand before running: placement ahead of any Do NOT clause, YAML round-trip preserving the value byte for byte, and the key set unchanged. Each new description was checked under 1024 characters with no angle brackets.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.511951+00:00"
+    },
+    {
+      "id": "8ad06f6b688f",
+      "type": "milestone",
+      "label": "milestone: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512030+00:00"
+    },
+    {
+      "id": "21d35a56bc40",
+      "type": "test",
+      "label": "test: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512109+00:00"
+    },
+    {
+      "id": "4be1ca835a95",
+      "type": "milestone",
+      "label": "milestone: Measured the cost honestly. The 13 descriptions grew by 1,270 bytes total, roughly 318 tokens added to the permanently loaded description block.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512191+00:00"
+    },
+    {
+      "id": "1a772b3a69c1",
+      "type": "milestone",
+      "label": "milestone: Dropped 2 of the intended 13. The skillforge pre-commit hook rejected observability and taste-lints for pre-existing structural errors: observability documents its scripts under ## Available Scripts rather than ## Scripts, and taste-lints has neither a Scripts section nor a Verification section. Confirmed pre-existing by reading both files as they stand on origin/main. The hook only inspects staged files, so both failures were latent until an unrelated edit staged them.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512270+00:00"
+    },
+    {
+      "id": "4dc22f7d7389",
+      "type": "milestone",
+      "label": "milestone: Kept the two changes separate rather than authoring structural sections inside a phrase-promotion change. Filed #3496 with the exact errors, the reason each is latent, and the two description sentences it should land once the structure is fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512349+00:00"
+    },
+    {
+      "id": "87e5c48b0178",
+      "type": "milestone",
+      "label": "milestone: Final cost, measured on the 11 that landed: 1,102 bytes added to the permanently loaded description block, roughly 276 tokens.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T13:16:42.512430+00:00"
+    },
+    {
+      "id": "eef8ee36e741",
       "type": "outcome",
-      "label": "Outcome: success - Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check.",
+      "label": "Outcome: success - Promote already-documented trigger phrases from ## Triggers tables into the skill descriptions that carry none, so the router can see them at load time. Refs #3494.",
       "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:42:10.809125+00:00"
-    },
-    {
-      "id": "bd574610ca7a",
-      "type": "milestone",
-      "label": "milestone: Committed closeout docs",
-      "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
-      ],
-      "created": "2026-07-27T12:43:54.519216+00:00"
-    },
-    {
-      "id": "8d477003135d",
-      "type": "milestone",
-      "label": "milestone: Committed closeout batch 2",
-      "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
-      ],
-      "created": "2026-07-27T12:44:42.128789+00:00"
-    },
-    {
-      "id": "a76f1303445a",
-      "type": "milestone",
-      "label": "milestone: Committed completed plan batch",
-      "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
-      ],
-      "created": "2026-07-27T12:45:48.675324+00:00"
-    },
-    {
-      "id": "24368d5c21ec",
-      "type": "milestone",
-      "label": "milestone: Committed single plan closeout",
-      "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
-      ],
-      "created": "2026-07-27T12:48:08.258840+00:00"
+      "created": "2026-07-27T13:16:42.512510+00:00"
     },
     {
       "id": "c71da9963354",
@@ -21765,213 +21792,6 @@
       "created": "2026-07-27T12:43:51.820251+00:00"
     },
     {
-      "id": "a5f583a537a7",
-      "type": "milestone",
-      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360269+00:00"
-    },
-    {
-      "id": "490a5ebfd48d",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360687+00:00"
-    },
-    {
-      "id": "ae5a0c2da073",
-      "type": "milestone",
-      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153011+00:00"
-    },
-    {
-      "id": "51060209facf",
-      "type": "milestone",
-      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153104+00:00"
-    },
-    {
-      "id": "5aeecf9e0278",
-      "type": "milestone",
-      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153183+00:00"
-    },
-    {
-      "id": "55400f477c3c",
-      "type": "milestone",
-      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153259+00:00"
-    },
-    {
-      "id": "c344608e8310",
-      "type": "milestone",
-      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153337+00:00"
-    },
-    {
-      "id": "29955f0931ab",
-      "type": "milestone",
-      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153412+00:00"
-    },
-    {
-      "id": "97aa5ba576fd",
-      "type": "test",
-      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153487+00:00"
-    },
-    {
-      "id": "ec1115156a69",
-      "type": "outcome",
-      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153636+00:00"
-    },
-    {
-      "id": "4472302e0698",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143367+00:00"
-    },
-    {
-      "id": "04798dd6ab2b",
-      "type": "test",
-      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143461+00:00"
-    },
-    {
-      "id": "45f169b4e8de",
-      "type": "milestone",
-      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218813+00:00"
-    },
-    {
-      "id": "00b8bf54800b",
-      "type": "milestone",
-      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218902+00:00"
-    },
-    {
-      "id": "6fd7cc4cdc3c",
-      "type": "milestone",
-      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218983+00:00"
-    },
-    {
-      "id": "924d259f8650",
-      "type": "milestone",
-      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219065+00:00"
-    },
-    {
-      "id": "39f7c5894a10",
-      "type": "milestone",
-      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219143+00:00"
-    },
-    {
-      "id": "f188dee3c58e",
-      "type": "milestone",
-      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219221+00:00"
-    },
-    {
-      "id": "cb74c7701693",
-      "type": "test",
-      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219300+00:00"
-    },
-    {
-      "id": "600d5ed0bc31",
-      "type": "error",
-      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219381+00:00"
-    },
-    {
-      "id": "1afb97b06903",
-      "type": "milestone",
-      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219462+00:00"
-    },
-    {
-      "id": "f2fedd92db5a",
-      "type": "error",
-      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219690+00:00"
-    },
-    {
-      "id": "7c36d1ff15c0",
-      "type": "outcome",
-      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219770+00:00"
-    },
-    {
       "id": "cfdc4a24bbfd",
       "type": "milestone",
       "label": "milestone: Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
@@ -22186,6 +22006,492 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "d95b860f8416",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461342+00:00"
+    },
+    {
+      "id": "607d6b95bac4",
+      "type": "milestone",
+      "label": "milestone: Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461431+00:00"
+    },
+    {
+      "id": "994ee588e9ed",
+      "type": "milestone",
+      "label": "milestone: Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461513+00:00"
+    },
+    {
+      "id": "5ff42ce513f2",
+      "type": "milestone",
+      "label": "milestone: Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461591+00:00"
+    },
+    {
+      "id": "ebe3e828f792",
+      "type": "milestone",
+      "label": "milestone: Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461675+00:00"
+    },
+    {
+      "id": "089005f392df",
+      "type": "commit",
+      "label": "commit: Commit: 3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461754+00:00"
+    },
+    {
+      "id": "a5f583a537a7",
+      "type": "milestone",
+      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T12:06:26.360269+00:00"
+    },
+    {
+      "id": "490a5ebfd48d",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T12:06:26.360687+00:00"
+    },
+    {
+      "id": "ae5a0c2da073",
+      "type": "milestone",
+      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153011+00:00"
+    },
+    {
+      "id": "51060209facf",
+      "type": "milestone",
+      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153104+00:00"
+    },
+    {
+      "id": "5aeecf9e0278",
+      "type": "milestone",
+      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153183+00:00"
+    },
+    {
+      "id": "55400f477c3c",
+      "type": "milestone",
+      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153259+00:00"
+    },
+    {
+      "id": "c344608e8310",
+      "type": "milestone",
+      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153337+00:00"
+    },
+    {
+      "id": "29955f0931ab",
+      "type": "milestone",
+      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153412+00:00"
+    },
+    {
+      "id": "97aa5ba576fd",
+      "type": "test",
+      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153487+00:00"
+    },
+    {
+      "id": "ec1115156a69",
+      "type": "outcome",
+      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153636+00:00"
+    },
+    {
+      "id": "4472302e0698",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143367+00:00"
+    },
+    {
+      "id": "04798dd6ab2b",
+      "type": "test",
+      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143461+00:00"
+    },
+    {
+      "id": "45f169b4e8de",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218813+00:00"
+    },
+    {
+      "id": "00b8bf54800b",
+      "type": "milestone",
+      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218902+00:00"
+    },
+    {
+      "id": "6fd7cc4cdc3c",
+      "type": "milestone",
+      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218983+00:00"
+    },
+    {
+      "id": "924d259f8650",
+      "type": "milestone",
+      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219065+00:00"
+    },
+    {
+      "id": "39f7c5894a10",
+      "type": "milestone",
+      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219143+00:00"
+    },
+    {
+      "id": "f188dee3c58e",
+      "type": "milestone",
+      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219221+00:00"
+    },
+    {
+      "id": "cb74c7701693",
+      "type": "test",
+      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219300+00:00"
+    },
+    {
+      "id": "600d5ed0bc31",
+      "type": "error",
+      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219381+00:00"
+    },
+    {
+      "id": "1afb97b06903",
+      "type": "milestone",
+      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219462+00:00"
+    },
+    {
+      "id": "f2fedd92db5a",
+      "type": "error",
+      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219690+00:00"
+    },
+    {
+      "id": "7c36d1ff15c0",
+      "type": "outcome",
+      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219770+00:00"
+    },
+    {
+      "id": "6850aee5d39b",
+      "type": "milestone",
+      "label": "milestone: Added ADR prose hook reference scanning",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365281+00:00"
+    },
+    {
+      "id": "0e559d9e3e2f",
+      "type": "milestone",
+      "label": "milestone: Corrected stale ADR prose hook references",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365378+00:00"
+    },
+    {
+      "id": "26cc38e703a3",
+      "type": "milestone",
+      "label": "milestone: ADR Review Protocol",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365462+00:00"
+    },
+    {
+      "id": "5f795771a5c2",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365545+00:00"
+    },
+    {
+      "id": "9ef31c494e3d",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:08:31.070239+00:00"
+    },
+    {
+      "id": "621481c0a816",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:08:52.747258+00:00"
+    },
+    {
+      "id": "3b0c002fd583",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 3",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:09:12.833127+00:00"
+    },
+    {
+      "id": "b5f909bf6e7a",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 4",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:09:33.646223+00:00"
+    },
+    {
+      "id": "d58487111fd1",
+      "type": "commit",
+      "label": "commit: Commit: 22c786aff6aa249b640309157526f4119afe1f74",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:45:59.501066+00:00"
+    },
+    {
+      "id": "6a13e225b00e",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705338+00:00"
+    },
+    {
+      "id": "22c6c2d4f4fd",
+      "type": "milestone",
+      "label": "milestone: Corrected remaining stale ADR prose references after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705425+00:00"
+    },
+    {
+      "id": "5f651d3b4ac3",
+      "type": "commit",
+      "label": "commit: Commit: 133534d99315",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705505+00:00"
+    },
+    {
+      "id": "0a47b33fd696",
+      "type": "commit",
+      "label": "commit: Commit: 32d681173ddf",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:33:34.529441+00:00"
+    },
+    {
+      "id": "50591e37eb2d",
+      "type": "commit",
+      "label": "commit: Commit: f1e77bf6b1dc",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:34:47.018224+00:00"
+    },
+    {
+      "id": "4a5bba0e7a76",
+      "type": "commit",
+      "label": "commit: Commit: a729ddc7c174",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:35:38.095196+00:00"
+    },
+    {
+      "id": "b444bc07b88f",
+      "type": "commit",
+      "label": "commit: Commit: b016d5deaf15",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:36:36.597306+00:00"
+    },
+    {
+      "id": "1b7bfa89e2d6",
+      "type": "commit",
+      "label": "commit: Commit: 6b41483632d0",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:37:21.440478+00:00"
+    },
+    {
+      "id": "142ba3369761",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner for review r2",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851533+00:00"
+    },
+    {
+      "id": "20f14b24aa18",
+      "type": "milestone",
+      "label": "milestone: Corrected ADR-062 and ADR-083 review r2 prose",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851621+00:00"
+    },
+    {
+      "id": "8a10c7238b40",
+      "type": "commit",
+      "label": "commit: Commit: 211cc69f2d61",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:53:38.851708+00:00"
+    },
+    {
+      "id": "f1b4ddf845c5",
+      "type": "commit",
+      "label": "commit: Commit: 2c99107e1cd5",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T14:55:12.642374+00:00"
+    },
+    {
+      "id": "290f01c75f6e",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner for review r3",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.939851+00:00"
+    },
+    {
+      "id": "6a2eab95668b",
+      "type": "milestone",
+      "label": "milestone: Restored ADR-083 accepted security-control requirement",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.939950+00:00"
+    },
+    {
+      "id": "56156fcffa79",
+      "type": "milestone",
+      "label": "milestone: Corrected review r3 stale hook prose",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T19:52:49.940040+00:00"
+    },
+    {
+      "id": "028cf1b95824",
+      "type": "commit",
+      "label": "commit: Commit: 8c17b1d10e58",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T16:34:01.954991+00:00"
     },
     {
       "id": "65d72b61f137",
@@ -22539,328 +22845,76 @@
       "created": "2026-07-27T20:22:25.573133+00:00"
     },
     {
-      "id": "f640dc8c090f",
-      "type": "commit",
-      "label": "commit: Commit: b02150b671",
-      "episodes": [
-        "episode-2026-07-27-session-3426-plan-closeout"
-      ],
-      "created": "2026-07-28T03:56:21.060656+00:00"
-    },
-    {
-      "id": "795da0e7b424",
+      "id": "e5fd312fa463",
       "type": "milestone",
-      "label": "milestone: Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work",
+      "label": "milestone: Created isolated worktree and acquired PR lease",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.203806+00:00"
+      "created": "2026-07-28T04:46:04.836245+00:00"
     },
     {
-      "id": "799cbceb4129",
+      "id": "a08affa699d8",
       "type": "milestone",
-      "label": "milestone: Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp",
+      "label": "milestone: Ran live-state gate: ACT",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.203897+00:00"
+      "created": "2026-07-28T04:46:04.836344+00:00"
     },
     {
-      "id": "84e8edd4243f",
+      "id": "627ef07f2f80",
       "type": "milestone",
-      "label": "milestone: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "label": "milestone: Verified stale CONFLICTING state with local trial merge (clean, no conflicts)",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.203977+00:00"
+      "created": "2026-07-28T04:46:04.836427+00:00"
     },
     {
-      "id": "f66db840deaf",
-      "type": "test",
-      "label": "test: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "id": "f43f084530ac",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into branch",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.204054+00:00"
+      "created": "2026-07-28T04:46:04.836509+00:00"
     },
     {
-      "id": "94e08d369053",
-      "type": "commit",
-      "label": "commit: Commit: bb2d29e1c4",
+      "id": "f212716a234f",
+      "type": "milestone",
+      "label": "milestone: Confirmed 15865 tests pass and 96/96 skill frontmatter valid",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.204131+00:00"
+      "created": "2026-07-28T04:46:04.836591+00:00"
     },
     {
-      "id": "ecf26dd68a81",
-      "type": "commit",
-      "label": "commit: Commit: f633ad31c9",
+      "id": "8f3c54e23b03",
+      "type": "milestone",
+      "label": "milestone: Verified all 11 review threads already resolved by prior session",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.204207+00:00"
+      "created": "2026-07-28T04:46:04.836693+00:00"
     },
     {
-      "id": "4052aa5dccd8",
+      "id": "36ed3d63693c",
       "type": "outcome",
-      "label": "Outcome: success - Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case",
+      "label": "Outcome: success - Merge main into PR #3497 to clear stale CONFLICTING state and enable squash merge",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:14:05.204285+00:00"
+      "created": "2026-07-28T04:46:04.836784+00:00"
     },
     {
-      "id": "87e25b954ab0",
-      "type": "milestone",
-      "label": "milestone: uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
-      "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
-      ],
-      "created": "2026-07-27T16:48:35.679346+00:00"
-    },
-    {
-      "id": "ea3c9ed5124f",
+      "id": "eac38972928f",
       "type": "commit",
-      "label": "commit: Commit: 735cc876f7",
+      "label": "commit: Commit: 243572586",
       "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
       ],
-      "created": "2026-07-27T16:48:35.679435+00:00"
-    },
-    {
-      "id": "fbee51fcb51f",
-      "type": "commit",
-      "label": "commit: Commit: 4de79677af",
-      "episodes": [
-        "episode-2026-07-27-session-3475-memory-causal-order"
-      ],
-      "created": "2026-07-27T16:48:35.679513+00:00"
-    },
-    {
-      "id": "6850aee5d39b",
-      "type": "milestone",
-      "label": "milestone: Added ADR prose hook reference scanning",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:07:20.365281+00:00"
-    },
-    {
-      "id": "0e559d9e3e2f",
-      "type": "milestone",
-      "label": "milestone: Corrected stale ADR prose hook references",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:07:20.365378+00:00"
-    },
-    {
-      "id": "26cc38e703a3",
-      "type": "milestone",
-      "label": "milestone: ADR Review Protocol",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:07:20.365462+00:00"
-    },
-    {
-      "id": "5f795771a5c2",
-      "type": "outcome",
-      "label": "Outcome: success - Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:07:20.365545+00:00"
-    },
-    {
-      "id": "9ef31c494e3d",
-      "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 1",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:08:31.070239+00:00"
-    },
-    {
-      "id": "621481c0a816",
-      "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 2",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:08:52.747258+00:00"
-    },
-    {
-      "id": "3b0c002fd583",
-      "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 3",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:09:12.833127+00:00"
-    },
-    {
-      "id": "b5f909bf6e7a",
-      "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 4",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:09:33.646223+00:00"
-    },
-    {
-      "id": "d58487111fd1",
-      "type": "commit",
-      "label": "commit: Commit: 22c786aff6aa249b640309157526f4119afe1f74",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:45:59.501066+00:00"
-    },
-    {
-      "id": "6a13e225b00e",
-      "type": "milestone",
-      "label": "milestone: Strengthened ADR prose scanner after adversarial review",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:30:49.705338+00:00"
-    },
-    {
-      "id": "22c6c2d4f4fd",
-      "type": "milestone",
-      "label": "milestone: Corrected remaining stale ADR prose references after adversarial review",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:30:49.705425+00:00"
-    },
-    {
-      "id": "5f651d3b4ac3",
-      "type": "commit",
-      "label": "commit: Commit: 133534d99315",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:30:49.705505+00:00"
-    },
-    {
-      "id": "0a47b33fd696",
-      "type": "commit",
-      "label": "commit: Commit: 32d681173ddf",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:33:34.529441+00:00"
-    },
-    {
-      "id": "50591e37eb2d",
-      "type": "commit",
-      "label": "commit: Commit: f1e77bf6b1dc",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:34:47.018224+00:00"
-    },
-    {
-      "id": "4a5bba0e7a76",
-      "type": "commit",
-      "label": "commit: Commit: a729ddc7c174",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:35:38.095196+00:00"
-    },
-    {
-      "id": "b444bc07b88f",
-      "type": "commit",
-      "label": "commit: Commit: b016d5deaf15",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:36:36.597306+00:00"
-    },
-    {
-      "id": "1b7bfa89e2d6",
-      "type": "commit",
-      "label": "commit: Commit: 6b41483632d0",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T13:37:21.440478+00:00"
-    },
-    {
-      "id": "142ba3369761",
-      "type": "milestone",
-      "label": "milestone: Strengthened ADR prose scanner for review r2",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T14:53:38.851533+00:00"
-    },
-    {
-      "id": "20f14b24aa18",
-      "type": "milestone",
-      "label": "milestone: Corrected ADR-062 and ADR-083 review r2 prose",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T14:53:38.851621+00:00"
-    },
-    {
-      "id": "8a10c7238b40",
-      "type": "commit",
-      "label": "commit: Commit: 211cc69f2d61",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T14:53:38.851708+00:00"
-    },
-    {
-      "id": "f1b4ddf845c5",
-      "type": "commit",
-      "label": "commit: Commit: 2c99107e1cd5",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T14:55:12.642374+00:00"
-    },
-    {
-      "id": "290f01c75f6e",
-      "type": "milestone",
-      "label": "milestone: Strengthened ADR prose scanner for review r3",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T19:52:49.939851+00:00"
-    },
-    {
-      "id": "6a2eab95668b",
-      "type": "milestone",
-      "label": "milestone: Restored ADR-083 accepted security-control requirement",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T19:52:49.939950+00:00"
-    },
-    {
-      "id": "56156fcffa79",
-      "type": "milestone",
-      "label": "milestone: Corrected review r3 stale hook prose",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T19:52:49.940040+00:00"
-    },
-    {
-      "id": "028cf1b95824",
-      "type": "commit",
-      "label": "commit: Commit: 8c17b1d10e58",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T16:34:01.954991+00:00"
+      "created": "2026-07-28T05:13:37.972858+00:00"
     },
     {
       "id": "b5b863b63986",
@@ -23259,6 +23313,96 @@
       "created": "2026-07-28T05:06:51.357047+00:00"
     },
     {
+      "id": "795da0e7b424",
+      "type": "milestone",
+      "label": "milestone: Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203806+00:00"
+    },
+    {
+      "id": "799cbceb4129",
+      "type": "milestone",
+      "label": "milestone: Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203897+00:00"
+    },
+    {
+      "id": "84e8edd4243f",
+      "type": "milestone",
+      "label": "milestone: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203977+00:00"
+    },
+    {
+      "id": "f66db840deaf",
+      "type": "test",
+      "label": "test: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204054+00:00"
+    },
+    {
+      "id": "94e08d369053",
+      "type": "commit",
+      "label": "commit: Commit: bb2d29e1c4",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204131+00:00"
+    },
+    {
+      "id": "ecf26dd68a81",
+      "type": "commit",
+      "label": "commit: Commit: f633ad31c9",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204207+00:00"
+    },
+    {
+      "id": "4052aa5dccd8",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204285+00:00"
+    },
+    {
+      "id": "87e25b954ab0",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679346+00:00"
+    },
+    {
+      "id": "ea3c9ed5124f",
+      "type": "commit",
+      "label": "commit: Commit: 735cc876f7",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679435+00:00"
+    },
+    {
+      "id": "fbee51fcb51f",
+      "type": "commit",
+      "label": "commit: Commit: 4de79677af",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679513+00:00"
+    },
+    {
       "id": "b0caf9aef992",
       "type": "milestone",
       "label": "milestone: Created the requested worktree from fresh origin/main and verified branch isolation.",
@@ -23410,6 +23554,96 @@
         "episode-2026-07-27-session-3419-progressive-disclosure"
       ],
       "created": "2026-07-28T02:55:10.805049+00:00"
+    },
+    {
+      "id": "a3dbd8d7226a",
+      "type": "milestone",
+      "label": "milestone: Read issue #3426",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808804+00:00"
+    },
+    {
+      "id": "c720677ae3c8",
+      "type": "milestone",
+      "label": "milestone: Closed stale execution plans",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808894+00:00"
+    },
+    {
+      "id": "009bd2621d26",
+      "type": "milestone",
+      "label": "milestone: Added active plan advisory",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.808974+00:00"
+    },
+    {
+      "id": "46c04904a58c",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809050+00:00"
+    },
+    {
+      "id": "79ea5b5c5d73",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check.",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:42:10.809125+00:00"
+    },
+    {
+      "id": "bd574610ca7a",
+      "type": "milestone",
+      "label": "milestone: Committed closeout docs",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:43:54.519216+00:00"
+    },
+    {
+      "id": "8d477003135d",
+      "type": "milestone",
+      "label": "milestone: Committed closeout batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:44:42.128789+00:00"
+    },
+    {
+      "id": "a76f1303445a",
+      "type": "milestone",
+      "label": "milestone: Committed completed plan batch",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:45:48.675324+00:00"
+    },
+    {
+      "id": "24368d5c21ec",
+      "type": "milestone",
+      "label": "milestone: Committed single plan closeout",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-27T12:48:08.258840+00:00"
+    },
+    {
+      "id": "f640dc8c090f",
+      "type": "commit",
+      "label": "commit: Commit: b02150b671",
+      "episodes": [
+        "episode-2026-07-27-session-3426-plan-closeout"
+      ],
+      "created": "2026-07-28T03:56:21.060656+00:00"
     },
     {
       "id": "659effefe94f",

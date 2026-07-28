@@ -49,9 +49,9 @@ def repo_root() -> Path:
 
 
 @pytest.fixture
-def temp_dir_outside_repo(tmp_path: Path) -> Path:
+def temp_dir_outside_repo(external_tmp_path: Path) -> Path:
     """Create a temp directory guaranteed to be outside the repo."""
-    outside_dir = tmp_path / "outside_repo"
+    outside_dir = external_tmp_path / "outside_repo"
     outside_dir.mkdir()
     return outside_dir
 

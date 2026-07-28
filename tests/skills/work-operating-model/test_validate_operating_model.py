@@ -279,8 +279,8 @@ class TestLoadDocument:
         with pytest.raises(json.JSONDecodeError):
             load_document(str(target), validate_path=False)
 
-    def test_path_traversal_blocked(self, tmp_path: Path) -> None:
-        target = tmp_path / "model.json"
+    def test_path_traversal_blocked(self, external_tmp_path: Path) -> None:
+        target = external_tmp_path / "model.json"
         target.write_text(json.dumps(_minimal_valid_document()))
         with pytest.raises(PermissionError, match="path traversal blocked"):
             load_document(str(target))
@@ -330,9 +330,9 @@ class TestMainCLI:
         assert "invalid JSON" in captured.err
 
     def test_main_blocks_traversal(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+        self, external_tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        target = tmp_path / "model.json"
+        target = external_tmp_path / "model.json"
         target.write_text(json.dumps(_minimal_valid_document()))
         rc = main([str(target)])
         captured = capsys.readouterr()
