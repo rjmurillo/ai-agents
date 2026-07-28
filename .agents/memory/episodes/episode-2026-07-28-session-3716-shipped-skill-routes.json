@@ -1,0 +1,203 @@
+{
+  "id": "episode-2026-07-28-session-3716-shipped-skill-routes",
+  "session": "2026-07-28-session-3716-shipped-skill-routes",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Audit the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository, fix the shipped-plugin routing defect it predicted, and add a gate so the class cannot regress.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository. Its testable claim is that parallel discovery systems disagree about what is active while each passes its own tests. Probed skill-set parity across the two trees: .claude/skills has 97 entries, src/copilot-cli/skills has 110. The 12 Copilot-only entries are the documented commands-to-skills seam and are expected. merge-resolver exists in .claude/skills with no Copilot counterpart, which is not.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the parity gap to a live consumer-facing defect. src/copilot-cli/skills/autoplan/SKILL.md line 93 routed merge-conflict work to 'Skill: merge-resolver', but the Copilot toolkit does not contain that skill. Verified the routing table uses only Skill: labels and never Agent: labels, so every route in it must resolve in its own tree.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a systematic route-resolution scan across both trees to size the problem rather than assume it was isolated: 17 routes in each tree, 0 unresolved in .claude, 1 unresolved in src/copilot-cli. The defect was a single route, not a pattern.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the root cause in git history. merge-resolver was deliberately excluded from the Copilot shipping set in issue #2026 and commit 1159d8c5f2, because it is hard-wired to this repository's layout and useless in a consumer repo. templates/platforms/copilot-cli.yaml line 18 carries the exclusion and its rationale. The packaging edit was made; the routing prose was not updated.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established why every existing gate passed. The packaging exclusion is self-consistent, and the routing table is byte-identical to its canonical source, where the route is correct because that tree has the skill. Generation-drift gates verify the shipped copy matches its source, which is a different question from whether the shipped copy's references resolve in the shipped tree.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the capability itself was never lost before proposing a fix. src/copilot-cli/agents/merge-resolver.agent.md ships at 147 lines and is self-contained: it references neither the excluded skill directory nor resolve_pr_conflicts.py. Only .claude/agents/merge-resolver.md references the skill scripts, which is correct because that tree has them.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the fix mechanism against the generator rather than assuming it. build/scripts/copilot_body_translation.py rewrites Task(subagent_type=\"X\") to an agent_type reference generically, verified against architect, analyst, implementer, and milestone-planner. The same autoplan table already uses that form for the orchestrator row, so the fix is idiomatic and needs no generator change.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied the one-line routing fix in the canonical tree, regenerated with build_all.py, and confirmed the shipped tree now carries the translated agent_type form. Re-ran the route scan: 0 unresolved in both trees.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote scripts/validation/check_shipped_skill_routes.py encoding the cross-tree invariant, and designed for precision rather than recall. A bare Skill: regex produces a false positive on a checklist line where 'create' follows the label as an English verb. The filter reports a name only when it exists as a skill in the canonical tree, which is exactly the drift signature and kills the prose false positive. Fenced blocks are stripped with line numbers preserved, and a leading backtick or word character is rejected.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a negative control against the real historical defect rather than a synthetic one. git stash of the routing fix makes the script exit 1 with the exact file, line, and missing path; restoring it returns exit 0.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 14 tests after discovering the first attempt was structurally wrong. Importlib loading of a module containing a dataclass fails at collection because the module is absent from sys.modules when the decorator runs. The repository's established pattern for validators is subprocess invocation, which also exercises the real CLI exit contract that TESTING-RIGOR requires. Rewrote to match.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Distrusted the tests because they validate a validator written in the same session, which is one closed loop. Broke the loop with a mutation control: neutering the failure branch fails exactly the four negative tests and leaves the ten others green.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registered the gate in two places so it actually runs. scripts/validation/checks_plugin.py gains a wrapper that fails closed when the script is absent, following validate_agent_catalog rather than the MissingScriptSkip pattern, because a silent skip would defeat the gate. pre_pr_sequence.py calls it, and the pre_pr.py facade re-exports it. A CI step sits beside its sibling self-containment gate in validate-generated-agents.yml, whose paths filter already covers both trees.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified registration end-to-end rather than trusting the wiring. Called the wrapper directly against the fixed tree for exit true, then stashed the routing fix and called it again for exit false with the full diagnostic. Measured the gate at 137ms, which justifies paying for it in both the local pre-push path and CI.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the new script satisfies tests/ci/test_validation_scripts_are_reachable.py, the guard that exists because issue #3329 shipped two gates with green tests and no caller anywhere.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f82cad096f",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3716,
+    "date": "2026-07-28",
+    "branch": "fix/autoplan-dangling-skill-route",
+    "startingCommit": "95da12691b",
+    "objective": "Audit the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository, fix the shipped-plugin routing defect it predicted, and add a gate so the class cannot regress."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/autoplan-dangling-skill-route after checkout -b from origin/main at 95da12691b"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/autoplan-dangling-skill-route, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Continued from the prior session's handoff in the same autopilot run; this branch was cut after PR #3714 reached CI-green"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit landed on the branch"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Serena MCP active for the parent autopilot session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Serena initial_instructions loaded for the parent autopilot session"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .claude/rules/plugin-version-bump.md scope to confirm both .claude/** and src/copilot-cli/** were touched and therefore both manifests required the same strictly-greater bump"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All work-log entries closed with evidence"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified; it is read-only per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote .serena/memories/architecture/shipped-tree-route-resolution.md recording the invariant, the #2026 incident, and why generation-drift gates cannot see this class"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 run out-of-tree on the authored markdown, following the documented procedure in .serena/memories/linting/linting-exclusions.md because .serena/** and .agents/** are excluded by repo config"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three atomic commits, each at or under five files: routing fix plus regeneration, gate plus tests plus registration, then manifests plus session artifacts"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "14 of 14 unit tests pass. Mutation control: neutering the gate's failure branch fails exactly the four negative tests and leaves the ten others green, so the tests have teeth. Negative control against the real historical defect: git stash of the routing fix makes both the script and its pre_pr wrapper exit non-zero with a precise message, and restoring the fix returns exit 0. Route resolution measured at 17 routes per tree, 0 unresolved in .claude and 1 unresolved in src/copilot-cli before the fix, 0 in both after. Reachability and paths-filter meta-tests pass at 136 of 138 with 2 pre-existing exemptions."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/retrospective/2026-07-28-session-3716-shipped-skill-routes.md. Primary lesson: a defect can be invisible to every gate when two control planes are each internally consistent, because no gate asked the cross-plane question."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Audited the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository. Its testable claim is that parallel discovery systems disagree about what is active while each passes its own tests. Probed skill-set parity across the two trees: .claude/skills has 97 entries, src/copilot-cli/skills has 110. The 12 Copilot-only entries are the documented commands-to-skills seam and are expected. merge-resolver exists in .claude/skills with no Copilot counterpart, which is not."
+    },
+    {
+      "step": "Traced the parity gap to a live consumer-facing defect. src/copilot-cli/skills/autoplan/SKILL.md line 93 routed merge-conflict work to 'Skill: merge-resolver', but the Copilot toolkit does not contain that skill. Verified the routing table uses only Skill: labels and never Agent: labels, so every route in it must resolve in its own tree."
+    },
+    {
+      "step": "Ran a systematic route-resolution scan across both trees to size the problem rather than assume it was isolated: 17 routes in each tree, 0 unresolved in .claude, 1 unresolved in src/copilot-cli. The defect was a single route, not a pattern."
+    },
+    {
+      "step": "Found the root cause in git history. merge-resolver was deliberately excluded from the Copilot shipping set in issue #2026 and commit 1159d8c5f2, because it is hard-wired to this repository's layout and useless in a consumer repo. templates/platforms/copilot-cli.yaml line 18 carries the exclusion and its rationale. The packaging edit was made; the routing prose was not updated."
+    },
+    {
+      "step": "Established why every existing gate passed. The packaging exclusion is self-consistent, and the routing table is byte-identical to its canonical source, where the route is correct because that tree has the skill. Generation-drift gates verify the shipped copy matches its source, which is a different question from whether the shipped copy's references resolve in the shipped tree."
+    },
+    {
+      "step": "Verified the capability itself was never lost before proposing a fix. src/copilot-cli/agents/merge-resolver.agent.md ships at 147 lines and is self-contained: it references neither the excluded skill directory nor resolve_pr_conflicts.py. Only .claude/agents/merge-resolver.md references the skill scripts, which is correct because that tree has them."
+    },
+    {
+      "step": "Confirmed the fix mechanism against the generator rather than assuming it. build/scripts/copilot_body_translation.py rewrites Task(subagent_type=\"X\") to an agent_type reference generically, verified against architect, analyst, implementer, and milestone-planner. The same autoplan table already uses that form for the orchestrator row, so the fix is idiomatic and needs no generator change."
+    },
+    {
+      "step": "Applied the one-line routing fix in the canonical tree, regenerated with build_all.py, and confirmed the shipped tree now carries the translated agent_type form. Re-ran the route scan: 0 unresolved in both trees."
+    },
+    {
+      "step": "Wrote scripts/validation/check_shipped_skill_routes.py encoding the cross-tree invariant, and designed for precision rather than recall. A bare Skill: regex produces a false positive on a checklist line where 'create' follows the label as an English verb. The filter reports a name only when it exists as a skill in the canonical tree, which is exactly the drift signature and kills the prose false positive. Fenced blocks are stripped with line numbers preserved, and a leading backtick or word character is rejected."
+    },
+    {
+      "step": "Ran a negative control against the real historical defect rather than a synthetic one. git stash of the routing fix makes the script exit 1 with the exact file, line, and missing path; restoring it returns exit 0."
+    },
+    {
+      "step": "Wrote 14 tests after discovering the first attempt was structurally wrong. Importlib loading of a module containing a dataclass fails at collection because the module is absent from sys.modules when the decorator runs. The repository's established pattern for validators is subprocess invocation, which also exercises the real CLI exit contract that TESTING-RIGOR requires. Rewrote to match."
+    },
+    {
+      "step": "Distrusted the tests because they validate a validator written in the same session, which is one closed loop. Broke the loop with a mutation control: neutering the failure branch fails exactly the four negative tests and leaves the ten others green."
+    },
+    {
+      "step": "Registered the gate in two places so it actually runs. scripts/validation/checks_plugin.py gains a wrapper that fails closed when the script is absent, following validate_agent_catalog rather than the MissingScriptSkip pattern, because a silent skip would defeat the gate. pre_pr_sequence.py calls it, and the pre_pr.py facade re-exports it. A CI step sits beside its sibling self-containment gate in validate-generated-agents.yml, whose paths filter already covers both trees."
+    },
+    {
+      "step": "Verified registration end-to-end rather than trusting the wiring. Called the wrapper directly against the fixed tree for exit true, then stashed the routing fix and called it again for exit false with the full diagnostic. Measured the gate at 137ms, which justifies paying for it in both the local pre-push path and CI."
+    },
+    {
+      "step": "Confirmed the new script satisfies tests/ci/test_validation_scripts_are_reachable.py, the guard that exists because issue #3329 shipped two gates with green tests and no caller anywhere."
+    }
+  ],
+  "endingCommit": "f82cad096f",
+  "nextSteps": [
+    "The gate scans for Skill: labels only. A routing table that names a skill in another shape, for example a bare markdown link into a skill directory, is not covered. That is a wider scan with a worse false-positive profile and needs its own change.",
+    "SHIPPED_TREES lists src/copilot-cli only. A third shipping tree would need to be added there, and nothing currently forces that."
+  ]
+}
