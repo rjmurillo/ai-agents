@@ -1,10 +1,7 @@
 ---
 name: github
 version: 4.0.0
-description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
-  using Python scripts with structured output and error handling. Use when working
-  with pull requests, issues, review comments, CI checks, or milestones instead of raw gh.
-  Do NOT use to read a pasted github.com URL (use github-url-intercept).
+description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges) using Python scripts with structured output and error handling. Use when working with pull requests, issues, review comments, CI checks, or milestones instead of raw gh. Use when you say "create a PR", "add label to issue", or "check CI status". Do NOT use to read a pasted github.com URL (use github-url-intercept).
 license: MIT
 metadata:
   domains:
@@ -38,8 +35,8 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 | `create a PR` | new_pr.py |
 | `respond to review comments` | post_pr_comment_reply.py |
 | `check CI status` | get_pr_checks.py / get_pr_check_logs.py |
-| `close issue, add label to issue` | close_pr.py / set_issue_labels.py |
-| `list actionable items, check notifications` | get_actionable_items.py |
+| `close issue` | close_issue.py |
+| `add label to issue` | set_issue_labels.py |
 
 ---
 
