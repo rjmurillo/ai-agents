@@ -124,6 +124,16 @@
       "actions": [
         "Filed an ADR superseding the Tier 3 portion of ADR-038, left at proposed status pending an adr-review debate log"
       ]
+    },
+    {
+      "phase": "Review",
+      "actions": [
+        "Ran the adr-review 6-agent debate on ADR-088; 4 of 6 blocked the first round",
+        "Corrected five refuted claims in ADR-088, including two the ADR used to justify itself, and removed a fabricated consumer table from memory-reflexion",
+        "Added tests/test_causal_tier_removed.py, 21 inverse tests, negative-controlled by reintroducing the graph, the merge attribute, and the lefthook job",
+        "Filed issues 3630 and 3631 for the two findings that outlive this change",
+        "Wrote the debate log and the retrospective"
+      ]
     }
   ],
   "endingCommit": "19176c7da041cdd43cc0e90122e39175d4f4173d",
