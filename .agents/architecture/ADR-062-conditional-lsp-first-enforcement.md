@@ -426,8 +426,15 @@ bump plugin.json; full validation; PR.
 - GitHub Docs: Copilot CLI LSP servers + hooks (auto-LSP, permissionDecision).
 - Claude Code native LSP tool (v2.0.74+): tier-2 fallback.
 - Removed reference: `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py:16-29` (#1993 precedent).
-- `.claude/rules/canonical-source-mirror.md`; `.claude/rules/release-it.md`; ADR-006; ADR-035; ADR-042; ADR-008; ADR-033.
+- `.claude/rules/canonical-source-mirror.md`; `.claude/rules/release-it.md`; ADR-006; ADR-035; ADR-042; ADR-008; ADR-033. <!-- orphan-ref-ignore -->
 
 ---
 
 *GitHub Issue: TBD (tracking issue created with the implementation PR)*
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/release-it.md`.
+
