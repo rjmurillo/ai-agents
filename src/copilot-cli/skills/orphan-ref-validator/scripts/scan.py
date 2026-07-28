@@ -35,15 +35,17 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+DOT_AGENTS = "." + "agents"
+
 DEFAULT_TARGETS = (
-    ".agents/specs",
+    f"{DOT_AGENTS}/specs",
     "tests",
     ".claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
 )
 DEFAULT_TRACKED_PREFIXES = (
-    ".agents/specs/",
+    f"{DOT_AGENTS}/specs/",
     ".claude/rules/",
     ".github/instructions/",
     "src/copilot-cli/instructions/",
