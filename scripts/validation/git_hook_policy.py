@@ -544,17 +544,26 @@ def check_generated_paths(kind: str, repo_root: Path) -> int:
 
 
 def _read_index_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f":{relative_path}"])
-    if result.returncode != 0:
-        return None
-    return result.stdout.encode("utf-8")
+    return _read_blob_bytes(repo_root, f":{relative_path}")
 
 
 def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"HEAD:{relative_path}"])
+    return _read_blob_bytes(repo_root, f"HEAD:{relative_path}")
+
+
+def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
+    """Read a blob without letting text mode rewrite it.
+
+    ``_run_git`` decodes with ``errors="replace"`` and universal newlines, so a
+    CRLF copy and an LF copy of the same file come back equal, and two files
+    differing only in undecodable bytes do too. Callers here compare blobs to
+    decide whether a merge carried content, and an equality that lossy hands
+    that decision to whoever stages the lossy copy. Refs #3679.
+    """
+    result = _run_git_bytes(repo_root, ["show", revision])
     if result.returncode != 0:
         return None
-    return result.stdout.encode("utf-8")
+    return result.stdout
 
 
 def check_branch(repo_root: Path) -> int:
@@ -1013,18 +1022,44 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
     direction is the safe one: the answer is review evidence demanded for a
     file that did not need it, and a fetch clears it.
     """
-    head_blob = _read_head_blob(repo_root, path)
-    if head_blob is None:
+    head_id = _blob_id(repo_root, f"HEAD:{path}")
+    if head_id is None:
         return True
-    carried = _origin_main_commits_touching(repo_root, path)
-    return _blob_is_at_any(repo_root, carried, path, head_blob)
+    return head_id in _origin_main_blob_ids(repo_root, path)
 
 
-def _origin_main_commits_touching(repo_root: Path, path: str) -> list[str]:
-    result = _run_git(repo_root, ["rev-list", "origin/main", "--", path])
+def _blob_id(repo_root: Path, revision: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{revision}"])
+    identifier = result.stdout.strip()
+    return identifier if result.returncode == 0 and identifier else None
+
+
+def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
+    """Return every blob `origin/main` has held for a path, across renames.
+
+    `git rev-list -- <path>` stops at a rename, so an ADR main moved and
+    revised in one commit left its earlier states behind under the former name
+    and the branch holding a copy main really had carried failed on the
+    pathname alone. `--follow` crosses the rename, but re-reading the file at
+    those commits does not help, because the current name does not exist there
+    yet. Reading the blob identifiers straight out of the raw diff sidesteps the
+    name entirely. Refs #3679.
+    """
+    result = _run_git(
+        repo_root,
+        ["log", "--follow", "--raw", "--no-abbrev", "--format=", "origin/main", "--", path],
+    )
     if result.returncode != 0:
-        return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return set()
+    identifiers: set[str] = set()
+    for line in result.stdout.splitlines():
+        if not line.startswith(":"):
+            continue
+        fields = line[1:].split()
+        if len(fields) < 4:
+            continue
+        identifiers.update(field for field in fields[2:4] if set(field) != {"0"})
+    return identifiers
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
@@ -1072,10 +1107,7 @@ def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
 
 
 def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
-    result = _run_git(repo_root, ["show", f"{commit}:{relative_path}"])
-    if result.returncode != 0:
-        return None
-    return result.stdout.encode("utf-8")
+    return _read_blob_bytes(repo_root, f"{commit}:{relative_path}")
 
 
 def _session_has_retrospective_evidence(session_log: Path) -> bool:

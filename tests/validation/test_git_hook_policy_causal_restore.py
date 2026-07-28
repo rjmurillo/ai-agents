@@ -1118,5 +1118,157 @@ class TestAdrReviewPolicyMergeScope:
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
 
+    def test_blob_readers_do_not_normalise_line_endings_or_undecodable_bytes(self, tmp_path):
+        """Distinct blobs must not compare equal. Refs #3679.
+
+        The readers ran through `_run_git`, which decodes with universal
+        newlines and `errors="replace"`. A CRLF copy of an ADR and its LF
+        original came back equal, and so did two files differing only in
+        undecodable bytes. This gate reads equal as "the merge carried main's
+        content", so a lossy comparison hands that decision to whoever stages
+        the lossy copy.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        _git(repo, "config", "core.autocrlf", "false")
+        (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+        (repo / "lf.md").write_bytes(b"# ADR\n\nmain wrote this.\n")
+        (repo / "invalid-a.bin").write_bytes(b"\xff\x01")
+        (repo / "invalid-b.bin").write_bytes(b"\xfe\x02")
+        _commit(repo, "base")
+
+        (repo / "lf.md").write_bytes(b"# ADR\r\n\r\nmain wrote this.\r\n")
+        _git(repo, "add", "lf.md")
+
+        head = policy._read_head_blob(repo, "lf.md")
+        staged = policy._read_index_blob(repo, "lf.md")
+        assert head == b"# ADR\n\nmain wrote this.\n"
+        assert staged == b"# ADR\r\n\r\nmain wrote this.\r\n"
+        assert head != staged
+
+        first = policy._read_head_blob(repo, "invalid-a.bin")
+        second = policy._read_head_blob(repo, "invalid-b.bin")
+        assert first == b"\xff\x01"
+        assert second != first
+
+    def test_head_copy_lookup_crosses_a_rename(self, tmp_path):
+        """A copy main carried under a former name still counts. Refs #3679.
+
+        `git rev-list -- <path>` stops at a rename, so an ADR main moved and
+        revised in one commit left its earlier states behind under the former
+        name. A branch holding a copy main really had carried then failed on
+        the pathname alone and had review evidence demanded of it for someone
+        else's revision.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        original = adr_dir / "ADR-100-former-name.md"
+        first_text = "# ADR 100\n\n" + "".join(f"line {n}\n" for n in range(40))
+        original.write_text(first_text, encoding="utf-8")
+        _commit(repo, "adr under its first name")
+        _git(repo, "branch", "local")
+
+        renamed = ".agents/architecture/ADR-100-current-name.md"
+        _git(repo, "mv", ".agents/architecture/ADR-100-former-name.md", renamed)
+        (repo / renamed).write_text(first_text + "one revision line\n", encoding="utf-8")
+        _commit(repo, "rename and revise in one commit")
+        tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", tip)
+
+        # The branch holds main's earlier text, already under the current name.
+        _git(repo, "checkout", "local")
+        (repo / renamed).parent.mkdir(parents=True, exist_ok=True)
+        (repo / renamed).write_text(first_text, encoding="utf-8")
+        (repo / ".agents" / "architecture" / "ADR-100-former-name.md").unlink()
+        _git(repo, "add", "-A")
+        _commit(repo, "carry main's earlier text under the current name")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, renamed) is True
+        # Negative control: the walk that stops at the rename cannot see it.
+        stopped = _git(repo, "rev-list", "origin/main", "--", renamed).stdout.split()
+        assert len(stopped) == 1
+
+    def test_head_copy_lookup_rejects_text_main_never_held(self, tmp_path):
+        """Negative control for the rename fix. Refs #3679.
+
+        Following renames widens the set of blobs the walk sees, so it has to
+        be shown that the wider set still excludes content main never carried.
+        Without this, returning every blob in the repository would pass.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        relative = ".agents/architecture/ADR-101-only-on-main.md"
+        (repo / relative).write_text("# ADR 101\n\nmain wrote this.\n", encoding="utf-8")
+        _commit(repo, "adr on main")
+        tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", tip)
+
+        (repo / relative).write_text("# ADR 101\n\nthe branch rewrote this.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+        _commit(repo, "branch rewrite")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, relative) is False
+
+    def test_the_merge_parent_clause_carries_a_case_the_later_clause_cannot(self, tmp_path):
+        """Real-repository proof for the merge-parent clause. Refs #3679.
+
+        The monkeypatched test above pins the code path. This one pins the git
+        semantics behind it against a real repository: merging a main commit
+        that is not main's tip leaves the staged blob on an approved merge
+        parent while `origin/main` has moved on, so the later clause refuses it
+        and only the merge-parent clause can carry the case.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        _git(repo, "branch", "local")
+
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        relative = ".agents/architecture/ADR-102-revised-on-main.md"
+        (repo / relative).write_text("# ADR 102\n\nfirst state.\n", encoding="utf-8")
+        _commit(repo, "adr first state")
+        _git(repo, "branch", "main-first-state")
+
+        (repo / relative).write_text("# ADR 102\n\nsecond state.\n", encoding="utf-8")
+        _commit(repo, "adr second state")
+        tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", tip)
+
+        _git(repo, "checkout", "local")
+        # Local work first, or the merge fast-forwards and leaves no MERGE_HEAD.
+        (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "main-first-state"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        staged = policy._read_index_blob(repo, relative)
+        assert staged == b"# ADR 102\n\nfirst state.\n"
+        parents = policy._merge_head_commits(repo)
+        assert parents != []
+        assert policy._approved_merge_head_commits(repo) == parents
+        # The later clause cannot carry this case on its own.
+        assert policy._blob_arrived_through_the_merge(repo, parents, relative, staged) is False
+        # The merge-parent clause does, so the path is not branch-authored.
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
