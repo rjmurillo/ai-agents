@@ -192,7 +192,7 @@ def _run_suppression_push(
     *,
     base: str | None = "c" * 40,
     remote_sha: str = "b" * 40,
-    diff_without_no_renames: str | None = None,
+    rename_status_output: str = "",
     refs_present: bool = False,
     shallow: bool = False,
 ) -> int:
@@ -220,13 +220,18 @@ def _run_suppression_push(
             assert expected_range is not None
             assert expected_range in args
             return _completed("\0".join(changed_paths) + "\0")
+        if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+            assert expected_range is not None
+            assert expected_range in args
+            assert "--find-renames=100%" in args
+            assert "--no-renames" not in args
+            return _completed(rename_status_output)
         if "diff" in args and "--unified=0" in args:
             assert expected_range is not None
             assert expected_range in args
             for flag in policy.TEXTUAL_DIFF_FLAGS:
                 assert flag in args
-            if "--no-renames" not in args and diff_without_no_renames is not None:
-                return _completed(diff_without_no_renames)
+            assert "--no-renames" in args
             separator = args.index("--")
             assert tuple(args[separator + 1 :]) == changed_paths
             return _completed(diff_text)
@@ -430,6 +435,38 @@ new file mode 100644
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
         assert "pkg/module.py:3" in capsys.readouterr().err
 
+    def test_pure_rename_with_existing_suppression_is_allowed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        suppression = "# no" "qa"
+        no_rename_diff = f"""diff --git a/pkg/source.py b/pkg/target.py
+deleted file mode 100644
+--- a/pkg/source.py
++++ /dev/null
+@@ -1 +0,0 @@
+-import os  {suppression}
+diff --git a/pkg/target.py b/pkg/target.py
+new file mode 100644
+--- /dev/null
++++ b/pkg/target.py
+@@ -0,0 +1 @@
++import os  {suppression}
+"""
+        rename_status = "\0".join(("R100", "pkg/source.py", "pkg/target.py", ""))
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                no_rename_diff,
+                ("pkg/target.py",),
+                rename_status_output=rename_status,
+            )
+            == 0
+        )
+
     def test_rename_into_scanned_suffix_with_existing_suppression_is_blocked(
         self,
         tmp_path,
@@ -437,11 +474,6 @@ new file mode 100644
         capsys,
     ):
         suppression = "# no" "sec"
-        rename_only_diff = """diff --git a/pkg/payload.txt b/pkg/payload.py
-similarity index 100%
-rename from pkg/payload.txt
-rename to pkg/payload.py
-"""
         no_rename_diff = f"""diff --git a/pkg/payload.txt b/pkg/payload.py
 deleted file mode 100644
 --- a/pkg/payload.txt
@@ -455,6 +487,7 @@ new file mode 100644
 @@ -0,0 +1 @@
 +value = call()  {suppression}
 """
+        rename_status = "\0".join(("R100", "pkg/payload.txt", "pkg/payload.py", ""))
 
         assert (
             _run_suppression_push(
@@ -462,7 +495,7 @@ new file mode 100644
                 tmp_path,
                 no_rename_diff,
                 ("pkg/payload.py",),
-                diff_without_no_renames=rename_only_diff,
+                rename_status_output=rename_status,
             )
             == 1
         )

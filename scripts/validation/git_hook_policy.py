@@ -1906,6 +1906,12 @@ def _added_suppression_violations(
     ]
     if not scan_paths:
         return []
+    pure_rename_destinations = _pure_scanned_rename_destinations(update, repo_root)
+    if pure_rename_destinations is None:
+        return None
+    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
+    if not scan_paths:
+        return []
     notebook_paths = [path for path in scan_paths if Path(path).suffix.lower() == ".ipynb"]
     diff_scan_paths = [path for path in scan_paths if Path(path).suffix.lower() != ".ipynb"]
     violations: list[str] = []
@@ -1936,6 +1942,55 @@ def _added_suppression_violations(
         return None
     violations.extend(notebook_violations)
     return violations
+
+
+def _pure_scanned_rename_destinations(
+    update: PushUpdate,
+    repo_root: Path,
+) -> set[str] | None:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _parse_pure_scanned_rename_destinations(result.stdout)
+
+
+def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
+    records = [record for record in output.split("\0") if record]
+    destinations: set[str] = set()
+    index = 0
+    while index < len(records):
+        status = records[index]
+        if index + 2 >= len(records):
+            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
+            return None
+        source = _safe_relative_path(records[index + 1])
+        destination = _safe_relative_path(records[index + 2])
+        if source is None or destination is None:
+            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
+            return None
+        if status == "R100" and _is_scanned_suppression_rename(source, destination):
+            destinations.add(destination)
+        index += 3
+    return destinations
+
+
+def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
+    return (
+        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+    )
 
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
