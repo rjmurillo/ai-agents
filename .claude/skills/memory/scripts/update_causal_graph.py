@@ -22,6 +22,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from extract_session_episode import (
+    CAUSAL_ORDER_VERSION,
+    EpisodeValidationError,
+    validate_episode_causal_graph,
+)
+
 GRAPH_VERSION = "1.0"
 
 
@@ -154,7 +160,17 @@ def generate_node_id(node_type: str, label: str) -> str:
 # this module adds itself (decision, outcome), and ``artifact`` is carried by a
 # single legacy row that a narrower enum would make unrepresentable.
 NODE_TYPES = frozenset(
-    {"milestone", "commit", "test", "error", "decision", "outcome", "artifact"}
+    {
+        "milestone",
+        "commit",
+        "test",
+        "error",
+        "tool_call",
+        "handoff",
+        "decision",
+        "outcome",
+        "artifact",
+    }
 )
 
 
@@ -634,6 +650,31 @@ def build_causal_chains(episode: dict[str, Any]) -> list[dict[str, Any]]:
     chains = []
     events = episode.get("events", [])
     decisions = episode.get("decisions", [])
+    if episode.get("causal_order_version") == CAUSAL_ORDER_VERSION:
+        validate_episode_causal_graph(events)
+        by_id = {
+            event["id"]: event
+            for event in events
+            if isinstance(event, dict) and isinstance(event.get("id"), str)
+        }
+        linked: set[tuple[str, str]] = set()
+        for event in events:
+            event_id = event["id"]
+            for target_id in event.get("leads_to", []):
+                linked.add((event_id, target_id))
+            for source_id in event.get("caused_by", []):
+                linked.add((source_id, event_id))
+        for source_id, target_id in sorted(linked):
+            source = by_id[source_id]
+            target = by_id[target_id]
+            chains.append({
+                "from_type": source["type"],
+                "from_label": source.get("content", ""),
+                "to_type": target["type"],
+                "to_label": target.get("content", ""),
+                "edge_type": "causes",
+                "weight": 0.9,
+            })
 
     # Error -> recovery chains
     for idx, event in enumerate(events):
@@ -933,7 +974,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(dry_msg, file=sys.stderr)
 
         # Build and add causal chains
-        chains = build_causal_chains(episode)
+        try:
+            chains = build_causal_chains(episode)
+        except EpisodeValidationError as exc:
+            print(f"ERROR: {file_path.name}: {exc}", file=sys.stderr)
+            return exc.exit_code
         for chain in chains:
             from_id = generate_node_id(chain["from_type"], chain["from_label"])
             to_id = generate_node_id(chain["to_type"], chain["to_label"])
