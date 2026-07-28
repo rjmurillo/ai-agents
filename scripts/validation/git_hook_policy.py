@@ -91,7 +91,18 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
     r"When parsing a snippet as Bash for metavariable-pattern "
     r"in rule '([^'\r\n]+)'(?:,|$)"
 )
-POWERSHELL_SHELL_RE = re.compile(r"^\s*(?:pwsh|powershell)(?:\s|$)", re.IGNORECASE)
+# The GitHub Actions rules in SEMGREP_POWERSHELL_RULES parse every `run:` scalar
+# as Bash. Two shapes are not Bash and defeat that sub-parse: a scalar another
+# interpreter runs (`shell: pwsh`, `shell: python3 {0}`), and a Bash scalar
+# carrying GitHub Actions `${{ }}` template syntax, which the runner substitutes
+# before any shell sees it. Semgrep reports those as warn-level errors with zero
+# findings. Tolerate exactly those two shapes; every other scan error still
+# blocks the push.
+NON_BASH_SHELL_RE = re.compile(
+    r"^\s*(?:pwsh|powershell|python|python3|node|ruby|perl|cmd)\b",
+    re.IGNORECASE,
+)
+ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
 SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
@@ -2154,9 +2165,9 @@ def _is_known_powershell_semgrep_error(
         and error.get("rule_id") in SEMGREP_POWERSHELL_RULES
         and SEMGREP_POWERSHELL_ERROR_MARKER in message
     ):
-        return _message_matches_powershell_run(message, scripts)
+        return _message_matches_unparseable_run(message, scripts)
     spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
-    return bool(spans) and all(_span_belongs_to_powershell_step(scripts, span) for span in spans)
+    return bool(spans) and all(_span_belongs_to_unparseable_step(scripts, span) for span in spans)
 
 
 def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
@@ -2187,7 +2198,7 @@ def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
     return scripts
 
 
-def _message_matches_powershell_run(
+def _message_matches_unparseable_run(
     message: str,
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
 ) -> bool:
@@ -2196,12 +2207,14 @@ def _message_matches_powershell_run(
     snippet = SEMGREP_TRUNCATION_RE.sub("", raw_snippet).strip()
     if truncated and len(snippet) < SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH:
         return False
-    matching_shells = [
-        shell
+    matching_steps = [
+        (shell, run)
         for shell, run, _ in scripts
         if _semgrep_snippet_matches_run(snippet, run, truncated=truncated)
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _semgrep_snippet_matches_run(
@@ -2284,8 +2297,12 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _is_powershell_shell(shell: str | None) -> bool:
-    return shell is not None and bool(POWERSHELL_SHELL_RE.match(shell))
+def _is_non_bash_shell(shell: str | None) -> bool:
+    return shell is not None and bool(NON_BASH_SHELL_RE.match(shell))
+
+
+def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
+    return _is_non_bash_shell(shell) or bool(ACTIONS_EXPRESSION_RE.search(run))
 
 
 def _powershell_partial_parsing_spans(
@@ -2360,14 +2377,14 @@ def _powershell_partial_parsing_spans(
     return spans
 
 
-def _span_belongs_to_powershell_step(
+def _span_belongs_to_unparseable_step(
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
     span: tuple[int, int, int, int],
 ) -> bool:
     start_line, end_line, start_offset, end_offset = span
-    matching_shells = [
-        shell
-        for shell, _, node in scripts
+    matching_steps = [
+        (shell, run)
+        for shell, run, node in scripts
         if _yaml_node_contains_span(
             node,
             start_line,
@@ -2376,7 +2393,9 @@ def _span_belongs_to_powershell_step(
             end_offset,
         )
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _yaml_node_contains_span(

