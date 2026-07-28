@@ -2079,3 +2079,141 @@ exercises while keeping its assertions green reports nothing at all. The same
 property that made the substitution invisible is what made the underlying bug
 survive: two causes that print at the same exit code, through the same error
 class, naming the same path.
+
+## Shape 47: the guard that held by arithmetic rather than by design
+
+A rule report scores each scenario on three keys. The scan that refuses a
+degraded report tested the mapping for emptiness. The reduction that turns
+the mapping into a number read each key with `get(key, 0)`. Three keys means
+eight presence combinations, the scan caught one, and the reduction quietly
+filled the other six.
+
+The claim that this is safe is that a missing key scores zero and zero drags
+the mean down, so a partial report fails closed. Check the arithmetic. Two
+fives and one absent key average 3.33. The default bar is 3.5, so that report
+is rejected, and for four rounds that was the whole of the evidence. But
+`--min-score` is a documented flag. One absent key clears any bar below 3.34.
+Two absent keys clear any bar below 1.67. The property held at one value of a
+parameter the operator is invited to change, which is not the property anyone
+meant to claim.
+
+The fix is not the clamp. It is asking who could have produced the input.
+`eval-rule-activation.py:218` writes all three keys unconditionally, each
+through `_clamp_score`, which is `max(0, min(5, n))` and maps a string, a
+`None`, or a negative to zero. So the producer cannot emit a partial mapping,
+and a partial mapping is therefore a statement about the report rather than
+about the candidate. That is what makes it exit 2 and not exit 1: nothing was
+measured, so there is no verdict to give. It also explains why zero stays a
+legal score. Zero is a value the producer really emits, so it cannot double as
+the marker for a value it never wrote.
+
+Both seams needed it, and the mutation says why in one number. M41 removes
+the adapter check and takes 19 red. M42 reverts the scan to emptiness alone
+and takes only 2. Two looks like a weak test until the two are named: they are
+exactly the tests asserting the enumerated, namespaced message. The adapter
+refuses the first scenario it cannot reduce and the scan enumerates every one,
+so with the adapter still in place the verdict is right and only the diagnostic
+is poorer. A low mutation count is evidence when you can say which property it
+isolates and evidence of nothing when you cannot.
+
+Writing the tests first surfaced two defects the reviewer had not reported.
+`_extract_rules_envelope` collected degraded ids and scored in the same loop,
+so an `AdapterError` from the first rule replaced the enumeration of all of
+them; it now collects, refuses, then scores, which is what the single-rule
+path already did. And a test named for judge-failure verdicts had a fixture
+that never matched its own docstring: the prose said every scenario scored,
+the fixture gave one scenario a single key. It passed only because a partial
+mapping used to look clean. A fixture that contradicts its docstring is a
+defect while it is green, and it stays invisible until the contract it
+accidentally depends on moves.
+
+Grep found two of the five tests that depended on the old behavior. It is
+line-scoped, and a dict literal with its keys on separate lines does not match
+a pattern that wants two of them on one. The test run found the other three.
+The grep is a head start. The suite is the enumerator.
+
+## Shape 48: the question that resolved before it answered
+
+`_absent` decided whether a file is there by calling `Path.stat` and reading
+`FileNotFoundError` as "no". `stat` follows a symlink before it answers, so a
+link whose target is gone raised that error and was reported absent, about a
+path `ls` displays and `readlink` explains.
+
+Both callers fail open on absence, and each does so for a reason that is right
+on its own. A missing buffer is an empty buffer, because nothing has been
+rejected yet. A missing ledger is an unspent budget, because no consultation
+has been charged yet. Neither reason survives the premise being false. A
+dangling buffer link un-rejects every patch recorded in it. A dangling ledger
+link resets the consultation count, which is the single integrity property the
+ledger exists to hold, and it resets it silently, on a path whose whole purpose
+is to start counting from zero.
+
+The way in is not an attack. It is a state directory symlinked onto a volume
+that did not mount. The operator has made an ops mistake and wants the run to
+stop, not to quietly hand back the budget.
+
+`lstat` asks about the directory entry instead of the target, which is the
+question the function was always trying to ask. That alone fixes the verdict.
+M45 keeps `lstat` and drops the branch that names the broken link, and three
+tests go red rather than none, which is the interesting part: two of them are
+about the message, and the third is the symlink loop. With `lstat` alone a
+loop is an entry that exists, so absence is false, and nothing raises until
+some later reader trips ELOOP. The branch that exists to produce a good
+message is also the branch that asks whether the target is reachable at all.
+
+The naming branch reads the link with `os.readlink` inside an exception
+handler, and that call can fail if the entry changes underneath it. An
+`OSError` raised there would escape `main`, which does not catch `OSError`,
+and exit 1. Exit 1 is the reject verdict. That is the same defect this branch
+of the work opened with, one function away, so the read is guarded and falls
+back to naming no target rather than losing the verdict.
+
+One behavior was found on the way and left alone. `os.replace` over a
+symlinked destination replaces the link, not the file it points at, so a
+symlinked buffer is swapped for a real file and its old target keeps its
+contents. That is what POSIX rename does, and writing through the link
+instead would follow it out of the directory the caller named, which is the
+reason rename does not. It is now a characterization test, so the suite
+teaches it and a deliberate change fails there first, without this branch
+pretending to have decided the question.
+
+## Shape 49: the true sentence that answers a different question
+
+`_fsync_dir` returns early on Windows, and the reason recorded for the skip
+was that `os.replace` is atomic there regardless. The sentence is true. Every
+line above it in the same docstring is about durability.
+
+Fsyncing the temp file makes its bytes durable. Fsyncing the parent directory
+makes the rename durable, because the entry pointing at those bytes lives
+there, and a host that loses power first comes back with the rename undone.
+Atomicity is the promise that no reader sees a half-written entry. It says
+nothing about surviving a crash. The skip was justified by the one property
+nobody was relying on.
+
+CPython 3.13 `Modules/posixmodule.c:5801` sets
+`flags = is_replace ? MOVEFILE_REPLACE_EXISTING : 0`, and line 5824 hands that
+to `MoveFileExW`. `MOVEFILE_WRITE_THROUGH`, which Microsoft documents as
+waiting for the move to reach disk, is absent. So a Windows host loses a
+recorded charge to a power cut the same way an unsynced POSIX host does, and
+that is the one outcome charging before scoring exists to prevent.
+
+What is fixed here is the claim, not the gap. Closing the gap needs a
+write-through path this repo's CI cannot exercise, and it is tracked rather
+than guessed at. The skip stays silent rather than warning like the POSIX
+failure path beside it, and the distinction is worth stating: that path warns
+because it reports an anomaly in this run, and this one holds for every write
+on the platform, so a warning per write would spend the channel's signal and
+teach the reader to skip it. A permanent condition belongs in the document a
+reader consults, not in the stream reserved for the exceptional.
+
+The README carried the same sentence and one more problem of its own. Its
+bullet opened "a recorded charge survives a crash" and then spent a paragraph
+explaining a platform where it does not. A heading that contradicts its own
+body is worse than either half, because a reader who stops at the heading is
+told the opposite of what the text says, and stopping at the heading is what
+headings are for.
+
+A false claim in a comment costs more than no claim. No claim leaves the next
+reader to look. A confident one answers the question they came with, and this
+one had already answered it wrong for every reader since it was written,
+including the person who wrote the paragraph above it.

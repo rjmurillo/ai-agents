@@ -607,6 +607,31 @@
         "Both review threads answered with the measured output and resolved.",
         "Shape 46 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md."
       ]
+    },
+    {
+      "phase": "Round thirty-six, part one: the branch the twenty-commit ceiling created",
+      "actions": [
+        "Re-ran the failed push without truncating its output and read the real cause: 'push has 21 commits, limit is 20' and 'no commit-limit-bypass label (PR #3579)'. The prior attempt had piped the push through tail and lost the reason.",
+        "Read the ceiling as a size gate rather than an obstacle. The label is the designed bypass, but the code-review guidance the repo already follows says the same thing the gate says: about a thousand changed lines is too large, and the remedy is to stack a second change on the first.",
+        "Split by theme rather than by count. Findings 1 and 5 are one story, a crash exiting as a verdict. Findings 2, 3, 4 and 6 are another, the gate accepting input it cannot measure.",
+        "Created fix/eval-refuse-malformed-input at 55d4a41c7 and moved fix/eval-buffer-crash-exit-code back to 5dc3c4529. Checked first that the remote was at 430875415 and that 5dc3c4529 descends from it, so the push was a fast-forward and no history was rewritten.",
+        "Pushed PR #3579 at exactly twenty commits.",
+        "Discovered that the reset had destroyed two uncommitted files, shape 47 of the debate log and phase 37 of this log. Confirmed the loss with grep rather than assuming it, and reported it rather than quietly rewriting.",
+        "Filed issue #3588 for the four remaining findings, stating each measured symptom separately from its impact."
+      ],
+      "evidence": "PR #3579 pushed at 20 commits on branch fix/eval-buffer-crash-exit-code, head 5dc3c4529, no force-push. Issue #3588 filed. Two uncommitted documentation files lost to git reset --hard and rewritten later in this session."
+    },
+    {
+      "phase": "Round thirty-six, part two: three findings about input the gate could not measure",
+      "actions": [
+        "Finding 3, a partial score mapping. Verified from eval-rule-activation.py:218 and _clamp_score that the canonical producer always writes all three keys through a clamp, so a partial mapping describes the report and not the candidate, which is what makes it exit 2. Measured that two fives and one absent key reduce to 3.33, so the fail-closed property held only at the default bar and --min-score is a documented flag. Wrote 22 adapter tests and 9 CLI tests before touching the implementation. Falsified with M41 at 19 red, M42 at 2 red, M43b at 2 red.",
+        "Finding 3 surfaced two defects the reviewer had not reported: _extract_rules_envelope scored inside the loop that collected degraded ids, so one adapter error replaced the enumeration of all of them, and a judge-failure test carried a fixture that contradicted its own docstring and passed only because partial mappings used to look clean.",
+        "Finding 4, a dangling symlink read as an absent file. Switched _absent from stat to lstat so it asks about the directory entry, and named the broken link on its own rather than leaving a later reader to report no such file about a path ls displays. Guarded the os.readlink call inside the handler, because an OSError raised there escapes main, which does not catch OSError, and exits 1, which is the reject verdict. Falsified with M44 at 7 red and M45 at 3 red.",
+        "Added a characterization test for a behavior found on the way and deliberately not changed: os.replace over a symlinked destination replaces the link rather than writing through it.",
+        "Finding 6, the Windows fsync skip. Verified the reviewer's claim independently by reading CPython 3.13 Modules/posixmodule.c:5801 and 5824, which pass MOVEFILE_REPLACE_EXISTING without MOVEFILE_WRITE_THROUGH. Corrected the docstring and the README to distinguish atomicity from durability, narrowed the README bullet's heading to POSIX so it no longer contradicts its own body, and filed issue #3591 for the gap itself rather than claiming to have closed it.",
+        "Recorded shapes 47, 48 and 49 in the debate log, and rewrote the material lost to the reset."
+      ],
+      "evidence": "Eval suite 1562 to 1609 passing. Ruff ratchet passed for 5 changed files. Mutations M41, M42, M43b, M44 and M45 all killed. Issues #3588 and #3591 filed. Commits f401792ba, 479076dd2 and 75515e0ac on fix/eval-refuse-malformed-input."
     }
   ],
   "endingCommit": "e4d5c0d6c",
