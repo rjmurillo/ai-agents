@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import os
@@ -2597,12 +2598,11 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
-    source = repo / "nested/source.py"
-    source.write_text(f"value = 1  {'# no' + 'sec'}\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", f"value = 1  {'# no' + 'sec'}\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed suppression")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("value = 1\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "value = 1\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
     assert policy.check_pushed_suppressions(stream, repo) == 1
@@ -2643,8 +2643,7 @@ def test_pushed_suppression_scan_ignores_unchanged_legacy_suppressions(
     _init_repo(repo)
     _commit_file(repo, "legacy.py", f"value = 1  {'# no' + 'sec'}\n")
     base = _commit_file(repo, "source.py", "value = 1\n")
-    source = repo / "source.py"
-    source.write_text("value = 2\n", encoding="utf-8")
+    _write_file(repo, "source.py", "value = 2\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: update clean source")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2661,12 +2660,11 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     _init_repo(repo)
     _commit_file(repo, "nested/source.py", "value = 1\n")
     base = _commit_file(repo, "unchanged.py", "dangerous = True\n")
-    source = repo / "nested/source.py"
-    source.write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = True\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("dangerous = False\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = False\n")
 
     def fake_scan(
         tree: Path,
@@ -4635,6 +4633,113 @@ def test_seeding_and_revising_a_file_differ_only_where_the_text_differs(
 
     assert changed is not None
     assert changed["mod.py"] == {2}
+
+
+def _repo_relative_path(node: ast.expr) -> str | None:
+    """Return `repo:a/b` for `repo / "a" / "b"`, else None."""
+    parts: list[str] = []
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        if not isinstance(node.right, ast.Constant) or not isinstance(node.right.value, str):
+            return None
+        parts.append(node.right.value)
+        node = node.left
+    if not (isinstance(node, ast.Name) and parts):
+        return None
+    return node.id + ":" + "/".join(reversed(parts))
+
+
+def _functions_writing_one_path_two_ways(source: str) -> dict[str, list[str]]:
+    """Name every function that writes one repo path with both primitives.
+
+    Resolves single-assignment local aliases. A scan that only matched literal
+    paths reported this module clean while three functions still mixed, because
+    each bound the path to a local first. That blind spot is why this is a test
+    rather than a claim in a description.
+    """
+    found: dict[str, list[str]] = {}
+    for fn in ast.walk(ast.parse(source)):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        alias: dict[str, str] = {}
+        committed: set[str] = set()
+        texted: set[str] = set()
+        for node in ast.walk(fn):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                key = _repo_relative_path(node.value)
+                if key is not None:
+                    alias[node.targets[0].id] = key
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"_commit_file", "_write_file"}
+                and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name)
+                and isinstance(node.args[1], ast.Constant)
+                and isinstance(node.args[1].value, str)
+            ):
+                committed.add(f"{node.args[0].id}:{node.args[1].value}")
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "write_text":
+                key = _repo_relative_path(node.func.value)
+                if key is None and isinstance(node.func.value, ast.Name):
+                    key = alias.get(node.func.value.id)
+                if key is not None:
+                    texted.add(key)
+        shared = sorted(committed & texted)
+        if shared:
+            found[fn.name] = shared
+    return found
+
+
+def test_no_function_writes_one_repo_path_with_both_primitives() -> None:
+    """The fixture writers must not disagree about newlines within one path.
+
+    `_commit_file` and `_write_file` write bytes; `Path.write_text` translates
+    `\n` to `os.linesep`. A function that seeds a path one way and revises it
+    the other produced two revisions differing on every line under Windows, so
+    any diff taken across them measured the line endings rather than the edit.
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+
+    assert _functions_writing_one_path_two_ways(source) == {}
+
+
+def test_the_mixed_writer_scan_sees_a_write_named_inline() -> None:
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'a.py', 'x\\n')\n"
+        "    (repo / 'a.py').write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {"t": ["repo:a.py"]}
+
+
+def test_the_mixed_writer_scan_sees_a_write_through_a_local_alias() -> None:
+    """The shape a literal-only scan missed, which let three of these through."""
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'nested/a.py', 'x\\n')\n"
+        "    source = repo / 'nested' / 'a.py'\n"
+        "    source.write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {"t": ["repo:nested/a.py"]}
+
+
+def test_the_mixed_writer_scan_leaves_two_different_paths_alone() -> None:
+    """Only one path written both ways is a defect; two paths are not."""
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'a.py', 'x\\n')\n"
+        "    other = repo / 'b.py'\n"
+        "    other.write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {}
 
 
 def test_the_head_blob_reader_returns_none_for_a_path_no_commit_holds(
