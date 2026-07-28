@@ -855,11 +855,17 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def buffer_contains(entries: Iterable[Mapping[str, object]], patches: Sequence[Patch]) -> bool:
+def buffer_contains(
+    entries: Iterable[Mapping[str, object]],
+    patches: Sequence[Patch],
+    *,
+    artifact_fingerprint: str,
+) -> bool:
     """Report whether this edit has already been rejected.
 
     Entries without a usable ``fingerprint`` are skipped rather than raising, so
-    one hand-edited line in the ledger cannot stop the loop.
+    one hand-edited line in the ledger cannot stop the loop. Entries without the
+    same artifact state are expired.
 
     Raises:
         ValueError: when ``patches`` is empty.
@@ -867,6 +873,10 @@ def buffer_contains(entries: Iterable[Mapping[str, object]], patches: Sequence[P
     target = patch_fingerprint(patches)
     for entry in entries:
         stored = entry.get("fingerprint")
-        if isinstance(stored, str) and stored == target:
-            return True
+        if not isinstance(stored, str) or stored != target:
+            continue
+        artifact = entry.get("artifact_fingerprint")
+        if artifact != artifact_fingerprint:
+            continue
+        return True
     return False

@@ -446,7 +446,7 @@ OA=scripts/eval/optimize-artifact.py
 # Baseline the incumbent and fix the split once.
 uv run --frozen python "$OA" extract --kind agent --input report.json > base.json
 FP=$(uv run --frozen python "$OA" split --results base.json --seed run-7 \
-    --out split.json | python3 -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
+    --out split.json | uv run --frozen python -c "import json,sys;print(json.load(sys.stdin)['fingerprint'])")
 
 # Per step: check the budget, reject a repeat, apply, rescore, gate.
 uv run --frozen python "$OA" budget --step 3 --total 12
@@ -454,7 +454,8 @@ uv run --frozen python "$OA" budget --step 3 --total 12
 # Exit 1 means this edit was already rejected, so skip it. Exit 2 means the
 # command itself failed and the loop must stop rather than treat a typo in a
 # path as a clean finish.
-uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json
+uv run --frozen python "$OA" buffer-check --buffer rejected.json --patches p.json \
+    --artifact target.md
 case $? in
   0) ;;
   1) continue ;;
@@ -472,8 +473,10 @@ Add `--max-p 0.05` when the held-out group is large enough for the tail to
 mean something. See "What a live run measured" below for why, and for the
 group size at which the bar starts refusing everything.
 
-On reject, revert the file and run `buffer-add` so the same edit is not
-re-proposed. On accept, the candidate becomes the incumbent.
+On reject, revert the file and run `buffer-add` with the artifact path so the
+same edit is not re-proposed against the same artifact state. On accept, the
+candidate becomes the incumbent and prior rejections against the old artifact
+state expire.
 
 ### What the gate refuses
 

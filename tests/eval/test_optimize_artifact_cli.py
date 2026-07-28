@@ -14,6 +14,7 @@ which is precisely the overfitting the gate exists to stop.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib.util
 import inspect
 import io
@@ -59,6 +60,14 @@ finally:
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
+
+# `--artifact` became required on buffer-add and buffer-check once dedup
+# started keying on artifact_fingerprint too, not only patch fingerprint.
+# The lock and error-handling tests below exercise buffer-add/buffer-check
+# failure paths unrelated to that dedup key, so they all point at this one
+# always-readable file (the test module itself) instead of threading a
+# constructed artifact through every call site.
+_STATIC_ARTIFACT = Path(__file__)
 
 # Several tests build a barrier out of file permissions. Root ignores the mode
 # bits and Windows does not carry them, so on either the barrier is not there
@@ -1568,31 +1577,84 @@ class TestGate:
 
 
 class TestBuffer:
+    def _artifact(self, tmp_path: Path, text: str = "artifact v1") -> Path:
+        path = tmp_path / f"artifact-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}.md"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def _check(self, capsys, buffer: Path, patches: Path, artifact: Path):
+        return _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
+
+    def _add(self, capsys, buffer: Path, patches: Path, artifact: Path, reason: str = "no"):
+        return _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+            "--reason",
+            reason,
+        )
+
     def test_novel_patch_passes_the_check(self, tmp_path, capsys):
         buffer = _write(tmp_path, "b.json", [])
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = self._artifact(tmp_path)
+        code, out = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
     def test_missing_buffer_file_is_treated_as_empty(self, tmp_path, capsys):
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, out = _run(
-            capsys, "buffer-check", "--buffer", tmp_path / "none.json", "--patches", patches
-        )
+        artifact = self._artifact(tmp_path)
+        code, out = self._check(capsys, tmp_path / "none.json", patches, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
     def test_add_then_check_reports_seen(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "regressed"
-        )
+        artifact = self._artifact(tmp_path)
+        code, _ = self._add(capsys, buffer, patches, artifact, "regressed")
         assert code == EXIT_OK
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_LOGIC
         assert out["seen"] is True
+
+    def test_same_patch_can_be_retried_after_artifact_changes(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        old_artifact = self._artifact(tmp_path, "artifact v1")
+        new_artifact = self._artifact(tmp_path, "artifact v2")
+        self._add(capsys, buffer, patches, old_artifact)
+
+        code, out = self._check(capsys, buffer, patches, new_artifact)
+
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_legacy_buffer_entries_without_artifact_state_are_expired(self, tmp_path, capsys):
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        fingerprint = oa.patch_fingerprint([oa.Patch("append", None, "x")])
+        buffer = _write(tmp_path, "b.json", [{"fingerprint": fingerprint}])
+        artifact = self._artifact(tmp_path)
+
+        code, out = self._check(capsys, buffer, patches, artifact)
+
+        assert code == EXIT_OK
+        assert out["seen"] is False
 
     def test_a_reflowed_patch_is_a_different_edit(self, tmp_path, capsys):
         """Whitespace is content: a newline in patch text splits one line into two.
@@ -1603,8 +1665,9 @@ class TestBuffer:
         buffer = tmp_path / "b.json"
         original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha beta"}])
         reflowed = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha   \n beta"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", reflowed)
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, original, artifact)
+        code, out = self._check(capsys, buffer, reflowed, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
@@ -1612,43 +1675,56 @@ class TestBuffer:
         buffer = tmp_path / "b.json"
         original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha\r\nbeta"}])
         same = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha\nbeta"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", same)
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, original, artifact)
+        code, out = self._check(capsys, buffer, same, artifact)
         assert code == EXIT_LOGIC
         assert out["seen"] is True
 
     def test_add_records_the_reason_and_fingerprint(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "regressed"
-        )
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, patches, artifact, "regressed")
         entries = json.loads(buffer.read_text(encoding="utf-8"))
         assert len(entries) == 1
         assert entries[0]["reason"] == "regressed"
         assert entries[0]["fingerprint"]
+        assert entries[0]["artifact_fingerprint"]
         assert entries[0]["patches"] == [{"op": "append", "anchor": None, "text": "x"}]
 
     def test_add_appends_rather_than_replacing(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         first = _write(tmp_path, "p1.json", [{"op": "append", "text": "x"}])
         second = _write(tmp_path, "p2.json", [{"op": "append", "text": "y"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", first, "--reason", "a")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", second, "--reason", "b")
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, first, artifact, "a")
+        self._add(capsys, buffer, second, artifact, "b")
         assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 2
 
     def test_add_is_idempotent_for_the_same_patch(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "a")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "a")
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, patches, artifact, "a")
+        self._add(capsys, buffer, patches, artifact, "a")
         assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 1
+
+    def test_add_records_the_same_patch_for_a_new_artifact_state(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        first_artifact = self._artifact(tmp_path, "artifact v1")
+        second_artifact = self._artifact(tmp_path, "artifact v2")
+        self._add(capsys, buffer, patches, first_artifact, "a")
+        self._add(capsys, buffer, patches, second_artifact, "a")
+        assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 2
 
     def test_corrupt_buffer_is_a_config_error(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         buffer.write_text("{oops", encoding="utf-8")
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = self._artifact(tmp_path)
+        code, _ = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_CONFIG
 
 
@@ -1730,7 +1806,18 @@ class TestMalformedInputs:
     def test_buffer_must_be_an_array(self, tmp_path, capsys):
         buffer = _write(tmp_path, "b.json", {"not": "a list"})
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = tmp_path / "artifact.md"
+        artifact.write_text("artifact", encoding="utf-8")
+        code, _ = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
         assert code == EXIT_CONFIG
 
 
@@ -2112,7 +2199,18 @@ class TestMalformedInputsAreConfigErrors:
     def test_a_buffer_of_non_objects_is_a_config_error(self, tmp_path, capsys):
         buf = _write(tmp_path, "buf.json", [1, 2])
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buf, "--patches", patches)
+        artifact = tmp_path / "artifact.md"
+        artifact.write_text("artifact", encoding="utf-8")
+        code, _ = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buf,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
         assert code == EXIT_CONFIG
 
 
@@ -5945,7 +6043,16 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
     def test_buffer_check_refuses_a_patch_whose_text_is_not_a_string(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert code == EXIT_CONFIG
         assert out["type"] == "PatchShapeError"
         assert "text must be a string" in out["error"]
@@ -5957,14 +6064,32 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
         """The regression that matters: EXIT_LOGIC here reads as 'already tried'."""
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, _ = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert code != EXIT_LOGIC
 
     def test_buffer_add_refuses_a_patch_whose_op_is_not_a_string(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": 7, "text": "x"}])
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert out["type"] == "PatchShapeError"
@@ -5974,13 +6099,33 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
         """A patch that cannot be fingerprinted must not enter the ban list."""
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": 123}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         assert not buffer.exists()
 
     def test_an_anchor_of_the_wrong_type_is_refused_too(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "replace", "anchor": [], "text": "x"}])
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert code == EXIT_CONFIG
         assert "anchor must be a string" in out["error"]
 
@@ -5988,8 +6133,28 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
         """Control: the code EXIT_LOGIC still means what it meant."""
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert code == EXIT_LOGIC
         assert out["seen"] is True
 
@@ -5997,7 +6162,16 @@ class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
         """Control: a well-formed patch is unaffected by the new check."""
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert code == EXIT_OK
         assert out["seen"] is False
 
@@ -6075,7 +6249,16 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         lock.write_text("999", encoding="utf-8")
         patches = self._patches(tmp_path, "p.json", "x")
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert "another buffer-add holds" in out["error"]
@@ -6094,7 +6277,16 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         lock.touch()
         patches = self._patches(tmp_path, "p.json", "x")
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert str(lock) in out["error"]
@@ -6123,7 +6315,18 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         oa._read_buffer, oa._write_atomic = read, write
         try:
             patches = self._patches(tmp_path, "p.json", "x")
-            _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+            _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         finally:
             oa._read_buffer, oa._write_atomic = real_read, real_write
         assert seen == {"read": True, "write": True}
@@ -6131,16 +6334,47 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
     def test_the_lock_is_released_when_the_add_returns(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = self._patches(tmp_path, "p.json", "x")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         assert not self._lock_of(buffer).exists()
 
     def test_the_lock_is_released_when_the_add_refuses_a_duplicate(self, tmp_path, capsys):
         """The early return is a second exit from the locked region."""
         buffer = tmp_path / "b.json"
         patches = self._patches(tmp_path, "p.json", "x")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert (code, out["added"]) == (EXIT_OK, False)
         assert not self._lock_of(buffer).exists()
@@ -6151,7 +6385,18 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         monkeypatch.setattr(oa, "_write_atomic", _raise_boom)
         patches = self._patches(tmp_path, "p.json", "x")
         with pytest.raises(RuntimeError):
-            _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+            _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         assert not self._lock_of(buffer).exists()
 
     def test_an_unreadable_patch_file_takes_no_lock(self, tmp_path, capsys):
@@ -6159,7 +6404,16 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": 7}])
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert (code, out["type"]) == (EXIT_CONFIG, "PatchShapeError")
         assert not self._lock_of(buffer).exists()
@@ -6169,9 +6423,29 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         buffer = tmp_path / "b.json"
         first = self._patches(tmp_path, "p0.json", "alpha")
         second = self._patches(tmp_path, "p1.json", "beta")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", first, "--reason", "r0")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            first,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r0",
+        )
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", second, "--reason", "r1"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            second,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r1",
         )
         assert (code, out["added"], out["entries"]) == (EXIT_OK, True, 2)
         stored = json.loads(buffer.read_text(encoding="utf-8"))
@@ -6186,10 +6460,30 @@ class TestTwoBufferAddsCannotLoseARejectionBetweenThem:
         """
         buffer = tmp_path / "b.json"
         patches = self._patches(tmp_path, "p.json", "x")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         lock = self._lock_of(buffer)
         lock.write_text("999", encoding="utf-8")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert (code, out["seen"]) == (EXIT_LOGIC, True)
 
 
@@ -6227,14 +6521,24 @@ class TestBufferCleanupFailureDoesNotRewriteTheResult:
         """`main` directly, not `_run`, which drains the capture before stderr."""
         return oa.main([
             "buffer-add", "--buffer", str(buffer),
-            "--patches", str(patches), "--reason", "r",
+            "--patches", str(patches), "--artifact", str(_STATIC_ARTIFACT),
+            "--reason", "r",
         ])
 
     def test_stdout_still_holds_exactly_one_document(self, tmp_path, capsys, monkeypatch):
         buffer, patches = self._fixture(tmp_path)
         self._break_unlink(monkeypatch)
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert (code, out["added"]) == (EXIT_OK, True)
 
@@ -7061,7 +7365,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
     def test_an_unwritable_directory_is_reported_as_a_config_error(self, tmp_path, capsys):
         buffer, patches = self._fixture(tmp_path)
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert out["type"] == "ConfigError"
@@ -7069,7 +7382,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
     def test_the_message_names_the_lock_so_an_operator_can_act(self, tmp_path, capsys):
         buffer, patches = self._fixture(tmp_path)
         _, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert f"{buffer}.lock" in out["error"]
 
@@ -7079,7 +7401,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         buffer, patches = self._fixture(tmp_path)
         nested = buffer.parent / "deeper" / "b.json"
         code, out = _run(
-            capsys, "buffer-add", "--buffer", nested, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            nested,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert out["type"] == "ConfigError"
@@ -7091,7 +7422,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         monkeypatch.setattr(oa.os, "write", _boom)
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert out["type"] == "ConfigError"
@@ -7102,7 +7442,18 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         monkeypatch.setattr(oa.os, "write", _boom)
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         assert not Path(f"{buffer}.lock").exists()
 
     def test_contention_keeps_its_own_message_rather_than_the_generic_one(
@@ -7112,7 +7463,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         Path(f"{buffer}.lock").write_text("999", encoding="utf-8")
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert "another buffer-add holds" in out["error"]
@@ -7121,7 +7481,16 @@ class TestALockThatCannotBeTakenIsAConfigErrorNotATraceback:
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_OK
         assert out["added"] is True
@@ -7210,7 +7579,16 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
         buffer, patches = self._fixture(tmp_path)
         self._fail_close_for_lock(monkeypatch, 5, "I/O error")
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert out["type"] == "ConfigError"
@@ -7221,7 +7599,16 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
         buffer, patches = self._fixture(tmp_path)
         self._fail_close_for_lock(monkeypatch, 5, "I/O error")
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert "I/O error" in out["error"]
         assert str(buffer.with_suffix(".json.lock")) in out["error"] or ".lock" in out["error"]
@@ -7236,7 +7623,16 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
             lambda *a, **k: (_ for _ in ()).throw(OSError(28, "No space left")),
         )
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_CONFIG
         assert "No space left" in out["error"]
@@ -7247,7 +7643,18 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
     ):
         buffer, patches = self._fixture(tmp_path)
         self._fail_close_for_lock(monkeypatch, 5, "I/O error")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         assert not (tmp_path / "b.json.lock").exists()
 
     def test_the_gate_still_scrubs_the_digest_out_of_a_close_failure(
@@ -7264,7 +7671,16 @@ class TestACloseThatFailsIsAConfigErrorNotATraceback:
     def test_a_successful_close_still_stores_the_rejection(self, tmp_path, capsys):
         buffer, patches = self._fixture(tmp_path)
         code, out = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_OK
         assert out["added"] is True
@@ -7306,12 +7722,32 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
         holder = self._sealed(tmp_path, "held")
         buffer = holder / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "r")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
+        )
         return holder, buffer, patches
 
     def test_a_readable_buffer_still_reports_the_rejection(self, tmp_path, capsys):
         _, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         assert (code, out["seen"]) == (EXIT_LOGIC, True)
 
     def test_an_unreadable_buffer_does_not_report_the_rejection_as_unseen(
@@ -7320,7 +7756,16 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
         holder, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
         holder.chmod(0o000)
         try:
-            code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+            code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         finally:
             holder.chmod(0o755)
         assert (code, out.get("seen")) != (EXIT_OK, False)
@@ -7329,7 +7774,16 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
         holder, buffer, patches = self._buffer_with_a_rejection(tmp_path, capsys)
         holder.chmod(0o000)
         try:
-            code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+            code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+        )
         finally:
             holder.chmod(0o755)
         assert code == EXIT_CONFIG
@@ -7338,7 +7792,14 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
     def test_an_absent_buffer_still_reads_as_nothing_rejected_yet(self, tmp_path, capsys):
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         code, out = _run(
-            capsys, "buffer-check", "--buffer", tmp_path / "missing.json", "--patches", patches
+            capsys,
+            "buffer-check",
+            "--buffer",
+            tmp_path / "missing.json",
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
         )
         assert (code, out["seen"]) == (EXIT_OK, False)
 
@@ -7451,6 +7912,8 @@ class TestAWrongPathIsNotAnotherProcess:
             buffer,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
             "--reason",
             "r",
         )
@@ -8241,6 +8704,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             link,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
         )
         assert code == EXIT_CONFIG
         assert out.get("seen") is None
@@ -8254,6 +8719,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             link,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
             "--reason",
             "r",
         )
@@ -8269,6 +8736,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             link,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
             "--reason",
             "r",
         )
@@ -8284,6 +8753,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             link,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
         )
         assert code == EXIT_CONFIG
         assert "gone-target" in out["error"]
@@ -8297,6 +8768,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             tmp_path / "none.json",
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
         )
         assert code == EXIT_OK
         assert out["seen"] is False
@@ -8313,6 +8786,8 @@ class TestADanglingSymlinkIsNotAnAbsentFile:
             link,
             "--patches",
             self._patches(tmp_path),
+            "--artifact",
+            _STATIC_ARTIFACT,
         )
         assert code == EXIT_OK
         assert out["seen"] is False
@@ -8430,7 +8905,16 @@ class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
         link.symlink_to(real)
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
         code, _ = _run(
-            capsys, "buffer-add", "--buffer", link, "--patches", patches, "--reason", "r"
+            capsys,
+            "buffer-add",
+            "--buffer",
+            link,
+            "--patches",
+            patches,
+            "--artifact",
+            _STATIC_ARTIFACT,
+            "--reason",
+            "r",
         )
         assert code == EXIT_OK
         assert not link.is_symlink()
@@ -8473,6 +8957,8 @@ class TestARefusedLockNamesTheAncestorThatRefusedIt:
             str(buffer),
             "--patches",
             str(patches),
+            "--artifact",
+            str(_STATIC_ARTIFACT),
             "--reason",
             "r",
         )
