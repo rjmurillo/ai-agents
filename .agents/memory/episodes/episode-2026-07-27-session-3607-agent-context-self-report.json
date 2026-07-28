@@ -98,7 +98,9 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e009",
@@ -109,6 +111,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Responded to PR #3612 review. Reproduced both findings before acting: the 'check point' verb form at tests/test_context_budget_management.py:49 (real, module uses 'checkpoint' one word elsewhere) and the retrospective's missing FAILURE-MODES.md sections (real convention; 11 of the 20 most recent retros carry it, including the reviewer's cited example). Classified the session as FM9 primary, FM4 secondary, and added a Remediation section. Found and fixed the same missing-sections defect the reviewer did not flag.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

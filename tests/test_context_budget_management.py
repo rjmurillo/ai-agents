@@ -46,7 +46,7 @@ BUDGET_AGENTS = (
 SECTION_HEADING = "## Context Budget Management"
 
 # Phrases that must appear in the section body. These pin the load-bearing parts
-# of the pattern: state that context is unobservable, check point on an objective
+# of the pattern: state that context is unobservable, checkpoint on an objective
 # cadence, degrade explicitly, and name the harness-side hook that backstops it.
 REQUIRED_PHRASES = (
     "Your context window is finite",

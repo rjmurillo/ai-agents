@@ -2,6 +2,12 @@
 
 Session 3607. Issue #3607. Branch `fix/agent-context-self-report`.
 
+## Failure mode classification
+
+Primary: Failure Mode #9, Confident-Incorrectness Recurrence (`.agents/governance/FAILURE-MODES.md`). The listed "most damaging variant" is shipping a guard meant to prevent a failure mode while exhibiting that same failure mode in the act of shipping it. `tests/test_context_budget_management.py` was written to hold the context-budget guidance in place across twelve agent copies. It held the defect in place instead: `REQUIRED_PHRASES` asserted that `"pressure signals"` must appear in every copy.
+
+Secondary: Failure Mode #4, False Completion Markers. The suite was green for the entire life of the defect. Green reported "this text is verified" when what it verified was the bug's presence.
+
 ## What the work was
 
 Two agent prompts told the model to watch its own output for "pressure signals," conclude from them that it was "near the limit," and checkpoint or hand the remaining work to a fresh session. The model cannot observe its context window. Every one of those triggers fires on a premise the model invents.
@@ -47,3 +53,9 @@ The tell is a rule whose precondition only the agent can evaluate. "Checkpoint w
 The repair is not to delete the rule. The durable half here (commit as you go, record progress, degrade with evidence) was worth keeping. The repair is to re-key the trigger to something an orchestrator or a human can check, and to require the agent to produce the evidence rather than assert the conclusion.
 
 One detail is easy to lose in that repair. The pressure-signal list carried a real protection: do not re-delegate a task already routed. That protection was sound; only its stated cause (memory pressure) was fabricated. Deleting the list wholesale would have dropped a duplicate-work guard along with the bad reasoning, and one reviewer caught exactly that. **When removing a rule for a bad premise, check what the rule was incidentally protecting, and re-anchor it.**
+
+## Remediation
+
+1. Before editing prompt text, grep the test tree for a suite that asserts on that text. Prompt content is usually unpinned, which trains the habit of not looking; `tests/test_context_budget_management.py` was the counterexample and it was invisible until searched for. Owner: this session, applied.
+2. Every negative assertion added to a prompt-pinning suite MUST be mutation-verified before it is trusted: reinsert the phrase it forbids, watch exactly that case go red, restore. A `FORBIDDEN_PHRASES` tuple that searches for the wrong string passes silently forever. Owner: `tests/test_context_budget_management.py`, applied via `test_section_rejects_self_reported_context_triggers`.
+3. The sweep this change did not run: other rules across `templates/agents/` and `.claude/skills/` may still key a trigger to model state the model cannot observe. The tell is a precondition only the agent can evaluate. Recorded in the session log `nextSteps` and left open rather than claimed.
