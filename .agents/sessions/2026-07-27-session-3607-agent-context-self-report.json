@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3607,
+    "date": "2026-07-27",
+    "branch": "fix/agent-context-self-report",
+    "startingCommit": "bbe26780bb",
+    "objective": "Remove the self-reported context triggers from the implementer and orchestrator Context Budget Management sections, keep the durable checkpoint and degrade rules, and make the regression test enforce the new contract instead of the old defect."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/agent-context-self-report after checkout -b from origin/main at bbe26780bb"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/agent-context-self-report"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read earlier this session and left unmodified per ADR-014"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools are not exposed in this Copilot CLI harness. Used the fallback AGENTS.md documents and read .serena/memories directly."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same harness limitation. AGENTS.md, .agents/governance/GENERATOR-FILES.md, .claude/rules/plugin-version-bump.md, and .claude/rules/universal.md were read directly instead."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read GENERATOR-FILES.md and build/scripts/validate_install_parity.py before editing to confirm the canonical source and the six-member SHARED_AGENT parity group, and .claude/rules/plugin-version-bump.md before bumping manifests."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched and absent from git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No memory written. The finding is shipped as agent prompt text plus an enforcing test, which is the binding surface. A memory would duplicate what the test already pins."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Scoped markdownlint-cli2 run on the changed agent markdown. Byte check for U+2014 and U+2013 across every changed markdown file returned 0."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "One commit covering the two canonical templates, the five platform copies each, the regression test, and the three plugin manifests."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pytest tests/test_context_budget_management.py 49 passed. The new negative guard was mutation tested: reintroducing 'you are near the limit' into the template failed exactly that test, and restoring the file returned 49 passed. validate_install_parity.py printed install-parity: OK."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": ".agents/retrospective/2026-07-27-session-3607-agent-context-self-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Confirmed the conflict against the wiki concept note Rule Weaponization, which forbids letting the model self-report context usage and names Session Escape as the end of the attack chain. Both agents carried a pressure-signal list ending in 'Any of these means you are near the limit', plus a step 3 authorizing a stop or handoff when 'the budget is nearly spent'."
+    },
+    {
+      "step": "Read the sibling wiki note Context Budget Management for AI Agents, the source the section was built from, to check for an internal wiki conflict. There is none: that note places enforcement entirely in the harness (PreCompact, session log, sandbox tools, SQLite) and never asks the model to self-assess. The agent text had diverged from its own source."
+    },
+    {
+      "step": "Ran adversarial review on two model families rather than one, per the standing requirement. Both independently flagged the same three defects in the first draft: a capacity self-assessment leaking back in through 'larger than one session should carry', a false safety guarantee in 'if the harness compacts, it compacts', and a degrade clause that reintroduced the unfalsifiable escape hatch it was meant to remove."
+    },
+    {
+      "step": "Found the objective predicate already existed rather than inventing one. Sibling agents (pr-test-analyzer, code-simplifier, comment-analyzer) gate [NEEDS_DECOMPOSITION] on countable thresholds. The implementer already used 'XL complexity, touches more than 5 files' and had only appended 'or context budget is nearly spent'. Deleting that clause restored a criterion an orchestrator can check."
+    },
+    {
+      "step": "Replaced both sections. Kept the checkpoint cadence, the degrade rule (now requiring named commits and validation actually run), and the PreCompact backstop. Removed every trigger keyed to self-observed context. Preserved the duplicate-delegation protection the pressure-signal list had carried, reframed as a session-log check rather than a memory-pressure symptom."
+    },
+    {
+      "step": "Discovered tests/test_context_budget_management.py pinned the defect: REQUIRED_PHRASES asserted 'pressure signals' must be present in all twelve copies. Rewrote it to require the new contract and added a negative test with four forbidden phrases so the self-report framing cannot return."
+    },
+    {
+      "step": "Mutation tested the new guard before trusting it. Reinserting 'Any of these means you are near the limit' into the implementer template failed exactly the new test and nothing else; restoring the file returned all 49 green."
+    },
+    {
+      "step": "Propagated through the generator, not by hand. Ran build/generate_agents.py for the three generated platforms, then synced the three hand-maintained parity copies from the canonical section. install-parity: OK across the six-member group for both agents."
+    }
+  ],
+  "endingCommit": "a3e3f52c02",
+  "nextSteps": [
+    "The same self-report shape may exist in other agent prompts and in skills. Only implementer and orchestrator carried this section; a broader sweep for rules keyed to unobservable model state has not been run.",
+    "Stray scratch files remain untracked at the repo root from an earlier session: find_uris.py, find_uris_frontmatter.py, test_uri.py, test_double.py, test_prompt.py, test_remote.py, test_all_boundaries.py, test_all_boundaries2.py, test_local_uri_optout.py, plus package.json and package-lock.json. They violate the no-scratch-in-tree boundary. Left in place because they may belong to another branch."
+  ]
+}
