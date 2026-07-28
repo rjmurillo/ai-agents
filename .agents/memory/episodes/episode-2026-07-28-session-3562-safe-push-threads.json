@@ -11,9 +11,7 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Diagnosed why PR #3568 reported BLOCKED while every required check was green. Branch protection here is a ruleset, so repos/OWNER/REPO/branches/main/protection returns 404; gh api repos/rjmurillo/ai-agents/rules/branches/main showed the code_quality rule, and the GraphQL reviewThreads query showed three unresolved Copilot threads.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e002"
       ]
@@ -74,7 +72,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -94,9 +94,17 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": [
-        "e001"
-      ]
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt .agents/memory/causality/causal-graph.json from committed episodes after repeated main and bot merges dropped the episode-2026-07-28-session-3562-safe-push-threads reference. The targeted causal graph coverage test passed before staging.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
