@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.utils.markdown_parser import _create_parser
+
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 # Scope the sys.path mutation to the module load and remove it afterward so it
 # does not leak into other tests (mirrors tests/eval/test_variance_control.py).
@@ -156,10 +158,6 @@ raise SystemExit(oa._final_exit_code(oa.EXIT_OK))
 """
 
 
-_BLOCK_START = re.compile(r"[^\S\n]*(?:#{1,6} |[-*+] |\d+[.)] |> |```|~~~)")
-_ATX_HEADING = re.compile(r"[^\S\n]*#{1,6} ")
-
-
 def _markdown_block(text: str, marker: str) -> str:
     """The one Markdown block in ``text`` containing ``marker``.
 
@@ -176,12 +174,25 @@ def _markdown_block(text: str, marker: str) -> str:
     still borrows from its neighbours. CommonMark lets a heading, a list, a
     blockquote, and a fence interrupt a paragraph with no blank line before
     them, so `prose\\n### Heading\\nmore prose` is three blocks to every
-    renderer and was one window here. Bound on those starts as well as on
-    blank lines, which is what a renderer does.
+    renderer and was one window here.
 
-    Fence-aware, because the README opens with a `bash` block whose comments
-    start with `#`. Splitting on those would report a code sample as three
-    blocks and let an assertion match a line the reader sees as one listing.
+    Bounding on hand-written patterns for those starts was the fifth, and it
+    lost on the constructs the list did not name: a thematic break, a setext
+    underline, a blockquote written without its space, an indented run of
+    backticks that is not a fence, and prose on the line after a fence
+    closes. Each is a separate patch, and the next construct is another one.
+
+    Ask the parser instead. `markdown-it-py` reports a line range for every
+    block it finds, so the window is whatever the renderer drew, including
+    the constructs nobody thought to enumerate. The narrowest range covering
+    the marker is its block: a paragraph inside a list item is the item's
+    prose rather than the whole list, and a fence is the whole listing, which
+    matters because the README opens with a `bash` block whose comments start
+    with `#`.
+
+    The dialect comes from `scripts/utils/markdown_parser`, the parser this
+    repo already reads Markdown with, so this window and every other reader
+    of a repo document agree about what a block is.
 
     Raises:
         AssertionError: ``marker`` is absent or repeated. Absent means the
@@ -194,39 +205,22 @@ def _markdown_block(text: str, marker: str) -> str:
         "unique picks an arbitrary block, so choose a longer one"
     )
     target = text.count("\n", 0, found[0])
-    lines = text.split("\n")
 
-    # A fence toggles on its own line, so the marker's block is only known
-    # once the fence state at every line is known. Walk once, and record the
-    # index of the block each line belongs to.
-    blocks: list[list[int]] = []
-    in_fence = False
-    after_heading = False
-    for i, line in enumerate(lines):
-        fence = line.lstrip().startswith(("```", "~~~"))
-        blank = not line.strip()
-        # Inside a fence nothing starts a block, and the closing fence stays
-        # with the block it closes.
-        starts = not in_fence and (fence or bool(_BLOCK_START.match(line)))
-        if in_fence and fence:
-            in_fence = False
-        elif fence:
-            in_fence = True
-        if blank and not in_fence:
-            blocks.append([])
-            after_heading = False
+    narrowest: tuple[int, int] | None = None
+    for token in _create_parser().parse(text):
+        # `inline` carries a block's content, not the block, and for a setext
+        # heading its range excludes the underline. Blocks only, so the window
+        # is what the renderer drew rather than what it drew inside.
+        if token.map is None or token.type == "inline":
             continue
-        if starts or after_heading or not blocks:
-            blocks.append([])
-        blocks[-1].append(i)
-        # An ATX heading is a one-line leaf block, so the next line opens a
-        # paragraph rather than continuing the heading.
-        after_heading = starts and bool(_ATX_HEADING.match(line))
-
-    for block in blocks:
-        if target in block:
-            return "\n".join(lines[block[0]:block[-1] + 1])
-    raise AssertionError(f"{marker!r} landed on a blank line")
+        start, end = token.map
+        if start <= target < end and (
+            narrowest is None or end - start < narrowest[1] - narrowest[0]
+        ):
+            narrowest = (start, end)
+    if narrowest is None:
+        raise AssertionError(f"{marker!r} landed on a blank line")
+    return "\n".join(text.split("\n")[narrowest[0]:narrowest[1]])
 
 
 def _readme_paragraph(marker: str) -> str:
@@ -6572,6 +6566,95 @@ class TestMarkdownBlockStopsAtEveryBlockBoundary:
         """An absent marker means the prose was rewritten, not that it passes."""
         with pytest.raises(AssertionError, match="0 times"):
             _markdown_block("nothing to see\n", "absent")
+
+    def test_prose_after_a_closing_fence_is_not_inside_the_fence(self):
+        """Round 45's window closed the fence and kept reading into it.
+
+        The state machine suppressed block starts inside a fence and cleared
+        the flag on the closing line, but nothing said the next line opens a
+        block. Ordinary prose does not match any block-start pattern, so it
+        was appended to the listing it follows and a code-sample assertion
+        could pass on the sentence underneath.
+        """
+        text = "```bash\ncode contract\n```\nthe neighbour sentence\n"
+        assert _markdown_block(text, "contract") == "```bash\ncode contract\n```"
+
+    def test_an_indented_backtick_run_is_not_a_fence(self):
+        """Four spaces makes it paragraph text, not a fence that swallows.
+
+        The old rule matched a fence after any leading whitespace, so this
+        opened a fence that then suppressed the heading below it and ran to
+        the end of the file. CommonMark gives the run to the paragraph, and
+        the heading still ends the block.
+        """
+        text = "the contract sentence\n    ```\nstill the same paragraph\n### Other\nprose\n"
+        assert _markdown_block(text, "contract") == (
+            "the contract sentence\n    ```\nstill the same paragraph"
+        )
+
+    @pytest.mark.parametrize("rule", ["***", "___", "* * *", "- - -"])
+    def test_a_thematic_break_ends_the_block(self, rule):
+        """A horizontal rule is a block boundary a reader plainly sees.
+
+        The old rule had no pattern for one, so a README that separated two
+        sections with a rule instead of a blank line handed the assertion
+        the text on the far side of a visible line. `---` is absent here on
+        purpose: after a paragraph it underlines rather than divides, which
+        the next test pins.
+        """
+        text = f"the contract sentence\n{rule}\nthe neighbour sentence\n"
+        assert _markdown_block(text, "contract") == "the contract sentence"
+
+    def test_a_dash_run_under_a_paragraph_underlines_it(self):
+        """`---` after prose is a setext heading, not a thematic break.
+
+        The distinction is invisible to a pattern that only reads the line
+        itself, which is the whole reason this window asks a parser. A rule
+        would end the block above it; an underline joins it.
+        """
+        text = "the contract sentence\n---\nthe neighbour sentence\n"
+        assert _markdown_block(text, "contract") == "the contract sentence\n---"
+
+    def test_a_dash_run_after_a_blank_line_really_is_a_break(self):
+        """The other half of the same line, to show the rule is contextual."""
+        text = "the contract sentence\n\n---\n\nthe neighbour sentence\n"
+        assert _markdown_block(text, "contract") == "the contract sentence"
+
+    def test_a_setext_underline_makes_a_heading_of_what_came_before_it(self):
+        """`===` under a line makes every line above it one heading.
+
+        Not the split the old rule would have wanted, and the right one: a
+        setext heading is announced by the line after it, so its content is
+        the whole run of prose above the underline. The block that ends is
+        the heading, and the sentence below is a separate paragraph, which
+        is the part the old rule could not see at all.
+        """
+        text = "the contract sentence\nA Heading\n=========\nthe neighbour sentence\n"
+        assert _markdown_block(text, "contract") == (
+            "the contract sentence\nA Heading\n========="
+        )
+
+    def test_the_paragraph_after_a_setext_heading_is_its_own_block(self):
+        """The half of the setext case an assertion would otherwise borrow."""
+        text = "the contract sentence\nA Heading\n=========\nthe neighbour sentence\n"
+        assert _markdown_block(text, "neighbour") == "the neighbour sentence"
+
+    def test_a_blockquote_without_a_space_still_interrupts(self):
+        """`>text` is a quote; the old pattern required `> ` with the space."""
+        text = "the contract sentence\n>the neighbour sentence\n"
+        assert _markdown_block(text, "contract") == "the contract sentence"
+
+    def test_a_table_row_is_the_block_not_the_whole_table(self):
+        """The dialect is the repo's, and the window is one row.
+
+        `scripts/utils/markdown_parser` enables tables on CommonMark, so a
+        README table renders as a table here too. The narrowest block holding
+        the marker is its row, which is the unit that keeps an assertion from
+        matching a neighbouring row's words, the same borrowing this window
+        exists to stop between paragraphs.
+        """
+        text = "| head | cols |\n| --- | --- |\n| contract | cell |\n\nafter\n"
+        assert _markdown_block(text, "contract") == "| contract | cell |"
 
 
 class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
