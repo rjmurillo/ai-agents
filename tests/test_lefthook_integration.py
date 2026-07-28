@@ -5339,6 +5339,37 @@ def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
     assert policy._merge_has_main_parent(merge, repo) is False
 
 
+def test_the_main_trunk_is_read_once_for_one_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading main's trunk per merge walks the same history many times.
+
+    The walk is cheap on a small repo and is not cheap on a long-lived one,
+    and a push may legitimately carry many merges. Reading it once per push
+    keeps the cost flat in the number of merges pushed.
+    """
+    update = _push_update()
+    trunk_reads: list[Sequence[str]] = []
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "5\n")
+        if args[:2] == ["rev-list", "--merges"]:
+            return _completed(0, "".join(f"merge-{index}\n" for index in range(25)))
+        if args[:2] == ["rev-list", "--first-parent"]:
+            trunk_reads.append(args)
+            return _completed(0, "a-main-commit\n")
+        if args[0] == "show" and "--format=%P" in args:
+            return _completed(0, "first-parent a-landed-branch\n")
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+
+    assert policy._contains_main_merge(update, tmp_path) is False
+    assert len(trunk_reads) == 1
+
+
 def test_review_marker_reports_git_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

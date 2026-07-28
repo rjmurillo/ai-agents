@@ -3055,11 +3055,13 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
     result = _run_git(repo_root, ["rev-list", "--merges", update.range_spec])
     if result.returncode != 0:
         return False
-    return any(
-        _merge_has_main_parent(merge_sha, repo_root)
-        for merge_sha in result.stdout.splitlines()
-        if merge_sha
-    )
+    merges = [merge_sha for merge_sha in result.stdout.splitlines() if merge_sha]
+    if not merges:
+        return False
+    # Every merge is read against the same trunk, and a push may carry many.
+    # Reading it here keeps the walk once per push rather than once per merge.
+    trunk = _main_trunk_commits(repo_root)
+    return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
 
 
 def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
@@ -3077,7 +3079,11 @@ def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
     return frozenset(result.stdout.split())
 
 
-def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
+def _merge_has_main_parent(
+    merge_sha: str,
+    repo_root: Path,
+    trunk: frozenset[str] | None = None,
+) -> bool:
     # `log.showSignature` makes `show` report the signature check before the
     # commit, and the first field of the split is then a word of that report
     # rather than the merge's own first parent. Skipping the first field would
@@ -3091,7 +3097,8 @@ def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
     if result.returncode != 0:
         return False
     parents = result.stdout.split()[1:]
-    trunk = _main_trunk_commits(repo_root)
+    if trunk is None:
+        trunk = _main_trunk_commits(repo_root)
     return any(parent in trunk for parent in parents)
 
 
