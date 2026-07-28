@@ -932,7 +932,7 @@ class TestRunPersistenceJsonlRoundTrip:
         assert len(records) == 1
         assert records[0].schema_version == 1
         assert records[0].system_fingerprint is None
-        assert records[0].seed is None
+        assert records[0].seed == 0
 
 
 class TestRunPersistenceSchemaGuard:
@@ -1000,6 +1000,52 @@ class TestRunPersistenceMalformedJsonl:
         with pytest.raises(MalformedRunRecordError, match=expected_msg):
             RunPersistence(run_dir, resume=True)
 
+    @pytest.mark.parametrize(
+        "mutate, expected_msg",
+        [
+            (
+                lambda payload: payload.pop("assertions"),
+                r"missing required field\(s\): assertions",
+            ),
+            (
+                lambda payload: payload.update({"assertions": []}),
+                "successful record must include non-empty assertions",
+            ),
+            (
+                lambda payload: payload["assertions"][0].update({"passed": "false"}),
+                "assertion 0 field 'passed'.*expected bool",
+            ),
+            (
+                lambda payload: payload.update({"schemaVersion": True}),
+                "schemaVersion=True",
+            ),
+            (
+                lambda payload: payload.update({"seed": False}),
+                "field 'seed'.*expected int or null",
+            ),
+            (
+                lambda payload: payload.update({"tokens_estimated": "false"}),
+                "field 'tokens_estimated'.*expected bool",
+            ),
+        ],
+    )
+    def test_persisted_records_are_strictly_validated(
+        self, tmp_path, mutate, expected_msg
+    ):
+        payload = json.loads(_record_json_for_test(_make_record(seed=0)))
+        mutate(payload)
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        with pytest.raises((MalformedRunRecordError, SchemaVersionError), match=expected_msg):
+            RunPersistence(run_dir, resume=True, seed=0)
+
+    def test_duplicate_persisted_identity_raises_malformed(self, tmp_path):
+        payload = _record_json_for_test(_make_record(seed=0))
+        run_dir = self._seed(tmp_path, payload + "\n" + payload + "\n")
+
+        with pytest.raises(MalformedRunRecordError, match="duplicates identity"):
+            RunPersistence(run_dir, resume=True, seed=0)
+
     def test_malformed_is_distinct_from_duplicate_run_error(self):
         # Sanity: the new exception is its own class, so a CLI catch on
         # `DuplicateRunError` cannot accidentally absorb on-disk
@@ -1028,7 +1074,14 @@ class TestRunPersistenceMalformedJsonl:
                 "prompt_ref": "<test>",
                 "fixture_sha": "f" * 64,
                 "raw_response": "ok",
-                "assertions": [],
+                "assertions": [
+                    {
+                        "kind": "verdict",
+                        "expected_value": "IDENTIFY",
+                        "passed": True,
+                        "extracted": "IDENTIFY",
+                    }
+                ],
                 "outcome": "success",
                 "latency_ms": 1.0,
                 "tokens_in": 1,
@@ -1256,6 +1309,15 @@ class TestRunnerLiveLoop:
         ])
         assert rc2 == 0
         assert adapter2.call_count == 0
+        report_json = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "reports"
+            / run_id
+            / "report.json"
+        )
+        assert json.loads(report_json.read_text(encoding="utf-8"))["seed"] == 0
 
     def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
