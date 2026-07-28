@@ -209,11 +209,14 @@ def _run_suppression_push(
 
     def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["ls-tree", "-r"]:
+            assert "-z" in args, "ls-tree must use -z for NUL-separated output"
             assert args[-1] == head
             return _completed("\0".join(changed_paths) + "\0")
         if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
             for flag in policy.TEXTUAL_DIFF_FLAGS:
                 assert flag in args
+            assert "-z" in args, "diff --name-only must use -z for NUL-separated output"
+            assert "--no-renames" in args, "diff --name-only must use --no-renames"
             assert expected_range is not None
             assert expected_range in args
             return _completed("\0".join(changed_paths) + "\0")
@@ -559,7 +562,11 @@ new file mode 100644
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        _git(repo, "config", "diff.external", "/bin/true")
+        # Create a portable external-diff stub that swallows all output
+        stub = tmp_path / "ext-diff-stub"
+        stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        stub.chmod(0o755)
+        _git(repo, "config", "diff.external", str(stub))
         suppression = "# no" "sec"
         path = repo / "pkg" / "module.py"
         path.parent.mkdir()
