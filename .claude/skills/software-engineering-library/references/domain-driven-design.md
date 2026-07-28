@@ -1,25 +1,3 @@
----
-description: Domain-Driven Design tactical and strategic patterns from Evans and Vernon. Apply when modeling agents, skills, sessions, orchestration boundaries, or any cross-context translation. Reuse existing models and bounded contexts rather than introduce parallel ones.
-paths:
-  - "**/*.py"
-  - "**/*.cs"
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.js"
-  - "**/*.jsx"
-  - "**/*.go"
-  - "**/*.rs"
-  - "**/*.java"
-  - "**/*.rb"
-  - "**/*.c"
-  - "**/*.h"
-  - "**/*.cpp"
-  - "**/*.ps1"
-  - "**/*.psm1"
-  - "**/*.psd1"
-  - "**/*.sh"
-  - "**/*.sql"
----
 
 # Domain-Driven Design
 
@@ -27,7 +5,7 @@ This rule consolidates the Domain-Driven Design patterns from Eric Evans's _Doma
 
 The codebase already has implicit bounded contexts (the agent runtime, the session log, the memory systems, the skill catalog). When you add a new concept, find the context it belongs in and use that context's language. Do not invent a parallel model.
 
-For persistence and transactional concerns (Repository, Unit of Work, Service Layer), see `.claude/rules/enterprise-patterns.md`. This rule covers the modeling and boundary side of the same problem space and explicitly does not duplicate those patterns.
+For persistence and transactional concerns (Repository, Unit of Work, Service Layer), see `references/enterprise-patterns.md`. This reference covers the modeling and boundary side of the same problem space and explicitly does not duplicate those patterns.
 
 ## Core Vocabulary
 
@@ -179,7 +157,7 @@ Rules:
 
 - Domain services are stateless. They take inputs, return outputs, do not own data.
 - They are named in the language of the domain (`AgentSelectionPolicy`, `SessionEligibilityCheck`), not in the language of the framework.
-- A domain service is not the place to host CRUD over a repository. That belongs in a Service Layer (see `.claude/rules/enterprise-patterns.md`).
+- A domain service is not the place to host CRUD over a repository. That belongs in a Service Layer (see `references/enterprise-patterns.md`).
 - If a domain service grows state, you have an entity in disguise. Promote it.
 
 Smell: a service named `Manager` or `Helper` that owns no data and does five unrelated things. Split it by purpose; rename each piece in domain terms.
@@ -263,7 +241,7 @@ These shapes appear in greenfield code more often than they should. Reject them 
 
 ai-agents already has implicit bounded contexts. Reuse, do not duplicate.
 
-- **Agent runtime**: agent definitions, agent invocation, the orchestrator, and the agent's view of the world. The ubiquitous language uses _agent_, _delegation_, _skill_, _tool_. New behavior that lives in this context belongs in `templates/agents/`, `.claude/agents/`, or the orchestrator service.
+- **Agent runtime**: agent definitions, agent invocation, the orchestrator, and the agent's view of the world. The ubiquitous language uses _agent_, _delegation_, _skill_, _tool_. New behavior that lives in this context belongs in the project agent sources or the orchestrator service.
 - **Session lifecycle**: session start, session end, handoff, retrospective. The language uses _session_, _handoff_, _retrospective_, _gate_. Session state is its own aggregate; the session log is the audit trail. New session-shape concepts go behind the session-management seam, not into hooks or skills.
 - **Memory**: long-lived knowledge across sessions. The language uses _memory_, _entity_, _observation_, _relation_. Serena and Forgetful are repositories of long-lived knowledge in this context; the named operation already exists for most use cases.
 - **Skills and hooks**: entry points that translate between user or harness input and the agent runtime. Treat them as ACLs from the harness to the agent runtime. Keep them thin: parse, call a service, format output.
