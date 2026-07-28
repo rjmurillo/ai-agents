@@ -2,7 +2,7 @@
 type: plan
 id: PLAN-1884
 title: PR iteration cost reduction, pre-push validation hooks
-status: active
+status: completed
 priority: P1
 related:
   - REQ-015
@@ -20,6 +20,8 @@ updated: 2026-05-04
 ## Overview
 
 Four milestones deliver three Claude Code PreToolUse hooks that block `git push` when markdown style violations, marketplace count drift, or session log placeholder values are present. M1 delivers the shared `push_guard_base.py` framework. M2, M3, M4 each deliver one hook. M2, M3, M4 ship sequentially in that order to avoid `hooks.json` merge conflicts (see Risk R-A). The plan is anchored to REQ-015, DESIGN-015, TASK-015; this document adds exit criteria, PR ergonomics, risk mitigations, and the revisions that the critic and pre-mortem flagged.
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: issues #1884 and #1885 closed; pre-push now runs git_hook_policy.py guards from lefthook.yml.
 
 ## Objectives
 
