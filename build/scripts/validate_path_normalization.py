@@ -21,9 +21,12 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+GIT_CHECK_IGNORE_TIMEOUT_SECONDS = 30
 
 
 @dataclass(frozen=True)
@@ -119,6 +122,36 @@ def _cyan(text: str, use_color: bool) -> str:
     return _color(text, "36", use_color)
 
 
+def _git_ignored(root: Path, candidates: list[Path]) -> set[Path]:
+    """Return the candidates Git ignores, or an empty set outside a repository.
+
+    Scanning ignored trees made the gate fail on transient artifacts, for
+    example a `.pytest_cache/basetemp/` fixture holding a deliberate
+    `/home/runner` string. Naming each cache directory in the exclude list is a
+    blocklist that loses to the next tool; Git already knows the answer.
+    """
+    if not candidates:
+        return set()
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "--stdin", "-z"],
+            input="\0".join(str(path) for path in candidates),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_CHECK_IGNORE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    # 0 means some paths are ignored, 1 means none are. Anything else (128 for
+    # "not a git repository") means the answer is unusable, so scan everything.
+    if result.returncode not in (0, 1):
+        return set()
+    return {Path(line) for line in result.stdout.split("\0") if line}
+
+
 def collect_files(
     root: Path,
     extensions: list[str],
@@ -140,7 +173,8 @@ def collect_files(
                 break
         if not excluded:
             files.append(path)
-    return files
+    ignored = _git_ignored(root, files)
+    return [path for path in files if path not in ignored]
 
 
 def scan_file(

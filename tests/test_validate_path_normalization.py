@@ -7,6 +7,7 @@ extensions, and exclusion paths.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -351,3 +352,95 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Line 2" in captured.out
         assert "Windows Absolute Path" in captured.out
+
+
+class TestGitIgnoredFilesAreSkipped:
+    """Ignored trees hold transient artifacts, not authored documentation.
+
+    A `.pytest_cache/basetemp/` fixture containing a deliberate `/home/runner`
+    string failed the push gate for every contributor. Naming each cache
+    directory in the exclude list is a blocklist that loses to the next tool,
+    so the scanner asks Git instead. Refs #3686.
+    """
+
+    @staticmethod
+    def _init_repo(root: Path) -> None:
+        subprocess.run(
+            ["git", "init", "-q", str(root)],
+            check=True,
+            capture_output=True,
+        )
+
+    def test_an_ignored_file_is_not_collected(self, tmp_path: Path) -> None:
+        self._init_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n", encoding="utf-8")
+        cache = tmp_path / ".pytest_cache"
+        cache.mkdir()
+        (cache / "artifact.md").write_text("leaked /home/runner/cache\n", encoding="utf-8")
+
+        collected = collect_files(tmp_path, [".md"], [])
+
+        assert cache / "artifact.md" not in collected
+
+    def test_a_tracked_file_is_still_collected(self, tmp_path: Path) -> None:
+        self._init_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n", encoding="utf-8")
+        kept = tmp_path / "doc.md"
+        kept.write_text("relative/path.md\n", encoding="utf-8")
+
+        assert kept in collect_files(tmp_path, [".md"], [])
+
+    def test_an_ignored_violation_does_not_fail_the_gate(self, tmp_path: Path) -> None:
+        self._init_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text("cache/\n", encoding="utf-8")
+        cache = tmp_path / "cache"
+        cache.mkdir()
+        (cache / "artifact.md").write_text("leaked /home/runner/x\n", encoding="utf-8")
+
+        assert main(["--path", str(tmp_path), "--fail-on-violation"]) == 0
+
+    def test_a_tracked_violation_still_fails_the_gate(self, tmp_path: Path) -> None:
+        self._init_repo(tmp_path)
+        (tmp_path / "doc.md").write_text("leaked /home/runner/x\n", encoding="utf-8")
+
+        assert main(["--path", str(tmp_path), "--fail-on-violation"]) == 1
+
+    def test_a_directory_outside_any_repository_scans_everything(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`git check-ignore` exits 128 outside a repo. Scan rather than skip."""
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+        (tmp_path / "doc.md").write_text("leaked /home/runner/x\n", encoding="utf-8")
+
+        assert tmp_path / "doc.md" in collect_files(tmp_path, [".md"], [])
+
+    def test_an_unavailable_git_binary_scans_everything(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import validate_path_normalization as module
+
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise OSError("git missing")
+
+        monkeypatch.setattr(module.subprocess, "run", _raise)
+        (tmp_path / "doc.md").write_text("leaked /home/runner/x\n", encoding="utf-8")
+
+        assert tmp_path / "doc.md" in collect_files(tmp_path, [".md"], [])
+
+    def test_an_empty_candidate_list_makes_no_subprocess_call(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import validate_path_normalization as module
+
+        def _fail(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("git should not run for an empty candidate list")
+
+        monkeypatch.setattr(module.subprocess, "run", _fail)
+
+        assert collect_files(tmp_path, [".md"], []) == []
