@@ -167,6 +167,27 @@ def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
     return checks_value
 
 
+def _merge_ref_unusable(payload: dict[str, object]) -> bool:
+    """Return True when get_pr_checks reports an unusable merge ref."""
+    return payload.get("MergeRefUsable") is False
+
+
+def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
+    warning = payload.get("MergeStateWarning")
+    message = (
+        warning
+        if isinstance(warning, str) and warning
+        else "PR merge ref cannot be built; check logs are incomplete"
+    )
+    write_skill_error(
+        message,
+        1,
+        error_type="VerificationFailed",
+        output_format=fmt,
+        script_name="get_pr_check_logs.py",
+    )
+
+
 
 def _rank_matches(log_lines: list[str]) -> list[int]:
     """Return failure-matching line indices, most authoritative first.
@@ -457,6 +478,10 @@ def main(argv: list[str] | None = None) -> int:
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
+        if _merge_ref_unusable(payload):
+            _write_merge_ref_error(payload, fmt)
+            return 1
+
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             write_skill_error(
@@ -485,6 +510,8 @@ def main(argv: list[str] | None = None) -> int:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
 
@@ -520,6 +547,9 @@ def main(argv: list[str] | None = None) -> int:
                 script_name="get_pr_check_logs.py",
             )
             return 3
+        if _merge_ref_unusable(payload):
+            _write_merge_ref_error(payload, fmt)
+            return 1
         checks_list = _coerce_checks_list(payload)
         if checks_list is None:
             write_skill_error(

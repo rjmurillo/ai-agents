@@ -31,7 +31,7 @@ Under that model the same 89 scripts yield two unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Two of the entries below are unreachable precisely because
+pass if run. Both of the entries below are unreachable precisely because
 they fail against the current tree, which is tracked separately. Reachability
 is the floor, not the ceiling.
 """
