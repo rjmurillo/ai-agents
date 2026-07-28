@@ -102,6 +102,27 @@ The remaining body surface is large. Counting it is matcher-dependent, so use th
 
 Two counting traps, both hit while measuring this. `.claude/worktrees/` holds nested checkouts of this same repository, so a naive walk multiplies every finding by the number of live agent worktrees; the same scan returned 1,557,567 before excluding them. And that body count reads the declaration the way the ratchets do, so a declared file contributes zero no matter how many references it carries.
 
+### Agent files are not scanned at all
+
+Both portability gates scan skills only. `check_skill_portability.py` walks skill
+scripts and `check_skill_md_portability.py` walks `SKILL.md` bodies. Neither reads
+`src/claude/*.md`, `src/copilot-cli/agents/*.agent.md`, or `templates/agents/*.shared.md`,
+even though the first two sit inside plugin roots and ship to consumers verbatim.
+
+An agent prompt that tells the reader to open `.claude/agents/<name>.md` therefore
+ships into `src/copilot-cli/` with a path that resolves to nothing, and no gate
+objects. Issue #3465 tracks widening the ratchet and carries the per-surface
+measurement; this section records the working practice to follow until it lands.
+
+Practical rule while the gap stands: **write shared agent prose without naming a
+tree-specific path.** Say "an agent registered in this install" rather than
+"a file at `.claude/agents/<name>.md`". The same body is copied into six trees
+across three plugin roots (`.claude/`, `src/claude/`, `src/copilot-cli/`, each of
+which installs standalone), so any path you name is wrong in most of them. This is
+not a style preference; it is the only way to be correct in all six copies at once.
+A draft of the orchestrator capability-matrix note did name that path, shipped it
+into the plugin roots, and no gate flagged it. A manual read caught it.
+
 ## MUST
 
 1. **No undeclared upstream-only dependency in a shipped file.** A file under a plugin root, or under `templates/agents/`, MUST NOT instruct the reader to open, run, or resolve a path that exists only in this repository, unless a `vendor-portability` declaration in that file names that path. Consumer-workspace paths are exempt; they are the point.
