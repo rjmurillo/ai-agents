@@ -212,6 +212,29 @@ def test_parse_report_extracts_agent_rates():
             "per_fixture_pass_rates": {},
             "flaky_fixtures_excluded": [["nested"]],  # unhashable element
         },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+        },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "error_count": "0",
+        },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "error_count": None,
+        },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "error_count": -1,
+        },
     ],
 )
 def test_parse_report_rejects_schema_invalid(bad_report):
@@ -228,6 +251,7 @@ def test_parse_report_accepts_list_flaky_exclusions():
             "f2": {"agent": [0.5]},
         },
         "flaky_fixtures_excluded": ["f2"],
+        "error_count": 0,
     }
     result = sweep.parse_report(report, model_id="m1")
     assert result.per_fixture_agent_rates == {"f1": [1.0]}
@@ -285,6 +309,7 @@ def test_parse_report_excludes_flaky_fixtures():
         },
         "flaky_fixtures_excluded": ["flaky"],
         "fixture_set_sha": "sha1",
+        "error_count": 0,
     }
     result = sweep.parse_report(report, model_id="m1")
     assert set(result.per_fixture_agent_rates) == {"stable"}

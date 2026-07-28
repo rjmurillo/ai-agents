@@ -41,7 +41,10 @@ Baseline ratchet:
   or a previously-clean file introduces references. It REPORTS when counts drop
   so the baseline can be tightened with ``--update-baseline``.
 
-Scope: ``*.md`` under ``.claude/skills/``.
+Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
+``PLUGIN_ROOTS``. Scanning only ``.claude/skills`` left thirty nine references
+unratcheted in ``src/copilot-cli/skills``, which is generated from
+``.claude/commands`` and so was covered by neither path. See issue #3578.
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -56,6 +59,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.validation.portability_common import (
     build_portability_parser,
@@ -78,8 +83,9 @@ from scripts.validation.portability_common import (
 # which covers script files; this validator covers .md files. The .claude/skills/
 # pattern is excluded here: in prose a bare reference to a sibling skill by
 # ``.claude/skills/`` resolves through the install root, so it is not an
-# upstream-only dependency. ``.agents/``, ``.claude/lib/``, and
-# ``.claude/review-axes/`` have no consumer-side analogue.
+# upstream-only dependency. ``.agents/``, ``.claude/lib/``,
+# ``.claude/review-axes/``, ``templates/agents/``, and ``templates/platforms/``
+# have no consumer-side analogue.
 #
 # ``templates/agents/`` and ``templates/platforms/`` hold the agent sources and
 # platform manifests the generators read. Neither ships in the plugin, so a
@@ -109,22 +115,68 @@ from scripts.validation.portability_common import (
 # :func:`count_upstream_refs`), so a backtick is a valid anchor character.
 # ``../`` stays excluded: it is parent-relative and does not name the repository
 # root, so where it lands depends on the referring file's own location.
-_ANCHOR = r"(?:^|(?<=[\s(\[<\"'`|,;*]))"
-_BOUNDARY = _ANCHOR + r"(?:\.[\\/]|[\\/])?"
+#
+# ``>`` is in the set so a tight blockquote ``>/templates/agents/x.md`` counts,
+# matching the spaced ``> /templates/agents/x.md`` that ``\s`` already accepts.
+#
+# Adding a raw ``:`` or ``=`` to that set is the obvious way to reach the three
+# shapes it misses, and it is the wrong way: a raw ``:`` makes the Windows drive
+# letters ``C:\templates\`` and ``C:\.agents\`` count, and a raw ``=`` makes the
+# URL query parameter ``?next=/.agents/x`` count. Naming the two contexts
+# instead reaches all three shapes and admits none of those, so the trade is not
+# forced (measured over nine shapes, issue #3489).
+_ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
+
+# A link reference definition ``[x]:/templates/agents/x.md`` and a ``path:``
+# label both put a colon immediately before the path. Requiring the label itself
+# to sit at an anchor is what keeps drive letters and URL-embedded colons out:
+# in ``C:\templates`` the ``C`` is one character and not the literal ``path`` or
+# a bracketed label, and in ``https://x/path:/templates`` the label is preceded
+# by ``/``, which is not an anchor character.
+#
+# Only the tight form, with no gap between the colon and the path, needs this
+# anchor. CommonMark allows optional spaces, tabs, and up to one line ending
+# between a link label's colon and its destination, but every spaced form is
+# already counted without help here: the whitespace is itself an ``_ANCHOR``
+# character (``\s`` covers space, tab and newline), so ``[x]: /templates``
+# anchors on the space. Widening this to ``[x]:[ \t]*`` would match only strings
+# ``_ANCHOR`` already matches, which is dead regex, and it would still admit no
+# new hazard because a bare colon in prose (``note:/templates``) has no anchor
+# before the label. ``test_label_definition_whitespace_after_colon_still_counts``
+# pins the spaced, tabbed and line-broken forms; the negative-control test pins
+# that a raw prose colon does not anchor.
+_LABEL_ANCHOR = _ANCHOR + r"(?:path|\[[^\]\r\n]+\]):"
+
+# An unquoted HTML attribute ``<img src=/templates/agents/x.md>`` puts an equals
+# sign immediately before the path. Requiring an open tag and a real attribute
+# name is what keeps ``?next=/.agents/x`` out: a URL query parameter has no
+# enclosing tag. The quoted form needs no rule here because ``"`` and ``'`` are
+# already anchor characters.
+_ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
+
+_BOUNDARY = rf"(?:{_ANCHOR}|{_LABEL_ANCHOR}|{_ATTR_ANCHOR})" + r"(?:\.[\\/]|[\\/])?"
+
+# Bare-ref terminator: a reference is counted when the path segment ends at a
+# word boundary (\b), a separator, a quoting delimiter, or end-of-line. The
+# lookahead avoids consuming the delimiter so overlapping contexts are not
+# missed. Without the \b alternative, references like ``.agents`` at the end of
+# a sentence (followed by period, comma, or whitespace) go uncounted (issue
+# #3482).
+_UPSTREAM_REF_TERMINATOR = r"(?=\b|[\\/]+|['\"?#]|$)"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(_BOUNDARY + r"\.agents(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
-    re.compile(_BOUNDARY + r"\.claude[\\/]+lib(?:[\\/]+|['\"?#]|$)", re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.agents" + _UPSTREAM_REF_TERMINATOR, re.IGNORECASE),
+    re.compile(_BOUNDARY + r"\.claude[\\/]+lib" + _UPSTREAM_REF_TERMINATOR, re.IGNORECASE),
     re.compile(
-        _BOUNDARY + r"\.claude[\\/]+review-axes(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"\.claude[\\/]+review-axes" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+agents(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+agents" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
     re.compile(
-        _BOUNDARY + r"templates[\\/]+platforms(?:[\\/]+|['\"?#]|$)",
+        _BOUNDARY + r"templates[\\/]+platforms" + _UPSTREAM_REF_TERMINATOR,
         re.IGNORECASE,
     ),
 )
@@ -140,15 +192,54 @@ _MARKER_PATTERN = re.compile(
 # Regex to detect a fenced code block opening line (CommonMark: 0-3 spaces indent allowed).
 _FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
-# A fence may also open inside a blockquote, which is how GitHub admonitions
-# (``> [!NOTE]`` followed by a fenced example) are written. CommonMark parses
-# blockquote content as Markdown after the marker is removed, so the marker has
-# to come off before the fence test runs.
-_BLOCKQUOTE_PREFIX_PATTERN = re.compile(r"^[ \t]{0,3}(?:>[ \t]?)+")
+# One blockquote marker: optional leading indent on the first, then ``>`` and an
+# optional single space that belongs to the marker rather than the content.
+_QUOTE_MARKER_PATTERN = re.compile(r"^[ \t]{0,3}>[ \t]?")
+
+
+def _quote_depth(line: str) -> int:
+    """Count the blockquote markers a line opens with."""
+    depth = 0
+    rest = line
+    while True:
+        match = _QUOTE_MARKER_PATTERN.match(rest)
+        if match is None:
+            return depth
+        depth += 1
+        rest = rest[match.end() :]
+
+
+def _strip_quote_markers(line: str, depth: int) -> str:
+    """Remove exactly ``depth`` blockquote markers from the front of a line.
+
+    Stripping exactly the opening depth, rather than every marker, is what lets
+    a deeper marker be recognised as content instead of a closing fence.
+    """
+    rest = line
+    for _ in range(depth):
+        match = _QUOTE_MARKER_PATTERN.match(rest)
+        if match is None:
+            break
+        rest = rest[match.end() :]
+    return rest
 
 _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
+
+# Plugin roots whose ``skills/`` tree ships to a consumer. Order fixes the scan
+# order so a regenerated baseline stays diff-stable. ``src/claude`` is listed
+# even though it has no skills tree today, because the cost of naming it is one
+# line and the cost of omitting it is a silently unratcheted root the day one
+# appears.
+PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
+
+# Roots whose skills tree must exist. A missing tree here is a broken checkout
+# or a moved directory, not a legitimate absence, and scanning around it would
+# reintroduce exactly the blind spot issue #3578 closed: the run reports clean
+# while a whole shipped root goes unread. `src/claude` is deliberately absent
+# from this set because it ships agents and rules and has no skills tree today.
+REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
 
 def has_portability_marker(text: str) -> bool:
@@ -172,26 +263,43 @@ def _strip_code(text: str) -> str:
     fence accepts a blockquoted closing line. Requiring the close to match the
     open's context keeps a bare ``>``-prefixed line inside a top-level fence
     from closing it early.
+
+    A blockquoted fence also ends when its blockquote ends, because a fenced
+    code block has no lazy continuation. The line that ends the blockquote is
+    then re-read at top level, so a bare ``\u0060\u0060\u0060`` there opens a new
+    top-level fence rather than being treated as prose.
+
+    The opening blockquote depth is recorded, not merely the fact of being
+    quoted. Depth matters in both directions: a fence opened at depth 1 must not
+    be closed by a marker at depth 2, and a fence opened at depth 2 must end when
+    the document drops to depth 1, because that line has left the block the fence
+    opened in.
     """
     lines = text.split("\n")
     result_lines: list[str] = []
     fence_char: str | None = None
     fence_len = 0
-    fence_quoted = False
+    fence_depth = 0
 
     for line in lines:
+        if fence_char is not None and fence_depth > 0 and _quote_depth(line) < fence_depth:
+            fence_char = None
+            fence_len = 0
+            fence_depth = 0
+
         if fence_char is None:
             match = _FENCE_OPEN_PATTERN.match(line)
-            quoted = False
+            depth = 0
             if match is None:
-                unquoted = _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1)
-                if unquoted != line:
-                    match = _FENCE_OPEN_PATTERN.match(unquoted)
-                    quoted = match is not None
+                depth = _quote_depth(line)
+                if depth:
+                    match = _FENCE_OPEN_PATTERN.match(_strip_quote_markers(line, depth))
+                    if match is None:
+                        depth = 0
             if match:
                 fence_char = match.group(1)[0]
                 fence_len = len(match.group(1))
-                fence_quoted = quoted
+                fence_depth = depth
                 result_lines.append("")
             else:
                 result_lines.append(line)
@@ -199,13 +307,11 @@ def _strip_code(text: str) -> str:
             close_pattern = re.compile(
                 r"^[ \t]{0,3}" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
             )
-            candidate = (
-                _BLOCKQUOTE_PREFIX_PATTERN.sub("", line, count=1) if fence_quoted else line
-            )
+            candidate = _strip_quote_markers(line, fence_depth) if fence_depth else line
             if close_pattern.match(candidate):
                 fence_char = None
                 fence_len = 0
-                fence_quoted = False
+                fence_depth = 0
                 result_lines.append("")
             else:
                 result_lines.append("")
@@ -266,6 +372,52 @@ def scan_skill_markdown(skills_dir: Path) -> dict[str, int]:
     return counts
 
 
+def skills_dirs(root: Path) -> list[Path]:
+    """Return the existing ``skills/`` directory of every plugin root.
+
+    A plugin root is a directory that ships to a consumer, so its ``skills/``
+    tree reaches the same reader whichever root it came from. Scanning only one
+    of them left thirty nine references unratcheted in ``src/copilot-cli``,
+    which is generated from ``.claude/commands`` and therefore never passed
+    under the ``.claude/skills`` scan either. See issue #3578.
+
+    Absent roots are skipped rather than reported. ``src/claude`` ships agents
+    and rules but has no skills tree, and a root that grows one later is picked
+    up without touching this list.
+    """
+    return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
+
+
+def missing_required_roots(root: Path) -> list[str]:
+    """Return the required roots whose skills tree is absent, in declared order.
+
+    Checking this separately from ``skills_dirs`` is the point: a scan that
+    silently drops a root still finds files, still compares cleanly against the
+    baseline, and still exits 0. Only an explicit expectation of which roots
+    must be present turns that into a failure.
+    """
+    return [
+        name
+        for name in PLUGIN_ROOTS
+        if name in REQUIRED_SKILLS_ROOTS and not (root / name / "skills").is_dir()
+    ]
+
+
+def scan_plugin_roots(root: Path) -> dict[str, int]:
+    """Return {repo_relative_posix_path: count} across every plugin root.
+
+    Keys are relative to the repository root rather than to the skills dir's
+    parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
+    key that a single-root scan could use collides the moment a second root is
+    read, and one root's count would silently overwrite the other's.
+    """
+    counts: dict[str, int] = {}
+    for skills_dir in skills_dirs(root):
+        for rel, n in scan_skill_markdown(skills_dir).items():
+            counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
+    return counts
+
+
 def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
     return (
         f"{rel}: {count} upstream-path refs in prose (baseline {allowed}). "
@@ -317,12 +469,61 @@ def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
     )
 
 
+def _report(
+    *,
+    regressions: list[str],
+    improvements: list[str],
+    current: dict[str, int],
+    baseline: dict[str, int],
+    scanned: list[Path],
+    root: Path,
+    output_format: str,
+) -> None:
+    """Print the scan outcome. Presentation only, no exit decision.
+
+    Split out of ``main`` so that argument handling and orchestration read as
+    one thing and formatting as another. ``main`` carried both and sat above
+    the complexity ceiling before this seam existed.
+    """
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "regressions": regressions,
+                    "improvements": improvements,
+                    "current_total": sum(current.values()),
+                    "baseline_total": sum(baseline.values()),
+                },
+                indent=2,
+            )
+        )
+        return
+    if improvements:
+        print("Portability improved (tighten the baseline with --update-baseline):")
+        for line in improvements:
+            print(f"  [IMPROVED] {line}")
+    if regressions:
+        print("Markdown vendor-portability drift detected (issue #2050):")
+        for line in regressions:
+            print(f"  [DRIFT] {line}")
+        return
+    roots = ", ".join(d.relative_to(root).as_posix() for d in scanned)
+    print(
+        f"No Markdown vendor-portability drift. "
+        f"{sum(current.values())} grandfathered refs across "
+        f"{len(current)} files (baseline {sum(baseline.values())}). "
+        f"Scanned {roots}."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    skills_dir = root / ".claude" / "skills"
-    if not skills_dir.is_dir():
-        print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
+    scanned = skills_dirs(root)
+    missing = missing_required_roots(root)
+    if missing:
+        absent = ", ".join(f"{name}/skills" for name in missing)
+        print(f"Required skills dir not found under {root}: {absent}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path == Path(""):
@@ -333,9 +534,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        current = scan_skill_markdown(skills_dir)
+        current = scan_plugin_roots(root)
     except OSError as exc:
-        print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
+        print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return 2
 
     if args.update_baseline:
@@ -348,35 +549,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-
-    if args.output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "regressions": regressions,
-                    "improvements": improvements,
-                    "current_total": sum(current.values()),
-                    "baseline_total": sum(baseline.values()),
-                },
-                indent=2,
-            )
-        )
-    else:
-        if improvements:
-            print("Portability improved (tighten the baseline with --update-baseline):")
-            for line in improvements:
-                print(f"  [IMPROVED] {line}")
-        if regressions:
-            print("Markdown vendor-portability drift detected (issue #2050):")
-            for line in regressions:
-                print(f"  [DRIFT] {line}")
-        else:
-            print(
-                f"No Markdown vendor-portability drift. "
-                f"{sum(current.values())} grandfathered refs across "
-                f"{len(current)} files (baseline {sum(baseline.values())})."
-            )
-
+    _report(
+        regressions=regressions,
+        improvements=improvements,
+        current=current,
+        baseline=baseline,
+        scanned=scanned,
+        root=root,
+        output_format=args.output_format,
+    )
     return 1 if regressions else 0
 
 
