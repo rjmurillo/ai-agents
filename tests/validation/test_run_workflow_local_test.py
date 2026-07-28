@@ -1315,6 +1315,16 @@ def test_act_limitation_hint_matches_paths_filter_missing_base() -> None:
     assert w._act_limitation_hint(verbatim, "workflow_dispatch") is not None
 
 
+def test_act_limitation_hint_matches_local_server_port_collision() -> None:
+    text = (
+        'time="2026-07-28T02:03:00-07:00" level=fatal '
+        'msg="listen tcp 192.168.1.179:34567: bind: address already in use"'
+    )
+    hint = w._act_limitation_hint(text)
+    assert hint is not None
+    assert "local reusable-workflow server port" in hint
+
+
 def test_act_limitation_hint_does_not_match_unrelated_base_error() -> None:
     # A genuine workflow defect that merely mentions 'base' must keep blocking.
     assert w._act_limitation_hint("Error: base branch not found") is None

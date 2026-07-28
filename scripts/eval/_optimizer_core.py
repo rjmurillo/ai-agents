@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -271,7 +272,11 @@ def split_tasks(
         cleaned.append(raw)
 
     if len(set(cleaned)) != len(cleaned):
-        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
+        # One pass, not `cleaned.count(tid)` per element. The old form was
+        # quadratic (18.5s at 40k ids) and this is a refusal path, so the
+        # operator is already waiting to be told which id they repeated.
+        counts = Counter(cleaned)
+        duplicates = sorted(tid for tid, seen in counts.items() if seen > 1)
         raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
 
     total = len(cleaned)
@@ -554,6 +559,10 @@ def mcnemar_exact(
     a three-task held-out group cannot clear a conventional 0.05 floor no
     matter how the edit performs.
 
+    The returned ``p`` is never exactly zero. No finite number of paired
+    observations drives the exact probability to zero, so a caller comparing
+    against a bar of zero gets a refusal rather than a pass.
+
     Raises:
         MissingResultError: when a requested task is absent from either side.
     """
@@ -570,7 +579,18 @@ def mcnemar_exact(
         return 0, 0, 1.0
 
     tail = sum(math.comb(n, k) for k in range(b, n + 1))
-    return b, c, tail / (2**n)
+    p = tail / (2**n)
+    if p == 0.0:
+        # The tail always contains the k=b term, so `tail` is at least 1 and
+        # the exact probability is strictly positive for every input that
+        # reaches here. Past n=1074 the ratio falls below the smallest
+        # subnormal and the float conversion reports 0.0 instead. Publishing
+        # that zero would make `--max-p 0`, the strictest bar the flag can
+        # express, read as satisfied, so the strictest possible bar would be
+        # the one that accepts. Report the smallest positive float instead:
+        # still far below any usable bar, but honest about being nonzero.
+        p = math.nextafter(0.0, 1.0)
+    return b, c, p
 
 
 def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
@@ -832,10 +852,20 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     again.
 
     Raises:
-        ValueError: when ``patches`` is empty.
+        ValueError: when ``patches`` is empty, or when a patch field is not
+            the type the fingerprint assumes.
     """
     if not patches:
         raise ValueError("patch_fingerprint requires at least one patch")
+    for patch in patches:
+        # The same guard `apply_patches` runs, for the same reason. Both are
+        # public entry points fed agent-authored JSON, and both reach
+        # `_normalize_newlines`, so a number where a string belongs raised an
+        # AttributeError out of one and a named refusal out of the other. The
+        # check sits here rather than in the two buffer commands because every
+        # path that can crash routes through this function, including
+        # `buffer_contains`, and a caller added later would need it too.
+        _check_patch_fields(patch)
 
     canonical = [
         [
@@ -849,11 +879,17 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def buffer_contains(entries: Iterable[Mapping[str, object]], patches: Sequence[Patch]) -> bool:
+def buffer_contains(
+    entries: Iterable[Mapping[str, object]],
+    patches: Sequence[Patch],
+    *,
+    artifact_fingerprint: str,
+) -> bool:
     """Report whether this edit has already been rejected.
 
     Entries without a usable ``fingerprint`` are skipped rather than raising, so
-    one hand-edited line in the ledger cannot stop the loop.
+    one hand-edited line in the ledger cannot stop the loop. Entries without the
+    same artifact state are expired.
 
     Raises:
         ValueError: when ``patches`` is empty.
@@ -861,6 +897,10 @@ def buffer_contains(entries: Iterable[Mapping[str, object]], patches: Sequence[P
     target = patch_fingerprint(patches)
     for entry in entries:
         stored = entry.get("fingerprint")
-        if isinstance(stored, str) and stored == target:
-            return True
+        if not isinstance(stored, str) or stored != target:
+            continue
+        artifact = entry.get("artifact_fingerprint")
+        if artifact != artifact_fingerprint:
+            continue
+        return True
     return False
