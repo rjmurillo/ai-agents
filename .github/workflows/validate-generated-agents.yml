@@ -151,6 +151,10 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: uv run python -m pytest -q tests/ci/test_frontmatter_gate_paths_filter.py
 
+      - name: Validate capability matrix references
+        if: steps.should-run.outputs.skip != 'true'
+        run: uv run python build/scripts/validate_agent_matrix_refs.py
+
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'
         run: |
