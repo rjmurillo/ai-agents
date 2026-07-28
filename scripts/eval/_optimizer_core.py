@@ -545,6 +545,10 @@ def mcnemar_exact(
     a three-task held-out group cannot clear a conventional 0.05 floor no
     matter how the edit performs.
 
+    The returned ``p`` is never exactly zero. No finite number of paired
+    observations drives the exact probability to zero, so a caller comparing
+    against a bar of zero gets a refusal rather than a pass.
+
     Raises:
         MissingResultError: when a requested task is absent from either side.
     """
@@ -561,7 +565,18 @@ def mcnemar_exact(
         return 0, 0, 1.0
 
     tail = sum(math.comb(n, k) for k in range(b, n + 1))
-    return b, c, tail / (2**n)
+    p = tail / (2**n)
+    if p == 0.0:
+        # The tail always contains the k=b term, so `tail` is at least 1 and
+        # the exact probability is strictly positive for every input that
+        # reaches here. Past n=1074 the ratio falls below the smallest
+        # subnormal and the float conversion reports 0.0 instead. Publishing
+        # that zero would make `--max-p 0`, the strictest bar the flag can
+        # express, read as satisfied, so the strictest possible bar would be
+        # the one that accepts. Report the smallest positive float instead:
+        # still far below any usable bar, but honest about being nonzero.
+        p = math.nextafter(0.0, 1.0)
+    return b, c, p
 
 
 def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
