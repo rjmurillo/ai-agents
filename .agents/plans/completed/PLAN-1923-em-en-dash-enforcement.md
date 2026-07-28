@@ -10,10 +10,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Completed - pending merge of PR #1930 |
+| **Status** | Completed |
 | **Created** | 2026-05-09 |
 | **Owner** | implementer |
 | **Complexity** | Low |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: PR #1930 merged; scripts/validation/checks_dash.py and .claude/rules/universal.md enforce the rule.
 
 ## Objectives
 
