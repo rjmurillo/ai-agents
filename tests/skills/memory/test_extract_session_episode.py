@@ -1278,7 +1278,7 @@ class TestStringDecisionPreservation:
 
 
 class TestSequentialEventLinks:
-    """Episode events form an evidence-ordered causal graph.
+    """Episode events form an evidence-ordered causal chain inside the episode.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class fields (#3245); the
     extractor links events where it has evidence. The ordering still follows the
@@ -1610,8 +1610,8 @@ class TestPredatingProseShaExclusion:
         data = self._log(anchor, f"reproduced against {cited}")
         events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
         commit_events = [e for e in events if e.get("type") == "commit"]
-        # json_events and json_metrics must agree, or the causal graph carries a
-        # commit node the metric does not (issue #3328 provenance consistency).
+        # json_events and json_metrics must agree, or the episode carries a
+        # commit event the metric does not (issue #3328 provenance consistency).
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
         assert all(cited not in json.dumps(e) for e in commit_events)
 
@@ -1653,8 +1653,8 @@ class TestChangesCommittedIsTheCommitSource:
 
     A work-log entry legitimately cites SHAs the session did not author: a
     bot's housekeeping commits, a commit it bisected, the base of a PR it read.
-    Counting those inflated metrics.commits and seeded causal-graph commit
-    nodes for work the session never did, while the session's own commits,
+    Counting those inflated metrics.commits and seeded commit events for work
+    the session never did, while the session's own commits,
     recorded only in changesCommitted, were missed entirely.
     """
 
@@ -1827,7 +1827,7 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
     that spell one commit at different abbreviation lengths must not both land.
     Exact string membership let a full 40-char `endingCommit` and a 7-char
     abbreviation of it in the evidence through as two entries, double-counting
-    `metrics.commits` and emitting two causal-graph nodes for one commit.
+    `metrics.commits` and emitting two commit events for one commit.
     """
 
     _FULL = "abc1234def5678901234567890abcdef12345678"
