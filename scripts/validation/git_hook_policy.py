@@ -2160,12 +2160,12 @@ def _verify_semgrep_targets(
     errors = payload.get("errors")
     if not isinstance(errors, list):
         return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
-    if any(not _is_known_powershell_semgrep_error(error, expected, repo_root) for error in errors):
+    if any(not _is_tolerated_semgrep_parse_error(error, expected, repo_root) for error in errors):
         return _semgrep_target_failure(result, "Semgrep reported scan errors")
     return result
 
 
-def _is_known_powershell_semgrep_error(
+def _is_tolerated_semgrep_parse_error(
     error: object,
     targets: set[Path],
     repo_root: Path,
@@ -2391,6 +2391,8 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
             input=run,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=BASH_SYNTAX_CHECK_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError):
