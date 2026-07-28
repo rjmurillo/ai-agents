@@ -4424,9 +4424,17 @@ class TestTheCorpusPinCannotBeStrippedAway:
         assert out["decision"] == "REJECT"
         assert "consultation" in out["reason"]
 
-    def test_unreadable_results_do_not_preempt_an_exhausted_ledger(
+    def test_unreadable_results_now_preempt_an_exhausted_ledger(
         self, tmp_path, capsys
     ):
+        """Reversed in round fifty; the sibling above still holds the line.
+
+        This file does not parse, so the gate never learned anything about it
+        to weigh against the budget. Answering REJECT named the split as the
+        problem and sent the operator to re-split over a truncated write. The
+        test above keeps the distinction honest: a report that parses and
+        merely carries the wrong verdict type still yields to the ledger.
+        """
         inc = _write(tmp_path, "inc.json", {f"t{i}": i < 5 for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "pb")
         split_path = _write(tmp_path, "split.json", split)
@@ -4436,9 +4444,8 @@ class TestTheCorpusPinCannotBeStrippedAway:
             capsys, tmp_path, "--incumbent", inc, "--candidate", junk,
             "--split", split_path, cap=1, spent=1,
         )
-        assert code == EXIT_LOGIC
-        assert out["decision"] == "REJECT"
-        assert "consultation" in out["reason"]
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
 
     def test_malformed_results_still_fail_loudly_when_the_budget_allows(
         self, tmp_path, capsys
@@ -4748,8 +4755,23 @@ class TestAParserFailureNeverPreemptsTheLedger:
         assert code == EXIT_CONFIG
         assert out["type"] == "ConfigError"
 
-    def test_an_exhausted_budget_still_answers_first(self, tmp_path, capsys):
-        """The defect: a parse crash in the preflight outranked the ledger."""
+    def test_an_exhausted_budget_no_longer_masks_a_parse_crash(self, tmp_path, capsys):
+        """Round sixteen pinned the opposite; rounds forty-nine and fifty reversed it.
+
+        Round sixteen read "a parse crash in the preflight outranked the
+        ledger" as the defect and made the budget answer first. The half of
+        that worth keeping is the sibling test below: a report the gate can
+        parse but dislikes must not answer in place of the ledger, or the
+        caller is told to fix the wrong thing.
+
+        The half that did not survive is this one. Round forty-nine found the
+        same ordering turning a missing file into REJECT, and the reason told
+        the operator to re-split, which discards a held-out group's history to
+        answer a typo. Round fifty found the identical harm one input class
+        over. A document that does not parse is the same caller mistake as a
+        file that does not open, so `_refuse_unparseable_input` now refuses
+        both before any guard can emit a decision.
+        """
         inc = _write(tmp_path, "inc.json", {f"t{i}": True for i in range(10)})
         _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "deep2")
         split_path = _write(tmp_path, "split.json", split)
@@ -4762,9 +4784,9 @@ class TestAParserFailureNeverPreemptsTheLedger:
             "--candidate", self._deep(tmp_path, "cand.json"),
             "--split", split_path, cap=1,
         )
-        assert code == EXIT_LOGIC
-        assert "consultation" in out["reason"]
-        assert out["compared"] is False
+        assert code == EXIT_CONFIG, out
+        assert out["type"] == "ConfigError"
+        assert "decision" not in out
 
 
 class TestEveryWriteFailurePrintsOneJsonDocument:
@@ -10256,6 +10278,185 @@ class TestEveryMissingFileReadsTheSameWay:
         )
         assert code == EXIT_CONFIG
         assert out["error"].startswith(f"could not read {adir}: ")
+
+
+class TestAnUnparseableReportOutranksAnExhaustedBudget:
+    """The same guarantee as the class above, one input class over.
+
+    A missing file now reaches the operator as a config error even with the
+    budget spent, because the peek reads through `_read_text` and lets that
+    reader's `ConfigError` out. A file that opens but does not parse took the
+    other path: `_corpus_header` catches `ValueError` and answers
+    `_UNREADABLE`, `_corpus_refused` declines to decide on it, and `_guard`
+    runs next. With the budget exhausted the operator was told to re-split
+    when the real fix was to repair the file.
+
+    Both are the same situation. The candidate cannot be used, and that is a
+    caller mistake rather than a gate verdict. The file already states the
+    principle for a cap below one: a caller mistake "becomes a config error
+    instead of a REJECT that would read as real discipline." Answering REJECT
+    here spent the operator's attention on the wrong problem and buried a
+    broken artifact behind a plausible refusal.
+
+    The fix stays narrow on purpose, and the first attempt was not. It keyed
+    the refusal on `_corpus_header` answering `_UNREADABLE`, which reads as
+    "the peek understood nothing" until you notice the bare mapping form
+    declares no schema and answers exactly that. Every legacy report would
+    have been read in full before the guard, and a bad verdict mapping inside
+    one would have preempted the ledger, which is the ordering round sixteen
+    was right about. Two tests in this file caught it.
+
+    So the line is drawn at parsing rather than at approval. Is there a
+    document at all is a question no reading of the document can answer
+    differently. The schema it declares, the corpus it names and whether its
+    verdicts are booleans are judgments about the document, and those stay
+    behind the guard. The last three tests here are the negative controls for
+    that line, one on each side of it.
+    """
+
+    def _exhausted(self, tmp_path, capsys):
+        """A split whose only consultation has already been spent."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 2 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, record = _split(capsys, tmp_path, "--results", inc, "--seed", "pin")
+        split_path = _write(tmp_path, "split.json", record)
+        fp = str(record["fingerprint"])
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+        assert code == EXIT_OK, out
+        spent, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+        assert spent == EXIT_LOGIC, out
+        return inc, split_path, fp
+
+    def _gate(self, capsys, inc, cand, split_path, fp):
+        return _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+
+    def test_a_candidate_that_is_not_json_outranks_an_exhausted_budget(
+        self, tmp_path, capsys
+    ):
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = tmp_path / "torn.json"
+        bad.write_text('{"schema": "optimizer-results/1", "results": {,}}', encoding="utf-8")
+        code, out = self._gate(capsys, inc, bad, split_path, fp)
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
+        assert str(bad) in out["error"]
+
+    def test_a_duplicate_key_outranks_an_exhausted_budget(self, tmp_path, capsys):
+        """`_DuplicateKeyError` subclasses `ValueError`, so it took the same path."""
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = tmp_path / "twice.json"
+        bad.write_text(
+            '{"schema": "optimizer-results/1", "results": {"t0": true, "t0": false}}',
+            encoding="utf-8",
+        )
+        code, out = self._gate(capsys, inc, bad, split_path, fp)
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
+
+    def test_a_schema_this_build_cannot_read_still_yields_to_the_budget(
+        self, tmp_path, capsys
+    ):
+        """Second negative control, on the other side of the line.
+
+        This file parses. What the gate objects to is the version it declares,
+        which is a judgment about the document rather than the question of
+        whether a document exists. Refusing it here would have been the easy
+        extension and the wrong one: the peek answers `_UNREADABLE` for the
+        bare mapping form too, which declares no schema and is perfectly
+        valid, so a refusal keyed on that answer promotes every legacy report
+        and every bad verdict mapping inside one along with it. That is the
+        ordering round sixteen was right about, and this pins the line where
+        parsing ends rather than where approval begins.
+        """
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = _write(tmp_path, "future.json", {"schema": "optimizer-results/99", "results": {}})
+        code, out = self._gate(capsys, inc, bad, split_path, fp)
+        assert code == EXIT_LOGIC, out
+        assert out["decision"] == "REJECT"
+        assert "exhausted" in out["reason"]
+
+    def test_an_unparseable_incumbent_is_refused_the_same_way(self, tmp_path, capsys):
+        """Both peeked flags, so neither regresses alone."""
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = tmp_path / "torn-inc.json"
+        bad.write_text("not json at all", encoding="utf-8")
+        code, out = self._gate(capsys, bad, inc, split_path, fp)
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
+
+    def test_the_same_file_is_refused_identically_with_budget_to_spare(
+        self, tmp_path, capsys
+    ):
+        """The refusal must not depend on how much budget is left.
+
+        Without this the fix could have been an ordering accident that only
+        showed up once the ledger filled, which is the shape of the defect it
+        replaces.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 2 for i in range(10)})
+        _, record = _split(capsys, tmp_path, "--results", inc, "--seed", "pin")
+        split_path = _write(tmp_path, "split.json", record)
+        bad = tmp_path / "torn.json"
+        bad.write_text("{", encoding="utf-8")
+        code, out = self._gate(capsys, inc, bad, split_path, str(record["fingerprint"]))
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
+
+    def test_a_bare_mapping_with_bad_verdicts_still_yields_to_the_budget(
+        self, tmp_path, capsys
+    ):
+        """Third negative control, and the one that caught the first attempt.
+
+        The legacy form is a plain task id to boolean object with no envelope
+        around it, so it declares no schema and the header peek answers
+        `_UNREADABLE` for a report the gate reads happily. A refusal keyed on
+        that answer runs the full read on every legacy file, and this one's
+        verdicts are strings, so the read raises and a bad verdict mapping
+        preempts the ledger. Refusing on the parse alone leaves it where it
+        belongs, behind the guard.
+        """
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = _write(tmp_path, "legacy.json", {f"t{i}": "yes" for i in range(10)})
+        code, out = self._gate(capsys, inc, bad, split_path, fp)
+        assert code == EXIT_LOGIC, out
+        assert out["decision"] == "REJECT"
+        assert "exhausted" in out["reason"]
+
+    def test_a_readable_report_with_bad_verdicts_still_yields_to_the_budget(
+        self, tmp_path, capsys
+    ):
+        """Negative control: the fix must not promote every content problem.
+
+        This file parses, declares the schema this build reads, and names no
+        corpus, so the peek understands it perfectly well and answers `None`.
+        Its verdicts are strings rather than booleans, which the full read
+        refuses, but that read is deliberately behind the guard so a bad
+        verdict mapping cannot answer in place of an exhausted budget. Without
+        this the fix could have been "raise on anything the full read would
+        refuse", which reverses an ordering the file argues for by name.
+        """
+        inc, split_path, fp = self._exhausted(tmp_path, capsys)
+        bad = _write(
+            tmp_path,
+            "verdicts.json",
+            {"schema": "optimizer-results/1", "results": {"t0": "yes"}},
+        )
+        code, out = self._gate(capsys, inc, bad, split_path, fp)
+        assert code == EXIT_LOGIC, out
+        assert out["decision"] == "REJECT"
+        assert "exhausted" in out["reason"]
 
 
 class TestDuplicateKeysAreRefusedBeforeAnythingReadsTheObject:
