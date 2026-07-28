@@ -714,9 +714,34 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Phase forty-three: two push gates that cannot both be satisfied by a linear history",
+      "actions": [
+        "Removed all three type suppressions rather than justifying them, because the push gate has no allowance to justify one in place. The type: ignore[index] existed because the rule dispatch built a parallel list of booleans, checked all(), then re-indexed the payloads behind that check; collecting the values in the first pass removed both the suppression and the second traversal. Used len(envelopes) == len(payloads) rather than a truth test so an empty input keeps taking the envelope path the way all([]) did.",
+        "Probed the alternative to the two type: ignore[assignment] on sys.stdout and found the whole file-descriptor path unnecessary. sys.stdout = io.StringIO() handles the stream whose fileno raises and the real broken pipe identically to an os.dup2 devnull redirect, needs no descriptor to open or guard or close, and cannot fail at construction. Deleted _detach_stdout; its three branches collapsed to one assignment.",
+        "Hit the structural wall: every intermediate commit added a suppression and only the tip removed them, so no partial push was clean either, while the full 45-commit stack exceeded the ceiling. Rewrote the unpushed history into three layered commits after tagging pre-squash-backup, and verified the adapter-only intermediate green at 1648 before committing it.",
+        "Verified the rewrite lost nothing: git diff --quiet pre-squash-backup HEAD reports an identical tree, and the suite is 1695 on both."
+      ],
+      "decisions": [
+        "Eliminate the suppressions idiomatically rather than seek a bypass. The gate is right that a suppression is a smell, and in all three cases the code that needed one was the worse code: two traversals where one would do, and a descriptor dance where an object swap suffices.",
+        "Rewrite history rather than push in stages. Two gates bind at once. _check_commit_limit counts the whole three-branch stack from main against 40 and its only relief is a label on an open PR, which cannot exist before the first push. _added_suppression_violations refuses any commit in the pushed range that adds a suppression and has no relief at all. Rewriting is safe here only because nothing was pushed.",
+        "Group by layer rather than by finding. The twelve original commits told the review story, but that story belongs in the PR body, which survives a squash. The three that remain are separable: the adapter layer is green without the CLI, so an intermediate is a real state rather than a bisect trap."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "scripts/eval/_optimizer_core.py",
+        "scripts/eval/optimize-artifact.py",
+        "scripts/eval/README.md",
+        "tests/eval/test_optimize_artifact_cli.py",
+        "tests/test_eval_optimizer_adapters.py",
+        "tests/test_eval_optimizer_core.py",
+        ".agents/architecture/ADR-087-held-out-validated-improvement.md",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "c86f9c262",
+  "endingCommit": "1e850a8bc",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
