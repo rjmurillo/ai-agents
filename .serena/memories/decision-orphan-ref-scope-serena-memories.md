@@ -69,13 +69,18 @@ silently across the ADR-042 PowerShell-to-Python migration.
 
 ## Decision
 
-Repaired the `script_path` orphans in place (issue #3629). The count went 21 to 13;
-the 13 that remain are historical records that deliberately keep the retired
-PowerShell name alongside its Python successor, so they are correct as written.
+Repaired the `script_path` orphans in place (issue #3629). The count went 21 to 14;
+each of the 14 that remain was read in context and is a historical record that
+deliberately keeps the retired PowerShell name alongside its Python successor, so
+they are correct as written.
 Did not touch the `skill_name` findings and did not add suppressions for them.
 Did not gate `.serena/memories` in CI: at 21 real out of 182 the signal-to-noise
 ratio makes the gate unusable until the `skill_name` detector is scoped to targets
-where the kebab-case-means-skill inference actually holds.
+where the kebab-case-means-skill inference actually holds. Issue #3637 tracks that
+scoping and carries the measurement: of the 122 distinct tokens the detector flags
+here, zero have ever been a skill in this repository's git history, and a planted
+reference to a genuinely deleted skill is still caught, so the detector is
+miscalibrated rather than inert.
 
 After the repair: 878 files, 390 refs, 197 findings, 183 `skill_name` and 14
 `script_path`, across 76 files. Nine of the 21 baseline `script_path` findings were
