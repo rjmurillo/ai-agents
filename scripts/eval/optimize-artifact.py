@@ -521,12 +521,27 @@ def _rule_degraded_scenario_ids(
             degraded.append(task_id)
             continue
         scores = mech_data.get("scores")
-        if isinstance(scores, Mapping) and scores.get("judge_failed"):
-            degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
     return degraded
+
+
+def _rule_score_block_is_degraded(scores: object) -> bool:
+    if not isinstance(scores, Mapping) or not scores:
+        return True
+    if scores.get("judge_failed"):
+        return True
+    for field in ("activation_score", "citation_score", "behavior_score"):
+        value = scores.get(field)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value < 0
+            or value > 5
+        ):
+            return True
+    return False
 
 
 def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
@@ -594,6 +609,31 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
+    if "error_count" not in report:
+        raise ConfigError(
+            "refusing to extract agent report with missing error_count; "
+            "rerun with a current report writer"
+        )
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count!r}; expected a non-negative integer"
+        )
+    if error_count < 0:
+        raise ConfigError(
+            "refusing to extract agent report with invalid error_count: "
+            f"{error_count}; expected a non-negative integer"
+        )
+    if error_count == 0:
+        return
+    raise ConfigError(
+        "refusing to extract degraded agent report: "
+        f"error_count={error_count}; rerun until all records succeed"
+    )
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     corpus: str | None = None
     if args.kind == "hook":
@@ -602,6 +642,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         report = _read_json(args.input)
         if not isinstance(report, Mapping):
             raise ConfigError(f"{args.input} must hold an agent report object")
+        _refuse_degraded_agent_report(report)
         corpus = _report_corpus(args.input, report)
         results = agent_results(
             report,

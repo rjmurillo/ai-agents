@@ -23374,6 +23374,222 @@
         "episode-2026-07-28-session-3561"
       ],
       "created": "2026-07-28T06:46:04.093984+00:00"
+    },
+    {
+      "id": "795da0e7b424",
+      "type": "milestone",
+      "label": "milestone: Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203806+00:00"
+    },
+    {
+      "id": "799cbceb4129",
+      "type": "milestone",
+      "label": "milestone: Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203897+00:00"
+    },
+    {
+      "id": "84e8edd4243f",
+      "type": "milestone",
+      "label": "milestone: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203977+00:00"
+    },
+    {
+      "id": "f66db840deaf",
+      "type": "test",
+      "label": "test: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204054+00:00"
+    },
+    {
+      "id": "94e08d369053",
+      "type": "commit",
+      "label": "commit: Commit: bb2d29e1c4",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204131+00:00"
+    },
+    {
+      "id": "ecf26dd68a81",
+      "type": "commit",
+      "label": "commit: Commit: f633ad31c9",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204207+00:00"
+    },
+    {
+      "id": "4052aa5dccd8",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204285+00:00"
+    },
+    {
+      "id": "87e25b954ab0",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679346+00:00"
+    },
+    {
+      "id": "ea3c9ed5124f",
+      "type": "commit",
+      "label": "commit: Commit: 735cc876f7",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679435+00:00"
+    },
+    {
+      "id": "fbee51fcb51f",
+      "type": "commit",
+      "label": "commit: Commit: 4de79677af",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679513+00:00"
+    },
+    {
+      "id": "5f569abea7c8",
+      "type": "milestone",
+      "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876782+00:00"
+    },
+    {
+      "id": "5073fd57c325",
+      "type": "milestone",
+      "label": "milestone: Forced builtin textual git diff output in the suppression scan path.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876877+00:00"
+    },
+    {
+      "id": "7c86d556c295",
+      "type": "milestone",
+      "label": "milestone: Derived Ruff scan suffixes and added Bandit pyw coverage.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876961+00:00"
+    },
+    {
+      "id": "421da8e3b371",
+      "type": "milestone",
+      "label": "milestone: Decoded notebook code cells before scanning for added suppressions.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877040+00:00"
+    },
+    {
+      "id": "a102c831c3da",
+      "type": "milestone",
+      "label": "milestone: Distinguished true orphan branches from missing history.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877118+00:00"
+    },
+    {
+      "id": "61bbe72e47c6",
+      "type": "milestone",
+      "label": "milestone: Retrospective section: recorded validation and mutation evidence.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877197+00:00"
+    },
+    {
+      "id": "cf11fa826517",
+      "type": "commit",
+      "label": "commit: Commit: a9b1f20f92",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877275+00:00"
+    },
+    {
+      "id": "c92c47681c9f",
+      "type": "outcome",
+      "label": "Outcome: success - Fix PR #3503 suppression gate analyzer bypasses reported by adversarial review.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877354+00:00"
+    },
+    {
+      "id": "1070b8f189e0",
+      "type": "milestone",
+      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615224+00:00"
+    },
+    {
+      "id": "ccb10a8598d0",
+      "type": "milestone",
+      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615321+00:00"
+    },
+    {
+      "id": "ae4384fa1407",
+      "type": "milestone",
+      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615402+00:00"
+    },
+    {
+      "id": "fd0498b1f9da",
+      "type": "commit",
+      "label": "commit: Commit: 6c19696ac",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615480+00:00"
+    },
+    {
+      "id": "bcbf184a4c55",
+      "type": "outcome",
+      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615557+00:00"
+    },
+    {
+      "id": "a305a0ccef47",
+      "type": "commit",
+      "label": "commit: Commit: 6f0315519",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T05:06:51.357047+00:00"
     }
   ],
   "patterns": [

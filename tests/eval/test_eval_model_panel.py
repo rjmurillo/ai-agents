@@ -6,6 +6,7 @@ injected so the sweep is exercised with zero API spend.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
@@ -27,6 +28,41 @@ def _load_cli():
 
 
 cli = _load_cli()
+
+
+def _capturing_subprocess_calls(path: Path) -> list[ast.Call]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr == "run"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "subprocess"
+        ):
+            continue
+        keywords = {kw.arg: kw.value for kw in node.keywords if kw.arg is not None}
+        capture_output = keywords.get("capture_output")
+        if isinstance(capture_output, ast.Constant) and capture_output.value is True:
+            calls.append(node)
+    return calls
+
+
+def test_panel_and_router_subprocess_readers_pin_utf8_decoding():
+    for filename in ("eval-model-panel.py", "eval_skill_router.py"):
+        calls = _capturing_subprocess_calls(EVAL_DIR / filename)
+        assert calls, f"{filename} has no captured subprocess readers"
+        for call in calls:
+            keywords = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
+            encoding = keywords.get("encoding")
+            errors = keywords.get("errors")
+            assert isinstance(encoding, ast.Constant)
+            assert encoding.value == "utf-8"
+            assert isinstance(errors, ast.Constant)
+            assert errors.value == "replace"
 
 
 def _fake_runner(deltas):
