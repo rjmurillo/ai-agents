@@ -3,7 +3,7 @@
   "session": {
     "number": 3468,
     "date": "2026-07-27",
-    "branch": "fix/eval-refuse-malformed-input",
+    "branch": "feat/eval-rule-multirun",
     "startingCommit": "303f918ea8",
     "objective": "Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings."
   },
@@ -12,12 +12,12 @@
       "branchVerified": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current returned fix/eval-refuse-malformed-input. The session opened on feat/eval-gate-significance-bar, moved to fix/eval-buffer-crash-exit-code when PR #3478 squash-merged that work as 102e9976f, and moved again when ADR-008's twenty-commit ceiling refused the push at twenty-one. That ceiling was read as a size gate rather than an obstacle: the branch was left at twenty commits covering the crash-to-verdict findings, and the refuse-malformed-input findings continue here against issue #3588."
+        "evidence": "git branch --show-current returned fix/eval-refuse-malformed-input. The session opened on feat/eval-gate-significance-bar, moved to fix/eval-buffer-crash-exit-code when PR #3478 squash-merged that work as 102e9976f, and moved again when ADR-008's twenty-commit ceiling refused the push at twenty-one. That ceiling was read as a size gate rather than an obstacle: the branch was left at twenty commits covering the crash-to-verdict findings, and the refuse-malformed-input findings continue here against issue #3588. A fourth move followed: feat/eval-rule-multirun, stacked on fix/eval-refuse-malformed-input because ADR-087 Open Requirement 6 is adapter work rather than more hardening of the same file, and because _optimizer_adapters.py is already in the open chain so a main-based branch would have conflicted."
       },
       "notOnMain": {
         "complete": true,
         "level": "MUST",
-        "evidence": "git branch --show-current = fix/eval-refuse-malformed-input"
+        "evidence": "git branch --show-current = feat/eval-rule-multirun"
       },
       "gitStateVerified": {
         "complete": true,
@@ -666,9 +666,57 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Phase forty-one: the rule path stops asking one judge once",
+      "actions": [
+        "Resolved the open end-to-end question by reading ADR-087 Open Requirement 5 rather than running anything: a live rule-path validation ran 2026-07-27 via GitHub Models. It produced a false accept, and the null control caught it. A negative demonstration is a demonstration, and it is the more informative direction.",
+        "That run is what promoted Open Requirement 6 from a suspicion to a measurement. Scoring identical rule text twice moved 13 of 24 tasks and 5 across the pass threshold, mean absolute movement 0.49 points on a five-point judge scale. The two held-out gains behind the false accept were the two largest movements in that benchmark.",
+        "Read the producer before designing the consumer. eval-rule-activation.py has no runs flag and writes one scores block per mechanism, so an in-record runs list would have been a consumer for data nobody makes. The ADR's own paired measurement was gathered by invoking the producer twice, so the run unit is a whole report and no producer change is needed.",
+        "TDD: 16 tests written and run red (ImportError on rule_results_multi), then green. Eval suite 1627 to 1643.",
+        "Extracted _rule_run_scores so both entry points share one implementation rather than sniffing the input shape, which is the missing-model smell the review skill names."
+      ],
+      "decisions": [
+        "Reduce over scores, not over verdicts. Thresholding each run and voting discards the distance from the bar, which is the only thing that says whether a disagreement was close. This also matches agent_results, so the two noisy adapters now read the same way.",
+        "A scenario with evidence in some runs but not others is refused, not scored False and not silently dropped. False is actively unsafe in the incumbent direction: a judge error on the incumbent's run reads as a failing scenario, so a candidate that merely ran cleanly looks like a fail-to-pass improvement. That is the spurious accept the gate exists to prevent, arriving through the scorer. Dropping the run reduces over a different sample size per scenario without saying so.",
+        "Uniform absence stays False, which is what makes rule_results_multi([s]) == rule_results(s) hold exactly. That equality is a test, not a claim.",
+        "#3445 was on the deferred-to-owner list and was taken off it. Open Requirement 3 (#3437, the boolean seam) is marked in the ADR as the user's call; Open Requirement 6 carries a directive Proposed section instead. The marker is the difference, not the issue number."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "tests/test_eval_optimizer_adapters.py",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
+    },
+    {
+      "phase": "Phase forty-two: round thirty-nine, and a refusal that leaked around itself",
+      "actions": [
+        "Ran round 39 as a code-review agent on gpt-5.6-sol at xhigh, scoped to the four commits since round 38, with instructions to reproduce before reporting. It returned three Critical findings and nothing else. All three reproduced independently before any test was written.",
+        "F5: a candidate carrying a duplicate JSON key came back decision REJECT exit 1, with a reason stating the two files disagree on a corpus they agree on. Fixed with a third sentinel, not a widened guard. Measured after: ConfigError naming the repeated key, which the dispatcher turns into exit 2.",
+        "F7: a closed stdout raises ValueError, not OSError, so main's guard missed it and the process exited 1 with a traceback. Measured after: exit 2, no traceback. Catching ValueError at main gives up nothing, because _dispatch's inner handler already maps every ValueError to EXIT_CONFIG.",
+        "F6: os.dup2 needs a descriptor, so a stand-in stream left the broken stdout installed and CPython's shutdown flush replaced the status with 120 after the function returned 2. Measured before at exit 120 with 'Exception ignored'; after, exit 2 clean. A unit test cannot catch this, because pytest restores stdout before interpreter shutdown, so the test is a subprocess.",
+        "TDD: 7 tests written and confirmed red for the right reasons, then green. Eval suite 1689 to 1695. One of the 7 was wrong before the code was, the fourth bad instrument this session: it stood in a closed io.StringIO for a closed stdout, and a closed StringIO's flush returns quietly.",
+        "Split the work into two commits by filtering the diff's hunks. The first attempt classified hunks by line number and produced a red intermediate commit, because U3 context shifted a hunk start by three and misrouted the F6/F7 tests into the F5 commit. Reclassified by content, with the filter refusing rather than guessing on any hunk it could not place, and verified the intermediate commit green at 590 tests before committing.",
+        "Fired the adr-review gate as a critic agent on gemini-3.1-pro-preview against the ADR-087 delta. Verdict OVERCLAIMING, and correct on substance: my entry claimed a single-run rule accept 'carries exactly the information it carried before this landed', which is false. Rewrote the entry.",
+        "Wrote debate log shapes 52 through 58."
+      ],
+      "decisions": [
+        "The F5 fix adds an answer rather than widening a guard. _corpus_conflict's anti-strip rule is real and something has to hold it, so tolerating an unreadable file there would buy the malformed case by selling the stripped one. A negative control test that was green before the fix and stayed green after is what holds that line.",
+        "Gave the sentinel a class instead of a bare object(). _UNREADABLE = object() made the return type str | object | None, which collapses to object and checks nothing. As a one-line class the type became str | _Unreadable | None and mypy immediately failed the call site, because the sentinel flows into _corpus_conflict, which is written against str | None. The bare-object version would have shipped that hole silently.",
+        "_detach_stdout still prefers the devnull redirect and falls back to sys.stdout = None, rather than assigning None directly. The redirect keeps a real stream in place for anything that writes afterward. It also closes the descriptor it opens, because os.dup2 duplicates it and leaking one per exit is wrong to write down as intentional.",
+        "ADR-087 Open Requirement 6 is recorded as still open, not as landed. A mechanism exists, but nothing enforces a run count and the replication rate is still unmeasured, which is what the requirement actually asked for.",
+        "Recorded the correction the ADR review earned: single-run rule extraction is not unchanged by this branch. _rule_degraded_scenario_ids now refuses a score mapping that is present but short of a dimension, where before it refused only a missing or empty one, so single-run callers are held to a stricter standard than before."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/architecture/ADR-087-held-out-validated-improvement.md",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
-  "endingCommit": "e4d5c0d6c",
+  "endingCommit": "c86f9c262",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

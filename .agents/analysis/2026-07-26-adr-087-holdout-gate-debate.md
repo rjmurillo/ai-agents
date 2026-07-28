@@ -2279,3 +2279,199 @@ argument and a silent hole if the premise stops holding.
 A surviving mutant is a question, not a verdict. Answering it starts with
 asking whether the property is constructible at all, because when it is not,
 writing a stronger test is writing a second test that also cannot fail.
+
+## Shape 52: refusing the unmeasurable beats repairing it
+
+The multi-rule envelope built task ids as `f"{rule}::{scenario}"`. That join is
+not injective. Rule `a` with scenario `b::c` and rule `a::b` with scenario `c`
+both render `a::b::c`, and the second silently overwrote the first, so two
+scenarios arrived at the gate as one.
+
+The reflex fix is to escape the separator, which keeps every input scoreable.
+It was the wrong fix here. Ids from this command are written into files a
+caller holds across runs, so escaping changes the shape of ids an earlier run
+already handed out, and it does it silently, to inputs that were never
+ambiguous. The file's thesis is that unmeasurable input is refused rather than
+repaired, and a collision is exactly unmeasurable: two scenarios, one slot, no
+way to say which score belongs to which.
+
+The discipline that keeps a refusal from metastasizing is to fire on the
+collision, not on the smell of one. `::` appearing in a rule name is legal and
+common. Two of the five tests exist only to hold that line, asserting that
+names containing the separator still score when they do not actually collide.
+A guard written against the symptom would have refused measurable input, which
+is the same defect as accepting unmeasurable input, pointed the other way.
+
+## Shape 53: debug your own probe before you believe a finding failed
+
+Round 38 arrived with four findings. Two of them appeared not to reproduce on
+first probe. Both times the probe was wrong, not the finding.
+
+The quadratic scan probe returned 0.000 seconds at 40k ids, which reads as a
+refuted claim. `split_tasks` takes `seed` as a keyword-only `str` and the probe
+passed an int, so it raised on the seed before reaching the scan under test.
+Corrected, the same probe measured 1.155s, 4.586s, and 18.484s at 10k, 20k, and
+40k: doubling n quadrupled the time, which is the shape the finding described.
+The duplicate-key end-to-end test looked like a false alarm for a different
+reason: it invoked `gate` with a placeholder fingerprint, and `gate` rejects on
+fingerprint drift before it ever reads the candidate, so the test measured the
+drift check and not the parser.
+
+Both probes failed fast and cheaply, which is what made them dangerous. A probe
+that returns quickly and cleanly is indistinguishable from a probe that never
+reached the code. The rule that falls out: a non-reproduction is a claim about
+your own instrument first and the reported defect second, and it is only worth
+reporting after the instrument has been shown to reach the line in question.
+All four round 38 findings were real. The first four rounds where reviewers
+overclaimed trained a skepticism that nearly discarded a round where they did
+not.
+
+## Shape 54: a racy test is a defect in the test, not a tolerance to budget
+
+The broken-stdout fix has a mode where the write succeeds into the pipe buffer
+and the failure lands on the interpreter's shutdown flush. The obvious test
+pipes a small payload to a reader that exits. It returned 120 under one shell
+construct and 0 under another on the same machine, because whether the reader
+had closed by the time the child flushed was a race.
+
+The available moves were to retry, to loosen the assertion to accept either
+outcome, or to mark it flaky. All three keep a test that cannot fail for the
+reason it was written. A test asserting `code in (0, 120)` passes when the fix
+is reverted.
+
+The move that worked was to stop testing the race. The flush logic came out of
+the `__main__` block into `_final_exit_code`, a function taking a code and
+returning one, and the interesting behavior became reachable from a unit test
+with a stand-in stream. The end-to-end case that survived stopped depending on
+a reader's exit timing: `subprocess.Popen` with the parent closing the read end
+itself makes EPIPE deterministic, because the close happens before the child
+writes rather than concurrently with it.
+
+Code sitting under `pragma: no cover` because it is hard to reach is not
+untestable code. It is usually code in the wrong place. Moving it is cheaper
+than the flaky test, and much cheaper than the flaky test's eventual removal
+after it has cried wolf a dozen times.
+
+## Shape 55: point a guard test at the layer that carries the behavior
+
+A pre-existing negative control asserts that an OSError carrying the held-out
+digest escapes when the scrubber is disabled. It exists to prove the scrubber
+is load bearing rather than decorative. Adding an outer `except OSError` to
+`main` broke it: with the guard in place nothing escapes `main`, so the control
+went green for a reason unrelated to the scrubber and stopped proving anything.
+
+Two repairs present themselves and one of them is a trap. Narrowing the new
+guard so the control's exception still escapes would restore the test and
+reintroduce the exact defect class the guard was added to close. Deleting the
+control trades a real proof for a green suite.
+
+The third option is to notice that the control was never about `main`. The
+scrubber wraps `_dispatch`, so `_dispatch` is the layer where an escape is
+observable, and `monkeypatch.setattr(oa, "main", oa._dispatch)` inside that one
+test aims it there. The signatures are identical, so the harness is unchanged.
+
+This is the second time in this session the correct move was to re-aim a test
+rather than reshape the code under it. The general form: when a new guard makes
+an old test green, ask which layer the old test was actually asserting about.
+A guard that swallows the evidence has not falsified the property, it has moved
+where the property is visible.
+
+## Shape 56: a guard against a wrong answer must not buy it with a leak
+
+The stdout guard reports through `_warn(f"...: {exc}")`, which prints
+`str(exc)`. Every ledger and lock filename in this tool ends in an unsalted
+hash of the held-out set. So the fix for a wrong verdict introduced, on its
+face, a path from an arbitrary OSError to the held-out digest on stderr.
+
+It turned out to be closed already. `_digest_scrubbed` converts every OSError
+raised under the ledger into a `ConfigError` with the filename replaced, and
+`ConfigError` is handled below the new guard, so the guard cannot see an
+OSError carrying a digest. The correct response to that discovery is not
+relief. It is a test, because the property now has two owners: the scrubber
+that holds it and a new caller that depends on it holding without saying so.
+
+The general form is narrow and worth stating plainly. When a fix adds a new
+path from an exception to an output stream, the fix has joined the set of code
+that must not leak, whether or not it currently does. Reasoning that it does
+not leak today is the argument for writing the test, not the substitute for it.
+
+## Shape 57: writing the documentation sentence is a test the suite cannot run
+
+The broken-stdout fix shipped with ten tests, a clean suite, and two real
+subprocess reproductions. Then the README sentence describing it read: both
+modes now exit 2 with one line on stderr. Verifying that sentence rather than
+assuming it found that half of it was false. The write-time mode reported. The
+flush-time mode returned exit 2 in silence, because `_final_exit_code` changed
+the status and told no one.
+
+No test caught it because no test asked. Every test asserted the exit code, and
+the exit code was correct in both modes. The property the tests were missing
+was not visible from inside either test; it only appeared when the two modes
+were described side by side in one sentence and the asymmetry became the
+subject. Exit 2 also covers a bad flag and an unreadable file, so a silent 2
+leaves an operator unable to tell a dead pipe from a typo. The fix relocated
+the confusion instead of removing it.
+
+Documentation is usually treated as the thing you write after the work is
+verified. It is also the only artifact that forces adjacent behaviors into one
+frame, which is where asymmetries live. Tests assert one behavior each and
+cannot see between themselves. The practical rule: write the sentence, then run
+the commands the sentence describes and read their actual output, before
+believing either the sentence or the tests. Here that produced a sixth commit
+and four more tests on work that had already been called done.
+
+## Shape 58: a best-effort reader can launder malformed input into a domain answer
+
+Round 39's first finding is the most instructive defect of this whole effort,
+because the thing it broke was the commit written to prevent it.
+
+Two commits earlier the gate learned to refuse a JSON object that states the
+same key twice. That refusal lives in the full reader, which raises a
+ConfigError naming the repeated key, and exits 2 like every other unreadable
+input. It works. It is tested. And the gate never reached it, because a cheaper
+reader ran first and answered the question in the gate's own vocabulary.
+
+`_corpus_header` exists to peek at a results file's corpus digest before the
+gate takes the ledger lock, so a corpus mismatch costs nothing. It promises
+never to raise on content, because a header peek that can abort is not cheaper
+than the full read. To keep that promise it swallowed decode failures and
+answered `None`. But `None` was already spoken for: it meant "this file parsed
+and declares no corpus." So one value carried two facts that the caller reads
+differently. `_corpus_conflict` treats an absent corpus beside a pinned digest
+as the envelope strip, a deliberate REJECT, so a file nobody could parse took
+the anti-strip path. The result was `decision: REJECT`, exit 1, with a reason
+stating that the two files disagree on a corpus they in fact agreed on. A wrong
+verdict, and a false explanation of it, on exactly the input the previous commit
+had been written to refuse.
+
+The general shape: a refusal added at one layer can be bypassed by an earlier
+best-effort reader that collapses "malformed" into a legitimate domain value.
+The earlier reader is usually there for a good reason, usually cost, and its
+error handling is usually written as a local convenience without asking what the
+caller will do with the answer. `except Exception: return None` is the classic
+form. The bug is not the swallowing; a cheap reader has to swallow something.
+The bug is answering with a value that already means something else.
+
+Two things follow for the fix.
+
+Add an answer, do not widen a guard. The instinct is to make `_corpus_conflict`
+tolerant, which is wrong, because the anti-strip rule is real and something has
+to hold it. A third sentinel keeps both rules intact and puts the new fact where
+it belongs, in the reader that learned it. The negative control matters here as
+much as the failing test: `test_a_stripped_candidate_is_still_a_corpus_conflict`
+was green before the fix and had to stay green after, because a fix that bought
+the malformed case by selling the stripped one would pass every new test.
+
+Give the sentinel a type. The first version was `_UNREADABLE = object()`,
+matching the file's existing `_UNPINNED`, which made the return type
+`str | object | None`. That union collapses to `object` and checks nothing.
+Turning it into a one-line class made the type `str | _Unreadable | None`, and
+mypy immediately failed the call site: the sentinel flows into
+`_corpus_conflict`, which is written against `str | None`. The bare-object
+sentinel would have shipped that hole silently. The narrowing then wanted its
+own function, so the parseability question stopped being a condition the
+conflict rule had to carry.
+
+The cheap check this session did not run: when you add a refusal, ask what runs
+before it. A refusal is only as good as the earliest reader that can answer the
+same question.

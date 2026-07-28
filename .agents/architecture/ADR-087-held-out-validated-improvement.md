@@ -616,6 +616,39 @@ first for that reason.
    supply the missing samples. These are magnitudes from one paired re-run, not
    an estimated rate; a rate needs repeated replication, which is the work this
    requirement names.
+
+   **Still open. A mechanism now exists** (`bc50a87e2`, `dd1e62b2b`).
+   `rule_results_multi` reduces each scenario across runs and applies the bar
+   once, matching what `agent_results` already does, and `extract --kind rule`
+   accepts several `--input` reports. Reducing before thresholding is the part
+   that matters: voting on per-run verdicts would discard the distance from the
+   bar, which is the only thing that says whether a disagreement was close.
+   Runs must agree on which scenarios they scored, and a scenario evidenced in
+   some runs but not others is refused rather than reduced over what is left,
+   because scoring it false would let a judge error on the incumbent's run read
+   as a fail-to-pass improvement. `scripts/eval/README.md` holds the reducers
+   and the flag surface.
+
+   That mechanism does not discharge this requirement, for two reasons.
+
+   **Nothing enforces a run count.** One run remains legal, deliberately, so
+   the flag can be adopted without rescoring every incumbent first. A caller
+   who passes one report gets a single judge's opinion, and the sentence above
+   about a single-run rule accept still stands for them.
+
+   **The rate is still unmeasured.** Closing the gap needs either a floor on
+   runs for `--kind rule` or a replication estimate saying how many runs buy
+   how much. The second is the measurement this requirement asked for: the
+   magnitudes above come from one paired re-run, and one re-run cannot estimate
+   a rate no matter how it is reduced.
+
+   One correction to the record. Single-run rule extraction is not unchanged by
+   this work: `_rule_degraded_scenario_ids` now refuses a scenario whose score
+   mapping is present but short of a dimension the reduction reads, where
+   before it refused only a missing or empty one. A partial mapping used to be
+   filled with a zero that the present scores then averaged away. That refusal
+   applies at one run as much as at ten, so single-run callers are held to a
+   stricter standard than before, not the same one.
 7. **A one-time reveal path for the test group.** Decision Requirement 1 says
    the group is read once at the end, but no command reads it: `score` accepts
    `--group opt` only, and `gate` always reads `sel`. Either implement the
