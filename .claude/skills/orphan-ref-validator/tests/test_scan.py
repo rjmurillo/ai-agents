@@ -990,6 +990,7 @@ def test_walk_breaks_in_repo_symlink_cycle(tmp_path, fake_repo, caplog):
         result = scan([docs], fake_repo)
     assert any("symlink cycle" in r.getMessage() for r in caplog.records)
     assert len(result.incomplete_scans) == 1
+    assert result.incomplete_scans[0].error_type == "config"
     assert result.incomplete_scans[0].reason == "symlink cycle detected"
 
 
