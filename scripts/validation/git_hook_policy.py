@@ -1052,7 +1052,7 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     would be the wrong blob. What this gate accepts is not a readability
     preference.
     """
-    result = _run_git(
+    result = _run_git_bytes(
         repo_root,
         [
             "log",
@@ -1088,7 +1088,17 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     # exempt.
     followed = _governed_document_identity(path)
     blob_ids: set[str] = set()
-    fields = result.stdout.split("\0")
+    # Decoded here rather than by the pipe. A text mode read applies universal
+    # newline translation, so a path ending in a carriage return arrives ending
+    # in a newline, and the scope test below anchors with `$`, which matches
+    # before a trailing newline. A path this gate does not govern then reads as
+    # one and its blobs join the carried set, which exempts content that never
+    # sat at a governed path. That is what this read fixes. The error handler
+    # is `surrogateescape` because it round trips and costs nothing, not
+    # because it changes a verdict: identity here is the record's number, so a
+    # byte spent elsewhere in the path reaches no decision either way, and a
+    # mutation to `replace` survives the suite for that reason.
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
     index = 0
     while index < len(fields):
         record = fields[index]

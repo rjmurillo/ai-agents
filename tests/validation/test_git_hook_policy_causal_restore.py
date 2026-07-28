@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -1537,6 +1538,73 @@ class TestAdrReviewPolicyMergeScope:
 
         assert blob in policy._origin_main_blob_ids(repo, name)
 
+    def test_a_path_that_only_a_newline_rewrite_makes_governed_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """A carriage return in a path must not turn it into a governed one.
+
+        `-z` is passed so paths arrive raw, but reading the stream in text mode
+        applies universal newline translation, so a trailing carriage return
+        becomes a newline, and `$` matches before a trailing newline. A path
+        this gate does not govern then reads as one, and content that never sat
+        at a governed path joins the set of blobs main is treated as having
+        carried. A branch holding that content is then exempted from review
+        (issue #3722).
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory = repo / ".agents" / "architecture"
+        directory.mkdir(parents=True)
+        governed = ".agents/architecture/ADR-101-real.md"
+        ungoverned = governed + "\r"
+        (repo / ungoverned).write_text("never reviewed\n" + "a\n" * 40, encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add under a carriage return name")
+        unreviewed = _git(repo, "rev-parse", "main:" + ungoverned).stdout.strip()
+        _git(repo, "mv", ungoverned, governed)
+        (repo / governed).write_text("the reviewed decision\n" + "a\n" * 40, encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "rename onto the governed name and revise")
+        reviewed = _git(repo, "rev-parse", "main:" + governed).stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+
+        carried = policy._origin_main_blob_ids(repo, governed)
+
+        assert unreviewed not in carried
+        assert reviewed in carried
+
+    def test_a_path_carrying_invalid_utf8_survives_the_read(
+        self,
+        tmp_path,
+    ):
+        """Reading bytes must not drop a governed record on undecodable bytes.
+
+        This pins the read path rather than the error handler. Identity here is
+        the record's number, so a byte spent elsewhere in the path reaches no
+        decision, and a `replace` handler passes this too. What would fail it is
+        a read that errors or drops the record outright.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory_name = os.fsdecode(b"arch\xffitecture")
+        directory = repo / ".agents" / directory_name
+        directory.mkdir(parents=True)
+        name = f".agents/{directory_name}/ADR-102-undecodable.md"
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
     def test_the_resolution_and_the_side_state_are_both_carried(
         self,
         tmp_path,
@@ -1592,8 +1660,10 @@ class TestAdrReviewPolicyMergeScope:
         )
         monkeypatch.setattr(
             policy,
-            "_run_git",
-            lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=combined),
+            "_run_git_bytes",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0, stdout=combined.encode("utf-8", "surrogateescape")
+            ),
         )
 
         assert policy._origin_main_blob_ids(repo, adr) == {"5" * 40, "8" * 40}
@@ -1627,8 +1697,10 @@ class TestAdrReviewPolicyMergeScope:
         )
         monkeypatch.setattr(
             policy,
-            "_run_git",
-            lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=records),
+            "_run_git_bytes",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0, stdout=records.encode("utf-8", "surrogateescape")
+            ),
         )
 
         assert policy._origin_main_blob_ids(repo, adr) == {"4" * 40}
