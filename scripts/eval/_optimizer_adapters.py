@@ -80,6 +80,21 @@ def _as_float(value: object, context: str) -> float:
     return float(value)
 
 
+def _as_rate(value: object, context: str) -> float:
+    rate = _as_float(value, context)
+    if not 0.0 <= rate <= 1.0:
+        raise AdapterError(f"{context} must be in [0, 1], got {value!r}")
+    return rate
+
+
+def _as_rule_score(value: object, context: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise AdapterError(f"{context} must be an integer score, got {value!r}")
+    if not 0 <= value <= 5:
+        raise AdapterError(f"{context} must be in [0, 5], got {value!r}")
+    return value
+
+
 def agent_results(
     report: Mapping[str, Any],
     variant: str,
@@ -110,6 +125,7 @@ def agent_results(
         raise AdapterError(
             f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
         )
+    pass_threshold = _as_rate(pass_threshold, "pass_threshold")
     if "per_fixture_pass_rates" not in report:
         raise AdapterError("report is missing per_fixture_pass_rates")
 
@@ -137,7 +153,7 @@ def agent_results(
                 f"of scores, got {type(runs).__name__}"
             )
         values = [
-            _as_float(v, f"fixture {fixture_id!r} variant {variant!r} run")
+            _as_rate(v, f"fixture {fixture_id!r} variant {variant!r} run")
             for v in runs
         ]
         out[str(fixture_id)] = reducer(values) >= pass_threshold
@@ -179,6 +195,9 @@ def rule_results(
             id, carries a malformed `mechanisms` or `scores` block, or holds a
             score that is not finite and numeric.
     """
+    min_score = _as_float(min_score, "min_score")
+    if not 0.0 <= min_score <= 5.0:
+        raise AdapterError(f"min_score must be in [0, 5], got {min_score!r}")
     out: dict[str, bool] = {}
     for scenario in scenarios:
         if not isinstance(scenario, Mapping):
@@ -221,7 +240,7 @@ def rule_results(
             continue
 
         triple = [
-            _as_float(raw_scores.get(key, 0), f"scenario {sid!r} {key}")
+            _as_rule_score(raw_scores.get(key, 0), f"scenario {sid!r} {key}")
             for key in _RULE_SCORE_KEYS
         ]
         # No inversion. eval-rule-activation.py tells the judge that 5 is the
