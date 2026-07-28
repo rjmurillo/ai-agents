@@ -488,6 +488,20 @@ def _entry_text(entry: Any) -> str:
     return ""
 
 
+def _entry_timestamp(entry: Any, fallback: str) -> str:
+    """Return a work-log entry timestamp when the entry carries one."""
+    for key in ("timestamp", "time"):
+        value = _entry_field(entry, key).strip()
+        if not value:
+            continue
+        try:
+            parsed = _parse_causal_timestamp({"id": "workLog", "timestamp": value})
+        except EpisodeValidationError:
+            continue
+        return parsed.isoformat()
+    return fallback
+
+
 # Fields that carry the entry's own label/intent. Decision detection scans only
 # these so narrative ``evidence``/``result`` prose mentioning "adopt" or
 # "prioritize" does not manufacture spurious decisions (the ``outcome`` field is
@@ -813,13 +827,13 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
     events: list[dict] = []
     idx = 0
 
-    def add(evt_type: str, content: str) -> None:
+    def add(evt_type: str, content: str, timestamp: str = now_iso) -> None:
         nonlocal idx
         idx += 1
         events.append(
             {
                 "id": f"e{idx:03d}",
-                "timestamp": now_iso,
+                "timestamp": timestamp,
                 "type": evt_type,
                 "content": content,
                 "caused_by": [],
@@ -828,23 +842,24 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
         )
 
     for entry in _as_list(data.get("workLog")):
+        event_timestamp = _entry_timestamp(entry, now_iso)
         title = _entry_title(entry)
         if title:
-            add("milestone", title)
+            add("milestone", title, event_timestamp)
         text = _entry_text(entry)
         if _PASS_COUNT_RE.search(text):
             evidence = _entry_field(entry, "evidence")
             outcome = _entry_field(entry, "outcome")
-            add("test", (evidence or outcome or text).strip())
+            add("test", (evidence or outcome or text).strip(), event_timestamp)
         if _valid_fail_match(text):
-            add("error", text.strip())
+            add("error", text.strip(), event_timestamp)
 
     # Emit one commit event per distinct session-produced commit SHA so the
     # event stream and metrics.commits share a single provenance rule
     # (issue #3123). Excludes the starting/base SHA, including work-log
     # mentions of it, matching json_metrics.
     for sha in _collect_shas(data):
-        add("commit", f"Commit: {sha}")
+        add("commit", f"Commit: {sha}", _git_commit_timestamp(sha) or now_iso)
 
     return events
 
@@ -1415,57 +1430,240 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Lifecycle precedence for the causal chain. Every JSON extractor event shares
-# one session timestamp, so rank-only edges are intentionally sparse. The rank
-# still protects issue #3260 from linking a commit as ``caused_by`` a later
-# review milestone, but it is no longer enough evidence to assert causality for
-# a pre-code milestone such as issue filing or reproduction.
-_CAUSAL_TYPE_RANK: dict[str, int] = {
-    "implementation": 0,
-    "commit": 1,
-    "test": 2,
-    "error": 3,
-    "milestone": 4,
-}
-_CAUSAL_DEFAULT_RANK = 2
+CAUSAL_ORDER_VERSION = 2
+_CAUSAL_EVENT_TYPES = frozenset({"tool_call", "error", "milestone", "handoff", "commit", "test"})
+_POST_COMMIT_SAME_TIMESTAMP_TYPES = frozenset({"error", "test"})
 
 
-def _causal_rank(evt: dict[str, Any]) -> int:
-    return _CAUSAL_TYPE_RANK.get(evt.get("type", ""), _CAUSAL_DEFAULT_RANK)
+class EpisodeValidationError(ValueError):
+    """Episode event graph validation failed with an ADR-035 exit code."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
-def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]) -> bool:
-    previous_timestamp = previous.get("timestamp") or ""
-    current_timestamp = current.get("timestamp") or ""
-    if previous_timestamp != current_timestamp:
-        return True
-    return _causal_rank(previous) == _causal_rank(current)
+def _parse_causal_timestamp(evt: dict[str, Any]) -> datetime:
+    raw = evt.get("timestamp")
+    event_id = evt.get("id", "<missing>")
+    if not isinstance(raw, str) or not raw.strip():
+        raise EpisodeValidationError(f"event {event_id} has a missing or non-string timestamp", 2)
+    normalized = raw.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise EpisodeValidationError(f"event {event_id} has an invalid timestamp", 2) from exc
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _event_refs(evt: dict[str, Any], key: str) -> list[str]:
+    raw = evt.get(key, [])
+    event_id = evt.get("id", "<missing>")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise EpisodeValidationError(f"event {event_id} field {key} must be a list", 2)
+    refs: list[str] = []
+    for ref in raw:
+        if not isinstance(ref, str) or not ref:
+            msg = f"event {event_id} field {key} contains a non-string ref"
+            raise EpisodeValidationError(msg, 2)
+        refs.append(ref)
+    return refs
+
+
+def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
+    """Validate event ids, event types, timestamps, references, and acyclicity."""
+    ids: set[str] = set()
+    parsed: dict[str, datetime] = {}
+    adjacency: dict[str, set[str]] = {}
+
+    for evt in events:
+        if not isinstance(evt, dict):
+            raise EpisodeValidationError("event entry must be an object", 2)
+        event_id = evt.get("id")
+        if not isinstance(event_id, str) or not event_id:
+            raise EpisodeValidationError("event id must be a non-empty string", 2)
+        if event_id in ids:
+            raise EpisodeValidationError(f"duplicate event id: {event_id}", 1)
+        ids.add(event_id)
+        event_type = evt.get("type")
+        if event_type not in _CAUSAL_EVENT_TYPES:
+            raise EpisodeValidationError(f"event {event_id} has unsupported type: {event_type}", 2)
+        parsed[event_id] = _parse_causal_timestamp(evt)
+        adjacency[event_id] = set()
+
+    for evt in events:
+        event_id = str(evt["id"])
+        for ref in _event_refs(evt, "leads_to"):
+            if ref not in ids:
+                raise EpisodeValidationError(f"event {event_id} leads_to unknown event {ref}", 1)
+            if ref == event_id:
+                raise EpisodeValidationError(f"event {event_id} leads_to itself", 1)
+            adjacency[event_id].add(ref)
+        for ref in _event_refs(evt, "caused_by"):
+            if ref not in ids:
+                raise EpisodeValidationError(f"event {event_id} caused_by unknown event {ref}", 1)
+            if ref == event_id:
+                raise EpisodeValidationError(f"event {event_id} caused_by itself", 1)
+            adjacency[ref].add(event_id)
+
+    _validate_dag(adjacency)
+    return parsed
+
+
+def _validate_dag(adjacency: dict[str, set[str]]) -> None:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node: str) -> None:
+        if node in visited:
+            return
+        if node in visiting:
+            raise EpisodeValidationError("episode event graph contains a cycle", 1)
+        visiting.add(node)
+        for child in adjacency[node]:
+            visit(child)
+        visiting.remove(node)
+        visited.add(node)
+
+    for node in adjacency:
+        visit(node)
+
+
+def _commit_sha(evt: dict[str, Any]) -> str | None:
+    match = _SHA_RE.search(str(evt.get("content") or ""))
+    return match.group(0) if match else None
+
+
+def _git_ancestor_relation(left_sha: str, right_sha: str) -> int | None:
+    """Return -1 when left precedes right, 1 when right precedes left."""
+    repo = _repo_root()
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    checks = ((left_sha, right_sha, -1), (right_sha, left_sha, 1))
+    for ancestor, descendant, relation in checks:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", ancestor, descendant],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0:
+            return relation
+        if result.returncode not in (1, 128):
+            return None
+    return None
+
+
+def _git_commit_timestamp(sha: str) -> str | None:
+    repo = _repo_root()
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    result = subprocess.run(
+        ["git", "-C", str(repo), "show", "-s", "--format=%cI", sha],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    raw = result.stdout.strip()
+    if not raw:
+        return None
+    try:
+        return _parse_causal_timestamp({"id": sha, "timestamp": raw}).isoformat()
+    except EpisodeValidationError:
+        return None
+
+
+def _event_order_relation(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    timestamps: dict[str, datetime],
+) -> int | None:
+    """Return -1 when left is before right, 1 for reverse, None if incomparable."""
+    left_id = str(left["id"])
+    right_id = str(right["id"])
+    left_time = timestamps[left_id]
+    right_time = timestamps[right_id]
+    if left_time < right_time:
+        return -1
+    if right_time < left_time:
+        return 1
+
+    left_type = left["type"]
+    right_type = right["type"]
+    if left_type == "commit" and right_type == "commit":
+        left_sha = _commit_sha(left)
+        right_sha = _commit_sha(right)
+        if left_sha is None or right_sha is None:
+            return None
+        return _git_ancestor_relation(left_sha, right_sha)
+    if left_type == "commit" and right_type in _POST_COMMIT_SAME_TIMESTAMP_TYPES:
+        return -1
+    if right_type == "commit" and left_type in _POST_COMMIT_SAME_TIMESTAMP_TYPES:
+        return 1
+    return None
+
+
+def _has_alternate_path(source: str, target: str, edges: set[tuple[str, str]]) -> bool:
+    stack = [child for parent, child in edges if parent == source and child != target]
+    seen: set[str] = set()
+    while stack:
+        node = stack.pop()
+        if node == target:
+            return True
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.extend(child for parent, child in edges if parent == node)
+    return False
+
+
+def _immediate_causal_edges(
+    events: list[dict[str, Any]],
+    timestamps: dict[str, datetime],
+) -> set[tuple[str, str]]:
+    ordered_edges: set[tuple[str, str]] = set()
+    for left_index, left in enumerate(events):
+        for right in events[left_index + 1:]:
+            relation = _event_order_relation(left, right, timestamps)
+            if relation == -1:
+                ordered_edges.add((str(left["id"]), str(right["id"])))
+            elif relation == 1:
+                ordered_edges.add((str(right["id"]), str(left["id"])))
+
+    return {
+        edge for edge in ordered_edges
+        if not _has_alternate_path(edge[0], edge[1], ordered_edges)
+    }
 
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
-    """Populate ``caused_by``/``leads_to`` as a lifecycle-ordered chain.
+    """Populate ``caused_by``/``leads_to`` from observed ordering evidence.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
     reflexion retrieval can walk a connected causal graph, but every
     event-construction site emits them empty, leaving the graph flat
     (issue #3245).
 
-    The chain follows observed evidence first. ``json_events`` appends every
-    commit after the work-log milestones, so a purely positional chain linked
-    the commit as ``caused_by`` the final PR-review milestone, inverting cause
-    and effect: a commit is created and pushed before any review happens
-    (issue #3260). Events are ordered by ``(timestamp, lifecycle rank, original
-    position)`` so commits precede the tests, errors, and review milestones
-    that follow them, while events of the same rank keep their original order.
-    The physical ``events`` list is left untouched; only the link fields change.
-
-    A rank-only order is not enough evidence for an edge. JSON events often all
-    share one session timestamp, and the schema leaves ``workLog.phase`` as free
-    text instead of a stable pre-code or post-code marker. When adjacent events
-    differ only by type rank at the same timestamp, the graph stays sparse
-    rather than asserting a false cause. This preserves the #3260 invariant that
-    a commit is not caused by a review milestone, and fixes #3464's pre-code
-    milestone inversion.
+    The chain follows measured timestamps first. When timestamps tie, commits
+    are ordered only by local git ancestry. A same-timestamp commit can precede
+    test and error events because those event types report on code execution.
+    Same-timestamp commit and milestone events stay incomparable unless a real
+    timestamp separates them, because milestones also record pre-code work such
+    as issue filing or reproduction (#3464).
 
     Mutates in place. Must run on final ids, i.e. after any id reassignment by
     ``_dedupe_events``, so the references never dangle.
@@ -1475,24 +1673,21 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     existing values (including curated edges on a loaded episode) are replaced
     by the regenerated chain rather than retained.
     """
-    linkable = [e for e in events if isinstance(e, dict) and e.get("id")]
-    chain_order = sorted(
-        range(len(linkable)),
-        key=lambda i: (
-            linkable[i].get("timestamp") or "",
-            _causal_rank(linkable[i]),
-            i,
-        ),
-    )
-    chain = [linkable[i] for i in chain_order]
-    for evt in chain:
+    timestamps = validate_episode_causal_graph(events)
+    ids = {str(evt["id"]) for evt in events}
+    edges = _immediate_causal_edges(events, timestamps)
+
+    for evt in events:
         evt["caused_by"] = []
         evt["leads_to"] = []
-    for previous, current in zip(chain, chain[1:], strict=False):
-        if not _has_causal_order_evidence(previous, current):
-            continue
-        previous["leads_to"] = [current["id"]]
-        current["caused_by"] = [previous["id"]]
+    for source, target in sorted(edges):
+        if source not in ids or target not in ids:
+            raise EpisodeValidationError(f"edge references unknown event: {source} -> {target}", 1)
+        source_event = next(evt for evt in events if evt["id"] == source)
+        target_event = next(evt for evt in events if evt["id"] == target)
+        source_event["leads_to"].append(target)
+        target_event["caused_by"].append(source)
+    validate_episode_causal_graph(events)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1593,6 +1788,7 @@ def main(argv: list[str] | None = None) -> int:
         "id": f"episode-{session_id}",
         "session": session_id,
         "timestamp": timestamp,
+        "causal_order_version": CAUSAL_ORDER_VERSION,
         "outcome": outcome,
         "task": task,
         "decisions": decisions,
@@ -1653,7 +1849,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    _link_sequential_events(episode["events"])
+    try:
+        _link_sequential_events(episode["events"])
+    except EpisodeValidationError as exc:
+        print(json.dumps({"Error": str(exc)}), file=sys.stderr)
+        return exc.exit_code
 
     try:
         episode_file.write_text(

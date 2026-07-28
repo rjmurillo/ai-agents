@@ -44,9 +44,11 @@
               "commit",
               "decision",
               "error",
+              "handoff",
               "milestone",
               "outcome",
-              "test"
+              "test",
+              "tool_call"
             ],
             "description": "Mirrors NODE_TYPES in .claude/skills/memory/scripts/update_causal_graph.py. A test asserts the two are equal, so widening one alone fails the build."
           },
