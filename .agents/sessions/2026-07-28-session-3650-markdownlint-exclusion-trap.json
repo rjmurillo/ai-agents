@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3650,
+    "date": "2026-07-28",
+    "branch": "docs/markdownlint-exclusion-trap",
+    "startingCommit": "95da12691b",
+    "objective": "Record in the linting-exclusions memory that a markdownlint run against an excluded path reports success because zero files were selected, not because the files are clean, and record the correct out-of-tree procedure."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b docs/markdownlint-exclusion-trap origin/main, then git branch --show-current returned docs/markdownlint-exclusion-trap"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is docs/markdownlint-exclusion-trap, not main. Created fresh from origin/main so the change stays off the clean PR #3647 branch."
+      },
+      "handoffRead": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not re-read for this branch. The work continues an in-flight session whose context was already established, and the change is a single-file memory correction with no dependency on the handoff dashboard."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the memory commit. The branch-context-policy hook rejected the first commit attempt because the newest log on this branch named fix/memory-stale-script-refs."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools were not invoked in this unit of work. The memory was located and edited through direct file reads under .serena/memories/, and validated with scripts/memory/validate_memory_sizes.py."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not loaded in this unit of work, for the same reason serenaActivated is false."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Applied the knowledge-persistence rule, which directs new facts to the closest existing memory rather than a new file, so the content extended .serena/memories/linting/linting-exclusions.md. Checked the plugin-version-bump path globs and confirmed .serena/** is outside the plugin roots, so no manifest bump applies."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Both work-log entries closed with measured evidence"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified; it is read-only per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".serena/memories/linting/linting-exclusions.md extended with a verification-trap section and two new anti-pattern bullets; 36 insertions, no deletions"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 v0.23.2 run out of tree in /tmp/mdl-verify with the repo config copied and the ignores and globs keys stripped. Result: Linting: 1 file, 0 issues, exit 0. The Linting line confirms the file was actually selected and checked."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The memory commit carries the single-file change; the session-log commit carries this file. Both on docs/markdownlint-exclusion-trap."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/memory/validate_memory_sizes.py returned PASS at 3,006 characters against the 10,000 limit. scripts/validate_session_json.py run against this log."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Single-file memory correction extracted from an in-flight session; the retrospective belongs to the parent session that produced the finding."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Established the trap empirically rather than from recollection. Wrote identical bytes carrying one MD032 violation to two locations and ran markdownlint-cli2 v0.23.2 against each. In tree at .serena/memories/: 'Linting: 0 files', 'Summary: 0 issues in 0 files', exit 0. Out of tree: 'Linting: 1 file', MD032 reported at line 4, exit 1. The in-tree run is green because .serena/** is ignore pattern 12 of 44, so zero files were selected. Read Linting: N files, not the summary, because the summary's trailing count is files-with-issues and reads 0 in both the vacuous and the genuinely clean case."
+    },
+    {
+      "step": "Caught and corrected a wrong instruction in my own draft before committing it. The first draft told the reader to lint out of tree with no config, on the reasoning that the absent config means no ignores apply. Running that way against the memory reported 9 issues, all false: this repo disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060, and the flagged MD013 line-length and MD060 table-style rules are among them. Rewrote the procedure to copy the repo config and strip only the ignores and globs keys. Re-verified: Linting: 1 file, 0 issues, exit 0. Also corrected an earlier misreading in the same check, where a tail pipe had masked the true exit codes and made a failing run look like it exited 0; the true codes are 1 out of tree and 0 in tree."
+    }
+  ],
+  "endingCommit": "1cde48c0d9",
+  "nextSteps": [
+    "The naive category counter in scripts/memory/validate_memory_sizes.py reads YAML comment lines inside fenced code blocks as H1 headings. This memory reports Categories: 4 against a true count of 1, leaving one slot before a legitimate edit would falsely trip the limit of 5. Filed as issue #3696; the fix is deferred because the script is mirrored into src/copilot-cli/skills/memory/scripts/ and carries plugin manifest bumps.",
+    "Session log 2026-07-28-session-3629-memory-stale-script-refs.json already recorded the out-of-tree workaround in its markdownLintRun evidence, but a session log is not a retrieval surface. That is the reason this belongs in a memory, and it suggests other operational knowledge is sitting only in session-log evidence fields."
+  ]
+}
