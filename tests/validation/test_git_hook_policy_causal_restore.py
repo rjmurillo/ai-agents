@@ -1248,6 +1248,69 @@ class TestAdrReviewPolicyMergeScope:
         assert policy._read_head_blob(repo, relative) == policy._read_index_blob(repo, relative)
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
+    def test_typing_mains_text_during_an_unrelated_merge_is_not_the_merge_carrying_it(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """The merge-parent clause had no test that failed when it was removed.
+
+        Round 50 claimed every clause of this rule was mutation-proved. It was
+        not. The stale-`origin/main` test fails the head-copy clause as well,
+        so deleting the merge-parent clause left the whole class green. This
+        is the discriminator that separates them: the staged blob matches
+        `origin/main`, the copy it replaces is one `origin/main` has carried,
+        and the merge carried nothing of the kind.
+
+        The exemption is for what a merge brought in. An author who types the
+        text during someone else's merge has not been reviewed by that merge,
+        and whether the text is current or a reversion depends on how stale
+        `origin/main` is, which this gate cannot see.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-092-typed.md"
+        adr.write_text("# ADR 092\n\nfirst position.\n", encoding="utf-8")
+        _commit(repo, "first position")
+        _git(repo, "branch", "local")
+        _git(repo, "branch", "side")
+
+        adr.write_text("# ADR 092\n\nsecond position.\n", encoding="utf-8")
+        _commit(repo, "second position")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "side")
+        (repo / "side.txt").write_text("side work\n", encoding="utf-8")
+        _commit(repo, "side work")
+
+        _git(repo, "checkout", "local")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "side"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-092-typed.md"
+        adr.write_text("# ADR 092\n\nsecond position.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        staged = policy._read_index_blob(repo, relative)
+        merge_parents = policy._merge_head_commits(repo)
+        assert policy._blob_is_at_any(repo, merge_parents, relative, staged) is False
+        assert policy._read_commit_blob_bytes(repo, "origin/main", relative) == staged
+        assert policy._head_copy_is_one_main_has_carried(repo, relative) is True
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
 def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:
     """Build a repo mid-merge whose staged ADR is the one main contributed.
 
