@@ -467,7 +467,7 @@ def test_default_scope_uses_tracked_supported_text_surfaces(tmp_path, capsys):
     repo.mkdir()
     subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
     write(repo / ".claude" / "skills" / "alpha-skill" / "SKILL.md", "# stub\n")
-    target = repo / "docs" / "rules.md"
+    target = repo / ".claude" / "rules" / "rules.md"
     write(target, "See `.claude/rules/deleted-rule.md`.\n")
     subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
 

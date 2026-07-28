@@ -42,13 +42,17 @@ DEFAULT_TARGETS = (
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
 )
-DEFAULT_TRACKED_ROOTS = (
-    ".agents",
-    ".claude",
-    ".github",
-    "docs",
-    "scripts",
-    "tests",
+DEFAULT_TRACKED_PREFIXES = (
+    ".agents/specs/",
+    ".claude/rules/",
+    ".github/instructions/",
+    "src/copilot-cli/instructions/",
+    "tests/",
+)
+DEFAULT_EXACT_TARGETS = (
+    ".claude/.claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    ".github/plugin/marketplace.json",
 )
 
 OPT_IN_ADR_TARGETS = (
@@ -542,7 +546,9 @@ def _default_tracked_text_targets(repo_root: Path) -> list[str]:
         path = Path(line)
         if path.suffix not in {".md", ".json", ".yaml", ".yml"}:
             continue
-        if not path.parts or path.parts[0] not in DEFAULT_TRACKED_ROOTS:
+        if line not in DEFAULT_EXACT_TARGETS and not any(
+            line.startswith(prefix) for prefix in DEFAULT_TRACKED_PREFIXES
+        ):
             continue
         if any(part in {"references", "templates"} for part in path.parts):
             continue
