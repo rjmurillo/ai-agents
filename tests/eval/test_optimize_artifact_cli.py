@@ -455,7 +455,7 @@ class TestExtract:
             threshold,
         )
         assert code == EXIT_CONFIG
-        assert "pass_threshold" in out["error"]
+        assert "--pass-threshold" in out["error"]
 
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
@@ -775,7 +775,7 @@ class TestExtract:
             "6",
         )
         assert code == EXIT_CONFIG
-        assert "min_score" in out["error"]
+        assert "--min-score" in out["error"]
 
     def test_a_scenario_that_is_not_an_object_is_not_called_degraded(self, tmp_path, capsys):
         """A non-object entry has no id to report, so the scan skips it.
@@ -8451,7 +8451,7 @@ class TestABarOutsideItsScaleIsRefusedLikeAScoreOutsideIts:
             {"per_fixture_pass_rates": {"C1": {"agent": [rate]}}, "error_count": 0},
         )
 
-    def _scen(self, tmp_path, score=3.0):
+    def _scen(self, tmp_path, score=3):
         return _write(
             tmp_path,
             "s.json",

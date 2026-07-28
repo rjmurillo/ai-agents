@@ -662,9 +662,12 @@ class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
         )
         assert got == {"S": False}
 
-    @pytest.mark.parametrize("bad", [5.5, 6, 100, -1, -0.5])
-    def test_a_rule_score_outside_zero_to_five_is_an_adapter_error(self, bad):
-        with pytest.raises(AdapterError, match="between"):
+    @pytest.mark.parametrize(
+        ("bad", "message"),
+        [(5.5, "integer"), (6, "between"), (100, "between"), (-1, "between"), (-0.5, "integer")],
+    )
+    def test_a_rule_score_outside_zero_to_five_is_an_adapter_error(self, bad, message):
+        with pytest.raises(AdapterError, match=message):
             rule_results(
                 self._scen(activation_score=bad, citation_score=5, behavior_score=5),
                 "full",
