@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-28T07:04:03.520971+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22951,6 +22951,276 @@
         "episode-2026-07-27-session-3607-agent-context-self-report"
       ],
       "created": "2026-07-28T04:39:38.801440+00:00"
+    },
+    {
+      "id": "24fee1f378e1",
+      "type": "decision",
+      "label": "implementation: Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511070+00:00"
+    },
+    {
+      "id": "05b349b59947",
+      "type": "milestone",
+      "label": "milestone: Unblocked PR #3497 by resolving a plugin manifest version race. The branch had bumped 0.6.140 to 0.6.141 while main independently bumped to 0.6.142. Resolved both .claude/ and src/copilot-cli/ manifests to 0.6.143, satisfying the parity gate, and confirmed src/claude/ was untouched by the branch so its 0.3.45 needed no bump. validate_plugin_manifests.py reported all 33 manifests valid.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511180+00:00"
+    },
+    {
+      "id": "2269c3e74586",
+      "type": "milestone",
+      "label": "milestone: Confirmed no generated-artifact drift before pushing by running build_all.py and checking git status: the regeneration produced byte-identical output, so the branch and its mirrors were already in sync. Pushed 0216439fb7 with all 14 pre-push gates green, then re-merged main and pushed cd73951189 when the causal graph conflicted again.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511268+00:00"
+    },
+    {
+      "id": "c546ec477b07",
+      "type": "milestone",
+      "label": "milestone: Ran the orphan-ref validator against .serena/memories, which is not in DEFAULT_TARGETS and therefore never gated. Verdict CRITICAL_FAIL: 876 files scanned, 346 refs checked, 178 findings. Confirmed the default scan still passes, so this is knowledge rot rather than a CI failure.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511354+00:00"
+    },
+    {
+      "id": "343d14b64699",
+      "type": "milestone",
+      "label": "milestone: Split the 178 findings by kind: 157 skill_name, 21 script_path. Sampled 14 distinct files for the skill_name population and found the detector treats any backticked kebab-case token as a skill reference. The sampled entities were mypy error codes (arg-type, return-value), model identifiers (gpt-4o-mini), a jq construct (if-then-else), labeler config keys, an Actions runner label, a bot login, and memory IDs. None were skills. The largest single contributor is a file about GitHub topic strings.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511438+00:00"
+    },
+    {
+      "id": "0c0251de900f",
+      "type": "milestone",
+      "label": "milestone: Mapped all 13 dead scripts to successors and verified each successor exists on disk before repointing. Two have no successor: the Pester runner (its workflow and scripts/tests/ are both absent, so the toolchain is retired) and install_git_hooks.py (the prose already reads 'The now-deleted scripts/install_git_hooks.py installer', which is correct and needs no edit).",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511523+00:00"
+    },
+    {
+      "id": "7d530c851996",
+      "type": "milestone",
+      "label": "milestone: Corrected a first mapping that was wrong. A name-pattern search pointed Invoke-PRMaintenance.ps1 at scripts/pr_maintenance/maintenance.py. Searching for the cited function instead found scripts/invoke_pr_maintenance.py, which carries get_bot_author_info at line 70 and is the real successor. Also established that Invoke-CopilotSynthesis, Get-DerivativePRs, and Get-PRsWithPendingDerivatives have no Python equivalent, so those citations cannot be repointed and must be marked as not carried forward.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511608+00:00"
+    },
+    {
+      "id": "a4eac6fd54ba",
+      "type": "milestone",
+      "label": "milestone: Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511700+00:00"
+    },
+    {
+      "id": "e784b2910778",
+      "type": "milestone",
+      "label": "milestone: Ran an adversarial review on a different model family (gpt-5.6-sol, rubber-duck agent, high reasoning) before committing. Passed the artifact and the contract, withheld my conclusions. It returned five BLOCKING and three NON-BLOCKING findings.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511784+00:00"
+    },
+    {
+      "id": "13b8b28c7344",
+      "type": "milestone",
+      "label": "milestone: Three of the five blocking findings were the same error: I asserted that the comment-lifecycle helpers, derivative-PR detection, and Invoke-CopilotSynthesis had no Python successor. I had searched scripts/ and scripts/github_core/ only. Verified independently that .claude/skills/github/scripts/pr/get_unaddressed_comments.py implements the comment lifecycle and .github/scripts/invoke_pr_maintenance.py defines get_derivative_prs at line 255 and get_parents_with_derivatives at line 272. Repointed both. Corrected the synthesis claim to say the full workflow was not ported while the requiresSynthesis classifier survives.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511868+00:00"
+    },
+    {
+      "id": "a1d27ff491b6",
+      "type": "milestone",
+      "label": "milestone: Two blocking findings were half-finished repoints: I had changed the script path but left PowerShell flags and invocations in the surrounding prose, so every command in those memories still failed. Verified the real CLI surfaces with --help (pre_pr.py takes --quick, --skip-tests, --verbose; sha_pinning.py takes --ci, --path, --format) and rewrote the commands, flags, and the stale Validate-*.ps1 and Pester layout prescriptions in organization-001-script-placement-convention.md and validation-tooling-patterns.md.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.511952+00:00"
+    },
+    {
+      "id": "d9c28459494a",
+      "type": "milestone",
+      "label": "milestone: Re-measured the scan honestly. The figures in the decision memory were carried over from a scan taken before origin/main moved. Stashed the changes, scanned the pristine branch-point tree for a real baseline (878 files, 370 refs, 200 findings = 179 skill_name + 21 script_path across 81 files), restored, and scanned the repaired tree (192 findings = 180 skill_name + 12 script_path across 74 files). Rewrote every figure in the decision memory and the retrospective to match, and removed the internal contradiction between '21 real' and '20 real, 1 self-documented'.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512037+00:00"
+    },
+    {
+      "id": "f70dc42cd0b8",
+      "type": "milestone",
+      "label": "milestone: Applied the three non-blocking corrections: the Pester claim now says the suite, runner, and workflow are retired while dormant enable-pester support remains in .github/actions/setup-code-env/action.yml; the write_output observation is now tense-correct because issue #1386 was fixed and the current helper emits a heredoc delimiter; the copilot-synthesis wording distinguishes the dropped workflow from the surviving classifier.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512121+00:00"
+    },
+    {
+      "id": "0575c0020964",
+      "type": "milestone",
+      "label": "milestone: Discovered the lefthook stage-generated memory hook globs .serena/memories/**/*.md and stages the whole corpus, so per-group memory commits are impossible without --no-verify. Soft-reset an earlier 5-file commit that the hook had silently expanded to 17 files with a message describing only 5, and recommitted the corpus as one change with an accurate message.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512208+00:00"
+    },
+    {
+      "id": "4009695ade9b",
+      "type": "commit",
+      "label": "commit: Commit: 838ffdf70e",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512292+00:00"
+    },
+    {
+      "id": "c20deedbb94a",
+      "type": "outcome",
+      "label": "Outcome: success - Repair Serena memories that tell a future session to run scripts the ADR-042 PowerShell-to-Python migration deleted, and record why the same scan's 157 skill_name findings are false positives.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512376+00:00"
+    },
+    {
+      "id": "77debb32dd73",
+      "type": "decision",
+      "label": "Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512570+00:00"
+    },
+    {
+      "id": "9245769413b2",
+      "type": "milestone",
+      "label": "Unblocked PR #3497 by resolving a plugin manifest version race. The branch had bumped 0.6.140 to 0.6.141 while main independently bumped to 0.6.142. Resolved both .claude/ and src/copilot-cli/ manifests to 0.6.143, satisfying the parity gate, and confirmed src/claude/ was untouched by the branch so its 0.3.45 needed no bump. validate_plugin_manifests.py reported all 33 manifests valid.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512667+00:00"
+    },
+    {
+      "id": "a4d4b6ca8893",
+      "type": "milestone",
+      "label": "Confirmed no generated-artifact drift before pushing by running build_all.py and checking git status: the regeneration produced byte-identical output, so the branch and its mirrors were already in sync. Pushed 0216439fb7 with all 14 pre-push gates green, then re-merged main and pushed cd73951189 when the causal graph conflicted again.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.512853+00:00"
+    },
+    {
+      "id": "60350a5802a8",
+      "type": "milestone",
+      "label": "Ran the orphan-ref validator against .serena/memories, which is not in DEFAULT_TARGETS and therefore never gated. Verdict CRITICAL_FAIL: 876 files scanned, 346 refs checked, 178 findings. Confirmed the default scan still passes, so this is knowledge rot rather than a CI failure.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513036+00:00"
+    },
+    {
+      "id": "835350313084",
+      "type": "milestone",
+      "label": "Split the 178 findings by kind: 157 skill_name, 21 script_path. Sampled 14 distinct files for the skill_name population and found the detector treats any backticked kebab-case token as a skill reference. The sampled entities were mypy error codes (arg-type, return-value), model identifiers (gpt-4o-mini), a jq construct (if-then-else), labeler config keys, an Actions runner label, a bot login, and memory IDs. None were skills. The largest single contributor is a file about GitHub topic strings.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513218+00:00"
+    },
+    {
+      "id": "a9f0aad936ff",
+      "type": "milestone",
+      "label": "Mapped all 13 dead scripts to successors and verified each successor exists on disk before repointing. Two have no successor: the Pester runner (its workflow and scripts/tests/ are both absent, so the toolchain is retired) and install_git_hooks.py (the prose already reads 'The now-deleted scripts/install_git_hooks.py installer', which is correct and needs no edit).",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513392+00:00"
+    },
+    {
+      "id": "7279a8a4aab9",
+      "type": "milestone",
+      "label": "Corrected a first mapping that was wrong. A name-pattern search pointed Invoke-PRMaintenance.ps1 at scripts/pr_maintenance/maintenance.py. Searching for the cited function instead found scripts/invoke_pr_maintenance.py, which carries get_bot_author_info at line 70 and is the real successor. Also established that Invoke-CopilotSynthesis, Get-DerivativePRs, and Get-PRsWithPendingDerivatives have no Python equivalent, so those citations cannot be repointed and must be marked as not carried forward.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513571+00:00"
+    },
+    {
+      "id": "85830b6ee518",
+      "type": "milestone",
+      "label": "Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513798+00:00"
+    },
+    {
+      "id": "0107232737cc",
+      "type": "milestone",
+      "label": "Ran an adversarial review on a different model family (gpt-5.6-sol, rubber-duck agent, high reasoning) before committing. Passed the artifact and the contract, withheld my conclusions. It returned five BLOCKING and three NON-BLOCKING findings.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.513972+00:00"
+    },
+    {
+      "id": "dbe0478084b7",
+      "type": "milestone",
+      "label": "Three of the five blocking findings were the same error: I asserted that the comment-lifecycle helpers, derivative-PR detection, and Invoke-CopilotSynthesis had no Python successor. I had searched scripts/ and scripts/github_core/ only. Verified independently that .claude/skills/github/scripts/pr/get_unaddressed_comments.py implements the comment lifecycle and .github/scripts/invoke_pr_maintenance.py defines get_derivative_prs at line 255 and get_parents_with_derivatives at line 272. Repointed both. Corrected the synthesis claim to say the full workflow was not ported while the requiresSynthesis classifier survives.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.514146+00:00"
+    },
+    {
+      "id": "ed763f060255",
+      "type": "milestone",
+      "label": "Two blocking findings were half-finished repoints: I had changed the script path but left PowerShell flags and invocations in the surrounding prose, so every command in those memories still failed. Verified the real CLI surfaces with --help (pre_pr.py takes --quick, --skip-tests, --verbose; sha_pinning.py takes --ci, --path, --format) and rewrote the commands, flags, and the stale Validate-*.ps1 and Pester layout prescriptions in organization-001-script-placement-convention.md and validation-tooling-patterns.md.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.514321+00:00"
+    },
+    {
+      "id": "51f6ebcc7a8b",
+      "type": "milestone",
+      "label": "Re-measured the scan honestly. The figures in the decision memory were carried over from a scan taken before origin/main moved. Stashed the changes, scanned the pristine branch-point tree for a real baseline (878 files, 370 refs, 200 findings = 179 skill_name + 21 script_path across 81 files), restored, and scanned the repaired tree (192 findings = 180 skill_name + 12 script_path across 74 files). Rewrote every figure in the decision memory and the retrospective to match, and removed the internal contradiction between '21 real' and '20 real, 1 self-documented'.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.514494+00:00"
+    },
+    {
+      "id": "ea4867bafe1c",
+      "type": "milestone",
+      "label": "Applied the three non-blocking corrections: the Pester claim now says the suite, runner, and workflow are retired while dormant enable-pester support remains in .github/actions/setup-code-env/action.yml; the write_output observation is now tense-correct because issue #1386 was fixed and the current helper emits a heredoc delimiter; the copilot-synthesis wording distinguishes the dropped workflow from the surviving classifier.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.514681+00:00"
+    },
+    {
+      "id": "48cde6868b49",
+      "type": "milestone",
+      "label": "Discovered the lefthook stage-generated memory hook globs .serena/memories/**/*.md and stages the whole corpus, so per-group memory commits are impossible without --no-verify. Soft-reset an earlier 5-file commit that the hook had silently expanded to 17 files with a message describing only 5, and recommitted the corpus as one change with an accurate message.",
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "created": "2026-07-28T07:04:03.514860+00:00"
     }
   ],
   "patterns": [
@@ -23515,7 +23785,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 8,
+      "occurrences": 9,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-01-09-session-317",
@@ -23525,7 +23795,8 @@
         "episode-2026-07-11-session-3016-confidence-adr",
         "episode-2026-07-13-session-3041-frontier-model",
         "episode-2026-07-15-session-3042",
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph",
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
       ],
       "id": "5bbe1bcd6123",
       "contributions": {
@@ -23536,7 +23807,8 @@
         "episode-2026-05-31-session-1857": 1.0,
         "episode-2026-07-11-session-2840-model-pin-adr": 1.0,
         "episode-2026-07-11-session-3016-confidence-adr": 1.0,
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0,
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 1.0
       }
     },
     {
@@ -27361,6 +27633,188 @@
         "episode-2026-07-27-session-3474-skill-family-skip-clauses": 0.6
       },
       "created": "2026-07-27T12:43:51.820258+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "9245769413b2",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.512683+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "a4d4b6ca8893",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.512861+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "60350a5802a8",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513043+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "835350313084",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513225+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "a9f0aad936ff",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513401+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "7279a8a4aab9",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513578+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "85830b6ee518",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513805+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "0107232737cc",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.513978+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "dbe0478084b7",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.514152+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "ed763f060255",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.514328+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "51f6ebcc7a8b",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.514500+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "ea4867bafe1c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.514690+00:00"
+    },
+    {
+      "source": "77debb32dd73",
+      "target": "48cde6868b49",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3629-memory-stale-script-refs"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3629-memory-stale-script-refs": 0.6
+      },
+      "created": "2026-07-28T07:04:03.514866+00:00"
     }
   ]
 }

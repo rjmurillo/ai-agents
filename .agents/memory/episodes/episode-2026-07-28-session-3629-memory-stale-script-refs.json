@@ -1,0 +1,194 @@
+{
+  "id": "episode-2026-07-28-session-3629-memory-stale-script-refs",
+  "session": "2026-07-28-session-3629-memory-stale-script-refs",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Repair Serena memories that tell a future session to run scripts the ADR-042 PowerShell-to-Python migration deleted, and record why the same scan's 157 skill_name findings are false positives.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "chosen": "Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Unblocked PR #3497 by resolving a plugin manifest version race. The branch had bumped 0.6.140 to 0.6.141 while main independently bumped to 0.6.142. Resolved both .claude/ and src/copilot-cli/ manifests to 0.6.143, satisfying the parity gate, and confirmed src/claude/ was untouched by the branch so its 0.3.45 needed no bump. validate_plugin_manifests.py reported all 33 manifests valid.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed no generated-artifact drift before pushing by running build_all.py and checking git status: the regeneration produced byte-identical output, so the branch and its mirrors were already in sync. Pushed 0216439fb7 with all 14 pre-push gates green, then re-merged main and pushed cd73951189 when the causal graph conflicted again.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the orphan-ref validator against .serena/memories, which is not in DEFAULT_TARGETS and therefore never gated. Verdict CRITICAL_FAIL: 876 files scanned, 346 refs checked, 178 findings. Confirmed the default scan still passes, so this is knowledge rot rather than a CI failure.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the 178 findings by kind: 157 skill_name, 21 script_path. Sampled 14 distinct files for the skill_name population and found the detector treats any backticked kebab-case token as a skill reference. The sampled entities were mypy error codes (arg-type, return-value), model identifiers (gpt-4o-mini), a jq construct (if-then-else), labeler config keys, an Actions runner label, a bot login, and memory IDs. None were skills. The largest single contributor is a file about GitHub topic strings.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mapped all 13 dead scripts to successors and verified each successor exists on disk before repointing. Two have no successor: the Pester runner (its workflow and scripts/tests/ are both absent, so the toolchain is retired) and install_git_hooks.py (the prose already reads 'The now-deleted scripts/install_git_hooks.py installer', which is correct and needs no edit).",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected a first mapping that was wrong. A name-pattern search pointed Invoke-PRMaintenance.ps1 at scripts/pr_maintenance/maintenance.py. Searching for the cited function instead found scripts/invoke_pr_maintenance.py, which carries get_bot_author_info at line 70 and is the real successor. Also established that Invoke-CopilotSynthesis, Get-DerivativePRs, and Get-PRsWithPendingDerivatives have no Python equivalent, so those citations cannot be repointed and must be marked as not carried forward.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adopted an editorial policy that separates current-tense directives from historical records. Directives get the live path so the instruction works. Historical records keep the original name and gain the successor in parentheses, matching the '(removed)' convention already present in those files. Caught myself violating this on the first pass: I had rewritten PR #795's committed-file list to the Python name, which falsifies what that PR actually committed. Reverted to the annotation form.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review on a different model family (gpt-5.6-sol, rubber-duck agent, high reasoning) before committing. Passed the artifact and the contract, withheld my conclusions. It returned five BLOCKING and three NON-BLOCKING findings.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Three of the five blocking findings were the same error: I asserted that the comment-lifecycle helpers, derivative-PR detection, and Invoke-CopilotSynthesis had no Python successor. I had searched scripts/ and scripts/github_core/ only. Verified independently that .claude/skills/github/scripts/pr/get_unaddressed_comments.py implements the comment lifecycle and .github/scripts/invoke_pr_maintenance.py defines get_derivative_prs at line 255 and get_parents_with_derivatives at line 272. Repointed both. Corrected the synthesis claim to say the full workflow was not ported while the requiresSynthesis classifier survives.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Two blocking findings were half-finished repoints: I had changed the script path but left PowerShell flags and invocations in the surrounding prose, so every command in those memories still failed. Verified the real CLI surfaces with --help (pre_pr.py takes --quick, --skip-tests, --verbose; sha_pinning.py takes --ci, --path, --format) and rewrote the commands, flags, and the stale Validate-*.ps1 and Pester layout prescriptions in organization-001-script-placement-convention.md and validation-tooling-patterns.md.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the scan honestly. The figures in the decision memory were carried over from a scan taken before origin/main moved. Stashed the changes, scanned the pristine branch-point tree for a real baseline (878 files, 370 refs, 200 findings = 179 skill_name + 21 script_path across 81 files), restored, and scanned the repaired tree (192 findings = 180 skill_name + 12 script_path across 74 files). Rewrote every figure in the decision memory and the retrospective to match, and removed the internal contradiction between '21 real' and '20 real, 1 self-documented'.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied the three non-blocking corrections: the Pester claim now says the suite, runner, and workflow are retired while dormant enable-pester support remains in .github/actions/setup-code-env/action.yml; the write_output observation is now tense-correct because issue #1386 was fixed and the current helper emits a heredoc delimiter; the copilot-synthesis wording distinguishes the dropped workflow from the surviving classifier.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered the lefthook stage-generated memory hook globs .serena/memories/**/*.md and stages the whole corpus, so per-group memory commits are impossible without --no-verify. Soft-reset an earlier 5-file commit that the hook had silently expanded to 17 files with a message describing only 5, and recommitted the corpus as one change with an accurate message.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 838ffdf70e",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 1771
+  },
+  "lessons": []
+}
