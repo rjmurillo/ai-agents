@@ -2864,3 +2864,42 @@ prose of the same confidence as reasoning about one you have. The cheap
 discipline is to read the cited function before the justification is written
 into a commit message, because a wrong reason does not stay inert, it selects
 the wrong fix.
+
+## Shape 67: a scanner written where the repo already declares a parser
+
+Three of round 45's four findings had one cause, and it was not any of the
+constructs they named. The block-boundary rule was a hand-written list of line
+patterns, so it missed a thematic break, a setext underline, a blockquote
+written without its space, an indented run of backticks that is not a fence,
+and prose on the line after a fence closes. Each is a separate patch and the
+next construct is always outstanding. Two of those five are not decidable per
+line at all: `---` after a paragraph is a setext underline that joins the block
+above, and after a blank line it is a break that divides it. The same three
+bytes, opposite meanings, chosen by context a per-line pattern cannot see.
+
+`markdown-it-py>=4.2.0` was already a declared dependency, and
+`scripts/utils/markdown_parser.py` already configured the repo's dialect. The
+fix deleted two regexes and about thirty lines of bookkeeping and asked the
+parser for the line range of the block it drew. All four live README windows
+came back byte-identical, so the replacement was measurable as behaviour
+preserving rather than argued as cleaner.
+
+The general form: before writing a scanner for a format, check whether the
+repository already depends on a parser for it. The declared dependency is
+cheap to find and settles the question. A scanner for a format with a
+specification is a promise to reimplement the specification, and the promise is
+kept one reported defect at a time.
+
+Round 46 supplied the boundary in the same shape. The parser draws one
+`html_block` for a contiguous run of markup, because CommonMark ends the block
+at a blank line rather than at the end of an element, so `<div>a</div>` above
+`<p>b</p>` is one token and two rendered elements. Deferring to a parser buys
+its abstraction and its limits together. Where the parser's block is coarser
+than the reader's, the honest move is to refuse, because a silent wide window
+is the failure the parser was adopted to end.
+
+And round 46's first finding is the same shape one level up: the previous round
+had guarded `bool` specifically, which is a list of type pairs, which fails the
+way a list of line patterns fails. `int` against `float` walked straight
+through it. One rule about kinds subsumes the special case. A list of named
+exceptions is the tell; whatever it does not name is the next report.

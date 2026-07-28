@@ -944,6 +944,27 @@
         "Importing the parser surfaced two pre-existing mypy errors in scripts/utils/markdown_parser.py, where parse_sections indexed a token map straight after a None check that narrowing cannot survive across a list element. Bound both to locals, which keeps the guard and makes it legible, rather than suppressing. Committed separately from the change that depends on it."
       ],
       "outcome": "Three atomic commits on feat/eval-rule-multirun: 1c17fbd97 the bool bar, 45070a105 the parser module narrowing, 652555541 the parser-derived window. Suite 1849 passed with ruff and mypy clean on both changed files, and the reviewer has the new implementation to attack."
+    },
+    {
+      "phase": "Round 47: recovering five commits GitHub deleted under me, and two more review findings",
+      "actions": [
+        "PR #3608 was squash-merged into its base while my push was in flight. GitHub deleted the head branch on merge, so the push that had already cleared every local hook was rejected with 'cannot lock ref: unable to resolve reference', and the retry failed differently: the commit-limit bypass resolves through an open PR, and there was no longer one. Five commits carrying the whole round-46 fix set existed only on this machine. Confirmed absent from the merged base by ancestry check, then cherry-picked all five onto it. Zero conflicts, suite 1851 passed, byte-identical to what was lost.",
+        "The lesson is about ordering, not about git. A push that clears local hooks has not landed; the remote can move underneath it. Verify with ancestry against the remote ref, not with the exit code of the push.",
+        "Round 46's review returned two findings and both reproduced. The first says the bool guard I added last round was one instance of a wider hole rather than the hole itself: == compares numbers by value, so an int owner default and a float command default read as agreement. Grounded it in the product rather than in taste: edit_budget is annotated max_edits: int -> int and answers 5.0 when handed one, which json.dumps writes as 5.0 where the published results carried 5. Replaced the bool special case with one rule about kinds, which subsumes it. Seven of the nine live table entries compare same-kind numbers and still pass; the two ratios keep their float-versus-string branch.",
+        "The second finding is the same borrowed-neighbour failure the parser was brought in to end, in the one construct the parser cannot decompose. CommonMark ends a raw HTML block at a blank line rather than at the end of an element, so '<div>a</div>' followed by '<p>b</p>' is one html_block token and the window returned both lines. Separating them needs an HTML parser. The window now refuses a marker inside markup and names the remedy.",
+        "Chose the stricter half deliberately and pinned it: a <details> element spanning four lines would be a correct window, but it is the same token type, so accepting it means accepting the borrowing case. Borrowing is silent and a refusal is loud, so the refusal wins. Verified the eval README contains zero html_block tokens and all four of its live windows are byte-identical at 12, 7, 5 and 5 lines."
+      ],
+      "decisions": [
+        "Reapplied the lost commits onto the merged base rather than reopening the merged PR. The base branch is the head of open PR #3579, so the work has an open PR to travel on and needs no new one.",
+        "Replaced the bool guard rather than adding a second numeric guard beside it. A list of type pairs fails the same way the list of block-start patterns did: it misses whatever it does not name. One rule about kinds is the same move that ended the window findings.",
+        "Refused raw HTML rather than returning the token. The window exists so an assertion cannot pass on a neighbour's words; returning a token that may hold two rendered elements gives that guarantee back up silently."
+      ],
+      "filesModified": [
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ],
+      "validation": "Suite 1861 passed after both fixes, up from 1851 with ten new cases. Red phase confirmed five of them fail against the previous implementation. ruff clean, mypy clean on the changed file, zero em or en dashes. Real README windows unchanged at 12, 7, 5, 5 lines."
     }
   ],
   "endingCommit": "691dcfb0e",
