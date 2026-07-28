@@ -259,6 +259,69 @@ class TestBuildCausalChains:
         chains = update_causal_graph.build_causal_chains(episode)
         assert chains == []
 
+    def test_v2_episode_links_feed_global_causal_chains(self):
+        episode = {
+            "causal_order_version": update_causal_graph.CAUSAL_ORDER_VERSION,
+            "decisions": [],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "commit",
+                    "content": "Commit: abc1234",
+                    "caused_by": [],
+                    "leads_to": ["e002"],
+                },
+                {
+                    "id": "e002",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "test",
+                    "content": "Tests passed",
+                    "caused_by": ["e001"],
+                    "leads_to": [],
+                },
+            ],
+        }
+
+        chains = update_causal_graph.build_causal_chains(episode)
+
+        assert {
+            "from_type": "commit",
+            "from_label": "Commit: abc1234",
+            "to_type": "test",
+            "to_label": "Tests passed",
+            "edge_type": "causes",
+            "weight": 0.9,
+        } in chains
+
+    def test_v2_episode_with_cycle_exits_invalid_logic(self):
+        episode = {
+            "causal_order_version": update_causal_graph.CAUSAL_ORDER_VERSION,
+            "decisions": [],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "milestone",
+                    "content": "A",
+                    "caused_by": ["e002"],
+                    "leads_to": ["e002"],
+                },
+                {
+                    "id": "e002",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "milestone",
+                    "content": "B",
+                    "caused_by": ["e001"],
+                    "leads_to": ["e001"],
+                },
+            ],
+        }
+
+        with pytest.raises(update_causal_graph.EpisodeValidationError) as exc_info:
+            update_causal_graph.build_causal_chains(episode)
+        assert exc_info.value.exit_code == 1
+
 
 class TestGetEpisodeFiles:
     """Tests for get_episode_files function."""
@@ -444,6 +507,57 @@ class TestReplaceSemanticsOnEdit:
         graph = json.loads(graph_path.read_text())
         # The stale edge must be gone (pre-#3039 it stayed frozen).
         assert graph["edges"] == []
+
+    def test_v2_malformed_event_config_exits_2(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        ep = self._episode(
+            tmp_path,
+            "bad-config",
+            [
+                {
+                    "id": "e001",
+                    "type": "milestone",
+                    "content": "missing timestamp",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+        )
+        data = json.loads(ep.read_text(encoding="utf-8"))
+        data["causal_order_version"] = update_causal_graph.CAUSAL_ORDER_VERSION
+        ep.write_text(json.dumps(data), encoding="utf-8")
+
+        assert self._run(tmp_path, graph_path, ep) == 2
+
+    def test_v2_invalid_causal_logic_exits_1(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        ep = self._episode(
+            tmp_path,
+            "bad-logic",
+            [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "milestone",
+                    "content": "duplicate",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+                {
+                    "id": "e001",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "type": "commit",
+                    "content": "Commit: abc1234",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+            ],
+        )
+        data = json.loads(ep.read_text(encoding="utf-8"))
+        data["causal_order_version"] = update_causal_graph.CAUSAL_ORDER_VERSION
+        ep.write_text(json.dumps(data), encoding="utf-8")
+
+        assert self._run(tmp_path, graph_path, ep) == 1
 
 
 class TestPruneCli:
@@ -1435,4 +1549,3 @@ class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
             assert added is not None, node_type
 
         assert len(graph["nodes"]) == len(update_causal_graph.NODE_TYPES)
-
