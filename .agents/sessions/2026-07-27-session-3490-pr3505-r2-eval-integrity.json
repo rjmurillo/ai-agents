@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3490,
+    "date": "2026-07-27",
+    "branch": "fix/3474-3475-eval-integrity-followup",
+    "startingCommit": "b36edd544",
+    "objective": "Address PR #3505 round 2 adversarial review findings: validators must fail closed when inputs cannot be evaluated, never fabricate successful zero measurements."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "activate_project tool unavailable in this Copilot tool surface; Serena initial_instructions loaded after tool discovery, and code intelligence tools were available."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions called and read at session start."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read and left unmodified."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/sessions/2026-07-27-session-3490-pr3505-r2-eval-integrity.json"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3474-3475-eval-integrity-followup."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Fetched refs/pull/3505/head into origin/fix/3474-3475-eval-integrity-followup; merge-base check passed."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md, scripts/AGENTS.md, scripts/CLAUDE.md, tests/CLAUDE.md, python/testing/ci-scripts instructions read."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3474-3475-eval-integrity-followup, not main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Round 2 high and medium findings addressed. Follow-up issue #3649 filed for remaining non-eval subprocess readers."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not edited."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No new Serena memory written; the fail-closed behavior is enforced by tests in this PR."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files changed in this worktree; scoped markdown lint not applicable."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Code changes committed through 3e47ada2d. Session log commit follows."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Targeted pytest passed: 719 passed with TMPDIR and --basetemp outside the worktree. Ruff passed on changed Python files. Review probes and production-only revert table completed."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No external task tracker was used; progress tracked in commits, probes, and this session log."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Not invoked; no new retrospective artifact needed for this follow-up fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Started from PR #3505 head b36edd54 in an isolated worktree to avoid unrelated dirty files in the main checkout."
+    },
+    {
+      "step": "Fixed persisted run loading to reject malformed fields, duplicate identities, bool-as-int values, and to normalize legacy v1 missing seed to 0."
+    },
+    {
+      "step": "Fixed model panel, model sweep, eval suite, rule activation, and optimizer adapters so unmeasured or malformed inputs exit non-zero."
+    },
+    {
+      "step": "Fixed UTF-8 replacement decoding in the four highest-volume non-eval subprocess files named by review."
+    },
+    {
+      "step": "Filed issue #3649 for the remaining captured-text subprocess readers outside the PR scope."
+    },
+    {
+      "step": "Validated with targeted pytest, ruff, review probes, and production-only fail-under-revert checks."
+    }
+  ],
+  "endingCommit": "3e47ada2d",
+  "nextSteps": [
+    "Push PR #3505 branch.",
+    "Update PR body with issue #3649 reference.",
+    "Resolve review threads and enable auto squash merge."
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T11:11:32.657179+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22681,6 +22681,78 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "55685e7d3a4c",
+      "type": "milestone",
+      "label": "milestone: Started from PR #3505 head b36edd54 in an isolated worktree to avoid unrelated dirty files in the main checkout.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.650877+00:00"
+    },
+    {
+      "id": "1a67f6506649",
+      "type": "milestone",
+      "label": "milestone: Fixed persisted run loading to reject malformed fields, duplicate identities, bool-as-int values, and to normalize legacy v1 missing seed to 0.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.650969+00:00"
+    },
+    {
+      "id": "7f66a61f1c75",
+      "type": "milestone",
+      "label": "milestone: Fixed model panel, model sweep, eval suite, rule activation, and optimizer adapters so unmeasured or malformed inputs exit non-zero.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651051+00:00"
+    },
+    {
+      "id": "c68a561e73a2",
+      "type": "milestone",
+      "label": "milestone: Fixed UTF-8 replacement decoding in the four highest-volume non-eval subprocess files named by review.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651135+00:00"
+    },
+    {
+      "id": "0917f23a6389",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3649 for the remaining captured-text subprocess readers outside the PR scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651214+00:00"
+    },
+    {
+      "id": "0443c3409b2d",
+      "type": "milestone",
+      "label": "milestone: Validated with targeted pytest, ruff, review probes, and production-only fail-under-revert checks.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651293+00:00"
+    },
+    {
+      "id": "5adacedf5d9d",
+      "type": "commit",
+      "label": "commit: Commit: 3e47ada2d",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651374+00:00"
+    },
+    {
+      "id": "493f4425726b",
+      "type": "outcome",
+      "label": "Outcome: success - Address PR #3505 round 2 adversarial review findings: validators must fail closed when inputs cannot be evaluated, never fabricate successful zero measurements.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T11:11:32.651453+00:00"
     }
   ],
   "patterns": [
