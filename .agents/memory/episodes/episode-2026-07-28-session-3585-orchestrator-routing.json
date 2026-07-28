@@ -85,7 +85,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e007",
@@ -132,6 +134,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Learnings captured: routing rows must be sparse and request-shaped. A row earns its bytes only when a realistic request maps to a distinct installed agent and no cheaper skill-first path owns it.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

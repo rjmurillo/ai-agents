@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T03:05:59.890415+00:00",
+  "updated": "2026-07-28T03:33:01.044844+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22843,6 +22843,15 @@
         "episode-2026-07-28-session-3585-orchestrator-routing"
       ],
       "created": "2026-07-28T03:05:59.884147+00:00"
+    },
+    {
+      "id": "c798c4cf524d",
+      "type": "milestone",
+      "label": "milestone: Learnings captured: routing rows must be sparse and request-shaped. A row earns its bytes only when a realistic request maps to a distinct installed agent and no cheaper skill-first path owns it.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:33:01.037480+00:00"
     }
   ],
   "patterns": [

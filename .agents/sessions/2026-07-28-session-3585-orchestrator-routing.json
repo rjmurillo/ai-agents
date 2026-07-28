@@ -106,6 +106,9 @@
     },
     {
       "step": "Revert check in sibling worktree ai-agents-3585-revert restored orchestrator surfaces to origin/main while keeping tests. Result: all 30 tests failed."
+    },
+    {
+      "step": "Learnings captured: routing rows must be sparse and request-shaped. A row earns its bytes only when a realistic request maps to a distinct installed agent and no cheaper skill-first path owns it."
     }
   ],
   "endingCommit": "66104786",
