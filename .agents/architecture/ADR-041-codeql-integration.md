@@ -13,15 +13,15 @@ Status of this amendment: Accepted (adr-review consensus 2026-07-21: architect, 
 
 This ADR scheduled a 6-month re-evaluation for 2026-07-16 (see Operational Status and Post-Deployment Validation below). The Operational Status Re-evaluation clause states: "If negative ROI or unused, create amendment ADR to deprecate and simplify to CI-only." Reconciliation: that clause targeted the removal of *automatic* scanning; "CI-only" here means "no automatic edit-time execution", not "delete the on-demand skill". Tier 2 is user-initiated, not automatic, and remains actively used, so this amendment retires only the unused automatic tier (Tier 3) and keeps both CI (Tier 1) and on-demand (Tier 2). The resulting strategy is two-tier, and the deviation from the literal "CI-only" wording is intentional and recorded here so future readers do not read it as an accidental breach of the re-evaluation contract. The review found Tier 3 unused. The PostToolUse quick-scan hook was registered nowhere (absent from `.claude/settings.json`, `.claude/hooks/dispatch_groups.json`, and the vendored Copilot hooks surface) and was imported only by its own test, so it never executed. It caught zero vulnerabilities because it never ran.
 
-Change: retire Tier 3. The dead hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`) and its test are deleted. The CodeQL strategy is now two-tier:
+Change: retire Tier 3. The deleted hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`) and its test are removed. The CodeQL strategy is now two-tier:
 
 - Tier 1 (CI/CD): unchanged. The `codeql-analysis.yml` workflow remains the blocking gate on every PR. Automatic security scanning now happens here.
-- Tier 2 (Local, on-demand): unchanged. The `codeql-scan` skill (`invoke_codeql_scan.py`) remains for developer-initiated scans.
+- Tier 2 (Local, on-demand): unchanged. The `codeql-scan` skill remains for developer-initiated scans.
 
 What this amendment does NOT change:
 
 - Tier 1 CI/CD enforcement and Tier 2 on-demand scanning both stay.
-- The `codeql-scan` skill and `invoke_codeql_scan.py` are untouched.
+- The `codeql-scan` skill is untouched.
 - The shared and quick CodeQL configs stay in place; the quick config is still usable by the skill and CI.
 
 Documentation drift (adr-review critic follow-up): the live `codeql-scan` skill doc (`.claude/skills/codeql-scan/SKILL.md` and its regenerated Copilot CLI mirror) is cleaned of the retired hook in this change. The three reference docs under `docs/` (`codeql-architecture.md`, `codeql-integration.md`, `codeql-rollout-checklist.md`) still describe the retired hook and a pre-Python-migration PowerShell implementation; each carries a staleness banner added in this change, and their full overhaul is tracked by issue #3296.
