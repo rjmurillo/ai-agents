@@ -20,8 +20,8 @@ Verify ADR-088 rollback trigger wiring for `software-engineering-library` activa
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Targeted tests run | 62 | 62 | [PASS] |
-| Targeted passed | 62 | 62 | [PASS] |
+| Targeted tests run | 64 | 64 | [PASS] |
+| Targeted passed | 64 | 64 | [PASS] |
 | Targeted failed | 0 | 0 | [PASS] |
 | Targeted skipped | 0 | - | [PASS] |
 | Full pre-PR validations | 35 | 35 | [PASS] |
@@ -34,7 +34,7 @@ Verify ADR-088 rollback trigger wiring for `software-engineering-library` activa
 
 | Test | Category | Status | Notes |
 |------|----------|--------|-------|
-| `tests/eval/test_software_engineering_library_activation_gate.py` | Unit | [PASS] | 5 tests cover state, threshold, external failure handling, workflow, docs |
+| `tests/eval/test_software_engineering_library_activation_gate.py` | Unit | [PASS] | 7 tests cover state, threshold, external failure handling, workflow, CI wrapper, ADR-006 workflow hygiene, docs |
 | `tests/eval/test_eval_rule_activation.py` | Regression | [PASS] | 57 existing eval tests still pass |
 | `eval-rule-activation.py --dry-run` with eight scenario files | Integration | [PASS] | Parsed all fixtures and planned 182 live calls |
 | `ruff check` on changed Python files | Static | [PASS] | 0 findings |
@@ -47,12 +47,12 @@ Commands run:
 
 ```text
 uv run pytest tests/eval/test_software_engineering_library_activation_gate.py -q
-Result: 5 passed in 0.83s
+Result: 7 passed in 0.31s
 
 uv run pytest tests/eval/test_eval_rule_activation.py tests/eval/test_software_engineering_library_activation_gate.py -q
-Result: 62 passed in 1.75s
+Result: 64 passed in 0.56s
 
-uv run ruff check scripts/eval/software_engineering_library_activation_gate.py tests/eval/test_software_engineering_library_activation_gate.py
+uv run ruff check scripts/eval/software_engineering_library_activation_gate.py scripts/eval/software_engineering_library_activation_ci.py tests/eval/test_software_engineering_library_activation_gate.py
 Result: All checks passed
 
 uv run python scripts/eval/eval-rule-activation.py --dry-run --scenarios <eight ADR-088 scenario files>

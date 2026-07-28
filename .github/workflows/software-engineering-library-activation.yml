@@ -13,6 +13,7 @@ on:
       - "tests/evals/rule-scenarios/*.json"
       - "scripts/eval/eval-rule-activation.py"
       - "scripts/eval/software_engineering_library_activation_gate.py"
+      - "scripts/eval/software_engineering_library_activation_ci.py"
       - "scripts/eval/README.md"
       - ".github/workflows/software-engineering-library-activation.yml"
 
@@ -78,45 +79,7 @@ jobs:
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          set +e
-          uv run python scripts/eval/eval-rule-activation.py \
-            --output activation-results.json \
-            --scenarios \
-            tests/evals/rule-scenarios/clean-architecture.json \
-            tests/evals/rule-scenarios/domain-driven-design.json \
-            tests/evals/rule-scenarios/enterprise-patterns.json \
-            tests/evals/rule-scenarios/refactoring.json \
-            tests/evals/rule-scenarios/release-it.json \
-            tests/evals/rule-scenarios/philosophy-of-software-design.json \
-            tests/evals/rule-scenarios/data-intensive-applications.json \
-            tests/evals/rule-scenarios/working-with-legacy-code.json
-          EVAL_EXIT=$?
-          set -e
-
-          if [ "$EVAL_EXIT" = "2" ] || [ "$EVAL_EXIT" = "4" ]; then
-            exit "$EVAL_EXIT"
-          fi
-          if [ ! -s activation-results.json ]; then
-            exit "$EVAL_EXIT"
-          fi
-
-          set +e
-          uv run python scripts/eval/software_engineering_library_activation_gate.py \
-            --results activation-results.json \
-            --state .eval-state/software-engineering-library-activation-state.json \
-            --output-state .eval-state/software-engineering-library-activation-state.json \
-            --report activation-gate-report.md \
-            --threshold-report activation-threshold-report.json \
-            --run-id "${{ github.run_id }}" \
-            --fail-on-threshold
-          GATE_EXIT=$?
-          set -e
-
-          if [ "$EVAL_EXIT" = "3" ]; then
-            exit "$EVAL_EXIT"
-          fi
-          exit "$GATE_EXIT"
+        run: uv run python scripts/eval/software_engineering_library_activation_ci.py live-eval
 
       - name: Save activation streak state
         if: always() && github.event_name != 'pull_request' && hashFiles('.eval-state/software-engineering-library-activation-state.json') != ''
@@ -138,69 +101,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Check existing rollback alert
-        id: check-alert
+      - name: Create or update rollback alert issue
         if: github.event_name != 'pull_request' && steps.live-eval.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          EXISTING="$(gh issue list \
-            --label "software-engineering-library-activation" \
-            --state open \
-            --json number \
-            --jq 'length')"
-          echo "existing_issues=$EXISTING" >> "$GITHUB_OUTPUT"
-
-      - name: Create rollback alert issue
-        if: >-
-          github.event_name != 'pull_request' &&
-          steps.live-eval.outcome == 'failure' &&
-          steps.check-alert.outputs.existing_issues == '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cat > issue-body.md << 'EOF'
-          ## Software Engineering Library Activation Threshold
-
-          The weekly ADR-088 activation gate failed. Review the uploaded
-          `activation-gate-report.md` artifact and open a restoration PR if any
-          reference reached the consecutive activation failure threshold.
-
-          Restoration PR policy:
-          - Restore the failing book reference to the always-on rule surface, or
-            strengthen the skill trigger and scenario coverage.
-          - Include the latest activation gate report in the PR body.
-          - The PR must pass this workflow before merge.
-
-          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
-          gh issue create \
-            --title "software-engineering-library activation rollback threshold" \
-            --body-file issue-body.md \
-            --label "software-engineering-library-activation,agent-qa,automated"
-
-      - name: Update rollback alert issue
-        if: >-
-          github.event_name != 'pull_request' &&
-          steps.live-eval.outcome == 'failure' &&
-          steps.check-alert.outputs.existing_issues != '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ISSUE_NUMBER="$(gh issue list \
-            --label "software-engineering-library-activation" \
-            --state open \
-            --json number \
-            --jq '.[0].number')"
-          cat > comment-body.md << 'EOF'
-          The weekly ADR-088 activation gate failed again.
-
-          Review the latest uploaded activation artifacts and keep or open the
-          restoration PR until this workflow passes.
-
-          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
-          gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+        run: uv run python scripts/eval/software_engineering_library_activation_ci.py alert-issue
 
       - name: Fail when live activation gate failed
         if: github.event_name != 'pull_request' && steps.live-eval.outcome == 'failure'

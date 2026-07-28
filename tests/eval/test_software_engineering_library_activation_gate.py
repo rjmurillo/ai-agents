@@ -3,23 +3,37 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_gate.py"
+CI_SCRIPT_PATH = REPO_ROOT / "scripts" / "eval" / "software_engineering_library_activation_ci.py"
+ADR006_SCANNER_PATH = REPO_ROOT / "scripts" / "ci" / "adr006_run_block_scanner.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "software-engineering-library-activation.yml"
 
 
-def _load_gate_module():
-    spec = importlib.util.spec_from_file_location(
-        "software_engineering_library_activation_gate", SCRIPT_PATH
-    )
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_gate_module():
+    return _load_module("software_engineering_library_activation_gate", SCRIPT_PATH)
+
+
+def _load_ci_module():
+    return _load_module("software_engineering_library_activation_ci", CI_SCRIPT_PATH)
+
+
+def _load_adr006_scanner():
+    return _load_module("adr006_run_block_scanner", ADR006_SCANNER_PATH)
 
 
 def _passing_results() -> dict[str, object]:
@@ -95,7 +109,7 @@ def test_judge_errors_do_not_increment_activation_failure_streak():
     assert reference_state["last_result_counted_for_rollback"] is False
 
 
-def test_workflow_runs_weekly_and_invokes_all_moved_reference_scenarios():
+def test_workflow_runs_weekly_and_invokes_ci_wrapper():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     triggers = workflow[True]
 
@@ -111,11 +125,34 @@ def test_workflow_runs_weekly_and_invokes_all_moved_reference_scenarios():
         for step in workflow["jobs"]["activation-gate"]["steps"]
         if step["name"] == "Run live activation eval"
     )
-    command = run_eval_step["run"]
-    for reference_id in _load_gate_module().MOVED_REFERENCE_IDS:
-        assert f"tests/evals/rule-scenarios/{reference_id}.json" in command
-    assert "software_engineering_library_activation_gate.py" in command
-    assert "--fail-on-threshold" in command
+    alert_step = next(
+        step
+        for step in workflow["jobs"]["activation-gate"]["steps"]
+        if step["name"] == "Create or update rollback alert issue"
+    )
+
+    assert run_eval_step["run"] == (
+        "uv run python scripts/eval/software_engineering_library_activation_ci.py live-eval"
+    )
+    assert alert_step["run"] == (
+        "uv run python scripts/eval/software_engineering_library_activation_ci.py alert-issue"
+    )
+
+
+def test_ci_wrapper_covers_all_moved_reference_scenarios():
+    ci = _load_ci_module()
+
+    assert sorted(ci.SCENARIOS) == [
+        f"tests/evals/rule-scenarios/{reference_id}.json"
+        for reference_id in sorted(_load_gate_module().MOVED_REFERENCE_IDS)
+    ]
+
+
+def test_workflow_does_not_add_adr006_run_block_violations():
+    scanner = _load_adr006_scanner()
+    blocks = scanner.scan_text(WORKFLOW_PATH.read_text(encoding="utf-8"))
+
+    assert [block.line for block in blocks if scanner.is_violation(block, 10)] == []
 
 
 def test_documentation_names_owner_cadence_state_and_restoration_pr_policy():
