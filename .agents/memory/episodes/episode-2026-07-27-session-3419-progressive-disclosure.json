@@ -144,6 +144,18 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added dated amendment notes to ADR-060, ADR-061, ADR-062, and ADR-063 for moved book-rule references.",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     }
   ],
