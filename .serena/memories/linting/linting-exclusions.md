@@ -1,6 +1,6 @@
 # Skill-Lint-005: Exclude Generated Directories
 
-**Statement**: Exclude generated artifact directories from linting using both globs and ignores
+**Statement**: Exclude generated artifact directories from linting using `ignores`
 
 **Context**: Managing linting for mixed codebase with generated content
 
@@ -17,9 +17,14 @@ ignores:
   - ".agents/**"
   - "node_modules/**"
   - "dist/**"
-globs:
-  - "!.agents/**"
 ```
+
+Do not add a top-level `globs:` key. This config carried one once and it was
+removed deliberately, with the reason recorded inline at the removal site:
+markdownlint-cli2 ADDS config globs to any files passed on the command line, so
+a hook that lints one touched file also walks every `**/*.md` in the repo and
+takes minutes per invocation. The current config has exactly two top-level
+keys, `config` and `ignores`.
 
 ## Why Exclude .agents/
 
@@ -57,11 +62,12 @@ means nothing. The trailing count in the summary is *files with issues*, so
 `0 issues in 0 files` and a real clean run are indistinguishable without the
 `Linting:` line.
 
-This surface is large. At the time of writing, `ignores` held 44 patterns and
-covered most of the markdown that gets edited here: `.claude/skills/**`,
-`src/copilot-cli/skills/**`, `.serena/**`, `.agents/**`, `**/CLAUDE.md`,
-`.github/agents/**/*.agent.md`, `docs/autonomous-pr-monitor.md`, and the five
-lifecycle command files.
+This surface is large. At the time of writing, `ignores` held 44 patterns
+covering 89.7% of tracked markdown (3,529 of 3,935 files), including
+`.claude/skills/**`, `src/copilot-cli/skills/**`, `.serena/**`, `.agents/**`,
+`**/CLAUDE.md`, `.github/agents/**/*.agent.md`, `docs/autonomous-pr-monitor.md`,
+and the five lifecycle commands across ten explicit paths (the `.claude/commands/`
+files and their `src/copilot-cli/skills/` mirrors).
 
 Both that count and the disabled-rule list below drift as the config changes.
 Regenerate them instead of trusting this text:
@@ -76,12 +82,16 @@ print('disabled rules:', sorted(k for k, v in d.get('config', {}).items() if v i
 ```
 
 To actually lint an excluded file, copy it to a scratch directory outside the
-repo, copy `.markdownlint-cli2.yaml` alongside it, and delete the `ignores` and
-`globs` keys from that copy. Keep the rest of the config. Running with the
-stock default rule set instead produces false positives, because this repo
-disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060 as of this
-writing. Linting this memory with defaults reported 9 issues; with the repo
-rules and `ignores` stripped it reported 0 at `Linting: 1 file`.
+repo, copy `.markdownlint-cli2.yaml` alongside it, and delete the `ignores` key
+from that copy. Keep the rest of the config. Nothing else in it needs changing:
+the only other top-level key is `config`, and it holds no relative paths, no
+`extends`, and no `customRules`, so it travels intact. Running with the stock
+default rule set instead produces false positives, because this repo disables
+MD003, MD013, MD029, MD048, MD049, MD050, and MD060 as of this writing. A
+default run on this memory reported 9 issues, every one of them MD013
+line-length or MD060 table-style; the repo rules with `ignores` stripped
+reported 0 at `Linting: 1 file`. That count moves with every edit to this file,
+so re-run it rather than checking against the number.
 
 Cost of not knowing this: two MD032 errors and a banned word survived into a
 commit in `docs/autonomous-pr-monitor.md` because the in-tree run said clean.
