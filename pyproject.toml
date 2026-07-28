@@ -106,6 +106,9 @@ ignore = []
 "scripts/eval/eval-knowledge-integration.py" = ["E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
+# Validation runners use sys.path.insert() before importing sibling modules
+"scripts/validation/pre_pr.py" = ["E402", "F401"]
+"scripts/validation/pre_pr_sequence.py" = ["E402"]
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]

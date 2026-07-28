@@ -4,7 +4,7 @@ Covers:
 - ScoringEngine and concrete scorers (REGEX, VERDICT)
 - FixtureValidator (REQ-004 AC-4) including schemaVersion guard
 - PlanRunner.build_plan (DESIGN-004 §5.3a, REQ-004 AC-8)
-- All dataclasses carry schemaVersion=1
+- Serializable dataclasses carry the schemaVersion for their persisted shape
 
 No live API calls. T4-2 will add adapter and persistence tests.
 """
@@ -64,6 +64,12 @@ Report = types_mod.Report
 RunRecord = types_mod.RunRecord
 SchemaVersionError = types_mod.SchemaVersionError
 SCHEMA_VERSION = types_mod.SCHEMA_VERSION
+RUN_RECORD_SCHEMA_VERSION = getattr(
+    types_mod, "RUN_RECORD_SCHEMA_VERSION", SCHEMA_VERSION + 1
+)
+REPORT_SCHEMA_VERSION = getattr(
+    types_mod, "REPORT_SCHEMA_VERSION", SCHEMA_VERSION + 1
+)
 
 ScoringEngine = scoring_mod.ScoringEngine
 RegexScorer = scoring_mod.RegexScorer
@@ -86,6 +92,7 @@ RunPersistence = persistence_mod.RunPersistence
 DuplicateRunError = persistence_mod.DuplicateRunError
 MalformedRunRecordError = persistence_mod.MalformedRunRecordError
 RunDirectoryNotFreshError = persistence_mod.RunDirectoryNotFreshError
+RunSeedMismatchError = persistence_mod.RunSeedMismatchError
 
 ReportAggregator = aggregator_mod.ReportAggregator
 AggregateResult = aggregator_mod.AggregateResult
@@ -450,7 +457,7 @@ class TestPlanRunner:
 
 
 # ---------------------------------------------------------------------------
-# Schema version sanity (every serializable dataclass carries schemaVersion=1)
+# Schema version sanity
 # ---------------------------------------------------------------------------
 
 
@@ -482,7 +489,7 @@ class TestDataclassSchemaVersions:
             error_category=None,
             attempts=1,
         )
-        assert record.schema_version == 1
+        assert record.schema_version == RUN_RECORD_SCHEMA_VERSION
 
     def test_report_default_schema_version(self):
         report = Report(
@@ -506,7 +513,7 @@ class TestDataclassSchemaVersions:
             error_count=0,
             pricing_rate_as_of="2026-05-03",
         )
-        assert report.schema_version == 1
+        assert report.schema_version == REPORT_SCHEMA_VERSION
         assert report.recommendation is None  # T4-5 leaves null; T4-7 sets
 
     def test_assertion_requires_pattern_or_expected_value(self):
@@ -794,6 +801,7 @@ def _make_record(
     variant: str = "agent",
     run_index: int = 0,
     outcome: str = "success",
+    seed: int | None = None,
 ) -> RunRecord:
     return RunRecord(
         fixture_id=fixture_id,
@@ -819,7 +827,12 @@ def _make_record(
         tokens_out=20,
         error_category=None,
         attempts=1,
+        seed=seed,
     )
+
+
+def _record_json_for_test(record: RunRecord) -> str:
+    return persistence_mod._record_to_json_line(record)
 
 
 class TestRunPersistenceFresh:
@@ -831,7 +844,7 @@ class TestRunPersistenceFresh:
         line = persistence.jsonl_path.read_text(encoding="utf-8").strip()
         payload = json.loads(line)
         assert payload["fixture_id"] == "F001"
-        assert payload["schemaVersion"] == 1
+        assert payload["schemaVersion"] == RUN_RECORD_SCHEMA_VERSION
         assert payload["assertions"][0]["kind"] == "verdict"
 
     def test_duplicate_write_raises_in_fresh_mode(self, tmp_path):
@@ -881,6 +894,14 @@ class TestRunPersistenceResume:
         assert reopened.is_completed("F001", "agent", 1)
         assert not reopened.is_completed("F001", "agent", 2)
 
+    def test_resume_rejects_seed_mismatch(self, tmp_path):
+        run_dir = tmp_path / "run-seed-mismatch"
+        first = RunPersistence(run_dir, resume=False, seed=111)
+        first.write_record(_make_record(seed=111))
+
+        with pytest.raises(RunSeedMismatchError, match="seed"):
+            RunPersistence(run_dir, resume=True, seed=222)
+
 
 class TestRunPersistenceJsonlRoundTrip:
     def test_iter_records_round_trips(self, tmp_path):
@@ -893,7 +914,25 @@ class TestRunPersistenceJsonlRoundTrip:
         assert records[0].fixture_id == original.fixture_id
         assert records[0].variant == original.variant
         assert records[0].run_index == original.run_index
+        assert records[0].schema_version == RUN_RECORD_SCHEMA_VERSION
+
+    def test_v1_record_without_system_fingerprint_reads_cleanly(self, tmp_path):
+        run_dir = tmp_path / "rt-v1"
+        run_dir.mkdir()
+        payload = json.loads(_record_json_for_test(_make_record()))
+        payload["schemaVersion"] = 1
+        payload.pop("system_fingerprint", None)
+        payload.pop("seed", None)
+        (run_dir / "runs.jsonl").write_text(
+            json.dumps(payload) + "\n", encoding="utf-8"
+        )
+
+        records = list(RunPersistence(run_dir, resume=True).iter_records())
+
+        assert len(records) == 1
         assert records[0].schema_version == 1
+        assert records[0].system_fingerprint is None
+        assert records[0].seed is None
 
 
 class TestRunPersistenceSchemaGuard:
@@ -1067,7 +1106,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter = _StubAdapter(results)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
 
         rc = cli_main([
             "--agent",
@@ -1091,7 +1130,7 @@ class TestRunnerLiveLoop:
         assert len(lines) == 6
         for line in lines:
             payload = json.loads(line)
-            assert payload["schemaVersion"] == 1
+            assert payload["schemaVersion"] == RUN_RECORD_SCHEMA_VERSION
             assert payload["model_id"] == "claude-sonnet-4-6"
 
     def test_resume_does_not_recall_completed_triples(
@@ -1117,7 +1156,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter1 = _StubAdapter(list(all_six))
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T130000Z-cafebabe"
         rc = cli_main([
             "--agent",
@@ -1135,7 +1174,76 @@ class TestRunnerLiveLoop:
         # Resume: adapter should not be called at all because all 6 triples
         # are already completed.
         adapter2 = _StubAdapter([])  # empty: any call would IndexError
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
+        rc2 = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--resume",
+            run_id,
+        ])
+        assert rc2 == 0
+        assert adapter2.call_count == 0
+
+    def test_resume_accepts_legacy_v1_records_with_default_seed(
+        self, tmp_path, monkeypatch
+    ):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-resume-v1")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        run_id = "20260503T130000Z-v1compat"
+        adapter1 = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: ok",
+                    tokens_in=10,
+                    tokens_out=5,
+                    latency_ms=5.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--run-id",
+            run_id,
+        ])
+        assert rc == 0
+
+        runs_jsonl = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "runs"
+            / run_id
+            / "runs.jsonl"
+        )
+        legacy_lines = []
+        for line in runs_jsonl.read_text(encoding="utf-8").splitlines():
+            payload = json.loads(line)
+            payload["schemaVersion"] = 1
+            payload.pop("seed", None)
+            payload.pop("system_fingerprint", None)
+            legacy_lines.append(json.dumps(payload))
+        runs_jsonl.write_text("\n".join(legacy_lines) + "\n", encoding="utf-8")
+
+        adapter2 = _StubAdapter([])
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
         rc2 = cli_main([
             "--agent",
             "security",
@@ -1170,7 +1278,7 @@ class TestRunnerLiveLoop:
             for _ in range(6)
         ]
         adapter = _StubAdapter(all_errors)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1698,8 +1806,25 @@ class TestReportWriter:
             "recommendation",
         ):
             assert key in payload, f"missing field: {key}"
-        assert payload["schemaVersion"] == 1
+        assert payload["schemaVersion"] == REPORT_SCHEMA_VERSION
         assert payload["recommendation"] is None  # T4-7 fills in
+        assert payload["system_fingerprints"] == []
+
+    def test_report_json_includes_system_fingerprints(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="r-fp",
+            model_id="gpt-4o",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+            system_fingerprints=["fp-a"],
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["system_fingerprints"] == ["fp-a"]
+        assert "fp-a" in md_path.read_text(encoding="utf-8")
 
     def test_report_md_contains_required_sections(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
@@ -1761,7 +1886,7 @@ class TestRunnerEndToEndReport:
                 for _ in range(6)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1780,8 +1905,90 @@ class TestRunnerEndToEndReport:
         assert report_json.exists()
         assert report_md.exists()
         payload = json.loads(report_json.read_text(encoding="utf-8"))
-        assert payload["schemaVersion"] == 1
+        assert payload["schemaVersion"] == REPORT_SCHEMA_VERSION
         assert payload["recommendation"] is None
+
+    def test_e2e_writes_system_fingerprint_to_report(self, tmp_path, monkeypatch):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                    system_fingerprint="fp-3475",
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+        ])
+        assert rc == 0
+
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        report_json = next(reports_root.iterdir()) / "report.json"
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["system_fingerprints"] == ["fp-3475"]
+
+    def test_e2e_persists_seed_to_records_and_report(self, tmp_path, monkeypatch):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--seed",
+            "3475",
+        ])
+        assert rc == 0
+
+        runs_root = tmp_path / "evals" / "security-spike" / "runs"
+        run_jsonl = next(runs_root.iterdir()) / "runs.jsonl"
+        first_record = json.loads(run_jsonl.read_text(encoding="utf-8").splitlines()[0])
+        assert first_record["seed"] == 3475
+
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        report_json = next(reports_root.iterdir()) / "report.json"
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["seed"] == 3475
 
     def test_e2e_include_skill_writes_form_factor_report(
         self, tmp_path, monkeypatch
@@ -1809,7 +2016,7 @@ class TestRunnerEndToEndReport:
                 for _ in range(9)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -1901,7 +2108,7 @@ class TestRunnerFreshRunMode:
         first.write_record(_make_record())
 
         adapter = _StubAdapter([])  # any call IndexErrors → proves no calls
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent",
             "security",
@@ -2207,7 +2414,7 @@ class TestResumeSkipLogging:
                 for _ in range(6)
             ]
         )
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T160000Z-skiplog0"
         rc = cli_main([
             "--agent",
@@ -2224,7 +2431,7 @@ class TestResumeSkipLogging:
 
         # Phase 2: resume; every triple is already complete → 6 skips.
         adapter2 = _StubAdapter([])
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
         rc2 = cli_main([
             "--agent",
             "security",
@@ -2584,7 +2791,7 @@ class TestPerFixtureHaltThreshold:
             for _ in range(29)
         ]
         adapter = _StubAdapter(results)
-        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
         rc = cli_main([
             "--agent", "security",
             "--fixtures", str(fixtures_dir),

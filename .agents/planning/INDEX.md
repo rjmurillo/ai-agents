@@ -1,200 +1,54 @@
-# Planning Directory Index
+# Planning Artifacts
 
-**Last Updated**: 2026-01-23
-**Total Planning Docs**: Active tracking
-**Current Milestone**: v0.3.0 (Memory Enhancement + Quality)
+This directory holds planning documents for work that is currently in flight:
+specs, PRDs, task breakdowns, and implementation plans.
 
----
+**Status**: empty apart from this index. No planning work is open right now.
 
-## Purpose
+## When to add a file here
 
-This directory contains:
-- **Implementation Plans**: Detailed task breakdowns for features
-- **PRDs**: Product requirements documents (subset, see `.agents/specs/` for full catalog)
-- **Task Lists**: Milestone-based work tracking
-- **Phase Documentation**: Multi-phase project plans
+`.github/PULL_REQUEST_TEMPLATE.md` asks feature authors to create a spec here
+before submitting if none exists. `.github/workflows/ai-spec-validation.yml`
+accepts spec paths under either `.agents/specs/` or `.agents/planning/`.
 
----
+Prefer `/spec` to generate the document rather than writing one by hand.
 
-## Active Plans
+## Gates that run against this directory
 
-**Currently being implemented or actively referenced:**
+| Gate | Trigger | What it checks |
+|------|---------|----------------|
+| `build/scripts/validate_planning_artifacts.py` | `validate-planning-artifacts.yml` on PR, and the `planning-artifacts` lefthook pre-commit hook | Effort estimates in an epic or PRD against the task breakdown total, orphan specialist conditions, document structure |
+| `scripts/validation/git_hook_policy.py planning` | `planning-advisory` lefthook hook | Advisory guidance on planning changes |
+| `.github/workflows/artifact-insight-scanner.yml` | Weekly, Monday | Scans documents modified in the last 7 days for insights |
 
-| Document | Type | Status | Related Issue/PR |
-|----------|------|--------|------------------|
-| **[v0.3.0/PLAN.md](./v0.3.0/PLAN.md)** | **Milestone Plan** | **🟢 ACTIVE** | **v0.3.0 (23 issues)** |
-| [phase2b-memory-sync-strategy.md](./phase2b-memory-sync-strategy.md) | Strategy | Active | #747 |
-| [prd-workflow-orchestration-enhancement.md](./prd-workflow-orchestration-enhancement.md) | PRD | ⚠️ Deferred | Epic #739 (Future) |
-| [prd-agent-consolidation.md](./prd-agent-consolidation.md) | PRD | Planning | Epic #907, #972 |
-| [prd-visual-studio-install-support.md](./prd-visual-studio-install-support.md) | PRD | Planning | TBD |
-| [prd-pre-pr-security-gate.md](./prd-pre-pr-security-gate.md) | PRD | Planning | TBD |
+The directory is not empty after the move: `INDEX.md` remains, so the validator
+parses it and passes. Had the directory been emptied entirely, the validator
+returns 0 on a zero-document set rather than erroring, so neither state fails a
+gate.
 
-### v0.3.0 Milestone (Current Focus)
+## Retiring a document
 
-**Master Plan**: [v0.3.0/PLAN.md](./v0.3.0/PLAN.md)
+When the work a document describes has shipped, move the document to
+`.agents/archive/planning/` with `git mv` so history follows it. Record the
+verdict and the evidence behind it in the archive index. Do not delete planning
+documents.
 
-| Focus Area | Issues | Key Deliverables |
-|------------|--------|------------------|
-| Memory Enhancement | #997, #998, #999, #1001 | Citations, graph traversal, health reporting |
-| Memory Optimization | #751, #734, #747, #731 | Unified interface, 13x performance |
-| Traceability | #724, #721, #722, #723 | Graph implementation, spec tooling |
-| Quality & Testing | #749, #778, #840 | Testing philosophy, coverage |
-| Skill Quality | #761, #809 | v2.0 compliance, session-end skill |
-| CI/CD | #77, #90, #71, #101 | Permissions, documentation |
+Verify before retiring. A closed tracking issue alone is not proof. Confirm both
+that the referenced work is closed and that the deliverable the document names is
+present on disk.
 
-**Parallel Chains**: 6 independent worktrees for concurrent execution. See plan for details.
+Nothing automates this step today, which is why the directory accumulated six
+months of finished work. The closest tracked work is #3426, which covers the same
+mechanism gap for the sibling `.agents/plans/` directory. A scope note on that
+issue asks whether the fix should cover this directory too.
 
----
+## Archive
 
-## Reference Plans
+Retired planning documents live in [`.agents/archive/planning/`](../archive/planning/README.md).
+110 files were moved there on 2026-07-27 under #3431, covering milestones v0.2.0
+through v0.3.1, PR remediation plans, agent consolidation, knowledge integration,
+and agent-slimming eval output. The archive index records the verification method
+and the verdict for each cluster.
 
-**Completed or historical plans useful for context:**
-
-| Document | Type | Archived | Notes |
-|----------|------|----------|-------|
-| [phase1-completion-summary.md](../archive/phase1-completion-summary.md) | Summary | ✅ | Moved to archive |
-| [phase2-complete-handoff.md](../archive/phase2-complete-handoff.md) | Handoff | ✅ | Moved to archive |
-| [phase3-complete-handoff.md](../archive/phase3-complete-handoff.md) | Handoff | ✅ | Moved to archive |
-| [phase4-complete-handoff.md](../archive/phase4-complete-handoff.md) | Handoff | ✅ | Moved to archive |
-| [pr-60-*.md](../archive/) | PR Plans | ✅ | 7 files, PR #60 merged |
-| [pr43-remediation-plan.md](../archive/pr43-remediation-plan.md) | PR Plan | ✅ | PR #43 merged |
-| [pr830-remediation-plan.md](../archive/pr830-remediation-plan.md) | PR Plan | ✅ | PR #830 merged |
-| [plan-pr760-fixes.md](../archive/plan-pr760-fixes.md) | PR Plan | ✅ | PR #760 merged |
-| [265-*.md](../archive/) | Epic Plans | ✅ | 4 files, Epic #265 complete (v0.2.0) |
-
----
-
-## Plans by Category
-
-### Phase Documentation
-
-Multi-phase project plans and handoffs:
-
-- `phase1-handoff-remediation-pr43.md` - Phase 1 remediation work
-- `phase2-handoff.md` - Phase 2 planning
-- `phase2b-memory-sync-strategy.md` - Memory synchronization strategy (active)
-
-### Product Requirements (PRDs)
-
-High-level feature descriptions (also tracked in `.agents/specs/`):
-
-- `prd-workflow-orchestration-enhancement.md` - Workflow improvements
-- `prd-agent-consolidation.md` - Agent system consolidation
-- `prd-visual-studio-install-support.md` - VS integration
-- `prd-pre-pr-security-gate.md` - Security gate design
-
-### Implementation Plans
-
-Task-level breakdowns for specific features:
-
-- `pr-automation-implementation-plan.md` - PR automation workflow
-- `pr-maintenance-matrix-processing-plan.md` - Maintenance matrix
-
-### Prompt Documentation
-
-Agent and workflow prompts:
-
-- `prompts-acknowledged-vs-resolved.md` - Comment handling patterns
-
----
-
-## Naming Conventions
-
-### Implementation Plans
-- **Format**: `PLAN-{feature-name}.md` or `{feature}-implementation-plan.md`
-- **Purpose**: Task breakdown with acceptance criteria
-- **Contains**: Tasks, dependencies, milestones, exit criteria
-
-### Product Requirements
-- **Format**: `prd-{feature-name}.md` or `PRD-{feature-name}.md`
-- **Purpose**: Feature specification with user stories
-- **Contains**: Problem statement, goals, success metrics, design
-- **Note**: Master PRD catalog is in `.agents/specs/STATUS.md`
-
-### Phase Documentation
-- **Format**: `phase{N}-{descriptor}.md`
-- **Purpose**: Multi-phase project coordination
-- **Contains**: Objectives, deliverables, handoff notes
-
-### PR-Specific Plans
-- **Format**: `pr{number}-{descriptor}.md` or `plan-pr{number}-{descriptor}.md`
-- **Purpose**: Remediation or enhancement plans for specific PRs
-- **Lifecycle**: Archive when PR merges
-
----
-
-## Lifecycle Management
-
-### Active Plans
-- Actively being implemented
-- Referenced in current session work
-- Linked to open GitHub issues/PRs
-
-### Reference Plans
-- Completed implementation
-- Historical context
-- Useful patterns for future work
-
-### Archived Plans
-- PR merged or issue closed
-- Phase completed
-- Epic delivered
-- **Location**: `.agents/archive/`
-
----
-
-## Archive Criteria
-
-Move plans to `.agents/archive/` when:
-
-1. **PR Plans**: Associated PR merged
-2. **Phase Plans**: Phase completed and handed off
-3. **Epic Plans**: All epic work delivered (e.g., Epic #265)
-4. **Superseded Plans**: Replaced by newer planning docs
-
-**Do NOT archive**:
-- Active PRDs (keep until implemented)
-- Reference patterns (useful for future work)
-- Ongoing phase documentation
-
----
-
-## Creating New Plans
-
-1. **Choose type**: Implementation plan vs PRD vs phase doc
-2. **Follow naming**: Use conventions above
-3. **Add frontmatter**: Status, author, dates, related issue
-4. **Update INDEX.md**: Add entry to "Active Plans"
-5. **Link to GitHub**: Create or link tracking issue
-6. **Update regularly**: Keep plan status current
-
----
-
-## Finding Plans
-
-### By Feature
-Check `.agents/specs/STATUS.md` for all PRDs and their implementation status.
-
-### By PR Number
-Use `git log --all --grep="PR #123"` to find related plans.
-
-### By Issue
-Search: `grep -r "#123" .agents/planning/`
-
-### By Status
-- **Active**: Listed in "Active Plans" section above
-- **Reference**: Listed in "Reference Plans" section
-- **Archived**: See `.agents/archive/`
-
----
-
-## Related Documentation
-
-- [`.agents/specs/`](../specs/) - Specifications and PRDs (master catalog)
-- [`.agents/architecture/`](../architecture/) - ADRs (architectural decisions)
-- [`.agents/archive/`](../archive/) - Historical documentation
-- [`.agents/SESSION-PROTOCOL.md`](../SESSION-PROTOCOL.md) - Session management
-
----
-
-**Questions?** Create a GitHub issue or see [AGENTS.md](../../AGENTS.md).
+Earlier retired material sits at the root of [`.agents/archive/`](../archive/),
+and retired execution plans sit in [`.agents/archive/plans/`](../archive/plans/README.md).

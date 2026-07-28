@@ -243,6 +243,40 @@ def _index(
     return {_key(record, fields): record for record in records}
 
 
+def _survives(
+    key: tuple[str, ...],
+    base_index: dict[tuple[str, ...], dict[str, Any]],
+    ours_index: dict[tuple[str, ...], dict[str, Any]],
+    theirs_index: dict[tuple[str, ...], dict[str, Any]],
+) -> bool:
+    """Decide whether a record one side dropped was deleted or never held.
+
+    A union keeps everything either side ever had, so a deliberate removal comes
+    back the moment a branch that predates it merges. Every branch open across a
+    purge then pays the same manual strip (issue #3375).
+
+    Tombstones are the usual answer to that, and they are not needed here. Git
+    hands a merge driver the common ancestor, and presence in it is the whole
+    discriminator: a record in the ancestor that one side no longer carries was
+    removed by that side. A record absent from the ancestor was added by
+    whichever side has it. Nothing has to be written into the artifact.
+
+    Delete beats modify. In this file a removal is always deliberate: a purge
+    of something that should not be committed, while a modification is usually
+    the generator bumping a counter. Keeping the record to preserve a counter
+    would undo the purge, which is the bug. The generator also removes
+    rows: _retract_stale drops nodes whose labels are no longer earned, and
+    _drop_orphaned_edges sweeps edges whose endpoints are gone. Delete beats
+    modify still holds for those removals because both are statements about the
+    tree as it stands and both are recomputed every run; the side that retracted
+    is the side that looked more recently, and a row still earned after the
+    merge comes back on the next generator run.
+    """
+    if key not in base_index:
+        return True
+    return key in ours_index and key in theirs_index
+
+
 def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonValue:
     """Apply both sides' deltas to the ancestor.
 
@@ -409,6 +443,7 @@ def _merge_collection(
     return [
         _merge_record(base_index.get(key), ours_index.get(key), theirs_index.get(key))
         for key in ordered
+        if _survives(key, base_index, ours_index, theirs_index)
     ]
 
 

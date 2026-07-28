@@ -155,7 +155,7 @@ After creating artifact with expected triggers:
 ## Related Documents
 
 - Analysis: `.agents/analysis/pr41-issue-analysis.md`
-- PRD: `.agents/planning/prd-pre-pr-security-gate.md`
+- PRD: `.agents/archive/planning/prd-pre-pr-security-gate.md`
 - Retrospective: `.agents/retrospective/2025-12-15-pr41-ci-fix-workflow-analysis.md`
 - Retrospective: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
 - Retrospective: `.agents/retrospective/phase1-remediation-pr43.md`

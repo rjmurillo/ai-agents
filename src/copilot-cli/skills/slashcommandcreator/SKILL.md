@@ -248,7 +248,7 @@ python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 ## References
 
 - `.agents/analysis/custom-slash-commands-research.md`
-- `.agents/planning/slashcommandcreator-skill-spec.md`
+- `.agents/archive/planning/slashcommandcreator-skill-spec.md`
 - `.serena/memories/slashcommand-best-practices.md`
 
 <!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites .agents/HANDOFF.md and a research doc. The analysis/planning paths are write targets created on demand; the HANDOFF and research references are documentation citations. Issue #2050. -->

@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3400,
+    "date": "2026-07-26",
+    "branch": "test/3398-3381-orphaned-hardening",
+    "startingCommit": "71dade78e3",
+    "objective": "Reland two test-hardening changes orphaned when PRs #3381 and #3398 merged mid-push"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned test/3398-3381-orphaned-hardening before any edit"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session; Python-first honored"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branched from origin/main at 71dade78e3 after git pull --ff-only"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = test/3398-3381-orphaned-hardening"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-read_memory returned usage-mandatory; serena-* tools are live in this session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called and read this session"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not needed; this session edited two test files"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena-read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-write_memory wrote decision-session-protocol-workflow-stdlib-only this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 \".serena/memories/decision-session-protocol-workflow-stdlib-only.md\" - 0 files linted (path excluded by .markdownlint-cli2.jsonc ignore glob .serena/**)"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits 5b69d082cb and af7c0a453b on test/3398-3381-orphaned-hardening"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest on both files: 139 passed. Negative control (drop --episode-path from the emitted repair command) turned exactly 1 test red"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Both changes were review-thread responses on PRs that merged before the push landed; relanded here"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Deferred to the objective-level retrospective"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Reland",
+      "actions": [
+        "PR #3381 merged and deleted its branch while a push carrying the utf-8 encoding sweep was still running the pre-push suite",
+        "PR #3398 merged with the review bot's weaker single-flag assertion while a push carrying the stronger version was in flight",
+        "Recovered both from the orphaned local commits and rebased onto main at 71dade78e3",
+        "Re-ran the negative control against the merged baseline to confirm the strengthening still bites"
+      ],
+      "outcome": "Both improvements are on a branch off main rather than lost with their deleted source branches"
+    }
+  ],
+  "endingCommit": "af7c0a453b",
+  "nextSteps": [
+    "Resolve the two remaining threads on PR #3396 and the one on PR #3397",
+    "Report the open-issue count discrepancy: the objective assumed 31, the repository had 12"
+  ]
+}

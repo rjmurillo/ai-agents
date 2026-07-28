@@ -41,6 +41,15 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
     "keep-as-audit", "halt-due-to-flakiness", "keep-and-improve",
     "public-cve", "paraphrased-from-public", "synthetic-novel",
     "description-validation-bypass",
+    # REQ-011 / DESIGN-011 agent-vs-skill classification verdict literals.
+    # Same family as `keep-as-audit` above: REQ-011 AC-6 reads "THE SYSTEM
+    # SHALL set `verdict = keep-as-agent`", and TASK-011 TAC-4 counts
+    # `context-fork-skill` verdicts. Both name an enum value, not a skill.
+    "keep-as-agent", "context-fork-skill",
+    # Spec section-template names. REQ-012 proposes adding a
+    # `co-change-checklist` section template to `.claude/commands/spec.md`;
+    # the token names a template heading, not a skill directory.
+    "co-change-checklist",
     # PowerShell / npm / pip module names that appear as backticked refs
     "powershell-yaml", "python-frontmatter",
     # Section anchors / API category labels

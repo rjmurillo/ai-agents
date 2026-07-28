@@ -29,10 +29,9 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
-from _anthropic_api import DEFAULT_MODEL
+from _anthropic_api import DEFAULT_MODEL, load_custom_prompts, verify_model_available
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key as _load_api_key
-from _anthropic_api import load_custom_prompts, verify_model_available
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,147 @@
+{
+  "id": "episode-2026-07-27-session-3607-agent-context-self-report",
+  "session": "2026-07-27-session-3607-agent-context-self-report",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Remove the self-reported context triggers from the implementer and orchestrator Context Budget Management sections, keep the durable checkpoint and degrade rules, and make the regression test enforce the new contract instead of the old defect.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the conflict against the wiki concept note Rule Weaponization, which forbids letting the model self-report context usage and names Session Escape as the end of the attack chain. Both agents carried a pressure-signal list ending in 'Any of these means you are near the limit', plus a step 3 authorizing a stop or handoff when 'the budget is nearly spent'.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the sibling wiki note Context Budget Management for AI Agents, the source the section was built from, to check for an internal wiki conflict. There is none: that note places enforcement entirely in the harness (PreCompact, session log, sandbox tools, SQLite) and never asks the model to self-assess. The agent text had diverged from its own source.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review on two model families rather than one, per the standing requirement. Both independently flagged the same three defects in the first draft: a capacity self-assessment leaking back in through 'larger than one session should carry', a false safety guarantee in 'if the harness compacts, it compacts', and a degrade clause that reintroduced the unfalsifiable escape hatch it was meant to remove.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the objective predicate already existed rather than inventing one. Sibling agents (pr-test-analyzer, code-simplifier, comment-analyzer) gate [NEEDS_DECOMPOSITION] on countable thresholds. The implementer already used 'XL complexity, touches more than 5 files' and had only appended 'or context budget is nearly spent'. Deleting that clause restored a criterion an orchestrator can check.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced both sections. Kept the checkpoint cadence, the degrade rule (now requiring named commits and validation actually run), and the PreCompact backstop. Removed every trigger keyed to self-observed context. Preserved the duplicate-delegation protection the pressure-signal list had carried, reframed as a session-log check rather than a memory-pressure symptom.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered tests/test_context_budget_management.py pinned the defect: REQUIRED_PHRASES asserted 'pressure signals' must be present in all twelve copies. Rewrote it to require the new contract and added a negative test with four forbidden phrases so the self-report framing cannot return.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation tested the new guard before trusting it. Reinserting 'Any of these means you are near the limit' into the implementer template failed exactly the new test and nothing else; restoring the file returned all 49 green.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Propagated through the generator, not by hand. Ran build/generate_agents.py for the three generated platforms, then synced the three hand-maintained parity copies from the canonical section. install-parity: OK across the six-member group for both agents.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a3e3f52c02",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Responded to PR #3612 review. Reproduced both findings before acting: the 'check point' verb form at tests/test_context_budget_management.py:49 (real, module uses 'checkpoint' one word elsewhere) and the retrospective's missing FAILURE-MODES.md sections (real convention; 11 of the 20 most recent retros carry it, including the reviewer's cited example). Classified the session as FM9 primary, FM4 secondary, and added a Remediation section. Found and fixed the same missing-sections defect the reviewer did not flag.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

@@ -14,6 +14,7 @@ metadata:
 
 # Autoplan
 
+
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
 Models and people do not hand-route across dozens of skills; this skill does.
@@ -96,6 +97,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
 | Port, implement, or change cross-harness hooks | Skill: ai-agents-portability-campaign |
+| Software design depth, architecture boundaries, domain modeling, refactoring, legacy code, low coverage, old files, external APIs, queues, retries, transactions, event ordering, schema evolution, resilience | Skill: software-engineering-library, then the routed reference |
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
@@ -185,8 +187,8 @@ A routed run is complete when every box checks:
   table, add one row (intent, route) here and mirror the change in the
   CLAUDE.md Skill routing section until that section delegates here.
 - **Tier signals.** Size-tier signals may grow project-specific entries (for
-  example, "touches templates/agents/" implies Standard or above because of
-  mirror obligations).
+  example, a change that touches the shared agent templates implies Standard or
+  above because of mirror obligations).
 - **Escape hatches.** Route fails mid-run: fall back to
   Task(subagent_type="orchestrator") with the failure context rather than
   retrying the same route blind. Two consecutive routing misses on one

@@ -57,6 +57,24 @@ REPO_PATH_REF_RE = re.compile(
 )
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
+# Prose that explicitly types a token as a skill ("the `foo` skill", "skill
+# `foo`", ``skill=`foo` ``). Such a reference asserts the token lives at
+# .claude/skills/, so it must resolve against the skill catalog alone: an
+# agent or memory of the same name does not make the claim true. REQ-009 AC-2
+# requires the finding in that case. Bare mentions carry no type claim and may
+# legally name a sibling artifact (see counts.py).
+#
+# Singular "skill" only. The plural reads as ordinary proficiency prose
+# ("improve your `bash` skills") far more often than as a catalog reference,
+# and a false positive here turns the /build gate red on a sentence that names
+# no artifact at all. Bare-token resolution still covers plural list prose
+# ("the `a`, `b`, and `c` skills") because each token is checked on its own.
+SKILL_TYPED_REF_RE = re.compile(
+    r"`(?P<after>[a-z][a-z0-9-]*)`\s+(?:is\s+(?:a|an|the)\s+)?skill\b"
+    r"|\bskill\s+`(?P<before>[a-z][a-z0-9-]*)`"
+    r"|\bskill\s*[=:]\s*[\"'`](?P<kv>[a-z][a-z0-9-]*)",
+    re.IGNORECASE,
+)
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
 EXAMPLE_PLACEHOLDER_RE = re.compile(
     r"(^\s*(?:[-*]\s*)?(?:example:|e\.g\.|for example\b))"
@@ -140,3 +158,23 @@ def extract_repo_path_refs(text: str) -> Iterable[tuple[int, str]]:
                 continue
             seen.add(path)
             yield lineno, path
+
+
+def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:
+    """Return ``(lineno, token)`` pairs the prose explicitly calls a skill.
+
+    Used to decide resolution strictness, never to decide whether a token is
+    a reference at all. A typed reference resolves against the skill catalog
+    only; an untyped one may also resolve to a sibling artifact.
+    """
+    typed: set[tuple[int, str]] = set()
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line):
+            continue
+        for match in SKILL_TYPED_REF_RE.finditer(line):
+            name = next(
+                (g for g in match.groupdict().values() if g), None
+            )
+            if name:
+                typed.add((lineno, name))
+    return typed

@@ -54,7 +54,7 @@ None. All affected files are self-contained within this repository. No external 
 ## Deferred
 
 These items are scoped to follow-up PRs and tracked in the parent plan
-`.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`:
+`.agents/archive/plans/PLAN-skill-catalog-triage-action-slate.md`:
 
 - **ADR-040 amendment**: Tier 2 Sonnet enumeration in `.agents/architecture/ADR-040-skill-frontmatter-standardization.md:119` references `doc-sync`. Updated in this PR as a factual count correction; if the enumeration drifts again, route through full adr-review. <!-- orphan-ref-ignore -->
 - **Eval baseline cleanup**: `tests/evals/skills/triage-prompts.json` blocks for deleted skills converted to negative-routing fixtures; full baseline regeneration is deferred to Wave 2 when the parent eval harness runs.

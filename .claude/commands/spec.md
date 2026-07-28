@@ -2,6 +2,7 @@
 description: Define what to build. Transform a problem into testable requirements with acceptance criteria.
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: problem-statement-or-issue-number
+size-exception: true
 ---
 
 @CLAUDE.md
@@ -404,7 +405,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    Before the adversarial requirements interview at Step 2, elicit the problem's domain ontology so that every later artifact names the same concepts. Requirements written without an agreed ubiquitous language drift: two requirements call the same entity by two names, an acceptance criterion references a concept no design component owns, and the implementer reconstructs the model from scratch. Eliciting the ontology once, here, fixes the vocabulary the requirements interview, the spec-generator, and the completeness check all reuse. This sub-step does NOT add a new top-level step number: Step 0 First Principles already owns the front of the pipeline, and renumbering downstream steps (which reference each other by number) is forbidden. It is a sub-step of Step 1 (Clarify), and it runs once per `/spec` invocation.
 
-   Elicit answers to the seven ontology prompts, in order. Each is grounded in `.claude/rules/domain-driven-design.md` (the project's DDD rule):
+   Elicit answers to the seven ontology prompts, in order. Each is grounded in the domain-driven-design reference in `software-engineering-library`:
 
    | Prompt | Ontology question |
    |---|---|
@@ -539,12 +540,12 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - [ ] .github/actions/pr-quality-gate/action.yml:"validity" -- add to valid input list
    - [ ] .github/workflows/pr-quality-gate.yml:"blockingVerdicts" -- decide whether to block
    - [ ] .github/workflows/pr-quality-gate.yml:"exit_code" -- map to exit code per ADR-035
-   - [ ] .claude/review-axes/analyst.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/architect.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/qa.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/security.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/devops.md -- document new verdict in axis prose
-   - [ ] .claude/review-axes/roadmap.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/analyst.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/architect.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/qa.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/security.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/devops.md -- document new verdict in axis prose
+   - [ ] .claude/skills/review/references/roadmap.md -- document new verdict in axis prose
    - [ ] .github/prompts/pr-quality-gate-analyst.md -- mirror axis prose
    - [ ] .github/prompts/pr-quality-gate-architect.md -- mirror axis prose
    - [ ] .github/prompts/pr-quality-gate-qa.md -- mirror axis prose

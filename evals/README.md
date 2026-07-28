@@ -22,6 +22,7 @@ ADR-057's prompt-change scenarios answer a different question than the agent-vs-
 |---|---|---|
 | `tests/evals/*-scenarios.json` | Prompt-change before/after (ADR-057) | `scripts/eval/eval-prompt-change.py` |
 | `evals/security-spike/fixtures/` | Held-out agent-vs-baseline corpus | `scripts/eval/eval-agent-vs-baseline.py` |
+| `evals/agent-slimming-spike/reports/` | Legacy agent-slimming experiment outputs from 2026-04 | `scripts/eval/eval-agents.py`, `scripts/eval/eval-knowledge-integration.py` |
 
 A fixture in `evals/security-spike/fixtures/` MUST NOT duplicate a scenario in `tests/evals/security-scenarios.json` verbatim. Where prior public material is reused, it is paraphrased substantially and tagged `provenance: paraphrased-from-public` (REQ-004 AC-4).
 
@@ -39,7 +40,7 @@ evals/
 
 ## Cross-references
 
-- Plan: `.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md`
+- Plan: `.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md`
 - Spec: `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`
 - Design: `.agents/specs/design/DESIGN-004-agent-eval-harness-spike.md`
 - Task: `.agents/specs/tasks/TASK-004-agent-eval-harness-spike.md`

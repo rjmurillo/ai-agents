@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-26-session-2615",
+  "session": "2026-07-26-session-2615",
+  "timestamp": "2026-07-26T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close #3402: state the worktree-identity, resolver-anchoring, and skill-contract-test requirements as rules, after measuring which acceptance criteria already ship.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure the acceptance criteria against the tree",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure the worktree-identity hazard before writing the rule",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Decide against a runtime containment guard in get_repo_root",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ship the rules and regenerate the mirrors",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative control on mirror drift",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "test",
+      "content": "Corrupting .github/instructions/ci-scripts.instructions.md leaves tests/build_scripts/test_generate_rules.py green at 43 passed. build_all.py --check catches it with exit 2 and STALENESS DETECTED, and that is what lefthook and two workflows run. The generator's own tests are not the drift gate.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0fd7210a81",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair causal-graph node IDs after merge from main",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Remove em-dash from causal-graph node label",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

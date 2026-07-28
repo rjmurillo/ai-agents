@@ -3,6 +3,8 @@ name: session-end
 description: Validate and complete session logs before commit. Auto-populates session
   end evidence (commit SHA, lint results, memory updates) and runs validation. Use
   when finishing a session, before committing, or when session validation fails.
+  Do NOT use to create a new session log (use session-init) or to repair a session
+  protocol failure reported by CI (use session-log-fixer).
 version: 1.0.0
 license: MIT
 metadata:

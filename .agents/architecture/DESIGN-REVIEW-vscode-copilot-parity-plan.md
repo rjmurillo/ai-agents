@@ -10,7 +10,7 @@ date: "2026-01-14"
 
 **Reviewer**: Architect
 **Date**: 2026-01-14
-**Artifact**: `.agents/planning/claude-compat/vscode-copilot-parity-plan.md`
+**Artifact**: `.agents/archive/planning/claude-compat/vscode-copilot-parity-plan.md`
 **Status**: [WARNING] - Conditional approval with required actions
 
 ---

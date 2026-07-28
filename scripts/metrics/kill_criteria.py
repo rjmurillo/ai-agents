@@ -26,8 +26,7 @@ Event shape (one JSON object per line, append-only)::
     {"schemaVersion": 1, "ts": "<ISO-8601 UTC>", "kind": "K1",
      "detail": "<free text the emission point controls>"}
 
-``schemaVersion`` is included so a future shape change is diagnosable
-(see ``.claude/rules/data-intensive-applications.md`` schema evolution).
+``schemaVersion`` is included so a future shape change is diagnosable.
 ``ts`` is wall-clock UTC, used only for the 30-day rollover window, not
 for causal ordering.
 

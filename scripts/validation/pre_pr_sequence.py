@@ -23,8 +23,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from active_plan_closeout import validate_active_plan_closeout
 from checks_coverage import (  # noqa: E402
-    validate_command_bundle_coverage,
     validate_review_marker,
 )
 from checks_dash import validate_dash_prohibition  # noqa: E402
@@ -47,12 +47,14 @@ from checks_spec import (  # noqa: E402
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
+    validate_traceability,
     validate_vendor_portability,
 )
 from checks_tooling import (  # noqa: E402
     validate_agent_drift,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
+    validate_instruction_budget,
     validate_markdown_lint,
     validate_path_normalization,
     validate_pester_tests,
@@ -208,6 +210,12 @@ def run_all_validations(
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    run_validation(
+        "Traceability",
+        state,
+        lambda: validate_traceability(repo_root),
+    )
+
     # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
     run_validation(
         "Vendor Portability",
@@ -287,6 +295,15 @@ def run_all_validations(
         "Model Pin Governance (warn)",
         state,
         lambda: validate_model_pins(repo_root),
+    )
+
+    # 3.89 Active Plan Closeout (Issue #3426). Advisory warning when every
+    # tracking issue on an active execution plan is closed, so stale plans do
+    # not silently refill .agents/plans/active/.
+    run_validation(
+        "Active Plan Closeout Advisory",
+        state,
+        lambda: validate_active_plan_closeout(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)
@@ -378,17 +395,19 @@ def run_all_validations(
         lambda: validate_workflow_local_run(repo_root),
     )
 
-    # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
-    run_validation(
-        "Command-Skill Bundle Coverage",
-        state,
-        lambda: validate_command_bundle_coverage(repo_root),
-    )
-
-    # 7b. Review Marker (advisory by default; /ship blocks, Issue #1938).
+    # 7. Review Marker (advisory by default; /ship blocks, Issue #1938).
     # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
     run_validation(
         "Review Marker (SHA-bound /review)",
         state,
         lambda: validate_review_marker(repo_root),
+    )
+
+    # 7c. Instruction Budget (always-on, Issue #3419). Non-regression ratchet on
+    # the summed bytes of language-universal .github/instructions/*.instructions.md files, so
+    # the always-on corpus cannot grow silently on a new all-language rule.
+    run_validation(
+        "Instruction Budget (always-on)",
+        state,
+        lambda: validate_instruction_budget(repo_root),
     )

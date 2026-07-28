@@ -80,8 +80,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 
 # Truthy values for the bypass env. Matches the repo convention for boolean
-# env flags (see BUNDLE_CHECK_ENFORCED in scripts/validation/pre_pr.py, which
-# accepts "1" and "true").
+# env flags (see REVIEW_MARKER_ENFORCED in scripts/validation/checks_coverage.py,
+# which accepts "1" and "true").
 _TRUTHY = {"1", "true"}
 
 # Env markers that identify managed remote containers where the developer may

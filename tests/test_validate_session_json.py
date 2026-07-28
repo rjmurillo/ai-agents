@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest import mock
@@ -1295,15 +1296,21 @@ class TestHistoricalLogsAreExemptByConstruction:
     @staticmethod
     def _invoked_paths(paths: list[str]) -> list[str]:
         """Return the session paths validate_branch_sessions actually shelled out for."""
-        from scripts.validation import git_hook_policy
+        from scripts.validation import git_hook_policy, session_scope
 
         seen: list[str] = []
 
         def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
-            seen.append(command[-1])
+            seen.append(command[1 + command.index("scripts/validate_session_json.py")])
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        with mock.patch.object(git_hook_policy, "_run_command", _record):
+        def _no_base(_args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess([], 1, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", _no_base),
+        ):
             git_hook_policy.validate_branch_sessions(paths, Path.cwd())
         return seen
 
@@ -1694,26 +1701,6 @@ class TestValidateFilenameNumber:
         assert count_must_failures(result) == 0
 
 
-# One historical log violates the invariant and cannot be corrected.
-#
-# 2026-02-11-session-1-... carries number 1198, and its neighbours (1197
-# before it, 1199 after) confirm 1198 is the true number: the filename lost
-# its digits. Fixing it means either renaming the file or editing the number,
-# and both make it a changed file. The session-protocol workflow validates
-# every changed log against today's required-items set, which this log
-# predates: it is missing sessionEnd.validationPassed and
-# sessionEnd.markdownLintRun. Sampling 30 pre-2026-03 logs, 22 fail the
-# current validator the same way, so this is the schema having moved, not
-# this log being unusually bad.
-#
-# Touching it therefore turns a green PR red for a schema gap the log did not
-# introduce and this change cannot close. The invariant is recorded here
-# instead, and the retro at
-# .agents/retrospective/2026-07-26-pr-3354-session-log-churn.md names the
-# same file. Tracked in issue #3385.
-_UNFIXABLE_LEGACY_LOGS = {"2026-02-11-session-1-pr-review-1146-security-fixes.json"}
-
-
 class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
     """The guard is only trustworthy if the corpus it governs already passes."""
 
@@ -1722,8 +1709,6 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
         violations = []
         checked = 0
         for path in sorted(sessions.glob("*.json")):
-            if path.name in _UNFIXABLE_LEGACY_LOGS:
-                continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -1740,24 +1725,6 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
 
         assert violations == [], "\n".join(violations)
         assert checked > 900, f"expected the whole corpus, only reached {checked}"
-
-    def test_the_exemption_list_stays_honest(self) -> None:
-        """An exemption that no longer violates anything must be deleted.
-
-        Without this, the list becomes a place to hide new violations: a
-        future correction to the log would leave a stale entry that silently
-        exempts the filename from the guard forever.
-        """
-        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
-        for name in _UNFIXABLE_LEGACY_LOGS:
-            path = sessions / name
-            assert path.is_file(), f"exemption names a log that does not exist: {name}"
-            result = ValidationResult()
-            validate_filename_number(path, json.loads(path.read_text(encoding="utf-8")), result)
-            assert result.errors, (
-                f"{name} no longer violates the invariant; remove it from "
-                "_UNFIXABLE_LEGACY_LOGS so the guard covers it again"
-            )
 
 
 class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
@@ -1812,3 +1779,458 @@ class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
         guard = TestEveryCommittedLogSatisfiesTheFilenameInvariant
         body = inspect.getsource(guard.test_no_committed_session_log_violates_it)
         assert "cannot be read as JSON" in body
+
+
+class TestAnExistingLogIsValidatedAsARecord:
+    """Issue #3385: an edit cannot make a finished session compliant.
+
+    Two questions live in this validator. "Is this record well formed" is the
+    log's own property and always binds. "Did the session run markdownlint" is
+    a property of a session that already ended; demanding it on an edit is a
+    demand to invent evidence, and it is what made a historical log
+    uncorrectable.
+    """
+
+    @staticmethod
+    def _log() -> dict:
+        """A log whose shape is fine and whose checklist is honestly incomplete."""
+        return {
+            "session": {
+                "number": 1,
+                "date": "2026-02-11",
+                "branch": "fix/x",
+                "startingCommit": "abc1234",
+            },
+            "protocolCompliance": {
+                "sessionStart": {
+                    name: {"complete": False, "level": "MUST", "evidence": "not run"}
+                    for name in SESSION_START_REQUIRED_ITEMS
+                },
+                "sessionEnd": {
+                    name: {"complete": False, "level": "MUST", "evidence": "not run"}
+                    for name in SESSION_END_REQUIRED_ITEMS
+                },
+            },
+        }
+
+    def test_a_new_log_still_fails_its_incomplete_musts(self) -> None:
+        """The looser mode must be opt-in, or it is a bypass rather than a fix."""
+        errors = validate_session_log(self._log()).errors
+        assert [e for e in errors if "Incomplete MUST" in e]
+
+    def test_an_existing_log_does_not_fail_them(self) -> None:
+        errors = validate_session_log(self._log(), existing_log=True).errors
+        assert [e for e in errors if "Incomplete MUST" in e] == []
+
+    def test_an_existing_log_is_still_held_to_its_shape(self) -> None:
+        """Record-only is not no-op. A malformed log is malformed either way."""
+        log = self._log()
+        log["session"]["number"] = "not a number"
+        assert validate_session_log(log, existing_log=True).errors
+
+    def test_the_blocked_historical_log_now_passes_as_a_record(self) -> None:
+        """The concrete case from #3385, by path.
+
+        2026-02-11-session-1198 was renamed in this change. Before it, the
+        rename turned a green PR red on sessionEnd.validationPassed and
+        sessionEnd.markdownLintRun, neither of which a rename can supply.
+        """
+        path = (
+            Path(__file__).resolve().parents[1]
+            / ".agents/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json"
+        )
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert validate_session_log(data).errors, "the log really was non-compliant"
+        assert validate_session_log(data, existing_log=True).errors == []
+
+
+class TestAMalformedChecklistItemIsReportedNotFatal:
+    """Six committed logs store a bare boolean where the object belongs.
+
+    Reading .items() off a bool raised AttributeError, which main() turned into
+    exit 2. Exit 2 means the validator broke, so the operator went looking at
+    the wrong file.
+    """
+
+    @staticmethod
+    def _log(item: object) -> dict:
+        start: dict[str, object] = {
+            name: {"complete": True, "level": "MUST", "evidence": "done"}
+            for name in SESSION_START_REQUIRED_ITEMS
+        }
+        start["branchVerified"] = item
+        return {"protocolCompliance": {"sessionStart": start}}
+
+    def test_a_boolean_item_is_an_error_not_an_exception(self) -> None:
+        errors = validate_session_log(self._log(True)).errors
+        assert any("Malformed item" in e and "branchVerified" in e for e in errors)
+
+    def test_the_message_names_the_type_found(self) -> None:
+        errors = validate_session_log(self._log(["a"])).errors
+        assert any("list" in e for e in errors if "Malformed item" in e)
+
+    def test_a_well_formed_item_is_not_reported(self) -> None:
+        """Vacuity control: a rule that flags everything proves nothing."""
+        errors = validate_session_log(
+            self._log({"complete": True, "level": "MUST", "evidence": "done"})
+        ).errors
+        assert not [e for e in errors if "Malformed item" in e]
+
+    def test_every_committed_log_can_be_validated_without_crashing(self) -> None:
+        """The corpus is the reason this guard exists."""
+        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        checked = 0
+        for path in sorted(sessions.glob("*.json")):
+            validate_session_log(json.loads(path.read_text(encoding="utf-8")))
+            checked += 1
+        assert checked > 900, f"expected the whole corpus, only reached {checked}"
+
+
+class TestSessionScopeIsDecidedOnceForBothCallSites:
+    """ADR-006: one owner for the rule, so hook and workflow cannot disagree."""
+
+    @staticmethod
+    def _stub(
+        base: str = "deadbee",
+        added: tuple[str, ...] = (),
+        tracked: tuple[str, ...] = (),
+    ) -> tuple[Callable[..., subprocess.CompletedProcess[str]], list[list[str]]]:
+        seen: list[list[str]] = []
+
+        def _git(args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(args)
+            if args[0] == "merge-base":
+                code = 0 if base else 1
+                return subprocess.CompletedProcess([], code, f"{base}\n" if base else "", "")
+            if args[0] == "diff":
+                body = "".join(f"A\t{name}\n" for name in added)
+                return subprocess.CompletedProcess([], 0, body, "")
+            return subprocess.CompletedProcess([], 0, "\0".join(tracked), "")
+
+        return _git, seen
+
+    def test_the_workflow_derives_the_scope_from_git_in_one_call(self) -> None:
+        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
+        assert "--scope-from-git" in workflow.read_text(encoding="utf-8")
+
+    def test_the_workflow_does_not_shell_out_to_uv(self) -> None:
+        """The validate job installs no dependencies; uv is not on PATH there."""
+        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
+        assert "uv run" not in workflow.read_text(encoding="utf-8")
+
+    def test_the_shared_module_imports_no_third_party_package(self) -> None:
+        """It runs under the workflow's bare python3, which has no PyYAML."""
+        source = (
+            Path(__file__).resolve().parents[1] / "scripts/validation/session_scope.py"
+        ).read_text(encoding="utf-8")
+        imports = [
+            line.strip()
+            for line in source.splitlines()
+            if line.startswith(("import ", "from ")) and "__future__" not in line
+        ]
+        assert imports == [
+            "import subprocess",
+            "from collections.abc import Iterable",
+            "from pathlib import Path",
+        ]
+
+    def test_an_unresolvable_merge_base_validates_strictly(self) -> None:
+        """Fail toward the stricter mode.
+
+        A shallow CI checkout with no origin/main would otherwise downgrade
+        every log to record-only, turning a fetch failure into a silent bypass.
+        """
+        from scripts.validation import session_scope
+
+        stub, _ = self._stub(base="")
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
+
+    def test_a_git_failure_validates_strictly(self) -> None:
+        from scripts.validation import session_scope
+
+        def _boom(_args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            raise OSError("git missing")
+
+        with mock.patch.object(session_scope, "_git", _boom):
+            assert session_scope.session_merge_base(Path.cwd()) == ""
+            assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
+
+    def test_a_failed_diff_validates_strictly(self) -> None:
+        from scripts.validation import session_scope
+
+        def _fail(args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            if args[0] == "merge-base":
+                return subprocess.CompletedProcess([], 0, "deadbee\n", "")
+            return subprocess.CompletedProcess([], 128, "", "fatal")
+
+        with mock.patch.object(session_scope, "_git", _fail):
+            assert session_scope.new_session_logs(["a.json"], Path.cwd()) == {"a.json"}
+
+    def test_a_tracked_log_absent_from_the_added_set_is_existing(self) -> None:
+        from scripts.validation import session_scope
+
+        stub, _ = self._stub(tracked=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.session_log_is_new("a.json", Path.cwd()) is False
+
+    def test_a_log_git_reports_as_added_is_new(self) -> None:
+        from scripts.validation import session_scope
+
+        stub, _ = self._stub(added=("a.json",), tracked=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
+
+    def test_an_untracked_log_is_new_even_though_no_diff_shows_it(self) -> None:
+        """git diff never lists an untracked file; without the ls-files check
+        a brand-new unstaged log would skip the whole checklist."""
+        from scripts.validation import session_scope
+
+        stub, _ = self._stub(added=(), tracked=())
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
+
+    def test_the_diff_carries_no_pathspec_so_renames_stay_paired(self) -> None:
+        """Measured: the same rename reports A under a pathspec, R100 without."""
+        from scripts.validation import session_scope
+
+        stub, seen = self._stub(tracked=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            session_scope.new_session_logs(["a.json"], Path.cwd())
+        diff = next(args for args in seen if args[0] == "diff")
+        assert "--" not in diff
+        assert "-M" in diff
+        assert diff[-1] == "deadbee"
+
+    def test_the_probe_reads_the_merge_base_not_the_tip_of_main(self) -> None:
+        """A log added to main after this branch started is still new here."""
+        from scripts.validation import session_scope
+
+        stub, seen = self._stub(tracked=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            session_scope.session_log_is_new("a.json", Path.cwd())
+        assert seen[0] == ["merge-base", "origin/main", "HEAD"]
+
+    def test_a_whole_batch_costs_one_diff_and_one_listing(self) -> None:
+        """A 50-log branch must not pay 50 redundant git forks."""
+        from scripts.validation import session_scope
+
+        names = ("a.json", "b.json", "c.json")
+        stub, seen = self._stub(tracked=names)
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.new_session_logs(list(names), Path.cwd()) == set()
+        assert [args[0] for args in seen] == ["merge-base", "diff", "ls-files"]
+
+    def test_the_hook_passes_the_flag_only_for_an_existing_log(self) -> None:
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(tracked=("old.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
+        assert commands and "--existing-log" in commands[0]
+
+    def test_the_hook_omits_the_flag_for_a_new_log(self) -> None:
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+        assert commands and "--existing-log" not in commands[0]
+
+    def test_an_empty_batch_forks_no_git_at_all(self) -> None:
+        from scripts.validation import git_hook_policy, session_scope
+
+        stub, seen = self._stub()
+        with mock.patch.object(session_scope, "_git", stub):
+            assert git_hook_policy.validate_branch_sessions([], Path.cwd()) == 0
+        assert seen == []
+
+    def test_scope_from_git_addresses_the_blob_by_a_repo_relative_path(self) -> None:
+        """git addresses paths inside the tree; an absolute path never matches."""
+        import scripts.validate_session_json as vsj
+
+        root = Path(__file__).resolve().parents[1]
+        assert vsj._repo_relative(root / ".agents/sessions/x.json") == ".agents/sessions/x.json"
+
+    def test_a_path_outside_the_repository_stays_absolute(self) -> None:
+        import scripts.validate_session_json as vsj
+
+        assert vsj._repo_relative(Path("/tmp/elsewhere.json")) == "/tmp/elsewhere.json"
+
+    def test_an_explicit_existing_log_flag_skips_the_git_probe(self) -> None:
+        """--existing-log is the caller's own answer; do not re-derive it."""
+        import scripts.validate_session_json as vsj
+
+        source = inspect.getsource(vsj.main)
+        assert "args.scope_from_git and not existing_log" in source
+
+
+def _log_with_evidence(**items: str) -> dict:
+    """A valid log whose named checklist items carry the given evidence.
+
+    Args:
+        items: Checklist item name to evidence text. Items are placed in
+            sessionStart for convenience, even when the protocol locates them
+            in sessionEnd (e.g. changesCommitted). The cross-field check reads
+            both sections, so placement does not affect test outcomes.
+
+    Returns:
+        A log that passes schema and protocol checks apart from whatever the
+        supplied evidence contradicts.
+    """
+    log = _make_valid_log()
+    start = log["protocolCompliance"]["sessionStart"]
+    for name, evidence in items.items():
+        start[name] = {"complete": True, "evidence": evidence, "level": "MUST"}
+    return log
+
+
+class TestEvidenceAgreesWithSession:
+    """Evidence that describes a different session than the record does.
+
+    Issue #3383. Logs are seeded by copying a recent log, so the previous
+    session's evidence survives whenever the edit was incomplete. Every field
+    is present and correctly typed, so the schema sees nothing; the document is
+    simply not true.
+    """
+
+    @pytest.mark.parametrize("item", ["branchVerified", "notOnMain", "verifyBranch"])
+    def test_branch_not_matching_declared_is_an_error(self, item: str) -> None:
+        log = _log_with_evidence(**{item: "Verified feat/999-some-other-thing"})
+        errors = validate_session_log(log).errors
+        assert any("names a different branch" in e for e in errors), errors
+        named = next(e for e in errors if "names a different branch" in e)
+        assert "feat/999-some-other-thing" in named
+        assert "fix/3346-session-schema-enforcement" in named
+
+    def test_the_declared_branch_in_its_own_evidence_is_not_an_error(self) -> None:
+        log = _log_with_evidence(
+            branchVerified="git branch --show-current returned fix/3346-session-schema-enforcement"
+        )
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "On a feature branch, not main",
+            "Compared against origin/main",
+            "merge-base with main resolved",
+            "",
+        ],
+        ids=["no-branch-named", "origin-main", "bare-main", "empty"],
+    )
+    def test_evidence_naming_no_feature_branch_is_not_an_error(self, evidence: str) -> None:
+        """main and origin/main appear legitimately; the error fires only when evidence
+        names a feature branch and none of them is the declared branch."""
+        log = _log_with_evidence(branchVerified=evidence)
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_a_different_starting_commit_in_evidence_is_an_error(self) -> None:
+        log = _log_with_evidence(startingCommitNoted="Starting commit: 50b05eb9")
+        errors = validate_session_log(log).errors
+        assert any("names a different starting commit" in e for e in errors), errors
+
+    def test_an_abbreviation_of_the_declared_commit_is_not_an_error(self) -> None:
+        """git abbreviates to whatever is unambiguous, so a prefix is the same commit."""
+        log = _log_with_evidence(startingCommitNoted="Starting commit: 1ffee38")
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_evidence_citing_several_commits_passes_when_one_is_the_declared_one(self) -> None:
+        log = _log_with_evidence(
+            startingCommitNoted="base 1ffee3834e910608ed6c03c374fb71ff7c39bdc3, head deadbeef1"
+        )
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_evidence_citing_no_commit_is_not_an_error(self) -> None:
+        log = _log_with_evidence(startingCommitNoted="Recorded at session start")
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_a_committed_claim_without_an_ending_commit_warns(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        assert any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
+
+    def test_a_committed_claim_with_an_ending_commit_does_not_warn(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = "1ffee3834e910608ed6c03c374fb71ff7c39bdc3"
+        assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
+
+    def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
+        """Four committed logs contradict themselves and git cannot adjudicate which
+        side is true. On the record side they would be a permanent block that no
+        honest edit could clear, so the check sits on the claim side. Issue #3385.
+        """
+        log = _log_with_evidence(branchVerified="Verified feat/999-some-other-thing")
+        assert not any(
+            "names a different branch" in e
+            for e in validate_session_log(log, existing_log=True).errors
+        )
+
+    def test_a_malformed_log_does_not_crash_the_cross_field_checks(self) -> None:
+        for broken in (
+            {"session": "not a mapping", "protocolCompliance": {}},
+            {"session": {"branch": 7}, "protocolCompliance": "not a mapping"},
+            {"session": {"startingCommit": None}, "protocolCompliance": {"sessionStart": None}},
+            {"session": {}, "protocolCompliance": {"sessionStart": {"branchVerified": "flat"}}},
+        ):
+            validate_session_log(broken)
+
+
+class TestBranchEvidenceMayDescribeARelationship:
+    """Honest evidence names a second branch whenever it explains a relationship.
+
+    Measured on all 946 committed logs: flagging any second feature branch
+    caught seven, and six were a rename, a stack, or a branched-from note. The
+    rule that survives is narrower. Contamination describes the *other* session
+    and never mentions this branch at all. Issue #3383.
+    """
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "fix/3346-session-schema-enforcement, stacked on fix/3385-historical-logs",
+            "fix/3346-session-schema-enforcement (renamed from the initial chore/adr006 branch)",
+            "Branched fix/3346-session-schema-enforcement from feat/1769-autonomous",
+            "On branch chore/old-thing, then created fix/3346-session-schema-enforcement",
+        ],
+        ids=["stacked-on", "renamed-from", "branched-from", "switched-to"],
+    )
+    def test_evidence_naming_its_own_branch_and_another_is_not_an_error(
+        self, evidence: str
+    ) -> None:
+        log = _log_with_evidence(branchVerified=evidence)
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_evidence_naming_only_another_branch_is_still_an_error(self) -> None:
+        """The narrowing must not swallow the case it exists to catch."""
+        log = _log_with_evidence(branchVerified="Verified feat/merge-velocity-analysis")
+        assert any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_a_prefix_of_the_declared_branch_counts_as_naming_it(self) -> None:
+        """Logs abbreviate their own branch; that is not a second session."""
+        log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)

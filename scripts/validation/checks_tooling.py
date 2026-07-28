@@ -363,3 +363,36 @@ def validate_ci_dependency_pins(repo_root: Path) -> bool:
     from check_ci_dependency_pins import check as check_pins
 
     return bool(check_pins(workflows, pyproject) == PIN_OK)
+
+
+def validate_instruction_budget(repo_root: Path) -> bool:
+    """Gate the always-on instruction budget per language (Issue #3419).
+
+    Sums the bytes of ``.github/instructions/*.instructions.md`` files whose
+    ``applyTo`` scopes them to every file of a language (per VS Code applyTo
+    matching semantics) and fails when a language exceeds its non-regression
+    ceiling. Runs the module via ``-m`` from ``repo_root`` so its
+    ``scripts.validation`` package import resolves. The instructions tree is
+    absent in downstream installs, so SKIP rather than FAIL when it is missing.
+    """
+    if not (repo_root / ".github" / "instructions").is_dir():
+        raise MissingScriptSkip(
+            ".github/instructions not present (downstream install); no budget to gate"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            "-m",
+            "scripts.validation.instruction_budget",
+            "--ci",
+            "--path",
+            str(repo_root),
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)

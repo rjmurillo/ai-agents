@@ -34,42 +34,15 @@ def _isolate_paths(tmp_path: Path) -> Iterator[None]:
     causality_path.mkdir()
     schemas_path.mkdir()
 
-    # Create minimal schemas for validation
-    episode_schema = {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "required": ["id", "session", "timestamp", "outcome", "task"],
-        "properties": {
-            "id": {"type": "string"},
-            "session": {"type": "string"},
-            "timestamp": {"type": "string"},
-            "outcome": {"type": "string"},
-            "task": {"type": "string"},
-            "decisions": {"type": "array"},
-            "events": {"type": "array"},
-            "metrics": {"type": "object"},
-            "lessons": {"type": "array"},
-        },
-    }
-    (schemas_path / "episode.schema.json").write_text(
-        json.dumps(episode_schema, indent=2), encoding="utf-8"
-    )
-
-    causal_schema = {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "required": ["version", "updated", "nodes", "edges", "patterns"],
-        "properties": {
-            "version": {"type": "string"},
-            "updated": {"type": "string"},
-            "nodes": {"type": "array"},
-            "edges": {"type": "array"},
-            "patterns": {"type": "array"},
-        },
-    }
-    (schemas_path / "causal-graph.schema.json").write_text(
-        json.dumps(causal_schema, indent=2), encoding="utf-8"
-    )
+    # Copy the shipped schemas rather than inventing stubs. Hand-written
+    # stubs here declared `nodes` as a bare array, so every node and pattern
+    # this module writes went unvalidated and the suite could not see the
+    # drift that #3356 is about.
+    shipped = Path(rm.__file__).resolve().parent.parent / "resources" / "schemas"
+    for name in ("episode.schema.json", "causal-graph.schema.json"):
+        (schemas_path / name).write_text(
+            (shipped / name).read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
     # Patch module-level paths
     with patch.object(rm, "EPISODES_PATH", episodes_path), patch.object(
@@ -209,8 +182,24 @@ class TestNewEpisode:
         assert episode_file.exists()
 
     def test_includes_decisions_and_events(self) -> None:
-        decisions = [{"id": "d1", "type": "design"}]
-        events = [{"type": "start"}]
+        decisions = [
+            {
+                "id": "d001",
+                "type": "design",
+                "context": "Two writers disagreed on node identity.",
+                "chosen": "Derive ids from content.",
+                "outcome": "success",
+                "timestamp": "2026-01-01T12:00:00+00:00",
+            }
+        ]
+        events = [
+            {
+                "id": "e001",
+                "type": "milestone",
+                "content": "Schema and writer agree.",
+                "timestamp": "2026-01-01T12:00:00+00:00",
+            }
+        ]
         lessons = ["lesson1"]
         metrics = {"duration": 30}
 
@@ -279,7 +268,7 @@ class TestAddCausalNode:
             episode_id="episode-001",
         )
 
-        assert node["id"] == "n001"
+        assert node["id"] == rm._next_node_id("decision", "Choose routing strategy")
         assert node["type"] == "decision"
         assert node["label"] == "Choose routing strategy"
         assert node["frequency"] == 1
@@ -303,7 +292,7 @@ class TestAddCausalNode:
 
     def test_creates_node_without_episode(self) -> None:
         node = rm.add_causal_node(
-            node_type="event",
+            node_type="milestone",
             label="Generic event",
         )
         assert node["episodes"] == []
@@ -312,11 +301,28 @@ class TestAddCausalNode:
         with pytest.raises(ValueError, match="Invalid node type"):
             rm.add_causal_node(node_type="invalid", label="test")
 
-    def test_increments_node_ids(self) -> None:
+    def test_ids_are_derived_from_content_not_insertion_order(self) -> None:
         n1 = rm.add_causal_node(node_type="decision", label="First")
-        n2 = rm.add_causal_node(node_type="event", label="Second")
-        assert n1["id"] == "n001"
-        assert n2["id"] == "n002"
+        n2 = rm.add_causal_node(node_type="decision", label="Second")
+
+        assert n1["id"] != n2["id"]
+        assert n1["id"] == rm._next_node_id("decision", "First")
+        assert n2["id"] == rm._next_node_id("decision", "Second")
+
+    def test_the_same_label_under_a_different_type_gets_a_different_id(
+        self,
+    ) -> None:
+        assert rm._next_node_id("decision", "Same") != rm._next_node_id(
+            "outcome", "Same"
+        )
+
+    def test_rejects_a_type_the_live_writer_does_not_emit(self) -> None:
+        with pytest.raises(ValueError, match="Invalid node type"):
+            rm.add_causal_node(node_type="event", label="retired type")
+
+
+SRC_ID = "aaaaaaaaaaaa"
+TGT_ID = "bbbbbbbbbbbb"
 
 
 class TestAddCausalEdge:
@@ -324,21 +330,21 @@ class TestAddCausalEdge:
 
     def test_creates_new_edge(self) -> None:
         edge = rm.add_causal_edge(
-            source_id="n001",
-            target_id="n002",
+            source_id=SRC_ID,
+            target_id=TGT_ID,
             edge_type="causes",
             weight=0.9,
         )
 
-        assert edge["source"] == "n001"
-        assert edge["target"] == "n002"
+        assert edge["source"] == SRC_ID
+        assert edge["target"] == TGT_ID
         assert edge["type"] == "causes"
         assert edge["weight"] == 0.9
         assert edge["evidence_count"] == 1
 
     def test_updates_existing_edge_weight(self) -> None:
-        rm.add_causal_edge("n001", "n002", "causes", weight=0.8)
-        edge = rm.add_causal_edge("n001", "n002", "causes", weight=0.6)
+        rm.add_causal_edge(SRC_ID, TGT_ID, "causes", weight=0.8)
+        edge = rm.add_causal_edge(SRC_ID, TGT_ID, "causes", weight=0.6)
 
         assert edge["evidence_count"] == 2
         # Running average: (0.8 * 1 + 0.6) / 2 = 0.7
@@ -346,11 +352,11 @@ class TestAddCausalEdge:
 
     def test_rejects_invalid_edge_type(self) -> None:
         with pytest.raises(ValueError, match="Invalid edge type"):
-            rm.add_causal_edge("n001", "n002", "invalid")
+            rm.add_causal_edge(SRC_ID, TGT_ID, "invalid")
 
     def test_rejects_out_of_range_weight(self) -> None:
         with pytest.raises(ValueError, match="Weight must be"):
-            rm.add_causal_edge("n001", "n002", "causes", weight=1.5)
+            rm.add_causal_edge(SRC_ID, TGT_ID, "causes", weight=1.5)
 
 
 class TestGetCausalPath:
@@ -362,31 +368,31 @@ class TestGetCausalPath:
         assert result["error"] == "Node not found"
 
     def test_finds_direct_path(self) -> None:
-        rm.add_causal_node(node_type="decision", label="Node A")
-        rm.add_causal_node(node_type="outcome", label="Node B")
-        rm.add_causal_edge("n001", "n002", "causes")
+        a = rm.add_causal_node(node_type="decision", label="Node A")
+        b = rm.add_causal_node(node_type="outcome", label="Node B")
+        rm.add_causal_edge(a["id"], b["id"], "causes")
 
         result = rm.get_causal_path("Node A", "Node B")
         assert result["found"] is True
         assert result["depth"] == 1
 
     def test_finds_multi_hop_path(self) -> None:
-        rm.add_causal_node(node_type="decision", label="Start")
-        rm.add_causal_node(node_type="event", label="Middle")
-        rm.add_causal_node(node_type="outcome", label="End")
-        rm.add_causal_edge("n001", "n002", "causes")
-        rm.add_causal_edge("n002", "n003", "enables")
+        a = rm.add_causal_node(node_type="decision", label="Start")
+        b = rm.add_causal_node(node_type="milestone", label="Middle")
+        c = rm.add_causal_node(node_type="outcome", label="End")
+        rm.add_causal_edge(a["id"], b["id"], "causes")
+        rm.add_causal_edge(b["id"], c["id"], "enables")
 
         result = rm.get_causal_path("Start", "End")
         assert result["found"] is True
         assert result["depth"] == 2
 
     def test_respects_max_depth(self) -> None:
-        rm.add_causal_node(node_type="decision", label="Far Start")
-        rm.add_causal_node(node_type="event", label="Far Middle")
-        rm.add_causal_node(node_type="outcome", label="Far End")
-        rm.add_causal_edge("n001", "n002", "causes")
-        rm.add_causal_edge("n002", "n003", "causes")
+        a = rm.add_causal_node(node_type="decision", label="Far Start")
+        b = rm.add_causal_node(node_type="milestone", label="Far Middle")
+        c = rm.add_causal_node(node_type="outcome", label="Far End")
+        rm.add_causal_edge(a["id"], b["id"], "causes")
+        rm.add_causal_edge(b["id"], c["id"], "causes")
 
         result = rm.get_causal_path("Far Start", "Far End", max_depth=1)
         assert result["found"] is False
@@ -409,7 +415,7 @@ class TestAddPattern:
             success_rate=0.9,
         )
 
-        assert pattern["id"] == "p001"
+        assert pattern["id"] == rm._next_pattern_id(pattern["name"])
         assert pattern["name"] == "TDD First"
         assert pattern["occurrences"] == 1
         assert pattern["success_rate"] == 0.9

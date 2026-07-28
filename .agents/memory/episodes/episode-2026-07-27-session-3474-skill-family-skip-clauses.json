@@ -1,0 +1,170 @@
+{
+  "id": "episode-2026-07-27-session-3474-skill-family-skip-clauses",
+  "session": "2026-07-27-session-3474-skill-family-skip-clauses",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "chosen": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

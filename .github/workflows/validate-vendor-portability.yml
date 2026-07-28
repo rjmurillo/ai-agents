@@ -50,7 +50,11 @@ jobs:
               - '.claude/skills/**/*.sh'
               - '.claude/skills/**/*.ps1'
               - '.claude/skills/**/SKILL.md'
+              - '.claude/skills/**/references/**/*.md'
+              - '.claude/skills/**/scripts/README-*.md'
               - 'src/copilot-cli/skills/**/SKILL.md'
+              - 'src/copilot-cli/skills/**/references/**/*.md'
+              - 'src/copilot-cli/skills/**/scripts/README-*.md'
               - '.claude/lib/paths.py'
               - 'scripts/validation/check_vendor_portability.py'
               - 'scripts/validation/vendor_portability_baseline.txt'
@@ -59,6 +63,10 @@ jobs:
               - 'scripts/validation/portability_common.py'
               - 'scripts/validation/check_skill_md_exec_portability.py'
               - 'scripts/validation/skill_md_exec_portability_baseline.json'
+              - 'scripts/validation/check_skill_resolver_anchoring.py'
+              - 'scripts/validation/check_skill_contract_tests.py'
+              - 'scripts/validation/skill_contract_test_baseline.txt'
+              - 'tests/validation/test_skill_resolver_and_contract_guards.py'
               - '.github/workflows/validate-vendor-portability.yml'
 
   validate-portability:
@@ -83,6 +91,12 @@ jobs:
       - name: Check for new bare-exec skill-path offenders (issue #2838)
         run: python3 scripts/validation/check_skill_md_exec_portability.py
 
+      - name: Check skill resolver anchoring
+        run: python3 scripts/validation/check_skill_resolver_anchoring.py
+
+      - name: Check skill contract test binding
+        run: python3 scripts/validation/check_skill_contract_tests.py
+
       - name: Show remediation on failure
         if: failure()
         run: |
@@ -104,10 +118,11 @@ jobs:
           echo "   Baseline: scripts/validation/skill_portability_baseline.json"
           echo "   Update:   python3 -m scripts.validation.check_skill_portability --update-baseline"
           echo ""
-          echo "3. A SKILL.md invokes a bare '.claude/skills/...' script"
-          echo "   (issue #2838). That path does not exist in a vendored"
-          echo "   plugin install. Resolve the root through a plugin-root env"
-          echo "   var with a source fallback:"
+          echo "3. A skill Markdown file invokes a bare '.claude/skills/...' script"
+          echo "   (issue #2838). This covers SKILL.md, references/**/*.md,"
+          echo "   and scripts/README-*.md under each skill root. That path does"
+          echo "   not exist in a vendored plugin install. Resolve the root through"
+          echo "   a plugin-root env var with a source fallback:"
           # shellcheck disable=SC2016
           echo '     SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."'
           # shellcheck disable=SC2016
