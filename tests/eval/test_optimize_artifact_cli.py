@@ -127,6 +127,11 @@ def _provenance(name: str, results: dict) -> dict:
         "upstream_scorer": "test",
         "upstream_model": "test-model",
         "upstream_seed": "test-seed",
+        "kind": "agent",
+        "group": "all",
+        "variant": "agent",
+        "reduce": oa._DEFAULT_REDUCER,
+        "pass_threshold": 1.0,
     }
 
 
@@ -6156,6 +6161,23 @@ class TestExtractionProvenanceCustody:
         out.write_text(json.dumps(payload), encoding="utf-8")
         return out
 
+    def _extract_group(self, capsys, path: Path, split: Path, out: Path) -> Path:
+        code, payload = _run_raw(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            path,
+            "--split",
+            split,
+            "--group",
+            "opt",
+        )
+        assert code == EXIT_OK
+        out.write_text(json.dumps(payload), encoding="utf-8")
+        return out
+
     def _gate(self, capsys, inc: Path, cand: Path, split: Path, record: dict):
         return _run_raw(
             capsys,
@@ -6253,6 +6275,50 @@ class TestExtractionProvenanceCustody:
 
         assert code == EXIT_CONFIG
         assert "does not match its results" in out["error"]
+
+    def test_stripped_score_parameters_are_config_error(self, tmp_path, capsys):
+        split, record = self._split(capsys, tmp_path)
+        base = _passing_results()
+        inc = self._extract(
+            capsys, self._report(tmp_path, "inc-report.json", base), tmp_path / "inc.json"
+        )
+        cand = self._extract(
+            capsys, self._report(tmp_path, "cand-report.json", base), tmp_path / "cand.json"
+        )
+        for path in (inc, cand):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["provenance"].pop("pass_threshold")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+        code, out = self._gate(capsys, inc, cand, split, record)
+
+        assert code == EXIT_CONFIG
+        assert "pass_threshold" in out["error"]
+
+    def test_stripped_group_fingerprint_is_config_error(self, tmp_path, capsys):
+        split, record = self._split(capsys, tmp_path)
+        base = _passing_results()
+        inc = self._extract_group(
+            capsys,
+            self._report(tmp_path, "inc-report.json", base),
+            split,
+            tmp_path / "inc.json",
+        )
+        cand = self._extract_group(
+            capsys,
+            self._report(tmp_path, "cand-report.json", base),
+            split,
+            tmp_path / "cand.json",
+        )
+        for path in (inc, cand):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["provenance"].pop("split_fingerprint")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+        code, out = self._gate(capsys, inc, cand, split, record)
+
+        assert code == EXIT_CONFIG
+        assert "split_fingerprint" in out["error"]
 
     def test_split_from_results_is_config_error(self, tmp_path, capsys):
         results = _write(tmp_path, "results.json", _enveloped(None, _passing_results(9)))

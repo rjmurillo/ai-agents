@@ -292,7 +292,14 @@ _REQUIRED_PROVENANCE_FIELDS = (
     "upstream_scorer",
     "upstream_model",
     "upstream_seed",
+    "kind",
+    "group",
 )
+_KIND_PROVENANCE_FIELDS = {
+    "agent": ("variant", "reduce", "pass_threshold"),
+    "rule": ("mechanism", "min_score"),
+    "hook": ("on_skip",),
+}
 
 # A corpus identity is the producer's sha256 hex digest of the task set. The
 # form is checked rather than taken on faith because an unchecked string makes
@@ -380,8 +387,18 @@ def _checked_provenance(
         "upstream_scorer",
         "upstream_model",
         "upstream_seed",
+        "kind",
+        "group",
     ):
         _non_empty_string_field(path, provenance, key)
+    kind = provenance["kind"]
+    if kind not in _KIND_PROVENANCE_FIELDS:
+        raise ConfigError(f"{path} extraction provenance has unsupported kind {kind!r}")
+    missing = [key for key in _KIND_PROVENANCE_FIELDS[kind] if key not in provenance]
+    if missing:
+        raise ConfigError(f"{path} extraction provenance is missing: {', '.join(missing)}")
+    if provenance["group"] in _GROUPS and "split_fingerprint" not in provenance:
+        raise ConfigError(f"{path} extraction provenance is missing: split_fingerprint")
     if not _CORPUS_RE.match(provenance["input_digest"]):
         raise ConfigError(f"{path} provenance input_digest must be a sha256 hex digest")
     if provenance["results_digest"] != _results_digest(results):
