@@ -63,7 +63,7 @@ def validate_build_gates(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_spec_id_uniqueness(repo_root: Path) -> bool:
@@ -85,7 +85,24 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
+
+
+def validate_traceability(repo_root: Path) -> bool:
+    """Enforce required REQ, DESIGN, and TASK references in the spec catalog."""
+    script = repo_root / "scripts" / "validation" / "traceability.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/traceability.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--specs-path", str(repo_root / ".agents" / "specs"), "--ci"]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    return bool(exit_code == 0)
 
 
 def validate_vendor_portability(repo_root: Path) -> bool:
@@ -108,7 +125,7 @@ def validate_vendor_portability(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_skill_md_portability(repo_root: Path) -> bool:
@@ -133,7 +150,7 @@ def validate_skill_md_portability(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_skill_shells(repo_root: Path) -> bool:
@@ -160,7 +177,7 @@ def validate_skill_shells(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_skill_skip_clauses(repo_root: Path) -> bool:
@@ -208,7 +225,7 @@ def validate_sync_registry(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_agent_catalog(repo_root: Path) -> bool:
@@ -237,7 +254,7 @@ def validate_agent_catalog(repo_root: Path) -> bool:
     if output.strip():
         for line in output.strip().splitlines()[:40]:
             print(line)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_canonical_citations(repo_root: Path) -> bool:
@@ -268,7 +285,7 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     # Default mode is soft-warn; the script already exits 0 unless
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
     # so CI can opt into strict mode by setting the env var.
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_orchestrator_citations(repo_root: Path) -> bool:
@@ -292,7 +309,7 @@ def validate_orchestrator_citations(repo_root: Path) -> bool:
         print(stdout.strip())
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_spec_contradiction(repo_root: Path) -> bool:
@@ -386,4 +403,4 @@ def validate_model_pins(repo_root: Path) -> bool:
         [sys.executable, str(script), "--mode", "warn"]
     )
     _print_model_pin_report((stdout or "") + (stderr or ""))
-    return exit_code == 0
+    return bool(exit_code == 0)

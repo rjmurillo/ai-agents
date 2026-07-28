@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-04-27 |
 | **Owner** | Claude (planning) / Richard (execution sponsor) |
 | **Complexity** | High |
@@ -13,6 +13,8 @@
 | **Total tasks** | 30 (M0:1 + M1:4 + M2:3 + M3:7 + M4:3 + M5:7 + M6:5; sizing 17S / 10M / 3L) |
 | **Estimated effort** | ~23 person-days (post-amendment realism; analyst flagged 19-day budget as optimistic) |
 | **Critical path** | M0 → M1 → M2 → M3 → M4 → M5 → M6 (no parallelism between milestones) |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: PR #1819 merged; build/scripts/ contains the generators and build_all.py.
 
 ## Objectives
 
