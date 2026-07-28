@@ -505,37 +505,3 @@
 #
 *.md diff=markdown
 *.skill diff=markdown
-
-# ============================================================================
-# Merge Driver: Generated Causal Graph
-# ============================================================================
-#
-# WHY DO WE NEED THIS?
-#
-# .agents/memory/causality/causal-graph.json is generated state committed as one
-# blob, and the pre-commit generator rewrites it on essentially every commit. Both
-# sides of any merge have therefore touched it, and git cannot reconcile two
-# rewrites of one JSON document, so every merge of the default branch into a
-# feature branch conflicted on a file no human authored (issue #3345).
-#
-# The workaround made it worse. Taking one side wholesale discards every node the
-# other side contributed, and rerunning the generator does not restore them: it is
-# incremental and only processes episodes staged in the current commit, of which a
-# merge has none. Measured on main when this was added, 41 of 242 episodes on disk
-# had no node in the committed graph.
-#
-# WHAT THIS DOES
-#
-# Merges the two graphs by content instead of by line. Records carry stable
-# identities, so the merge is their union; counters reconcile three-way against
-# the ancestor rather than summing. If either side will not parse, the driver
-# exits nonzero and git leaves the conflict for a human.
-#
-# The driver name resolves through local git config, which is not committed.
-# scripts/maintenance/install_merge_drivers.py registers it from the pre-commit
-# hook so a clone self-heals. Before that first commit the name resolves to
-# nothing and git runs its default text merge, which is the conflict this repo
-# already produces today: the unregistered state degrades to the status quo, it
-# does not corrupt the graph.
-#
-.agents/memory/causality/causal-graph.json merge=causal-graph

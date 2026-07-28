@@ -223,55 +223,9 @@ Test-Path ".agents/sessions/$sessionId.md"
 
 ```bash
 python3 scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
+    ".agents/sessions/2026-01-01-session-130.json"
 ```
 
-### Issue: Causal Graph Empty
-
-**Symptoms**:
-
-- `Get-Patterns` returns empty
-- `Get-CausalPath` returns "No path found"
-- `CausalGraph.Nodes: 0` in status
-
-**Diagnosis**:
-
-```powershell
-# Check causal graph file
-$graphPath = ".agents/memory/causality/causal-graph.json"
-Test-Path $graphPath
-
-# Check graph content
-if (Test-Path $graphPath) {
-    $graph = Get-Content $graphPath | ConvertFrom-Json
-    Write-Host "Nodes: $($graph.nodes.Count)"
-    Write-Host "Edges: $($graph.edges.Count)"
-    Write-Host "Patterns: $($graph.patterns.Count)"
-}
-
-# Check if episodes exist
-(Get-ChildItem ".agents/memory/episodes" -Filter "*.json").Count
-```
-
-**Solutions**:
-
-| Cause | Solution |
-|-------|----------|
-| No episodes extracted | Extract episodes first |
-| Graph never built | Run update_causal_graph.py |
-| Graph file corrupted | Delete and rebuild |
-
-**Rebuilding Causal Graph**:
-
-```bash
-# Remove old graph
-rm -f ".agents/memory/causality/causal-graph.json"
-
-# Rebuild from all episodes
-for episode in .agents/memory/episodes/*.json; do
-    python3 scripts/update_causal_graph.py --episode-path "$episode"
-done
-```
 
 ### Issue: Episode Extraction Fails
 
@@ -284,7 +238,7 @@ done
 
 ```powershell
 # Check session log exists and has content
-$logPath = ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
+$logPath = ".agents/sessions/2026-01-01-session-130.json"
 if (Test-Path $logPath) {
     $content = Get-Content $logPath -Raw
     Write-Host "Log size: $($content.Length) chars"
@@ -322,35 +276,6 @@ if (Test-Path $logPath) {
 ## Lessons Learned
 [Key takeaways from the session]
 ```
-
-### Issue: Pattern Not Recognized
-
-**Symptoms**:
-
-- Expected patterns not in `Get-Patterns` output
-- Success rate shows 0 when should be higher
-
-**Diagnosis**:
-
-```powershell
-# Check pattern in graph
-$graph = Get-Content ".agents/memory/causality/causal-graph.json" | ConvertFrom-Json
-$graph.patterns | Where-Object { $_.name -match "pattern name" }
-
-# Check related nodes
-$graph.nodes | Where-Object { $_.label -match "decision keyword" }
-
-# Check edges
-$graph.edges | Where-Object { $_.from -match "decision" }
-```
-
-**Solutions**:
-
-| Cause | Solution |
-|-------|----------|
-| Pattern threshold not met | Pattern needs MinOccurrences (default 3) |
-| Episodes not processed | Run update_causal_graph.py |
-| Decision not recorded | Ensure session logs capture decisions |
 
 ## Skill Issues
 
@@ -411,7 +336,7 @@ python3 -c "import importlib.util; spec = importlib.util.spec_from_file_location
 **Symptoms**:
 
 - Error: "Directory not found"
-- Episode/causality operations fail
+- Episode operations fail
 
 **Diagnosis**:
 
@@ -419,8 +344,7 @@ python3 -c "import importlib.util; spec = importlib.util.spec_from_file_location
 # Check required directories
 $dirs = @(
     ".serena/memories",
-    ".agents/memory/episodes",
-    ".agents/memory/causality"
+    ".agents/memory/episodes"
 )
 
 foreach ($dir in $dirs) {
@@ -436,7 +360,6 @@ Create missing directories:
 ```powershell
 New-Item -ItemType Directory -Force -Path ".serena/memories"
 New-Item -ItemType Directory -Force -Path ".agents/memory/episodes"
-New-Item -ItemType Directory -Force -Path ".agents/memory/causality"
 ```
 
 ### Issue: Path Mismatch After Migration
@@ -451,7 +374,7 @@ New-Item -ItemType Directory -Force -Path ".agents/memory/causality"
 ```powershell
 # Check for old path references
 Get-ChildItem -Path "scripts", "tests" -Filter "*.ps1" -Recurse |
-    Select-String -Pattern '\.agents/episodes[^/]|\.agents/causality[^/]'
+    Select-String -Pattern '\.agents/episodes[^/]'
 ```
 
 **Solutions**:
@@ -461,7 +384,6 @@ Update all references to use new paths:
 ```text
 Old Path                    New Path
 .agents/episodes/           .agents/memory/episodes/
-.agents/causality/          .agents/memory/causality/
 ```
 
 ## Common Error Messages
@@ -484,12 +406,6 @@ Old Path                    New Path
 
 **Fix**: Run `extract_session_episode.py` on the session log.
 
-### "No causal path found"
-
-**Cause**: No causal relationship exists between nodes.
-
-**Fix**: Verify nodes exist, check edge directions, increase depth.
-
 ### "Memory file not found"
 
 **Cause**: Serena memory file doesn't exist.
@@ -511,8 +427,7 @@ Write-Host "=== Memory System Diagnostic ===" -ForegroundColor Cyan
 Write-Host "`n[Directories]" -ForegroundColor Yellow
 @(
     ".serena/memories",
-    ".agents/memory/episodes",
-    ".agents/memory/causality"
+    ".agents/memory/episodes"
 ) | ForEach-Object {
     $exists = Test-Path $_
     $status = if ($exists) { "OK" } else { "MISSING" }
@@ -548,18 +463,6 @@ if (Test-Path ".agents/memory/episodes") {
     Write-Host "  Count: $count" -ForegroundColor Green
 } else {
     Write-Host "  Directory missing" -ForegroundColor Red
-}
-
-# Check causal graph
-Write-Host "`n[Causal Graph]" -ForegroundColor Yellow
-$graphPath = ".agents/memory/causality/causal-graph.json"
-if (Test-Path $graphPath) {
-    $graph = Get-Content $graphPath | ConvertFrom-Json
-    Write-Host "  Nodes: $($graph.nodes.Count)" -ForegroundColor Green
-    Write-Host "  Edges: $($graph.edges.Count)" -ForegroundColor Green
-    Write-Host "  Patterns: $($graph.patterns.Count)" -ForegroundColor Green
-} else {
-    Write-Host "  Graph not found" -ForegroundColor Red
 }
 
 # Check Forgetful
