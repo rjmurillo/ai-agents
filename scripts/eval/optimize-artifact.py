@@ -1355,9 +1355,10 @@ def _provenance_mismatch(
         return None
     if incumbent is None or candidate is None:
         return "one results file has extraction provenance and the other does not"
+    missing = object()
     keys = sorted(set(incumbent) | set(candidate))
     for key in keys:
-        if incumbent.get(key) != candidate.get(key):
+        if incumbent.get(key, missing) != candidate.get(key, missing):
             return f"extraction parameter mismatch: {key} differs"
     return None
 
