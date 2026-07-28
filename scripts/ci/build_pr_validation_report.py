@@ -41,13 +41,14 @@ def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:
     status = "PASS"
     blocking: list[str] = []
     warnings: list[str] = []
+    bypass_used = inputs["bypass_used"].casefold() == "true"
     if inputs["description"] == "FAIL":
         status = "FAIL"
         blocking.append("PR description does not match actual changes")
     elif inputs["description"] == "ERROR":
         status = "ERROR"
         blocking.append("Description validation error")
-    elif inputs["bypass_used"] == "true":
+    elif bypass_used:
         status = "BYPASSED"
         warnings.append(
             "Description validation BYPASSED via "
@@ -75,7 +76,7 @@ def _alert_type(overall_status: str, warnings: list[str]) -> str:
 
 
 def _description_status(inputs: dict[str, str]) -> str:
-    if inputs["bypass_used"] == "true" and inputs["description"] != "ERROR":
+    if inputs["bypass_used"].casefold() == "true" and inputs["description"] != "ERROR":
         return "BYPASSED (label override)"
     return inputs["description"]
 

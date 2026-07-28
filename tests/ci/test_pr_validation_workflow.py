@@ -10,7 +10,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts" / "ci"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr-validation.yml"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 def _load_module(name: str):
@@ -226,6 +225,25 @@ def test_report_surfaces_bypass_status(
     assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\n"
     assert "BYPASSED (label override)" in text
     assert "validation-bypass" in text
+
+
+def test_report_reads_powershell_boolean_output_case_insensitively(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "PASS")
+    monkeypatch.setenv("BYPASS_USED", "True")
+    monkeypatch.setenv("BYPASS_LABEL", "validation-bypass")
+    monkeypatch.setenv("BYPASS_COUNT", "2")
+
+    assert report_mod.main() == 0
+    text = report.read_text(encoding="utf-8")
+    assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\n"
+    assert "BYPASSED (label override)" in text
 
 
 def test_report_missing_output_is_config_error(monkeypatch: pytest.MonkeyPatch):
