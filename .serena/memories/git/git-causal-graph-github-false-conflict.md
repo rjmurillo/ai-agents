@@ -1,85 +1,149 @@
-# GitHub Reports a False Conflict on the Causal Graph
+# A Custom Merge Driver Makes Local and GitHub Merge Results Disagree
 
 **Category**: Git Operations
-**Source**: 2026-07-28, PR #3636
+**Source**: 2026-07-28, PR #3636, PR #3497
 
 ## Statement
 
-GitHub reports `mergeable: CONFLICTING` on any pull request where both the branch
-and `main` touched `.agents/memory/causality/causal-graph.json`, even when the merge
-is clean locally. GitHub does not run custom merge drivers. The resolution is to
-merge `origin/main` into the branch locally and push the merge commit.
+`.agents/memory/causality/causal-graph.json` is merged by a custom merge driver.
+Git runs that driver in a local clone. GitHub does not run custom merge drivers on
+its servers. So a merge of that file can be clean in every local clone and
+conflicted on GitHub, and the two answers are both correct for the code that
+produced them.
 
-## Why it happens
+This is the case the stale-cache runbook does not cover. Read
+`docs/autonomous-pr-monitor.md` "Stale merge-state cache" first: it owns the
+ancestry check and the safe base-ref refresh, and its guidance is correct as far
+as it goes. Its outcome table says a failing trial merge means the conflict is
+"real and authoritative". For a driver-managed path that inference does not hold,
+because the local trial merge runs a driver that GitHub will not run. The reverse
+also applies: a clean local trial merge does not prove GitHub will agree.
 
-`.gitattributes:541` assigns that file the `causal-graph` merge driver, registered by
-`scripts/maintenance/install_merge_drivers.py` and implemented in
-`scripts/validation/merge_causal_graph.py`. The driver resolves the two sides by
-content union. It runs only in a local clone that has the driver configured, so
-GitHub falls back to a plain three way merge, sees two rewrites of one generated JSON
-blob, and reports a conflict.
+## Which case am I in
 
-The generator rewrites the graph on essentially every commit, so both sides of any
-long lived branch have touched it. The false conflict is therefore the normal state,
-not an edge case.
-
-## Diagnosis
-
-The symptom is a contradiction between local git and the GitHub API:
+Check in this order. The two causes are independent and need different fixes.
 
 ```bash
-git merge-tree --write-tree HEAD origin/main   # exits 0, prints a clean tree OID
-gh pr view <n> --json mergeable,mergeStateStatus  # CONFLICTING / DIRTY
-```
+PR=3636
+eval "$(gh pr view "$PR" --json baseRefOid,headRefOid \
+  -q '"BASE=\(.baseRefOid)\nHEAD=\(.headRefOid)"')"
+git fetch -q origin main
 
-Confirm with a throwaway worktree before concluding anything:
+# 1. Stale cache: nothing to merge at all.
+if git merge-base --is-ancestor "$BASE" "$HEAD"; then
+  echo "base is already an ancestor: stale cache, see autonomous-pr-monitor.md"
+fi
 
-```bash
-git worktree add -q --detach /tmp/mtest HEAD
-cd /tmp/mtest && git merge --no-commit --no-ff origin/main
-```
-
-Exit 0 with `Automatic merge went well` means the driver resolved it and GitHub is
-reporting on a merge strategy you are not using. Confirm the driver is actually the
-explanation before acting:
-
-```bash
+# 2. Driver-managed path in the merge?
 git check-attr merge -- .agents/memory/causality/causal-graph.json
-git config --get-regexp '^merge\.causal-graph\.'
 ```
 
-Polling does not clear it. Measured on PR #3636: four polls at 30 second intervals,
-all `CONFLICTING/DIRTY`, on the correct head SHA.
+Fetch first and use the SHAs GitHub reports. Testing against a local `origin/main`
+that has drifted answers a question nobody asked.
+
+## Proving the driver is the cause
+
+Do not infer the driver from a clean local merge. Run the negative control: force
+the driver to fail and confirm the merge starts conflicting.
+
+```bash
+HEAD=cadd47a5b18e5a331c9616836237ba489bd1b15d
+MAIN=$(git rev-parse origin/main)
+
+git merge-tree --write-tree "$HEAD" "$MAIN" >/dev/null; echo "driver on:   $?"
+git -c merge.causal-graph.driver=false \
+    merge-tree --write-tree "$HEAD" "$MAIN" >/dev/null; echo "driver off:  $?"
+```
+
+Measured on 2026-07-28 for that SHA pair: driver on exits 0 with no conflict;
+driver forced to `false` exits 1 with `CONFLICT (content)` in the graph. Replacing
+the driver with a plain text merge also exits 1. A raw `git merge-file` of the
+three blobs produces 239 conflict hunks. The driver is doing the work.
+
+`git merge-tree` honors `.gitattributes` merge drivers, so it is a valid probe.
+That also means `merge-tree` exiting 0 does **not** predict GitHub, which runs no
+driver. Use it to learn what the driver does, not to predict the server.
+
+`git config --get merge.causal-graph.driver` exits 1 when the driver is absent.
+Guard it under `if` rather than letting it kill a `set -e` script. Absent means
+the clone never ran `scripts/maintenance/install_merge_drivers.py`, wired in at
+`lefthook.yml:20`.
 
 ## Resolution
 
+Merge `origin/main` into the branch locally and push the merge commit. The driver
+resolves the file on the way in, and GitHub then sees an already-merged result it
+does not have to compute.
+
 ```bash
-git merge origin/main --no-edit
-git push
+git fetch origin main && git merge origin/main --no-edit && git push
 ```
 
-The driver runs, the branch becomes a descendant of `main`, and GitHub has nothing
-left to reconcile. On PR #3636 the status went to `MERGEABLE` within 40 seconds of
-the push. Verify the union actually happened rather than trusting the exit code:
-compare node counts across `HEAD`, `HEAD^1`, and `HEAD^2`. The merged graph had 2616
-nodes against 2575 on the branch and 2586 on `main`, which is a union. A merged count
-at or below either parent means a side was discarded.
+**This expires.** It fixes one base SHA. The next commit on `main` that touches the
+graph puts the same PR back to `CONFLICTING`, and the merge has to be repeated.
+Confirmed on PR #3636: it returned to `CONFLICTING` within the hour. The graph
+changed in 49 of the last 200 first-parent commits on `main`, so expect this
+roughly one time in four, not on every commit.
+
+## Verifying the merge kept the data
+
+Node counts prove nothing. The driver is not a pure union: `_survives` in
+`scripts/validation/merge_causal_graph.py` treats a record present in the merge
+base and absent from one side as a deliberate deletion and keeps it deleted
+(issue #3375). A correct merge can therefore land below either parent, and a
+count above both parents can still be missing records.
+
+Compare identity keys instead, per collection, against each parent. Use the
+driver's own keys from `_COLLECTIONS` in `merge_causal_graph.py`: `nodes` by
+`id`, `patterns` by `name`, `edges` by `(source, target)`.
+
+```python
+import json, subprocess, sys
+G = ".agents/memory/causality/causal-graph.json"
+KEYS = {"nodes": ("id",), "patterns": ("name",), "edges": ("source", "target")}
+
+def ids(rev):
+    d = json.loads(subprocess.run(["git", "show", f"{rev}:{G}"],
+                                  capture_output=True, text=True).stdout)
+    return {c: {tuple(str(r.get(f, "")) for f in fs) for r in d.get(c, [])}
+            for c, fs in KEYS.items()}
+
+merged = ids(sys.argv[1])
+for parent in sys.argv[2:]:
+    p = ids(parent)
+    for c in KEYS:
+        lost = p[c] - merged[c]
+        print(f"{parent} {c}: {len(lost)} keys dropped")
+```
+
+Run it as `python3 verify_merge.py HEAD HEAD^1 HEAD^2`. Anything dropped is
+either a deletion the driver honored or data loss. Resolve which before pushing.
+
+Compare keys, not whole records. Comparing serialized records reports a false
+drop for every record the driver legitimately rewrote: `_COUNTERS`,
+`_SET_VALUED`, `_EARLIEST`, and `_LATEST` in the same file give
+`evidence_count`, `occurrences`, `frequency`, `episodes`, `created`, `last_used`,
+and `updated` merge policies that change the value on purpose, and every field
+not named there still goes through `_prefer_diverged`. Checking PR #3636 this way
+reported one pattern lost; by key it lost nothing, and the record differed only in
+`occurrences`, `episodes`, and `contributions`.
 
 ## Two wrong turns
 
-`git rebase origin/main` produces a clean history and requires a force push, which is
-prohibited. Do not reach for it.
+`git rebase origin/main` needs a force push to publish, which is prohibited here.
+Merge instead.
 
-`git checkout origin/main -- .agents/memory/causality/causal-graph.json` takes one
-side wholesale and discards every node the branch contributed. Rerunning the
-generator does not restore them, because it is incremental and processes only
-episodes staged in the current commit, of which a merge has none. The driver
-docstring records that 41 of 242 episodes on disk had no node in the committed graph
-at the time it was written, and the most recent absences arrived through exactly this
-path.
+`git checkout origin/main -- <graph>` discards every node the branch contributed.
+The lefthook wrapper will not bring them back: it only processes episodes staged
+in the current commit, and a merge stages none (`lefthook.yml:284-289`). The
+standalone generator is not so limited. It defaults to the whole episode directory
+and takes `--reset-graph` to rebuild from scratch
+(`.claude/skills/memory/scripts/update_causal_graph.py`), so recovery is possible;
+it is just not automatic. `merge_causal_graph.py` records that 41 of 242 episodes
+on disk had no node in the committed graph, most arriving through this path.
 
 ## Related
 
-- [git-merge-preflight](git-merge-preflight.md)
-- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)
-- [merge-resolver-auto-resolvable-patterns](merge-resolver-auto-resolvable-patterns.md)
+- `docs/autonomous-pr-monitor.md`, "Stale merge-state cache". Owns the other cause.
+- Issue #3644. Durable fix for the driver-versus-GitHub disagreement.
+- `.gitattributes`. Assigns the `causal-graph` driver.

@@ -669,6 +669,7 @@ Outcomes:
 
 - **Base is an ancestor AND trial merge is clean**: `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"` is stale. Issue a safe base-ref refresh (below). Do not treat the PR as permanently blocked.
 - **Trial merge reports conflicts**: the conflict is real and authoritative. Resolve it via the merge-resolver skill; do not refresh-and-hope. `StaleDirtySuspected` being `true` does not override a failing trial merge.
+- **A conflicting path has a custom merge driver**: neither result above is authoritative for GitHub. Git runs merge drivers locally; GitHub does not run them on its servers. So a local trial merge can be clean while GitHub genuinely conflicts, and the fix is to merge the base in locally and push the merge commit so GitHub never has to compute it. Check with `git check-attr merge -- <path>`; a non-`unspecified` value means a driver applies. `.agents/memory/causality/causal-graph.json` is the case in this repo. See `.serena/memories/git/git-causal-graph-github-false-conflict.md`.
 
 Safe base-ref refresh (no force; runs the same merge as the Branch Update path, which is a no-op when already an ancestor and harmless otherwise):
 

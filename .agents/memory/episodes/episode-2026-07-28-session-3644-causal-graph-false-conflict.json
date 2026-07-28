@@ -3,7 +3,7 @@
   "session": "2026-07-28-session-3644-causal-graph-false-conflict",
   "timestamp": "2026-07-28T00:00:00+00:00",
   "outcome": "success",
-  "task": "Record why GitHub reports a false conflict on causal-graph.json and what the safe resolution is.",
+  "task": "Record why local git and the GitHub API disagree on whether causal-graph.json merges cleanly, and what the safe resolution is. Ordering in workLog is sequential; the timestamps mark order only, not measured wall-clock times.",
   "decisions": [],
   "events": [
     {
@@ -84,7 +84,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -92,6 +94,88 @@
       "type": "commit",
       "content": "Commit: 6e906b4e42",
       "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Observed PR #3636 reporting mergeable CONFLICTING/DIRTY while a local merge of the same commits was clean. Polled gh pr view four times at 30 second intervals on the reported head SHA.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review of that draft on a different model family (gpt-5.6-sol) with a prompt that specifically attacked the causal claim and asked which confounds were not ruled out.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked GitHub's reported base against the head for PR #3636: git merge-base --is-ancestor 87b1176674 cadd47a5b1.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a controlled experiment against the advanced main (304355e98f), which is not an ancestor: merge-tree with the driver active, with the driver forced to false, with the driver replaced by a plain text merge, and a raw git merge-file of the three blobs.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the review's remaining technical claims against the source rather than accepting them.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the whole-record comparison with an identity-key comparison using the driver's own _COLLECTIONS keys, then re-checked PR #3636's merge.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the memory around the finding the existing runbook does not cover: for a driver-managed path, a local trial merge is not authoritative for GitHub in either direction, because GitHub runs no custom merge driver.",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": []
     }
   ],
@@ -101,7 +185,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 4
   },
   "lessons": []
 }
