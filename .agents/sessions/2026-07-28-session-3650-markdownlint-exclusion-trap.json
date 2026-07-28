@@ -69,7 +69,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "The memory commit carries the single-file change; the session-log commit carries this file. Both on docs/markdownlint-exclusion-trap."
+        "evidence": "Commits on docs/markdownlint-exclusion-trap: 1cde48c0d the memory record, 5285286c4 this session log, 51af06095 the re-verification command, 788a93e94 the globs guidance and path count, 70a57614a the pattern accuracy and procedure completion, 806392cff the globs strip in the out-of-tree lint."
       },
       "validationPassed": {
         "complete": true,
@@ -91,7 +91,7 @@
       "step": "Caught and corrected a wrong instruction in my own draft before committing it. The first draft told the reader to lint out of tree with no config, on the reasoning that the absent config means no ignores apply. Running that way against the memory reported 9 issues, all false: this repo disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060, and the flagged MD013 line-length and MD060 table-style rules are among them. Rewrote the procedure to copy the repo config and strip only the ignores and globs keys. Re-verified: Linting: 1 file, 0 issues, exit 0. Also corrected an earlier misreading in the same check, where a tail pipe had masked the true exit codes and made a failing run look like it exited 0; the true codes are 1 out of tree and 0 in tree."
     }
   ],
-  "endingCommit": "1cde48c0d9",
+  "endingCommit": "806392cff",
   "nextSteps": [
     "The naive category counter in scripts/memory/validate_memory_sizes.py reads YAML comment lines inside fenced code blocks as H1 headings. This memory reports Categories: 4 against a true count of 1, leaving one slot before a legitimate edit would falsely trip the limit of 5. Filed as issue #3696; the fix is deferred because the script is mirrored into src/copilot-cli/skills/memory/scripts/ and carries plugin manifest bumps.",
     "Session log 2026-07-28-session-3629-memory-stale-script-refs.json already recorded the out-of-tree workaround in its markdownLintRun evidence, but a session log is not a retrieval surface. That is the reason this belongs in a memory, and it suggests other operational knowledge is sitting only in session-log evidence fields."
