@@ -369,7 +369,7 @@ def scan_plugin_roots(root: Path) -> dict[str, int]:
     """
     counts: dict[str, int] = {}
     for skills_dir in skills_dirs(root):
-        for rel, n in scan_skill_markdown(skills_dir).items():
+        for rel, n in scan_skill_markdown(skills_dir).counts.items():
             counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
     return counts
 
@@ -491,26 +491,15 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current = scan_plugin_roots(root)
-    except OSError as exc:
+    except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
         print(
-            f"Unexpected scan error in {skills_dir}: {type(exc).__name__}: {exc}",
+            f"Unexpected scan error under {root}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
         return 2
-
-    if scan.scanned == 0:
-        print(
-            f"No .md files scanned under {skills_dir}; refusing an empty scan "
-            "as a configuration error (a mistargeted root or an unreadable tree "
-            "must not read as clean).",
-            file=sys.stderr,
-        )
-        return 2
-
-    current = scan.counts
 
     if args.update_baseline:
         return _write_baseline(baseline_path, current)

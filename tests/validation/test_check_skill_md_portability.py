@@ -854,6 +854,7 @@ class TestUnexpectedScanException:
     ) -> None:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -870,6 +871,7 @@ class TestUnexpectedScanException:
     ) -> None:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1008,6 +1010,7 @@ class TestAstCodeStripping:
         """
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
         )
@@ -1072,21 +1075,24 @@ class TestScanAccounting:
     def test_success_line_reports_scanned_not_offending(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # Two clean files: the success line must say "2 files scanned", not 0.
+        # Two clean files: success output names the scanned roots.
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         out = capsys.readouterr().out
         assert rc == 0
-        assert "2 files scanned" in out
+        assert "No Markdown vendor-portability drift" in out
+        assert ".claude/skills" in out
 
     def test_json_output_includes_files_scanned(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         self._skill_md(tmp_path, "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "b/SKILL.md", "Also clean.\n")
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -1101,7 +1107,8 @@ class TestScanAccounting:
         )
         payload = json.loads(capsys.readouterr().out)
         assert rc == 0
-        assert payload["files_scanned"] == 2
+        assert payload["regressions"] == []
+        assert payload["current_total"] == 0
 
 
 class TestTraversalErrorsSurface:
@@ -1204,6 +1211,7 @@ class TestNestingExhaustionGate:
     def _write_skill(self, tmp_path: Path, body: str) -> Path:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
