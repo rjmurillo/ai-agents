@@ -7316,3 +7316,93 @@ def test_powershell_scan_skips_unreadable_and_non_yaml_paths(tmp_path: Path) -> 
 def test_powershell_shell_declaration_is_recognised(shell: str | None, expected: bool) -> None:
     """The shell key is matched by executable name, not by exact string."""
     assert policy._is_powershell_shell(shell) is expected
+
+
+# Round-5 adversarial probe. Every shape below reached a shell through a route
+# the round-4 rules did not follow: an alias chain, a brace-form expansion, a
+# `|&` pipe, a file staged by an argument rather than a redirect, a staged file
+# run directly, a sink the set did not name, or the argument list. Refs #3683.
+_ROUND_FIVE_EVASIONS = (
+    ("alias-two-hop", 'A=bash; B=$A; $B -c "c{expression}url http://x"'),
+    ("alias-braced-use", 'SH=bash; ${{SH}} -c "c{expression}url http://x"'),
+    ("alias-cmdsub-rhs", 'SH=$(echo bash); $SH -c "c{expression}url http://x"'),
+    ("group-pipe-both", "(echo 'c{expression}url http://x') |& sh"),
+    ("staged-tee", "echo 'c{expression}url http://x' | tee /tmp/f; sh /tmp/f"),
+    ("staged-quoted-path", "echo 'c{expression}url http://x' > \"/tmp/f\"; sh \"/tmp/f\""),
+    ("staged-chmod-exec", "echo 'c{expression}url' > /tmp/f; chmod +x /tmp/f; /tmp/f"),
+    ("sink-trap", 'trap "c{expression}url http://x" EXIT'),
+    ("sink-parallel", "echo 1 | parallel \"c{expression}url http://x\""),
+    ("sink-make", 'make -f /dev/stdin <<<"a:\n\tc{expression}url http://x"'),
+    ("set-positional", 'set -- "c{expression}url http://x"; bash -c "$1"'),
+)
+
+# The controls for the round-5 narrowings. Each one is a legitimate shape that
+# the corresponding new rule would refuse if it were written one step wider:
+# treating `tee` as a sink rather than a writer, promoting any staged file
+# instead of an executed one, sharing one code-flag set across interpreters so
+# `make -f` also flags `python3 -f`, folding `|&` into the sink test the way a
+# real pipe is folded, or reading `set` as a sink because it stages values.
+_ROUND_FIVE_NEGATIVE_CONTROL = (
+    ("tee-writes-it-does-not-run-it", 'echo "{expression}" | tee build.log'),
+    ("staged-file-only-read", 'echo "{expression}" > /tmp/f; cat /tmp/f'),
+    ("interpreter-file-flag", 'python3 build.py -f config.yml --tag "{expression}"'),
+    ("pipe-both-to-a-non-sink", 'echo "{expression}" |& cat'),
+    ("set-options-not-arguments", 'set -euo pipefail\necho "{expression}"'),
+    ("unresolved-name-without-a-code-flag", 'TOOL=./gradlew; $TOOL build "{expression}"'),
+)
+
+
+@pytest.mark.parametrize(("name", "template"), _ROUND_FIVE_EVASIONS)
+def test_round_five_evasions_are_refused(name: str, template: str) -> None:
+    """Each round-5 shape reaches a shell, so command position has to catch it."""
+    body = template.format(expression="${{ github.event.pull_request.title }}")
+    assert policy._splices_expression_into_command_word(body), name
+
+
+@pytest.mark.parametrize(("name", "template"), _ROUND_FIVE_NEGATIVE_CONTROL)
+def test_round_five_narrowings_do_not_over_tighten(name: str, template: str) -> None:
+    """The round-5 rules must not refuse the legitimate shape next door."""
+    body = template.format(expression="${{ github.event.pull_request.title }}")
+    assert not policy._splices_expression_into_command_word(body), name
+
+
+def test_code_flags_are_per_interpreter_not_shared() -> None:
+    """`make -f` reads code; `python3 -f` does not, and sharing one set conflates them.
+
+    Without the split, adding the flag `make` needs would refuse every ordinary
+    `python3 script.py -f config.yml` that also carries an expression.
+    """
+    assert "-f" in policy.SHELL_CODE_FLAG_SINKS["make"]
+    assert "-f" not in policy.SHELL_CODE_FLAG_SINKS["python3"]
+    assert "-exec" not in policy.SHELL_CODE_FLAG_SINKS["python3"]
+    assert "-c" not in policy.SHELL_CODE_FLAG_SINKS["find"]
+
+
+def test_sink_aliases_resolve_through_a_chain() -> None:
+    """A name assigned another name still has to reach the shell it names."""
+    scan = policy._shell_words("A=bash; B=$A; C=$B; $C -c x")
+    assert policy._shell_sink_aliases(scan.words) == {"A": "bash", "B": "bash", "C": "bash"}
+
+
+def test_sink_alias_resolution_terminates_on_a_cycle() -> None:
+    """A self-referential assignment must not spin the resolver."""
+    scan = policy._shell_words("A=$B; B=$A; $A -c x")
+    assert policy._shell_sink_aliases(scan.words) == {}
+
+
+@pytest.mark.parametrize(
+    ("word", "expected"),
+    [
+        ("$SH", "SH"),
+        ("${SH}", "SH"),
+        ('"$SH"', "SH"),
+        ('"${SH}"', "SH"),
+        ("$1", None),
+        ("bash", None),
+        ("c${SH}url", None),
+        ("$(echo bash)", None),
+    ],
+)
+def test_variable_word_recognises_only_a_bare_expansion(word: str, expected: str | None) -> None:
+    """A word that merely contains a variable is not a reference to one."""
+    assert policy._shell_variable_name(word) == expected

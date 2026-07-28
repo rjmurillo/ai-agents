@@ -177,23 +177,44 @@ SHELL_SINK_COMMANDS = frozenset(
     {
         ".", "ash", "awk", "bash", "builtin", "busybox", "chroot", "command",
         "coproc", "dash", "doas", "env", "eval", "exec", "flock", "gawk",
-        "ionice", "ksh", "mawk", "nice", "nohup", "rbash", "runuser", "script",
-        "setsid", "sh", "source", "ssh", "stdbuf", "su", "sudo", "taskset",
-        "time", "timeout", "unbuffer", "watch", "xargs", "zsh",
+        "ionice", "ksh", "mawk", "nice", "nohup", "parallel", "rbash",
+        "runuser", "script", "setsid", "sh", "source", "ssh", "stdbuf", "su",
+        "sudo", "taskset", "time", "timeout", "trap", "unbuffer", "watch",
+        "xargs", "zsh",
     },
 )
 # Interpreters that run a script file by default and only become sinks when an
 # argument hands them code directly. Without the flag test, an ordinary
-# `python3 build.py --tag "v${{ inputs.version }}"` would be refused.
-SHELL_CODE_FLAG_SINKS = frozenset(
-    {"find", "lua", "node", "perl", "php", "python", "python2", "python3", "ruby"},
-)
-SHELL_CODE_FLAGS = frozenset(
-    {"-c", "-e", "-", "-E", "--eval", "--command", "-exec", "-execdir", "-ok", "-okdir"},
-)
+# `python3 build.py --tag "v${{ inputs.version }}"` would be refused. The flags
+# are per interpreter: `make -f` reads a makefile as code, but `python3 -f` is
+# not a thing, and treating `-f` as universal would refuse every ordinary
+# `python3 script.py -f config.yml`.
+_INTERPRETER_CODE_FLAGS = frozenset({"-c", "-e", "-", "-E", "--eval", "--command"})
+_FIND_CODE_FLAGS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+SHELL_CODE_FLAG_SINKS: dict[str, frozenset[str]] = {
+    "find": _FIND_CODE_FLAGS,
+    "lua": _INTERPRETER_CODE_FLAGS,
+    "make": frozenset({"-f", "--file", "--makefile"}),
+    "node": _INTERPRETER_CODE_FLAGS,
+    "perl": _INTERPRETER_CODE_FLAGS,
+    "php": _INTERPRETER_CODE_FLAGS,
+    "python": _INTERPRETER_CODE_FLAGS,
+    "python2": _INTERPRETER_CODE_FLAGS,
+    "python3": _INTERPRETER_CODE_FLAGS,
+    "ruby": _INTERPRETER_CODE_FLAGS,
+}
+SHELL_CODE_FLAGS = frozenset[str]().union(*SHELL_CODE_FLAG_SINKS.values())
 # A variable reference, so an expression assigned to a name can be followed to
 # the command position that later expands it.
 SHELL_VARIABLE_REFERENCE_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+# A word that is nothing but a variable expansion, in either brace form. The
+# sink-alias lookup has to accept both, because `${SH} -c` reaches the same
+# shell as `$SH -c`.
+SHELL_VARIABLE_WORD_RE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+# Commands whose non-flag arguments name files they write. `tee` does not run
+# what it receives, so it is a writer rather than a sink, but it stages a file
+# a later sink can execute.
+SHELL_FILE_WRITERS = frozenset({"tee"})
 # Semgrep sub-parses a run: body as Bash only for a Bash step, so a PowerShell
 # step that shells out to any of these is invisible to the ruleset. Refs #3684.
 POSIX_SHELLS = frozenset({"ash", "bash", "busybox", "dash", "ksh", "sh", "zsh"})
@@ -2973,7 +2994,10 @@ def _shell_words(text: str) -> _ShellScan:
             flush()
             piped.add(pipeline)
             expecting = True
-            index += 1
+            # `|&` is one pipe operator. Letting the `&` fall through to the
+            # separator branch would split the two halves into unrelated
+            # pipelines and lose the dataflow between them.
+            index += 2 if index + 1 < length and text[index + 1] == "&" else 1
             continue
         if character in ";&\n" or character in "()" or (character in "{}" and not current):
             flush()
@@ -3026,27 +3050,101 @@ def _promote_shell_sink_arguments(scan: _ShellScan) -> list[tuple[str, bool, int
     """
     sinks: set[int] = set()
     aliases = _shell_sink_aliases(scan.words)
-    flagged = {
-        pipeline
-        for word, _, pipeline in scan.words
-        if _is_shell_code_flag(word.strip("'\""))
-    }
+    flags: dict[int, set[str]] = {}
+    for word, _, pipeline in scan.words:
+        matched = _shell_code_flags(word.strip("'\""))
+        if matched:
+            flags.setdefault(pipeline, set()).update(matched)
     written: dict[str, set[int]] = {}
     for target, pipeline in scan.writes:
-        written.setdefault(target, set()).add(pipeline)
+        written.setdefault(target.strip("'\""), set()).add(pipeline)
+    _record_writer_arguments(scan, written)
     for word, is_command, pipeline in scan.words:
         if not is_command:
             continue
         name = _shell_sink_name(word)
-        if name in aliases:
-            name = aliases[name]
-        if name in SHELL_SINK_COMMANDS or (name in SHELL_CODE_FLAG_SINKS and pipeline in flagged):
+        reference = _shell_variable_name(word)
+        if reference is not None:
+            # An unresolved name carrying a code flag is an interpreter call by
+            # construction: `SH=$(echo bash); $SH -c payload` runs the payload
+            # whatever the name holds.
+            name = aliases.get(reference, "" if reference in aliases else name)
+            if reference not in aliases and flags.get(pipeline):
+                sinks.add(pipeline)
+                continue
+        if name in SHELL_SINK_COMMANDS or (
+            flags.get(pipeline, set()) & SHELL_CODE_FLAG_SINKS.get(name, frozenset())
+        ):
             sinks.add(pipeline)
     _promote_staged_files(scan, sinks, written)
     return [
         (word, is_command or pipeline in sinks, pipeline)
         for word, is_command, pipeline in scan.words
     ]
+
+
+def _shell_code_flags(word: str) -> set[str]:
+    """Return the code flags a word matches, exactly or glued to its argument.
+
+    ``perl -e'system(<>)'`` glues the script to the flag, so an exact-token
+    comparison misses it while the interpreter still runs the argument.
+    """
+    if word in SHELL_CODE_FLAGS:
+        return {word}
+    return {
+        flag
+        for flag in SHELL_CODE_FLAGS
+        if len(flag) == 2
+        and flag.startswith("-")
+        and word.startswith(flag)
+        and not word[len(flag) :].lstrip("-").isalnum()
+    }
+
+
+def _record_writer_arguments(scan: _ShellScan, written: dict[str, set[int]]) -> None:
+    """Record the files a writer command names, alongside shell redirections.
+
+    ``echo payload | tee /tmp/f; sh /tmp/f`` stages the file through an
+    argument rather than a ``>``, so redirection parsing alone never sees it.
+    """
+    writing: set[int] = set()
+    for word, is_command, pipeline in scan.words:
+        if is_command and _shell_sink_name(word) in SHELL_FILE_WRITERS:
+            writing.add(pipeline)
+    for word, is_command, pipeline in scan.words:
+        if is_command or pipeline not in writing:
+            continue
+        target = word.strip("'\"")
+        if target.startswith("-"):
+            continue
+        written.setdefault(target, set()).add(pipeline)
+    _record_positional_arguments(scan, written)
+
+
+def _record_positional_arguments(scan: _ShellScan, written: dict[str, set[int]]) -> None:
+    """Record the positional parameters ``set --`` stages for a later sink.
+
+    ``set -- payload; bash -c "$1"`` moves the payload through the argument
+    list, which is a name a sink reads exactly the way it reads a file.
+    """
+    by_pipeline: dict[int, list[tuple[str, bool, int]]] = {}
+    for entry in scan.words:
+        by_pipeline.setdefault(entry[2], []).append(entry)
+    for target_pipeline in {
+        pipeline
+        for word, is_command, pipeline in scan.words
+        if is_command and _shell_sink_name(word) == "set"
+    }:
+        position = 0
+        for word, is_command, pipeline in by_pipeline.get(target_pipeline, ()):
+            if is_command:
+                continue
+            if word.strip("'\"") == "--":
+                position = 0
+                continue
+            position += 1
+            for name in (f"${position}", f"${{{position}}}", "$@", "$*"):
+                written.setdefault(name, set()).add(pipeline)
 
 
 def _promote_staged_files(
@@ -3056,44 +3154,86 @@ def _promote_staged_files(
 
     ``echo payload > /tmp/f & sh /tmp/f`` moves the payload through the
     filesystem rather than a pipe, so pipeline scoping alone never connects the
-    two halves.
+    two halves. ``chmod +x /tmp/f; /tmp/f`` runs the staged file directly
+    instead of handing it to a shell, so a command word naming a staged file
+    counts as the execution too.
     """
     for word, is_command, pipeline in scan.words:
-        if is_command or pipeline not in sinks:
+        staged = written.get(word.strip("'\""))
+        if staged is None:
             continue
-        sinks.update(written.get(word.strip("'\""), ()))
+        if pipeline in sinks and not is_command:
+            sinks.update(staged)
+        elif is_command:
+            sinks.add(pipeline)
+            sinks.update(staged)
 
 
 def _shell_sink_aliases(words: Sequence[tuple[str, bool, int]]) -> dict[str, str]:
-    """Return names assigned a literal sink command, keyed by their reference.
+    """Return names assigned a literal sink command, keyed by the bare name.
 
     ``SH=bash; $SH -c "c${{ '' }}url"`` reaches a shell through a variable, so
     the sink lookup has to follow the assignment the same way taint does.
+    ``A=bash; B=$A; $B -c`` adds a hop, so an assignment whose value is itself
+    a variable is resolved through the chain before the sink test.
     """
-    aliases: dict[str, str] = {}
+    assigned: dict[str, str] = {}
     for word, _, _ in words:
         match = SHELL_ASSIGNMENT_RE.match(word)
         if not match:
             continue
-        value = _shell_sink_name(word[match.end() :])
-        if value in SHELL_SINK_COMMANDS or value in SHELL_CODE_FLAG_SINKS:
-            aliases[f"${word[: match.end()].split('[', 1)[0].rstrip('+=')}"] = value
-    return aliases
+        name = word[: match.end()].split("[", 1)[0].rstrip("+=")
+        assigned[name] = _shell_sink_name(word[match.end() :])
+    resolved: dict[str, str] = {}
+    for name in assigned:
+        _resolve_shell_alias(name, assigned, resolved)
+    return {
+        name: value
+        for name, value in resolved.items()
+        if value in SHELL_SINK_COMMANDS or value in SHELL_CODE_FLAG_SINKS
+    }
 
 
-def _is_shell_code_flag(word: str) -> bool:
-    """Report whether ``word`` is a flag that makes its interpreter run code.
+def _resolve_shell_alias(name: str, assigned: dict[str, str], resolved: dict[str, str]) -> str:
+    """Follow an assignment chain to the literal it ends on, memoising the walk.
 
-    ``perl -e'system(<>)'`` glues the script to the flag, so an exact-token
-    comparison misses it while the interpreter still runs the argument.
+    Resolving each name independently is quadratic on a long chain, and a
+    self-referential pair (``A=$B; B=$A``) never terminates without the cycle
+    test, so the walk records the names it has visited and writes the answer
+    back to every one of them.
     """
-    if word in SHELL_CODE_FLAGS:
-        return True
-    return any(
-        word.startswith(flag) and not word[len(flag) :].lstrip("-").isalnum()
-        for flag in SHELL_CODE_FLAGS
-        if len(flag) == 2 and flag.startswith("-")
-    )
+    walked: list[str] = []
+    seen: set[str] = set()
+    current = name
+    while True:
+        if current in resolved:
+            value = resolved[current]
+            break
+        if current in seen:
+            value = ""
+            break
+        seen.add(current)
+        walked.append(current)
+        value = assigned.get(current, "")
+        reference = _shell_variable_name(value)
+        if reference is None:
+            break
+        current = reference
+    for entry in walked:
+        resolved[entry] = value
+    return value
+
+
+def _shell_variable_name(word: str) -> str | None:
+    """Return the variable a word expands, for ``$N``, ``${N}``, and quoted forms.
+
+    Returns ``None`` when the word is not a bare expansion, so a command word
+    that merely contains a variable is never mistaken for one.
+    """
+    match = SHELL_VARIABLE_WORD_RE.fullmatch(word.strip("'\""))
+    if match is None:
+        return None
+    return match.group(1) or match.group(2)
 
 
 def _shell_sink_name(word: str) -> str:
