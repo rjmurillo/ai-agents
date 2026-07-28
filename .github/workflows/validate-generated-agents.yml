@@ -54,6 +54,9 @@ jobs:
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
               - 'src/claude/**'
+              - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
+              - '.claude/.claude-plugin/plugin.json'
               - 'build/generate_agents.py'
               - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
@@ -221,13 +224,16 @@ jobs:
           echo "Running sync_plugin_lib.py --check..."
           uv run python scripts/sync_plugin_lib.py --check
 
-      - name: Plugin manifest version parity check (Issue #2222)
+      - name: "Plugin manifest parity and description count check (Issues #2222, #3651)"
         if: steps.should-run.outputs.skip != 'true'
-        # Both `.claude/.claude-plugin/plugin.json` and
-        # `src/copilot-cli/.claude-plugin/plugin.json` must declare
-        # identical `version` fields. Prevents the drift class where
-        # one manifest bumps version but the other is forgotten.
-        # Exits 1 on mismatch, 2 on malformed input, 0 on parity.
+        # Two invariants, one script:
+        # 1. Version parity: `.claude/.claude-plugin/plugin.json` and
+        #    `src/copilot-cli/.claude-plugin/plugin.json` must declare
+        #    identical `version` fields.
+        # 2. No component counts: no description in either marketplace file or
+        #    any plugin manifest may embed a count, because nothing recomputes
+        #    it and it goes stale on the next component change (PR #2187).
+        # Exits 1 on staleness, 2 on malformed input, 0 when both hold.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
           uv run python build/scripts/check_plugin_manifest_parity.py
@@ -239,7 +245,7 @@ jobs:
           echo "Validating GitHub Actions SHA pinning..."
           uv run python scripts/validation/sha_pinning.py --ci
 
-      - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
+      - name: "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)"
         if: steps.should-run.outputs.skip != 'true'
         # Parse every .github/agents/*.agent.md frontmatter as a YAML loader
         # would. An unquoted plain-scalar description that embeds colon-bearing
