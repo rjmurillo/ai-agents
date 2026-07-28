@@ -405,7 +405,9 @@ class TestExtractRealRuleEnvelope:
     """The shape eval-rule-activation.py --output actually writes.
 
     Verified against a live run over tests/evals/rule-scenarios/*.json: the
-    file is {"rules": {<rule-name>: {"target_path", "scenarios", "summary"}}}.
+    file is {"rules": {<rule-name>: {"target_path", "reference_path",
+    "scenarios", "summary"}}}. `reference_path` is present when the target is a
+    progressive-disclosure skill reference rather than an always-on rule.
     Scenario ids restart at S1 inside every rule, so 24 real scenarios carry
     only 4 distinct ids and must be namespaced before they can be task ids.
     """

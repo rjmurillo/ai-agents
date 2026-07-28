@@ -603,13 +603,24 @@ def _resolve_skill_reference(
 def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path | None] | int:
     """Resolve either a rule path or a skill reference target."""
     rule_path_str = data.get("rule_path")
+    skill_path_str = data.get("skill_path")
+
+    # rule_path and skill_path are mutually exclusive; fail fast on ambiguity.
+    if (isinstance(rule_path_str, str) and rule_path_str.strip()) and (
+        isinstance(skill_path_str, str) and skill_path_str.strip()
+    ):
+        print(
+            f"ERROR: rule_path and skill_path are mutually exclusive in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+
     if isinstance(rule_path_str, str) and rule_path_str.strip():
         resolved = _resolve_rule_path(rule_path_str.strip())
         if isinstance(resolved, int):
             return resolved
         return resolved, None
 
-    skill_path_str = data.get("skill_path")
     reference_path_str = data.get("reference_path")
     if not isinstance(skill_path_str, str) or not skill_path_str.strip():
         print(

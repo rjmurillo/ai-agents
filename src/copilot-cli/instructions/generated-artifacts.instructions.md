@@ -165,11 +165,11 @@ never have to uninstall to recover from an artifact we generated.
 ## References
 
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
-- `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
-- `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
-- `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
-- `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
-- `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
+- `skills/agent-harness-reference/SKILL.md`. Operational contract.
+- `skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
+- `skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
+- `instructions/canonical-source-mirror.instructions.md`. Self-referential test anti-pattern.
+- `skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.

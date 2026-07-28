@@ -161,7 +161,7 @@ Adding a new activation eval:
 2. Use `rule_path` for always-on rules, or `skill_path` plus `reference_path` for progressive-disclosure references.
 3. Run `uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the target.
 4. Run live (without `--dry-run`) to score. Cost is ~$0.25 per target (24 calls × ~3500 tokens).
-4. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
+5. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
 
 ## Skill Overlap Eval
 

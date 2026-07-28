@@ -6,7 +6,7 @@ decision-makers: []
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: true
+implemented: false
 ---
 
 # ADR-088: Progressive Disclosure for Book-Derived Rules
