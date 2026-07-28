@@ -17,7 +17,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from _eval_agent_types import SCHEMA_VERSION
+from _eval_agent_types import REPORT_SCHEMA_VERSION
 from _report_aggregator import AggregateResult, FormFactorComparison
 
 
@@ -68,6 +68,7 @@ def _build_report_json(
     wall_clock_seconds: float,
     recommendation: str | None = None,
     system_fingerprints: list[str] | None = None,
+    seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
 ) -> dict[str, object]:
     """Serialize the AggregateResult into the report.json shape.
@@ -80,7 +81,7 @@ def _build_report_json(
     external consumers can rely on them.
     """
     payload = {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": REPORT_SCHEMA_VERSION,
         "run_id": run_id,
         "model_id": model_id,
         "agent_prompt_sha": agent_prompt_sha,
@@ -108,6 +109,7 @@ def _build_report_json(
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
         "system_fingerprints": system_fingerprints or [],
+        "seed": seed,
         "recommendation": recommendation,
     }
     if form_factor is not None:
@@ -311,6 +313,7 @@ def _render_markdown(
     wall_clock_seconds: float,
     recommendation: str | None = None,
     system_fingerprints: list[str] | None = None,
+    seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
@@ -324,6 +327,8 @@ def _render_markdown(
     if system_fingerprints:
         rendered = ", ".join(f"`{value}`" for value in system_fingerprints)
         header += f"- System fingerprints: {rendered}\n"
+    if seed is not None:
+        header += f"- Seed: `{seed}`\n"
     sections = [
         header,
         _render_summary_table(aggregate),
@@ -355,6 +360,7 @@ class ReportWriter:
         wall_clock_seconds: float,
         recommendation: str | None = None,
         system_fingerprints: list[str] | None = None,
+        seed: int | None = None,
         form_factor: FormFactorComparison | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
@@ -369,6 +375,7 @@ class ReportWriter:
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
             system_fingerprints=system_fingerprints,
+            seed=seed,
             form_factor=form_factor,
         )
         report_md = _render_markdown(
@@ -381,6 +388,7 @@ class ReportWriter:
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
             system_fingerprints=system_fingerprints,
+            seed=seed,
             form_factor=form_factor,
         )
         json_path = run_reports_dir / "report.json"
