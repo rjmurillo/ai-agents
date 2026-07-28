@@ -54,7 +54,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Accepted | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | ADR-030 | doc's own header reads "Status: Critical Update - Changes Recommendation" (line 4); treated as binding by AGENTS.md Skill-First section | In-context skill plus direct MCP call is 5-20ms vs 100-200ms Task spawn overhead (ADR-030 line 31 comparison table) |
-| Memory skill decomposition into tiers | ADR-063 | Accepted | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic, Tier 3 causal |
+| Memory skill decomposition into tiers | ADR-063, amended by ADR-088 | Accepted; ADR-088 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
 | Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Proposed, but the position is the owner's canonical one after incident #2205 | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
 | Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted; transitional after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 owns removal or simplification |
@@ -92,7 +92,7 @@ Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op inc
 ### Phase 4: Understand the memory architecture
 
 - Canonical/supplementary split (ADR-007): `.serena/memories/` markdown files are the source of truth; Forgetful is a supplementary graph store. `scripts/memory_sync/sync_engine.py` mirrors Serena into Forgetful ("Serena-to-Forgetful synchronization ... to mirror Serena's canonical .serena/memories/ files").
-- Tiers (ADR-063, Accepted): Tier 1 semantic search, Tier 2 episodic session replay, Tier 3 causal graph. Front doors are the `memory` and `memory-search` skills.
+- Tiers (ADR-063, Accepted; amended by ADR-088, Proposed): Tier 1 semantic search, Tier 2 episodic session replay. The Tier 3 causal graph shipped by ADR-063 was deleted because it was a derived cache with no reader. Front doors are the `memory` and `memory-search` skills.
 - Observation loop (issue #1345): the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted (issue #3184) after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent`.
 
 Architectural consequence: memories are load-bearing runtime inputs, not documentation. Deleting or renaming a `.serena/memories/` file changes hook behavior in live sessions.

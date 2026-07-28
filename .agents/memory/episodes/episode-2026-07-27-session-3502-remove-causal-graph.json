@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-07-27-session-3502-remove-causal-graph",
+  "session": "2026-07-27-session-3502-remove-causal-graph",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Remove the Tier 3 causal graph and its merge-driver machinery after establishing it is a derived cache with no runtime readers",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 97
+  },
+  "lessons": []
+}

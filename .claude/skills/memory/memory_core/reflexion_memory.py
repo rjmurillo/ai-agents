@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Reflexion Memory module for episodic replay and causal reasoning.
+"""Reflexion Memory module for episodic replay.
 
-Implements ADR-038 Reflexion Memory Schema with:
+Implements the episodic portion of the ADR-038 Reflexion Memory Schema:
 - Episodic memory storage and retrieval
-- Causal graph management
-- Pattern extraction from decision sequences
 
 Tier Architecture:
 - Tier 0: Working memory (context window, managed by Claude)
 - Tier 1: Semantic memory (Serena + Forgetful, ADR-037)
 - Tier 2: Episodic memory (this module)
-- Tier 3: Causal memory (this module)
+
+Tier 3 causal memory was removed; the graph was a derived cache with no runtime
+reader. Episodes remain the source of truth. No code reads them today either:
+the query API below has no caller outside this module, its tests, and
+documentation examples. See ADR-088 and issue 3630.
 
 Exit codes (ADR-035):
     0 - Success
@@ -21,11 +23,8 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
-import functools
-import importlib.util
 import json
 import logging
-from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -47,36 +46,9 @@ _SKILL_ROOT = _MODULE_DIR.parent
 _AGENTS_ROOT = _SKILL_ROOT.parent.parent.parent / ".agents"
 
 EPISODES_PATH = _AGENTS_ROOT / "memory" / "episodes"
-CAUSALITY_PATH = _AGENTS_ROOT / "memory" / "causality"
-CAUSAL_GRAPH_FILE = CAUSALITY_PATH / "causal-graph.json"
 
 SCHEMAS_PATH = _SKILL_ROOT / "resources" / "schemas"
 EPISODE_SCHEMA_FILE = SCHEMAS_PATH / "episode.schema.json"
-CAUSAL_GRAPH_SCHEMA_FILE = SCHEMAS_PATH / "causal-graph.schema.json"
-
-
-@functools.lru_cache(maxsize=1)
-def _live_writer() -> Any:
-    """Load the live causal-graph writer so identity is defined in one place.
-
-    ``scripts/update_causal_graph.py`` runs on every session-log commit and owns
-    this file. This module last wrote to it on 2026-02-10. Two writers with two
-    identity schemes is what #3356 is about, so the retired one borrows the live
-    one's rather than keeping a second copy that can drift.
-
-    Loaded by path rather than by package name because the live writer is a
-    standalone script invoked from a git hook, and reaching it must not depend
-    on how this package happened to get onto ``sys.path``. The dependency points
-    this way, never the other, so nothing here can slow down or break the hook.
-    """
-    source = _SKILL_ROOT / "scripts" / "update_causal_graph.py"
-    spec = importlib.util.spec_from_file_location("_causal_writer", source)
-    if spec is None or spec.loader is None:  # pragma: no cover - unreachable
-        msg = f"Cannot load the causal graph writer from '{source}'"
-        raise ImportError(msg)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +65,8 @@ def _validate_schema(
 
     Every constraint the schema states is checked, including the ones inside
     array items. The hand-rolled predecessor checked only top-level ``required``
-    presence and top-level property types, so it passed a causal graph carrying
-    3392 real node and pattern violations while reporting success (#3356). A
+    presence and top-level property types, so it passed data carrying thousands
+    of real violations inside array items while reporting success (#3356). A
     validator that reports success over data it never descended into is worse
     than none, because it gets cited as evidence the data is well formed.
 
@@ -152,90 +124,6 @@ def _validate_schema(
             + suffix
         )
         raise ValueError(msg)
-
-
-def _get_causal_graph(allow_empty: bool = False) -> dict[str, Any]:
-    """Load the causal graph from disk.
-
-    Args:
-        allow_empty: If True, returns empty graph on corruption instead of raising.
-
-    Returns:
-        Causal graph dict with version, updated, nodes, edges, patterns.
-
-    Raises:
-        ValueError: If graph is corrupted and allow_empty is False.
-    """
-    empty_graph: dict[str, Any] = {
-        "version": "1.0",
-        "updated": datetime.now(tz=UTC).isoformat(),
-        "nodes": [],
-        "edges": [],
-        "patterns": [],
-    }
-
-    if not CAUSAL_GRAPH_FILE.is_file():
-        return empty_graph
-
-    try:
-        content = CAUSAL_GRAPH_FILE.read_text(encoding="utf-8")
-        if not content.strip():
-            return empty_graph
-        data: dict[str, Any] = json.loads(content)
-        return data
-    except (OSError, json.JSONDecodeError) as exc:
-        error_message = f"Causal graph corrupted at '{CAUSAL_GRAPH_FILE}': {exc}"
-        if allow_empty:
-            logger.warning(error_message)
-            return empty_graph
-        raise ValueError(error_message) from exc
-
-
-def _save_causal_graph(
-    graph: dict[str, Any],
-    skip_validation: bool = False,
-) -> None:
-    """Save the causal graph to disk.
-
-    Args:
-        graph: The causal graph dict to save.
-        skip_validation: Skip JSON Schema validation (for tests only).
-
-    Raises:
-        FileNotFoundError: If schema file missing.
-        ValueError: If validation fails.
-        OSError: If I/O fails.
-    """
-    graph["updated"] = datetime.now(tz=UTC).isoformat()
-
-    if not skip_validation:
-        _validate_schema(graph, CAUSAL_GRAPH_SCHEMA_FILE, "causal graph")
-
-    CAUSALITY_PATH.mkdir(parents=True, exist_ok=True)
-
-    try:
-        json_str = json.dumps(graph, indent=2, default=str)
-        CAUSAL_GRAPH_FILE.write_text(json_str, encoding="utf-8")
-    except OSError as exc:
-        msg = f"Failed to save causal graph to '{CAUSAL_GRAPH_FILE}': {exc}"
-        raise OSError(msg) from exc
-
-
-def _next_node_id(node_type: str, label: str) -> str:
-    """Derive a node id the way the live writer does.
-
-    Sequential ``n001`` ids used to be allocated here. They made identity depend
-    on insertion order, so the same decision recorded twice got two ids, and the
-    live writer's content-derived ids collided with nothing this produced.
-    """
-    generate_node_id: Any = _live_writer().generate_node_id
-    return str(generate_node_id(node_type, label))
-
-
-def _next_pattern_id(name: str) -> str:
-    """Derive a pattern id the way the live writer does. See `_next_node_id`."""
-    generate_pattern_id: Any = _live_writer().generate_pattern_id
-    return str(generate_pattern_id(name))
 
 
 # ---------------------------------------------------------------------------
@@ -446,322 +334,6 @@ def get_decision_sequence(episode_id: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Causal graph functions
-# ---------------------------------------------------------------------------
-
-
-def add_causal_node(
-    node_type: str,
-    label: str,
-    episode_id: str | None = None,
-) -> dict[str, Any]:
-    """Add a node to the causal graph.
-
-    Args:
-        node_type: Node type: decision, event, outcome, pattern, error.
-        label: Human-readable label.
-        episode_id: Source episode ID.
-
-    Returns:
-        Node dict with id, type, label, episodes, frequency, success_rate.
-
-    Raises:
-        ValueError: If node_type is invalid.
-    """
-    valid_types = tuple(sorted(_live_writer().NODE_TYPES))
-    if node_type not in valid_types:
-        msg = f"Invalid node type: {node_type}. Must be one of {valid_types}."
-        raise ValueError(msg)
-
-    graph = _get_causal_graph()
-
-    # Check if node already exists (by label)
-    for existing in graph.get("nodes", []):
-        if existing.get("label") == label:
-            existing["frequency"] = int(existing.get("frequency", 0)) + 1
-            if episode_id:
-                episodes = existing.get("episodes") or []
-                if episode_id not in episodes:
-                    episodes.append(episode_id)
-                    existing["episodes"] = episodes
-            _save_causal_graph(graph)
-            result: dict[str, Any] = existing
-            return result
-
-    # Create new node
-    node_episodes: list[str] = []
-    if episode_id:
-        node_episodes = [episode_id]
-
-    node: dict[str, Any] = {
-        "id": _next_node_id(node_type, label),
-        "type": node_type,
-        "label": label,
-        "episodes": node_episodes,
-        "frequency": 1,
-        "success_rate": 1.0,
-    }
-
-    graph.setdefault("nodes", []).append(node)
-    _save_causal_graph(graph)
-
-    return node
-
-
-def add_causal_edge(
-    source_id: str,
-    target_id: str,
-    edge_type: str,
-    weight: float = 0.5,
-) -> dict[str, Any]:
-    """Add an edge to the causal graph.
-
-    Args:
-        source_id: Source node ID.
-        target_id: Target node ID.
-        edge_type: Edge type: causes, enables, prevents, correlates.
-        weight: Confidence weight (0-1).
-
-    Returns:
-        Edge dict with source, target, type, weight, evidence_count.
-
-    Raises:
-        ValueError: If edge_type is invalid or weight is out of range.
-    """
-    valid_types = ("causes", "enables", "prevents", "correlates")
-    if edge_type not in valid_types:
-        msg = f"Invalid edge type: {edge_type}. Must be one of {valid_types}."
-        raise ValueError(msg)
-    if not 0 <= weight <= 1:
-        msg = f"Weight must be between 0 and 1, got {weight}."
-        raise ValueError(msg)
-
-    graph = _get_causal_graph()
-
-    # Check if edge already exists
-    for existing in graph.get("edges", []):
-        if (
-            existing.get("source") == source_id
-            and existing.get("target") == target_id
-            and existing.get("type") == edge_type
-        ):
-            evidence_count = int(existing.get("evidence_count", 0)) + 1
-            existing["evidence_count"] = evidence_count
-            old_weight = float(existing.get("weight", 0))
-            existing["weight"] = (
-                old_weight * (evidence_count - 1) + weight
-            ) / evidence_count
-            _save_causal_graph(graph)
-            edge_result: dict[str, Any] = existing
-            return edge_result
-
-    # Create new edge
-    edge: dict[str, Any] = {
-        "source": source_id,
-        "target": target_id,
-        "type": edge_type,
-        "weight": weight,
-        "evidence_count": 1,
-    }
-
-    graph.setdefault("edges", []).append(edge)
-    _save_causal_graph(graph)
-
-    return edge
-
-
-def get_causal_path(
-    from_label: str,
-    to_label: str,
-    max_depth: int = 5,
-) -> dict[str, Any]:
-    """Find causal path between two nodes using BFS.
-
-    Args:
-        from_label: Source node label (substring match).
-        to_label: Target node label (substring match).
-        max_depth: Maximum path depth to search (1-10).
-
-    Returns:
-        Dict with found (bool), path (list of nodes), depth (int), error (str).
-    """
-    if max_depth < 1 or max_depth > 10:
-        msg = "max_depth must be between 1 and 10"
-        raise ValueError(msg)
-
-    graph = _get_causal_graph()
-    nodes = graph.get("nodes", [])
-    edges = graph.get("edges", [])
-
-    # Find source and target nodes (substring match)
-    from_node = None
-    to_node = None
-    for node in nodes:
-        node_label = node.get("label", "")
-        if from_label in node_label and from_node is None:
-            from_node = node
-        if to_label in node_label and to_node is None:
-            to_node = node
-
-    if not from_node or not to_node:
-        return {"found": False, "path": [], "error": "Node not found"}
-
-    # BFS
-    queue: deque[dict[str, Any]] = deque()
-    queue.append({"node": from_node["id"], "path": [from_node["id"]]})
-    visited: set[str] = {from_node["id"]}
-
-    while queue:
-        current = queue.popleft()
-
-        if current["node"] == to_node["id"]:
-            # Resolve node labels
-            path_nodes = []
-            for node_id in current["path"]:
-                for node in nodes:
-                    if node.get("id") == node_id:
-                        path_nodes.append(node)
-                        break
-            return {
-                "found": True,
-                "path": path_nodes,
-                "depth": len(current["path"]) - 1,
-            }
-
-        if len(current["path"]) >= max_depth:
-            continue
-
-        # Find outgoing edges
-        for edge in edges:
-            if edge.get("source") == current["node"]:
-                target = edge["target"]
-                if target not in visited:
-                    visited.add(target)
-                    queue.append({
-                        "node": target,
-                        "path": current["path"] + [target],
-                    })
-
-    return {
-        "found": False,
-        "path": [],
-        "error": f"No path found within depth {max_depth}",
-    }
-
-
-# ---------------------------------------------------------------------------
-# Pattern functions
-# ---------------------------------------------------------------------------
-
-
-def add_pattern(
-    name: str,
-    trigger: str,
-    action: str,
-    description: str = "",
-    success_rate: float = 1.0,
-) -> dict[str, Any]:
-    """Add a pattern to the causal graph.
-
-    Args:
-        name: Pattern name.
-        trigger: Condition that triggers this pattern.
-        action: Recommended action.
-        description: Pattern description.
-        success_rate: Success rate (0-1).
-
-    Returns:
-        Pattern dict with id, name, description, trigger, action,
-        success_rate, occurrences, last_used.
-    """
-    if not 0 <= success_rate <= 1:
-        msg = f"success_rate must be between 0 and 1, got {success_rate}."
-        raise ValueError(msg)
-
-    graph = _get_causal_graph()
-
-    # Check if pattern already exists
-    for existing in graph.get("patterns", []):
-        if existing.get("name") == name:
-            occurrences = existing.get("occurrences", 0) + 1
-            existing["occurrences"] = occurrences
-            existing["last_used"] = datetime.now(tz=UTC).isoformat()
-            old_rate = existing.get("success_rate", 0)
-            existing["success_rate"] = (
-                old_rate * (occurrences - 1) + success_rate
-            ) / occurrences
-            _save_causal_graph(graph)
-            pattern_result: dict[str, Any] = existing
-            return pattern_result
-
-    # Create new pattern
-    pattern: dict[str, Any] = {
-        "id": _next_pattern_id(name),
-        "name": name,
-        "description": description,
-        "trigger": trigger,
-        "action": action,
-        "success_rate": success_rate,
-        "occurrences": 1,
-        "last_used": datetime.now(tz=UTC).isoformat(),
-    }
-
-    graph.setdefault("patterns", []).append(pattern)
-    _save_causal_graph(graph)
-
-    return pattern
-
-
-def get_patterns(
-    min_success_rate: float = 0,
-    min_occurrences: int = 1,
-) -> list[dict[str, Any]]:
-    """Retrieve patterns matching criteria.
-
-    Args:
-        min_success_rate: Minimum success rate filter (0-1).
-        min_occurrences: Minimum occurrences filter (1-1000).
-
-    Returns:
-        List of pattern dicts sorted by success_rate descending.
-    """
-    graph = _get_causal_graph()
-
-    result = [
-        p
-        for p in graph.get("patterns", [])
-        if p.get("success_rate", 0) >= min_success_rate
-        and p.get("occurrences", 0) >= min_occurrences
-    ]
-
-    result.sort(key=lambda p: p.get("success_rate", 0), reverse=True)
-    return result
-
-
-def get_anti_patterns(max_success_rate: float = 0.3) -> list[dict[str, Any]]:
-    """Retrieve anti-patterns (low success rate patterns).
-
-    Args:
-        max_success_rate: Maximum success rate to qualify as anti-pattern (0-1).
-
-    Returns:
-        List of anti-pattern dicts sorted by success_rate ascending.
-        Only includes patterns with at least 2 occurrences.
-    """
-    graph = _get_causal_graph()
-
-    result = [
-        p
-        for p in graph.get("patterns", [])
-        if p.get("success_rate", 0) <= max_success_rate
-        and p.get("occurrences", 0) >= 2
-    ]
-
-    result.sort(key=lambda p: p.get("success_rate", 0))
-    return result
-
-
-# ---------------------------------------------------------------------------
 # Status functions
 # ---------------------------------------------------------------------------
 
@@ -770,10 +342,8 @@ def get_reflexion_memory_status() -> dict[str, Any]:
     """Get the status of the reflexion memory system.
 
     Returns:
-        Dict with Episodes, CausalGraph, and Configuration status.
+        Dict with Episodes and Configuration status.
     """
-    graph = _get_causal_graph(allow_empty=True)
-
     episode_count = 0
     if EPISODES_PATH.is_dir():
         try:
@@ -786,16 +356,7 @@ def get_reflexion_memory_status() -> dict[str, Any]:
             "Path": str(EPISODES_PATH),
             "Count": episode_count,
         },
-        "CausalGraph": {
-            "Path": str(CAUSAL_GRAPH_FILE),
-            "Version": graph.get("version", ""),
-            "Updated": graph.get("updated", ""),
-            "Nodes": len(graph.get("nodes", [])),
-            "Edges": len(graph.get("edges", [])),
-            "Patterns": len(graph.get("patterns", [])),
-        },
         "Configuration": {
             "EpisodesPath": str(EPISODES_PATH),
-            "CausalityPath": str(CAUSALITY_PATH),
         },
     }

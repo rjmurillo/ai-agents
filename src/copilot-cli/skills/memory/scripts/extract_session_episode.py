@@ -550,8 +550,8 @@ def _already_seen(sha: str, seen: list[str]) -> bool:
     Exact string membership lets one commit in twice when two fields spell it
     at different lengths: a full 40-char ``endingCommit`` and a 7-char
     abbreviation of the same commit in the ``changesCommitted`` evidence. That
-    double-counts ``metrics.commits`` and emits two commit events and two
-    causal-graph nodes for a single commit (issue #3363).
+    double-counts ``metrics.commits`` and emits two commit events for a single
+    commit (issue #3363).
     """
     return any(_same_commit(sha, existing) for existing in seen)
 
@@ -565,7 +565,7 @@ def _prose_shas(text: str) -> list[str]:
     positive: a genuine short SHA prefix that happens to be all decimal digits
     (uncommon for 7-char prefixes, vanishingly rare for full-length SHAs) is
     dropped when it appears only in prose.
-    That miss degrades the causal graph gracefully; counting every decimal ID in
+    That miss degrades the event chain gracefully; counting every decimal ID in
     prose as a commit corrupts it. Structured commit fields (``endingCommit``,
     ``startingCommit``) are scanned unfiltered, so an all-decimal final SHA is
     still captured. ``endingCommit`` records only the final commit, so an
@@ -605,8 +605,8 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
 
     Work-log prose cites SHAs the session did not author: an upstream merge it
     reasoned about, a third-party commit it bisected, a PR whose base it read.
-    Counting those inflates ``metrics.commits`` and puts commit nodes the
-    session never produced into the causal graph (issue #3328).
+    Counting those inflates ``metrics.commits`` and puts commit events the
+    session never produced into the episode (issue #3328).
 
     The discriminator is the commit's own committer timestamp against
     ``_session_floor``. A commit that already existed a full day before the
@@ -710,8 +710,8 @@ def _collect_shas(data: dict) -> list[str]:
     Prose is not a primary source (issue #3363). A work-log entry legitimately
     cites SHAs the session did not author: a bot's housekeeping commits, a
     commit it bisected, the base of a PR it read. Counting those inflated
-    ``metrics.commits`` and seeded commit nodes in the causal graph for work the
-    session never did, while the session's own commits, recorded only in
+    ``metrics.commits`` and seeded commit events for work the session never
+    did, while the session's own commits, recorded only in
     ``changesCommitted``, were missed entirely. On
     ``fix/3342-harness-reference-size`` the episode counted two foreign commits
     and dropped three of the session's own.
@@ -1415,8 +1415,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Lifecycle precedence for the causal chain. Every extractor event shares one
-# session timestamp, so this rank, not the timestamp, is the real tie-breaker.
+# Lifecycle precedence for the in-episode causal chain. Every extractor event
+# shares one session timestamp, so this rank, not the timestamp, is the real
+# tie-breaker.
 # It enforces the invariant that a commit is never linked as ``caused_by`` a
 # later review milestone (issue #3260): a commit is created and pushed before
 # the tests, errors, and review or CI milestones that report on it, so it must
@@ -1434,10 +1435,11 @@ _CAUSAL_DEFAULT_RANK = 2
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` as a lifecycle-ordered chain.
 
-    ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
-    reflexion retrieval can walk a connected causal graph, but every
-    event-construction site emits them empty, leaving the graph flat
-    (issue #3245).
+    ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so a
+    reader can walk one episode's events in causal order, but every
+    event-construction site emitted them empty, leaving the chain flat
+    (issue #3245). These links stay inside the episode file; the separate
+    aggregated causal graph they once fed was removed by ADR-088.
 
     The chain follows the session lifecycle, not raw append order.
     ``json_events`` appends every commit after the work-log milestones, so a

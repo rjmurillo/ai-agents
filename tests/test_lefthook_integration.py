@@ -532,7 +532,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
-        "update-causal-graph",
     }
     expected_pre_push = {
         "repair-packed-refs",
@@ -680,7 +679,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
-        "update-causal-graph",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -810,7 +808,6 @@ def test_autofix_and_tool_skip_conditions_are_explicit() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "update-causal-graph",
     ):
         skip = jobs[name]["skip"]
         assert isinstance(skip, list)
@@ -2549,100 +2546,6 @@ def _episode_payload(episode_id: str, content: str) -> dict[str, object]:
         "metrics": {},
         "lessons": [],
     }
-
-
-def _copy_causal_updater(repo: Path) -> None:
-    relative = ".claude/skills/memory/scripts/update_causal_graph.py"
-    destination = repo / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PROJECT_ROOT / relative, destination)
-
-
-def test_causal_graph_uses_staged_episode_content(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _copy_causal_updater(repo)
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(json.dumps(_episode_payload("episode-staged", "staged")), encoding="utf-8")
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    episode.write_text(json.dumps(_episode_payload("episode-working", "working")), encoding="utf-8")
-
-    assert policy.update_causal_graph(repo) == 0
-
-    graph = json.loads(
-        (repo / ".agents/memory/causality/causal-graph.json").read_text(encoding="utf-8")
-    )
-    serialized = json.dumps(graph)
-    assert "staged" in serialized
-    assert "working" not in serialized
-    assert (
-        ".agents/memory/causality/causal-graph.json"
-        in _git(repo, "diff", "--cached", "--name-only").stdout.splitlines()
-    )
-
-
-def test_causal_graph_restores_snapshot_on_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    graph = repo / ".agents/memory/causality/causal-graph.json"
-    graph.parent.mkdir(parents=True)
-    graph.write_text('{"original": true}\n', encoding="utf-8")
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(
-        json.dumps(_episode_payload("episode-test", "content")),
-        encoding="utf-8",
-    )
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    monkeypatch.setattr(policy, "_run_causal_updater", lambda *_args: 1)
-
-    assert policy.update_causal_graph(repo) == 0
-    assert graph.read_text(encoding="utf-8") == '{"original": true}\n'
-
-
-def test_causal_graph_aborts_when_snapshot_cannot_be_read(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    graph = repo / ".agents/memory/causality/causal-graph.json"
-    graph.parent.mkdir(parents=True)
-    graph.write_bytes(b'{"original": true}\n')
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(
-        json.dumps(_episode_payload("episode-test", "content")),
-        encoding="utf-8",
-    )
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    original_read_bytes = Path.read_bytes
-
-    def fail_graph_read(path: Path) -> bytes:
-        if path == graph:
-            raise OSError("snapshot read failed")
-        return original_read_bytes(path)
-
-    monkeypatch.setattr(Path, "read_bytes", fail_graph_read)
-    monkeypatch.setattr(
-        policy,
-        "_apply_causal_graph_updates",
-        lambda *_args: pytest.fail("update must not run without a snapshot"),
-    )
-
-    assert policy.update_causal_graph(repo) == 2
-    assert original_read_bytes(graph) == b'{"original": true}\n'
-
-
-def test_causal_graph_noops_without_staged_episodes(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-
-    assert policy.update_causal_graph(repo) == 0
 
 
 @pytest.mark.parametrize(
@@ -4865,94 +4768,6 @@ def test_episode_staging_handles_missing_and_symlink(
     assert policy._stage_episode("episode-link", tmp_path) == 2
 
 
-def test_causal_graph_handles_git_and_symlink_errors(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_staged_episode_paths", lambda *_args: None)
-    assert policy.update_causal_graph(tmp_path) == 2
-
-    monkeypatch.setattr(policy, "_staged_episode_paths", lambda *_args: ["episode"])
-    graph = tmp_path / ".agents/memory/causality/causal-graph.json"
-    original_is_symlink = Path.is_symlink
-    monkeypatch.setattr(
-        Path,
-        "is_symlink",
-        lambda path: path == graph or original_is_symlink(path),
-    )
-    assert policy.update_causal_graph(tmp_path) == 2
-
-
-def test_causal_graph_apply_propagates_prune_and_blob_failures(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    graph = tmp_path / "graph.json"
-    monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 1)
-    assert policy._apply_causal_graph_updates([], ["deleted"], graph, tmp_path) == 1
-
-    monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 0)
-    monkeypatch.setattr(policy, "_read_index_blob", lambda *_args: None)
-    assert policy._apply_causal_graph_updates(["episode.json"], [], graph, tmp_path) == 1
-
-
-def test_deleted_episode_pruning_uses_head_id_and_reports_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_read_head_blob",
-        lambda *_args: b'{"id": "episode-from-head"}',
-    )
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-from-head"
-
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
-    assert (
-        policy._prune_deleted_episodes(
-            [".agents/memory/episodes/episode-file.json"],
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 1
-    )
-
-
-def test_deleted_episode_id_falls_back_to_filename(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_read_head_blob", lambda *_args: b"not json")
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-file"
-    monkeypatch.setattr(policy, "_read_head_blob", lambda *_args: None)
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-file"
-
-
-def test_causal_updater_reports_failure_and_restore_removes_new_file(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, "out\n", "err\n"),
-    )
-    assert (
-        policy._run_causal_updater(
-            tmp_path / "episode.json",
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 1
-    )
-
-    graph = tmp_path / "graph.json"
-    graph.write_text("new\n", encoding="utf-8")
-    policy._restore_file(graph, None)
-    assert not graph.exists()
-    assert policy._stage_causal_graph(graph, tmp_path) == 0
-
-
 def test_push_ref_parser_rejects_option_like_refs() -> None:
     sha = "1" * 40
     with pytest.raises(ValueError, match="invalid ref name"):
@@ -5862,14 +5677,6 @@ def test_remaining_policy_success_and_error_branches(
     assert policy._merge_in_progress(tmp_path)
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
-    assert (
-        policy._prune_deleted_episodes(
-            [".agents/memory/episodes/episode-one.json"],
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 0
-    )
 
     update = policy.PushUpdate(
         policy.PushRef("refs/tags/local", "1" * 40, "refs/tags/remote", "2" * 40),
@@ -6081,7 +5888,6 @@ def test_old_bot_review_does_not_warn(
         ("cli-hook-e2e", [], "run_cli_e2e"),
         ("cli-plugin-e2e", [], "run_cli_e2e"),
         ("bot-cascade", [], "bot_cascade_advisory"),
-        ("update-causal-graph", [], "update_causal_graph"),
         ("semgrep", [], "run_semgrep"),
         ("semgrep-push", [], "scan_pushed_heads"),
         ("security-suppressions-push", [], "check_pushed_suppressions"),
@@ -6117,7 +5923,6 @@ def test_git_probe_error_paths_return_no_result(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
 
     assert not policy._merge_in_progress(tmp_path)
-    assert policy._staged_episode_paths(tmp_path, "D") is None
 
 
 def test_module_entrypoint_returns_cli_exit_code(

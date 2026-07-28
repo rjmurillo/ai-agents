@@ -1,17 +1,17 @@
 """Structural tests for the memory-reflexion sub-skill.
 
 Issue #1948 / ADR-063 (accepted 2026-06-17) decomposes the memory router by
-operation. This phase extracts the Tier 2 episode-extraction and Tier 3
-causal-graph-update write path into a focused `memory-reflexion` sub-skill while
-`memory` remains the thin router. These tests pin the contract the sub-skill
-must honor:
+operation. This phase extracts the Tier 2 episode-extraction write
+path into a focused `memory-reflexion` sub-skill while `memory` remains the thin
+router. ADR-088 removed the Tier 3 causal-graph step this sub-skill once
+carried; the contract below covers the surviving episode operation. These tests
+pin the contract the sub-skill must honor:
 
 - SKILL.md exists with required frontmatter (name, description).
 - The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
-- The description names the episode and causal operations and 3 to 5 backtick
-  triggers.
-- The skill points callers at the canonical extract_session_episode.py and
-  update_causal_graph.py scripts (it does not reimplement them).
+- The description names the episode operation and 3 to 5 backtick triggers.
+- The skill points callers at the canonical extract_session_episode.py script
+  (it does not reimplement it).
 - The skill owns the reflexion-memory.md reference that travels with the
   operation per ADR-063.
 - Vendor-install hygiene (issue #1948 AC8 shape): the sub-skill body carries no
@@ -76,9 +76,8 @@ def test_description_names_reflexion_operations() -> None:
     # Arrange
     block = _frontmatter_block().lower()
 
-    # Act / Assert: the description must name both write operations it owns.
+    # Act / Assert: the description must name the write operation it owns.
     assert "episode" in block, "description must name the episode operation"
-    assert "causal" in block, "description must name the causal-graph operation"
 
 
 def test_description_has_three_to_five_backtick_triggers() -> None:
@@ -100,16 +99,6 @@ def test_points_at_canonical_episode_script() -> None:
     # reimplement extraction. The script stays in the memory skill tree.
     assert ".claude/skills/memory/scripts/extract_session_episode.py" in body, (
         "memory-reflexion must delegate to the canonical extract_session_episode.py"
-    )
-
-
-def test_points_at_canonical_causal_script() -> None:
-    # Arrange
-    body = _read_skill()
-
-    # Act / Assert
-    assert ".claude/skills/memory/scripts/update_causal_graph.py" in body, (
-        "memory-reflexion must delegate to the canonical update_causal_graph.py"
     )
 
 
@@ -150,7 +139,7 @@ def test_vendor_forbidden_regex_matches_slash_prefixed_paths() -> None:
 
 @pytest.mark.parametrize(
     "term",
-    ["episode", "causal", "completed"],
+    ["episode", "session", "completed"],
 )
 def test_carries_reflexion_operation_concepts(term: str) -> None:
     # Arrange: the sub-skill must be a deep module (carry the reflexion write

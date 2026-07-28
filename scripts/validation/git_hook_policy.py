@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -31,7 +30,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ZERO_SHA_LENGTHS = (40, 64)
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
-EPISODE_PATH_RE = re.compile(r"^\.agents/memory/episodes/episode-[A-Za-z0-9._-]+\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_REVIEW_PATH_RE = re.compile(
     r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|SESSION-PROTOCOL\.md$",
@@ -133,7 +131,6 @@ GENERATED_PATHS = {
         ".vscode/mcp.json",
         ".factory/mcp.json",
     ),
-    "causal": (".agents/memory/causality/causal-graph.json",),
     "memory-index": (".serena/memories/memory-index.md",),
 }
 GENERATED_GLOBS = {
@@ -1280,222 +1277,6 @@ def _stage_episode(episode_id: str, repo_root: Path) -> int:
     if not episode_path.is_file():
         print(f"WARNING: generated episode not found: {relative_path}", file=sys.stderr)
         return 0
-    result = _run_git(repo_root, ["add", "--", relative_path])
-    return result.returncode
-
-
-def _staged_episode_paths(repo_root: Path, diff_filter: str) -> list[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
-            "--cached",
-            "--name-only",
-            "-z",
-            f"--diff-filter={diff_filter}",
-            "--",
-            ".agents/memory/episodes",
-        ],
-    )
-    if result.returncode != 0:
-        return None
-    return [
-        path
-        for raw_path in result.stdout.split("\0")
-        if (path := _safe_relative_path(raw_path)) and EPISODE_PATH_RE.fullmatch(path)
-    ]
-
-
-# One home for the updater path and its episode source: the invocation and the
-# repair advice must name the same script and the same directory (issue #3370).
-_CAUSAL_UPDATER = ".claude/skills/memory/scripts/update_causal_graph.py"
-_CAUSAL_EPISODES = ".agents/memory/episodes"
-
-
-def _causal_repair_command(graph_path: Path, repo_root: Path) -> str:
-    """Return the rebuild command for ``graph_path``, with both paths spelled out.
-
-    The updater's own defaults derive from its file location, which differs
-    between the canonical tree and the Copilot CLI mirror, so a bare
-    ``--reset-graph`` can rebuild somewhere other than the file this hook
-    just restored.
-    """
-    try:
-        graph = str(graph_path.relative_to(repo_root))
-    except ValueError:
-        graph = str(graph_path)
-    parts = [
-        "python3",
-        _CAUSAL_UPDATER,
-        "--reset-graph",
-        "--episode-path",
-        _CAUSAL_EPISODES,
-        "--graph-path",
-        graph,
-    ]
-    return " ".join(shlex.quote(part) for part in parts)
-
-
-def update_causal_graph(repo_root: Path) -> int:
-    staged = _staged_episode_paths(repo_root, "ACMR")
-    deleted = _staged_episode_paths(repo_root, "D")
-    if staged is None or deleted is None:
-        return 2
-    if not staged and not deleted:
-        return 0
-    relative_graph = ".agents/memory/causality/causal-graph.json"
-    graph_path = _safe_output_path(repo_root, relative_graph)
-    if graph_path is None:
-        print("ERROR: unsafe causal graph output path", file=sys.stderr)
-        return 2
-    try:
-        snapshot = graph_path.read_bytes()
-    except FileNotFoundError:
-        snapshot = None
-    except OSError as exc:
-        print(f"ERROR: could not snapshot causal graph: {exc}", file=sys.stderr)
-        return 2
-    result = _apply_causal_graph_updates(staged, deleted, graph_path, repo_root)
-    if result == 0:
-        return _stage_causal_graph(graph_path, repo_root)
-    try:
-        _restore_file(graph_path, snapshot)
-    except OSError as exc:
-        # The updater already failed, so the graph on disk is mid-write. Letting
-        # the OSError propagate ends the hook with a traceback that says nothing
-        # about which of the two failures the operator is looking at, and the
-        # "original graph restored" line below would be a lie if it ran. Name
-        # both failures and block, because a partially mutated graph must not be
-        # committed. Issue #3389.
-        print(f"ERROR: causal graph update failed (updater exit {result})", file=sys.stderr)
-        print(
-            f"ERROR: restoring the original causal graph also failed: {exc}\n"
-            f"       {graph_path} may be partially written. Rebuild it before"
-            " committing:\n"
-            f"           {_causal_repair_command(graph_path, repo_root)}",
-            file=sys.stderr,
-        )
-        return 2
-    print("WARNING: causal graph update failed; original graph restored", file=sys.stderr)
-    # The restore preserves the file as found, so a corrupt graph stays corrupt
-    # and this warning repeats on every commit. Name the repair (issue #3370).
-    print(
-        "         If the graph file is corrupt, rebuild it from the episodes:\n"
-        f"           {_causal_repair_command(graph_path, repo_root)}",
-        file=sys.stderr,
-    )
-    return 0
-
-
-def _apply_causal_graph_updates(
-    staged: Sequence[str],
-    deleted: Sequence[str],
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    prune_result = _prune_deleted_episodes(deleted, graph_path, repo_root)
-    if prune_result != 0:
-        return prune_result
-    with tempfile.TemporaryDirectory(prefix="lefthook-causal-") as temp_dir:
-        return _apply_staged_episodes(
-            staged,
-            Path(temp_dir),
-            graph_path,
-            repo_root,
-        )
-
-
-def _apply_staged_episodes(
-    staged: Sequence[str],
-    temp_dir: Path,
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    for index, relative_path in enumerate(staged):
-        content = _read_index_blob(repo_root, relative_path)
-        if content is None:
-            return 1
-        staged_path = temp_dir / f"{index}-{Path(relative_path).name}"
-        staged_path.write_bytes(content)
-        result = _run_causal_updater(staged_path, graph_path, repo_root)
-        if result != 0:
-            return result
-    return 0
-
-
-def _prune_deleted_episodes(
-    deleted: Sequence[str],
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    episode_ids = [_deleted_episode_id(path, repo_root) for path in deleted]
-    if not episode_ids:
-        return 0
-    missing = repo_root / ".agents/memory/episodes/__prune_only__"
-    result = _run_command(
-        [
-            sys.executable,
-            _CAUSAL_UPDATER,
-            "--prune-episode-ids",
-            ",".join(episode_ids),
-            "--episode-path",
-            str(missing),
-            "--graph-path",
-            str(graph_path),
-        ],
-        repo_root,
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
-
-
-def _deleted_episode_id(relative_path: str, repo_root: Path) -> str:
-    content = _read_head_blob(repo_root, relative_path)
-    if content is not None:
-        try:
-            payload = json.loads(content)
-        except json.JSONDecodeError:
-            payload = None
-        episode_id = payload.get("id") if isinstance(payload, dict) else None
-        if isinstance(episode_id, str):
-            return episode_id
-    return Path(relative_path).stem
-
-
-def _run_causal_updater(
-    episode_path: Path,
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    result = _run_command(
-        [
-            sys.executable,
-            _CAUSAL_UPDATER,
-            "--episode-path",
-            str(episode_path),
-            "--graph-path",
-            str(graph_path),
-        ],
-        repo_root,
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
-
-
-def _restore_file(path: Path, snapshot: bytes | None) -> None:
-    if snapshot is None:
-        path.unlink(missing_ok=True)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(snapshot)
-
-
-def _stage_causal_graph(graph_path: Path, repo_root: Path) -> int:
-    if not graph_path.is_file():
-        return 0
-    relative_path = graph_path.relative_to(repo_root).as_posix()
     result = _run_git(repo_root, ["add", "--", relative_path])
     return result.returncode
 
@@ -3384,10 +3165,6 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
-def _handle_update_causal_graph(args: argparse.Namespace) -> int:
-    return update_causal_graph(_repo_root(args))
-
-
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -3434,7 +3211,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("cli-hook-e2e", _handle_cli_hook_e2e),
         ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
-        ("update-causal-graph", _handle_update_causal_graph),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
