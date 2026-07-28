@@ -6,7 +6,11 @@ shipped, no code.
 - Issue: #3605
 - PR: #3606
 - Starting commit: `a65181a264` (branch point from main)
-- Final code commit: `56f4f861aa` (`docs(memory): measure what skill descriptions actually cost in context`)
+- Commit that shipped the memory: `56f4f861aa` (`docs(memory): measure what skill descriptions actually cost in context`)
+- Later commits on the branch are review response: the retro itself, its
+  failure-mode classification, and session-record corrections. The session log's
+  `changesCommitted` evidence carries the full list and is authoritative for the
+  session's final state.
 - Artifact under review: `.serena/memories/decision-skill-description-context-cost.md`
 
 ## Failure mode classification

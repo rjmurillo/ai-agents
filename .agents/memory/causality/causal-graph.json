@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:15:32.970816+00:00",
+  "updated": "2026-07-28T05:18:53.542312+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22834,6 +22834,15 @@
         "episode-2026-07-27-session-3605-skill-description-context-cost"
       ],
       "created": "2026-07-28T05:15:32.963689+00:00"
+    },
+    {
+      "id": "21e578e0053a",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:18:53.535055+00:00"
     }
   ],
   "patterns": [

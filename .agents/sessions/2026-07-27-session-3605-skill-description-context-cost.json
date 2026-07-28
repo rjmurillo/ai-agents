@@ -116,6 +116,9 @@
     },
     {
       "step": "Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it."
+    },
+    {
+      "step": "Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit."
     }
   ],
   "endingCommit": "b61cf1cff3",

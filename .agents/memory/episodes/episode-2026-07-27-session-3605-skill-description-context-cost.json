@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
       "caused_by": [
-        "e016"
+        "e017"
       ],
       "leads_to": [
         "e002"
@@ -134,26 +134,26 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e012",
       "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b61cf1cff3",
-      "caused_by": [],
-      "leads_to": [
-        "e013"
-      ]
+      "type": "milestone",
+      "content": "Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
     },
     {
       "id": "e013",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 56f4f861aa",
-      "caused_by": [
-        "e012"
-      ],
+      "content": "Commit: b61cf1cff3",
+      "caused_by": [],
       "leads_to": [
         "e014"
       ]
@@ -162,7 +162,7 @@
       "id": "e014",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: ee1de31d5a",
+      "content": "Commit: 56f4f861aa",
       "caused_by": [
         "e013"
       ],
@@ -174,7 +174,7 @@
       "id": "e015",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 31a015587d",
+      "content": "Commit: ee1de31d5a",
       "caused_by": [
         "e014"
       ],
@@ -186,9 +186,21 @@
       "id": "e016",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 23e41ffb80",
+      "content": "Commit: 31a015587d",
       "caused_by": [
         "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 23e41ffb80",
+      "caused_by": [
+        "e016"
       ],
       "leads_to": [
         "e001"
@@ -201,7 +213,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 5,
-    "files_changed": 2
+    "files_changed": 3
   },
   "lessons": []
 }
