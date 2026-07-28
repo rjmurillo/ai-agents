@@ -133,6 +133,10 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Set up uv
+        if: steps.should-run.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Install validator dependencies
         if: steps.should-run.outputs.skip != 'true'
         # pytest is pinned to the project floor in pyproject.toml
@@ -179,7 +183,7 @@ jobs:
         # to nothing, the harness reports no error, and the work is silently
         # skipped. The orchestrator matrix carried a `memory` row for months
         # after cross-session memory became a skill rather than an agent.
-        run: python3 build/scripts/validate_agent_matrix_refs.py
+        run: uv run python build/scripts/validate_agent_matrix_refs.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'

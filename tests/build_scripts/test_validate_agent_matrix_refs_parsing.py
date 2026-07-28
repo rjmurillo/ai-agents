@@ -21,15 +21,26 @@ fails when the behavior changes rather than when a regex is rewritten.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
-import validate_agent_matrix_refs as vamr  # noqa: E402
+
+def _load_validator():
+    path = REPO_ROOT / "build" / "scripts" / "validate_agent_matrix_refs.py"
+    spec = importlib.util.spec_from_file_location("validate_agent_matrix_refs", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+vamr = _load_validator()
 
 BOLD_MATRIX = """\
 ## Agent Capability Matrix
@@ -414,6 +425,11 @@ class TestFencedCodeBlocks:
             "```text\n```python\n| Agent | Focus |\n|---|---|\n| **ghost** | illustrative |\n```\n"
         )
         assert _names(text) == []
+
+    def test_an_invalid_backtick_fence_opener_does_not_hide_a_following_matrix(self):
+        """A line with a backtick in the info string is paragraph text, not a fence."""
+        text = "```markdown`\n\n| Agent | Focus |\n|---|---|\n| **ghost** | Phantom |\n"
+        assert _names(text) == ["ghost"]
 
     def test_a_backtick_fence_does_not_close_a_tilde_fence(self):
         """A closing fence uses the same character as the opener."""

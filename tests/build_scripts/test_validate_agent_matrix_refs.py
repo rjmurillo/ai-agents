@@ -21,6 +21,7 @@ must fail this test and force a human to update the guard on purpose.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 import time
@@ -31,9 +32,19 @@ import pytest
 from markdown_it.token import Token
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
-import validate_agent_matrix_refs as vamr  # noqa: E402
+
+def _load_validator():
+    path = REPO_ROOT / "build" / "scripts" / "validate_agent_matrix_refs.py"
+    spec = importlib.util.spec_from_file_location("validate_agent_matrix_refs", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+vamr = _load_validator()
 
 CANONICAL = str(vamr.CANONICAL_TREE)
 
@@ -941,6 +952,43 @@ class TestMainCli:
 
         assert vamr.main(["--repo-root", str(repo)]) == 2
         assert dropped in capsys.readouterr().err
+
+    def test_invalid_utf8_markdown_file_exits_two(self, tmp_path, capsys):
+        repo = _repo(
+            tmp_path,
+            {_canonical_file("orchestrator"): BOLD_MATRIX},
+            {CANONICAL: ["analyst", "implementer"]},
+            complete=True,
+        )
+        matrix = repo / _canonical_file("orchestrator")
+        matrix.write_bytes(b"\xff")
+
+        assert vamr.main(["--repo-root", str(repo)]) == 2
+        err = capsys.readouterr().err
+        assert "CONFIG ERROR:" in err
+        assert str(_canonical_file("orchestrator")) in err
+
+    def test_unreadable_markdown_file_exits_two(self, tmp_path, monkeypatch, capsys):
+        repo = _repo(
+            tmp_path,
+            {_canonical_file("orchestrator"): BOLD_MATRIX},
+            {CANONICAL: ["analyst", "implementer"]},
+            complete=True,
+        )
+        matrix = repo / _canonical_file("orchestrator")
+        original_read_text = Path.read_text
+
+        def fail_for_matrix(path: Path, *args, **kwargs):
+            if path == matrix:
+                raise OSError("permission denied")
+            return original_read_text(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", fail_for_matrix)
+
+        assert vamr.main(["--repo-root", str(repo)]) == 2
+        err = capsys.readouterr().err
+        assert "CONFIG ERROR:" in err
+        assert str(_canonical_file("orchestrator")) in err
 
     def test_violation_names_the_agent_the_site_and_the_tree(self, tmp_path, capsys):
         repo = _repo(

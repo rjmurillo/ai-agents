@@ -209,6 +209,7 @@ class ScanResult:
     files_with_matrix: list[Path] = field(default_factory=list)
     parse_gaps: list[Path] = field(default_factory=list)
     unparsed_rows: list[tuple[Path, int, str]] = field(default_factory=list)
+    config_errors: list[str] = field(default_factory=list)
     trees_scanned: list[Path] = field(default_factory=list)
     empty_trees: list[Path] = field(default_factory=list)
     agents_by_tree: dict[Path, set[str]] = field(default_factory=dict)
@@ -480,10 +481,14 @@ def scan(repo_root: Path) -> ScanResult:
         if not agents:
             result.empty_trees.append(tree)
         for path in sorted(directory.glob("*.md")):
-            text = path.read_text(encoding="utf-8-sig")
+            relative = path.relative_to(repo_root)
+            try:
+                text = path.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeDecodeError) as exc:
+                result.config_errors.append(f"{relative}: cannot read markdown file: {exc}")
+                continue
             if not has_matrix_header(text):
                 continue
-            relative = path.relative_to(repo_root)
             result.files_with_matrix.append(relative)
             rows, unparsed = parse_matrix_rows(text)
             for line, raw in unparsed:
@@ -581,6 +586,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     result = scan(repo_root)
+    if result.config_errors:
+        for error in result.config_errors:
+            print(f"CONFIG ERROR: {error}", file=sys.stderr)
+        return 2
+
     if not any(result.agents_by_tree.values()):
         print(
             "CONFIG ERROR: no configured tree yields any agent file. Every "
