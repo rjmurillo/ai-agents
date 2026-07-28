@@ -95,8 +95,17 @@ Plugin roots are discovered from a bounded candidate set, the repository-root
 for ``.claude-plugin/plugin.json``. This repository keeps full working copies
 under ``.cache/worktrees/``, ``.claude/worktrees/`` and ``.wt/``, so a recursive
 glob matches dozens of throwaway roots and reports findings in trees nobody is
-shipping. For the same reason the per-root walk prunes those directory names at
-the walk root, which keeps the whole check near 2.8s instead of ~11s.
+shipping. For the same reason the per-root walk prunes those directory names,
+which keeps the whole check near 2.8s instead of ~11s.
+
+Pruning is by name at every depth, exempting directories that sit directly
+under ``<root>/skills``. Pruning only at the walk root left ``node_modules``
+and ``.venv`` inside a skill in the scan, which reads third-party prose as
+drift and trips the symlink refusal on the interpreter links every virtualenv
+carries, blocking every push in the repository. Pruning at every depth without
+the exemption hides a real skill whose name collides with a tooling name. The
+exemption is what lets both hold: measured on the live repository the rule
+yields the same 906 files as the root-only rule at the same speed.
 
 Vacuity is checked per root, not on the repository-wide route total. A root
 that ships skills and yields no routes has gone dark, and summing across roots
@@ -104,12 +113,25 @@ would let a sibling's routes hide that.
 
 Every way this check can fail to see a file is an error, not a pass: an
 unreadable directory, an unreadable file, undecodable bytes, a root the process
-cannot stat or list, a symlinked directory ``os.walk`` will not descend into,
-and input the markdown parser cannot fully represent all exit 2. ``Path.is_file``
-and ``Path.is_dir`` are not used for discovery because they answer False for a
-path they cannot stat, which drops a whole plugin root and leaves its siblings
-to carry the pass. A gate that fails open is worse than no gate, because it
-also reports success.
+cannot stat or list, a path that exists with the wrong kind, a symlinked plugin
+root or a symlinked directory inside one, and input the markdown parser cannot
+fully represent all exit 2. ``Path.is_file`` and ``Path.is_dir`` are not used
+for discovery because they answer False for a path they cannot stat, which
+drops a whole plugin root and leaves its siblings to carry the pass. A gate
+that fails open is worse than no gate, because it also reports success.
+
+Known limitation
+----------------
+
+A route inside a raw HTML ``<code>`` tag in a table cell is read as a route,
+while the same route in a backtick span is treated as syntax documentation.
+The parser marks ``code_inline`` tokens, not ``html_inline`` ones. This is the
+fail-closed direction: a documentation example reads as drift rather than a
+real route going unchecked, and the author's workaround is one backtick.
+Measured across the three plugin roots, no table cell contains a ``<code>``
+tag. Closing it would mean teaching a markdown parser several gates share to
+track HTML token depth, which adds a fail-open path to shared code to serve
+zero present occurrences.
 """
 
 from __future__ import annotations
@@ -125,7 +147,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.utils.markdown_parser import TableCell, iter_table_cell_text
+from scripts.utils.markdown_parser import CellSegment, TableCell, iter_table_cell_text
 
 CANONICAL_ROOT_NAME = ".claude"
 PLATFORM_PARENT = Path("src")
@@ -149,10 +171,13 @@ _ROUTE_RE = re.compile(r"(?<![\w./\\-])Skill:\s*(\S+)?")
 # A legal skill directory name.
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-# Sentence, list and quotation punctuation that can trail a name in a prose
+# Sentence, list and quotation punctuation that can wrap a name in a prose
 # cell. None of these is legal inside a name, so stripping them cannot mask a
 # real drift; leaving them on turns a resolvable route into a false malformed
-# report that blocks the push.
+# report that blocks the push. Both ends are stripped: ``Skill: (foo)`` loses
+# its closing paren to _TRAILING and would otherwise be reported malformed for
+# the opening one.
+_LEADING = "([{\"'“‘"
 _TRAILING = ",;.:!?)]}\"'”’…"
 
 EXIT_OK = 0
@@ -188,27 +213,58 @@ class CheckError(Exception):
 def skill_names(root: Path) -> set[str]:
     """Return the skill directory names that have a SKILL.md in ``root``."""
     skills_dir = root / "skills"
-    if not skills_dir.is_dir():
+    if not _present(skills_dir, directory=True):
         return set()
     return {p.parent.name for p in skills_dir.glob("*/SKILL.md")}
 
 
-def _present(path: Path, *, directory: bool) -> bool:
-    """Return whether ``path`` exists and is of the requested kind.
+def _stat_mode(path: Path) -> int | None:
+    """Return ``path``'s st_mode, or None when it is genuinely absent.
 
-    ``Path.is_dir`` and ``Path.is_file`` answer False for a path the process
-    cannot stat, which would silently drop a plugin root from the scan and
-    leave the remaining roots to carry a pass. Only a genuinely absent path
-    is False here. Anything else is a config error, matching the fail-closed
-    posture the walk and the decode already take.
+    One fail-closed stat policy for the whole module. ``Path.is_dir`` and
+    ``Path.is_file`` answer False for a path the process cannot stat, which
+    would silently drop a plugin root from the scan and leave the remaining
+    roots to carry a pass. Only a genuinely absent path is None here.
+    Anything else raises, matching the posture the walk and the decode take.
     """
     try:
-        info = path.stat()
+        return path.stat().st_mode
     except (FileNotFoundError, NotADirectoryError):
-        return False
+        return None
     except OSError as exc:
         raise CheckError(f"cannot stat {path}: {exc}") from exc
-    return stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)
+
+
+def _present(path: Path, *, directory: bool) -> bool:
+    """Return whether a path the caller requires exists, asserting its kind.
+
+    For paths whose kind is part of the contract: a manifest must be a file,
+    a skills namespace must be a directory. A path that exists with the wrong
+    kind is a malformed root, not an absent one, so it raises rather than
+    reporting absence and dropping that root from the scan unnoticed.
+
+    Use ``_is_directory`` instead when a non-directory is an ordinary answer
+    rather than a contract violation, as when sifting candidates out of a
+    directory that also holds files.
+    """
+    mode = _stat_mode(path)
+    if mode is None:
+        return False
+    if directory and not stat.S_ISDIR(mode):
+        raise CheckError(f"{path} exists but is not a directory")
+    if not directory and not stat.S_ISREG(mode):
+        raise CheckError(f"{path} exists but is not a regular file")
+    return True
+
+
+def _is_directory(path: Path) -> bool:
+    """Return whether ``path`` is a directory, without asserting it must be.
+
+    Shares the fail-closed stat above, so an unreadable candidate still
+    raises rather than being sifted out unnoticed.
+    """
+    mode = _stat_mode(path)
+    return mode is not None and stat.S_ISDIR(mode)
 
 
 def discover_roots(repo_root: Path) -> list[Path]:
@@ -218,25 +274,27 @@ def discover_roots(repo_root: Path) -> list[Path]:
     """
     candidates = [repo_root / CANONICAL_ROOT_NAME]
     platform_parent = repo_root / PLATFORM_PARENT
-    if _present(platform_parent, directory=True):
+    if _is_directory(platform_parent):
         try:
             children = sorted(platform_parent.iterdir())
         except OSError as exc:
             raise CheckError(f"cannot list {platform_parent}: {exc}") from exc
-        candidates.extend(p for p in children if _present(p, directory=True))
+        candidates.extend(p for p in children if _is_directory(p))
     return [c for c in candidates if _present(c / PLUGIN_MANIFEST, directory=False)]
 
 
 def iter_markdown(root: Path) -> Iterator[Path]:
     """Yield markdown files under ``root``, pruning nested working copies.
 
-    Pruning applies at the walk root only. Measured over the live repository,
-    root-level pruning and all-depth pruning yield the identical 906 files at
-    the identical speed, because every nested copy sits under ``<root>/
-    worktrees`` and is unreachable once that one directory is pruned. Scoping
-    the prune to the root removes the failure mode where a real skill named
-    ``worktrees`` or a content directory named ``venv`` is skipped and the
-    routes inside it are never checked.
+    Pruning is by name at every depth, with one exception: a directory sitting
+    directly under ``<root>/skills`` is a skill and is never pruned. Both
+    halves are load-bearing. Root-only pruning walks a ``node_modules`` or
+    ``.venv`` that a skill's own tooling created, which scans thousands of
+    third-party files, reports their prose as drift, and trips the symlink
+    refusal below on the interpreter links inside a virtualenv. Unconditional
+    all-depth pruning hides a real skill named ``worktrees`` or ``venv``, and
+    the routes inside it are then never checked. The exception is what lets
+    both hold.
 
     A directory the walk cannot read raises rather than being skipped:
     ``os.walk`` swallows those by default, which would silently shrink the
@@ -246,9 +304,19 @@ def iter_markdown(root: Path) -> Iterator[Path]:
     def fail(exc: OSError) -> None:
         raise CheckError(f"cannot walk {exc.filename}: {exc}")
 
+    if root.is_symlink():
+        # The refusal below covers directories found during the walk, but
+        # os.walk follows its own starting path, so a symlinked root would
+        # slip past the policy it states.
+        raise CheckError(
+            f"{root.name} is a symlinked plugin root; its markdown cannot be "
+            "scanned under the same policy as the rest of the tree. Replace "
+            "it with a real directory."
+        )
+    skills_dir = root / "skills"
     for dirpath, dirnames, filenames in os.walk(root, onerror=fail):
         current = Path(dirpath)
-        if current == root:
+        if current != skills_dir:
             dirnames[:] = [d for d in dirnames if d not in PRUNED_DIRS]
         for name in dirnames:
             if (current / name).is_symlink():
@@ -277,13 +345,22 @@ def _cell_text(cell: TableCell) -> str:
     content belongs in the text. Testing the span against the route pattern
     keeps one definition of what a route looks like. Blanking preserves the
     surrounding offsets so no two spans are accidentally joined.
+
+    A whole route means the keyword *and* a name. A span carrying the bare
+    keyword, as in `` `Skill:` ghost ``, styles the label of a real route
+    whose name sits outside the span; blanking it there would delete the
+    keyword and hide the route entirely.
     """
-    return "".join(
-        " " * len(segment.content)
-        if segment.code and _ROUTE_RE.search(segment.content)
-        else segment.content
-        for segment in cell.segments
-    )
+
+    def blanked(segment: CellSegment) -> str:
+        if not segment.code:
+            return segment.content
+        match = _ROUTE_RE.search(segment.content)
+        if match is not None and match.group(1):
+            return " " * len(segment.content)
+        return segment.content
+
+    return "".join(blanked(segment) for segment in cell.segments)
 
 
 def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
@@ -295,7 +372,7 @@ def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
     """
     for cell in iter_table_cell_text(text):
         for match in _ROUTE_RE.finditer(_cell_text(cell)):
-            raw = (match.group(1) or "").rstrip(_TRAILING)
+            raw = (match.group(1) or "").rstrip(_TRAILING).lstrip(_LEADING)
             yield cell.line, raw, bool(raw) and bool(_NAME_RE.match(raw))
 
 
