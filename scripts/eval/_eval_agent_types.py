@@ -1,8 +1,8 @@
 """Dataclasses and exceptions for eval-agent-vs-baseline runner.
 
 DESIGN-004 §5.2 (Fixture), §5.3 (Assertion + AssertionResult), §5.3a
-(ExecutionPlan), §5.5 (RunRecord), §5.6 (Report). All serializable types
-carry schemaVersion: 1 (REQ-004 AC-7).
+(ExecutionPlan), §5.5 (RunRecord), §5.6 (Report). Serializable types carry a
+schemaVersion matching their persisted shape (REQ-004 AC-7).
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ from enum import Enum
 from typing import Literal
 
 SCHEMA_VERSION: int = 1
+RUN_RECORD_SCHEMA_VERSION: int = 2
+REPORT_SCHEMA_VERSION: int = 2
 
 # Provenance values per REQ-004 AC-4.
 ProvenanceLiteral = Literal["synthetic", "public-cve", "paraphrased-from-public"]
@@ -151,7 +153,8 @@ class RunRecord:
     attempts: int
     tokens_estimated: bool = True
     system_fingerprint: str | None = None
-    schema_version: int = SCHEMA_VERSION
+    seed: int | None = None
+    schema_version: int = RUN_RECORD_SCHEMA_VERSION
 
 
 @dataclass
@@ -186,9 +189,10 @@ class Report:
     flaky_halt_threshold_crossed: bool = False
     tokens_estimated: bool = True
     system_fingerprints: list[str] = field(default_factory=list)
+    seed: int | None = None
     recommendation: RecommendationLiteral | None = None
     recommendation_default: str | None = None
-    schema_version: int = SCHEMA_VERSION
+    schema_version: int = REPORT_SCHEMA_VERSION
 
 
 @dataclass
