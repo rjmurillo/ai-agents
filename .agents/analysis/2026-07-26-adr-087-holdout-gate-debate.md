@@ -2827,3 +2827,40 @@ that dates, probabilities, digests, identifiers and ordinary English words all
 share. The durable fix is not detection. It is to stop writing the ambiguous
 token. A pull request number is stable across every rewrite, resolves for a
 reader without a checkout, and cannot be confused with a p-value.
+
+## Shape 66: the plan's stated reason was false, and the fix built on it would have been a false positive
+
+Round 45 found a real defect in the test that pins each flag's default. The bar
+compared through `float()`, so a default respelled as
+`"0.4000000000000000000000000001"` compared equal to `0.4` and the test stayed
+green while the argparse default had changed. That much was measured and is
+true.
+
+The plan for the fix carried a justification: compare the strings exactly,
+because the split fingerprint is computed over the JSON string, so any
+respelling is a real change the fingerprint would see. It reads like a
+derivation. It was wrong.
+
+`split_fingerprint` does not hash the string it is given. It calls
+`_canonical_ratio`, which runs the value through `Fraction` and emits
+`numerator/denominator`. Measured on the real function: `0.4`, `"0.4"` and
+`"0.40"` all produce fingerprint `fa2b51a4f24c8cb2`; only the long-decimal
+respelling produces a different one. An exact-string bar would have failed on
+`"0.40"`, a respelling the product cannot distinguish from `0.4` anywhere it
+matters. The fix would have been a test that reports drift the system does not
+have.
+
+The bar that shipped compares through `core._canonical_ratio` itself, the
+product's own canonicalization, so the test cannot drift from the thing it
+protects. Verified on six cases: the Fraction bar is correct on all six, the
+float bar is wrong on exactly the one that matters, and mutating the argparse
+default to the long decimal fails the new bar and passes the old one.
+
+The general form, and the ninth instrument failure this session: a finding can
+be true while the reason attached to it is invented. The defect was found by
+measurement; the justification was produced by plausible reasoning about code
+that had not been read. Reasoning about a function you have not opened produces
+prose of the same confidence as reasoning about one you have. The cheap
+discipline is to read the cited function before the justification is written
+into a commit message, because a wrong reason does not stay inert, it selects
+the wrong fix.

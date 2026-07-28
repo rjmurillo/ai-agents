@@ -923,6 +923,15 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Third main merge into the buffer-crash branch, and recording shape 66",
+      "actions": [
+        "Re-merged origin/main into fix/eval-buffer-crash-exit-code for the third time this session. Main advanced by two commits (304355e98 closing stale execution plans, 03569ca57 resolving module wiring for issue #3360) after the previous merge, which flipped PR #3579 back to CONFLICTING. Reset the worktree to the remote branch first so the merge ran against what GitHub sees, merged clean with no conflicted paths, confirmed 1697 passed and that the branch still owns zero plugin paths, and pushed as 1ebc1fb3d.",
+        "Recorded shape 66 in the ADR-087 debate document. The round-45 F4 finding was real and measured, but the justification the plan carried for the fix was invented: it claimed the split fingerprint is computed over the JSON string, so exact-string comparison was the right bar. Reading split_fingerprint disproved that. It calls _canonical_ratio, which runs the value through Fraction, so 0.4, '0.4' and '0.40' all hash to fa2b51a4f24c8cb2 and only the long-decimal respelling differs. An exact-string bar would have failed on '0.40', a respelling the product cannot distinguish anywhere it matters, so the planned fix would have shipped a false-positive test.",
+        "The general form is the ninth instrument failure this session: a finding can be true while the reason attached to it is invented, because reasoning about a function that has not been opened produces prose of the same confidence as reasoning about one that has. The discipline is to read the cited function before the justification is written into a commit message, since a wrong reason does not stay inert, it selects the wrong fix."
+      ],
+      "outcome": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise."
     }
   ],
   "endingCommit": "691dcfb0e",
