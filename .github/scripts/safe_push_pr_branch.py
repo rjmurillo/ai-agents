@@ -68,7 +68,7 @@ is_full_object_id = _load_object_id_validator()
 
 
 class SafePushArgumentParser(argparse.ArgumentParser):
-    """Argument parser that returns repository exit codes instead of exiting."""
+    """Argument parser that raises SafePushError with EXIT_USAGE on parser errors."""
 
     def error(self, message: str) -> NoReturn:
         raise SafePushError(message, EXIT_USAGE)

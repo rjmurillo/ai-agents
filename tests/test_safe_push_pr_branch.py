@@ -547,6 +547,18 @@ def test_concurrent_worktrees_same_destination_detects_competing_update(
 # ---------------------------------------------------------------------------
 
 
+def test_argument_parser_docstring_matches_bad_argument_contract(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    docstring = safe_push_pr_branch.SafePushArgumentParser.__doc__ or ""
+
+    code = main(["--branch", "feature-x", "--unknown-option"])
+
+    assert "raises SafePushError with EXIT_USAGE" in docstring
+    assert code == EXIT_USAGE
+    assert "unrecognized arguments" in capsys.readouterr().err
+
+
 def test_main_rejects_flag_shaped_branch(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--branch=--force", "--repo-root", "."]) == EXIT_USAGE
 
