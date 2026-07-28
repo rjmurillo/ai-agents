@@ -60,7 +60,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from _anthropic_api import call_api, load_api_key
 
@@ -226,7 +226,12 @@ def load_description_before(rel_path: str, repo_root: Path) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo_root), "show", f"{BEFORE_REF}:{rel_path}"],
-            capture_output=True, text=True, check=True, timeout=30,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=30,
         )
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
@@ -327,12 +332,15 @@ def call_router(api_key: str, prompt: str) -> str:
     external-failure exit code.
     """
     try:
-        return call_api(
-            api_key,
-            [{"role": "user", "content": prompt}],
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            temperature=0,
+        return cast(
+            str,
+            call_api(
+                api_key,
+                [{"role": "user", "content": prompt}],
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                temperature=0,
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - normalize all transport errors to one type
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc

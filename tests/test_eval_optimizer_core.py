@@ -10,6 +10,8 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from decimal import localcontext
 from fractions import Fraction
@@ -240,6 +242,54 @@ class TestSplitTasks:
     def test_rejects_absurd_decimal_exponents_before_fraction_conversion(self, ratio):
         with pytest.raises(ValueError, match="decimal ratio"):
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+
+    def test_rejects_absurd_decimal_coefficients_before_fraction_conversion(self):
+        ratio = "0." + "1" * 65
+        with pytest.raises(ValueError, match="coefficient digits") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_accepts_the_largest_allowed_decimal_coefficient(self):
+        ratio = "0." + "1" * 64
+        split = split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(split.sel) == 3
+
+    def test_million_digit_ratio_rejection_has_a_subprocess_deadline(self):
+        script = """
+import sys
+from _optimizer_core import split_tasks
+
+try:
+    split_tasks([f"t{i}" for i in range(25)], seed="s", sel_ratio="0." + "1" * 1_000_000, min_sel=0)
+except ValueError as exc:
+    print(len(str(exc)))
+    sys.exit(0)
+sys.exit(1)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=False,
+            capture_output=True,
+            cwd=_REPO_ROOT,
+            env={**os.environ, "PYTHONPATH": str(_EVAL_DIR)},
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0
+        assert int(result.stdout.strip()) < 200
+
+    def test_semantic_ratio_errors_truncate_long_values(self):
+        ratio = "0." + "0" * 125
+        with pytest.raises(ValueError, match="strictly between 0 and 1") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_ratio_sum_error_truncates_both_values(self):
+        sel_ratio = "0." + "9" * 64
+        test_ratio = "0." + "1" * 64
+        with pytest.raises(ValueError, match="leave at least one opt task") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=sel_ratio, test_ratio=test_ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
 
     def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
         with pytest.raises(ValueError, match="leaves no opt tasks"):
