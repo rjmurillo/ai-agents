@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T13:33:30.225437+00:00",
+  "updated": "2026-07-28T03:36:34.780274+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22105,6 +22105,69 @@
         "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
       "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "abc9696419c0",
+      "type": "milestone",
+      "label": "milestone: Finding 1: close the maxNesting 20 fail-open in blank_code_block_lines.",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.773948+00:00"
+    },
+    {
+      "id": "0ba87c319749",
+      "type": "milestone",
+      "label": "milestone: Finding 2: separate invariant tests from AST-behavior evidence tests.",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774043+00:00"
+    },
+    {
+      "id": "595228140374",
+      "type": "milestone",
+      "label": "milestone: Finding 3: close the zero-file-scan fail-open and surface traversal errors.",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774128+00:00"
+    },
+    {
+      "id": "b7cb0b68d802",
+      "type": "milestone",
+      "label": "milestone: Session retrospective.",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774210+00:00"
+    },
+    {
+      "id": "d2221ececa9c",
+      "type": "commit",
+      "label": "commit: Commit: 4e45e6583e",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774298+00:00"
+    },
+    {
+      "id": "6933a3ec4326",
+      "type": "commit",
+      "label": "commit: Commit: f0a1cda3be",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774383+00:00"
+    },
+    {
+      "id": "a41849720213",
+      "type": "outcome",
+      "label": "Outcome: success - Remediate the adversarial review (gpt-5.6-sol) REQUEST CHANGES on PR #3567: close the maxNesting fail-open (Finding 1), relabel mutant-surviving tests as invariants (Finding 2), and close the zero-file-scan fail-open (Finding 3) in the Markdown portability validator.",
+      "episodes": [
+        "episode-2026-07-28-session-3499-markdown-it-ast"
+      ],
+      "created": "2026-07-28T03:36:34.774465+00:00"
     }
   ],
   "patterns": [
