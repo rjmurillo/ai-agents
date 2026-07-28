@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T03:05:59.890415+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22681,6 +22681,168 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "c9b54b855c9c",
+      "type": "decision",
+      "label": "test: Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882196+00:00"
+    },
+    {
+      "id": "575f0dbf4dcd",
+      "type": "milestone",
+      "label": "milestone: Measured current main: 29 shared agent templates, 18 orchestrator rows, 13 template agents absent from the matrix. Excluding orchestrator itself leaves 12 candidates.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882297+00:00"
+    },
+    {
+      "id": "94881865f0bb",
+      "type": "milestone",
+      "label": "milestone: No live model proof was available because ANTHROPIC_API_KEY was unset. Static evidence uses realistic request phrases against the committed routing matrix and installed prompt files.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882388+00:00"
+    },
+    {
+      "id": "1ca2e1491826",
+      "type": "milestone",
+      "label": "milestone: Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882473+00:00"
+    },
+    {
+      "id": "b2442211b95f",
+      "type": "milestone",
+      "label": "milestone: Added src/claude/backlog-generator.md because adding a row without the Claude source prompt made src/claude/orchestrator route to a missing agent.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882559+00:00"
+    },
+    {
+      "id": "bb3c64562cfa",
+      "type": "milestone",
+      "label": "milestone: Measured always-on orchestrator prompt growth: each orchestrator surface grew by 451 bytes, for 2706 bytes across six committed surfaces.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882652+00:00"
+    },
+    {
+      "id": "da9390b0752b",
+      "type": "milestone",
+      "label": "milestone: Revert check in sibling worktree ai-agents-3585-revert restored orchestrator surfaces to origin/main while keeping tests. Result: all 30 tests failed.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882735+00:00"
+    },
+    {
+      "id": "8adbf8b6f8d5",
+      "type": "commit",
+      "label": "commit: Commit: 66104786",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882821+00:00"
+    },
+    {
+      "id": "0cba864f7989",
+      "type": "commit",
+      "label": "commit: Commit: a0a72acf",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882907+00:00"
+    },
+    {
+      "id": "4679aba0e304",
+      "type": "commit",
+      "label": "commit: Commit: 9d72ccbd",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.882990+00:00"
+    },
+    {
+      "id": "3919211a8023",
+      "type": "commit",
+      "label": "commit: Commit: 55a4c25e",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883075+00:00"
+    },
+    {
+      "id": "4ed23ea1298a",
+      "type": "outcome",
+      "label": "Outcome: success - Decide which unrouted agents earn orchestrator matrix rows and implement only the justified routes.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883160+00:00"
+    },
+    {
+      "id": "2234f65e39da",
+      "type": "decision",
+      "label": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883351+00:00"
+    },
+    {
+      "id": "0be992aa9446",
+      "type": "milestone",
+      "label": "Measured current main: 29 shared agent templates, 18 orchestrator rows, 13 template agents absent from the matrix. Excluding orchestrator itself leaves 12 candidates.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883435+00:00"
+    },
+    {
+      "id": "ea9139f964fa",
+      "type": "milestone",
+      "label": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883616+00:00"
+    },
+    {
+      "id": "873b907217f5",
+      "type": "milestone",
+      "label": "Measured always-on orchestrator prompt growth: each orchestrator surface grew by 451 bytes, for 2706 bytes across six committed surfaces.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883804+00:00"
+    },
+    {
+      "id": "a84956e378c5",
+      "type": "milestone",
+      "label": "Revert check in sibling worktree ai-agents-3585-revert restored orchestrator surfaces to origin/main while keeping tests. Result: all 30 tests failed.",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.883976+00:00"
+    },
+    {
+      "id": "05060e5a3cbe",
+      "type": "commit",
+      "label": "Commit: 55a4c25e",
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "created": "2026-07-28T03:05:59.884147+00:00"
     }
   ],
   "patterns": [
@@ -22690,7 +22852,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 68,
+      "occurrences": 69,
       "created": "2026-06-02T04:20:23.788442+00:00",
       "id": "cd31b49ba963",
       "contributions": {
@@ -22761,11 +22923,13 @@
         "\u0000legacy:64": 1.0,
         "\u0000legacy:65": 1.0,
         "episode-2026-01-01-sequence-001": 1.0,
-        "episode-2026-07-09-session-2936": 1.0
+        "episode-2026-07-09-session-2936": 1.0,
+        "episode-2026-07-28-session-3585-orchestrator-routing": 1.0
       },
       "episodes": [
         "episode-2026-01-01-sequence-001",
-        "episode-2026-07-09-session-2936"
+        "episode-2026-07-09-session-2936",
+        "episode-2026-07-28-session-3585-orchestrator-routing"
       ]
     },
     {
@@ -27091,6 +27255,76 @@
         "episode-2026-07-27-session-3489-anchor-blockquote": 0.8
       },
       "created": "2026-07-27T13:33:30.219779+00:00"
+    },
+    {
+      "source": "2234f65e39da",
+      "target": "0be992aa9446",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3585-orchestrator-routing": 0.6
+      },
+      "created": "2026-07-28T03:05:59.883448+00:00"
+    },
+    {
+      "source": "2234f65e39da",
+      "target": "ea9139f964fa",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3585-orchestrator-routing": 0.6
+      },
+      "created": "2026-07-28T03:05:59.883624+00:00"
+    },
+    {
+      "source": "2234f65e39da",
+      "target": "873b907217f5",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3585-orchestrator-routing": 0.6
+      },
+      "created": "2026-07-28T03:05:59.883811+00:00"
+    },
+    {
+      "source": "2234f65e39da",
+      "target": "a84956e378c5",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3585-orchestrator-routing": 0.6
+      },
+      "created": "2026-07-28T03:05:59.883983+00:00"
+    },
+    {
+      "source": "2234f65e39da",
+      "target": "05060e5a3cbe",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-28-session-3585-orchestrator-routing"
+      ],
+      "contributions": {
+        "episode-2026-07-28-session-3585-orchestrator-routing": 0.6
+      },
+      "created": "2026-07-28T03:05:59.884155+00:00"
     }
   ]
 }

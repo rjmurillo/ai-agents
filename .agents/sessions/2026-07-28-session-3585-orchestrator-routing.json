@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3585,
+    "date": "2026-07-28",
+    "branch": "fix/3585-orchestrator-routing",
+    "startingCommit": "bbe26780",
+    "objective": "Decide which unrouted agents earn orchestrator matrix rows and implement only the justified routes."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3585-orchestrator-routing"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/governance/GENERATOR-FILES.md and generated artifact rules read before edits"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created from origin/main bbe26780; remote branch absent before edits"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3585 read with comments via gh issue view 3585 --comments"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch fix/3585-orchestrator-routing"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena activation tool unavailable in this Copilot CLI session; wrote memory orchestrator-routing-3585 before completion"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena initial instructions unavailable; followed loaded repository instructions and rules"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log updated before final validation"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md not touched"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote Serena memory orchestrator-routing-3585"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pre-commit markdownlint ran on changed Markdown files and reported 0 issues"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits a0a72acf, 9d72ccbd, 55a4c25e, and 66104786 cover matrix rows, hand-maintained prompts, tests, and plugin manifests"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/test_orchestrator_agent_routing_matrix.py returned 30 passed; revert worktree returned 30 failed"
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3585 will be linked by PR body with Fixes #3585"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured current main: 29 shared agent templates, 18 orchestrator rows, 13 template agents absent from the matrix. Excluding orchestrator itself leaves 12 candidates."
+    },
+    {
+      "step": "No live model proof was available because ANTHROPIC_API_KEY was unset. Static evidence uses realistic request phrases against the committed routing matrix and installed prompt files."
+    },
+    {
+      "step": "Selected 5 agents for rows: backlog-generator, debug, dependency-auditor, pr-test-analyzer, silent-failure-hunter. Excluded 7 candidate agents because they are skill-first routes, subsets of existing routed agents, or outside engineering orchestration."
+    },
+    {
+      "step": "Added src/claude/backlog-generator.md because adding a row without the Claude source prompt made src/claude/orchestrator route to a missing agent."
+    },
+    {
+      "step": "Measured always-on orchestrator prompt growth: each orchestrator surface grew by 451 bytes, for 2706 bytes across six committed surfaces."
+    },
+    {
+      "step": "Revert check in sibling worktree ai-agents-3585-revert restored orchestrator surfaces to origin/main while keeping tests. Result: all 30 tests failed."
+    }
+  ],
+  "endingCommit": "66104786",
+  "nextSteps": []
+}
