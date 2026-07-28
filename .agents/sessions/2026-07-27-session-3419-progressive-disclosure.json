@@ -144,6 +144,10 @@
     {
       "phase": "Round 2 ADR reference amendments part 2",
       "summary": "Added dated amendment notes to ADR-070, ADR-076, and ADR-087 for moved book-rule references."
+    },
+    {
+      "phase": "Round 2 ADR review evidence",
+      "summary": "Updated ADR-088 to defer unwired rollback trigger to issue #3589 and appended round 2 adr-review convergence to ADR-088 debate log."
     }
   ],
   "outcomes": {

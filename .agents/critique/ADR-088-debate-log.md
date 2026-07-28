@@ -49,3 +49,30 @@ All six roles accept ADR-088. No P0 or P1 blockers remain.
 ## Required Follow-up
 
 Criterion 3 for issue #3419, full metadata normalization, remains separate scope. This ADR should not absorb it.
+
+## Round 2 Amended Text Review
+
+### Scope
+
+ADR-088 was re-reviewed after the PR added explicit `autoplan` routing, post-investigation `analyze` routing, and replaced the unwired rollback trigger with issue #3589.
+
+### Key Issues Addressed
+
+- Progressive disclosure reachability now has two paths: direct `autoplan` selection and post-investigation `analyze` handoff.
+- The rollback trigger no longer claims an unwired gate. Issue #3589 tracks owner, cadence, persisted consecutive-run state, and CI or scheduled invocation.
+- The review verified that the eight moved references still exist under `software-engineering-library`.
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Accept | The two-gate retrieval design matches the ADR-078 router boundary and the impact table matches the changed surfaces. |
+| critic | Disagree-and-Commit | Residual P2 concerns remain: quote the exact budget output, define reachability measurement in #3589, and populate decision-makers before acceptance. |
+| independent-thinker | Accept | The ADR names the strongest counterargument, late retrieval, and mitigates it with retained always-on synthesis plus explicit routing. |
+| security | Accept | The change moves instructional content between loading mechanisms and adds no tool permission, auth, or data-flow change. |
+| analyst | Accept | The implementation matches the ADR claims: budget ratchet, eight references, generated mirrors, and routing paths are present. |
+| high-level-advisor | Accept | The trade aligns with ADR-069 by reducing dead context while keeping everyday engineering rules inline. |
+
+### Convergence
+
+All six roles accept or disagree-and-commit. No P0 or P1 blockers remain. ADR-088 can remain proposed in this PR. The acceptance transition should address the P2 notes or link them to their owning issue.

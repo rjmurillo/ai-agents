@@ -168,6 +168,18 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated ADR-088 to defer unwired rollback trigger to issue #3589 and appended round 2 adr-review convergence to ADR-088 debate log.",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": []
     }
   ],

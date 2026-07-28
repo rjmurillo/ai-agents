@@ -149,11 +149,10 @@ ordering, schema evolution, a dependency boundary, or module interface shape.
   that needs it.
 - Skill retrieval happens after intent classification. Critical every-task
   rules would be weaker in this shape, which is why they stay always-on.
-- Activation measurement must keep proving reachability. If the rule activation
-  eval reports fewer than 7 of 8 moved references passing in two consecutive
-  runs, or any one moved reference has no positive activation signal in a run,
-  revert this ADR's move and restore the affected guidance to always-on rules
-  until the routing path is fixed.
+- Activation measurement must keep proving reachability. A wired rollback
+  trigger needs an owner, cadence, persisted consecutive-run state, and CI or
+  scheduled invocation before it can become an ADR condition. Issue #3589 tracks
+  that follow-up.
 
 ### Neutral
 
