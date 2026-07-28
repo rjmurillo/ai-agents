@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
@@ -584,7 +585,7 @@ class TestExpressionInjectionAllowlist:
     """
 
     @staticmethod
-    def _check(tmp_path: Path, steps: list[dict[str, object]]) -> list[str]:
+    def _check(tmp_path: Path, steps: Sequence[object]) -> list[str]:
         validator = WorkflowValidator(tmp_path)
         content = {"jobs": {"a": {"runs-on": "ubuntu-latest", "steps": steps}}}
         validator.validate_expression_injection(tmp_path / "wf.yml", content)
@@ -675,7 +676,7 @@ class TestExpressionInjectionTaintPropagation:
     """Binding a tainted value through env: at the producer does not sanitize it."""
 
     @staticmethod
-    def _check(tmp_path: Path, steps: list[dict[str, object]]) -> list[str]:
+    def _check(tmp_path: Path, steps: Sequence[object]) -> list[str]:
         validator = WorkflowValidator(tmp_path)
         content = {"jobs": {"a": {"runs-on": "ubuntu-latest", "steps": steps}}}
         validator.validate_expression_injection(tmp_path / "wf.yml", content)
