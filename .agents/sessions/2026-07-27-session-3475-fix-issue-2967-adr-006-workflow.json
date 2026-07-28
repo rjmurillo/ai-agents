@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3475,
+    "date": "2026-07-27",
+    "branch": "chore/2967-adr006-workflow-blocks",
+    "startingCommit": "f7e4c2ca",
+    "objective": "Fix issue #2967 ADR-006 workflow run block burn-down"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context available in Copilot harness; serena initial instructions and full tool schemas loaded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions output read before code edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read lines 1-116; no issue #2967 handoff found."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts listed; 45 GitHub skill scripts found."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, PROJECT-CONSTRAINTS.md, ADR-006, ADR-042, TESTING-RIGOR, and relevant .github instructions read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, pattern-thin-workflows, validation-pr-gates, workflow-patterns index, and git index read."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/2967-adr006-workflow-blocks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/2967-adr006-workflow-blocks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked in worktree; only intended files changed before commits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f7e4c2ca"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session checklist items completed; validate_session_json.py passes after this update."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only; not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory ci/issue-2967-ai-review-burndown written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py ran Markdown Linting: PASS in 0.50s."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code commits 0295ebb3 and 2a154d55 created; session log committed separately."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: 35 total, 31 passed, 0 failed, 4 skipped. Targeted tests: 7 passed. Ruff and mypy passed on changed Python files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session SQL todos updated through validation and PR work."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Skipped: no explicit retrospective requested; session log records validation evidence."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-27T13:21:54-07:00",
+      "entry": "Created worktree /home/richard/src/GitHub/rjmurillo/wt-2967 on chore/2967-adr006-workflow-blocks."
+    },
+    {
+      "time": "2026-07-27T13:40:00-07:00",
+      "entry": "Ran ADR-006 scanner before extraction: 87 violations."
+    },
+    {
+      "time": "2026-07-27T13:47:00-07:00",
+      "entry": "Extracted ai-review Diagnose Copilot CLI and Invoke Copilot CLI run blocks into scripts/ci Python modules with pytest coverage."
+    },
+    {
+      "time": "2026-07-27T13:48:00-07:00",
+      "entry": "Ran ADR-006 scanner after extraction: 85 violations; lowered pr-validation ceiling to 85."
+    },
+    {
+      "time": "2026-07-27T13:50:00-07:00",
+      "entry": "Validated with targeted pytest, ruff, mypy, ADR-006 scanner, validate_workflows.py, workflow-local via pre_pr.py, and pre_pr.py."
+    }
+  ],
+  "endingCommit": "2a154d55",
+  "nextSteps": [
+    "Continue issue #2967 with the remaining 85 validator-reported blocks, largest first.",
+    "Next highest-leverage targets are pr-maintenance.yml:280 and pr-validation.yml:174 at 68 code lines each."
+  ]
+}
