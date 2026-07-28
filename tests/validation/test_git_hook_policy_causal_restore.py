@@ -1478,6 +1478,65 @@ class TestAdrReviewPolicyMergeScope:
 
         assert side_blob in policy._origin_main_blob_ids(repo, name)
 
+    def test_an_adr_whose_name_needs_quoting_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """A path git quotes has to reach the scope test as git spells it.
+
+        `core.quotePath` is on by default, so a name outside ASCII prints
+        octal-escaped inside double quotes. The trailing quote alone defeats
+        the end anchor the scope pattern ends on, and the escapes defeat the
+        word characters before it, so every record for the file drops and its
+        history reads as empty. The gate governs the file either way, so the
+        answer would be review evidence demanded for an ADR whose only
+        peculiarity is its name.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        # On by default. Named so the test states what it exercises rather
+        # than inheriting it from whoever runs it.
+        _git(repo, "config", "core.quotePath", "true")
+        name = ".agents/architecture/ADR-100-caf\u00e9.md"
+        (repo / ".agents" / "architecture").mkdir(parents=True)
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_an_adr_under_a_quoted_directory_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """Turning quoting off is not the same as never being quoted.
+
+        git quotes a path carrying a double quote, a backslash or a control
+        character whatever `core.quotePath` says, so suppressing the setting
+        answers only the accented-name half. Reading the records in a format
+        that separates paths by NUL answers both.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory = repo / '.agents' / 'arch"itecture'
+        directory.mkdir(parents=True)
+        name = '.agents/arch"itecture/ADR-101-quoted.md'
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
     def test_the_resolution_and_the_side_state_are_both_carried(
         self,
         tmp_path,
@@ -1514,22 +1573,22 @@ class TestAdrReviewPolicyMergeScope:
             "::100644 100644 100644 "
             "1111111111111111111111111111111111111111 "
             "2222222222222222222222222222222222222222 "
-            "3333333333333333333333333333333333333333 MM\t" + adr + "\n"
+            "3333333333333333333333333333333333333333 MM\0" + adr + "\0"
             ":100644 100644 "
             "4444444444444444444444444444444444444444 "
-            "5555555555555555555555555555555555555555 M\t" + adr + "\n"
+            "5555555555555555555555555555555555555555 M\0" + adr + "\0"
             # Contains "ADR" and is not a path this gate governs. The
             # membership test the records are filtered by is the gate's own,
             # not a substring the name happens to carry.
             ":100644 100644 "
             "6666666666666666666666666666666666666666 "
-            "7777777777777777777777777777777777777777 M\tdocs/ADR-overview.md\n"
+            "7777777777777777777777777777777777777777 M\0docs/ADR-overview.md\0"
             # A file moved in to become an ADR. The post-image is at the ADR
             # path from this commit on, so the destination is what decides it,
             # and reading the source instead would drop a state main holds.
             ":100644 100644 "
             "9999999999999999999999999999999999999999 "
-            "8888888888888888888888888888888888888888 R100\tnotes.md\t" + adr + "\n"
+            "8888888888888888888888888888888888888888 R100\0notes.md\0" + adr + "\0"
         )
         monkeypatch.setattr(
             policy,

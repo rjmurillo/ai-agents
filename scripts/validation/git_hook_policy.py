@@ -1014,6 +1014,13 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
             "--format=",
             "--raw",
             "--no-abbrev",
+            # Paths arrive raw and NUL-separated. Left to the default, git
+            # quotes any path outside ASCII or carrying a quote, a backslash
+            # or a control character, and the scope test below ends on an
+            # anchor the closing quote defeats, so such an ADR would read as
+            # having no history. It also stops a tab inside a name from
+            # looking like the separator before a second path.
+            "-z",
             "origin/main",
             "--",
             path,
@@ -1022,15 +1029,29 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     if result.returncode != 0:
         return set()
     blob_ids: set[str] = set()
-    for line in result.stdout.splitlines():
-        if not line.startswith(":") or line.startswith("::"):
+    fields = result.stdout.split("\0")
+    index = 0
+    while index < len(fields):
+        record = fields[index]
+        index += 1
+        if not record.startswith(":") or record.startswith("::"):
             # A `::` record lists one pre-image per parent before the
             # post-image, so its fourth field is a pre-image and its width
             # depends on the parent count. Naming the format should keep these
-            # away; skipping them is what keeps that true if one arrives.
+            # away; skipping them is what keeps that true if one arrives. The
+            # paths that follow one fail this same test and are skipped too.
             continue
-        parts = line.split("\t")
-        if len(parts) < 2 or ADR_REVIEW_PATH_RE.search(parts[-1]) is None:
+        metadata = record.split()
+        if len(metadata) < 5:
+            continue
+        # A rename or a copy names a source and then a destination. Every
+        # other status names one path.
+        wanted = 2 if metadata[4][:1] in ("R", "C") else 1
+        paths = fields[index : index + wanted]
+        index += wanted
+        if len(paths) < wanted:
+            break
+        if ADR_REVIEW_PATH_RE.search(paths[-1]) is None:
             # `--follow` rewrites the path it tracks whenever it scores a drop
             # and an add as a rename, which is similarity and not provenance.
             # Crossing into a file this gate does not govern would read that
@@ -1038,10 +1059,7 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
             # review. The post-image belongs to the record's destination path,
             # so that is the path that has to qualify.
             continue
-        fields = parts[0].split()
-        if len(fields) < 4:
-            continue
-        blob_ids.add(fields[3])
+        blob_ids.add(metadata[3])
     blob_ids.discard("0" * 40)
     return blob_ids
 
