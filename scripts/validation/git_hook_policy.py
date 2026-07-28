@@ -26,6 +26,7 @@ from typing import TextIO, cast
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.pr_commit_count import BLOCK_THRESHOLD
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
@@ -2872,7 +2873,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
         commit_count = int(result.stdout.strip())
     except ValueError:
         return 2
-    limit = 40 if _contains_main_merge(update, repo_root) else 20
+    limit = BLOCK_THRESHOLD
     if commit_count <= limit:
         return 0
     branch = update.destination_branch or _branch_name(update.source.local_ref)

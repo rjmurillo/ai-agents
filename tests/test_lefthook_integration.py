@@ -5046,7 +5046,7 @@ def test_commit_limit_relaxes_for_merge_from_main(
 
     def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "30\n")
+            return _completed(0, "25\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
         if args[:3] == ["show", "-s", "--format=%P"]:
@@ -5055,7 +5055,7 @@ def test_commit_limit_relaxes_for_merge_from_main(
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
 
-    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_handles_git_errors(
