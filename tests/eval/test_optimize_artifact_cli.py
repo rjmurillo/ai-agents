@@ -6335,19 +6335,20 @@ def _defaults_agree(expected: object, actual: object) -> bool:
     `_canonical_ratio` is the function `split_fingerprint` itself calls, so
     reusing it keeps this bar from ever drifting from the thing it protects.
 
-    `bool` subclasses `int`, so plain `==` reads `False` as `0` and `True` as
-    `1`. Every ratio the product validates refuses a bool by name, so a
-    mixed pair is a mismatch here rather than a silent agreement.
+    `bool` subclasses `int` and `int` compares equal to `float`, so plain
+    `==` reads `False` as `0`, `True` as `1`, and `5` as `5.0`. Each is a
+    different contract: every ratio the product validates refuses a bool by
+    name, and `edit_budget` is annotated `max_edits: int -> int` yet answers
+    `5.0` when handed one, which the results file publishes as a different
+    JSON number. Outside the ratio spelling the two kinds have to match.
 
     Raises:
         ValueError: when a ratio default is not a decimal, which is louder
             and more specific than reading the same input as a mismatch.
     """
-    if isinstance(expected, bool) != isinstance(actual, bool):
-        return False
     if isinstance(expected, float) and isinstance(actual, str):
         return core._canonical_ratio(actual) == core._canonical_ratio(expected)
-    return actual == expected
+    return type(expected) is type(actual) and actual == expected
 
 
 class TestOneNameForEachFlagDefaultAndChoiceSet:
@@ -6821,6 +6822,43 @@ class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
         """
         with pytest.raises(ValueError, match="must be a decimal ratio"):
             core.split_fingerprint(["a", "b"], seed="s", sel_ratio=False)
+
+    @pytest.mark.parametrize(("expected", "actual"), [(5, 5.0), (5.0, 5), (1, 1.0)])
+    def test_a_whole_number_never_agrees_across_kinds(self, expected, actual):
+        """`bool` was one instance of a wider hole, not the hole itself.
+
+        `==` compares numbers by value, so an `int` owner default and a
+        `float` command default read as agreement while the two are different
+        contracts. `edit_budget` is annotated `max_edits: int -> int`; hand it
+        `5.0` and it answers `5.0`, which `json.dumps` writes as `5.0` where
+        the published results carried `5`. A bar that approves a silent type
+        change in the emitted schema is not a bar.
+
+        Stated as one rule about kinds rather than a list of pairs. The
+        previous spelling named `bool` and let every other pair through, which
+        is the shape the block-boundary patterns failed in as well.
+        """
+        assert not _defaults_agree(expected, actual)
+
+    def test_the_product_really_does_change_shape_for_the_pair_above(self):
+        """The type bar is only right if the product notices the type.
+
+        Without this the rule is a preference about spelling. `edit_budget`
+        declares `-> int` and returns a `float` unchanged, so the same
+        mismatch the bar now refuses reaches the results file as a different
+        JSON number than the one the schema published.
+        """
+        assert json.dumps(core.edit_budget(0, 2, max_edits=5)) == "5"
+        assert json.dumps(core.edit_budget(0, 2, max_edits=5.0)) == "5.0"
+
+    @pytest.mark.parametrize(("expected", "actual"), [(3, 3), (1.0, 1.0), (5, 5)])
+    def test_a_matching_kind_still_agrees(self, expected, actual):
+        """The rule refuses the mixed pair, not the values themselves.
+
+        Seven of the nine live table entries compare same-kind numbers. They
+        have to keep passing or the bar reports drift nobody introduced.
+        """
+        assert _defaults_agree(expected, actual)
 
 
 @_NEEDS_PERMISSION_BARRIER
