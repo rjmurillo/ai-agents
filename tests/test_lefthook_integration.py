@@ -94,7 +94,7 @@ def _init_repo(repo: Path, branch: str = "feature/test") -> None:
 def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     path = repo / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_bytes(content.encode("utf-8"))
     _git(repo, "add", "--", relative_path)
     _git(repo, "commit", "-qm", f"test: add {Path(relative_path).name}")
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -4546,6 +4546,44 @@ def test_head_blob_reader_returns_content(tmp_path: Path) -> None:
     _commit_file(repo, "tracked", "content\n")
 
     assert policy._read_head_blob(repo, "tracked") == b"content\n"
+
+
+def test_committed_crlf_survives_the_trip_through_the_test_helper(tmp_path: Path) -> None:
+    """`_commit_file` has to store the bytes it was handed, on every platform.
+
+    The helper used `Path.write_text`, whose default newline handling
+    translates `\\n` to `os.linesep`. On Windows this content reached git as
+    `a\\r\\r\\nb\\r\\n`, so the reader below correctly returned bytes the
+    caller never asked for and the fixture looked like a broken reader. A
+    text-mode reader hid it by folding the endings back on the way out.
+
+    `os.linesep` is `\\n` here, so this test cannot fail on Linux. It pins the
+    contract that the helper stores the bytes it was handed, and Windows CI is
+    what exercises it.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "a\r\nb\n")
+
+    assert policy._read_head_blob(repo, "tracked") == b"a\r\nb\n"
+
+
+def test_a_committed_lone_carriage_return_is_not_expanded(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "a\rb")
+
+    assert policy._read_head_blob(repo, "tracked") == b"a\rb"
+
+
+def test_the_head_blob_reader_returns_none_for_a_path_no_commit_holds(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "content\n")
+
+    assert policy._read_head_blob(repo, "absent") is None
 
 
 def test_branch_policy_reports_git_configuration_error(
