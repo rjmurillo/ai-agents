@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3561,
+    "date": "2026-07-28",
+    "branch": "wt/t_f1b2e3a5",
+    "startingCommit": "34b048d2b",
+    "objective": "Address adversarial review findings on PR #3561 pytest temp root isolation"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active for code navigation and symbol lookup"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Instructions read at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read and preserved"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On branch wt/t_f1b2e3a5 in isolated worktree"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working on feature branch wt/t_f1b2e3a5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All review findings addressed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective captured at .agents/retrospective/2026-07-28-pr-3561-pytest-isolation.md"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files modified in this session"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit c590117fc on branch wt/t_f1b2e3a5"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1694 tests passed, build staleness check passed"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "fix",
+      "description": "Deferred sqlite3 availability check returns exit 3 per ADR-035",
+      "files": ["scripts/forgetful/import_forgetful_memories.py"]
+    },
+    {
+      "action": "fix",
+      "description": "Custom tmp_path fixture reproduces pytest retention cleanup",
+      "files": ["conftest.py"]
+    },
+    {
+      "action": "retrospective",
+      "description": "Captured learnings from adversarial review",
+      "files": [".agents/retrospective/2026-07-28-pr-3561-pytest-isolation.md"]
+    }
+  ],
+  "endingCommit": "c590117fc",
+  "nextSteps": ["Verify CI passes", "Reply to review", "Merge PR 3561"]
+}

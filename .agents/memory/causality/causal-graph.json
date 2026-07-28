@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T15:54:29.827462+00:00",
+  "updated": "2026-07-28T05:17:46.822128+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16634,6 +16634,42 @@
         "episode-2026-07-26-session-3388"
       ],
       "created": "2026-07-26T15:54:29.823811+00:00"
+    },
+    {
+      "id": "03ed35882c01",
+      "type": "milestone",
+      "label": "milestone: fix",
+      "episodes": [
+        "episode-2026-07-28-session-3561"
+      ],
+      "created": "2026-07-28T05:17:46.818039+00:00"
+    },
+    {
+      "id": "a3c9b52f9757",
+      "type": "milestone",
+      "label": "milestone: retrospective",
+      "episodes": [
+        "episode-2026-07-28-session-3561"
+      ],
+      "created": "2026-07-28T05:17:46.818172+00:00"
+    },
+    {
+      "id": "018d92a242df",
+      "type": "commit",
+      "label": "commit: Commit: c590117fc",
+      "episodes": [
+        "episode-2026-07-28-session-3561"
+      ],
+      "created": "2026-07-28T05:17:46.818235+00:00"
+    },
+    {
+      "id": "39b6dc494910",
+      "type": "outcome",
+      "label": "Outcome: success - Address adversarial review findings on PR #3561 pytest temp root isolation",
+      "episodes": [
+        "episode-2026-07-28-session-3561"
+      ],
+      "created": "2026-07-28T05:17:46.818297+00:00"
     }
   ],
   "patterns": [
