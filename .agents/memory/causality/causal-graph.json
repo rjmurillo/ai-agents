@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T01:43:59.203171+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22681,6 +22681,24 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "e26e02daa861",
+      "type": "commit",
+      "label": "commit: Commit: b67e7947",
+      "episodes": [
+        "episode-2026-07-28-session-01-fix-3580-ruff-ratchet-local-gate"
+      ],
+      "created": "2026-07-28T01:43:59.196523+00:00"
+    },
+    {
+      "id": "e9322227b18c",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3580 by running the ruff ratchets before push so developers catch new ruff debt locally.",
+      "episodes": [
+        "episode-2026-07-28-session-01-fix-3580-ruff-ratchet-local-gate"
+      ],
+      "created": "2026-07-28T01:43:59.196627+00:00"
     }
   ],
   "patterns": [
