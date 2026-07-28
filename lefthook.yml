@@ -15,10 +15,6 @@ pre-commit:
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
-    - name: install-merge-drivers
-      timeout: 1m
-      run: uv run --frozen python scripts/maintenance/install_merge_drivers.py
-
     - name: branch-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
@@ -279,13 +275,6 @@ pre-commit:
       timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
       glob: ".agents/sessions/*.json"
-      skip:
-        - merge
-        - run: test "$SKIP_AUTOFIX" = "1"
-
-    - name: update-causal-graph
-      timeout: 10m
-      run: uv run --frozen python scripts/validation/git_hook_policy.py update-causal-graph
       skip:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"

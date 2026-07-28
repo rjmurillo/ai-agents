@@ -993,30 +993,92 @@ class TestPatchFingerprint:
 class TestBufferContains:
     def test_finds_a_previously_rejected_edit(self):
         patches = [Patch("replace", "x", "y")]
-        buffer = [{"fingerprint": patch_fingerprint(patches), "note": "lost"}]
-        assert buffer_contains(buffer, patches) is True
+        buffer = [
+            {
+                "fingerprint": patch_fingerprint(patches),
+                "artifact_fingerprint": "state-a",
+                "note": "lost",
+            }
+        ]
+        assert buffer_contains(buffer, patches, artifact_fingerprint="state-a") is True
+
+    def test_finds_a_rejection_for_the_same_artifact_state(self):
+        patches = [Patch("replace", "x", "y")]
+        buffer = [
+            {
+                "fingerprint": patch_fingerprint(patches),
+                "artifact_fingerprint": "state-a",
+            }
+        ]
+        assert buffer_contains(buffer, patches, artifact_fingerprint="state-a") is True
+
+    def test_artifact_state_change_expires_a_rejection(self):
+        patches = [Patch("replace", "x", "y")]
+        buffer = [
+            {
+                "fingerprint": patch_fingerprint(patches),
+                "artifact_fingerprint": "state-a",
+            }
+        ]
+        assert buffer_contains(buffer, patches, artifact_fingerprint="state-b") is False
+
+    def test_legacy_entry_without_artifact_state_is_expired(self):
+        patches = [Patch("replace", "x", "y")]
+        buffer = [{"fingerprint": patch_fingerprint(patches), "note": "legacy"}]
+        assert buffer_contains(buffer, patches, artifact_fingerprint="state-a") is False
 
     def test_reports_a_novel_edit(self):
-        buffer = [{"fingerprint": patch_fingerprint([Patch("append", None, "other")])}]
-        assert buffer_contains(buffer, [Patch("replace", "x", "y")]) is False
+        buffer = [
+            {
+                "fingerprint": patch_fingerprint([Patch("append", None, "other")]),
+                "artifact_fingerprint": "state-a",
+            }
+        ]
+        assert (
+            buffer_contains(
+                buffer,
+                [Patch("replace", "x", "y")],
+                artifact_fingerprint="state-a",
+            )
+            is False
+        )
 
     def test_an_empty_buffer_contains_nothing(self):
-        assert buffer_contains([], [Patch("append", None, "x")]) is False
+        assert (
+            buffer_contains(
+                [],
+                [Patch("append", None, "x")],
+                artifact_fingerprint="state-a",
+            )
+            is False
+        )
 
     def test_does_not_match_across_reordering(self):
         """Reordered patches build a different document, so they are a different edit."""
         stored = [Patch("append", None, "one"), Patch("append", None, "two")]
-        buffer = [{"fingerprint": patch_fingerprint(stored)}]
+        buffer = [
+            {
+                "fingerprint": patch_fingerprint(stored),
+                "artifact_fingerprint": "state-a",
+            }
+        ]
         reordered = [Patch("append", None, "two"), Patch("append", None, "one")]
-        assert buffer_contains(buffer, reordered) is False
+        assert buffer_contains(buffer, reordered, artifact_fingerprint="state-a") is False
 
     def test_ignores_buffer_entries_without_a_fingerprint(self):
         buffer = [{"note": "malformed"}, {"fingerprint": None}]
-        assert buffer_contains(buffer, [Patch("append", None, "x")]) is False
+        assert (
+            buffer_contains(
+                buffer,
+                [Patch("append", None, "x")],
+                artifact_fingerprint="state-a",
+            )
+            is False
+        )
 
     def test_rejects_an_empty_patch_list(self):
         with pytest.raises(ValueError, match="at least one patch"):
-            buffer_contains([], [])
+            buffer_contains([], [], artifact_fingerprint="state-a")
 
 
 class TestSplitFingerprint:
