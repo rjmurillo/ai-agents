@@ -74,6 +74,7 @@ from _optimizer_adapters import (  # noqa: E402
 )
 from _optimizer_core import (  # noqa: E402
     Patch,
+    _ratio_display,
     apply_patches,
     buffer_contains,
     edit_budget,
@@ -589,7 +590,8 @@ def _legacy_numeric_split_groups(
     if not 0.0 <= test_ratio < 1.0:
         raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        min_sel_display = _ratio_display(str(min_sel))
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_ratio + test_ratio >= 1.0:
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -632,8 +634,9 @@ def _legacy_numeric_split_groups(
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
+        min_sel_display = _ratio_display(str(min_sel))
         raise ValueError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 

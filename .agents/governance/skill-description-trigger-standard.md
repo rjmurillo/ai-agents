@@ -69,7 +69,9 @@ description: Research external topics, create comprehensive analysis, determine
 
 ### SKIP Clause for Sibling Families
 
-When a skill shares a naming family with a sibling (skills whose names share a prefix or theme, such as `memory*`, `context*`, `session*`, `security*`, `adr-*`), its description **MUST** include a SKIP clause that names the sibling and routes away from it.
+A sibling family is the set of skills whose directory names share the same leading hyphen-delimited token. Examples: `memory-*`, `context-*`, `session-*`, `security-*`, `adr-*`, and `ai-agents-*`. Theme-only groupings do not create an enforceable family unless this standard names them explicitly.
+
+When a skill is in a sibling family with two or more members, its description **MUST** include a SKIP clause that names at least one real sibling skill and routes away from it.
 
 A positive trigger alone over-triggers across the family: the router matches the shared keyword and cannot deterministically pick the right member. The remediation is a negative trigger. This is the Over-triggering remediation from the wiki `Skill Triggering Failure Modes` page: "Add negative triggers: 'Do NOT use for X (use Y skill instead).'"
 
@@ -81,8 +83,9 @@ Do NOT use for [sibling's job]; use [sibling-name] instead.
 
 **Rules**:
 
-- Name a real sibling artifact that exists in the repo.
-- Make clauses reciprocal: if A points to B, B points back to A (or to the chaining parent, when one sibling orchestrates the others).
+- Name at least one real sibling skill that exists in the repo.
+- Use one of the validator-recognized route forms: `(use sibling-skill)`, `(use sibling-a or sibling-b)`, `use sibling-skill instead`, or `; use sibling-skill`.
+- Keep the sibling family's routing graph connected when edges are read without direction. Pairwise reciprocity is not required; it does not fit large families under the description budget.
 - Keep the description under 1024 chars and free of angle brackets (AIP-02).
 
 **Example** (`context-gather` vs `context-optimizer`, which both match "context" but do opposite jobs):
