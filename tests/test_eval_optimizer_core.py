@@ -10,6 +10,9 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
+import math
+import os
+import subprocess
 import sys
 import time
 from decimal import localcontext
@@ -241,6 +244,54 @@ class TestSplitTasks:
     def test_rejects_absurd_decimal_exponents_before_fraction_conversion(self, ratio):
         with pytest.raises(ValueError, match="decimal ratio"):
             split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+
+    def test_rejects_absurd_decimal_coefficients_before_fraction_conversion(self):
+        ratio = "0." + "1" * 65
+        with pytest.raises(ValueError, match="coefficient digits") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_accepts_the_largest_allowed_decimal_coefficient(self):
+        ratio = "0." + "1" * 64
+        split = split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(split.sel) == 3
+
+    def test_million_digit_ratio_rejection_has_a_subprocess_deadline(self):
+        script = """
+import sys
+from _optimizer_core import split_tasks
+
+try:
+    split_tasks([f"t{i}" for i in range(25)], seed="s", sel_ratio="0." + "1" * 1_000_000, min_sel=0)
+except ValueError as exc:
+    print(len(str(exc)))
+    sys.exit(0)
+sys.exit(1)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=False,
+            capture_output=True,
+            cwd=_REPO_ROOT,
+            env={**os.environ, "PYTHONPATH": str(_EVAL_DIR)},
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0
+        assert int(result.stdout.strip()) < 200
+
+    def test_semantic_ratio_errors_truncate_long_values(self):
+        ratio = "0." + "0" * 125
+        with pytest.raises(ValueError, match="strictly between 0 and 1") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
+
+    def test_ratio_sum_error_truncates_both_values(self):
+        sel_ratio = "0." + "9" * 64
+        test_ratio = "0." + "1" * 64
+        with pytest.raises(ValueError, match="leave at least one opt task") as excinfo:
+            split_tasks(_ids(25), seed="s", sel_ratio=sel_ratio, test_ratio=test_ratio, min_sel=0)
+        assert len(str(excinfo.value)) < 200
 
     def test_one_task_cannot_leave_an_opt_task_after_rounding(self):
         with pytest.raises(ValueError, match="leaves no opt tasks"):
@@ -632,6 +683,40 @@ class TestMcnemarExact:
 
     def test_an_empty_task_list_is_p_one(self):
         assert mcnemar_exact({}, {}, []) == (0, 0, 1.0)
+
+    def _all_flip(self, n):
+        ids = [f"t{i}" for i in range(n)]
+        return mcnemar_exact(dict.fromkeys(ids, False), dict.fromkeys(ids, True), ids)
+
+    def test_a_p_that_underflows_the_float_stays_above_zero(self):
+        """`tail / 2**n` underflows at n=1075, and zero is never the true value.
+
+        The tail always contains the k=b term, so `tail` is at least 1 and the
+        exact probability is strictly positive for every input. Only the float
+        conversion loses it. Reporting 0.0 mattered because `--max-p 0` is the
+        strictest bar the flag can express, and `0.0 <= 0` reads as satisfied,
+        so the strictest possible bar accepted rather than rejected.
+        """
+        _, _, p = self._all_flip(1075)
+        assert p > 0.0
+
+    def test_the_underflow_floor_is_the_smallest_positive_float(self):
+        _, _, p = self._all_flip(1075)
+        assert p == math.nextafter(0.0, 1.0)
+
+    def test_one_below_the_underflow_boundary_is_untouched(self):
+        """n=1074 still converts exactly, so the clamp must not reach it."""
+        _, _, p = self._all_flip(1074)
+        assert p == 5e-324
+
+    def test_a_p_well_inside_the_float_range_is_untouched(self):
+        _, _, p = self._all_flip(1000)
+        assert p == pytest.approx(9.332636185032189e-302)
+
+    def test_the_strictest_expressible_bar_now_rejects(self):
+        """The behaviour the clamp exists for, stated as the caller sees it."""
+        _, _, p = self._all_flip(1100)
+        assert not p <= 0
 
     def test_a_missing_incumbent_result_raises(self):
         with pytest.raises(MissingResultError):

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3605,
+    "date": "2026-07-27",
+    "branch": "docs/skill-description-context-cost",
+    "startingCommit": "a65181a264",
+    "objective": "Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned docs/skill-description-context-cost after checkout -b from main at a65181a264"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = docs/skill-description-context-cost"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read earlier this session and left unmodified per ADR-014"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools are not exposed in this Copilot CLI harness. Used the fallback AGENTS.md documents: read and wrote .serena/memories directly."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same harness limitation. AGENTS.md, .claude/rules/universal.md, .claude/rules/knowledge-persistence.md, and .claude/rules/voice.md were read directly instead."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries and .claude/rules/knowledge-persistence.md read before choosing the persistence surface"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched and absent from git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Added .serena/memories/decision-skill-description-context-cost.md with the measured table, the two refuted drafts, and the unresolved invocation contradiction."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "In-tree scoped run reported 0 files because .markdownlint-cli2.yaml lists .agents/** and .serena/** in its ignores block (lines 118-119). Re-ran out-of-tree to get a real result: copied both changed .md files plus the repo config into /tmp/mdlcheck and ran npx markdownlint-cli2 '*.md' there, which reported 'Linting: 2 files' and 'Summary: 0 issues in 0 files'. Byte check for U+2014 and U+2013 on the memory returned 0."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Four content commits on docs/skill-description-context-cost: 56f4f861aa (decision memory), ee1de31d5a (retro), 31a015587d (failure mode classification and remediation), b61cf1cff3 (retro pointers and real markdownlint evidence). One merge of origin/main, 23e41ffb80, resolving the causal-graph conflict via the installed merge driver."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Experiment carried a positive and a negative control in every arm. Order rule confirmed by permuting names against creation order. Flag arm measured at 50 skills. Invocation arm reproduced three times."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": ".agents/retrospective/2026-07-27-session-3605-skill-description-context-cost.md records both refuted conclusions and the seven learnings."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong."
+    },
+    {
+      "step": "Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion."
+    },
+    {
+      "step": "Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward."
+    },
+    {
+      "step": "Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft."
+    },
+    {
+      "step": "Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain."
+    },
+    {
+      "step": "Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24."
+    },
+    {
+      "step": "Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record."
+    },
+    {
+      "step": "Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation."
+    },
+    {
+      "step": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation."
+    },
+    {
+      "step": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got a real result of zero issues across both changed markdown documents, and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) First reading of metrics.commits was wrong and is superseded by the next entry: the naive line-match count at extract_session_episode.py line 336 is only the no-existing-episode path, and the preserve path at line 1197 overrides it with _count_commit_events. The finding held."
+    },
+    {
+      "step": "Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it."
+    },
+    {
+      "step": "Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit."
+    }
+  ],
+  "endingCommit": "b61cf1cff3",
+  "nextSteps": [
+    "The saturation mechanism is unexplained: a skill past the ceiling still auto-invokes without searching. Settling it needs an instrument that inspects the serialized request rather than asking the model what it can see.",
+    "None of this is verified for interactive sessions, subagents, or Copilot CLI. The subagent path is documented to inject full skill content, so it may behave differently.",
+    "Wiki page AI Productivity/Procedures vs Abilities (Skill Invocation Axis).md overstates the linear cost model. Its prescription to flag skills for context savings is not supported past the saturation point.",
+    "Stray scratch files sit untracked at the repo root from an earlier session: find_uris.py, find_uris_frontmatter.py, test_uri.py, test_double.py, test_prompt.py, test_remote.py, test_all_boundaries.py, test_all_boundaries2.py, test_local_uri_optout.py, plus package.json and package-lock.json. They violate the no-scratch-in-tree boundary. Left in place because they may belong to another branch's work."
+  ]
+}

@@ -173,6 +173,23 @@ class TestAgentResults:
         report = _report({"C001": {"agent": []}})
         assert agent_results(report, "agent") == {"C001": False}
 
+    @pytest.mark.parametrize("runs", [{}, "", 0, 0.0, False])
+    def test_a_falsy_run_list_that_is_not_a_list_is_still_refused(self, runs):
+        """Emptiness was tested before type, so falsy junk scored instead of refusing.
+
+        The sibling refusal test above parametrizes only truthy malformed
+        values, which is why this hid. `{}`, `""`, `0`, `0.0` and `False` are
+        not "the variant never ran this fixture"; they are a malformed file.
+        Scoring them `False` reads as a measured loss, so a corrupt incumbent
+        becomes candidate improvement the gate then certifies.
+
+        `None` and `[]` keep the deliberate fail-closed path and are covered
+        by the two tests either side of this one.
+        """
+        report = _report({"C001": {"agent": runs}})
+        with pytest.raises(AdapterError, match="must be a list of scores"):
+            agent_results(report, "agent")
+
     def test_min_reduction_punishes_one_bad_run(self):
         report = _report({"C001": {"agent": [1.0, 1.0, 0.0]}})
         assert agent_results(report, "agent", reduce="min", pass_threshold=1.0) == {

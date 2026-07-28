@@ -41,7 +41,7 @@ import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, va
 import sys
 import uuid
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from _eval_common import MODEL_PRICING_RATES_USD_PER_1K_TOKENS
 from _model_sweep_core import (
@@ -195,7 +195,7 @@ def child_report_path(agent: str, run_id: str) -> Path:
     )
 
 
-def parse_report(report: dict, *, model_id: str) -> ModelResult:
+def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
     """Extract a ``ModelResult`` (agent variant) from a report.json dict.
 
     Fixtures the base evaluator excluded for flakiness are dropped here too:
@@ -233,7 +233,7 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
     # characters (silently excluding fixtures whose id is a single char),
     # so reject anything that is not a list before building the set.
     if excluded_raw is None:
-        excluded: set = set()
+        excluded: set[str] = set()
     elif isinstance(excluded_raw, list):
         # Elements come from an external report artifact and are used as set
         # membership keys against string fixture ids; a non-string (or an
@@ -247,6 +247,17 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
     else:
         raise ValueError(
             f"report for {model_id} flaky_fixtures_excluded is not a list"
+        )
+    if "error_count" not in report:
+        raise KeyError(f"report for {model_id} missing required field: error_count")
+    error_count = report["error_count"]
+    if not isinstance(error_count, int) or isinstance(error_count, bool):
+        raise ValueError(
+            f"report for {model_id} error_count must be a non-negative integer"
+        )
+    if error_count < 0:
+        raise ValueError(
+            f"report for {model_id} error_count must be a non-negative integer"
         )
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
@@ -263,7 +274,7 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
         tokens_in=int(report.get("total_tokens_in", 0)),
         tokens_out=int(report.get("total_tokens_out", 0)),
         cost_usd=float(report.get("cost_estimate_usd", 0.0)),
-        error_count=int(report.get("error_count", 0)),
+        error_count=error_count,
         fixture_set_sha=str(fixture_set_sha),
     )
 
