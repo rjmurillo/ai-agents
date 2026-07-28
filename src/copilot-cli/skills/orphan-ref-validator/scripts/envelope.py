@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 FindingPayload = dict[str, str | int | bool]
@@ -28,8 +28,11 @@ Severity = Literal["critical", "warn"]
 Kind = Literal[
     "skill_name",
     "script_path",
+    "rule_path",
+    "instruction_path",
     "scan_truncated",
 ]
+ScanErrorType = Literal["logic", "config", "external", "auth"]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
 
 
@@ -73,11 +76,44 @@ class Finding:
         return d
 
 
+@dataclass(frozen=True)
+class SuppressedReference:
+    target_file: str
+    line: int
+    referenced_entity: str
+    reason: str = "line ignore directive"
+
+    def to_dict(self) -> FindingPayload:
+        return {
+            "target_file": self.target_file,
+            "line": self.line,
+            "referenced_entity": self.referenced_entity,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class IncompleteScan:
+    target: str
+    reason: str
+    error_type: ScanErrorType = "config"
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "target": self.target,
+            "reason": self.reason,
+            "error_type": self.error_type,
+        }
+
+
 @dataclass
 class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
+    files_skipped: int = 0
     refs_checked: int = 0
+    directive_suppressed: list[SuppressedReference] = field(default_factory=list)
+    incomplete_scans: list[IncompleteScan] = field(default_factory=list)
 
     @property
     def verdict(self) -> Verdict:
@@ -123,7 +159,7 @@ def render_error_envelope(
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
@@ -131,41 +167,126 @@ def render_error_envelope(
     return json.dumps(envelope, indent=2) + "\nVERDICT: ERROR"
 
 
+def scan_error_exit_code(result: ScanResult) -> int:
+    """Return the ADR-035 exit code for an incomplete scan."""
+    if any(item.error_type == "auth" for item in result.incomplete_scans):
+        return 4
+    if any(item.error_type == "external" for item in result.incomplete_scans):
+        return 3
+    if any(item.error_type == "logic" for item in result.incomplete_scans):
+        return 1
+    return 2
+
+
+def _scan_error_envelope_type(result: ScanResult) -> ErrorType:
+    code = scan_error_exit_code(result)
+    if code == 4:
+        return "AuthError"
+    if code == 3:
+        return "ApiError"
+    if code == 1:
+        return "General"
+    return "InvalidParams"
+
+
+def render_scan_error_envelope(result: ScanResult, message: str, output: str) -> str:
+    """Render a runtime/config scan failure with partial count evidence."""
+    envelope = {
+        "Success": False,
+        "Data": {
+            "findings": [f.to_dict() for f in result.findings],
+            "verdict": "ERROR",
+            "counts": _counts_payload(result),
+            "directive_suppressed": [
+                ref.to_dict() for ref in result.directive_suppressed
+            ],
+            "incomplete_scans": [
+                incomplete.to_dict() for incomplete in result.incomplete_scans
+            ],
+        },
+        "Error": {
+            "Message": message,
+            "Code": scan_error_exit_code(result),
+            "Type": _scan_error_envelope_type(result),
+        },
+        "Metadata": {
+            "Script": "scan.py",
+            "Version": VERSION,
+            "Timestamp": datetime.now(UTC).isoformat(),
+        },
+    }
+    if output == "human":
+        lines = _human_summary_lines(result)
+        lines.append(f"  ERROR: {message}")
+        return "\n".join(lines) + "\nVERDICT: ERROR"
+    return json.dumps(envelope, indent=2) + "\nVERDICT: ERROR"
+
+
+def _counts_payload(result: ScanResult) -> dict[str, int]:
+    suppressed_total = sum(1 for f in result.findings if f.suppressed)
+    return {
+        "files_scanned": result.files_scanned,
+        "files_skipped": result.files_skipped,
+        "refs_checked": result.refs_checked,
+        "findings_total": len(result.findings),
+        "findings_suppressed": suppressed_total,
+        "directive_suppressed": len(result.directive_suppressed),
+        "incomplete_scans": len(result.incomplete_scans),
+    }
+
+
+def _human_summary_lines(result: ScanResult) -> list[str]:
+    counts = _counts_payload(result)
+    return [
+        f"orphan-ref-validator {VERSION}",
+        f"  files_scanned:        {result.files_scanned}",
+        f"  files_skipped:        {result.files_skipped}",
+        f"  refs_checked:         {result.refs_checked}",
+        f"  findings:             {len(result.findings)}",
+        f"  suppressed:           {counts['findings_suppressed']}",
+        f"  directive_suppressed: {counts['directive_suppressed']}",
+        f"  incomplete_scans:     {counts['incomplete_scans']}",
+    ]
+
+
 def render_envelope(result: ScanResult, output: str) -> str:
     """Render the ADR-056 envelope for a completed scan."""
-    suppressed_total = sum(1 for f in result.findings if f.suppressed)
     envelope = {
         "Success": True,
         "Data": {
             "findings": [f.to_dict() for f in result.findings],
             "verdict": result.verdict,
-            "counts": {
-                "files_scanned": result.files_scanned,
-                "refs_checked": result.refs_checked,
-                "findings_total": len(result.findings),
-                "findings_suppressed": suppressed_total,
-            },
+            "counts": _counts_payload(result),
+            "directive_suppressed": [
+                ref.to_dict() for ref in result.directive_suppressed
+            ],
+            "incomplete_scans": [
+                incomplete.to_dict() for incomplete in result.incomplete_scans
+            ],
         },
         "Error": None,
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
-        lines = [
-            f"orphan-ref-validator {VERSION}",
-            f"  files_scanned: {result.files_scanned}",
-            f"  refs_checked:  {result.refs_checked}",
-            f"  findings:      {len(result.findings)}",
-            f"  suppressed:    {suppressed_total}",
-        ]
+        lines = _human_summary_lines(result)
         for f in result.findings:
             tag = f.severity + " (suppressed)" if f.suppressed else f.severity
             lines.append(
                 f"  [{tag}] {f.target_file}:{f.line} {f.kind} "
                 f"`{f.referenced_entity}` -- {f.recommendation}"
+            )
+        for ref in result.directive_suppressed:
+            lines.append(
+                f"  [directive_suppressed] {ref.target_file}:{ref.line} "
+                f"`{ref.referenced_entity}` -- {ref.reason}"
+            )
+        for incomplete in result.incomplete_scans:
+            lines.append(
+                f"  [incomplete] {incomplete.target} -- {incomplete.reason}"
             )
         return "\n".join(lines) + f"\nVERDICT: {result.verdict}"
     return json.dumps(envelope, indent=2) + f"\nVERDICT: {result.verdict}"

@@ -57,6 +57,9 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
     "github-cli-api-patterns", "github-rest-api-reference",
     # Distributed-systems vocabulary
     "eventually-consistent", "strongly-consistent",
+    # Voice-rule glossary and validation vocabulary that are terms, not skills.
+    "fan-in", "fan-out", "get-library-docs", "tree-shaking",
+    "vendor-portability", "zero-copy",
     # Git hook lifecycle names
     "pre-commit", "pre-push", "commit-msg", "post-commit",
     "pre-receive", "post-receive", "pre-rebase",

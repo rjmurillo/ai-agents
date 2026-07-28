@@ -9,31 +9,31 @@ import difflib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ZERO_SHA_LENGTHS = (40, 64)
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
-EPISODE_PATH_RE = re.compile(r"^\.agents/memory/episodes/episode-[A-Za-z0-9._-]+\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_REVIEW_PATH_RE = re.compile(
     r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|SESSION-PROTOCOL\.md$",
@@ -92,7 +92,44 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
     r"When parsing a snippet as Bash for metavariable-pattern "
     r"in rule '([^'\r\n]+)'(?:,|$)"
 )
-POWERSHELL_SHELL_RE = re.compile(r"^\s*(?:pwsh|powershell)(?:\s|$)", re.IGNORECASE)
+# The GitHub Actions rules in SEMGREP_POWERSHELL_RULES parse every `run:` scalar
+# as Bash. Two shapes defeat that sub-parse without meaning the step is
+# unscannable: a scalar another interpreter runs (`shell: pwsh`,
+# `shell: python3 {0}`), and a Bash scalar carrying GitHub Actions `${{ }}`
+# template syntax, which the runner substitutes before any shell sees it.
+# Semgrep reports both as warn-level errors. Tolerate only those two shapes;
+# every other scan error still blocks the push.
+# The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
+# `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
+# string makes the interpreter token exact.
+NON_BASH_SHELL_RE = re.compile(
+    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
+    re.IGNORECASE,
+)
+# A `shell:` value naming a second interpreter cannot be trusted to describe what
+# actually runs the script. `pwsh -NoProfile -Command "& '{0}'"` is the idiomatic
+# form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
+# declares Python and executes Bash. Refuse to classify the latter as non-Bash.
+FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
+# A custom shell template that hands the script to a repository file says nothing
+# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
+# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
+# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
+# file means the value is delegating and must not be trusted. Windows flags such as
+# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
+SCRIPT_FILE_RE = re.compile(
+    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
+    re.IGNORECASE,
+)
+RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
+MIN_PATH_SEPARATORS = 2
+ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
+# `bash -n` parses without executing. A body it accepts is valid shell, so a
+# Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
+# the step is unscannable. A body it rejects is genuinely malformed, and an
+# attacker can use that to make Semgrep miss a real finding, so those still
+# block. Refs #3663.
+BASH_SYNTAX_CHECK_TIMEOUT_SECONDS = 10
 SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
@@ -176,7 +213,6 @@ GENERATED_PATHS = {
         ".vscode/mcp.json",
         ".factory/mcp.json",
     ),
-    "causal": (".agents/memory/causality/causal-graph.json",),
     "memory-index": (".serena/memories/memory-index.md",),
 }
 GENERATED_GLOBS = {
@@ -819,7 +855,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
-    parent_commits = _approved_merge_head_commits(repo_root)
+    # A branch takes main's work two ways and only one of them leaves a main
+    # ancestor in MERGE_HEAD. Merging main in directly does. Merging the shared
+    # branch's own remote tip, after a collaborator merged main there and
+    # pushed, does not: the parent is the branch. Without the second rule below
+    # every ADR main contributed reads as branch-authored and the gate demands
+    # review evidence for a file the author never opened.
+    approved_parents = _approved_merge_head_commits(repo_root)
+    merge_parents = _merge_head_commits(repo_root)
     authored: list[str] = []
     for path in paths:
         staged_blob = _read_index_blob(repo_root, path)
@@ -828,13 +871,83 @@ def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str
             continue
         if _read_head_blob(repo_root, path) == staged_blob:
             continue
-        if any(
-            _read_commit_blob_bytes(repo_root, parent, path) == staged_blob
-            for parent in parent_commits
-        ):
+        if _blob_is_at_any(repo_root, approved_parents, path, staged_blob):
+            continue
+        if _blob_arrived_through_the_merge(repo_root, merge_parents, path, staged_blob):
             continue
         authored.append(path)
     return authored
+
+
+def _blob_is_at_any(
+    repo_root: Path,
+    commits: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    return any(_read_commit_blob_bytes(repo_root, commit, path) == blob for commit in commits)
+
+
+def _blob_arrived_through_the_merge(
+    repo_root: Path,
+    merge_parents: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    """Report whether a staged blob looks like content the merge carried in.
+
+    "Looks like" is the honest verb. Every comparison here is against the
+    local `refs/remotes/origin/main`, which is a cached answer to what main
+    held at the last fetch, not what main holds now. The gate is offline and
+    cannot do better, so it is proving a resemblance rather than provenance,
+    and that is the ceiling on what this function can be trusted for.
+
+    Three questions, each closing a way past the other two.
+
+    The blob has to sit on a merge parent, or an author can type a reversion
+    during someone else's merge and the stale `origin/main` it matches will
+    wave it through. It has to match `origin/main`, or any pair of branches
+    can walk an unreviewed ADR onto main because the merge carried it.
+
+    Those two alone still lose to an author who builds the merge: branch off
+    the newer commit, commit the older text there, merge it back, and both
+    hold. So the third question asks about the copy this branch already has.
+    Content arriving from main is an upgrade, and the copy being replaced is
+    one that ref has carried at some point. A reversion is not, because the
+    newer text it overwrites was written locally and never pushed.
+    """
+    if not _blob_is_at_any(repo_root, merge_parents, path, blob):
+        return False
+    if _read_commit_blob_bytes(repo_root, "origin/main", path) != blob:
+        return False
+    return _head_copy_is_one_main_has_carried(repo_root, path)
+
+
+def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
+    """Report whether HEAD's copy of a path is a state `origin/main` has held.
+
+    A path HEAD does not carry cannot be a regression of local work, so it
+    passes. Otherwise the copy has to appear somewhere in `origin/main`'s
+    history for that path. Walking the path's own history keeps this to the
+    handful of commits that touched one ADR rather than the whole branch.
+
+    `origin/main` is a local cache of main, so a branch that has not fetched
+    in a while can fail this on content main really does carry. That
+    direction is the safe one: the answer is review evidence demanded for a
+    file that did not need it, and a fetch clears it.
+    """
+    head_blob = _read_head_blob(repo_root, path)
+    if head_blob is None:
+        return True
+    carried = _origin_main_commits_touching(repo_root, path)
+    return _blob_is_at_any(repo_root, carried, path, head_blob)
+
+
+def _origin_main_commits_touching(repo_root: Path, path: str) -> list[str]:
+    result = _run_git(repo_root, ["rev-list", "origin/main", "--", path])
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
@@ -853,13 +966,27 @@ def _merge_head_commits(repo_root: Path) -> list[str]:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     try:
-        return [
+        named = [
             line.strip()
             for line in merge_head.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
     except OSError:
         return []
+    return [commit for commit in named if not _head_already_contains(repo_root, commit)]
+
+
+def _head_already_contains(repo_root: Path, commit: str) -> bool:
+    """Report whether HEAD already contains a commit named by `MERGE_HEAD`.
+
+    `git merge <ancestor>` says "Already up to date" and writes no `MERGE_HEAD`
+    at all, so a `MERGE_HEAD` naming something HEAD already has was written by
+    something other than git. Reading it as a merge in progress hands the
+    exemption to anyone who can write one file, and the ancestor it names is an
+    approved parent by construction, which is the whole gate.
+    """
+    result = _run_git(repo_root, ["merge-base", "--is-ancestor", commit, "HEAD"])
+    return result.returncode == 0
 
 
 def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
@@ -927,7 +1054,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
             "WARNING: {push_files} empty; cannot determine documentation-only or "
-            "trivial-session bypass—retrospective evidence still required",
+            "trivial-session bypass, retrospective evidence still required",
             file=sys.stderr,
         )
     if paths and _documentation_only(paths):
@@ -1382,222 +1509,6 @@ def _stage_episode(episode_id: str, repo_root: Path) -> int:
     if not episode_path.is_file():
         print(f"WARNING: generated episode not found: {relative_path}", file=sys.stderr)
         return 0
-    result = _run_git(repo_root, ["add", "--", relative_path])
-    return result.returncode
-
-
-def _staged_episode_paths(repo_root: Path, diff_filter: str) -> list[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
-            "--cached",
-            "--name-only",
-            "-z",
-            f"--diff-filter={diff_filter}",
-            "--",
-            ".agents/memory/episodes",
-        ],
-    )
-    if result.returncode != 0:
-        return None
-    return [
-        path
-        for raw_path in result.stdout.split("\0")
-        if (path := _safe_relative_path(raw_path)) and EPISODE_PATH_RE.fullmatch(path)
-    ]
-
-
-# One home for the updater path and its episode source: the invocation and the
-# repair advice must name the same script and the same directory (issue #3370).
-_CAUSAL_UPDATER = ".claude/skills/memory/scripts/update_causal_graph.py"
-_CAUSAL_EPISODES = ".agents/memory/episodes"
-
-
-def _causal_repair_command(graph_path: Path, repo_root: Path) -> str:
-    """Return the rebuild command for ``graph_path``, with both paths spelled out.
-
-    The updater's own defaults derive from its file location, which differs
-    between the canonical tree and the Copilot CLI mirror, so a bare
-    ``--reset-graph`` can rebuild somewhere other than the file this hook
-    just restored.
-    """
-    try:
-        graph = str(graph_path.relative_to(repo_root))
-    except ValueError:
-        graph = str(graph_path)
-    parts = [
-        "python3",
-        _CAUSAL_UPDATER,
-        "--reset-graph",
-        "--episode-path",
-        _CAUSAL_EPISODES,
-        "--graph-path",
-        graph,
-    ]
-    return " ".join(shlex.quote(part) for part in parts)
-
-
-def update_causal_graph(repo_root: Path) -> int:
-    staged = _staged_episode_paths(repo_root, "ACMR")
-    deleted = _staged_episode_paths(repo_root, "D")
-    if staged is None or deleted is None:
-        return 2
-    if not staged and not deleted:
-        return 0
-    relative_graph = ".agents/memory/causality/causal-graph.json"
-    graph_path = _safe_output_path(repo_root, relative_graph)
-    if graph_path is None:
-        print("ERROR: unsafe causal graph output path", file=sys.stderr)
-        return 2
-    try:
-        snapshot = graph_path.read_bytes()
-    except FileNotFoundError:
-        snapshot = None
-    except OSError as exc:
-        print(f"ERROR: could not snapshot causal graph: {exc}", file=sys.stderr)
-        return 2
-    result = _apply_causal_graph_updates(staged, deleted, graph_path, repo_root)
-    if result == 0:
-        return _stage_causal_graph(graph_path, repo_root)
-    try:
-        _restore_file(graph_path, snapshot)
-    except OSError as exc:
-        # The updater already failed, so the graph on disk is mid-write. Letting
-        # the OSError propagate ends the hook with a traceback that says nothing
-        # about which of the two failures the operator is looking at, and the
-        # "original graph restored" line below would be a lie if it ran. Name
-        # both failures and block, because a partially mutated graph must not be
-        # committed. Issue #3389.
-        print(f"ERROR: causal graph update failed (updater exit {result})", file=sys.stderr)
-        print(
-            f"ERROR: restoring the original causal graph also failed: {exc}\n"
-            f"       {graph_path} may be partially written. Rebuild it before"
-            " committing:\n"
-            f"           {_causal_repair_command(graph_path, repo_root)}",
-            file=sys.stderr,
-        )
-        return 2
-    print("WARNING: causal graph update failed; original graph restored", file=sys.stderr)
-    # The restore preserves the file as found, so a corrupt graph stays corrupt
-    # and this warning repeats on every commit. Name the repair (issue #3370).
-    print(
-        "         If the graph file is corrupt, rebuild it from the episodes:\n"
-        f"           {_causal_repair_command(graph_path, repo_root)}",
-        file=sys.stderr,
-    )
-    return 0
-
-
-def _apply_causal_graph_updates(
-    staged: Sequence[str],
-    deleted: Sequence[str],
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    prune_result = _prune_deleted_episodes(deleted, graph_path, repo_root)
-    if prune_result != 0:
-        return prune_result
-    with tempfile.TemporaryDirectory(prefix="lefthook-causal-") as temp_dir:
-        return _apply_staged_episodes(
-            staged,
-            Path(temp_dir),
-            graph_path,
-            repo_root,
-        )
-
-
-def _apply_staged_episodes(
-    staged: Sequence[str],
-    temp_dir: Path,
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    for index, relative_path in enumerate(staged):
-        content = _read_index_blob(repo_root, relative_path)
-        if content is None:
-            return 1
-        staged_path = temp_dir / f"{index}-{Path(relative_path).name}"
-        staged_path.write_bytes(content)
-        result = _run_causal_updater(staged_path, graph_path, repo_root)
-        if result != 0:
-            return result
-    return 0
-
-
-def _prune_deleted_episodes(
-    deleted: Sequence[str],
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    episode_ids = [_deleted_episode_id(path, repo_root) for path in deleted]
-    if not episode_ids:
-        return 0
-    missing = repo_root / ".agents/memory/episodes/__prune_only__"
-    result = _run_command(
-        [
-            sys.executable,
-            _CAUSAL_UPDATER,
-            "--prune-episode-ids",
-            ",".join(episode_ids),
-            "--episode-path",
-            str(missing),
-            "--graph-path",
-            str(graph_path),
-        ],
-        repo_root,
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
-
-
-def _deleted_episode_id(relative_path: str, repo_root: Path) -> str:
-    content = _read_head_blob(repo_root, relative_path)
-    if content is not None:
-        try:
-            payload = json.loads(content)
-        except json.JSONDecodeError:
-            payload = None
-        episode_id = payload.get("id") if isinstance(payload, dict) else None
-        if isinstance(episode_id, str):
-            return episode_id
-    return Path(relative_path).stem
-
-
-def _run_causal_updater(
-    episode_path: Path,
-    graph_path: Path,
-    repo_root: Path,
-) -> int:
-    result = _run_command(
-        [
-            sys.executable,
-            _CAUSAL_UPDATER,
-            "--episode-path",
-            str(episode_path),
-            "--graph-path",
-            str(graph_path),
-        ],
-        repo_root,
-    )
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
-
-
-def _restore_file(path: Path, snapshot: bytes | None) -> None:
-    if snapshot is None:
-        path.unlink(missing_ok=True)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(snapshot)
-
-
-def _stage_causal_graph(graph_path: Path, repo_root: Path) -> int:
-    if not graph_path.is_file():
-        return 0
-    relative_path = graph_path.relative_to(repo_root).as_posix()
     result = _run_git(repo_root, ["add", "--", relative_path])
     return result.returncode
 
@@ -2340,12 +2251,12 @@ def _verify_semgrep_targets(
     errors = payload.get("errors")
     if not isinstance(errors, list):
         return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
-    if any(not _is_known_powershell_semgrep_error(error, expected, repo_root) for error in errors):
+    if any(not _is_tolerated_semgrep_parse_error(error, expected, repo_root) for error in errors):
         return _semgrep_target_failure(result, "Semgrep reported scan errors")
     return result
 
 
-def _is_known_powershell_semgrep_error(
+def _is_tolerated_semgrep_parse_error(
     error: object,
     targets: set[Path],
     repo_root: Path,
@@ -2372,9 +2283,9 @@ def _is_known_powershell_semgrep_error(
         and error.get("rule_id") in SEMGREP_POWERSHELL_RULES
         and SEMGREP_POWERSHELL_ERROR_MARKER in message
     ):
-        return _message_matches_powershell_run(message, scripts)
+        return _message_matches_unparseable_run(message, scripts)
     spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
-    return bool(spans) and all(_span_belongs_to_powershell_step(scripts, span) for span in spans)
+    return bool(spans) and all(_span_belongs_to_unparseable_step(scripts, span) for span in spans)
 
 
 def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
@@ -2405,7 +2316,7 @@ def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
     return scripts
 
 
-def _message_matches_powershell_run(
+def _message_matches_unparseable_run(
     message: str,
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
 ) -> bool:
@@ -2414,12 +2325,14 @@ def _message_matches_powershell_run(
     snippet = SEMGREP_TRUNCATION_RE.sub("", raw_snippet).strip()
     if truncated and len(snippet) < SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH:
         return False
-    matching_shells = [
-        shell
+    matching_steps = [
+        (shell, run)
         for shell, run, _ in scripts
         if _semgrep_snippet_matches_run(snippet, run, truncated=truncated)
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _semgrep_snippet_matches_run(
@@ -2502,8 +2415,91 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _is_powershell_shell(shell: str | None) -> bool:
-    return shell is not None and bool(POWERSHELL_SHELL_RE.match(shell))
+def _delegates_to_a_script(remainder: str) -> bool:
+    for token in remainder.split():
+        candidate = token.strip("\"'")
+        if SCRIPT_FILE_RE.search(candidate):
+            return True
+        if candidate.startswith(RELATIVE_PATH_PREFIXES):
+            return True
+        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
+            return True
+    return False
+
+
+def _is_non_bash_shell(shell: str | None) -> bool:
+    if shell is None:
+        return False
+    match = NON_BASH_SHELL_RE.match(shell)
+    if match is None:
+        return False
+    remainder = shell[match.end() :]
+    if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
+        return False
+    return not _delegates_to_a_script(remainder)
+
+
+WINDOWS_BASH_FALLBACKS = (
+    r"C:\Program Files\Git\bin\bash.exe",
+    r"C:\Program Files\Git\usr\bin\bash.exe",
+    r"C:\Program Files (x86)\Git\bin\bash.exe",
+)
+
+
+@lru_cache(maxsize=1)
+def _resolve_bash() -> str | None:
+    """Locate a Bash interpreter, or ``None`` when the host has none.
+
+    Bare ``subprocess.run(["bash", ...])`` does not resolve on Windows because
+    ``CreateProcess`` needs the ``.exe`` suffix, so the syntax check failed
+    closed on every Windows host and silently disabled the carve-out there.
+    ``shutil.which`` applies ``PATHEXT`` and finds Git for Windows on ``PATH``;
+    the fallbacks cover a Git install that never exported one. Refs #3663.
+    """
+    found = shutil.which("bash")
+    if found is not None:
+        return found
+    for candidate in WINDOWS_BASH_FALLBACKS:
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+@lru_cache(maxsize=256)
+def _body_is_valid_shell_syntax(run: str) -> bool:
+    """Report whether ``bash -n`` parses ``run`` without a syntax error.
+
+    ``bash -n`` reads and parses but never executes, so this is safe on
+    untrusted workflow content. A missing or unusable ``bash`` fails closed:
+    the caller then refuses to tolerate the Semgrep error and blocks the push.
+    """
+    bash = _resolve_bash()
+    if bash is None:
+        return False
+    try:
+        result = subprocess.run(
+            [bash, "-n"],
+            input=run,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=BASH_SYNTAX_CHECK_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
+    if _is_non_bash_shell(shell):
+        return True
+    if not ACTIONS_EXPRESSION_RE.search(run):
+        return False
+    # An Actions expression explains a Bash sub-parse failure only when the body
+    # is otherwise valid shell. Without this check, appending a deliberate syntax
+    # error to a malicious script suppresses the finding and the error together.
+    return _body_is_valid_shell_syntax(run)
 
 
 def _powershell_partial_parsing_spans(
@@ -2578,14 +2574,14 @@ def _powershell_partial_parsing_spans(
     return spans
 
 
-def _span_belongs_to_powershell_step(
+def _span_belongs_to_unparseable_step(
     scripts: Sequence[tuple[str | None, str, ScalarNode]],
     span: tuple[int, int, int, int],
 ) -> bool:
     start_line, end_line, start_offset, end_offset = span
-    matching_shells = [
-        shell
-        for shell, _, node in scripts
+    matching_steps = [
+        (shell, run)
+        for shell, run, node in scripts
         if _yaml_node_contains_span(
             node,
             start_line,
@@ -2594,7 +2590,9 @@ def _span_belongs_to_powershell_step(
             end_offset,
         )
     ]
-    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+    return bool(matching_steps) and all(
+        _step_defeats_bash_subparse(shell, run) for shell, run in matching_steps
+    )
 
 
 def _yaml_node_contains_span(
@@ -2660,9 +2658,7 @@ def parse_push_refs(stream: TextIO) -> list[PushRef]:
 
 def _validate_push_ref(push_ref: PushRef, line_number: int) -> None:
     for sha in (push_ref.local_sha, push_ref.remote_sha):
-        if len(sha) not in ZERO_SHA_LENGTHS or not all(
-            char in "0123456789abcdefABCDEF" for char in sha
-        ):
+        if not is_full_object_id(sha):
             raise ValueError(f"line {line_number}: invalid object id")
     for ref in (push_ref.local_ref, push_ref.remote_ref):
         if ref.startswith("-") or any(char.isspace() for char in ref):
@@ -3205,6 +3201,30 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
+def _pytest_commands(repo_root: Path) -> list[list[str]]:
+    safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    return [
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(repo_root / "tests"),
+            "--ignore",
+            str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration and not safe_push_transport",
+            str(safe_push_tests),
+        ],
+    ]
+
+
 def run_pytest(repo_root: Path) -> int:
     env = _clean_git_env()
     for key in (
@@ -3219,17 +3239,30 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
-    # Exclude @pytest.mark.integration tests: integration tests invoke real
-    # network operations (git push, GitHub API) which must never run inside a
-    # pre-push hook. The hook validates local correctness only (issue #3412).
-    result = _run_command(
-        [sys.executable, "-m", "pytest", "-m", "not integration", str(repo_root / "tests")],
-        repo_root,
-        process_env=env,
-        timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,
-    )
-    _print_process_output(result)
-    return result.returncode
+    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
+    # command. Splitting the suite across processes must not multiply how long
+    # pre-push can block, or the hook outlives lefthook's own deadline and the
+    # timeout looks nondeterministic.
+    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
+    for command in _pytest_commands(repo_root):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(
+                "ERROR: pytest suite exceeded the "
+                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                file=sys.stderr,
+            )
+            return 1
+        result = _run_command(
+            command,
+            repo_root,
+            process_env=env,
+            timeout_seconds=remaining,
+        )
+        _print_process_output(result)
+        if result.returncode != 0:
+            return result.returncode
+    return 0
 
 
 def _workflow_local_base_ref() -> str:
@@ -3632,10 +3665,6 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
-def _handle_update_causal_graph(args: argparse.Namespace) -> int:
-    return update_causal_graph(_repo_root(args))
-
-
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -3682,7 +3711,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("cli-hook-e2e", _handle_cli_hook_e2e),
         ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
-        ("update-causal-graph", _handle_update_causal_graph),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),

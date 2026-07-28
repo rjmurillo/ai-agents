@@ -12,7 +12,7 @@ matching "Source" instead.
 
 | Generator | Source (edit here) | Output (do not edit) | Spec |
 |-----------|--------------------|----------------------|------|
-| `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
+| `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
 | `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
 | `build/scripts/generate_commands.py` | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | REQ-003-001 |
@@ -30,6 +30,13 @@ install-parity validator, which fails CI when a sibling drifts from its source.
 |------|------|-------|
 | `.claude/agents/<name>.md` | Claude Code self-host agent copy | `build/scripts/validate_install_parity.py` |
 | `.github/agents/<name>.agent.md` | GitHub Copilot self-host agent copy | `build/scripts/validate_install_parity.py` |
+| `src/claude/<name>.md` | claude-agents plugin agent copy | `build/scripts/validate_install_parity.py` |
+
+`src/claude/` is a hand-maintained copy, not a generator output. It was
+misclassified as a strict vendored copy until Issue #2882; the membership rule
+in `validate_install_parity.py` (`_SHARED_AGENT_HAND_MAINTAINED_PREFIXES`) is
+the authority. Editing a shared agent means editing the template plus all three
+copies in this table; running `build_all.py` will not do it for you.
 
 ## Regenerating
 

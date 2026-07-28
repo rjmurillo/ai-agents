@@ -640,3 +640,316 @@ class TestClampScore:
     )
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
         assert eval_mod._clamp_score(value) == expected
+
+    @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
+    def test_non_finite_floats_fail_closed_to_zero(self, value: object):
+        # json.loads accepts Infinity / -Infinity by default, so a judge can
+        # emit a non-finite score. int(float("inf")) raises OverflowError, which
+        # is not caught by the (TypeError, ValueError) handler and crashes the
+        # evaluator. A non-finite score is garbage: it must clamp to 0 (fail
+        # closed, lowering the activation average) rather than crash or inflate.
+        assert eval_mod._clamp_score(value) == 0
+
+    def test_nan_fails_closed_to_zero(self):
+        # NaN reaches int() and raises ValueError today; lock the fail-closed 0.
+        assert eval_mod._clamp_score(float("nan")) == 0
+
+
+# ---------------------------------------------------------------------------
+# skill_path resolution (activation measurement extended from rules to skills)
+# ---------------------------------------------------------------------------
+
+
+class TestSkillPathResolution:
+    """skill_path validation mirrors rule_path: it must resolve under
+    .claude/skills/ as a SKILL.md file, and rejects traversal, out-of-tree
+    paths, and non-skill files so the `full` mechanism cannot exfiltrate
+    arbitrary repository content to the API.
+    """
+
+    def test_accepts_valid_skill_under_skills_dir(self, tmp_path: Path):
+        target = REPO_ROOT / ".claude" / "skills" / "security-scan" / "SKILL.md"
+        if not target.is_file():
+            pytest.skip("security-scan/SKILL.md not present in this checkout")
+        f = tmp_path / "ok.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/security-scan/SKILL.md",
+                    "skill_id": "security-scan",
+                    "scenarios": [{"id": "S1", "input": "scan for injection"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = eval_mod._load_scenarios_file(str(f))
+        assert isinstance(result, tuple)
+        _data, target_paths = result
+        resolved, reference_path = target_paths
+        assert resolved.is_file()
+        assert resolved.name == "SKILL.md"
+        assert reference_path is None
+
+    def test_rejects_skill_path_outside_skills_dir(self, tmp_path: Path):
+        f = tmp_path / "outside.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/rules/universal.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_skill_path_traversal(self, tmp_path: Path):
+        f = tmp_path / "traversal.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/../../etc/passwd",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_non_skill_md_filename(self, tmp_path: Path):
+        # A file under skills that is not named SKILL.md is rejected on name,
+        # before the is_file() check, so a crafted path cannot target other
+        # skill-tree files even if they exist.
+        f = tmp_path / "not_skill.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/security-scan/README.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_missing_skill_file(self, tmp_path: Path):
+        f = tmp_path / "missing.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/does-not-exist-xyz/SKILL.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_both_rule_and_skill_path(self, tmp_path: Path):
+        f = tmp_path / "both.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/universal.md",
+                    "skill_path": ".claude/skills/security-scan/SKILL.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_neither_rule_nor_skill_path(self, tmp_path: Path):
+        f = tmp_path / "neither.json"
+        f.write_text(
+            json.dumps({"scenarios": [{"id": "S1", "input": "x"}]}),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_process_one_rule_derives_skill_id_from_dir(self):
+        import types
+
+        target = REPO_ROOT / ".claude" / "skills" / "security-scan" / "SKILL.md"
+        if not target.is_file():
+            pytest.skip("security-scan/SKILL.md not present in this checkout")
+        scenarios_data = {"scenarios": [{"id": "S1", "input": "x"}]}
+        args = types.SimpleNamespace(
+            dry_run=True,
+            model="m",
+            seed=0,
+            judge_repeats=eval_mod.DEFAULT_JUDGE_REPEATS,
+            judge_reducer=eval_mod.DEFAULT_JUDGE_REDUCER,
+        )
+        rule_id, result, _n = eval_mod._process_one_rule(
+            "key", scenarios_data, (target, None), args
+        )
+        assert rule_id == "security-scan"
+        assert result is None
+
+
+class TestJudgeSampleReduction:
+    def _scenario(self) -> dict[str, object]:
+        return {
+            "id": "S1",
+            "desc": "sample scenario",
+            "input": "do the thing",
+            "expected_gate": "apply-rule",
+        }
+
+    def _rule(self) -> dict[str, str]:
+        return {"description": "desc", "body": "body"}
+
+    def test_eval_one_scenario_persists_samples_and_median_scores(self, monkeypatch):
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+        samples = [
+            {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "judge_failed": False,
+            },
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        ]
+        calls: list[int] = []
+
+        def fake_score(*args, **kwargs):
+            sample = dict(samples[len(calls) % len(samples)])
+            calls.append(1)
+            return sample
+
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=3,
+            judge_reducer="median",
+        )
+
+        full = result["mechanisms"]["full"]
+        assert full["judge_repeats"] == 3
+        assert full["score_reducer"] == "median"
+        assert len(full["score_samples"]) == 3
+        assert full["scores"]["activation_score"] == 5
+        assert full["scores"]["citation_score"] == 5
+        assert full["scores"]["behavior_score"] == 5
+
+    def test_eval_one_scenario_persists_failed_sample_without_reducing_it(self, monkeypatch):
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+        samples = [
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+            RuntimeError("judge timeout"),
+            {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        ]
+        calls: list[int] = []
+
+        def fake_score(*args, **kwargs):
+            value = samples[len(calls) % len(samples)]
+            calls.append(1)
+            if isinstance(value, RuntimeError):
+                raise value
+            return dict(value)
+
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=3,
+            judge_reducer="median",
+        )
+
+        full = result["mechanisms"]["full"]
+        assert full["score_samples"][1]["judge_failed"] is True
+        assert "judge API failure" in full["score_samples"][1]["reasoning"]
+        assert full["scores"]["judge_failed"] is True
+
+    def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
+        rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
+        if not rule_path.is_file():
+            pytest.skip("working-with-legacy-code.md not present in this checkout")
+        scenarios_data = {
+            "rule_id": "working-with-legacy-code",
+            "scenarios": [self._scenario()],
+        }
+        args = type(
+            "Args",
+            (),
+            {
+                "dry_run": True,
+                "model": "model",
+                "seed": 10,
+                "judge_repeats": 3,
+                "judge_reducer": "median",
+            },
+        )()
+
+        _rule_id, result, calls = eval_mod._process_one_rule(
+            "key", scenarios_data, rule_path, args
+        )
+
+        assert result is None
+        assert calls == len(eval_mod.MECHANISMS) * 4
+
+    def test_main_rejects_non_positive_judge_repeats(self, tmp_path, capsys):
+        scenario_file = tmp_path / "scenarios.json"
+        scenario_file.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "do the thing"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        old_argv = sys.argv
+        sys.argv = [
+            "eval-rule-activation.py",
+            "--scenarios",
+            str(scenario_file),
+            "--dry-run",
+            "--judge-repeats",
+            "0",
+        ]
+        try:
+            code = eval_mod.main()
+        finally:
+            sys.argv = old_argv
+
+        captured = capsys.readouterr()
+        assert code == 2
+        assert "--judge-repeats must be positive" in captured.err

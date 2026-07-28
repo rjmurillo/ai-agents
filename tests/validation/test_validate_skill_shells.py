@@ -177,10 +177,10 @@ class TestMain:
         assert "[SHELL] .claude/skills/ghost" in out
 
     def test_exit_2_when_repo_root_not_found(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+        self, external_tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # A directory with no .claude/skills above it: config error.
-        bare = tmp_path / "no-skills"
+        bare = external_tmp_path / "no-skills"
         bare.mkdir()
 
         assert vss.main(["--repo-root", str(bare)]) == 2

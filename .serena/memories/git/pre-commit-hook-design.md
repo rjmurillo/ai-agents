@@ -45,7 +45,7 @@ The pre-commit hook serves as the validation orchestration point for:
 
 - `.githooks/pre-commit` - Main hook implementation
 - `.agents/architecture/ADR-004-pre-commit-hook-architecture.md` - Full decision record
-- `scripts/Sync-McpConfig.ps1` - MCP config sync script
+- `scripts/Sync-McpConfig.ps1` - MCP config sync script (since renamed to `scripts/sync_mcp_config.py`)
 
 ## MCP Config Sync
 
