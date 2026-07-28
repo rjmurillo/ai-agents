@@ -141,12 +141,18 @@ def test_blockquoted_table_row_is_scanned(repo: Path) -> None:
 
 
 def test_blockquote_support_does_not_readmit_indented_code(repo: Path) -> None:
-    """Guard the indent bound that blockquote support could have relaxed away."""
+    """Guard the indent bound that blockquote support could have relaxed away.
+
+    Both shapes are here on purpose. An earlier fixture carried only the
+    top-level indent, so it never exercised the blockquote path its own name
+    claims and would have passed with blockquote handling removed entirely.
+    """
     write_doc(
         repo,
         "src/copilot-cli",
         "indented.md",
-        "    | Merge | R |\n    | --- | --- |\n    | Merge | Skill: ghost |\n",
+        "    | Merge | R |\n    | --- | --- |\n    | Merge | Skill: ghost |\n"
+        "\n>     | M | R |\n>     | --- | --- |\n>     | M | Skill: ghost |\n",
     )
     assert run_gate(repo).returncode == EXIT_OK
 
@@ -257,3 +263,115 @@ def test_several_routes_in_one_cell_resolve(repo: Path) -> None:
     )
     result = run_gate(repo)
     assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_entity_encoded_keyword_is_still_a_route(repo: Path) -> None:
+    """``Sk&#105;ll:`` renders as a route, so the scan must see it.
+
+    A source-text prefilter that required the literal keyword skipped this
+    file entirely and reported a pass. Rendering is what consumers read, so
+    rendering is what the gate has to check.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "entity.md",
+        "| I | R |\n| --- | --- |\n| M | Sk&#105;ll: ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+def test_code_styled_name_is_a_route(repo: Path) -> None:
+    """``Skill: `name`` is a route whose name happens to be styled."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "styled.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: `ghost` |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+def test_code_styled_name_that_resolves_does_not_block(repo: Path) -> None:
+    """The same shape must not be reported malformed when the skill ships.
+
+    Dropping every code span turned this natural documentation form into a
+    push-blocking malformed-name report.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "styled-ok.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: `merge-resolver` |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_quoted_and_bracketed_routes_resolve(repo: Path) -> None:
+    """Quotation and bracket punctuation is not part of the name."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "quoted.md",
+        '| I | R |\n| --- | --- |\n| M | "Skill: merge-resolver" |\n'
+        "| M | [Skill: merge-resolver] |\n"
+        "| M | {Skill: merge-resolver} |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_compound_separator_before_keyword_is_not_a_route(repo: Path) -> None:
+    """``Meta-Skill:`` and ``Task/Skill:`` are prose the live tree already uses."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "compound.md",
+        "| I | R |\n| --- | --- |\n| M | Meta-Skill: ghost |\n"
+        "| M | Task/Skill: 10+ delegations |\n"
+        "| M | docs\\Skill: ghost |\n"
+        "| M | Skill: merge-resolver |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_skillforge_name_survives_code_styling(repo: Path) -> None:
+    """A code span is only blanked when it carries a whole route.
+
+    ``Skill: `SkillForge`` contains the keyword but not a route, so blanking
+    on the bare keyword would have turned a live route into a malformed name.
+    """
+    write_skill(repo, "src/copilot-cli", "SkillForge")
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "forge.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: `SkillForge` |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_route_with_no_name_is_reported(repo: Path) -> None:
+    """``Skill:`` with nothing after it is an unfinished route, not prose.
+
+    Dropping the empty capture was proposed to protect prose such as
+    "Select a Skill:". No table cell in the repository has that shape (0 of
+    97 files that mention the keyword), so the silent hole would cost more
+    than the hypothetical false positive.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "empty.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "not a legal skill name" in result.stdout

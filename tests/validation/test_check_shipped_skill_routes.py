@@ -296,3 +296,54 @@ def test_unreadable_directory_is_config_error_not_a_silent_skip(repo: Path) -> N
 def test_live_repository_satisfies_the_invariant() -> None:
     result = run_gate(REPO_ROOT)
     assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
+def test_unlistable_platform_parent_is_a_config_error(repo: Path) -> None:
+    """A root the process cannot enumerate must fail closed, not vanish.
+
+    Dropping src/copilot-cli silently would leave .claude to carry the pass,
+    which is the same vacuous-success shape the per-root guard exists to stop.
+    """
+    (repo / "src").chmod(0o000)
+    try:
+        result = run_gate(repo)
+    finally:
+        (repo / "src").chmod(0o755)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "cannot list" in result.stderr
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
+def test_unstattable_manifest_is_a_config_error(repo: Path) -> None:
+    """``Path.is_file`` answers False for a manifest it cannot stat.
+
+    That turns an inaccessible plugin root into an absent one, so the gate
+    would scan fewer roots than the repository ships and still report success.
+    """
+    (repo / "src" / "copilot-cli" / ".claude-plugin").chmod(0o000)
+    try:
+        result = run_gate(repo)
+    finally:
+        (repo / "src" / "copilot-cli" / ".claude-plugin").chmod(0o755)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "cannot stat" in result.stderr
+
+
+def test_symlinked_directory_inside_a_root_is_refused(repo: Path) -> None:
+    """os.walk will not descend into it, so its markdown would go unscanned.
+
+    A route that drifted inside a symlinked directory passed silently. The
+    gate refuses rather than following the link, because followlinks=True
+    walks a cycle dozens of times and double-reports any file reachable two
+    ways. No plugin root ships a symlinked directory today.
+    """
+    outside = repo / "shared-docs"
+    outside.mkdir()
+    (outside / "doc.md").write_text(
+        "| T | R |\n| --- | --- |\n| M | Skill: ghost |\n", encoding="utf-8"
+    )
+    (repo / "src" / "copilot-cli" / "linked").symlink_to(outside)
+    result = run_gate(repo)
+    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
+    assert "symlinked directory" in result.stderr
