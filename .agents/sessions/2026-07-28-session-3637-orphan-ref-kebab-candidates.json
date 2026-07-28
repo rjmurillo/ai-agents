@@ -5,7 +5,8 @@
     "date": "2026-07-28",
     "branch": "fix/3637-orphan-ref-kebab-candidates",
     "startingCommit": "d62a8a7e0a",
-    "objective": "Issue #3637: the orphan-ref skill_name detector scored 0 true positives against the .serena/memories corpus while emitting 183 findings there, so the corpus could never be gated. Narrow the kebab arm to require evidence that a token was ever a skill. Ordering in workLog is sequential; timestamps mark order only, not measured wall-clock times."
+    "objective": "Issue #3637: the orphan-ref skill_name detector scored 0 true positives against the .serena/memories corpus while emitting 183 findings there, so the corpus could never be gated. Narrow the kebab arm to require evidence that a token was ever a skill. Ordering in workLog is sequential; timestamps mark order only, not measured wall-clock times.",
+    "endingCommit": "60eedc34b"
   },
   "protocolCompliance": {
     "sessionStart": {
