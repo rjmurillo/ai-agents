@@ -84,12 +84,28 @@ jobs:
 
       - name: Determine issue number
         id: issue
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+            number="$INPUT_ISSUE_NUMBER"
           else
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            number="$EVENT_ISSUE_NUMBER"
           fi
+
+          # The dispatch input is free-form text that reaches a shell
+          # argument and a `gh` call downstream, so constrain it to digits
+          # at the boundary rather than trusting the dispatcher.
+          case "$number" in
+            ''|*[!0-9]*)
+              echo "::error::issue_number must be a positive integer" >&2
+              exit 1
+              ;;
+          esac
+
+          printf 'number=%s\n' "$number" >> "$GITHUB_OUTPUT"
 
       - name: Synthesize context and assign Copilot
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -115,17 +131,21 @@ jobs:
 
       - name: Remove copilot-ready label
         if: success()
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           echo "Removing copilot-ready label to indicate successful processing..."
-          gh issue edit ${{ steps.issue.outputs.number }} --remove-label "copilot-ready"
-          echo "::notice::Removed copilot-ready label from issue #${{ steps.issue.outputs.number }}"
+          gh issue edit "$ISSUE_NUMBER" --remove-label "copilot-ready"
+          echo "::notice::Removed copilot-ready label from issue #${ISSUE_NUMBER}"
 
       - name: Summary
         if: success()
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           echo "## Copilot Context Synthesis Complete :robot:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Issue**: #${{ steps.issue.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
           echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY

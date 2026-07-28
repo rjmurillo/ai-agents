@@ -145,8 +145,14 @@ class TestExpressionInjection:
         validator.validate_expression_injection(tmp_path / "t.yml", content)
         assert len(validator.errors) == 0
 
-    def test_allows_matrix_and_inputs(self, tmp_path: Path):
-        """${{ matrix.os }} and ${{ inputs.version }} are safe."""
+    def test_allows_matrix_and_rejects_inputs(self, tmp_path: Path):
+        """${{ matrix.os }} is safe. ${{ inputs.version }} is not (issue #3664).
+
+        A `workflow_dispatch` input is free text chosen by whoever dispatches
+        the run, and a `workflow_call` input is only as safe as the callers,
+        which this validator cannot see. Both spell `inputs.`, so both stay
+        unsafe and must be bound through `env:`.
+        """
         validator = WorkflowValidator(tmp_path)
         content = {
             "jobs": {
@@ -160,7 +166,8 @@ class TestExpressionInjection:
             }
         }
         validator.validate_expression_injection(tmp_path / "t.yml", content)
-        assert len(validator.errors) == 0
+        assert len(validator.errors) == 1
+        assert "inputs.version" in validator.errors[0]
 
     def test_allows_steps_outputs(self, tmp_path: Path):
         """${{ steps.id.outputs.result }} is safe."""
@@ -563,3 +570,293 @@ class TestSubprocessDecoding:
     def test_every_capture_tolerates_undecodable_bytes(self):
         source = self._source()
         assert source.count(self._CAPTURING) == source.count('errors="replace",')
+
+
+def _run_step(expr: str) -> dict[str, object]:
+    return {"run": f"echo {expr}"}
+
+
+class TestExpressionInjectionAllowlist:
+    """Unknown expression contexts default to unsafe (issue #3664).
+
+    The previous blocklist enumerated dangerous contexts, so every context
+    nobody had listed, `inputs.*` among them, defaulted to safe.
+    """
+
+    @staticmethod
+    def _check(tmp_path: Path, steps: list[dict[str, object]]) -> list[str]:
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"runs-on": "ubuntu-latest", "steps": steps}}}
+        validator.validate_expression_injection(tmp_path / "wf.yml", content)
+        return validator.errors
+
+    def test_workflow_dispatch_input_in_a_run_block_is_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ inputs.days }}")])
+        assert len(errors) == 1
+        assert "inputs.days" in errors[0]
+        assert "not a GitHub-generated value" in errors[0]
+
+    def test_legacy_event_input_alias_is_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ github.event.inputs.days }}")])
+        assert len(errors) == 1
+
+    def test_issue_title_stays_flagged(self, tmp_path: Path):
+        """The contexts the old blocklist named must not regress."""
+        errors = self._check(tmp_path, [_run_step("${{ github.event.issue.title }}")])
+        assert len(errors) == 1
+
+    def test_head_ref_stays_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ github.head_ref }}")])
+        assert len(errors) == 1
+
+    def test_commit_message_stays_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ github.event.commits[0].message }}")])
+        assert len(errors) == 1
+
+    def test_branch_name_contexts_are_not_admitted(self, tmp_path: Path):
+        """A fork author picks the branch name, so ref shapes stay unsafe."""
+        for expr in ("github.ref", "github.ref_name", "github.base_ref"):
+            errors = self._check(tmp_path, [_run_step("${{ " + expr + " }}")])
+            assert len(errors) == 1, expr
+
+    def test_github_generated_values_are_not_flagged(self, tmp_path: Path):
+        for expr in (
+            "github.event_name",
+            "github.repository",
+            "github.run_id",
+            "github.sha",
+            "github.server_url",
+            "github.actor",
+            "github.event.issue.number",
+            "github.event.pull_request.number",
+        ):
+            errors = self._check(tmp_path, [_run_step("${{ " + expr + " }}")])
+            assert errors == [], expr
+
+    def test_env_and_matrix_references_are_not_flagged(self, tmp_path: Path):
+        for expr in ("env.FOO", "matrix.language", "runner.os", "needs.build.outputs.x"):
+            errors = self._check(tmp_path, [_run_step("${{ " + expr + " }}")])
+            assert errors == [], expr
+
+    def test_a_function_call_wrapping_a_context_is_flagged(self, tmp_path: Path):
+        """The argument reaches the shell, so the wrapper does not launder it."""
+        errors = self._check(tmp_path, [_run_step("${{ fromJSON(inputs.blob) }}")])
+        assert len(errors) == 1
+
+    def test_a_comparison_on_a_safe_head_is_still_safe(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ github.event_name == 'push' }}")])
+        assert errors == []
+
+    def test_a_step_without_a_run_block_is_ignored(self, tmp_path: Path):
+        errors = self._check(tmp_path, [{"uses": "actions/checkout@abc"}])
+        assert errors == []
+
+    def test_a_non_mapping_step_does_not_raise(self, tmp_path: Path):
+        errors = self._check(tmp_path, ["not-a-mapping"])
+        assert errors == []
+
+    def test_a_non_list_steps_value_does_not_raise(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"runs-on": "ubuntu-latest", "steps": "oops"}}}
+        validator.validate_expression_injection(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_a_non_mapping_jobs_value_does_not_raise(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        validator.validate_expression_injection(tmp_path / "wf.yml", {"jobs": ["a"]})
+        assert validator.errors == []
+
+    def test_the_remediation_names_the_env_binding(self, tmp_path: Path):
+        errors = self._check(tmp_path, [_run_step("${{ inputs.days }}")])
+        assert "env:" in errors[0]
+
+
+class TestExpressionInjectionTaintPropagation:
+    """Binding a tainted value through env: at the producer does not sanitize it."""
+
+    @staticmethod
+    def _check(tmp_path: Path, steps: list[dict[str, object]]) -> list[str]:
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"runs-on": "ubuntu-latest", "steps": steps}}}
+        validator.validate_expression_injection(tmp_path / "wf.yml", content)
+        return validator.errors
+
+    _PRODUCER = {
+        "id": "period",
+        "env": {"INPUT_DAYS": "${{ inputs.days }}"},
+        "run": 'printf "days=%s\\n" "$INPUT_DAYS" >> "$GITHUB_OUTPUT"',
+    }
+
+    def test_a_tainted_step_output_is_flagged_downstream(self, tmp_path: Path):
+        errors = self._check(
+            tmp_path, [self._PRODUCER, _run_step("${{ steps.period.outputs.days }}")]
+        )
+        assert len(errors) == 1
+        assert "carries the same taint" in errors[0]
+        assert "'period'" in errors[0]
+
+    def test_an_untainted_step_output_is_not_flagged(self, tmp_path: Path):
+        producer = {
+            "id": "calc",
+            "run": 'printf "n=%s\\n" "$(date +%s)" >> "$GITHUB_OUTPUT"',
+        }
+        errors = self._check(tmp_path, [producer, _run_step("${{ steps.calc.outputs.n }}")])
+        assert errors == []
+
+    def test_a_producer_that_writes_no_output_does_not_taint(self, tmp_path: Path):
+        producer = {"id": "noop", "env": {"D": "${{ inputs.days }}"}, "run": 'echo "$D"'}
+        errors = self._check(tmp_path, [producer, _run_step("${{ steps.noop.outputs.x }}")])
+        assert errors == []
+
+    def test_taint_does_not_reach_backwards(self, tmp_path: Path):
+        """A step before the producer cannot consume its output."""
+        errors = self._check(
+            tmp_path, [_run_step("${{ steps.period.outputs.days }}"), self._PRODUCER]
+        )
+        assert errors == []
+
+    def test_taint_does_not_cross_jobs(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "jobs": {
+                "a": {"runs-on": "ubuntu-latest", "steps": [self._PRODUCER]},
+                "b": {
+                    "runs-on": "ubuntu-latest",
+                    "steps": [_run_step("${{ steps.period.outputs.days }}")],
+                },
+            }
+        }
+        validator.validate_expression_injection(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_a_raw_interpolation_in_the_producer_also_taints(self, tmp_path: Path):
+        producer = {
+            "id": "period",
+            "run": 'echo "days=${{ inputs.days }}" >> "$GITHUB_OUTPUT"',
+        }
+        errors = self._check(
+            tmp_path, [producer, _run_step("${{ steps.period.outputs.days }}")]
+        )
+        assert len(errors) == 2
+        assert any("carries the same taint" in e for e in errors)
+
+    def test_a_producer_without_an_id_cannot_taint(self, tmp_path: Path):
+        producer = {
+            "env": {"D": "${{ inputs.days }}"},
+            "run": 'printf "d=%s\\n" "$D" >> "$GITHUB_OUTPUT"',
+        }
+        errors = self._check(tmp_path, [producer, _run_step("${{ steps.x.outputs.d }}")])
+        assert errors == []
+
+    def test_a_non_string_env_value_does_not_raise(self, tmp_path: Path):
+        producer = {"id": "p", "env": {"N": 7}, "run": 'echo x >> "$GITHUB_OUTPUT"'}
+        errors = self._check(tmp_path, [producer, _run_step("${{ steps.p.outputs.d }}")])
+        assert errors == []
+
+
+class TestNameTruncationAtUnquotedHash:
+    """An unquoted ` #` ends a plain YAML scalar and GitHub reports nothing (#3652)."""
+
+    @staticmethod
+    def _check(tmp_path: Path, body: str) -> list[str]:
+        path = tmp_path / "wf.yml"
+        path.write_text(body, encoding="utf-8")
+        validator = WorkflowValidator(tmp_path)
+        validator.validate_name_truncation(path)
+        return validator.errors
+
+    def test_a_step_name_with_an_issue_reference_is_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: Check parity (issue #2222)\n")
+        assert len(errors) == 1
+        assert "Check parity (issue" in errors[0]
+        assert "#2222)" in errors[0]
+
+    def test_the_message_shows_the_quoted_repair(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: Fix for issue #10\n")
+        assert 'name: "Fix for issue #10"' in errors[0]
+
+    def test_a_name_wrapping_an_expression_is_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: PR #${{ matrix.number }}\n")
+        assert len(errors) == 1
+
+    def test_a_double_quoted_name_is_accepted(self, tmp_path: Path):
+        errors = self._check(tmp_path, '      - name: "Check parity (issue #2222)"\n')
+        assert errors == []
+
+    def test_a_single_quoted_name_is_accepted(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: 'Check parity (issue #2222)'\n")
+        assert errors == []
+
+    def test_a_name_without_a_hash_is_accepted(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: Check parity\n")
+        assert errors == []
+
+    def test_a_hash_with_no_leading_space_is_not_a_comment(self, tmp_path: Path):
+        """YAML only starts a comment at a `#` preceded by whitespace."""
+        errors = self._check(tmp_path, "      - name: issue#2222 parity\n")
+        assert errors == []
+
+    def test_a_whole_line_comment_is_not_a_name(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      # name: Check parity (issue #2222)\n")
+        assert errors == []
+
+    def test_a_description_field_is_covered(self, tmp_path: Path):
+        errors = self._check(tmp_path, "        description: Days to scan #7\n")
+        assert len(errors) == 1
+
+    def test_a_block_scalar_header_is_not_flagged(self, tmp_path: Path):
+        errors = self._check(tmp_path, "      - name: |\n          multi #line\n")
+        assert errors == []
+
+    def test_the_report_carries_the_line_number(self, tmp_path: Path):
+        errors = self._check(
+            tmp_path, "jobs:\n  a:\n    steps:\n      - name: X #1\n"
+        )
+        assert len(errors) == 1
+        assert ":4:" in errors[0]
+
+    def test_every_offender_on_the_file_is_reported(self, tmp_path: Path):
+        errors = self._check(
+            tmp_path, "      - name: A #1\n      - name: B #2\n      - name: C\n"
+        )
+        assert len(errors) == 2
+
+    def test_the_live_workflow_tree_is_clean(self):
+        """Regression pin: the ten repaired names must not come back."""
+        repo_root = Path(__file__).resolve().parents[1]
+        workflows = repo_root / ".github" / "workflows"
+        validator = WorkflowValidator(repo_root)
+        for path in sorted(workflows.glob("*.yml")) + sorted(workflows.glob("*.yaml")):
+            validator.validate_name_truncation(path)
+        assert validator.errors == []
+
+
+class TestLiveWorkflowTreeHasNoInjection:
+    """Regression pin for the two chains repaired in issue #3664."""
+
+    @staticmethod
+    def _scan() -> list[str]:
+        repo_root = Path(__file__).resolve().parents[1]
+        workflows = repo_root / ".github" / "workflows"
+        validator = WorkflowValidator(repo_root)
+        import yaml
+
+        paths = sorted(workflows.glob("*.yml")) + sorted(workflows.glob("*.yaml"))
+        for path in paths:
+            content = yaml.safe_load(path.read_text(encoding="utf-8"))
+            if isinstance(content, dict):
+                validator.validate_expression_injection(path, content)
+        return validator.errors
+
+    def test_no_workflow_interpolates_an_unsafe_expression(self):
+        assert self._scan() == []
+
+    def test_the_scan_actually_visited_the_repaired_workflows(self):
+        """Guard against the pin passing because nothing was read."""
+        repo_root = Path(__file__).resolve().parents[1]
+        for name in ("agent-metrics.yml", "copilot-context-synthesis.yml"):
+            path = repo_root / ".github" / "workflows" / name
+            assert path.is_file(), name
+            body = path.read_text(encoding="utf-8")
+            assert "${{ inputs." in body, f"{name} no longer references a dispatch input"
+            assert "echo \"days=${{ inputs.days }}\"" not in body

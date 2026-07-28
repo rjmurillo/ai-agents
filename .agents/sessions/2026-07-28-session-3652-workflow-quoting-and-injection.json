@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3652,
+    "date": "2026-07-28",
+    "branch": "fix/3652-3664-workflow-quoting",
+    "startingCommit": "9b7e10df5374ea3657d0fb496316ab2f8ebed47f",
+    "objective": "Close issue #3652 (workflow step names truncated at an unquoted YAML comment marker) and issue #3664 (script injection through workflow_dispatch inputs), and replace the expression-injection blocklist that let #3664 through with an allowlist plus one-hop taint propagation."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3652-3664-workflow-quoting after checkout -b from origin/main at 9b7e10df57. The tree started in detached HEAD at c81f17bb5, a commit predating PR #3668, which masked the current gate code and had to be corrected before any analysis was valid."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3652-3664-workflow-quoting, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md and the open issue backlog; 111 open issues loaded into a triage table before work started"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file. The branch-context-policy pre-push job rejected the first push because no session log named this branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools were not exposed in this session."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools were not exposed in this session."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/governance/TESTING-RIGOR.md for the positive/negative/edge bar applied to the new regression tests, and .claude/rules/universal.md for the dash prohibition applied to the commit body and PR description."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Semgrep gate fix committed with tests; path-normalization gate fix committed with tests; 21 unmerited issues closed with written justification; one new tooling defect filed as #3686"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session. The load-bearing finding, that the Actions runner's six-key extension table is what makes a blocklist of interpreter names undefendable, is recorded in the commit body and in the #3683 fix comments instead."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files changed in this session, so scoped markdownlint had no targets"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit 5d380d8f6 for the semgrep gate; a second commit for the path-normalization gate"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/test_lefthook_integration.py reports 447 passed; tests/test_validate_path_normalization.py reports 47 passed; uv run ruff check clean on all three changed files"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Campaign is still in flight across the remaining open issues; the retrospective belongs at the end of the campaign, not at this commit boundary"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Scanned every file under .github/workflows for plain scalars truncated by an unquoted comment marker. Found ten, not the five reported on issue #3652. The five the issue missed each wrap a matrix expression, so every parallel job in backlog-triage and pr-maintenance rendered under the same name in the Actions UI."
+    },
+    {
+      "step": "Quoted all ten values and confirmed the re-scan reports zero."
+    },
+    {
+      "step": "Threat-modelled issue #3664. Attack surface: the workflow_dispatch input 'days' in agent-metrics.yml, declared type string with no constraint, interpolated straight into a run block. Actor: anyone able to dispatch the workflow, which includes the autonomous agents in this repository that hold tokens. Impact: arbitrary command execution on the runner with the job token and any runner-scoped secret. CWE-78. The same shape appears in copilot-context-synthesis.yml."
+    },
+    {
+      "step": "Traced the taint past the first hop. Both workflows write the input to $GITHUB_OUTPUT and re-interpolate it in a later step, so binding only the first hop through env: would have left the hole open. Bound every hop and added a digit check at each boundary."
+    },
+    {
+      "step": "Replaced _DANGEROUS_PATTERNS in scripts/validate_workflows.py with an allowlist. The blocklist is why #3664 existed: it enumerated dangerous contexts, so every context nobody had listed defaulted to safe. Classification now enumerates the context references inside an expression rather than its leading token, which keeps hashFiles safe while flagging fromJSON of an input."
+    },
+    {
+      "step": "Added one-hop taint propagation. A step that reads an unsafe expression and writes to $GITHUB_OUTPUT marks its own outputs unsafe for the rest of the job. Running it against the pre-fix tree reproduced all nine injection findings at both hops; running it against the repaired tree reports zero."
+    },
+    {
+      "step": "Added a name-truncation check operating on raw text, because by the time the YAML loader runs the truncation has already happened and left nothing to compare."
+    },
+    {
+      "step": "Inverted one pre-existing test that asserted inputs.* was safe, which was the vulnerable behavior written down. Added 40 tests covering the allowlist, taint propagation, truncation detection, and two live-tree regression pins with a did-the-scan-actually-run control. 80 pass, ruff clean."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the pull request for issues #3652 and #3664.",
+    "Comment on issue #3652: its body describes plugin path portability, not name truncation.",
+    "Continue the open-issue campaign with the hygiene batch (#3597, #3625, #3651)."
+  ]
+}
