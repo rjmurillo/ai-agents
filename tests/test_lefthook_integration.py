@@ -6301,12 +6301,39 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
         "pwsh",
         "powershell",
         "PowerShell",
-        "python",
+        "python3",
         "python3 {0}",
     ],
 )
 def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python",
+        "python {0}",
+        "Python",
+        "python2",
+        "python2 {0}",
+    ],
+)
+def test_bare_python_is_not_an_exempt_shell(shell: str) -> None:
+    """A shell no workflow declares must not earn a sub-parse exemption.
+
+    `_is_non_bash_shell` gates an exemption, not a warning: a match makes
+    `_step_defeats_bash_subparse` return True and the body skips the Bash
+    scan. Measured across `.github/workflows/`, the declared shells are 38
+    `pwsh`, 29 `bash`, and 2 `python3`. No step declares `python`, so the
+    `python3?` form widened the exempt surface for nothing.
+
+    `python` is a valid GitHub Actions shell keyword, so this is a
+    fail-closed narrowing rather than a correctness fix: a future
+    `shell: python` step would be Bash-scanned instead of exempted. Adding
+    it back is a deliberate act with a workflow to point at.
+    """
+    assert policy._is_non_bash_shell(shell) is False
 
 
 PWSH_CALL_TEMPLATE = """pwsh -NoProfile -Command "& '{0}'\""""

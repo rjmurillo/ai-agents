@@ -120,8 +120,15 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # PowerShell `shell:` value. No workflow here uses an `.exe` form, and the
 # runner rejects a bare `pwsh.exe` without a `{0}`, so nothing is lost by
 # refusing it. Refs #3663.
+#
+# The tolerated set is exactly what `.github/workflows/` declares: 38 `pwsh`,
+# 29 `bash`, 2 `python3`. This regex gates an exemption, not a warning, so a
+# name nothing declares is exempt surface bought for nothing. `python3?` also
+# matched bare `python`, a valid Actions keyword that no step here uses.
+# Narrowing to `python3` is fail-closed: an undeclared shell now gets
+# Bash-scanned instead of skipped. Widening it again needs a workflow to cite.
 NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python3?)(?=\s|$)",
+    r"^\s*(?:pwsh|powershell|python3)(?=\s|$)",
     re.IGNORECASE,
 )
 # A `shell:` value naming a second interpreter cannot be trusted to describe what
@@ -2438,7 +2445,7 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _remainder_is_flags_only(remainder: str) -> bool:
+def _remainder_is_inert_tokens_only(remainder: str) -> bool:
     """Report whether every token after the interpreter is inert.
 
     Inert means a flag, the `{0}` script placeholder, or the PowerShell call
@@ -2464,7 +2471,7 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     remainder = shell[match.end() :]
     if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
         return False
-    return _remainder_is_flags_only(remainder)
+    return _remainder_is_inert_tokens_only(remainder)
 
 
 WINDOWS_BASH_FALLBACKS = (
