@@ -7899,6 +7899,61 @@ class TestARepeatedJsonKeyIsRefusedNotSilentlyCollapsed:
         assert out.get("decision") != "REJECT"
         assert "t0" in out.get("error", "")
 
+    @pytest.mark.parametrize(
+        ("corpus", "label"),
+        [
+            ("not-a-hash", "a string that is not hex at all"),
+            ("abc123", "a truncated digest"),
+            ("A" * 64, "sixty-four upper-case hex characters"),
+            (17, "a number where a string belongs"),
+            ("", "an empty string"),
+            ("g" * 64, "sixty-four characters that are not all hex"),
+        ],
+    )
+    def test_a_corpus_nobody_can_compare_is_not_a_computed_reject(
+        self, capsys, tmp_path, corpus, label
+    ):
+        """The unreadable answer covered the grammar, not the field.
+
+        Round thirty-nine gave `_corpus_header` a third answer for a file that
+        would not parse. A file that parses cleanly but carries a corpus the
+        authoritative reader refuses was left collapsed into `None`, which is
+        the envelope strip, so the preflight answered `decision: REJECT` with
+        a reason saying the two files disagree on a corpus. Neither file
+        declares one that can be compared, so there is nothing to disagree
+        about, and `_checked_corpus` raises on every value here.
+        """
+        pin = "c" * 64
+        inc = _write(tmp_path, "inc.json", _enveloped(pin, {f"t{i}": i < 5 for i in range(10)}))
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "cp3")
+        split_path = _write(tmp_path, "split.json", split)
+        cand = _write(
+            tmp_path, "cand.json", _enveloped(corpus, {f"t{i}": True for i in range(10)})
+        )
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, cap=5,
+        )
+        assert code == EXIT_CONFIG, (label, out)
+        assert out.get("decision") != "REJECT", (label, out)
+        assert "corpus" in out.get("error", ""), (label, out)
+
+    def test_only_an_absent_or_null_corpus_reads_as_declaring_none(self, tmp_path):
+        """The two answers that must stay `None`, and the ones that must not.
+
+        `None` is a domain fact the conflict rule acts on. It has to mean
+        exactly "parsed, and declares no corpus", or the rule acts on a file
+        that declared something unusable.
+        """
+        absent = _write(tmp_path, "absent.json", {"schema": "optimizer-results/1",
+                                                  "results": {"t0": True}})
+        explicit = _write(tmp_path, "null.json", _enveloped(None, {"t0": True}))
+        assert oa._corpus_header(absent) is None
+        assert oa._corpus_header(explicit) is None
+        for bad in ("not-a-hash", "", "A" * 64, 17):
+            path = _write(tmp_path, "bad.json", _enveloped(bad, {"t0": True}))
+            assert oa._corpus_header(path) is oa._UNREADABLE, bad
+
     def test_a_stripped_candidate_is_still_a_corpus_conflict(
         self, capsys, tmp_path
     ):

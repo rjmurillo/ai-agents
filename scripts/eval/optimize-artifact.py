@@ -356,13 +356,21 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     authoritative refusal and must not be masked by a parse error that the full
     read, after the guards, reports properly anyway.
 
-    Three answers, not two. A parsed file that names no corpus is `None`, which
-    conflicts with a pin on purpose, because that is the envelope strip. A file
-    that would not parse is `_UNREADABLE`, which conflicts with nothing: it has
-    not declared anything, so the preflight steps aside and the full read
-    reports it as the config failure it is. Collapsing the two answered a
-    duplicate key with `decision: REJECT` and a reason saying the files
-    disagreed on a corpus they in fact agreed on.
+    Three answers, not two. `None` means the file parsed and names no corpus,
+    which conflicts with a pin on purpose, because that is the envelope strip.
+    `_UNREADABLE` means the file has not declared anything this can compare, so
+    it conflicts with nothing: the preflight steps aside and the full read
+    reports the config failure. Collapsing the two answered a duplicate key
+    with `decision: REJECT` and a reason saying the files disagreed on a corpus
+    they in fact agreed on.
+
+    `_UNREADABLE` covers the field, not just the grammar. A file that parses
+    cleanly but carries a corpus `_checked_corpus` refuses, a truncated digest,
+    upper-case hex, an empty string, a number, has declared nothing comparable
+    either, and reading that as the envelope strip repeated the same wrong
+    verdict one input class over. So the split here mirrors `_checked_corpus`
+    exactly: absent or null is `None`, a valid digest is itself, and everything
+    that function would raise on is `_UNREADABLE`.
 
     Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
     because a failing open names the file. `RecursionError` joins `ValueError`
@@ -378,7 +386,9 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
         return _UNREADABLE
     value = data.get("corpus")
-    return value if isinstance(value, str) and _CORPUS_RE.match(value) else None
+    if value is None:
+        return None
+    return value if isinstance(value, str) and _CORPUS_RE.match(value) else _UNREADABLE
 
 
 def _checked_verdicts(path: Path, data: dict[str, Any]) -> dict[str, bool]:
