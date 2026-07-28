@@ -169,8 +169,9 @@ _BOUNDARY = rf"(?:{_ANCHOR}|{_LABEL_ANCHOR}|{_ATTR_ANCHOR})" + r"(?:\.[\\/]|[\\/
 # ``[state](/.agents)`` ends at ``)``; both are boundaries, neither a separator
 # nor one of the few punctuation marks the old class named. The negative
 # lookahead admits every non-identifier boundary at once (space, tab, newline,
-# end of string, ``)``, ``,``, ``;``, ``!``, backtick, ``'``, ``"``, ``?``,
-# ``#`` and the rest) while still rejecting a longer directory name:
+# end of string, closing parenthesis, comma, semicolon, exclamation mark,
+# backtick, quotes, question mark, hash and the rest) while still rejecting a
+# longer directory name:
 # ``templates/agentsx``, ``templates/agents-v2`` and ``templates/agents2``
 # continue with a word character or a hyphen and do not match. This subsumes the
 # old ``['\"?#]`` and ``$`` alternatives, which were all non-identifier
