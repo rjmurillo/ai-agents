@@ -110,14 +110,37 @@ runs:
     - name: Install Python dependencies
       if: inputs.enable-python == 'true'
       shell: bash
+      # Installs the resolution `uv.lock` pins, not a fresh one (issue #3603).
+      #
+      # `uv pip install -e ".[dev]"` re-resolves and ignores the lock. Measured
+      # against the lock on 2026-07-28, 30 packages drifted, including
+      # mypy 2.1.0 -> 2.3.0, pytest 9.0.3 -> 9.1.1 and ruff 0.15.16 -> 0.15.22,
+      # so CI graded every PR with different tools than the lock pins.
+      #
+      # `uv sync` is not usable here: it installs into a project `.venv`, and 148
+      # workflow steps across 15 workflows invoke `python`, `pytest` and friends
+      # bare, relying on `--system`. Exporting the lock keeps `--system` intact.
+      #
+      # `--require-hashes` is not usable either: `[tool.uv] override-dependencies`
+      # (click, mcp) reconciles this lock, uv injects overrides without hashes,
+      # and the install then refuses. The export still pins every version exactly,
+      # which is what the acceptance criterion asks for.
       run: |
         echo "Installing Python dependencies..."
-        if [ -f "pyproject.toml" ]; then
-          uv pip install --system -e ".[dev]"
-          echo "✓ Python dependencies installed from pyproject.toml"
-        else
+        if [ ! -f "pyproject.toml" ]; then
           echo "⚠ No pyproject.toml found, skipping dependency installation"
+          exit 0
         fi
+        if [ ! -f "uv.lock" ]; then
+          echo "⚠ No uv.lock found, falling back to an unpinned resolve"
+          uv pip install --system -e ".[dev]"
+          exit 0
+        fi
+        requirements="${RUNNER_TEMP:-/tmp}/uv-locked-requirements.txt"
+        uv export --frozen --extra dev --no-emit-project --output-file "$requirements"
+        uv pip install --system -r "$requirements"
+        uv pip install --system --no-deps -e .
+        echo "✓ Python dependencies installed from uv.lock"
 
     - name: Enable git hooks
       if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'

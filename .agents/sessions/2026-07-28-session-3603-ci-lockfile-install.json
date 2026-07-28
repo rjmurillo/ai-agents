@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3603,
+    "date": "2026-07-28",
+    "branch": "fix/3603-ci-lockfile-install",
+    "startingCommit": "f75a59de6",
+    "objective": "Issue #3603: CI installs Python dependencies unpinned, ignoring uv.lock, so every gate runs a different resolution than the lock pins."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3603-ci-lockfile-install after checkout -b from origin/main at f75a59de6."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3603-ci-lockfile-install, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md and the open-issue triage table carried through this campaign."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, written for fix/3603-ci-lockfile-install before the first commit on the branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was not reachable in this harness. Fell back to reading .serena/memories/ directly per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not available; see serenaActivated"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/governance/TESTING-RIGOR.md for the positive/negative/edge bar and .claude/rules/generated-artifacts.md, which issue #3603 names as the same shape of problem."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Install step in .github/actions/setup-code-env/action.yml now installs the resolution uv.lock pins, with a guarded fallback when no lock is present. Five wiring tests added and a negative control run."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session; the reasoning is recorded inline in the action comment and in this log instead."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Committed on fix/3603-ci-lockfile-install with hooks enabled. No --no-verify."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "330 tests pass in tests/ci/. shellcheck --severity=warning and bash -n clean on the extracted step body. The full install sequence was run into a scratch venv and the repo's own tests passed under it at 207. uv lock --check confirms the lock is in sync."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Not skipped. QA evidence is the measured 30-package drift, the scratch-venv run, and the negative control."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified on this branch; it stays read-only per ADR-014."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown files changed on this branch. The diff is one composite action, one test file, and this session log, so scoped markdownlint had no targets."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "phase": "investigation",
+      "summary": "The issue reports a bare pip install list inline in pytest.yml. That detail is stale: the install moved into the shared .github/actions/setup-code-env/action.yml and became 'uv pip install --system -e \".[dev]\"'. The substance is unchanged, that command re-resolves from pyproject.toml and never reads uv.lock."
+    },
+    {
+      "step": 2,
+      "phase": "investigation",
+      "summary": "Measured the drift rather than assuming it. Built two venvs, one from the lock via uv export and one the way CI resolves today, then diffed uv pip freeze. 30 of 111 packages differ, including mypy 2.1.0 to 2.3.0, pytest 9.0.3 to 9.1.1, ruff 0.15.16 to 0.15.22, coverage 7.13.1 to 7.15.2 and pydantic 2.12.5 to 2.13.4. CI has been grading every PR with different tools than the lock pins."
+    },
+    {
+      "step": 3,
+      "phase": "investigation",
+      "summary": "Rejected uv sync --frozen with data. It installs into a project .venv, and 148 steps across 15 workflows invoke python, pytest, ruff and mypy bare, relying on the --system install. Converting all of them is a far larger change than this issue, and each conversion is a chance to break a green gate."
+    },
+    {
+      "step": 4,
+      "phase": "investigation",
+      "summary": "Rejected --require-hashes with data. The first attempt failed on 'no hash provided for click==8.3.3' and the second, run from a neutral directory, failed on semgrep==1.171.0 needing mcp==1.23.3 against a pinned mcp==1.28.1. Root cause is [tool.uv] override-dependencies, which lists exactly click==8.3.3 and mcp==1.28.1. uv injects overrides without hashes and uv export does not emit them, so hashed installs cannot work on this lock. Exact version pinning, which is what the acceptance criterion asks for, still holds."
+    },
+    {
+      "step": 5,
+      "phase": "implementation",
+      "summary": "Rewrote the install step to export the lock and install from it, keeping --system intact: uv export --frozen --extra dev --no-emit-project, then uv pip install --system -r on the export, then uv pip install --system --no-deps -e . for the project itself. The no-lock branch keeps the old unpinned command as a guarded fallback. Confirmed the export is platform-universal (it carries pywin32 under a sys_platform == 'win32' marker) so the Windows runners are covered."
+    },
+    {
+      "step": 6,
+      "phase": "validation",
+      "summary": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival."
+    },
+    {
+      "step": 7,
+      "phase": "validation",
+      "summary": "Added tests/ci/test_setup_code_env_installs_locked_deps.py, 5 tests pinning that the step reads the lock, installs from the export, installs the project with --no-deps, and permits the unpinned command only on the lock-absent fallback branch. Negative control: stashing the action fails 4 of the 5; restoring it passes all 5. The full tests/ci suite passes at 330."
+    }
+  ],
+  "nextSteps": [
+    "Watch the first CI run on this branch closely: the install step changes for all 15 workflows that use setup-code-env, and a drifted lock would surface as a uv export --frozen failure.",
+    "Consider a follow-up to converge the 148 bare python and pytest invocations onto uv run --frozen, which would let CI drop --system entirely.",
+    "Continue the open-issue campaign: the P1 queue and the 34 ADR-006 workflow extraction chores."
+  ],
+  "endingCommit": ""
+}
