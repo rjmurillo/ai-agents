@@ -817,7 +817,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
-    parent_commits = _approved_merge_head_commits(repo_root)
+    # A branch takes main's work two ways and only one of them leaves a main
+    # ancestor in MERGE_HEAD. Merging main in directly does. Merging the shared
+    # branch's own remote tip, after a collaborator merged main there and
+    # pushed, does not: the parent is the branch. Without the second rule below
+    # every ADR main contributed reads as branch-authored and the gate demands
+    # review evidence for a file the author never opened.
+    approved_parents = _approved_merge_head_commits(repo_root)
+    merge_parents = _merge_head_commits(repo_root)
     authored: list[str] = []
     for path in paths:
         staged_blob = _read_index_blob(repo_root, path)
@@ -826,13 +833,83 @@ def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str
             continue
         if _read_head_blob(repo_root, path) == staged_blob:
             continue
-        if any(
-            _read_commit_blob_bytes(repo_root, parent, path) == staged_blob
-            for parent in parent_commits
-        ):
+        if _blob_is_at_any(repo_root, approved_parents, path, staged_blob):
+            continue
+        if _blob_arrived_through_the_merge(repo_root, merge_parents, path, staged_blob):
             continue
         authored.append(path)
     return authored
+
+
+def _blob_is_at_any(
+    repo_root: Path,
+    commits: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    return any(_read_commit_blob_bytes(repo_root, commit, path) == blob for commit in commits)
+
+
+def _blob_arrived_through_the_merge(
+    repo_root: Path,
+    merge_parents: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    """Report whether a staged blob looks like content the merge carried in.
+
+    "Looks like" is the honest verb. Every comparison here is against the
+    local `refs/remotes/origin/main`, which is a cached answer to what main
+    held at the last fetch, not what main holds now. The gate is offline and
+    cannot do better, so it is proving a resemblance rather than provenance,
+    and that is the ceiling on what this function can be trusted for.
+
+    Three questions, each closing a way past the other two.
+
+    The blob has to sit on a merge parent, or an author can type a reversion
+    during someone else's merge and the stale `origin/main` it matches will
+    wave it through. It has to match `origin/main`, or any pair of branches
+    can walk an unreviewed ADR onto main because the merge carried it.
+
+    Those two alone still lose to an author who builds the merge: branch off
+    the newer commit, commit the older text there, merge it back, and both
+    hold. So the third question asks about the copy this branch already has.
+    Content arriving from main is an upgrade, and the copy being replaced is
+    one that ref has carried at some point. A reversion is not, because the
+    newer text it overwrites was written locally and never pushed.
+    """
+    if not _blob_is_at_any(repo_root, merge_parents, path, blob):
+        return False
+    if _read_commit_blob_bytes(repo_root, "origin/main", path) != blob:
+        return False
+    return _head_copy_is_one_main_has_carried(repo_root, path)
+
+
+def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
+    """Report whether HEAD's copy of a path is a state `origin/main` has held.
+
+    A path HEAD does not carry cannot be a regression of local work, so it
+    passes. Otherwise the copy has to appear somewhere in `origin/main`'s
+    history for that path. Walking the path's own history keeps this to the
+    handful of commits that touched one ADR rather than the whole branch.
+
+    `origin/main` is a local cache of main, so a branch that has not fetched
+    in a while can fail this on content main really does carry. That
+    direction is the safe one: the answer is review evidence demanded for a
+    file that did not need it, and a fetch clears it.
+    """
+    head_blob = _read_head_blob(repo_root, path)
+    if head_blob is None:
+        return True
+    carried = _origin_main_commits_touching(repo_root, path)
+    return _blob_is_at_any(repo_root, carried, path, head_blob)
+
+
+def _origin_main_commits_touching(repo_root: Path, path: str) -> list[str]:
+    result = _run_git(repo_root, ["rev-list", "origin/main", "--", path])
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
@@ -851,13 +928,27 @@ def _merge_head_commits(repo_root: Path) -> list[str]:
     if not merge_head.is_absolute():
         merge_head = repo_root / merge_head
     try:
-        return [
+        named = [
             line.strip()
             for line in merge_head.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
     except OSError:
         return []
+    return [commit for commit in named if not _head_already_contains(repo_root, commit)]
+
+
+def _head_already_contains(repo_root: Path, commit: str) -> bool:
+    """Report whether HEAD already contains a commit named by `MERGE_HEAD`.
+
+    `git merge <ancestor>` says "Already up to date" and writes no `MERGE_HEAD`
+    at all, so a `MERGE_HEAD` naming something HEAD already has was written by
+    something other than git. Reading it as a merge in progress hands the
+    exemption to anyone who can write one file, and the ancestor it names is an
+    approved parent by construction, which is the whole gate.
+    """
+    result = _run_git(repo_root, ["merge-base", "--is-ancestor", commit, "HEAD"])
+    return result.returncode == 0
 
 
 def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
