@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 import warnings
 from collections.abc import Mapping, Sequence
@@ -26,11 +27,11 @@ from typing import TextIO, cast
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ZERO_SHA_LENGTHS = (40, 64)
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_PATH_RE = re.compile(r"^\.agents/memory/episodes/episode-[A-Za-z0-9._-]+\.json$")
@@ -927,7 +928,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
             "WARNING: {push_files} empty; cannot determine documentation-only or "
-            "trivial-session bypass—retrospective evidence still required",
+            "trivial-session bypass, retrospective evidence still required",
             file=sys.stderr,
         )
     if paths and _documentation_only(paths):
@@ -2660,9 +2661,7 @@ def parse_push_refs(stream: TextIO) -> list[PushRef]:
 
 def _validate_push_ref(push_ref: PushRef, line_number: int) -> None:
     for sha in (push_ref.local_sha, push_ref.remote_sha):
-        if len(sha) not in ZERO_SHA_LENGTHS or not all(
-            char in "0123456789abcdefABCDEF" for char in sha
-        ):
+        if not is_full_object_id(sha):
             raise ValueError(f"line {line_number}: invalid object id")
     for ref in (push_ref.local_ref, push_ref.remote_ref):
         if ref.startswith("-") or any(char.isspace() for char in ref):
@@ -3205,6 +3204,30 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
+def _pytest_commands(repo_root: Path) -> list[list[str]]:
+    safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    return [
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(repo_root / "tests"),
+            "--ignore",
+            str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration and not safe_push_transport",
+            str(safe_push_tests),
+        ],
+    ]
+
+
 def run_pytest(repo_root: Path) -> int:
     env = _clean_git_env()
     for key in (
@@ -3219,17 +3242,30 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
-    # Exclude @pytest.mark.integration tests: integration tests invoke real
-    # network operations (git push, GitHub API) which must never run inside a
-    # pre-push hook. The hook validates local correctness only (issue #3412).
-    result = _run_command(
-        [sys.executable, "-m", "pytest", "-m", "not integration", str(repo_root / "tests")],
-        repo_root,
-        process_env=env,
-        timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,
-    )
-    _print_process_output(result)
-    return result.returncode
+    # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
+    # command. Splitting the suite across processes must not multiply how long
+    # pre-push can block, or the hook outlives lefthook's own deadline and the
+    # timeout looks nondeterministic.
+    deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
+    for command in _pytest_commands(repo_root):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(
+                "ERROR: pytest suite exceeded the "
+                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget before running {command}",
+                file=sys.stderr,
+            )
+            return 1
+        result = _run_command(
+            command,
+            repo_root,
+            process_env=env,
+            timeout_seconds=remaining,
+        )
+        _print_process_output(result)
+        if result.returncode != 0:
+            return result.returncode
+    return 0
 
 
 def _workflow_local_base_ref() -> str:
