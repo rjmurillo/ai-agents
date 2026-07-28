@@ -137,6 +137,35 @@ def validate_skill_md_portability(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_rule_activation_coverage(repo_root: Path) -> bool:
+    """Fail when a rule or skill loses activation-scenario coverage (Issue #3457).
+
+    Wraps ``scripts/validation/check_rule_activation_coverage.py``, the static
+    ratchet that enumerates every rule and skill and blocks new uncovered drift.
+    The script exits 0 when the uncovered set is within its baseline, 1 when a
+    rule or skill becomes uncovered without a baseline entry, and 2 on a config
+    or structural error (a missing inventory, an unparseable baseline, or a
+    scenario pointing at a deleted artifact). Exit 1 and 2 are both hard
+    failures here; a malformed input must never read as clean.
+    """
+    script = (
+        repo_root / "scripts" / "validation" / "check_rule_activation_coverage.py"
+    )
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_rule_activation_coverage.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    succeeded: bool = exit_code == 0
+    return succeeded
+
+
 def validate_skill_shells(repo_root: Path) -> bool:
     """Fail when a skill dir has tracked content but no SKILL.md (Issue #2677).
 

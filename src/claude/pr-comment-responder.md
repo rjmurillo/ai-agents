@@ -1424,16 +1424,24 @@ if [ "$success" != "true" ]; then
     exit 1
 fi
 
-# Check for failures
-failed_count=$(echo "$checks" | jq '.FailedCount')
-if [ "$failed_count" -gt 0 ]; then
+# Check for failures and unusable merge refs
+merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
+failed_count=$(echo "$checks" | jq '.Data.FailedCount')
+if [ "$merge_ref_usable" = "false" ]; then
+    echo "[BLOCKED] PR merge ref cannot be built, so CI status is incomplete"
+    exit 1
+elif [ "$failed_count" -gt 0 ]; then
     echo "[BLOCKED] $failed_count CI check(s) not passing:"
-    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+    echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
+    exit 1
+elif [ "$all_passing" != "true" ]; then
+    echo "[BLOCKED] CI checks are not all passing"
     exit 1
 fi
 
-echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks)"
+echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.Data.PassedCount') checks)"
 ```
 
 **Exit codes**:
@@ -1454,7 +1462,7 @@ echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks
 |-----------|-------|--------|
 | All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
