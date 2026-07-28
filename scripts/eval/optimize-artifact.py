@@ -1397,12 +1397,14 @@ def _json_strict_equal(left: object, right: object) -> bool:
     if type(left) is not type(right):
         return False
     if isinstance(left, dict):
-        if set(left) != set(right):
+        right_dict = cast(dict[Any, Any], right)
+        if set(left) != set(right_dict):
             return False
-        return all(_json_strict_equal(left[key], right[key]) for key in left)
+        return all(_json_strict_equal(left[key], right_dict[key]) for key in left)
     if isinstance(left, list):
-        return len(left) == len(right) and all(
-            _json_strict_equal(a, b) for a, b in zip(left, right, strict=True)
+        right_list = cast(list[Any], right)
+        return len(left) == len(right_list) and all(
+            _json_strict_equal(a, b) for a, b in zip(left, right_list, strict=True)
         )
     if isinstance(left, float):
         if left == 0.0 and right == 0.0:

@@ -255,6 +255,10 @@ def _results(passing: int, failing: int) -> dict:
     return out
 
 
+def _passing_results(n: int = 10) -> dict[str, bool]:
+    return {f"t{i}": True for i in range(n)}
+
+
 # ---------------------------------------------------------------------------
 # extract
 # ---------------------------------------------------------------------------
@@ -5644,18 +5648,31 @@ class TestExtractionProvenanceCustody:
     @pytest.mark.parametrize(
         ("name", "payload"),
         [
-            ("both-provenance-absent", {"schema": "optimizer-results/1", "results": {f"t{i}": True for i in range(10)}}),
+            (
+                "both-provenance-absent",
+                {"schema": "optimizer-results/1", "results": _passing_results()},
+            ),
             (
                 "empty-provenance-maps",
-                {"schema": "optimizer-results/1", "provenance": {}, "results": {f"t{i}": True for i in range(10)}},
+                {
+                    "schema": "optimizer-results/1",
+                    "provenance": {},
+                    "results": _passing_results(),
+                },
             ),
             (
                 "both-provenance-null",
-                {"schema": "optimizer-results/1", "provenance": None, "results": {f"t{i}": True for i in range(10)}},
+                {
+                    "schema": "optimizer-results/1",
+                    "provenance": None,
+                    "results": _passing_results(),
+                },
             ),
         ],
     )
-    def test_missing_empty_or_null_provenance_is_config_error(self, tmp_path, capsys, name, payload):
+    def test_missing_empty_or_null_provenance_is_config_error(
+        self, tmp_path, capsys, name, payload
+    ):
         split, record = self._split(capsys, tmp_path)
         inc = _write(tmp_path, f"{name}-inc.json", payload)
         cand = _write(tmp_path, f"{name}-cand.json", payload)
@@ -5667,8 +5684,20 @@ class TestExtractionProvenanceCustody:
 
     def test_missing_versus_null_provenance_is_config_error(self, tmp_path, capsys):
         split, record = self._split(capsys, tmp_path)
-        missing = _write(tmp_path, "missing.json", {"schema": "optimizer-results/1", "results": {f"t{i}": True for i in range(10)}})
-        null = _write(tmp_path, "null.json", {"schema": "optimizer-results/1", "provenance": None, "results": {f"t{i}": True for i in range(10)}})
+        missing = _write(
+            tmp_path,
+            "missing.json",
+            {"schema": "optimizer-results/1", "results": _passing_results()},
+        )
+        null = _write(
+            tmp_path,
+            "null.json",
+            {
+                "schema": "optimizer-results/1",
+                "provenance": None,
+                "results": _passing_results(),
+            },
+        )
 
         code, out = self._gate(capsys, missing, null, split, record)
 
@@ -5677,11 +5706,17 @@ class TestExtractionProvenanceCustody:
 
     def test_transplanted_provenance_is_config_error(self, tmp_path, capsys):
         split, record = self._split(capsys, tmp_path)
-        base = {f"t{i}": True for i in range(10)}
-        inc = self._extract(capsys, self._report(tmp_path, "inc-report.json", base), tmp_path / "inc.json")
+        base = _passing_results()
+        inc = self._extract(
+            capsys, self._report(tmp_path, "inc-report.json", base), tmp_path / "inc.json"
+        )
         changed = dict(base)
         changed[record["sel"][0]] = False
-        cand = self._extract(capsys, self._report(tmp_path, "cand-report.json", changed), tmp_path / "cand.json")
+        cand = self._extract(
+            capsys,
+            self._report(tmp_path, "cand-report.json", changed),
+            tmp_path / "cand.json",
+        )
         cand_payload = json.loads(cand.read_text(encoding="utf-8"))
         inc_payload = json.loads(inc.read_text(encoding="utf-8"))
         cand_payload["provenance"] = inc_payload["provenance"]
@@ -5693,18 +5728,24 @@ class TestExtractionProvenanceCustody:
         assert "does not match its results" in out["error"]
 
     def test_split_from_results_is_config_error(self, tmp_path, capsys):
-        results = _write(tmp_path, "results.json", _enveloped(None, {f"t{i}": True for i in range(9)}))
+        results = _write(tmp_path, "results.json", _enveloped(None, _passing_results(9)))
 
-        code, out = _run_raw(capsys, "split", "--results", results, "--seed", "s", "--out", tmp_path / "split.json")
+        code, out = _run_raw(
+            capsys, "split", "--results", results, "--seed", "s", "--out", tmp_path / "split.json"
+        )
 
         assert code == EXIT_CONFIG
         assert "--tasks" in out["error"]
 
     def test_split_from_corpus_rejects_shared_omission(self, tmp_path, capsys):
         split, record = self._split(capsys, tmp_path, n=10)
-        nine = {f"t{i}": True for i in range(9)}
-        inc = self._extract(capsys, self._report(tmp_path, "inc9.json", nine), tmp_path / "inc.json")
-        cand = self._extract(capsys, self._report(tmp_path, "cand9.json", nine), tmp_path / "cand.json")
+        nine = _passing_results(9)
+        inc = self._extract(
+            capsys, self._report(tmp_path, "inc9.json", nine), tmp_path / "inc.json"
+        )
+        cand = self._extract(
+            capsys, self._report(tmp_path, "cand9.json", nine), tmp_path / "cand.json"
+        )
 
         code, out = self._gate(capsys, inc, cand, split, record)
 
@@ -5714,7 +5755,12 @@ class TestExtractionProvenanceCustody:
 
     def test_extract_group_requires_reachable_whole_universe_results(self, tmp_path, capsys):
         split, _record = self._split(capsys, tmp_path, n=10)
-        report = self._report(tmp_path, "opt-only.json", {task_id: True for task_id in _split_of(["--split", str(split)])["opt"]})
+        split_record = _split_of(["--split", str(split)])
+        report = self._report(
+            tmp_path,
+            "opt-only.json",
+            {task_id: True for task_id in split_record["opt"]},
+        )
 
         code, out = _run_raw(
             capsys,
