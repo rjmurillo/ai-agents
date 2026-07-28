@@ -162,7 +162,7 @@ SO THAT git archaeology and ADR/PR history for the target system is surfaced.
 
 WHEN Step 0.5 begins,
 THE SYSTEM SHALL invoke memory via search_memory.py for each topic derived from Step 0 Q3+Q4 named entities using at minimum 3 distinct query variants per topic,
-SO THAT relevant prior decisions, episodes, and causal patterns are identified.
+SO THAT relevant prior decisions and episodes are identified.
 
 ### AC-05: exploring-knowledge-graph depth matches ProvisionalTier
 
@@ -263,7 +263,7 @@ N/A. Single use case at Tier 1-2 complexity. No variability identified that warr
 
 Step 0 (REQ-006) validates that the spec addresses real demand. Step 0.5 validates that the spec does not collide with prior decisions already captured in memory. These are distinct gates: passing Step 0 means the demand is real; passing Step 0.5 means the proposer has searched for constraints that would change the design. A proposer who passes Step 0 but skips memory search can propose removing an ADR constraint without knowing the constraint exists. PR #1887 demonstrates the cost: 69 commits and 11 review rounds on a spec designed against an imagined contract.
 
-The three-skill composition (chestertons-fence for git history, memory for episodic and causal patterns, exploring-knowledge-graph for connected entities) covers the three distinct prior-art failure modes: (1) code was changed for a reason the proposer does not know; (2) a prior decision was made that the proposer did not recall; (3) a connected entity exists that the proposer did not name in Step 0. Each skill addresses one failure mode. Composing them in sequence keeps the implementation in a single spec.md insertion point.
+The three-skill composition (chestertons-fence for git history, memory for episodic patterns, exploring-knowledge-graph for connected entities) covers the three distinct prior-art failure modes: (1) code was changed for a reason the proposer does not know; (2) a prior decision was made that the proposer did not recall; (3) a connected entity exists that the proposer did not name in Step 0. Each skill addresses one failure mode. Composing them in sequence keeps the implementation in a single spec.md insertion point.
 
 ## Dependencies
 
