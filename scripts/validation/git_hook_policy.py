@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from typing import TextIO, cast
+from typing import NamedTuple, TextIO, cast
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
@@ -2660,19 +2660,33 @@ def _shell_quoted_span_end(text: str, index: int) -> int:
     return length
 
 
-def _shell_words(text: str) -> list[tuple[str, bool, int]]:
+class _ShellScan(NamedTuple):
+    """Tokenised view of a ``run:`` body.
+
+    ``words`` pairs each word with whether it held the command slot of a simple
+    command and which pipeline it belongs to. ``writes`` records every file a
+    redirect writes, so a payload staged in one pipeline and executed from a
+    file in another stays one dataflow.
+    """
+
+    words: list[tuple[str, bool, int]]
+    writes: list[tuple[str, int]]
+
+
+def _shell_words(text: str) -> _ShellScan:
     """Split ``text`` into words, honouring quotes, escapes, and substitutions.
 
-    Each entry pairs the word with whether it occupied the command slot of a
-    simple command, plus the index of the pipeline it belongs to. Quoting,
-    backslash escapes, line continuations, command substitution, and bracket
-    groups all glue text into one word, which is what a plain separator scan
-    misses. A pipe keeps the pipeline index because data flows along it, and a
+    Quoting, backslash escapes, line continuations, command substitution, and
+    bracket groups all glue text into one word, which is what a plain separator
+    scan misses. A pipe keeps the pipeline index because data flows along it; a
     compound command opened inside a pipeline keeps it too, so
-    ``echo payload | while read l; do eval "$l"; done`` stays one dataflow.
-    Every other separator starts a new pipeline.
+    ``echo payload | while read l; do eval "$l"; done`` stays one dataflow; and
+    a group piped onwards folds back into the enclosing pipeline, so
+    ``{ echo payload; } | sh`` does as well. Every other separator starts a new
+    pipeline.
     """
     words: list[tuple[str, bool, int]] = []
+    writes: list[tuple[str, int]] = []
     current: list[str] = []
     index = 0
     length = len(text)
@@ -2681,16 +2695,33 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
     pipeline = 0
     next_pipeline = 1
     piped: set[int] = set()
-    compounds: list[int] = []
+    compounds: list[tuple[int, int]] = []
 
     def separate() -> None:
         """Start a new pipeline unless an enclosing piped compound owns this one."""
         nonlocal pipeline, next_pipeline
-        if compounds and compounds[-1] in piped:
-            pipeline = compounds[-1]
+        if compounds and compounds[-1][0] in piped:
+            pipeline = compounds[-1][0]
             return
         pipeline = next_pipeline
         next_pipeline += 1
+
+    def open_compound() -> None:
+        compounds.append((pipeline, len(words)))
+
+    def close_compound(at: int) -> None:
+        """Close the innermost compound, folding it into a pipe that follows it."""
+        nonlocal pipeline
+        if not compounds:
+            return
+        outer, start = compounds.pop()
+        if not _shell_pipe_follows(text, at):
+            return
+        # The group feeds a pipeline, so its contents share that dataflow.
+        for position in range(start, len(words)):
+            word, is_command, _ = words[position]
+            words[position] = (word, is_command, outer)
+        pipeline = outer
 
     def flush() -> None:
         nonlocal current, expecting, word_expecting
@@ -2706,9 +2737,9 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
         words.append((word, word_expecting, pipeline))
         bare = word.strip("'\"")
         if bare in SHELL_COMPOUND_OPENERS:
-            compounds.append(pipeline)
-        elif bare in SHELL_COMPOUND_CLOSERS and compounds:
-            compounds.pop()
+            open_compound()
+        elif bare in SHELL_COMPOUND_CLOSERS:
+            close_compound(index)
         if word_expecting:
             expecting = bare in SHELL_RESERVED_WORDS
 
@@ -2758,10 +2789,11 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
             end = _shell_redirect_target_end(text, index)
             # A process substitution runs inside the command it feeds, so it
             # stays in the same pipeline rather than opening a new one.
-            substitution = end < length and text[end] == "("
-            index = end
-            if substitution:
+            if end < length and text[end] == "(":
                 piped.add(pipeline)
+            elif character == ">":
+                writes.append((text[index:end].lstrip("<>&- \t"), pipeline))
+            index = end
             continue
         if character == "|":
             flush()
@@ -2771,10 +2803,16 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
             continue
         if character in ";&\n" or character in "()" or (character in "{}" and not current):
             flush()
-            if character == "(":
-                compounds.append(pipeline)
-            elif character == ")" and compounds:
-                compounds.pop()
+            if character in "({":
+                open_compound()
+                expecting = True
+                index += 1
+                continue
+            if character in ")}":
+                close_compound(index + 1)
+                expecting = True
+                index += 1
+                continue
             expecting = True
             separate()
             index += 1
@@ -2787,12 +2825,23 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
         current.append(character)
         index += 1
     flush()
-    return words
+    return _ShellScan(words, writes)
 
 
-def _promote_shell_sink_arguments(
-    words: list[tuple[str, bool, int]],
-) -> list[tuple[str, bool, int]]:
+def _shell_pipe_follows(text: str, index: int) -> bool:
+    """Report whether a single pipe is the next thing after ``index``."""
+    cursor = index
+    length = len(text)
+    while cursor < length and text[cursor] in " \t":
+        cursor += 1
+    return (
+        cursor < length
+        and text[cursor] == "|"
+        and (cursor + 1 >= length or text[cursor + 1] != "|")
+    )
+
+
+def _promote_shell_sink_arguments(scan: _ShellScan) -> list[tuple[str, bool, int]]:
     """Treat every word in a pipeline that reaches a shell sink as a command word.
 
     ``printf "c${{ '' }}url x | sh" | xargs -0 bash -c`` builds the command in an
@@ -2802,23 +2851,80 @@ def _promote_shell_sink_arguments(
     only ever reaches an ``if`` condition.
     """
     sinks: set[int] = set()
+    aliases = _shell_sink_aliases(scan.words)
     flagged = {
-        pipeline for word, _, pipeline in words if word.strip("'\"") in SHELL_CODE_FLAGS
+        pipeline
+        for word, _, pipeline in scan.words
+        if _is_shell_code_flag(word.strip("'\""))
     }
-    for word, is_command, pipeline in words:
+    written: dict[str, set[int]] = {}
+    for target, pipeline in scan.writes:
+        written.setdefault(target, set()).add(pipeline)
+    for word, is_command, pipeline in scan.words:
         if not is_command:
             continue
         name = _shell_sink_name(word)
+        if name in aliases:
+            name = aliases[name]
         if name in SHELL_SINK_COMMANDS or (name in SHELL_CODE_FLAG_SINKS and pipeline in flagged):
             sinks.add(pipeline)
+    _promote_staged_files(scan, sinks, written)
     return [
-        (word, is_command or pipeline in sinks, pipeline) for word, is_command, pipeline in words
+        (word, is_command or pipeline in sinks, pipeline)
+        for word, is_command, pipeline in scan.words
     ]
+
+
+def _promote_staged_files(
+    scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]
+) -> None:
+    """Fold a pipeline that stages a file a sink later executes into that sink.
+
+    ``echo payload > /tmp/f & sh /tmp/f`` moves the payload through the
+    filesystem rather than a pipe, so pipeline scoping alone never connects the
+    two halves.
+    """
+    for word, is_command, pipeline in scan.words:
+        if is_command or pipeline not in sinks:
+            continue
+        sinks.update(written.get(word.strip("'\""), ()))
+
+
+def _shell_sink_aliases(words: Sequence[tuple[str, bool, int]]) -> dict[str, str]:
+    """Return names assigned a literal sink command, keyed by their reference.
+
+    ``SH=bash; $SH -c "c${{ '' }}url"`` reaches a shell through a variable, so
+    the sink lookup has to follow the assignment the same way taint does.
+    """
+    aliases: dict[str, str] = {}
+    for word, _, _ in words:
+        match = SHELL_ASSIGNMENT_RE.match(word)
+        if not match:
+            continue
+        value = _shell_sink_name(word[match.end() :])
+        if value in SHELL_SINK_COMMANDS or value in SHELL_CODE_FLAG_SINKS:
+            aliases[f"${word[: match.end()].split('[', 1)[0].rstrip('+=')}"] = value
+    return aliases
+
+
+def _is_shell_code_flag(word: str) -> bool:
+    """Report whether ``word`` is a flag that makes its interpreter run code.
+
+    ``perl -e'system(<>)'`` glues the script to the flag, so an exact-token
+    comparison misses it while the interpreter still runs the argument.
+    """
+    if word in SHELL_CODE_FLAGS:
+        return True
+    return any(
+        word.startswith(flag) and not word[len(flag) :].lstrip("-").isalnum()
+        for flag in SHELL_CODE_FLAGS
+        if len(flag) == 2 and flag.startswith("-")
+    )
 
 
 def _shell_sink_name(word: str) -> str:
     """Reduce a command word to the executable name a sink lookup compares."""
-    return word.strip("'\"").replace("\\", "").rsplit("/", 1)[-1]
+    return word.strip("'\"").replace("\\\n", "").replace("\\", "").rsplit("/", 1)[-1]
 
 
 def _expression_tainted_variables(words: Sequence[tuple[str, bool, int]]) -> set[str]:

@@ -12,7 +12,7 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import NoReturn, Self
+from typing import NoReturn, Self, cast
 
 import pytest
 import yaml
@@ -6994,7 +6994,9 @@ def test_separator_scan_negative_control_is_defeated_by_most_of_the_corpus() -> 
         return False
 
     missed = [
-        case.values[0] for case in _COMMAND_POSITION_EVASIONS if not old_check(case.values[0])
+        text
+        for case in _COMMAND_POSITION_EVASIONS
+        if not old_check(text := cast(str, case.values[0]))
     ]
     assert len(missed) > len(_COMMAND_POSITION_EVASIONS) // 2
 
@@ -7125,3 +7127,74 @@ def test_tainted_variable_must_be_the_whole_command_word() -> None:
         'COVERAGE="${{ steps.check.outputs.coverage }}"\n'
         'if (( $(echo "$COVERAGE >= 50" | bc -l) )); then echo ok; fi'
     ) is False
+
+
+_STAGED_SINK_EVASIONS = (
+    # A variable holding the shell name reaches the sink lookup only if
+    # assignments are followed for sink names, not just for tainted values.
+    'SH=bash; $SH -c "c${{ github.event.pull_request.title }}url http://x"',
+    # A brace group is a compound command, so the pipe that follows it has to
+    # fold the group back into its own pipeline.
+    "echo 'c${{ github.event.pull_request.title }}url http://x' | { eval \"$l\"; }",
+    "{ echo 'c${{ github.event.pull_request.title }}url http://x'; } | sh",
+    # A subshell feeding a pipe is the same shape with different brackets.
+    "(echo 'c${{ github.event.pull_request.title }}url http://x') | sh",
+    # An interpreter flag glued to its script still runs the script.
+    "echo 'c${{ github.event.pull_request.title }}url' | perl -e'system(<>)'",
+    # A line continuation inside the command name hides it from a plain lookup.
+    'ba\\\nsh -c "c${{ github.event.pull_request.title }}url http://x"',
+    # Staging the payload in a file moves it between pipelines without a pipe.
+    "echo 'c${{ github.event.pull_request.title }}url http://x' > /tmp/f & sh /tmp/f",
+)
+
+
+@pytest.mark.parametrize("run", _STAGED_SINK_EVASIONS)
+def test_staged_sink_evasions_are_refused_tolerance(run: str) -> None:
+    """Round-four shapes that reached a sink indirectly are all refused.
+
+    Each defeated the pipeline-scoped tokenizer by putting distance between the
+    spliced word and the sink: a variable holding the shell name, a group piped
+    onwards, a glued interpreter flag, a line continuation inside the command
+    name, or a file staged in one pipeline and executed in another.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+_STAGED_SINK_NEGATIVE_CONTROL = (
+    # A brace expansion is not a compound command.
+    'mkdir -p "out/${{ inputs.name }}"/{a,b}',
+    # A group whose output is not piped keeps its own pipeline, so a sink
+    # inside it must not promote an expression outside it.
+    'if [ "${{ inputs.flag }}" = "true" ]; then curl -sSL http://x | sh; fi',
+    # A flag that merely looks like a code flag does not make an interpreter a
+    # sink.
+    'echo "${{ inputs.name }}" | python3 --version',
+    # A file written but never executed carries no dataflow to a sink.
+    'echo "${{ inputs.name }}" > /tmp/n; cat /tmp/n',
+)
+
+
+@pytest.mark.parametrize("run", _STAGED_SINK_NEGATIVE_CONTROL)
+def test_staged_sink_rules_do_not_over_tighten(run: str) -> None:
+    """The round-four rules leave neighbouring legitimate shapes alone.
+
+    Each of the four fixes narrows the guard, and every previous narrowing in
+    this file over-tightened at least once. These pin the boundary: brace
+    expansion is not a group, an unpiped group does not share its sink, a
+    non-code flag does not arm an interpreter, and an unexecuted file stages
+    nothing.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_staged_file_promotion_needs_both_a_write_and_an_execution() -> None:
+    """File-mediated promotion is a negative control against blanket promotion.
+
+    Promoting on the write alone would refuse every workflow that writes an
+    expression to a file, which is common. Only naming that file as a sink
+    argument connects the two pipelines.
+    """
+    staged = "echo 'c${{ inputs.x }}url http://y' > /tmp/f & sh /tmp/f"
+    unstaged = "echo 'c${{ inputs.x }}url http://y' > /tmp/f & sh /tmp/other"
+    assert policy._splices_expression_into_command_word(staged) is True
+    assert policy._splices_expression_into_command_word(unstaged) is False
