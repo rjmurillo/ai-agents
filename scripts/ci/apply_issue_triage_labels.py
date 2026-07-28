@@ -69,6 +69,39 @@ def _add_label(issue_number: str, label: str) -> bool:
     return result.returncode == 0
 
 
+def _record_label_operation(
+    *,
+    issue_number: str,
+    label: str,
+    create_description: str,
+    create_warning: str,
+    add_warning: str,
+    failed_labels: list[str],
+    failed_creates: list[str],
+    color: str | None = None,
+) -> None:
+    if not _ensure_label(label, create_description, color):
+        print(create_warning)
+        failed_creates.append(label)
+
+    if not _add_label(issue_number, label):
+        print(add_warning)
+        failed_labels.append(label)
+
+
+def _print_summary(*, failed_labels: list[str], failed_creates: list[str]) -> None:
+    if not failed_labels and not failed_creates:
+        return
+
+    print("")
+    print("=== LABEL OPERATIONS SUMMARY ===")
+    if failed_creates:
+        print(f"Failed to create labels: {', '.join(failed_creates)}")
+    if failed_labels:
+        print(f"Failed to apply labels: {', '.join(failed_labels)}")
+    print("===============================")
+
+
 def apply_labels(*, issue_number: str, labels_json: str, priority: str) -> int:
     failed_labels: list[str] = []
     failed_creates: list[str] = []
@@ -78,32 +111,30 @@ def apply_labels(*, issue_number: str, labels_json: str, priority: str) -> int:
             print(f"WARNING: Skipping invalid label: {label}")
             continue
 
-        if not _ensure_label(label, "Auto-created by AI triage"):
-            print(f"WARNING: Failed to create label: {label}")
-            failed_creates.append(label)
-
-        if not _add_label(issue_number, label):
-            print(f"WARNING: Failed to add label '{label}' to issue #{issue_number}")
-            failed_labels.append(label)
+        _record_label_operation(
+            issue_number=issue_number,
+            label=label,
+            create_description="Auto-created by AI triage",
+            create_warning=f"WARNING: Failed to create label: {label}",
+            add_warning=f"WARNING: Failed to add label '{label}' to issue #{issue_number}",
+            failed_labels=failed_labels,
+            failed_creates=failed_creates,
+        )
 
     if PRIORITY_PATTERN.fullmatch(priority):
         priority_label = f"priority:{priority}"
-        if not _ensure_label(priority_label, "Priority level", "FFA500"):
-            print(f"WARNING: Failed to create priority label: {priority_label}")
-            failed_creates.append(priority_label)
+        _record_label_operation(
+            issue_number=issue_number,
+            label=priority_label,
+            create_description="Priority level",
+            create_warning=f"WARNING: Failed to create priority label: {priority_label}",
+            add_warning=f"WARNING: Failed to add priority label '{priority_label}'",
+            failed_labels=failed_labels,
+            failed_creates=failed_creates,
+            color="FFA500",
+        )
 
-        if not _add_label(issue_number, priority_label):
-            print(f"WARNING: Failed to add priority label '{priority_label}'")
-            failed_labels.append(priority_label)
-
-    if failed_labels or failed_creates:
-        print("")
-        print("=== LABEL OPERATIONS SUMMARY ===")
-        if failed_creates:
-            print(f"Failed to create labels: {', '.join(failed_creates)}")
-        if failed_labels:
-            print(f"Failed to apply labels: {', '.join(failed_labels)}")
-        print("===============================")
+    _print_summary(failed_labels=failed_labels, failed_creates=failed_creates)
 
     return 0
 
