@@ -417,6 +417,46 @@ class TestExtract:
         assert code == EXIT_CONFIG
         assert "error_count" in out["error"]
 
+    @pytest.mark.parametrize("rate", [True, 2.0, -0.1])
+    def test_agent_report_refuses_impossible_rates(self, tmp_path, capsys, rate):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [rate]}},
+            },
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert "run must" in out["error"]
+        assert "C1" in out["error"]
+
+    @pytest.mark.parametrize("threshold", ["nan", "2"])
+    def test_agent_report_refuses_impossible_thresholds(
+        self, tmp_path, capsys, threshold
+    ):
+        report = _write(
+            tmp_path,
+            "report.json",
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}},
+            },
+        )
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            report,
+            "--pass-threshold",
+            threshold,
+        )
+        assert code == EXIT_CONFIG
+        assert "pass_threshold" in out["error"]
+
     def test_rule_scenarios(self, tmp_path, capsys):
         scenarios = _write(
             tmp_path,
@@ -680,9 +720,10 @@ class TestExtract:
     @pytest.mark.parametrize(
         "scores",
         [
-            {},
             {"activation_score": 5, "citation_score": 5},
             {"activation_score": 5, "citation_score": "5", "behavior_score": 5},
+            {"activation_score": 6, "citation_score": 5, "behavior_score": 5},
+            {"activation_score": 4.9, "citation_score": 5, "behavior_score": 5},
         ],
     )
     def test_rule_extract_refuses_malformed_judge_scores(
@@ -701,8 +742,40 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_CONFIG
-        assert "degraded rule report" in out["error"]
         assert "S4" in out["error"]
+
+    def test_rule_extract_refuses_impossible_min_score(self, tmp_path, capsys):
+        scenarios = _write(
+            tmp_path,
+            "scen.json",
+            [
+                {
+                    "id": "S5",
+                    "negative_case": False,
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": 5,
+                                "citation_score": 5,
+                                "behavior_score": 5,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            scenarios,
+            "--min-score",
+            "6",
+        )
+        assert code == EXIT_CONFIG
+        assert "min_score" in out["error"]
 
     def test_a_scenario_that_is_not_an_object_is_not_called_degraded(self, tmp_path, capsys):
         """A non-object entry has no id to report, so the scan skips it.

@@ -122,6 +122,26 @@ def _as_float(value: object, context: str, *, lo: float, hi: float) -> float:
     return float(value)
 
 
+def _as_rate(value: object, context: str) -> float:
+    return _as_float(value, context, lo=0.0, hi=_MAX_PASS_RATE)
+
+
+def _as_rule_score(value: object, context: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise AdapterError(
+            f"{context} must be a numeric integer score, got {value!r}"
+        )
+    if isinstance(value, float) and not math.isfinite(value):
+        raise AdapterError(f"{context} must be a finite integer score, got {value!r}")
+    if not isinstance(value, int):
+        raise AdapterError(f"{context} must be an integer score, got {value!r}")
+    if not 0 <= value <= _MAX_RULE_SCORE:
+        raise AdapterError(
+            f"{context} must be between 0.0 and {_MAX_RULE_SCORE}, got {value!r}"
+        )
+    return value
+
+
 def agent_results(
     report: Mapping[str, Any],
     variant: str,
@@ -153,6 +173,7 @@ def agent_results(
         raise AdapterError(
             f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
         )
+    pass_threshold = _as_rate(pass_threshold, "pass_threshold")
     if "per_fixture_pass_rates" not in report:
         raise AdapterError("report is missing per_fixture_pass_rates")
 
@@ -187,12 +208,7 @@ def agent_results(
             out[str(fixture_id)] = False
             continue
         values = [
-            _as_float(
-                v,
-                f"fixture {fixture_id!r} variant {variant!r} run",
-                lo=0.0,
-                hi=_MAX_PASS_RATE,
-            )
+            _as_rate(v, f"fixture {fixture_id!r} variant {variant!r} run")
             for v in runs
         ]
         out[str(fixture_id)] = reducer(values) >= pass_threshold
@@ -349,12 +365,7 @@ def _rule_run_scores(
         triple = [
             reducer(
                 [
-                    _as_float(
-                        sample[key],
-                        f"scenario {sid!r} {key}",
-                        lo=0.0,
-                        hi=_MAX_RULE_SCORE,
-                    )
+                    _as_rule_score(sample[key], f"scenario {sid!r} {key}")
                     for sample in samples
                 ]
             )
@@ -415,6 +426,7 @@ def rule_results(
             score that is not finite and numeric or falls outside the [0, 5]
             the judge is asked for and the producer clamps to.
     """
+    min_score = _as_float(min_score, "min_score", lo=0.0, hi=_MAX_RULE_SCORE)
     return {
         sid: score is not None and score >= min_score
         for sid, score in _rule_run_scores(
@@ -469,6 +481,7 @@ def rule_results_multi(
             some runs but not others, or any run is malformed in the ways
             `rule_results` refuses.
     """
+    min_score = _as_float(min_score, "min_score", lo=0.0, hi=_MAX_RULE_SCORE)
     if reduce not in _REDUCERS:
         raise AdapterError(
             f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
