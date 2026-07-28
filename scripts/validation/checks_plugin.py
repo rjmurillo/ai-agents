@@ -84,7 +84,7 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
 
 
 def validate_shipped_skill_routes(repo_root: Path) -> bool:
-    """Every ``Skill: <name>`` route in a shipped tree must resolve in that tree.
+    """Every ``Skill: <name>`` route in a plugin root must resolve in that root.
 
     Wraps ``scripts/validation/check_shipped_skill_routes.py``. Catches the
     coordination-drift class where a skill is deliberately dropped from a
@@ -93,6 +93,11 @@ def validate_shipped_skill_routes(repo_root: Path) -> bool:
     Copilot toolkit as repo-specific; ``autoplan`` kept routing to it, so a
     consumer with a merge conflict was sent to a skill the plugin does not
     contain. Every gate passed because each control plane was self-consistent.
+
+    The check carries no allowlist, so it also fails a route naming a skill
+    that exists nowhere. Exit 2 (a vacuous scan, an unreadable file, no plugin
+    root) is treated as failure alongside exit 1: a gate that could not run has
+    not passed.
 
     Fails closed when the validator is absent rather than raising
     MissingScriptSkip; a silent skip would defeat the gate.
