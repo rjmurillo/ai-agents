@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T08:30:08.374208+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22681,6 +22681,96 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "23e34f053e9b",
+      "type": "milestone",
+      "label": "milestone: Created an isolated PR worktree to avoid unrelated dirty files in the main checkout.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367562+00:00"
+    },
+    {
+      "id": "992614e505f0",
+      "type": "milestone",
+      "label": "milestone: Replaced the million-digit ratio tests with guards that assert the length-guard message and monkeypatch Decimal to prove parsing is not reached.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367668+00:00"
+    },
+    {
+      "id": "77d2f7e8ec44",
+      "type": "milestone",
+      "label": "milestone: Replaced semantic truncation tests with marker and original-length assertions for strict range, test range, ratio sum, no-opt, and no-held-out paths.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367755+00:00"
+    },
+    {
+      "id": "dc8cb808aeba",
+      "type": "milestone",
+      "label": "milestone: Added a false test_ratio split-file case that fails if bool exclusion is removed from the legacy numeric schema detector.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367835+00:00"
+    },
+    {
+      "id": "fc7b4d8d9aa9",
+      "type": "milestone",
+      "label": "milestone: Bounded min_sel in the core split error and the legacy numeric split error, then added long-value tests for both.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367916+00:00"
+    },
+    {
+      "id": "98473142029b",
+      "type": "milestone",
+      "label": "milestone: Ran scratch reverts for the three review findings plus both min_sel messages. Every changed regression test failed under its matching revert.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.367996+00:00"
+    },
+    {
+      "id": "d7e60bd2f2b1",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3641 for the five robustness gaps confirmed pre-existing on origin/main.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.368076+00:00"
+    },
+    {
+      "id": "004186ad4150",
+      "type": "milestone",
+      "label": "milestone: First push attempt failed only on missing retrospective evidence after running the full pre-push suite. This session log records the retrospective evidence and will be pushed in the second attempt.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.368155+00:00"
+    },
+    {
+      "id": "31e055d06f27",
+      "type": "commit",
+      "label": "commit: Commit: b2e18163a",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.368238+00:00"
+    },
+    {
+      "id": "487893fcebf1",
+      "type": "outcome",
+      "label": "Outcome: success - Close PR #3510 round 7 review by making the ratio bound tests non-tautological, bounding two min_sel messages, filing the pre-existing robustness follow-up, and merging the PR.",
+      "episodes": [
+        "episode-2026-07-27-session-3510-ratio-coefficient-round7"
+      ],
+      "created": "2026-07-28T08:30:08.368320+00:00"
     }
   ],
   "patterns": [
