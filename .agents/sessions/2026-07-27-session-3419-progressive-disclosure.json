@@ -79,12 +79,12 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "instruction_budget passed at .py 94764, .cs 94641, .ps1 94473, .md 81622 bytes. Targeted pytest passed 269 selected tests. SkillForge passed for software-engineering-library. Orphan reference findings in touched markdown were fixed."
+        "Evidence": "Round 2 targeted eval tests passed locally. Full validation pending final pre-push run."
       },
       "adrReviewEvidence": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "adr-review skill invoked. Debate log .agents/critique/ADR-088-debate-log.md records architect, critic, independent-thinker, security, analyst, and high-level-advisor review with accept verdicts. PR review follow-up added measured rollback trigger and post-investigation routing to ADR-088."
+        "Evidence": "adr-review skill invoked again for amended ADR-088. Debate log .agents/critique/ADR-088-debate-log.md records round 2 accept or disagree-and-commit convergence with no P0 or P1 blockers."
       }
     }
   },
@@ -120,6 +120,22 @@
     {
       "phase": "PR review follow-up",
       "summary": "Added autoplan and analyze routes for software-engineering-library, migrated activation evals to skill references, added enterprise-patterns and data-intensive-applications fixtures, fixed live deleted-rule references, and recorded ADR rollback criteria."
+    },
+    {
+      "phase": "Round 2 conflict resolution",
+      "summary": "Merged origin/main into fix/3419-progressive-disclosure after PR #3507 became conflicting. Conflict candidates were causal-graph.json, scripts/eval/README.md, and tests/eval/test_optimize_artifact_cli.py; git auto-merged them."
+    },
+    {
+      "phase": "Round 2 activation fixes",
+      "summary": "Added behavioral routing tests that read autoplan, analyze, and software-engineering-library. Reproduced the synthetic evaluator false pass before the fix and confirmed it fails after the fix."
+    },
+    {
+      "phase": "Round 2 reference triage",
+      "summary": "Repointed two ordinary live deleted-rule references, amended ADR references with dated current-path notes, and kept historical records unchanged."
+    },
+    {
+      "phase": "Round 2 ADR review",
+      "summary": "Re-ran adr-review on amended ADR-088 and appended round 2 convergence evidence to the debate log. Filed issue #3589 for the wired rollback trigger."
     }
   ],
   "outcomes": {
@@ -150,6 +166,6 @@
   },
   "endingCommit": "",
   "nextSteps": [
-    "Open PR with Refs #3419 and acceptance criteria notes."
+    "Push PR #3507 after final validation. Do not self-merge."
   ]
 }

@@ -96,6 +96,54 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into fix/3419-progressive-disclosure after PR #3507 became conflicting. Conflict candidates were causal-graph.json, scripts/eval/README.md, and tests/eval/test_optimize_artifact_cli.py; git auto-merged them.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added behavioral routing tests that read autoplan, analyze, and software-engineering-library. Reproduced the synthetic evaluator false pass before the fix and confirmed it fails after the fix.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed two ordinary live deleted-rule references, amended ADR references with dated current-path notes, and kept historical records unchanged.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran adr-review on amended ADR-088 and appended round 2 convergence evidence to the debate log. Filed issue #3589 for the wired rollback trigger.",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": []
     }
   ],
