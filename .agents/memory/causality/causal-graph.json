@@ -20079,50 +20079,40 @@
       "created": "2026-07-27T01:45:53.050088+00:00"
     },
     {
-      "id": "67ded865ef9c",
+      "id": "fcb6f96ff092",
       "type": "milestone",
-      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159793+00:00"
-    },
-    {
-      "id": "f2d7d47e373c",
-      "type": "milestone",
-      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159876+00:00"
-    },
-    {
-      "id": "8483b7aa02d2",
-      "type": "milestone",
-      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159951+00:00"
-    },
-    {
-      "id": "c2dd9c2d885d",
-      "type": "milestone",
-      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160023+00:00"
-    },
-    {
-      "id": "6e5bea63d2be",
-      "type": "commit",
-      "label": "commit: Commit: 19d4a761",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:09:55.160095+00:00"
+      "created": "2026-07-27T04:45:13.317091+00:00"
+    },
+    {
+      "id": "d9a52f8e4422",
+      "type": "milestone",
+      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317207+00:00"
+    },
+    {
+      "id": "99e8b9814264",
+      "type": "milestone",
+      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317283+00:00"
+    },
+    {
+      "id": "f45b7eb16607",
+      "type": "milestone",
+      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317373+00:00"
     },
     {
       "id": "740e7f0c9204",
@@ -20133,25 +20123,6 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:09:55.160168+00:00"
-    },
-    {
-      "id": "d39c4dcdb31a",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160242+00:00"
-    },
-    {
-      "id": "22a60c38150d",
-      "type": "commit",
-      "label": "commit: Commit: 9f1df6b3",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:24:15.154595+00:00"
     },
     {
       "id": "dc2a616055e1",
@@ -20224,6 +20195,16 @@
       "created": "2026-07-27T04:24:15.155119+00:00"
     },
     {
+      "id": "6e5bea63d2be",
+      "type": "commit",
+      "label": "commit: Commit: 19d4a761",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:09:55.160095+00:00"
+    },
+    {
       "id": "3c207343a40b",
       "type": "commit",
       "label": "commit: Commit: 1bf125d7",
@@ -20232,6 +20213,52 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155191+00:00"
+    },
+    {
+      "id": "22a60c38150d",
+      "type": "commit",
+      "label": "commit: Commit: 9f1df6b3",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:24:15.154595+00:00"
+    },
+    {
+      "id": "e0f161010107",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.318386+00:00"
+    },
+    {
+      "id": "2d5d7edffe7e",
+      "type": "milestone",
+      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294867+00:00"
+    },
+    {
+      "id": "8a2cea8f7bc4",
+      "type": "milestone",
+      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294953+00:00"
+    },
+    {
+      "id": "59384feeea81",
+      "type": "commit",
+      "label": "commit: Commit: c40fc2b3",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:14:10.574057+00:00"
     },
     {
       "id": "6eafa0686f54",
@@ -20322,6 +20349,60 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:49:49.793110+00:00"
+    },
+    {
+      "id": "3be75c7c8f0d",
+      "type": "milestone",
+      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:34:46.577440+00:00"
+    },
+    {
+      "id": "67ded865ef9c",
+      "type": "milestone",
+      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159793+00:00"
+    },
+    {
+      "id": "f2d7d47e373c",
+      "type": "milestone",
+      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159876+00:00"
+    },
+    {
+      "id": "8483b7aa02d2",
+      "type": "milestone",
+      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159951+00:00"
+    },
+    {
+      "id": "c2dd9c2d885d",
+      "type": "milestone",
+      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160023+00:00"
+    },
+    {
+      "id": "d39c4dcdb31a",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160242+00:00"
     },
     {
       "id": "e17a5f8f0260",
@@ -20421,159 +20502,6 @@
         "episode-2026-07-26-session-3402-plugin-self-containment"
       ],
       "created": "2026-07-27T05:58:30.440248+00:00"
-    },
-    {
-      "id": "fa8c918f8fa0",
-      "type": "milestone",
-      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.811965+00:00"
-    },
-    {
-      "id": "fae5e4dee3ee",
-      "type": "milestone",
-      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812053+00:00"
-    },
-    {
-      "id": "8425e192230d",
-      "type": "milestone",
-      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812129+00:00"
-    },
-    {
-      "id": "0c4b2ecdcdbe",
-      "type": "milestone",
-      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812203+00:00"
-    },
-    {
-      "id": "442eb62cfbff",
-      "type": "milestone",
-      "label": "milestone: Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812276+00:00"
-    },
-    {
-      "id": "c7388b1a8df4",
-      "type": "commit",
-      "label": "commit: Commit: ac9a29da8",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812349+00:00"
-    },
-    {
-      "id": "5bff97ce7760",
-      "type": "outcome",
-      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812423+00:00"
-    },
-    {
-      "id": "de932fb4f79c",
-      "type": "milestone",
-      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:34:27.612874+00:00"
-    },
-    {
-      "id": "fcb6f96ff092",
-      "type": "milestone",
-      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317091+00:00"
-    },
-    {
-      "id": "d9a52f8e4422",
-      "type": "milestone",
-      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317207+00:00"
-    },
-    {
-      "id": "99e8b9814264",
-      "type": "milestone",
-      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317283+00:00"
-    },
-    {
-      "id": "f45b7eb16607",
-      "type": "milestone",
-      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317373+00:00"
-    },
-    {
-      "id": "e0f161010107",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.318386+00:00"
-    },
-    {
-      "id": "2d5d7edffe7e",
-      "type": "milestone",
-      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294867+00:00"
-    },
-    {
-      "id": "8a2cea8f7bc4",
-      "type": "milestone",
-      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294953+00:00"
-    },
-    {
-      "id": "59384feeea81",
-      "type": "commit",
-      "label": "commit: Commit: c40fc2b3",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:14:10.574057+00:00"
-    },
-    {
-      "id": "3be75c7c8f0d",
-      "type": "milestone",
-      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:34:46.577440+00:00"
     },
     {
       "id": "0100c10367bc",
@@ -20907,69 +20835,6 @@
         "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
       "created": "2026-07-27T09:04:44.443947+00:00"
-    },
-    {
-      "id": "65d72b61f137",
-      "type": "milestone",
-      "label": "milestone: First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.417676+00:00"
-    },
-    {
-      "id": "4ec2e5bc818b",
-      "type": "milestone",
-      "label": "milestone: A held-out ACCEPT, which the loop is built to treat as the win condition.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.417766+00:00"
-    },
-    {
-      "id": "d5c4e859e43d",
-      "type": "milestone",
-      "label": "milestone: 489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.417921+00:00"
-    },
-    {
-      "id": "3239ab2ba03b",
-      "type": "commit",
-      "label": "commit: Commit: 06f74397",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.417996+00:00"
-    },
-    {
-      "id": "7272b538ea35",
-      "type": "outcome",
-      "label": "Outcome: success - Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T10:31:21.418072+00:00"
-    },
-    {
-      "id": "874bf27c1790",
-      "type": "milestone",
-      "label": "milestone: Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T11:02:17.724761+00:00"
-    },
-    {
-      "id": "9f80a20fcf70",
-      "type": "commit",
-      "label": "commit: Commit: a5791784c",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T11:02:17.724848+00:00"
     },
     {
       "id": "c84e7ed0eeb4",
@@ -21323,6 +21188,78 @@
       "created": "2026-07-27T09:40:56.261899+00:00"
     },
     {
+      "id": "fa8c918f8fa0",
+      "type": "milestone",
+      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.811965+00:00"
+    },
+    {
+      "id": "fae5e4dee3ee",
+      "type": "milestone",
+      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812053+00:00"
+    },
+    {
+      "id": "8425e192230d",
+      "type": "milestone",
+      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812129+00:00"
+    },
+    {
+      "id": "0c4b2ecdcdbe",
+      "type": "milestone",
+      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812203+00:00"
+    },
+    {
+      "id": "442eb62cfbff",
+      "type": "milestone",
+      "label": "milestone: Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812276+00:00"
+    },
+    {
+      "id": "c7388b1a8df4",
+      "type": "commit",
+      "label": "commit: Commit: ac9a29da8",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812349+00:00"
+    },
+    {
+      "id": "5bff97ce7760",
+      "type": "outcome",
+      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812423+00:00"
+    },
+    {
+      "id": "de932fb4f79c",
+      "type": "milestone",
+      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:34:27.612874+00:00"
+    },
+    {
       "id": "031157b555e6",
       "type": "milestone",
       "label": "milestone: fix-grammar",
@@ -21504,346 +21441,112 @@
       "created": "2026-07-27T11:25:54.835838+00:00"
     },
     {
-      "id": "0d025ac46b68",
+      "id": "1f945a2ff014",
       "type": "milestone",
-      "label": "milestone: The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky.",
+      "label": "milestone: Read the wiki page Skill Description as Loadtime Trigger and .agents/governance/skill-description-trigger-standard.md. Both state the description is the only text loaded at routing time and must carry phrases the user would actually say.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.778406+00:00"
+      "created": "2026-07-27T13:16:42.511604+00:00"
     },
     {
-      "id": "0434da2798b6",
+      "id": "3215c124d032",
       "type": "milestone",
-      "label": "milestone: 489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean.",
+      "label": "milestone: Measured trigger presence twice, wrong both times. A regex for Use (when|for|to) counted the negative clause Do NOT use to as a positive trigger, flagging 8. Stripping negative clauses gave 9. Reading all 9 by hand showed 5 were false positives because the corpus also uses Trigger on, Apply when, Run after, Use PROACTIVELY after, and Designed to be invoked.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.778867+00:00"
+      "created": "2026-07-27T13:16:42.511709+00:00"
     },
     {
-      "id": "66a6b6a81c15",
+      "id": "a905926914eb",
       "type": "milestone",
-      "label": "milestone: WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured.",
+      "label": "milestone: Abandoned the phrasing heuristic for a checkable predicate. 48 of 96 skills carry a ## Triggers table whose first column holds backticked user phrases. Testing case-insensitive membership of those phrases in the skill's own description found 21 skills matching zero of their own documented phrases, covering 150 phrases the router never sees.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.778948+00:00"
+      "created": "2026-07-27T13:16:42.511792+00:00"
     },
     {
-      "id": "70ac449ed2f2",
+      "id": "74bc526b24b8",
       "type": "milestone",
-      "label": "milestone: All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file.",
+      "label": "milestone: Scoped the change to the 13 of those 21 that carry no quoted user phrase of any kind. The other 8 already have some phrase surface, so choosing between two phrasings is a judgement call that belongs in a separate argument.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779026+00:00"
+      "created": "2026-07-27T13:16:42.511872+00:00"
     },
     {
-      "id": "80a248cd0a52",
+      "id": "f52d3936d60e",
       "type": "milestone",
-      "label": "milestone: A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none.",
+      "label": "milestone: Wrote the edit as a script with three assertions worked out by hand before running: placement ahead of any Do NOT clause, YAML round-trip preserving the value byte for byte, and the key set unchanged. Each new description was checked under 1024 characters with no angle brackets.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779103+00:00"
+      "created": "2026-07-27T13:16:42.511951+00:00"
     },
     {
-      "id": "1ae8871d9198",
+      "id": "8ad06f6b688f",
       "type": "milestone",
-      "label": "milestone: 1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "label": "milestone: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779181+00:00"
+      "created": "2026-07-27T13:16:42.512030+00:00"
     },
     {
-      "id": "4b694bdbe893",
+      "id": "21d35a56bc40",
       "type": "test",
-      "label": "test: ['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
+      "label": "test: Verified after the edit: skill_frontmatter.py reports 96 of 96 passed; every source description matches its src/copilot-cli mirror; the zero-coverage count fell from 21 to 10.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779258+00:00"
+      "created": "2026-07-27T13:16:42.512109+00:00"
     },
     {
-      "id": "8c6db17b7b83",
+      "id": "4be1ca835a95",
       "type": "milestone",
-      "label": "milestone: Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file.",
+      "label": "milestone: Measured the cost honestly. The 13 descriptions grew by 1,270 bytes total, roughly 318 tokens added to the permanently loaded description block.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779334+00:00"
+      "created": "2026-07-27T13:16:42.512191+00:00"
     },
     {
-      "id": "aaccea3a96a6",
+      "id": "1a772b3a69c1",
       "type": "milestone",
-      "label": "milestone: Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output.",
+      "label": "milestone: Dropped 2 of the intended 13. The skillforge pre-commit hook rejected observability and taste-lints for pre-existing structural errors: observability documents its scripts under ## Available Scripts rather than ## Scripts, and taste-lints has neither a Scripts section nor a Verification section. Confirmed pre-existing by reading both files as they stand on origin/main. The hook only inspects staged files, so both failures were latent until an unrelated edit staged them.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:46:48.779413+00:00"
+      "created": "2026-07-27T13:16:42.512270+00:00"
     },
     {
-      "id": "26799f652879",
-      "type": "commit",
-      "label": "commit: Commit: e8f3cb0fe8871786efaeb82225d72d0c49906348",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T13:46:48.779489+00:00"
-    },
-    {
-      "id": "8ebcd100cf51",
+      "id": "4dc22f7d7389",
       "type": "milestone",
-      "label": "milestone: Reported that the rule-path finding was independently corroborated on the agent benchmark: twelve of twenty-four agent fixtures moving on identical input. RETRACTED the same day and withdrawn in full. The two runs disagree on fixture_set_sha, so the corpus changed alongside the prompt and the comparison was confounded, not a null control. No valid agent-path null control exists in the repository. What survives: the rule path has a live null control, and the hook path needs none because pytest results are deterministic.",
+      "label": "milestone: Kept the two changes separate rather than authoring structural sections inside a phrase-promotion change. Filed #3496 with the exact errors, the reason each is latent, and the two description sentences it should land once the structure is fixed.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T13:49:37.578432+00:00"
+      "created": "2026-07-27T13:16:42.512349+00:00"
     },
     {
-      "id": "a05995b18c55",
+      "id": "87e5c48b0178",
       "type": "milestone",
-      "label": "milestone: Seven review threads closed, and the two highest-priority were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. Three lessons generalize. A retraction is not complete when the source document carries it, only when every derived artifact does, and SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. Asserting that both numbers appear in a refusal does not test that a reader can tell which is which. And a number carried into five documents by copying is corrected in five places or in none, with the test docstring the most likely to be missed, because nobody greps rationale prose when they change a claim.",
+      "label": "milestone: Final cost, measured on the 11 that landed: 1,102 bytes added to the permanently loaded description block, roughly 276 tokens.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T14:58:54.368397+00:00"
+      "created": "2026-07-27T13:16:42.512430+00:00"
     },
     {
-      "id": "fff44aa4ee59",
-      "type": "milestone",
-      "label": "milestone: The statistical claim is correct in all five places it lives, and every review thread on PR #3478 is answered and resolved. Defect shape 21 generalizes one level up: it was first diagnosed as a retraction that stops at the source document and leaves the generated tier asserting a withdrawn claim, and the independence figure is the same failure in prose. A number copied into five documents is corrected in five places or in none, and the test docstring is the one most likely to be missed because nobody greps rationale prose when they change a claim.",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T14:58:54.368488+00:00"
-    },
-    {
-      "id": "43661f33c1f0",
-      "type": "commit",
-      "label": "commit: Commit: c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T14:58:54.368568+00:00"
-    },
-    {
-      "id": "cfdc4a24bbfd",
-      "type": "milestone",
-      "label": "milestone: Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456565+00:00"
-    },
-    {
-      "id": "d2dabb36d649",
-      "type": "milestone",
-      "label": "milestone: All 33 files are eval outputs. No genuine planning JSON was left behind.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456666+00:00"
-    },
-    {
-      "id": "a40e7874d46a",
-      "type": "milestone",
-      "label": "milestone: The eval system of record now contains the agent-slimming outputs without JSON byte changes.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456747+00:00"
-    },
-    {
-      "id": "f1b7526d4293",
-      "type": "milestone",
-      "label": "milestone: Artifact integrity checks passed before final validation.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456822+00:00"
-    },
-    {
-      "id": "3d84d690720f",
-      "type": "milestone",
-      "label": "milestone: Branch is ready for documentation and session-log commits, then push and PR creation.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456897+00:00"
-    },
-    {
-      "id": "9a14322ed7b1",
-      "type": "commit",
-      "label": "commit: Commit: c1186bbf6",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.456972+00:00"
-    },
-    {
-      "id": "8cbbf4a2e573",
-      "type": "commit",
-      "label": "commit: Commit: 977d5568a",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457046+00:00"
-    },
-    {
-      "id": "a32309cbb296",
-      "type": "commit",
-      "label": "commit: Commit: 7ce1ef95d",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457120+00:00"
-    },
-    {
-      "id": "5a6bbfcd1daa",
-      "type": "commit",
-      "label": "commit: Commit: e898ab722",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457194+00:00"
-    },
-    {
-      "id": "3c0cd5d8f07f",
-      "type": "commit",
-      "label": "commit: Commit: 0d4ff0275",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457271+00:00"
-    },
-    {
-      "id": "0920ab5571a6",
-      "type": "commit",
-      "label": "commit: Commit: 032d1c73a",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457345+00:00"
-    },
-    {
-      "id": "7041bb3cd2c4",
-      "type": "commit",
-      "label": "commit: Commit: d1aa0a2aa",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:39:05.457418+00:00"
-    },
-    {
-      "id": "ce274bd75127",
+      "id": "eef8ee36e741",
       "type": "outcome",
-      "label": "Outcome: success - Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record",
+      "label": "Outcome: success - Promote already-documented trigger phrases from ## Triggers tables into the skill descriptions that carry none, so the router can see them at load time. Refs #3494.",
       "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+        "episode-2026-07-27-session-3494-skill-description-triggers"
       ],
-      "created": "2026-07-27T12:39:05.457493+00:00"
-    },
-    {
-      "id": "5a584c6746e6",
-      "type": "milestone",
-      "label": "milestone: Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:44:25.271725+00:00"
-    },
-    {
-      "id": "bc099e5f78b5",
-      "type": "milestone",
-      "label": "milestone: Branch is current with origin/main and remains within the requested scope.",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.855693+00:00"
-    },
-    {
-      "id": "1f0ce7fe19a3",
-      "type": "commit",
-      "label": "commit: Commit: 31b993c42",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.855779+00:00"
-    },
-    {
-      "id": "a02ca49f7688",
-      "type": "commit",
-      "label": "commit: Commit: 89409bd60",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.855855+00:00"
-    },
-    {
-      "id": "97408e274c65",
-      "type": "commit",
-      "label": "commit: Commit: 1bb576b9e",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.855930+00:00"
-    },
-    {
-      "id": "d822c9419f54",
-      "type": "commit",
-      "label": "commit: Commit: fa7669ffe",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856005+00:00"
-    },
-    {
-      "id": "ce2586037743",
-      "type": "commit",
-      "label": "commit: Commit: cb53ef0d7",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856081+00:00"
-    },
-    {
-      "id": "f48043a64bca",
-      "type": "commit",
-      "label": "commit: Commit: 069318da9",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856163+00:00"
-    },
-    {
-      "id": "45a9ccf0ae94",
-      "type": "commit",
-      "label": "commit: Commit: 8d9712744",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856239+00:00"
-    },
-    {
-      "id": "13f116a83c37",
-      "type": "commit",
-      "label": "commit: Commit: b791f3391",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856313+00:00"
-    },
-    {
-      "id": "c4c3f10659c4",
-      "type": "commit",
-      "label": "commit: Commit: c2234c9fe",
-      "episodes": [
-        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
-      ],
-      "created": "2026-07-27T12:49:56.856388+00:00"
+      "created": "2026-07-27T13:16:42.512510+00:00"
     },
     {
       "id": "c71da9963354",
@@ -22089,49 +21792,274 @@
       "created": "2026-07-27T12:43:51.820251+00:00"
     },
     {
-      "id": "df45caecfb14",
-      "type": "commit",
-      "label": "commit: Commit: 44be0404f",
+      "id": "cfdc4a24bbfd",
+      "type": "milestone",
+      "label": "milestone: Issue option 1 selected by the user. evals/ is the system of record for committed eval inputs and outputs.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
-      "created": "2026-07-27T15:39:43.330484+00:00"
+      "created": "2026-07-27T12:39:05.456565+00:00"
     },
     {
-      "id": "b00127f91473",
-      "type": "commit",
-      "label": "commit: Commit: b32f4bd16",
+      "id": "d2dabb36d649",
+      "type": "milestone",
+      "label": "milestone: All 33 files are eval outputs. No genuine planning JSON was left behind.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
-      "created": "2026-07-27T16:22:46.495927+00:00"
+      "created": "2026-07-27T12:39:05.456666+00:00"
     },
     {
-      "id": "f31c4222a3a2",
-      "type": "commit",
-      "label": "commit: Commit: a541a88cd",
+      "id": "a40e7874d46a",
+      "type": "milestone",
+      "label": "milestone: The eval system of record now contains the agent-slimming outputs without JSON byte changes.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
-      "created": "2026-07-27T16:48:35.469179+00:00"
+      "created": "2026-07-27T12:39:05.456747+00:00"
     },
     {
-      "id": "a3ef3f11709c",
-      "type": "commit",
-      "label": "commit: Commit: a33c5c089",
+      "id": "f1b7526d4293",
+      "type": "milestone",
+      "label": "milestone: Artifact integrity checks passed before final validation.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
-      "created": "2026-07-27T17:12:30.599328+00:00"
+      "created": "2026-07-27T12:39:05.456822+00:00"
     },
     {
-      "id": "7c22c72ea37d",
-      "type": "commit",
-      "label": "commit: Commit: 7d8a015a3",
+      "id": "3d84d690720f",
+      "type": "milestone",
+      "label": "milestone: Branch is ready for documentation and session-log commits, then push and PR creation.",
       "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
       ],
-      "created": "2026-07-27T17:13:48.817711+00:00"
+      "created": "2026-07-27T12:39:05.456897+00:00"
+    },
+    {
+      "id": "9a14322ed7b1",
+      "type": "commit",
+      "label": "commit: Commit: c1186bbf6",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.456972+00:00"
+    },
+    {
+      "id": "8cbbf4a2e573",
+      "type": "commit",
+      "label": "commit: Commit: 977d5568a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457046+00:00"
+    },
+    {
+      "id": "a32309cbb296",
+      "type": "commit",
+      "label": "commit: Commit: 7ce1ef95d",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457120+00:00"
+    },
+    {
+      "id": "5a6bbfcd1daa",
+      "type": "commit",
+      "label": "commit: Commit: e898ab722",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457194+00:00"
+    },
+    {
+      "id": "3c0cd5d8f07f",
+      "type": "commit",
+      "label": "commit: Commit: 0d4ff0275",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457271+00:00"
+    },
+    {
+      "id": "0920ab5571a6",
+      "type": "commit",
+      "label": "commit: Commit: 032d1c73a",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457345+00:00"
+    },
+    {
+      "id": "7041bb3cd2c4",
+      "type": "commit",
+      "label": "commit: Commit: d1aa0a2aa",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457418+00:00"
+    },
+    {
+      "id": "ce274bd75127",
+      "type": "outcome",
+      "label": "Outcome: success - Re-home 33 agent-slimming eval JSON outputs from the planning archive into the eval system of record",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:39:05.457493+00:00"
+    },
+    {
+      "id": "5a584c6746e6",
+      "type": "milestone",
+      "label": "milestone: Readers of the archived markdown report can find its JSON outputs in evals/agent-slimming-spike/.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:44:25.271725+00:00"
+    },
+    {
+      "id": "bc099e5f78b5",
+      "type": "milestone",
+      "label": "milestone: Branch is current with origin/main and remains within the requested scope.",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855693+00:00"
+    },
+    {
+      "id": "1f0ce7fe19a3",
+      "type": "commit",
+      "label": "commit: Commit: 31b993c42",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855779+00:00"
+    },
+    {
+      "id": "a02ca49f7688",
+      "type": "commit",
+      "label": "commit: Commit: 89409bd60",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855855+00:00"
+    },
+    {
+      "id": "97408e274c65",
+      "type": "commit",
+      "label": "commit: Commit: 1bb576b9e",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.855930+00:00"
+    },
+    {
+      "id": "d822c9419f54",
+      "type": "commit",
+      "label": "commit: Commit: fa7669ffe",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856005+00:00"
+    },
+    {
+      "id": "ce2586037743",
+      "type": "commit",
+      "label": "commit: Commit: cb53ef0d7",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856081+00:00"
+    },
+    {
+      "id": "f48043a64bca",
+      "type": "commit",
+      "label": "commit: Commit: 069318da9",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856163+00:00"
+    },
+    {
+      "id": "45a9ccf0ae94",
+      "type": "commit",
+      "label": "commit: Commit: 8d9712744",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856239+00:00"
+    },
+    {
+      "id": "13f116a83c37",
+      "type": "commit",
+      "label": "commit: Commit: b791f3391",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856313+00:00"
+    },
+    {
+      "id": "c4c3f10659c4",
+      "type": "commit",
+      "label": "commit: Commit: c2234c9fe",
+      "episodes": [
+        "episode-2026-07-27-session-3435-refile-agent-slim-evals"
+      ],
+      "created": "2026-07-27T12:49:56.856388+00:00"
+    },
+    {
+      "id": "d95b860f8416",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol measured the coverage gap twice with two independent extractors and reported 22 to 11 where this PR claimed 21 to 10. Rather than accept or dismiss it, traced the single-skill difference: orphan-ref-validator.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461342+00:00"
+    },
+    {
+      "id": "607d6b95bac4",
+      "type": "milestone",
+      "label": "milestone: Found that both numbers are right under their own predicate, and that mine was the weaker one. orphan-ref-validator's description contains the literal string /build Mandatory Exit Gate, which happens to contain the table phrase build mandatory exit gate as a substring. A plain substring test therefore scored it as covered. It is not covered in any useful sense: build mandatory exit gate is a lifecycle descriptor, not something a user says, and the skill's three real user phrases were all absent.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461431+00:00"
+    },
+    {
+      "id": "994ee588e9ed",
+      "type": "milestone",
+      "label": "milestone: Fixed the skill rather than only the number. Promoted the three real phrases into orphan-ref-validator, making it the twelfth skill in this change. Re-measured under both predicates against the working tree: the loose substring measure goes 21 to 10, the strict measure that requires a genuine quoted user phrase goes 31 to 19. The PR now names which predicate produces which number instead of quoting one without saying how it was computed.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461513+00:00"
+    },
+    {
+      "id": "5ff42ce513f2",
+      "type": "milestone",
+      "label": "milestone: Took a second review finding on routing rather than phrase honesty. The phrase respond to review comments came from the github skill's own trigger table, so it passed the no-invented-phrase check, but pr-comment-responder already owns that request and explicitly tells the reader not to use it for the single-comment case that the github table row actually points at. Promoting it would have pulled the generic skill in front of the specialist. Swapped it for add label to issue, which is also literal from the github table and which no other skill claims.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461591+00:00"
+    },
+    {
+      "id": "ebe3e828f792",
+      "type": "milestone",
+      "label": "milestone: Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140.",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461675+00:00"
+    },
+    {
+      "id": "089005f392df",
+      "type": "commit",
+      "label": "commit: Commit: 3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+      "episodes": [
+        "episode-2026-07-27-session-3494-skill-description-triggers"
+      ],
+      "created": "2026-07-27T16:42:17.461754+00:00"
     },
     {
       "id": "a5f583a537a7",
@@ -22339,141 +22267,6 @@
         "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
       "created": "2026-07-27T13:33:30.219770+00:00"
-    },
-    {
-      "id": "7840f8c99af5",
-      "type": "commit",
-      "label": "commit: Commit: f6057de64",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T17:47:42.984198+00:00"
-    },
-    {
-      "id": "a6ed7477d03a",
-      "type": "commit",
-      "label": "commit: Commit: 1009eb761",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T17:55:43.996144+00:00"
-    },
-    {
-      "id": "7f952d443ce8",
-      "type": "commit",
-      "label": "commit: Commit: bac4cf0e7",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T18:06:36.013496+00:00"
-    },
-    {
-      "id": "f6c862cc59db",
-      "type": "commit",
-      "label": "commit: Commit: e3bdae5bb",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T18:18:32.552207+00:00"
-    },
-    {
-      "id": "aa4c75476fd1",
-      "type": "commit",
-      "label": "commit: Commit: cdd704367",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T18:28:50.407656+00:00"
-    },
-    {
-      "id": "41330814da8d",
-      "type": "commit",
-      "label": "commit: Commit: de1e96c31",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T18:36:33.379805+00:00"
-    },
-    {
-      "id": "55dbdd9636a4",
-      "type": "commit",
-      "label": "commit: Commit: feb236208",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T18:59:21.256149+00:00"
-    },
-    {
-      "id": "2424ed3f32e1",
-      "type": "commit",
-      "label": "commit: Commit: 8810db74e",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T19:18:16.468657+00:00"
-    },
-    {
-      "id": "62471a6f2a52",
-      "type": "commit",
-      "label": "commit: Commit: 11c2ba505",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T19:28:15.557951+00:00"
-    },
-    {
-      "id": "2292577f5c33",
-      "type": "commit",
-      "label": "commit: Commit: 66029eb45",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T19:38:35.560689+00:00"
-    },
-    {
-      "id": "e9da64bac227",
-      "type": "commit",
-      "label": "commit: Commit: 185fc7631",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T19:55:27.388315+00:00"
-    },
-    {
-      "id": "4694386bdbdc",
-      "type": "commit",
-      "label": "commit: Commit: 136840822",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T20:16:18.409375+00:00"
-    },
-    {
-      "id": "ce6aae9fb99f",
-      "type": "commit",
-      "label": "commit: Commit: db48b1c65",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T20:22:25.573133+00:00"
-    },
-    {
-      "id": "530833114165",
-      "type": "commit",
-      "label": "commit: Commit: a9154fc2d",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T20:54:58.709262+00:00"
-    },
-    {
-      "id": "bcdcd2c47208",
-      "type": "commit",
-      "label": "commit: Commit: 4710c7ee4",
-      "episodes": [
-        "episode-2026-07-27-session-3468-eval-gate-significance"
-      ],
-      "created": "2026-07-27T21:04:17.965174+00:00"
     },
     {
       "id": "6850aee5d39b",
@@ -22701,58 +22494,535 @@
       "created": "2026-07-27T16:34:01.954991+00:00"
     },
     {
-      "id": "1070b8f189e0",
+      "id": "65d72b61f137",
       "type": "milestone",
-      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
+      "label": "milestone: First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T04:33:56.615224+00:00"
+      "created": "2026-07-27T10:31:21.417676+00:00"
     },
     {
-      "id": "ccb10a8598d0",
+      "id": "4ec2e5bc818b",
       "type": "milestone",
-      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
+      "label": "milestone: A held-out ACCEPT, which the loop is built to treat as the win condition.",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T04:33:56.615321+00:00"
+      "created": "2026-07-27T10:31:21.417766+00:00"
     },
     {
-      "id": "ae4384fa1407",
+      "id": "d5c4e859e43d",
       "type": "milestone",
-      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
+      "label": "milestone: 489 tests pass, 100% coverage on all three optimizer modules, ruff and mypy clean.",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T04:33:56.615402+00:00"
+      "created": "2026-07-27T10:31:21.417921+00:00"
     },
     {
-      "id": "fd0498b1f9da",
+      "id": "3239ab2ba03b",
       "type": "commit",
-      "label": "commit: Commit: 6c19696ac",
+      "label": "commit: Commit: 06f74397",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T04:33:56.615480+00:00"
+      "created": "2026-07-27T10:31:21.417996+00:00"
     },
     {
-      "id": "bcbf184a4c55",
+      "id": "7272b538ea35",
       "type": "outcome",
-      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
+      "label": "Outcome: success - Run the held-out gate loop end to end against a live scorer, then act on what the run measured. The loop shipped in PR #3430 and PR #3458 had never been driven by a real model; its accept rule had only ever been exercised on synthetic mappings.",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T04:33:56.615557+00:00"
+      "created": "2026-07-27T10:31:21.418072+00:00"
     },
     {
-      "id": "a305a0ccef47",
-      "type": "commit",
-      "label": "commit: Commit: 6f0315519",
+      "id": "874bf27c1790",
+      "type": "milestone",
+      "label": "milestone: Four blocking findings closed, verified by replaying the 2026-07-27 live runs: the false ACCEPT is now refused naming both the family bar and the corrected per-comparison bar, and attempts to loosen the bar to 0.5 or drop it are refused without spending a consultation. 508 tests pass with 100 percent line coverage on all three optimizer modules. Code landed as a5791784c.",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
-      "created": "2026-07-28T05:06:51.357047+00:00"
+      "created": "2026-07-27T11:02:17.724761+00:00"
+    },
+    {
+      "id": "9f80a20fcf70",
+      "type": "commit",
+      "label": "commit: Commit: a5791784c",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T11:02:17.724848+00:00"
+    },
+    {
+      "id": "0d025ac46b68",
+      "type": "milestone",
+      "label": "milestone: The verdict on this benchmark was decided by scorer variance, not by the edit. The real candidate got lucky; the no-op got unlucky.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778406+00:00"
+    },
+    {
+      "id": "0434da2798b6",
+      "type": "milestone",
+      "label": "milestone: 489 tests pass at this point in the session, 100% coverage on all three optimizer modules, ruff and mypy clean.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778867+00:00"
+    },
+    {
+      "id": "66a6b6a81c15",
+      "type": "milestone",
+      "label": "milestone: WRONG, retracted the same day in the phase below. The agent-path null control was not a null control: the two runs disagree on fixture_set_sha, so the corpus changed along with nothing else I had checked. The twelve-of-twenty-four corroboration is withdrawn in full. What survives this phase is the defect shape 16 correction, which rests on rule-path data, and the --max-p ledger verification, which does not depend on what the reports measured.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.778948+00:00"
+    },
+    {
+      "id": "70ac449ed2f2",
+      "type": "milestone",
+      "label": "milestone: All three findings closed. The id invariant test in tests/skills/memory/test_update_causal_graph.py caught the second-order breakage before it reached the remote, which is exactly what that test exists for. 96 tests pass in that file.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779026+00:00"
+    },
+    {
+      "id": "80a248cd0a52",
+      "type": "milestone",
+      "label": "milestone: A published claim is withdrawn within hours of publishing it, and the withdrawal produced a real defect: the comparison tool ignores the field the report format provides to validate the comparison. Task ids are not a substitute, since all eight ids matched while the contents differed. Corrected state of the evidence: one path, the rule path, has a valid null control; the hook path needs none because pytest_results is deterministic; the agent path has none.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779103+00:00"
+    },
+    {
+      "id": "1ae8871d9198",
+      "type": "milestone",
+      "label": "milestone: 1050 tests pass with 100% coverage on all three optimizer modules. Ruff and mypy clean on changed files. The guard refuses the exact pair that produced the retracted claim, and refuses it again when the envelope is stripped.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779181+00:00"
+    },
+    {
+      "id": "4b694bdbe893",
+      "type": "test",
+      "label": "test: ['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779258+00:00"
+    },
+    {
+      "id": "8c6db17b7b83",
+      "type": "milestone",
+      "label": "milestone: Five review findings closed, one documented overclaim corrected rather than defended. Ruff and mypy clean on changed files, no em or en dashes in any changed file.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779334+00:00"
+    },
+    {
+      "id": "aaccea3a96a6",
+      "type": "milestone",
+      "label": "milestone: Three round-17 findings fixed TDD and empirically re-proved. The generalizable lesson: a shared payload builder does not stop two call sites from drifting, it only makes the drift visible as an argument, so a test must assert the call sites produce equal output.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779413+00:00"
+    },
+    {
+      "id": "26799f652879",
+      "type": "commit",
+      "label": "commit: Commit: e8f3cb0fe8871786efaeb82225d72d0c49906348",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:46:48.779489+00:00"
+    },
+    {
+      "id": "8ebcd100cf51",
+      "type": "milestone",
+      "label": "milestone: Reported that the rule-path finding was independently corroborated on the agent benchmark: twelve of twenty-four agent fixtures moving on identical input. RETRACTED the same day and withdrawn in full. The two runs disagree on fixture_set_sha, so the corpus changed alongside the prompt and the comparison was confounded, not a null control. No valid agent-path null control exists in the repository. What survives: the rule path has a live null control, and the hook path needs none because pytest results are deterministic.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T13:49:37.578432+00:00"
+    },
+    {
+      "id": "a05995b18c55",
+      "type": "milestone",
+      "label": "milestone: Seven review threads closed, and the two highest-priority were the ones where a claim I had already retracted was still being published by a generator I had been skipping all session. 1102 tests pass with 100 percent coverage on all three optimizer modules; ruff and mypy clean; zero em or en dashes in any changed file. Three lessons generalize. A retraction is not complete when the source document carries it, only when every derived artifact does, and SKIP_AUTOFIX buys commit speed by deferring exactly the generators that keep derived artifacts honest. Asserting that both numbers appear in a refusal does not test that a reader can tell which is which. And a number carried into five documents by copying is corrected in five places or in none, with the test docstring the most likely to be missed, because nobody greps rationale prose when they change a claim.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368397+00:00"
+    },
+    {
+      "id": "fff44aa4ee59",
+      "type": "milestone",
+      "label": "milestone: The statistical claim is correct in all five places it lives, and every review thread on PR #3478 is answered and resolved. Defect shape 21 generalizes one level up: it was first diagnosed as a retraction that stops at the source document and leaves the generated tier asserting a withdrawn claim, and the independence figure is the same failure in prose. A number copied into five documents is corrected in five places or in none, and the test docstring is the one most likely to be missed because nobody greps rationale prose when they change a claim.",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368488+00:00"
+    },
+    {
+      "id": "43661f33c1f0",
+      "type": "commit",
+      "label": "commit: Commit: c1b25afc8199c3d02a21cd7d2d9db0f30669042e",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T14:58:54.368568+00:00"
+    },
+    {
+      "id": "df45caecfb14",
+      "type": "commit",
+      "label": "commit: Commit: 44be0404f",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T15:39:43.330484+00:00"
+    },
+    {
+      "id": "b00127f91473",
+      "type": "commit",
+      "label": "commit: Commit: b32f4bd16",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T16:22:46.495927+00:00"
+    },
+    {
+      "id": "f31c4222a3a2",
+      "type": "commit",
+      "label": "commit: Commit: a541a88cd",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T16:48:35.469179+00:00"
+    },
+    {
+      "id": "a3ef3f11709c",
+      "type": "commit",
+      "label": "commit: Commit: a33c5c089",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T17:12:30.599328+00:00"
+    },
+    {
+      "id": "7c22c72ea37d",
+      "type": "commit",
+      "label": "commit: Commit: 7d8a015a3",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T17:13:48.817711+00:00"
+    },
+    {
+      "id": "7840f8c99af5",
+      "type": "commit",
+      "label": "commit: Commit: f6057de64",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T17:47:42.984198+00:00"
+    },
+    {
+      "id": "a6ed7477d03a",
+      "type": "commit",
+      "label": "commit: Commit: 1009eb761",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T17:55:43.996144+00:00"
+    },
+    {
+      "id": "7f952d443ce8",
+      "type": "commit",
+      "label": "commit: Commit: bac4cf0e7",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T18:06:36.013496+00:00"
+    },
+    {
+      "id": "f6c862cc59db",
+      "type": "commit",
+      "label": "commit: Commit: e3bdae5bb",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T18:18:32.552207+00:00"
+    },
+    {
+      "id": "aa4c75476fd1",
+      "type": "commit",
+      "label": "commit: Commit: cdd704367",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T18:28:50.407656+00:00"
+    },
+    {
+      "id": "41330814da8d",
+      "type": "commit",
+      "label": "commit: Commit: de1e96c31",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T18:36:33.379805+00:00"
+    },
+    {
+      "id": "55dbdd9636a4",
+      "type": "commit",
+      "label": "commit: Commit: feb236208",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T18:59:21.256149+00:00"
+    },
+    {
+      "id": "2424ed3f32e1",
+      "type": "commit",
+      "label": "commit: Commit: 8810db74e",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T19:18:16.468657+00:00"
+    },
+    {
+      "id": "62471a6f2a52",
+      "type": "commit",
+      "label": "commit: Commit: 11c2ba505",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T19:28:15.557951+00:00"
+    },
+    {
+      "id": "2292577f5c33",
+      "type": "commit",
+      "label": "commit: Commit: 66029eb45",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T19:38:35.560689+00:00"
+    },
+    {
+      "id": "e9da64bac227",
+      "type": "commit",
+      "label": "commit: Commit: 185fc7631",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T19:55:27.388315+00:00"
+    },
+    {
+      "id": "4694386bdbdc",
+      "type": "commit",
+      "label": "commit: Commit: 136840822",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T20:16:18.409375+00:00"
+    },
+    {
+      "id": "ce6aae9fb99f",
+      "type": "commit",
+      "label": "commit: Commit: db48b1c65",
+      "episodes": [
+        "episode-2026-07-27-session-3468-eval-gate-significance"
+      ],
+      "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "e5fd312fa463",
+      "type": "milestone",
+      "label": "milestone: Created isolated worktree and acquired PR lease",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836245+00:00"
+    },
+    {
+      "id": "a08affa699d8",
+      "type": "milestone",
+      "label": "milestone: Ran live-state gate: ACT",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836344+00:00"
+    },
+    {
+      "id": "627ef07f2f80",
+      "type": "milestone",
+      "label": "milestone: Verified stale CONFLICTING state with local trial merge (clean, no conflicts)",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836427+00:00"
+    },
+    {
+      "id": "f43f084530ac",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into branch",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836509+00:00"
+    },
+    {
+      "id": "f212716a234f",
+      "type": "milestone",
+      "label": "milestone: Confirmed 15865 tests pass and 96/96 skill frontmatter valid",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836591+00:00"
+    },
+    {
+      "id": "8f3c54e23b03",
+      "type": "milestone",
+      "label": "milestone: Verified all 11 review threads already resolved by prior session",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836693+00:00"
+    },
+    {
+      "id": "36ed3d63693c",
+      "type": "outcome",
+      "label": "Outcome: success - Merge main into PR #3497 to clear stale CONFLICTING state and enable squash merge",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T04:46:04.836784+00:00"
+    },
+    {
+      "id": "eac38972928f",
+      "type": "commit",
+      "label": "commit: Commit: 243572586",
+      "episodes": [
+        "episode-2026-07-28-session-3497-pr-autofix-merge-forward"
+      ],
+      "created": "2026-07-28T05:13:37.972858+00:00"
+    },
+    {
+      "id": "b5b863b63986",
+      "type": "milestone",
+      "label": "milestone: Confirmed the conflict against the wiki concept note Rule Weaponization, which forbids letting the model self-report context usage and names Session Escape as the end of the attack chain. Both agents carried a pressure-signal list ending in 'Any of these means you are near the limit', plus a step 3 authorizing a stop or handoff when 'the budget is nearly spent'.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410255+00:00"
+    },
+    {
+      "id": "b10bfe719f88",
+      "type": "milestone",
+      "label": "milestone: Read the sibling wiki note Context Budget Management for AI Agents, the source the section was built from, to check for an internal wiki conflict. There is none: that note places enforcement entirely in the harness (PreCompact, session log, sandbox tools, SQLite) and never asks the model to self-assess. The agent text had diverged from its own source.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410353+00:00"
+    },
+    {
+      "id": "cca2051859b9",
+      "type": "milestone",
+      "label": "milestone: Ran adversarial review on two model families rather than one, per the standing requirement. Both independently flagged the same three defects in the first draft: a capacity self-assessment leaking back in through 'larger than one session should carry', a false safety guarantee in 'if the harness compacts, it compacts', and a degrade clause that reintroduced the unfalsifiable escape hatch it was meant to remove.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410439+00:00"
+    },
+    {
+      "id": "488eced63774",
+      "type": "milestone",
+      "label": "milestone: Found the objective predicate already existed rather than inventing one. Sibling agents (pr-test-analyzer, code-simplifier, comment-analyzer) gate [NEEDS_DECOMPOSITION] on countable thresholds. The implementer already used 'XL complexity, touches more than 5 files' and had only appended 'or context budget is nearly spent'. Deleting that clause restored a criterion an orchestrator can check.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410526+00:00"
+    },
+    {
+      "id": "db985bc7b47c",
+      "type": "milestone",
+      "label": "milestone: Replaced both sections. Kept the checkpoint cadence, the degrade rule (now requiring named commits and validation actually run), and the PreCompact backstop. Removed every trigger keyed to self-observed context. Preserved the duplicate-delegation protection the pressure-signal list had carried, reframed as a session-log check rather than a memory-pressure symptom.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410611+00:00"
+    },
+    {
+      "id": "be95409485ef",
+      "type": "milestone",
+      "label": "milestone: Discovered tests/test_context_budget_management.py pinned the defect: REQUIRED_PHRASES asserted 'pressure signals' must be present in all twelve copies. Rewrote it to require the new contract and added a negative test with four forbidden phrases so the self-report framing cannot return.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410701+00:00"
+    },
+    {
+      "id": "b0ae36305b43",
+      "type": "milestone",
+      "label": "milestone: Mutation tested the new guard before trusting it. Reinserting 'Any of these means you are near the limit' into the implementer template failed exactly the new test and nothing else; restoring the file returned all 49 green.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410785+00:00"
+    },
+    {
+      "id": "166529ceaa8b",
+      "type": "milestone",
+      "label": "milestone: Propagated through the generator, not by hand. Ran build/generate_agents.py for the three generated platforms, then synced the three hand-maintained parity copies from the canonical section. install-parity: OK across the six-member group for both agents.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410870+00:00"
+    },
+    {
+      "id": "6abf537f3b9d",
+      "type": "outcome",
+      "label": "Outcome: success - Remove the self-reported context triggers from the implementer and orchestrator Context Budget Management sections, keep the durable checkpoint and degrade rules, and make the regression test enforce the new contract instead of the old defect.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:41:42.410953+00:00"
+    },
+    {
+      "id": "21482f66a116",
+      "type": "commit",
+      "label": "commit: Commit: a3e3f52c02",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T03:42:02.858665+00:00"
+    },
+    {
+      "id": "b9adb9ba791d",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3612 review. Reproduced both findings before acting: the 'check point' verb form at tests/test_context_budget_management.py:49 (real, module uses 'checkpoint' one word elsewhere) and the retrospective's missing FAILURE-MODES.md sections (real convention; 11 of the 20 most recent retros carry it, including the reviewer's cited example). Classified the session as FM9 primary, FM4 secondary, and added a Remediation section. Found and fixed the same missing-sections defect the reviewer did not flag.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T04:03:07.184122+00:00"
+    },
+    {
+      "id": "9c240e38f47a",
+      "type": "milestone",
+      "label": "milestone: Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay.",
+      "episodes": [
+        "episode-2026-07-27-session-3607-agent-context-self-report"
+      ],
+      "created": "2026-07-28T04:39:38.801440+00:00"
     },
     {
       "id": "4a8aa4aecca4",
@@ -22917,114 +23187,6 @@
       "created": "2026-07-28T05:18:53.535055+00:00"
     },
     {
-      "id": "b5b863b63986",
-      "type": "milestone",
-      "label": "milestone: Confirmed the conflict against the wiki concept note Rule Weaponization, which forbids letting the model self-report context usage and names Session Escape as the end of the attack chain. Both agents carried a pressure-signal list ending in 'Any of these means you are near the limit', plus a step 3 authorizing a stop or handoff when 'the budget is nearly spent'.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410255+00:00"
-    },
-    {
-      "id": "b10bfe719f88",
-      "type": "milestone",
-      "label": "milestone: Read the sibling wiki note Context Budget Management for AI Agents, the source the section was built from, to check for an internal wiki conflict. There is none: that note places enforcement entirely in the harness (PreCompact, session log, sandbox tools, SQLite) and never asks the model to self-assess. The agent text had diverged from its own source.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410353+00:00"
-    },
-    {
-      "id": "cca2051859b9",
-      "type": "milestone",
-      "label": "milestone: Ran adversarial review on two model families rather than one, per the standing requirement. Both independently flagged the same three defects in the first draft: a capacity self-assessment leaking back in through 'larger than one session should carry', a false safety guarantee in 'if the harness compacts, it compacts', and a degrade clause that reintroduced the unfalsifiable escape hatch it was meant to remove.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410439+00:00"
-    },
-    {
-      "id": "488eced63774",
-      "type": "milestone",
-      "label": "milestone: Found the objective predicate already existed rather than inventing one. Sibling agents (pr-test-analyzer, code-simplifier, comment-analyzer) gate [NEEDS_DECOMPOSITION] on countable thresholds. The implementer already used 'XL complexity, touches more than 5 files' and had only appended 'or context budget is nearly spent'. Deleting that clause restored a criterion an orchestrator can check.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410526+00:00"
-    },
-    {
-      "id": "db985bc7b47c",
-      "type": "milestone",
-      "label": "milestone: Replaced both sections. Kept the checkpoint cadence, the degrade rule (now requiring named commits and validation actually run), and the PreCompact backstop. Removed every trigger keyed to self-observed context. Preserved the duplicate-delegation protection the pressure-signal list had carried, reframed as a session-log check rather than a memory-pressure symptom.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410611+00:00"
-    },
-    {
-      "id": "be95409485ef",
-      "type": "milestone",
-      "label": "milestone: Discovered tests/test_context_budget_management.py pinned the defect: REQUIRED_PHRASES asserted 'pressure signals' must be present in all twelve copies. Rewrote it to require the new contract and added a negative test with four forbidden phrases so the self-report framing cannot return.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410701+00:00"
-    },
-    {
-      "id": "b0ae36305b43",
-      "type": "milestone",
-      "label": "milestone: Mutation tested the new guard before trusting it. Reinserting 'Any of these means you are near the limit' into the implementer template failed exactly the new test and nothing else; restoring the file returned all 49 green.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410785+00:00"
-    },
-    {
-      "id": "166529ceaa8b",
-      "type": "milestone",
-      "label": "milestone: Propagated through the generator, not by hand. Ran build/generate_agents.py for the three generated platforms, then synced the three hand-maintained parity copies from the canonical section. install-parity: OK across the six-member group for both agents.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410870+00:00"
-    },
-    {
-      "id": "6abf537f3b9d",
-      "type": "outcome",
-      "label": "Outcome: success - Remove the self-reported context triggers from the implementer and orchestrator Context Budget Management sections, keep the durable checkpoint and degrade rules, and make the regression test enforce the new contract instead of the old defect.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:41:42.410953+00:00"
-    },
-    {
-      "id": "21482f66a116",
-      "type": "commit",
-      "label": "commit: Commit: a3e3f52c02",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T03:42:02.858665+00:00"
-    },
-    {
-      "id": "b9adb9ba791d",
-      "type": "milestone",
-      "label": "milestone: Responded to PR #3612 review. Reproduced both findings before acting: the 'check point' verb form at tests/test_context_budget_management.py:49 (real, module uses 'checkpoint' one word elsewhere) and the retrospective's missing FAILURE-MODES.md sections (real convention; 11 of the 20 most recent retros carry it, including the reviewer's cited example). Classified the session as FM9 primary, FM4 secondary, and added a Remediation section. Found and fixed the same missing-sections defect the reviewer did not flag.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T04:03:07.184122+00:00"
-    },
-    {
-      "id": "9c240e38f47a",
-      "type": "milestone",
-      "label": "milestone: Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay.",
-      "episodes": [
-        "episode-2026-07-27-session-3607-agent-context-self-report"
-      ],
-      "created": "2026-07-28T04:39:38.801440+00:00"
-    },
-    {
       "id": "5f569abea7c8",
       "type": "milestone",
       "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
@@ -23095,6 +23257,60 @@
         "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
       ],
       "created": "2026-07-28T01:33:45.877354+00:00"
+    },
+    {
+      "id": "1070b8f189e0",
+      "type": "milestone",
+      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615224+00:00"
+    },
+    {
+      "id": "ccb10a8598d0",
+      "type": "milestone",
+      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615321+00:00"
+    },
+    {
+      "id": "ae4384fa1407",
+      "type": "milestone",
+      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615402+00:00"
+    },
+    {
+      "id": "fd0498b1f9da",
+      "type": "commit",
+      "label": "commit: Commit: 6c19696ac",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615480+00:00"
+    },
+    {
+      "id": "bcbf184a4c55",
+      "type": "outcome",
+      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615557+00:00"
+    },
+    {
+      "id": "a305a0ccef47",
+      "type": "commit",
+      "label": "commit: Commit: 6f0315519",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T05:06:51.357047+00:00"
     },
     {
       "id": "795da0e7b424",
