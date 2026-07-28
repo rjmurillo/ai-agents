@@ -461,16 +461,25 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     exactly: absent or null is `None`, a valid digest is itself, and everything
     that function would raise on is `_UNREADABLE`.
 
-    `OSError` answers `_UNREADABLE` too, for the same reason and one more. A
-    file the peek cannot open is a file that has declared no corpus, so it has
-    no opinion to contribute. Letting it escape also made the peek the layer
-    that named the failure, and it named it badly: `_digest_scrubbed`
-    stringified the raw errno, so a mistyped `--incumbent` reported `[Errno 2]
-    No such file or directory` while a mistyped `--split` reported `no such
-    file:` from `_read_json`. The same operator mistake read two ways
-    depending on which flag carried it. Deferring costs nothing, because
-    `_corpus_refused` declines to decide on an unreadable file and the full
-    read below raises with the message every other input already used.
+    An open failure is not a content problem and does not answer
+    `_UNREADABLE`. The peek reads through `_read_text`, which converts
+    `OSError` into `ConfigError`, and `ConfigError` does not subclass
+    `ValueError`, so it travels straight past the clause below to the top
+    level and exits 2.
+
+    Both halves of that matter, and each was wrong once. Letting the raw
+    `OSError` out made the peek the layer that named the failure, and it named
+    it badly: `_digest_scrubbed` stringified the errno, so a mistyped
+    `--incumbent` reported `[Errno 2] No such file or directory` while a
+    mistyped `--split` reported `no such file:` from `_read_json`. The same
+    operator mistake read two ways depending on which flag carried it.
+    Answering `_UNREADABLE` instead fixed the message and broke something
+    worse: `_corpus_refused` declines to decide on an unreadable file, and the
+    full read that was supposed to catch it does not run next. `_guard` runs
+    next, and an exhausted consultation budget turned a missing file into a
+    REJECT decision at exit 1. A file that cannot be opened has to be refused
+    before anything that can emit a decision, and `_read_text` already owns
+    the message every other reader uses.
 
     `RecursionError` joins `ValueError` because a deeply nested array
     exhausts the decoder's stack rather than failing its grammar, and letting
@@ -485,10 +494,8 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     behind it raises rather than deciding.
     """
     try:
-        data = json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
-        )
-    except (ValueError, RecursionError, OSError):
+        data = json.loads(_read_text(path), object_pairs_hook=_no_duplicate_keys)
+    except (ValueError, RecursionError):
         return _UNREADABLE
     if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
         return _UNREADABLE

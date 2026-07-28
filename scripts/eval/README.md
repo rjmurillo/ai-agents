@@ -423,6 +423,39 @@ judge error on the incumbent's run read as a failing scenario, so a candidate
 that merely ran cleanly would look like a fail-to-pass improvement. That is the
 spurious accept the gate exists to prevent, arriving through the scorer.
 
+### Two kinds of judge noise, two reducers
+
+`--reduce` is not the only reduction on this path, and the two do not see the
+same noise.
+
+`eval-rule-activation.py` can score a scenario more than once inside a single
+run. `--judge-repeats` sets how many, the report persists every answer under
+`score_samples`, and `--rule-reduce` collapses them per score key before
+anything else looks at the run. That drops one erratic judge call.
+
+`--reduce` then collapses whole runs, one report file each, after the samples
+inside each are already collapsed. That catches a different failure: a whole
+report landing on the far side of the bar. The ADR-087 measurement found 13 of
+24 tasks moving between runs and 5 crossing the accept threshold, mean absolute
+movement 0.49 on a five-point scale, which is movement no amount of
+within-run repetition can average away.
+
+```bash
+uv run --frozen python "$OA" extract --kind rule \
+    --input run1.json run2.json run3.json \
+    --rule-reduce median --reduce mean > base.json
+```
+
+Both take `mean`, `min`, `max`, or `median`. `--rule-reduce` defaults to
+`median`, which is the resistant choice for a handful of samples where one
+outlier is the thing being removed. `--reduce` defaults to `mean`. A report
+carrying no `score_samples` is unaffected by `--rule-reduce`, so reports
+written before this existed read the same.
+
+Order matters and is fixed: samples collapse inside a run, then runs collapse
+across reports. Reducing runs first would mix a scenario's outlier sample into
+the cross-run number and hide the movement `--reduce` exists to see.
+
 How many runs is a judgment, not a setting. The benchmark behind this flag
 (ADR-087 Open Requirement 6, #3445) measured a mean absolute movement of 0.49
 points on the five-point scale between two scorings of identical rule text.
