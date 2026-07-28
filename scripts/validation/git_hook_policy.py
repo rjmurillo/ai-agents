@@ -2883,7 +2883,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     if bypass.returncode == 0:
         print(bypass.stdout, end="")
         return 0
-    _print_process_output(bypass)
+    _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1
 
@@ -3473,9 +3473,13 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
         print(f"WARNING: PR #{pr_number} last bot review is {age}s old (< 120s)")
 
 
-def _print_process_output(result: subprocess.CompletedProcess[str]) -> None:
+def _print_process_output(
+    result: subprocess.CompletedProcess[str],
+    stdout_stream: TextIO | None = None,
+) -> None:
+    target_stdout = stdout_stream or sys.stdout
     if result.stdout:
-        print(result.stdout, end="")
+        print(result.stdout, end="", file=target_stdout)
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
 
@@ -3484,7 +3488,7 @@ def _print_advisory_failure(
     label: str,
     result: subprocess.CompletedProcess[str],
 ) -> None:
-    _print_process_output(result)
+    _print_process_output(result, stdout_stream=sys.stderr)
     print(f"WARNING: {label} failed without blocking", file=sys.stderr)
 
 

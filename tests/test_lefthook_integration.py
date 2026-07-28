@@ -5038,6 +5038,42 @@ def test_commit_limit_blocks_when_bypass_check_fails(
     assert policy._check_commit_limit(update, tmp_path) == 1
 
 
+def test_commit_limit_prints_bypass_explanation_with_blocking_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch=None,
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+
+
+def test_advisory_failure_prints_process_explanation_with_warning(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy._print_advisory_failure("plugin version check", _completed(2, stdout="reason\n"))
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "reason\nWARNING: plugin version check failed without blocking\n"
+
+
 def test_commit_limit_relaxes_for_merge_from_main(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
