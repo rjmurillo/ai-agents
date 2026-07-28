@@ -19,7 +19,7 @@ def test_repo_local_tmpdir_and_basetemp_keep_git_isolation(project_root: Path) -
 
     env = os.environ.copy()
     env.pop("GIT_CEILING_DIRECTORIES", None)
-    env["TMPDIR"] = str(tmpdir)
+    env["TMPDIR"] = env["TEMP"] = env["TMP"] = str(tmpdir)
 
     result = subprocess.run(
         [
@@ -35,7 +35,10 @@ def test_repo_local_tmpdir_and_basetemp_keep_git_isolation(project_root: Path) -
         cwd=project_root,
         env=env,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
+        timeout=900,
         check=False,
     )
 
