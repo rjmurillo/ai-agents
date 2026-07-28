@@ -173,7 +173,7 @@
       "action": "Re-derived the YAML bomb with merge keys rather than alias lists: depth 8 is 446 bytes and 21.46s. Restated as under 500 bytes and 21.5s with the byte range, since spelling moves the count."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "aac0eefc",
   "nextSteps": [
     "Correct the PR #3587 body: cite #3594, drop the wrong #3565, and replace the claim that the phantom survived months with the measured 8 weeks (memory retired 2026-06-02 in ce4ebabbb4).",
     "File the deferred findings from round five: footnotes in a matrix cell fail the run and fixing it needs mdit-py-plugins; the roster derives names from filenames rather than frontmatter name, latent today because all 117 declared names match their stem; nested agent directories are never scanned; null and duplicate description values are accepted though hosts reject them.",

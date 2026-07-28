@@ -144,10 +144,12 @@ jobs:
         #
         # markdown-it-py backs the capability-matrix parser. It is a declared
         # core dependency in pyproject.toml and its only transitive dependency
-        # is mdurl. The version matches the uv.lock pin so this bare-pip job and
-        # the locked pytest job parse identically; a table recognised in one and
-        # not the other would let a phantom row through whichever ran second.
-        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3' 'markdown-it-py==4.2.0'
+        # is mdurl, which is pinned here too: leaving it floating would let a
+        # future mdurl release change link parsing in this job but not in the
+        # locked one. Both versions match the uv.lock pins so this bare-pip job
+        # and the locked pytest job parse identically; a table recognised in one
+        # and not the other would let a phantom row through whichever ran second.
+        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3' 'markdown-it-py==4.2.0' 'mdurl==0.1.2'
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
