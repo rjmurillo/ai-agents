@@ -62,7 +62,11 @@ def detect_changed_files(base_ref: str) -> list[str]:
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", base_ref],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
             cwd=str(REPO_ROOT),
         )
         committed = result.stdout.strip().splitlines()
@@ -73,7 +77,11 @@ def detect_changed_files(base_ref: str) -> list[str]:
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", "--cached"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
             cwd=str(REPO_ROOT),
         )
         staged = result.stdout.strip().splitlines()
@@ -205,7 +213,11 @@ def run_structural_tests(targets: list[str], dry_run: bool) -> dict[str, Any]:
             ["pwsh", "-NoProfile", "-Command",
              f"Invoke-Pester '{test_file}' -Output Detailed -PassThru | "
              "ConvertTo-Json -Depth 3"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
             cwd=str(REPO_ROOT),
         )
         return {
@@ -246,7 +258,12 @@ def run_behavioral_for_prompt(
         # nosemgrep: dangerous-subprocess-use-tainted-env-args
         # Justification: cmd from sys.executable + fixed script path + argparse
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=600,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
             cwd=str(REPO_ROOT),
         )
         try:
@@ -286,7 +303,12 @@ def run_agent_quality(
             # nosemgrep: dangerous-subprocess-use-tainted-env-args
             # Justification: cmd built from sys.executable + fixed script path + argparse args
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=300,
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
                 cwd=str(REPO_ROOT),
             )
             try:
@@ -334,7 +356,12 @@ def run_skill_knowledge(
             # nosemgrep: dangerous-subprocess-use-tainted-env-args
             # Justification: cmd built from sys.executable + fixed script path + argparse args
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=300,
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
                 cwd=str(REPO_ROOT),
             )
             try:
