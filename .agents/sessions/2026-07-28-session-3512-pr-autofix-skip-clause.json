@@ -100,7 +100,7 @@
       "step": "All 16 tests pass, ruff clean, mypy clean, pre-PR validation passes with 0 failures"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "42894c131",
   "nextSteps": [
     "Push and resolve review threads after CI passes"
   ]
