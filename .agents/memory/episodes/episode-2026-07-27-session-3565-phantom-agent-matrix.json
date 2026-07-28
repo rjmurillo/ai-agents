@@ -254,7 +254,9 @@
       "caused_by": [
         "e020"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e023"
+      ]
     },
     {
       "id": "e022",
@@ -265,6 +267,40 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retargeted PR #3587 to Fixes #3594 and verified the body no longer contains Fixes #3565.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the review findings: unreadable markdown now exits 2, active memory-agent references are removed, the Claude-only quality-auditor route is retained, and Copilot skill prose no longer points at an agent it does not ship.",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation: targeted pytest suite passed with TMPDIR and basetemp under /home/richard/src/GitHub/rjmurillo/pytest-tmp-pr3587; ruff passed; validate_agent_matrix_refs.py returned 0 on the repo; blockquote and invalid-fence ghost probes returned 1; invalid UTF-8 probe returned 2.",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

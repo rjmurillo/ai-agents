@@ -171,16 +171,25 @@
     {
       "timestamp": "2026-07-29T00:05:00Z",
       "action": "Re-derived the YAML bomb with merge keys rather than alias lists: depth 8 is 446 bytes and 21.46s. Restated as under 500 bytes and 21.5s with the byte range, since spelling moves the count."
+    },
+    {
+      "timestamp": "2026-07-28T05:45:00Z",
+      "action": "Retargeted PR #3587 to Fixes #3594 and verified the body no longer contains Fixes #3565."
+    },
+    {
+      "timestamp": "2026-07-28T06:05:00Z",
+      "action": "Fixed the review findings: unreadable markdown now exits 2, active memory-agent references are removed, the Claude-only quality-auditor route is retained, and Copilot skill prose no longer points at an agent it does not ship."
+    },
+    {
+      "timestamp": "2026-07-28T06:20:00Z",
+      "action": "Validation: targeted pytest suite passed with TMPDIR and basetemp under /home/richard/src/GitHub/rjmurillo/pytest-tmp-pr3587; ruff passed; validate_agent_matrix_refs.py returned 0 on the repo; blockquote and invalid-fence ghost probes returned 1; invalid UTF-8 probe returned 2."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Correct the PR #3587 body: cite #3594, drop the wrong #3565, and replace the claim that the phantom survived months with the measured 8 weeks (memory retired 2026-06-02 in ce4ebabbb4).",
-    "File the deferred findings from round five: footnotes in a matrix cell fail the run and fixing it needs mdit-py-plugins; the roster derives names from filenames rather than frontmatter name, latent today because all 117 declared names match their stem; nested agent directories are never scanned; null and duplicate description values are accepted though hosts reject them.",
-    "Split the validator and its test file, both now over the 500 line advisory.",
-    "#3465 tracks widening the portability ratchet to cover agent, rule, and instruction trees. Until it lands, shared agent prose must name no tree-specific path.",
-    "Twelve agents ship without a row in the orchestrator capability matrix: backlog-generator, code-simplifier, comment-analyzer, debug, dependency-auditor, janitor, merge-resolver, negotiation, pr-comment-responder, pr-test-analyzer, silent-failure-hunter, type-design-analyzer. Whether to add them trades routing coverage against context budget and needs a human call.",
-    "The validator enforces name resolution only. It does not check that a matrix row's Model column names a real tier, nor that the Use For text matches the agent's own description.",
-    "Watch CI on #3587, especially validate-generated-agents and pytest."
+    "Wait for PR #3571 to land, then merge origin/main into this branch and retain both validate-generated-agents workflow gates.",
+    "Bump both plugin manifest version fields strictly above main after that merge.",
+    "Resolve review threads, push, and enable auto-merge for PR #3587.",
+    "Related follow-ups remain tracked in #3599, #3600, #3601, and #3602 rather than expanded into this PR."
   ]
 }

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T02:10:30.033111+00:00",
+  "updated": "2026-07-28T07:19:10.192679+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22888,6 +22888,33 @@
         "episode-2026-07-27-session-3565-phantom-agent-matrix"
       ],
       "created": "2026-07-28T02:10:30.024555+00:00"
+    },
+    {
+      "id": "0951092532fb",
+      "type": "milestone",
+      "label": "milestone: Retargeted PR #3587 to Fixes #3594 and verified the body no longer contains Fixes #3565.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T07:19:10.184651+00:00"
+    },
+    {
+      "id": "72ec6e35b7f4",
+      "type": "milestone",
+      "label": "milestone: Fixed the review findings: unreadable markdown now exits 2, active memory-agent references are removed, the Claude-only quality-auditor route is retained, and Copilot skill prose no longer points at an agent it does not ship.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T07:19:10.184795+00:00"
+    },
+    {
+      "id": "5573e5df631f",
+      "type": "milestone",
+      "label": "milestone: Validation: targeted pytest suite passed with TMPDIR and basetemp under /home/richard/src/GitHub/rjmurillo/pytest-tmp-pr3587; ruff passed; validate_agent_matrix_refs.py returned 0 on the repo; blockquote and invalid-fence ghost probes returned 1; invalid UTF-8 probe returned 2.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T07:19:10.184924+00:00"
     }
   ],
   "patterns": [
