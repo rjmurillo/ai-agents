@@ -6336,10 +6336,16 @@ def _defaults_agree(expected: object, actual: object) -> bool:
     `_canonical_ratio` is the function `split_fingerprint` itself calls, so
     reusing it keeps this bar from ever drifting from the thing it protects.
 
+    `bool` subclasses `int`, so plain `==` reads `False` as `0` and `True` as
+    `1`. Every ratio the product validates refuses a bool by name, so a
+    mixed pair is a mismatch here rather than a silent agreement.
+
     Raises:
         ValueError: when a ratio default is not a decimal, which is louder
             and more specific than reading the same input as a mismatch.
     """
+    if isinstance(expected, bool) != isinstance(actual, bool):
+        return False
     if isinstance(expected, float) and isinstance(actual, str):
         return core._canonical_ratio(actual) == core._canonical_ratio(expected)
     return actual == expected
@@ -6667,6 +6673,48 @@ class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
         """
         with pytest.raises(ValueError, match="must be a decimal ratio"):
             _defaults_agree(0.4, "2/5")
+
+    @pytest.mark.parametrize(
+        ("expected", "actual"),
+        [
+            (0.0, False),
+            (0, False),
+            (1, True),
+            (1.0, True),
+            (False, 0),
+            (True, 1),
+            (False, 0.0),
+        ],
+    )
+    def test_a_bool_never_agrees_with_a_number(self, expected, actual):
+        """`bool` subclasses `int`, so `==` alone reads `False` as `0.0`.
+
+        The audit exists to catch a default that moved, and turning a ratio
+        flag into a `store_true` is one of the ways it moves. Every ratio the
+        product validates rejects a bool by name: `_canonical_ratio(False)`
+        raises "must be a decimal ratio". A bar that approves what the
+        product refuses is not a bar, so the two kinds disagree here.
+        """
+        assert not _defaults_agree(expected, actual)
+
+    @pytest.mark.parametrize(("expected", "actual"), [(True, True), (False, False)])
+    def test_two_bools_still_compare_as_bools(self, expected, actual):
+        """The guard rejects the mixed pair, not the flag kind itself.
+
+        No table entry is a bool today, but a `store_true` flag is the most
+        likely next one, and it has to keep reading as agreement.
+        """
+        assert _defaults_agree(expected, actual)
+
+    def test_the_product_really_does_refuse_the_bool_this_bar_refuses(self):
+        """Rejecting a bool is only right if the product rejects it too.
+
+        Without this the guard is an unfounded opinion about types. The same
+        `False` the bar now refuses reaches `split_fingerprint` as a hard
+        error, so the bar and the product agree about the same input.
+        """
+        with pytest.raises(ValueError, match="must be a decimal ratio"):
+            core.split_fingerprint(["a", "b"], seed="s", sel_ratio=False)
 
 
 @_NEEDS_PERMISSION_BARRIER
