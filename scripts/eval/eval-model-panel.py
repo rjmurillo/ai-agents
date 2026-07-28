@@ -95,7 +95,13 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
     ]
     try:
         completed = subprocess.run(
-            argv, capture_output=True, text=True, timeout=1800, check=False,
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=1800,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"harness invocation failed: {exc}") from exc
