@@ -1,0 +1,71 @@
+{
+  "id": "episode-2026-07-28-session-3645-copilot-manifest-description",
+  "session": "2026-07-28-session-3645-copilot-manifest-description",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Restore the Copilot CLI plugin manifest description on main. It currently advertises Claude Code workflows. Timestamps in workLog mark order, not measured wall-clock times.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Compared src/copilot-cli/.claude-plugin/plugin.json across main and PR #3497's branch while resolving that PR's manifest conflict.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the change with git log on that path and diffed the commit against its parent.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked why no gate caught it: read check_plugin_manifest_parity.py, and searched build/, templates/, and scripts/ for the literal description string.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored the Copilot-specific description and bumped both project-toolkit manifests from 0.6.145 to 0.6.146.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6c19696ac",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

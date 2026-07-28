@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-28T08:27:17.309466+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23236,7 +23236,8 @@
       "type": "commit",
       "label": "commit: Commit: 6c19696ac",
       "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback",
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
       ],
       "created": "2026-07-28T04:33:56.615480+00:00"
     },
@@ -23491,6 +23492,51 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution"
       ],
       "created": "2026-07-28T04:28:48.065013+00:00"
+    },
+    {
+      "id": "2ad629df7cb9",
+      "type": "milestone",
+      "label": "milestone: Compared src/copilot-cli/.claude-plugin/plugin.json across main and PR #3497's branch while resolving that PR's manifest conflict.",
+      "episodes": [
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
+      ],
+      "created": "2026-07-28T08:27:17.302149+00:00"
+    },
+    {
+      "id": "d1b119a59a19",
+      "type": "milestone",
+      "label": "milestone: Traced the change with git log on that path and diffed the commit against its parent.",
+      "episodes": [
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
+      ],
+      "created": "2026-07-28T08:27:17.302258+00:00"
+    },
+    {
+      "id": "f523f4602fda",
+      "type": "milestone",
+      "label": "milestone: Checked why no gate caught it: read check_plugin_manifest_parity.py, and searched build/, templates/, and scripts/ for the literal description string.",
+      "episodes": [
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
+      ],
+      "created": "2026-07-28T08:27:17.302349+00:00"
+    },
+    {
+      "id": "49c1cda14088",
+      "type": "milestone",
+      "label": "milestone: Restored the Copilot-specific description and bumped both project-toolkit manifests from 0.6.145 to 0.6.146.",
+      "episodes": [
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
+      ],
+      "created": "2026-07-28T08:27:17.302437+00:00"
+    },
+    {
+      "id": "3debc35d3d9c",
+      "type": "outcome",
+      "label": "Outcome: success - Restore the Copilot CLI plugin manifest description on main. It currently advertises Claude Code workflows. Timestamps in workLog mark order, not measured wall-clock times.",
+      "episodes": [
+        "episode-2026-07-28-session-3645-copilot-manifest-description"
+      ],
+      "created": "2026-07-28T08:27:17.302611+00:00"
     }
   ],
   "patterns": [
