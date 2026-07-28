@@ -1401,3 +1401,52 @@ class TestDuplicateTaskIdsAreNamedWithoutRescanningTheList:
         with pytest.raises(ValueError, match="duplicate task ids"):
             split_tasks(ids, seed="s")
         assert time.perf_counter() - started < 2.0
+
+
+class TestPatchFingerprintRefusesTheShapesItPromisesToCatch:
+    """The guard sits in `patch_fingerprint` on purpose, and that is testable.
+
+    `_check_patch_fields` runs here rather than in the two buffer commands
+    because every path that can crash on a non-string field routes through
+    this function. That placement was justified in a comment and pinned
+    nowhere: every shape test called `apply_patches`, so moving the check back
+    into `apply_patches` would have left the whole suite green while the
+    buffer commands lost their guard and crashed on an `AttributeError` deep
+    in the hash instead.
+
+    These call `patch_fingerprint` directly, which is the only spelling that
+    can tell the two placements apart.
+    """
+
+    def test_a_non_string_op_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="op must be a string"):
+            patch_fingerprint([Patch(1, None, "x")])
+
+    def test_a_non_string_anchor_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="anchor must be a string"):
+            patch_fingerprint([Patch("replace", 2, "x")])
+
+    def test_a_non_string_text_is_a_patch_shape_error(self):
+        with pytest.raises(PatchShapeError, match="text must be a string"):
+            patch_fingerprint([Patch("append", None, 3)])
+
+    def test_the_error_names_the_type_it_was_handed(self):
+        """A shape error the operator can act on says what arrived."""
+        with pytest.raises(PatchShapeError, match="got list"):
+            patch_fingerprint([Patch("append", None, ["x"])])
+
+    def test_a_none_anchor_and_none_text_are_not_shape_errors(self):
+        """None is the absent field, which the op rules judge, not the types.
+
+        Without this the three tests above would also pass against a guard
+        that refused every non-string, which would break `append` (no anchor)
+        and `delete` (no text) at the fingerprint before the op rules ever saw
+        them.
+        """
+        assert len(patch_fingerprint([Patch("append", None, "x")])) == 64
+        assert len(patch_fingerprint([Patch("delete", "a", None)])) == 64
+
+    def test_a_bad_shape_anywhere_in_the_list_is_caught(self):
+        """The check is per patch, so a clean first entry is not a pass."""
+        with pytest.raises(PatchShapeError, match="text must be a string"):
+            patch_fingerprint([Patch("append", None, "fine"), Patch("append", None, 9)])
