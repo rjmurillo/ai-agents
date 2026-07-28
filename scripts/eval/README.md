@@ -351,8 +351,9 @@ it today, so the other two write `null` and the gate reports the comparison as
 unverified rather than pretending it checked. A bare `{task_id: bool}` file
 still reads, as an unknown corpus.
 
-Adapters fail closed. A fixture the variant never ran and a skipped test both
-score as failures rather than being dropped. Dropping a task shrinks the
+Adapters fail closed. By default a fixture the variant never ran and a skipped
+test both score as failures rather than being dropped; `extract --kind hook
+--on-skip exclude` opts out for plain skips. Dropping a task shrinks the
 denominator, which raises the score, so a silent omission would read as an
 improvement.
 
