@@ -363,6 +363,35 @@ class TestKnownAgents:
         )
         assert vamr.known_agents(tmp_path, ".md") == set(), label
 
+    def test_a_byte_order_mark_does_not_hide_an_agent(self, tmp_path):
+        """A BOM ahead of the fence is a real agent to the hosts that load it.
+
+        Treating it as prose is worse than a missing agent: every matrix row
+        citing it reports the agent does not ship, so a well-formed file
+        produces a violation nobody can act on.
+        """
+        (tmp_path / "analyst.md").write_bytes("\ufeff---\ndescription: An agent.\n---\n".encode())
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_a_byte_order_mark_does_not_hide_a_matrix(self, tmp_path):
+        """The same BOM must not hide the table either.
+
+        ``scan`` reads matrix files on a separate path from the roster, so
+        fixing one and not the other leaves a file whose agent is known and
+        whose rows are invisible.
+        """
+        repo = _repo(
+            tmp_path,
+            {},
+            {CANONICAL: ["analyst", "implementer", "orchestrator"]},
+            complete=True,
+        )
+        (repo / _canonical_file("orchestrator")).write_bytes(
+            ("\ufeff---\ndescription: An agent.\n---\n\n" + BOLD_MATRIX).encode()
+        )
+        result = vamr.scan(repo)
+        assert [c.name for c in result.citations] == ["analyst", "implementer"]
+
     def test_directory_matching_the_suffix_is_excluded(self, tmp_path):
         """A directory named ``foo.md`` cannot be read, so it cannot be an agent."""
         (tmp_path / "bogus.md").mkdir()
@@ -661,6 +690,28 @@ class TestAntiVacuousGuards:
         result = vamr.scan(repo)
         assert vamr.violations(result) == []
         assert vamr.main(["--repo-root", str(repo)]) == 1
+
+    def test_a_degenerate_scan_does_not_also_report_success(self, tmp_path, capsys):
+        """A run that errors must not end on OK.
+
+        The exit code was already right, but the summary printed the ERROR lines
+        and then announced that every agent checks out. A reader who trusts the
+        last line draws the opposite conclusion from the one the run reached.
+        """
+        text = "| Agent | Role |\n|-------|------|\n\nProse.\n"
+        repo = _repo(
+            tmp_path,
+            {
+                _canonical_file("orchestrator"): BOLD_MATRIX,
+                _canonical_file("planner"): text,
+            },
+            {CANONICAL: ["analyst", "implementer", "orchestrator", "planner"]},
+            complete=True,
+        )
+        assert vamr.main(["--repo-root", str(repo)]) == 1
+        out = capsys.readouterr().out
+        assert "ERROR:" in out
+        assert "OK:" not in out
 
     def test_empty_tree_fails_the_cli_even_with_no_violations(self, tmp_path):
         """A tree present but yielding no agents is degenerate, not clean.

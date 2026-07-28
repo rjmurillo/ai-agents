@@ -305,7 +305,7 @@ def is_agent_definition(path: Path) -> bool:
     no separate ``is_file`` guard is needed.
     """
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return False
     if not (opened := FRONTMATTER_OPEN.match(text)):
@@ -467,7 +467,7 @@ def scan(repo_root: Path) -> ScanResult:
         if not agents:
             result.empty_trees.append(tree)
         for path in sorted(directory.glob("*.md")):
-            text = path.read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8-sig")
             if not has_matrix_header(text):
                 continue
             relative = path.relative_to(repo_root)
@@ -519,8 +519,10 @@ def report(result: ScanResult, bad: list[Citation]) -> None:
         )
         print()
 
-    if not bad:
+    if not bad and not degeneracy:
         print("OK: every agent named in a capability matrix ships in the tree that cites it.")
+        return
+    if not bad:
         return
 
     print(f"VIOLATIONS: {len(bad)} matrix row(s) name an agent their own tree does not ship")
