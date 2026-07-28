@@ -812,9 +812,35 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Round 41: the correction carried the defect it was correcting",
+      "actions": [
+        "Ran a fourth distinct model against the shape 60 change; it returned one critical and six required findings.",
+        "Reproduced the critical end to end before accepting it: built a split over ten tasks, dropped a held-out id from the candidate, and ran gate.",
+        "Measured the actual behaviour: exit 1, REJECT, consultations 1, compared false, and the fingerprint echoed back unchanged. Dropping an id outside the held-out group let the run proceed.",
+        "Corrected the false sentence in both places it lived, the README paragraph and the pytest_results docstring.",
+        "Audited the flag-duplication class the previous round declared closed, and found two older instances: --reduce respelling the four reducer names, and --min-score repeating 3.5 while DEFAULT_MIN_ACTIVATION_SCORE sat exported in __all__ for that use.",
+        "Replaced the _SKIP_POLICIES[0] default I introduced last round with a named _DEFAULT_SKIP_POLICY, and added _DEFAULT_REDUCER, so no default is spelled as an index into a choice set.",
+        "Rewrote all three of the previous round's tests red first, and added a five-test class covering the whole duplication class.",
+        "Mutation-verified seven mutations. Two passed against the heading-bounded documentation window, which exposed the window rather than the tests.",
+        "Narrowed the documentation window to a blank-line-delimited paragraph, then re-ran all three doc mutations red."
+      ],
+      "decisions": [
+        "Fixed the prose I own and filed the gate's charge-before-coverage-check ordering as an issue rather than changing it. The ordering is deliberate, carries a comment explaining that a refusal decided after reading the group would otherwise be free, withholds missing ids to avoid leaking held-out membership, and is pinned by tests predating this branch. Round 41's key-set proposal is split-independent and therefore sound, but charging policy is architecture, not a fold-in on a stacked branch at the commit ceiling.",
+        "Treated the two passing mutations as a finding about the window rather than about the tests. One passing mutation is ambiguous because the mutation may be incomplete, which is the trap recorded in the previous phase. Two against the same window are evidence.",
+        "Recorded that mutation sensitivity proves a test reads its subject but not that it reads the right subject. All three replaced tests were mutation-verified last round and still asserted the wrong thing."
+      ],
+      "filesModified": [
+        "scripts/eval/_optimizer_adapters.py",
+        "scripts/eval/optimize-artifact.py",
+        "scripts/eval/README.md",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "32ab12dbe",
+  "endingCommit": "837726a1b",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

@@ -2579,3 +2579,79 @@ worthless. The test was fine; the mutation was incomplete, since the term
 appears three times in the paragraph and the sed replaced one. A mutation that
 does not turn a test red is a claim about the mutation before it is a claim
 about the test.
+
+## Shape 61: the correction carried the defect it was correcting
+
+Round 41 ran a fourth distinct model at the shape 60 change and returned one
+critical finding. The paragraph I had just written to fix a documentation gap
+said `--on-skip exclude` "moves the split fingerprint and stops the gate". Both
+halves are false, and the sentence is not mine by invention: I copied it from
+the `pytest_results` docstring while correcting a different sentence in the same
+file, and never measured it.
+
+Measuring it took one split and two runs. Draw a split over ten tasks, drop a
+held-out id from the candidate, and the gate returns exit 1 with `REJECT`,
+`consultations: 1`, `compared: false`, and the fingerprint echoed back
+unchanged. Drop an id outside the held-out group and the run proceeds normally.
+So the fingerprint never moves, because it pins what was split rather than what
+was extracted, and the gate does not halt: it charges a consultation and returns
+a verdict that measured nothing.
+
+That is the exit-1-versus-exit-2 confusion this branch has treated as critical
+in three earlier shapes, sitting in prose written to correct the record. Shape
+60 said the common cause of a doc-code disagreement is that no test stands
+between the two. This is the same cause one level up: the sentence was carried
+between files by hand, and nothing carried the measurement with it.
+
+The gate's ordering is deliberate and stays. `optimize-artifact.py` charges the
+ledger before checking held-out coverage, and the comment above it says why: a
+refusal decided after reading the group would otherwise be free, which is what
+made the reveal worth buying. The rejection reason withholds which ids are
+missing because naming them leaks group membership. Round 41 proposed comparing
+the two mappings' key sets and refusing before charging, which is genuinely
+split-independent and therefore not a membership oracle, so the proposal is
+sound. It is also a change to charging policy, pinned by tests that predate this
+branch, on a stacked branch at the commit ceiling. Filed, not folded in.
+
+Underneath the false prose sat a defect I introduced in shape 60 while fixing
+this same class. Replacing the literal `"fail"` with `_SKIP_POLICIES[0]` removed
+a duplicate and added a worse coupling: the order of a choice set became
+load-bearing with nothing saying so. Reorder the tuple to improve help text and
+the command's default silently moves while the adapter's does not. A default
+should never be spelled as an index into a choice set.
+
+The audit that finding forced turned up two older instances of the shape 60
+duplication that I had not looked for. `--reduce` respelled the four reducer
+names beside `_REDUCERS`. `--min-score` repeated the literal `3.5` while
+`DEFAULT_MIN_ACTIVATION_SCORE` sat in the adapter's `__all__`, exported for
+exactly this use and ignored, which is the clearest instance of the three. Shape
+60 fixed the instance in front of it and called the class closed. A defect class
+is not closed by fixing the instance that surfaced it.
+
+The testing lesson is the sharpest of the two rounds, because all three shape 60
+tests were mutation-verified and still asserted the wrong thing. Mutation
+sensitivity proves a test reads its subject. It does not prove the test reads
+the right subject.
+
+- Driving each policy through the command and asserting exit zero stays green
+  when the command drops the flag on the floor. Replacing the adapter in memory
+  with one that ignores its argument left both invocations returning zero. The
+  test now asserts the command's output equals the adapter's own answer for the
+  same input, and a second test covers the reverse direction, so the word
+  "every" in a test name is earned in both directions rather than one.
+- Every window the documentation tests have used was too wide, and each was too
+  wide in its own way. A file-wide substring search passes on an unrelated
+  historical mention, which is precisely the state this gap was found in: the
+  words existed and the contract did not. A fixed character count silently
+  changes meaning as correct prose grows. Bounding at the next heading looked
+  principled and was not, and it failed in the least visible way: the enclosing
+  section already contained "consultations" three paragraphs down, so an
+  assertion written for the new sentence passed on someone else's. A
+  blank-line-delimited paragraph is the narrowest real structural unit Markdown
+  offers, and the only one of the four that cannot borrow a word from a
+  neighbour.
+
+The heading-bounded window was caught by mutation, not by review, and only
+because two mutations passed together. One passing mutation is ambiguous, since
+the mutation itself may be incomplete, which is the trap recorded in shape 60.
+Two passing mutations against the same window are a finding about the window.
