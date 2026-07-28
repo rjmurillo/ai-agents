@@ -1094,8 +1094,9 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
             # the path that has to qualify.
             continue
         blob_ids.add(metadata[3])
-    blob_ids.discard("0" * 40)
-    return blob_ids
+    # A deletion names no blob afterwards, and the width of that field follows
+    # the repository's hash.
+    return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
 
 
 def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:

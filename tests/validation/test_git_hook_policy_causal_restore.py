@@ -1598,6 +1598,41 @@ class TestAdrReviewPolicyMergeScope:
 
         assert policy._origin_main_blob_ids(repo, adr) == {"5" * 40, "8" * 40}
 
+    def test_a_deletions_empty_post_image_is_never_carried(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """A record that removes a file names no blob afterwards.
+
+        Its post-image field is all zeros, which is not a state main carried
+        and not an object at all. The width of that field follows the
+        repository's hash, so dropping only the shorter one leaves the longer
+        one in the set.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        adr = ".agents/architecture/ADR-098-deleted.md"
+        records = (
+            ":100644 000000 "
+            "1111111111111111111111111111111111111111 "
+            + "0" * 40
+            + " D\0"
+            + adr
+            + "\0"
+            ":100644 000000 " + "2" * 64 + " " + "0" * 64 + " D\0" + adr + "\0"
+            ":100644 100644 "
+            "3333333333333333333333333333333333333333 "
+            "4444444444444444444444444444444444444444 M\0" + adr + "\0"
+        )
+        monkeypatch.setattr(
+            policy,
+            "_run_git",
+            lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=records),
+        )
+
+        assert policy._origin_main_blob_ids(repo, adr) == {"4" * 40}
+
     def test_a_lineage_the_gate_does_not_govern_is_not_carried(
         self,
         tmp_path,
