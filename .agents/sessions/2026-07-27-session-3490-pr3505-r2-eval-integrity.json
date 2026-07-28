@@ -74,12 +74,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Code changes committed through 3e47ada2d. Session log commit follows."
+        "evidence": "Code changes committed through 428a67cf6. Session log commits follow."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Targeted pytest passed: 719 passed with TMPDIR and --basetemp outside the worktree. Ruff passed on changed Python files. Review probes and production-only revert table completed."
+        "evidence": "Expanded targeted pytest passed: 802 passed with TMPDIR and --basetemp outside the worktree. Ruff passed on changed Python files. Review probes and production-only revert table completed."
       },
       "tasksUpdated": {
         "complete": true,
@@ -111,9 +111,12 @@
     },
     {
       "step": "Validated with targeted pytest, ruff, review probes, and production-only fail-under-revert checks."
+    },
+    {
+      "step": "Fixed full-suite fallout: model-panel fake reports now include error_count, optimizer adapter tests use exact integer judge scores, and plugin lib copies are synced."
     }
   ],
-  "endingCommit": "3e47ada2d",
+  "endingCommit": "428a67cf6",
   "nextSteps": [
     "Push PR #3505 branch.",
     "Update PR body with issue #3649 reference.",

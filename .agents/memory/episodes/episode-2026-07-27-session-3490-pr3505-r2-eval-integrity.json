@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Started from PR #3505 head b36edd54 in an isolated worktree to avoid unrelated dirty files in the main checkout.",
       "caused_by": [
-        "e007"
+        "e009"
       ],
       "leads_to": [
         "e002"
@@ -74,7 +74,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -82,6 +84,28 @@
       "type": "commit",
       "content": "Commit: 3e47ada2d",
       "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed full-suite fallout: model-panel fake reports now include error_count, optimizer adapter tests use exact integer judge scores, and plugin lib copies are synced.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 428a67cf6",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -92,7 +116,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []

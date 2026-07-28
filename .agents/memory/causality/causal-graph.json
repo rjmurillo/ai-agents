@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T11:11:32.657179+00:00",
+  "updated": "2026-07-28T12:02:46.766837+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22753,6 +22753,24 @@
         "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
       ],
       "created": "2026-07-28T11:11:32.651453+00:00"
+    },
+    {
+      "id": "b97cf2aab716",
+      "type": "milestone",
+      "label": "milestone: Fixed full-suite fallout: model-panel fake reports now include error_count, optimizer adapter tests use exact integer judge scores, and plugin lib copies are synced.",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T12:02:46.760250+00:00"
+    },
+    {
+      "id": "a9f99fe24770",
+      "type": "commit",
+      "label": "commit: Commit: 428a67cf6",
+      "episodes": [
+        "episode-2026-07-27-session-3490-pr3505-r2-eval-integrity"
+      ],
+      "created": "2026-07-28T12:02:46.760344+00:00"
     }
   ],
   "patterns": [
