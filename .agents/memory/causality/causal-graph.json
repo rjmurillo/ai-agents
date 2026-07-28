@@ -22844,6 +22844,168 @@
         "episode-2026-07-27-session-3607-agent-context-self-report"
       ],
       "created": "2026-07-28T04:39:38.801440+00:00"
+    },
+    {
+      "id": "4a8aa4aecca4",
+      "type": "milestone",
+      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189306+00:00"
+    },
+    {
+      "id": "e190568c7d5d",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189397+00:00"
+    },
+    {
+      "id": "04893c67ce46",
+      "type": "milestone",
+      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189478+00:00"
+    },
+    {
+      "id": "9e49ad65f1ed",
+      "type": "milestone",
+      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189559+00:00"
+    },
+    {
+      "id": "891703ffd915",
+      "type": "milestone",
+      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189638+00:00"
+    },
+    {
+      "id": "a948387eb20e",
+      "type": "milestone",
+      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189724+00:00"
+    },
+    {
+      "id": "3db0ad216ab1",
+      "type": "milestone",
+      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189803+00:00"
+    },
+    {
+      "id": "a1019a5fdcd2",
+      "type": "milestone",
+      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189880+00:00"
+    },
+    {
+      "id": "8a96c34dcf0c",
+      "type": "outcome",
+      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189960+00:00"
+    },
+    {
+      "id": "83cd3e96c275",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:11:14.074233+00:00"
+    },
+    {
+      "id": "2b8b56898e35",
+      "type": "milestone",
+      "label": "milestone: Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510230+00:00"
+    },
+    {
+      "id": "7c0a9c14c5ad",
+      "type": "commit",
+      "label": "commit: Commit: b61cf1cff3",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510327+00:00"
+    },
+    {
+      "id": "0dfa2736ccc0",
+      "type": "commit",
+      "label": "commit: Commit: 56f4f861aa",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510409+00:00"
+    },
+    {
+      "id": "10d3309b4e61",
+      "type": "commit",
+      "label": "commit: Commit: ee1de31d5a",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510490+00:00"
+    },
+    {
+      "id": "414d19412e66",
+      "type": "commit",
+      "label": "commit: Commit: 31a015587d",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510569+00:00"
+    },
+    {
+      "id": "612866ea6c33",
+      "type": "commit",
+      "label": "commit: Commit: 23e41ffb80",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510659+00:00"
+    },
+    {
+      "id": "da830ac8b5fb",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got a real result of zero issues across both changed markdown documents, and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) First reading of metrics.commits was wrong and is superseded by the next entry: the naive line-match count at extract_session_episode.py line 336 is only the no-existing-episode path, and the preserve path at line 1197 overrides it with _count_commit_events. The finding held.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:15:32.963689+00:00"
+    },
+    {
+      "id": "21e578e0053a",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:18:53.535055+00:00"
     }
   ],
   "patterns": [
