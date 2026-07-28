@@ -128,11 +128,39 @@
     },
     {
       "step": "Confirmed the new script satisfies tests/ci/test_validation_scripts_are_reachable.py, the guard that exists because issue #3329 shipped two gates with green tests and no caller anywhere."
+    },
+    {
+      "step": "Sent v1 of the gate to two adversarial reviews on different model families (gemini-3.1-pro-preview, gpt-5.6-sol). Both returned DO NOT SHIP. Verified every finding by execution rather than by vote: confirmed four, refuted one against the CommonMark spec (a longer outer fence is not closed by a shorter inner one), and refuted one proposed fix by running it against the live repository, where a strict per-root vacuity guard breaks immediately because src/claude ships a manifest and no skills."
+    },
+    {
+      "step": "Found a defect neither reviewer reported while probing an adjacent claim: an unterminated HTML comment never matched the <!--.*?--> strip, so commented-out content was scanned as live and failed the build on text no reader sees. A false positive in a push-blocking gate is worse than a miss."
+    },
+    {
+      "step": "Measured the pruning change before adopting it. Root-only pruning yields an identical 906 markdown files at identical speed, because every directory named in PRUNED_DIRS sits inside .claude/worktrees and is unreachable once that one directory is pruned at depth 0. All-depth pruning bought nothing and reserved worktrees, venv, and node_modules as illegal skill names."
+    },
+    {
+      "step": "Second review round identified the root cause: a pipe-shaped-line regex is not a Markdown model, and the core test fixture had no delimiter row, so it rendered as a paragraph and the suite asserted on a model markdown does not have."
+    },
+    {
+      "step": "Searched the repository before revising again and found markdown-it-py is a declared first-party dependency and scripts/utils/markdown_parser.py already existed to replace fragile regex patterns with an AST. Validated markdown-it against all 15 adversarial cases from both reviews, including 5 the regex got wrong."
+    },
+    {
+      "step": "Rewrote the validator core to delegate table scoping to the canonical parser, deleting the hand-rolled fence, HTML comment, inline-code, and table-row machinery. Added TableCell and iter_table_cell_text to the shared parser rather than duplicating it."
+    },
+    {
+      "step": "Closed the remaining fail-open paths: os.walk(onerror=) raising, strict UTF-8 decode, and parser exceptions as config errors. Added a literal keyword prefilter that cannot hide a route, holding the check at 1.3s against 2.5s for parsing every file."
+    },
+    {
+      "step": "Ran an 11-mutation battery. Ten mutations are caught; the one that survives is the performance prefilter, which is the proof it changes no outcome. The battery exposed eight vacuous tests whose fixtures omitted the table delimiter row, so they passed whether or not the defence they named existed. All eight were rewritten to carry real tables, and a missing test for the fail-closed nesting check was added."
+    },
+    {
+      "step": "Verified no regression in the shared parser's other consumers: 358 markdown-related tests pass and the full validation suite reports 1262 passed and 1 skipped, up exactly 17 from the 1245 baseline, matching the 44 minus 27 test growth."
     }
   ],
-  "endingCommit": "f82cad096f",
+  "endingCommit": "c97b5b3f7b",
   "nextSteps": [
-    "The gate scans for Skill: labels only. A routing table that names a skill in another shape, for example a bare markdown link into a skill directory, is not covered. That is a wider scan with a worse false-positive profile and needs its own change.",
-    "SHIPPED_TREES lists src/copilot-cli only. A third shipping tree would need to be added there, and nothing currently forces that."
+    "Merge resolution on Copilot is still broken. The route now lands on an agent that ships but has had no shell tool since issue #1280, so its Phase 0 returns BLOCKED. Filed as issue #3719 rather than bundled here, because granting shell to a consumer-facing agent is security-relevant and needs its own review.",
+    "The gate scans for Skill: labels inside markdown tables only. A routing table that names a skill in another shape, for example a bare markdown link into a skill directory, is not covered. That is a wider scan with a worse false-positive profile and needs its own change.",
+    "iter_table_cell_text now lives in the shared scripts/utils/markdown_parser.py rather than in the validator. That avoids a near-duplicate of canonical infrastructure but widens the blast radius of any future change to it."
   ]
 }

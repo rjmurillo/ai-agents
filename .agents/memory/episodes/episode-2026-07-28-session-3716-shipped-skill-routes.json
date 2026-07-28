@@ -4,7 +4,18 @@
   "timestamp": "2026-07-28T00:00:00+00:00",
   "outcome": "success",
   "task": "Audit the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository, fix the shipped-plugin routing defect it predicted, and add a gate so the class cannot regress.",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Measured the pruning change before adopting it. Root-only pruning yields an identical 906 markdown files at identical speed, because every directory named in PRUNED_DIRS sits inside .claude/worktrees and is unreachable once that one directory is pruned at depth 0. All-depth pruning bought nothing and reserved worktrees, venv, and node_modules as illegal skill names.",
+      "chosen": "Measured the pruning change before adopting it. Root-only pruning yields an identical 906 markdown files at identical speed, because every directory named in PRUNED_DIRS sits inside .claude/worktrees and is unreachable once that one directory is pruned at depth 0. All-depth pruning bought nothing and reserved worktrees, venv, and node_modules as illegal skill names.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -180,7 +191,9 @@
       "caused_by": [
         "e014"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e017"
+      ]
     },
     {
       "id": "e016",
@@ -188,6 +201,132 @@
       "type": "commit",
       "content": "Commit: f82cad096f",
       "caused_by": [],
+      "leads_to": [
+        "e027"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sent v1 of the gate to two adversarial reviews on different model families (gemini-3.1-pro-preview, gpt-5.6-sol). Both returned DO NOT SHIP. Verified every finding by execution rather than by vote: confirmed four, refuted one against the CommonMark spec (a longer outer fence is not closed by a shorter inner one), and refuted one proposed fix by running it against the live repository, where a strict per-root vacuity guard breaks immediately because src/claude ships a manifest and no skills.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found a defect neither reviewer reported while probing an adjacent claim: an unterminated HTML comment never matched the <!--.*?--> strip, so commented-out content was scanned as live and failed the build on text no reader sees. A false positive in a push-blocking gate is worse than a miss.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the pruning change before adopting it. Root-only pruning yields an identical 906 markdown files at identical speed, because every directory named in PRUNED_DIRS sits inside .claude/worktrees and is unreachable once that one directory is pruned at depth 0. All-depth pruning bought nothing and reserved worktrees, venv, and node_modules as illegal skill names.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Second review round identified the root cause: a pipe-shaped-line regex is not a Markdown model, and the core test fixture had no delimiter row, so it rendered as a paragraph and the suite asserted on a model markdown does not have.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched the repository before revising again and found markdown-it-py is a declared first-party dependency and scripts/utils/markdown_parser.py already existed to replace fragile regex patterns with an AST. Validated markdown-it against all 15 adversarial cases from both reviews, including 5 the regex got wrong.",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the validator core to delegate table scoping to the canonical parser, deleting the hand-rolled fence, HTML comment, inline-code, and table-row machinery. Added TableCell and iter_table_cell_text to the shared parser rather than duplicating it.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the remaining fail-open paths: os.walk(onerror=) raising, strict UTF-8 decode, and parser exceptions as config errors. Added a literal keyword prefilter that cannot hide a route, holding the check at 1.3s against 2.5s for parsing every file.",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an 11-mutation battery. Ten mutations are caught; the one that survives is the performance prefilter, which is the proof it changes no outcome. The battery exposed eight vacuous tests whose fixtures omitted the table delimiter row, so they passed whether or not the defence they named existed. All eight were rewritten to carry real tables, and a missing test for the fail-closed nesting check was added.",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified no regression in the shared parser's other consumers: 358 markdown-related tests pass and the full validation suite reports 1262 passed and 1 skipped, up exactly 17 from the 1245 baseline, matching the 44 minus 27 test growth.",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified no regression in the shared parser's other consumers: 358 markdown-related tests pass and the full validation suite reports 1262 passed and 1 skipped, up exactly 17 from the 1245 baseline, matching the 44 minus 27 test growth.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c97b5b3f7b",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": []
     }
   ],
@@ -196,7 +335,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []

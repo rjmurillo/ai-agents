@@ -1,8 +1,8 @@
-# Shipped trees must resolve their own routes
+# Plugin roots must resolve their own routes
 
-A routing table inside a shipped tree may only name skills that same tree
-ships. Checking that the shipped copy matches its canonical source is a
-different question and will not catch a violation.
+A routing table inside a plugin root may only name skills that same root ships.
+Checking that a shipped copy matches its canonical source is a different
+question and will not catch a violation.
 
 ## The incident
 
@@ -56,18 +56,76 @@ The autoplan table already used this form for its orchestrator row.
 
 `scripts/validation/check_shipped_skill_routes.py`. Registered in
 `scripts/validation/checks_plugin.py` for the pre-push path and as a step in
-`.github/workflows/validate-generated-agents.yml`. Runs in roughly 140ms.
+`.github/workflows/validate-generated-agents.yml`. Runs in roughly 1.3s.
 
-It reports a `Skill: <name>` reference only when that name exists as a skill in
-the canonical tree. That is deliberate. A bare regex false-positives on prose
-such as a checklist line reading `Skill: create ...`, where `create` is an
-English verb. Requiring canonical existence states the drift signature exactly:
-canonical has it, shipped dropped it, a reference survives. An unknown name is
-prose or a typo, a different defect class.
+The invariant is symmetric and carries no allowlist: every plugin root must
+resolve its own `Skill: <name>` routes to `<root>/skills/<name>/SKILL.md`. A
+route naming a skill that exists nowhere (a typo) fails the same way as one
+naming a skill that packaging dropped.
 
-Not covered: routes expressed in other shapes, for example a bare markdown link
-into a skill directory. `SHIPPED_TREES` lists `src/copilot-cli` only, and
-nothing forces a third shipping tree to be added.
+Precision comes from parsing, not from an allowlist and not from a regex. The
+scan asks the CommonMark parser which cells belong to a table and reads only
+those. Routing lives in tables by construction, so inside a table cell a
+`Skill:` token is a route and nothing else. Measured over both populated
+roots: table scoping finds all 17 live routes per root with zero false
+positives, while an unscoped scan adds six prose hits per root (five example
+headings in `SkillForge/references/evolution-scoring.md`, one checklist item
+where `create` is an English verb).
+
+## Do not hand-roll a markdown scanner
+
+The first three revisions of this gate hand-rolled table detection: a regex for
+pipe-shaped lines, then fence tracking, then HTML comment stripping and
+inline-code masking on top. Every round of adversarial review found another
+hole, because a pipe-shaped-line regex is not a Markdown model. It misses
+tables written without outer pipes, inside a blockquote, or indented under a
+list item, and it matches pipe-shaped prose that renders as a paragraph
+because it has no delimiter row.
+
+`markdown-it-py` is already a declared first-party dependency, and
+`scripts/utils/markdown_parser.py` already existed to replace "fragile regex
+patterns" with an AST. Reusing it deleted about ninety lines and closed every
+outstanding finding at once. Search the repository before writing the first
+regex.
+
+The same wrong model had infected the tests: fixtures omitted the `| --- |`
+delimiter row, so they rendered as paragraphs and the suite passed for the
+wrong reason. A mutation battery is what surfaced it; eight vacuous fixtures
+were rewritten to carry real tables.
+
+An earlier revision instead suppressed those false positives with a canonical
+allowlist. Two cross-vendor adversarial reviews showed that design was
+structurally unable to catch a typo, and that its lowercase-only name regex was
+blind to the live `Skill: SkillForge` route. Prefer structural scoping over an
+allowlist when both would work: the allowlist buys precision by discarding a
+whole defect class.
+
+Not covered: a route written outside a table, for example a bullet reading
+`- Skill: foo`. Deliberate trade, and no live route takes that shape today.
+
+## Do not discover plugin roots with a recursive glob
+
+Roots come from a bounded candidate set: repo-root `.claude` plus direct
+children of `src/`, filtered to those with `.claude-plugin/plugin.json`. This
+repository keeps dozens of full working copies under `.cache/worktrees/`,
+`.claude/worktrees/` and `.wt/`, each containing its own plugin manifests. A
+recursive `**/.claude-plugin/plugin.json` glob matches all of them and reports
+drift in trees nobody ships. Any tree walk here must also prune those directory
+names in place during the walk, not filter afterward: pruning during the walk
+took this check from 11.4s to 0.16s.
+
+## Routing to an agent does not prove the agent runs
+
+The fix redirects the merge-conflict row to the `merge-resolver` agent, which
+does ship on Copilot. Review then found that agent has no `shell` tool
+(`templates/agents/merge-resolver.shared.md` uses `$toolset:editor`, never
+`$toolset:executor`), so its Phase 0 precondition returns `[BLOCKED]`
+immediately. Unchanged since #1280, so it has never worked on Copilot. Issue
+#3719.
+
+The redirect is still a strict improvement, a precise diagnostic beats a silent
+dead end, but it does not restore working merge resolution. When you reroute to
+a target, check that the target can do the work, not merely that it resolves.
 
 ## When this matters
 

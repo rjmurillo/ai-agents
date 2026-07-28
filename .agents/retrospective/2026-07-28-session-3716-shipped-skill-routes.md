@@ -76,16 +76,64 @@ The second control matters more. A synthetic fixture proves the regex works. A
 replay of the actual incident proves the gate would have caught the thing it
 was built for.
 
-## Precision over recall, on purpose
+## Precision by allowlist was the wrong instinct
 
-A bare `Skill: <word>` scan produces a false positive on a checklist line where
-`create` follows the label as an English verb. The filter reports a name only
-when that name exists as a skill in the canonical tree.
+A bare `Skill: <word>` scan false-positives on a checklist line where `create`
+follows the label as an English verb. My first fix reported a name only when it
+also existed as a skill in the canonical tree, and I wrote a defense of that
+choice: it states the drift signature directly, and an unknown name is prose or
+a typo, a different defect class.
 
-That is not a workaround for the false positive. It is the drift signature
-stated directly: the canonical tree has it, the shipped tree dropped it, and a
-reference survives. An unknown name is prose or a typo, which is a different
-defect class and not worth the false-positive rate.
+That argument was motivated reasoning. The allowlist bought precision by
+discarding a defect class, and I described the discarded class as out of scope
+rather than as a cost. Two reviewers on different model families said so
+independently.
+
+The replacement gets precision from structure instead: scan only markdown table
+rows. Routing lives in tables by construction, so inside a table cell a `Skill:`
+token is a route and nothing else. Measured, it finds all 17 live routes per
+root with zero false positives, and because it no longer needs an allowlist it
+catches typos too. Same precision, strictly more recall, less code.
+
+The lesson generalizes. When a filter has to discard a defect class to buy
+precision, look for a structural scope that buys the same precision for free.
+
+## Two review rounds, both load-bearing
+
+The first round found five defects in a gate I had already committed with a
+message claiming it was verified: a lowercase-only regex blind to the live
+`Skill: SkillForge` route, a swallowed `OSError` that let an unreadable file
+pass silently, a vacuous `[PASS]` when the skills directory was renamed, fence
+tracking that a nested or longer fence would end early, and a hardcoded tree
+list.
+
+None of those were caught by my own 14 tests, because I wrote the tests and the
+gate together against the same mental model. The mutation control I ran proved
+the tests had teeth against the failure I had imagined, not against the failures
+I had not.
+
+What made the second round trustworthy was refusing to settle disagreement by
+vote. One reviewer declared the fix sound for consumers after checking that the
+agent existed. The other checked whether the agent could actually run, and found
+it could not. I verified that claim by hand before accepting it. Cross-model
+agreement is a signal; independent verification is the decision.
+
+The rewrite now carries 27 tests, and ten independent mutations each fail at
+least one of them, including one that reintroduces the exact lowercase blindness
+review found.
+
+## Do not discover plugin roots with a recursive glob
+
+A reviewer proposed replacing the hardcoded tree list with a recursive glob for
+`.claude-plugin/plugin.json`. Measuring it first was what saved it: this
+repository keeps dozens of full working copies under `.cache/worktrees/`,
+`.claude/worktrees/` and `.wt/`, each with its own manifests. The glob matched
+all of them.
+
+The fix is a bounded candidate set, repo-root `.claude` plus direct children of
+`src/`, and pruning those directory names during the walk rather than after.
+Pruning during the walk took the check from 11.4s to 0.16s. A good suggestion
+from a reviewer is still a hypothesis.
 
 ## Registered twice, on evidence
 
@@ -95,15 +143,77 @@ lefthook invokes pre-push, and as a CI step beside its sibling self-containment
 gate.
 
 Paying for it in both places needed a number, not an argument. The gate runs in
-137ms. Local feedback saves a push-fail round trip, CI makes the enforcement
+1.3s. Local feedback saves a push-fail round trip, CI makes the enforcement
 durable, and both call the same script, so there is one source of truth.
+
+## Three revisions, because I never searched the repository
+
+Two rounds of cross-vendor adversarial review both returned DO NOT SHIP. The
+findings were real and mostly distinct: an HTML comment quoted inside inline
+code swallowed a live table, blockquoted rows were skipped, the global vacuity
+guard failed open, basename pruning at every depth hid content. I fixed each
+one and the surface kept growing.
+
+The second round named the actual problem. A pipe-shaped-line regex is not a
+Markdown model. It misses tables written without outer pipes, inside a
+blockquote, or indented under a list item, and it matches pipe-shaped prose
+that renders as a paragraph because it has no delimiter row. Patching a wrong
+model produces a longer wrong model.
+
+Then a Layer 1 search found what should have been the first move:
+`markdown-it-py` is already a declared first-party dependency, and
+`scripts/utils/markdown_parser.py` already existed, written expressly to
+replace "fragile regex patterns" with an AST. The correct fix deleted about
+ninety lines of hand-rolled fence, comment, and table machinery and called the
+helper. Every outstanding finding closed at once, and five cases my regex got
+wrong started passing without being individually handled.
+
+Searching the repository before writing the first regex would have skipped all
+three revisions and both review rounds.
+
+## The tests encoded the same wrong model
+
+The core fixtures omitted the `| --- | --- |` delimiter row, so markdown
+rendered them as paragraphs rather than tables. The suite was asserting on a
+model markdown does not have. A reviewer caught it in the main fixture; a
+mutation battery caught eight more that I had missed while claiming to have
+fixed them all.
+
+Those eight tests named a defence (fenced block ignored, HTML comment ignored,
+inline code ignored) and passed whether or not the defence existed, because
+their content was never a table in the first place. Eleven mutations now back
+the suite: ten are caught, and the one that survives is a pure performance
+prefilter, which is the proof it changes no outcome.
+
+A test that passes for the wrong reason is worse than a missing test, because
+it reports coverage it does not have.
+
+## The worst bug came from testing, not from either reviewer
+
+Probing a reviewer's claim about HTML comments surfaced the inverse defect
+nobody had reported: an unterminated `<!--` never matched `<!--.*?-->`, so
+commented-out content was scanned as live and failed the build on text no
+reader sees. In a push-blocking gate a false positive is worse than a miss. It
+blocks every contributor and teaches them the gate is noise.
+
+Verify reviewer findings by execution rather than by vote. One proposed fix
+was refuted by a ten-second run against the live repository, one finding was
+refuted by the CommonMark spec, and the highest-severity bug of the session
+came from testing an adjacent claim.
 
 ## What this does not cover
 
-The gate scans `Skill:` labels. A routing table that names a skill in some
-other shape, for example a bare markdown link into a skill directory, is
-invisible to it. `SHIPPED_TREES` lists `src/copilot-cli` alone, and nothing
-forces a third shipping tree to be added there.
+A route written outside a table, say a bullet reading `- Skill: foo`, is
+invisible to the gate. That is a deliberate trade and no live route takes that
+shape: every non-table `Skill:` hit in either root is prose, and none names a
+real skill.
 
-Both are recorded in the session log rather than fixed here. The gate closes
-the class that actually shipped a defect.
+The larger gap is that the fix does not restore working merge resolution on
+Copilot. The route now lands on an agent that ships but has no `shell` tool, so
+its Phase 0 returns `[BLOCKED]`. A precise diagnostic beats a silent dead end,
+but the capability is still broken. Filed as issue #3719 rather than bundled
+here, because granting shell to a consumer-facing agent is security-relevant and
+needs its own review.
+
+Rerouting to a target proves the target resolves. It does not prove the target
+can do the work.
