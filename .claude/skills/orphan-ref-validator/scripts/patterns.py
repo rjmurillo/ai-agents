@@ -182,19 +182,31 @@ def extract_directive_suppressed_refs(text: str) -> Iterable[tuple[int, str]]:
     for lineno, line in enumerate(text.splitlines(), start=1):
         if not line_has_ignore_directive(line):
             continue
-        seen: set[str] = set()
-        for pattern in (
-            SCRIPT_REF_RE,
-            SKILL_SCRIPT_REF_RE,
-            RULE_REF_RE,
-            INSTRUCTION_REF_RE,
-            SKILL_REF_RE,
-        ):
-            for ref in _iter_line_path_matches(line, pattern):
-                if ref in seen:
-                    continue
-                seen.add(ref)
-                yield lineno, ref
+        yield from extract_line_reference_candidates(lineno, line)
+
+
+def extract_all_reference_candidates(text: str) -> Iterable[tuple[int, str]]:
+    """Yield every syntactic reference candidate the scanner knows how to read."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_example_placeholder(line):
+            continue
+        yield from extract_line_reference_candidates(lineno, line)
+
+
+def extract_line_reference_candidates(
+    lineno: int, line: str
+) -> Iterable[tuple[int, str]]:
+    """Yield reference candidates from one line without de-duplicating repeats."""
+    for pattern in (
+        SCRIPT_REF_RE,
+        SKILL_SCRIPT_REF_RE,
+        RULE_REF_RE,
+        INSTRUCTION_REF_RE,
+        SKILL_REF_RE,
+        SINGLE_WORD_SKILL_REF_RE,
+    ):
+        for ref in _iter_line_path_matches(line, pattern):
+            yield lineno, ref
 
 
 def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:

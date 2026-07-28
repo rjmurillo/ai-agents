@@ -59,6 +59,7 @@ MAX_FILE_BYTES: int = 5 * 1024 * 1024
 class WalkProblem:
     target: Path
     reason: str
+    error_type: str = "config"
 
 
 def is_secret_path(path: Path) -> bool:
@@ -94,6 +95,10 @@ def is_safe_subdirectory(entry: Path, repo_root: Path) -> bool:
 
 def collect_walk_targets(target: Path, repo_root: Path) -> tuple[list[Path], list[WalkProblem]]:
     """Return candidate files plus incomplete-scan problems under ``target``."""
+    if target.is_symlink():
+        problem = _unsafe_symlink_problem(target, repo_root)
+        if problem is not None:
+            return [], [problem]
     try:
         target.resolve().relative_to(repo_root.resolve())
     except (OSError, ValueError) as exc:
@@ -149,7 +154,7 @@ def _iter_dir_pruned(
         return
     visited.add(canonical)
     try:
-        entries = list(directory.iterdir())
+        entries = sorted(directory.iterdir(), key=lambda p: str(p))
     except (OSError, PermissionError) as exc:
         LOGGER.warning("could not iterate %s: %s", directory, exc)
         return
@@ -178,11 +183,11 @@ def _collect_dir_pruned(
         return
     visited.add(canonical)
     try:
-        entries = list(directory.iterdir())
+        entries = sorted(directory.iterdir(), key=lambda p: str(p))
     except (OSError, PermissionError) as exc:
         reason = f"could not iterate directory: {exc}"
         LOGGER.warning("could not iterate %s: %s", directory, exc)
-        problems.append(WalkProblem(directory, reason))
+        problems.append(WalkProblem(directory, reason, _error_type(exc)))
         return
     for entry in entries:
         _collect_entry(entry, repo_root, visited, files, problems)
@@ -196,13 +201,14 @@ def _collect_entry(
     problems: list[WalkProblem],
 ) -> None:
     try:
-        if entry.is_dir():
-            if entry.name in EXCLUDE_DIR_NAMES:
-                return
-            problem = _unsafe_subdirectory_problem(entry, repo_root)
+        if entry.is_symlink():
+            problem = _unsafe_symlink_problem(entry, repo_root)
             if problem is not None:
                 LOGGER.warning("skipping %s: %s", entry, problem.reason)
                 problems.append(problem)
+                return
+        if entry.is_dir():
+            if entry.name in EXCLUDE_DIR_NAMES:
                 return
             _collect_dir_pruned(entry, repo_root, visited, files, problems)
             return
@@ -218,17 +224,15 @@ def _collect_entry(
     problems.extend(entry_problems)
 
 
-def _unsafe_subdirectory_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
-    if not entry.is_symlink():
-        return None
+def _unsafe_symlink_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
     try:
-        resolved = entry.resolve()
+        resolved = entry.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
-        return WalkProblem(entry, f"could not resolve symlink: {exc}")
+        return WalkProblem(entry, f"could not resolve symlink: {exc}", _error_type(exc))
     try:
         resolved.relative_to(repo_root.resolve())
     except ValueError:
-        return WalkProblem(entry, "symlink resolves outside repo root")
+        return WalkProblem(entry, "symlink resolves outside repo root", "auth")
     return None
 
 
@@ -327,10 +331,16 @@ def _size_problem(entry: Path) -> WalkProblem | None:
     try:
         size = entry.stat().st_size
     except OSError as exc:
-        return WalkProblem(entry, f"could not stat file: {exc}")
+        return WalkProblem(entry, f"could not stat file: {exc}", _error_type(exc))
     if size > MAX_FILE_BYTES:
-        return WalkProblem(entry, f"exceeds {MAX_FILE_BYTES} bytes")
+        return WalkProblem(entry, f"exceeds {MAX_FILE_BYTES} bytes", "config")
     return None
+
+
+def _error_type(exc: BaseException) -> str:
+    if isinstance(exc, PermissionError):
+        return "auth"
+    return "config"
 
 
 def _within_size_cap(entry: Path) -> bool:

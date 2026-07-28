@@ -32,6 +32,7 @@ Kind = Literal[
     "instruction_path",
     "scan_truncated",
 ]
+ScanErrorType = Literal["logic", "config", "external", "auth"]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
 
 
@@ -95,11 +96,13 @@ class SuppressedReference:
 class IncompleteScan:
     target: str
     reason: str
+    error_type: ScanErrorType = "config"
 
     def to_dict(self) -> dict[str, str]:
         return {
             "target": self.target,
             "reason": self.reason,
+            "error_type": self.error_type,
         }
 
 
@@ -107,6 +110,7 @@ class IncompleteScan:
 class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
+    files_skipped: int = 0
     refs_checked: int = 0
     directive_suppressed: list[SuppressedReference] = field(default_factory=list)
     incomplete_scans: list[IncompleteScan] = field(default_factory=list)
@@ -163,6 +167,28 @@ def render_error_envelope(
     return json.dumps(envelope, indent=2) + "\nVERDICT: ERROR"
 
 
+def scan_error_exit_code(result: ScanResult) -> int:
+    """Return the ADR-035 exit code for an incomplete scan."""
+    if any(item.error_type == "auth" for item in result.incomplete_scans):
+        return 4
+    if any(item.error_type == "external" for item in result.incomplete_scans):
+        return 3
+    if any(item.error_type == "logic" for item in result.incomplete_scans):
+        return 1
+    return 2
+
+
+def _scan_error_envelope_type(result: ScanResult) -> ErrorType:
+    code = scan_error_exit_code(result)
+    if code == 4:
+        return "AuthError"
+    if code == 3:
+        return "ApiError"
+    if code == 1:
+        return "General"
+    return "InvalidParams"
+
+
 def render_scan_error_envelope(result: ScanResult, message: str, output: str) -> str:
     """Render a runtime/config scan failure with partial count evidence."""
     envelope = {
@@ -180,8 +206,8 @@ def render_scan_error_envelope(result: ScanResult, message: str, output: str) ->
         },
         "Error": {
             "Message": message,
-            "Code": 2,
-            "Type": "General",
+            "Code": scan_error_exit_code(result),
+            "Type": _scan_error_envelope_type(result),
         },
         "Metadata": {
             "Script": "scan.py",
@@ -200,6 +226,7 @@ def _counts_payload(result: ScanResult) -> dict[str, int]:
     suppressed_total = sum(1 for f in result.findings if f.suppressed)
     return {
         "files_scanned": result.files_scanned,
+        "files_skipped": result.files_skipped,
         "refs_checked": result.refs_checked,
         "findings_total": len(result.findings),
         "findings_suppressed": suppressed_total,
@@ -213,6 +240,7 @@ def _human_summary_lines(result: ScanResult) -> list[str]:
     return [
         f"orphan-ref-validator {VERSION}",
         f"  files_scanned:        {result.files_scanned}",
+        f"  files_skipped:        {result.files_skipped}",
         f"  refs_checked:         {result.refs_checked}",
         f"  findings:             {len(result.findings)}",
         f"  suppressed:           {counts['findings_suppressed']}",
