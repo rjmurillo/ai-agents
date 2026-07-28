@@ -1368,6 +1368,61 @@ class TestAdrReviewPolicyMergeScope:
         monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
         assert policy.check_adr_review_policy([new_name], repo) == 0
 
+    def test_a_conflict_main_resolved_in_a_merge_is_a_state_main_has_carried(
+        self,
+        tmp_path,
+    ):
+        """`git log --raw` says nothing about a merge unless it is asked to.
+
+        Without `-m`, git prints no diff for a merge commit, so an ADR whose
+        only appearance in that state was a conflict resolution left no blob id
+        behind. A branch sitting on that resolution held content main really
+        had carried and still failed the head-copy clause, which demands review
+        evidence for a file the branch never opened.
+
+        The revision after the merge is what makes this observable: without it
+        the resolution is `origin/main`'s tip and the tip lookup covers it.
+
+        Found by adversarial review round 52.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        name = ".agents/architecture/ADR-096-contested.md"
+        (repo / name).write_text("# ADR 096\n\nbase.\n", encoding="utf-8")
+        _commit(repo, "base")
+
+        _git(repo, "checkout", "-b", "sideways")
+        (repo / name).write_text("# ADR 096\n\nsideways.\n", encoding="utf-8")
+        _commit(repo, "sideways position")
+
+        _git(repo, "checkout", "main")
+        (repo / name).write_text("# ADR 096\n\nmainline.\n", encoding="utf-8")
+        _commit(repo, "mainline position")
+
+        conflicted = _run(["git", "merge", "--no-edit", "sideways"], repo)
+        assert conflicted.returncode != 0, "the fixture needs a real conflict"
+        resolved = "# ADR 096\n\nresolved in the merge.\n"
+        (repo / name).write_text(resolved, encoding="utf-8")
+        _git(repo, "add", name)
+        _git(repo, "commit", "--no-edit", "-m", "resolve the ADR while merging")
+        _git(repo, "branch", "local")
+
+        # Main moves past the resolution, so it is no longer the tip blob and
+        # only the merge commit's own diff can account for it.
+        (repo / name).write_text("# ADR 096\n\nlater still.\n", encoding="utf-8")
+        _commit(repo, "revise after the merge")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "local")
+        assert policy._read_head_blob(repo, name) == resolved.encode("utf-8")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, name) is True
+
 
 def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:
     """Build a repo mid-merge whose staged ADR is the one main contributed.

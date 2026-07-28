@@ -965,11 +965,19 @@ def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
     rather than re-reading the file at each commit is what makes that useful:
     at those older commits the current name does not exist yet. The widening
     is exactly one file's lineage, not any blob main happens to contain.
+
+    `-m` is what makes merges count. `--raw` prints nothing for a merge commit
+    unless asked, so an ADR whose only appearance in some state was a conflict
+    main resolved left no id behind, and a branch sitting on that resolution
+    failed on content main really had carried. `-m` splits the merge into one
+    diff per parent, which keeps the single-parent `:` raw form rather than
+    the `::` combined form, so the post-image stays the fourth field.
     """
     result = _run_git(
         repo_root,
         [
             "log",
+            "-m",
             "--follow",
             "--format=",
             "--raw",
