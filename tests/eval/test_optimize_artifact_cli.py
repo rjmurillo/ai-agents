@@ -9467,3 +9467,164 @@ class TestTheReadmeSpellsValuesTheCodeDeclares:
         """The other half of the same paragraph, anchored the same way."""
         para = _readme_paragraph("stderr, exit")
         assert f"stderr, exit {oa.EXIT_CONFIG}," in para
+
+
+class TestEveryMissingFileReadsTheSameWay:
+    """A typo in a path is the commonest operator mistake, so it gets one voice.
+
+    `_read_json` turns a missing file into `no such file: <path>`, and every
+    input reached that message except one. The gate peeks at the corpus header
+    of `--incumbent` and `--candidate` before the full read, and that peek
+    opened the file itself while catching only the decode failures. A missing
+    file therefore escaped as a bare `OSError`, which `_digest_scrubbed`
+    stringified into `[Errno 2] No such file or directory: 'nope.json'`.
+
+    The same mistake reported two ways depending on which flag carried it. The
+    peek is best-effort by contract, so answering `_UNREADABLE` here is not a
+    softening: `_corpus_refused` already declines to decide on an unreadable
+    file, so the full read below still raises and still exits 2. The peek
+    stops being the layer that names the failure, which it was never meant to
+    be.
+    """
+
+    def _split_for(self, tmp_path, capsys):
+        inc = _write(tmp_path, "real.json", {f"t{i}": True for i in range(8)})
+        _, split = _split(capsys, tmp_path, "--results", inc, "--seed", "s1")
+        return _write(tmp_path, "split.json", split)
+
+    def test_a_missing_incumbent_names_the_file_the_way_every_reader_does(
+        self, tmp_path, capsys
+    ):
+        split_path = self._split_for(tmp_path, capsys)
+        code, out = _run_gate(
+            capsys,
+            tmp_path,
+            "--incumbent", tmp_path / "nope.json",
+            "--candidate", tmp_path / "real.json",
+            "--split", split_path,
+        )
+        assert code == EXIT_CONFIG
+        assert out["error"] == f"no such file: {tmp_path / 'nope.json'}"
+
+    def test_a_missing_candidate_names_the_file_the_same_way(self, tmp_path, capsys):
+        split_path = self._split_for(tmp_path, capsys)
+        code, out = _run_gate(
+            capsys,
+            tmp_path,
+            "--incumbent", tmp_path / "real.json",
+            "--candidate", tmp_path / "gone.json",
+            "--split", split_path,
+        )
+        assert code == EXIT_CONFIG
+        assert out["error"] == f"no such file: {tmp_path / 'gone.json'}"
+
+    def test_no_errno_prefix_survives_on_any_input_flag(self, tmp_path, capsys):
+        """One assertion over both peeked flags, so neither regresses alone."""
+        split_path = self._split_for(tmp_path, capsys)
+        real = tmp_path / "real.json"
+        leaked = []
+        for flag in ("--incumbent", "--candidate"):
+            argv = {"--incumbent": real, "--candidate": real}
+            argv[flag] = tmp_path / "absent.json"
+            _, out = _run_gate(
+                capsys,
+                tmp_path,
+                "--incumbent", argv["--incumbent"],
+                "--candidate", argv["--candidate"],
+                "--split", split_path,
+            )
+            if "Errno" in str(out.get("error", "")):
+                leaked.append((flag, out["error"]))
+        assert leaked == []
+
+    def test_a_directory_in_place_of_a_report_is_still_named_by_the_full_read(
+        self, tmp_path, capsys
+    ):
+        """`IsADirectoryError` is the other OSError the peek can meet.
+
+        The guarantee is not that errno text disappears. `_read_text` keeps it
+        for the unusual failures, where the OS detail is the only thing that
+        says what went wrong, and it prefixes them with `could not read
+        <path>` so the file is named first. The guarantee is that the peek
+        stops being the layer that answers: whatever the operator sees comes
+        from the authoritative reader, in that reader's shape.
+        """
+        split_path = self._split_for(tmp_path, capsys)
+        adir = tmp_path / "a_dir"
+        adir.mkdir()
+        code, out = _run_gate(
+            capsys,
+            tmp_path,
+            "--incumbent", adir,
+            "--candidate", tmp_path / "real.json",
+            "--split", split_path,
+        )
+        assert code == EXIT_CONFIG
+        assert out["error"].startswith(f"could not read {adir}: ")
+
+
+class TestDuplicateKeysAreRefusedBeforeAnythingReadsTheObject:
+    """`_no_duplicate_keys` is the hook that makes a restated fact visible.
+
+    `json.loads` keeps the last value for a repeated key and reports nothing,
+    so a candidate stating `{"t0": false, "t0": true}` reaches the gate as a
+    single passing task. The hook existed with one end-to-end test behind it,
+    which pins that the gate refuses such a file but not what the hook itself
+    does with the shapes the parser can hand it.
+    """
+
+    def test_a_document_without_repeats_builds_the_ordinary_object(self):
+        assert oa._no_duplicate_keys([("a", 1), ("b", 2)]) == {"a": 1, "b": 2}
+
+    def test_an_empty_object_is_not_a_duplicate(self):
+        assert oa._no_duplicate_keys([]) == {}
+
+    def test_a_repeated_key_raises_and_names_it(self):
+        with pytest.raises(oa._DuplicateKeyError) as exc:
+            oa._no_duplicate_keys([("t0", False), ("t0", True)])
+        assert exc.value.keys == ["t0"]
+
+    def test_a_key_repeated_with_the_same_value_is_still_a_repeat(self):
+        """Equal values do not make the document state the fact once.
+
+        The defect is a producer that emitted a key twice, and that is worth
+        refusing whether or not the two copies happen to agree. Comparing
+        values would also make the rule depend on `==`, which is a different
+        question than how many times the document spoke.
+        """
+        with pytest.raises(oa._DuplicateKeyError) as exc:
+            oa._no_duplicate_keys([("t0", True), ("t0", True)])
+        assert exc.value.keys == ["t0"]
+
+    def test_every_repeated_key_is_listed_once_and_sorted(self):
+        with pytest.raises(oa._DuplicateKeyError) as exc:
+            oa._no_duplicate_keys(
+                [("b", 1), ("a", 1), ("b", 2), ("a", 2), ("b", 3), ("c", 1)]
+            )
+        assert exc.value.keys == ["a", "b"]
+
+    def test_the_hook_runs_on_nested_objects_too(self):
+        """The parser calls the hook per object, so nesting is not an escape."""
+        with pytest.raises(oa._DuplicateKeyError) as exc:
+            json.loads(
+                '{"outer": {"t0": false, "t0": true}}',
+                object_pairs_hook=oa._no_duplicate_keys,
+            )
+        assert exc.value.keys == ["t0"]
+
+    def test_repeats_in_sibling_objects_are_reported_by_the_first_to_close(self):
+        """Each object is its own document fragment and refuses on its own."""
+        with pytest.raises(oa._DuplicateKeyError) as exc:
+            json.loads(
+                '{"a": {"x": 1, "x": 2}, "b": {"y": 1, "y": 2}}',
+                object_pairs_hook=oa._no_duplicate_keys,
+            )
+        assert exc.value.keys == ["x"]
+
+    def test_a_duplicate_error_is_a_value_error_so_peeks_can_catch_it(self):
+        """`_corpus_header` promises `_UNREADABLE` for every content problem.
+
+        It catches `ValueError`, and a duplicate key is a content problem, so
+        the subclassing is what keeps that promise true.
+        """
+        assert issubclass(oa._DuplicateKeyError, ValueError)

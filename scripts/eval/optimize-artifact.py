@@ -379,10 +379,20 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
     exactly: absent or null is `None`, a valid digest is itself, and everything
     that function would raise on is `_UNREADABLE`.
 
-    Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
-    because a failing open names the file. `RecursionError` joins `ValueError`
-    because a deeply nested array exhausts the decoder's stack rather than
-    failing its grammar, and letting it out would break the promise above.
+    `OSError` answers `_UNREADABLE` too, for the same reason and one more. A
+    file the peek cannot open is a file that has declared no corpus, so it has
+    no opinion to contribute. Letting it escape also made the peek the layer
+    that named the failure, and it named it badly: `_digest_scrubbed`
+    stringified the raw errno, so a mistyped `--incumbent` reported `[Errno 2]
+    No such file or directory` while a mistyped `--split` reported `no such
+    file:` from `_read_json`. The same operator mistake read two ways
+    depending on which flag carried it. Deferring costs nothing, because
+    `_corpus_refused` declines to decide on an unreadable file and the full
+    read below raises with the message every other input already used.
+
+    `RecursionError` joins `ValueError` because a deeply nested array
+    exhausts the decoder's stack rather than failing its grammar, and letting
+    it out would break the promise above.
 
     The rule that makes this one strict while the file's other best-effort
     readers can stay lax: a peek is dangerous exactly when its answer can reach
@@ -396,7 +406,7 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
         data = json.loads(
             path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
         )
-    except (ValueError, RecursionError):
+    except (ValueError, RecursionError, OSError):
         return _UNREADABLE
     if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
         return _UNREADABLE
