@@ -1833,17 +1833,14 @@ def _refuse_unparseable_input(path: Path) -> None:
     guards are written for and the reason this is not simply an early
     `_read_results`.
 
-    Parsing twice on the failure path buys one voice for the message.
-    `_read_results` raises the complaint every other reader raises, so the
-    peek stays the layer that cannot name a failure, and `RecursionError`
-    joins `ValueError` for the same reason it does in `_corpus_header`: a
-    deeply nested array exhausts the decoder's stack rather than failing its
-    grammar, and letting it out would surface as a traceback.
+    `_read_json` is the parse and nothing above it, so it is exactly the
+    question this asks and it raises the complaint every other reader raises.
+    Repeating the decode here would mean a second place that has to remember
+    duplicate keys, a nested array exhausting the decoder's stack rather than
+    failing its grammar, and that `UnicodeDecodeError` is a `ValueError`. The
+    result is discarded; the call is made for the refusal it can raise.
     """
-    try:
-        json.loads(_read_text(path), object_pairs_hook=_no_duplicate_keys)
-    except (ValueError, RecursionError):
-        _read_results(path)
+    _read_json(path)
 
 
 def _corpus_refused(
