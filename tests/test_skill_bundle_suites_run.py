@@ -63,7 +63,9 @@ def _run_tree(root: Path) -> subprocess.CompletedProcess[str]:
     targets = [str(p.relative_to(_REPO_ROOT)) for p in _suite_dirs(root)]
     temp_root = _REPO_ROOT.parent / f".pytest-external-{_REPO_ROOT.name}" / uuid.uuid4().hex
     env = os.environ.copy()
-    env["TMPDIR"] = str(temp_root)
+    # tempfile consults TMPDIR, TEMP, and TMP (Windows tools may ignore TMPDIR);
+    # set all three so isolation holds across platforms.
+    env["TMPDIR"] = env["TEMP"] = env["TMP"] = str(temp_root)
     try:
         temp_root.mkdir(parents=True)
         return subprocess.run(
