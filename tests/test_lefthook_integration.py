@@ -679,6 +679,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
+        "memory-size",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -691,7 +692,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "planning-advisory",
         "infrastructure-advisory",
         "memory-index",
-        "memory-size",
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
