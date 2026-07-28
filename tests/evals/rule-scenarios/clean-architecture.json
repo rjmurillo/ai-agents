@@ -1,5 +1,4 @@
 {
-  "rule_path": ".claude/rules/clean-architecture.md",
   "rule_id": "clean-architecture",
   "scenarios": [
     {
@@ -41,5 +40,7 @@
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Pure utility with no boundary crossing. Clean Architecture discipline does not apply."
     }
-  ]
+  ],
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/clean-architecture.md"
 }

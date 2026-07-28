@@ -33,7 +33,7 @@ Goal: Identify where commands underuse, miss, or duplicate skills and agents, an
 
 ### 3. /build is preflight-blind
 - Says "understand the existing code" but invokes no retrieval skill.
-- Missing: `context-gather` (Forgetful + Context7 + Serena), `steering-matcher` (path-based guidance), `chestertons-fence` (when modifying old/low-coverage code per `.claude/rules/working-with-legacy-code.md`).
+- Missing: `context-gather` (Forgetful + Context7 + Serena), `steering-matcher` (path-based guidance), `chestertons-fence` (when modifying old/low-coverage code per `.claude/skills/software-engineering-library/references/working-with-legacy-code.md`).
 - Fix: bundle a preflight block: `Skill(context-gather)` -> `Skill(steering-matcher)` -> conditional `Skill(chestertons-fence)` if file age >6mo or coverage low.
 - Outcome: eliminates the recurring "started coding before reading rules" failure.
 
