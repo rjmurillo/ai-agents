@@ -1465,10 +1465,15 @@ def _renumber_events(events: list) -> None:
     `episode-2026-05-31-session-1857.json` shipped a list starting at `e002`.
     Numbering last makes both unrepresentable rather than merely detected.
     """
-    for index, evt in enumerate(events, 1):
+    # The counter advances per assigned id, not per list slot. Numbering by
+    # position gave the event after a malformed entry a number one higher than
+    # the count of events before it, so the ids this function promises to make
+    # contiguous were not. Ids label events, not slots.
+    index = 0
+    for evt in events:
         if isinstance(evt, dict):
+            index += 1
             evt["id"] = f"e{index:03d}"
-
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.

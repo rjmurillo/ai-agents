@@ -1911,12 +1911,31 @@ class TestEventIdsAreContiguousAndUnique:
         extract_session_episode._renumber_events(events)
         assert events == []
 
-    def test_a_non_dict_entry_is_skipped_rather_than_crashing(self):
+    def test_a_non_dict_entry_is_skipped_without_burning_an_id(self):
+        """A junk entry must not consume a number the ids are counted in.
+
+        Positional numbering gave the second event `e003` here, so the ids
+        this class is named for were not contiguous whenever a malformed
+        entry sat between two events. Ids label the events, not the list
+        slots, so the counter advances only when one is assigned.
+        """
         events = [{"id": "e005"}, "not-a-dict", {"id": "e009"}]
         extract_session_episode._renumber_events(events)
         assert events[0]["id"] == "e001"
         assert events[1] == "not-a-dict"
-        assert events[2]["id"] == "e003"
+        assert events[2]["id"] == "e002"
+
+    def test_leading_and_trailing_junk_still_numbers_from_one(self):
+        """The gap must not reappear at either end of the list."""
+        events = [None, {"id": "x"}, "junk", {"id": "y"}, 7]
+        extract_session_episode._renumber_events(events)
+        assert [e["id"] for e in events if isinstance(e, dict)] == ["e001", "e002"]
+
+    def test_a_list_of_only_junk_assigns_nothing(self):
+        """Nothing to number is not an error."""
+        events = ["a", None, 3]
+        extract_session_episode._renumber_events(events)
+        assert events == ["a", None, 3]
 
     def test_it_pads_past_nine(self):
         events = [{"id": "x"} for _ in range(11)]
