@@ -11,6 +11,7 @@ the rule will go back to being advisory.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from unittest import mock
@@ -42,6 +43,25 @@ def _frontmatter(description: str, extra: str = "") -> str:
     return f"---\ndescription: {description}\n{extra}---\n\n# Body\n"
 
 
+def _write_marketplace_manifests(root: Path, sources: tuple[str, ...] = gate.PLUGIN_ROOTS) -> None:
+    github_plugins = [
+        {"name": f"plugin-{index}", "source": f"./{source}"}
+        for index, source in enumerate(sources)
+    ]
+    claude_plugins = [
+        {"name": f"plugin-{index}", "source": f"./{source}"}
+        for index, source in enumerate(sources)
+    ]
+    (root / ".github" / "plugin").mkdir(parents=True)
+    (root / ".claude-plugin").mkdir()
+    (root / ".github" / "plugin" / "marketplace.json").write_text(
+        json.dumps({"plugins": github_plugins}), encoding="utf-8"
+    )
+    (root / ".claude-plugin" / "marketplace.json").write_text(
+        json.dumps({"plugins": claude_plugins}), encoding="utf-8"
+    )
+
+
 class TestOutwardDetection:
     """Positive cases: a file under an upstream-only directory must be caught."""
 
@@ -69,7 +89,7 @@ class TestOutwardDetection:
             "Reads `docs/a.md` for the roster.",
             "Reads **docs/a.md** for the roster.",
             "Reads *docs/a.md* for the roster.",
-            "| step | `docs/a.md` | notes |",
+            "'| step | `docs/a.md` | notes |'",
             "See [the roster](docs/a.md).",
             "Reads (docs/a.md) for the roster.",
         ],
@@ -166,6 +186,28 @@ class TestOutwardDetection:
     def test_flags_upstream_only_file(self, reference: str) -> None:
         found = gate.scan_file(Path("x.md"), _frontmatter(f"Does a thing per {reference}."))
         assert [ref for _, _, ref in found] == [reference]
+
+    def test_flags_a_path_with_spaces(self) -> None:
+        found = gate.scan_file(Path("x.md"), _frontmatter("Read docs/My Guide.md first."))
+        assert [ref for _, _, ref in found] == ["docs/My Guide.md"]
+
+    def test_normalizes_windows_separators(self) -> None:
+        text = "---\ndescription: 'Read docs\\secret.md first.'\n---\n"
+        found = gate.scan_file(Path("x.md"), text)
+        assert [ref for _, _, ref in found] == ["docs/secret.md"]
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            '"Read docs/My Guide.md first."',
+            "'Read docs/My Guide.md first.'",
+            "'`Read docs/My Guide.md first.`'",
+            "'[guide](docs/My Guide.md)'",
+        ],
+    )
+    def test_extracts_paths_from_markdown_containers(self, value: str) -> None:
+        found = gate.scan_file(Path("x.md"), _frontmatter(value))
+        assert [ref for _, _, ref in found] == ["docs/My Guide.md"]
 
     def test_flags_the_name_key_too(self) -> None:
         text = "---\nname: docs/thing.md\n---\n"
@@ -378,40 +420,61 @@ class TestFrontmatterParsing:
 
 
 class TestFileDiscovery:
-    def test_skips_nested_worktrees(self, tmp_path: Path) -> None:
-        """.claude/worktrees holds checkouts of this same repo."""
-        (tmp_path / ".claude" / "worktrees" / "agent-a" / "skills" / "s").mkdir(parents=True)
-        (tmp_path / ".claude" / "worktrees" / "agent-a" / "skills" / "s" / "SKILL.md").write_text(
+    def test_derives_plugin_sources_from_both_marketplace_manifests(self, tmp_path: Path) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude", "new-plugin"))
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / "new-plugin").mkdir()
+        roots = gate.plugin_roots(tmp_path)
+        assert roots == (".claude", "new-plugin")
+
+    def test_main_scans_manifest_source_not_named_in_the_old_constant(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        _write_marketplace_manifests(tmp_path, ("new-plugin",))
+        skill = tmp_path / "new-plugin" / "skills" / "manifest-source"
+        skill.mkdir(parents=True)
+        (skill / "bad.md").write_text(_frontmatter("Per docs/a.md."), encoding="utf-8")
+        assert gate.main(["--repo-root", str(tmp_path)]) == 1
+        assert "new-plugin/skills/manifest-source/bad.md:2" in capsys.readouterr().err
+
+    def test_scans_a_legitimate_worktrees_directory(self, tmp_path: Path) -> None:
+        """A directory name alone must not remove shipped plugin files."""
+        _write_marketplace_manifests(tmp_path, (".claude",))
+        (tmp_path / ".claude" / "skills" / "worktrees").mkdir(parents=True)
+        (tmp_path / ".claude" / "skills" / "worktrees" / "SKILL.md").write_text(
             _frontmatter("Per docs/a.md."), encoding="utf-8"
         )
-        (tmp_path / ".claude" / "skills").mkdir(parents=True)
         (tmp_path / ".claude" / "skills" / "real.md").write_text(
             "---\nname: r\n---\n", encoding="utf-8"
         )
         found = [p.name for p in gate.iter_markdown(tmp_path)]
-        assert found == ["real.md"]
+        assert found == ["real.md", "SKILL.md"]
 
     def test_scans_every_plugin_root(self, tmp_path: Path) -> None:
+        _write_marketplace_manifests(tmp_path)
         for root in gate.PLUGIN_ROOTS:
             target = tmp_path / root / "skills"
             target.mkdir(parents=True)
             (target / "a.md").write_text("---\nname: a\n---\n", encoding="utf-8")
         assert len(gate.iter_markdown(tmp_path)) == len(gate.PLUGIN_ROOTS)
 
-    def test_missing_root_is_not_an_error(self, tmp_path: Path) -> None:
+    def test_missing_root_is_a_config_error(self, tmp_path: Path) -> None:
+        _write_marketplace_manifests(tmp_path)
         (tmp_path / ".claude").mkdir()
-        assert gate.iter_markdown(tmp_path) == []
+        with pytest.raises(gate.ConfigError):
+            gate.iter_markdown(tmp_path)
 
-    def test_the_exclusion_reads_the_repo_relative_path(self, tmp_path: Path) -> None:
-        """Kills the mutant that tests ``path.parts`` instead.
+    def test_main_returns_config_error_when_manifest_source_is_missing(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude", "missing-root"))
+        (tmp_path / ".claude").mkdir()
+        assert gate.main(["--repo-root", str(tmp_path)]) == 2
+        assert "Plugin source directory does not exist: missing-root" in capsys.readouterr().err
 
-        ``path.parts`` carries the absolute path, so a checkout that happens to
-        live under a directory named ``worktrees`` matches on every file and
-        the gate silently scans nothing while still exiting zero. The exclusion
-        is about this repository's own nested checkouts, so it has to be
-        measured from the repository root.
-        """
+    def test_a_checkout_path_named_worktrees_does_not_hide_files(self, tmp_path: Path) -> None:
         repo = tmp_path / "worktrees" / "ai-agents"
+        _write_marketplace_manifests(repo, (".claude",))
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / ".claude" / "skills" / "real.md").write_text(
             "---\nname: r\n---\n", encoding="utf-8"
@@ -423,6 +486,7 @@ class TestCli:
     """Exit codes are pinned to literals: CI reads the number, not the constant."""
 
     def test_clean_tree_exits_zero(self, tmp_path: Path, capsys) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude",))
         skills = tmp_path / ".claude" / "skills"
         skills.mkdir(parents=True)
         (skills / "a.md").write_text(_frontmatter("Self-contained."), encoding="utf-8")
@@ -430,6 +494,7 @@ class TestCli:
         assert "No outward frontmatter references" in capsys.readouterr().out
 
     def test_violation_exits_one_and_names_the_file(self, tmp_path: Path, capsys) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude",))
         skills = tmp_path / ".claude" / "skills"
         skills.mkdir(parents=True)
         (skills / "bad.md").write_text(_frontmatter("Per docs/a.md."), encoding="utf-8")
@@ -441,7 +506,26 @@ class TestCli:
 
     def test_no_plugin_root_is_a_config_error(self, tmp_path: Path, capsys) -> None:
         assert gate.main(["--repo-root", str(tmp_path)]) == 2
-        assert "No plugin root found" in capsys.readouterr().err
+        assert "Marketplace manifest not found" in capsys.readouterr().err
+
+    def test_utf16_frontmatter_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude",))
+        skill = tmp_path / ".claude" / "skills"
+        skill.mkdir(parents=True)
+        (skill / "bad.md").write_bytes(_frontmatter("Read docs/secret.md").encode("utf-16"))
+        assert gate.main(["--repo-root", str(tmp_path)]) == 2
+        assert "Could not read" in capsys.readouterr().err
+
+    def test_unparseable_frontmatter_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        _write_marketplace_manifests(tmp_path, (".claude",))
+        skill = tmp_path / ".claude" / "skills"
+        skill.mkdir(parents=True)
+        (skill / "bad.md").write_text(
+            '---\n{"description": "Read docs/secret.md", broken\n---\n',
+            encoding="utf-8",
+        )
+        assert gate.main(["--repo-root", str(tmp_path)]) == 2
+        assert "Unparseable frontmatter" in capsys.readouterr().err
 
     def test_real_repository_is_clean(self) -> None:
         """The gate ships at zero. This is the ratchet."""
@@ -549,8 +633,9 @@ class TestRootAwareness:
         assert gate.owning_root(root / "templates" / "agents" / "x.md", root) is None
 
     def test_plugin_roots_are_pinned(self) -> None:
-        """Losing a root silently halves the gate; the tuple is the contract."""
-        assert gate.PLUGIN_ROOTS == (".claude", "src/claude", "src/copilot-cli")
+        """Losing a manifest source silently shrinks the gate."""
+        root = Path(__file__).resolve().parents[2]
+        assert gate.PLUGIN_ROOTS == gate.plugin_roots(root)
 
     def test_root_prefixed_detection_tracks_the_pinned_roots(self) -> None:
         """Adding a root must extend detection, not just the scan.
@@ -636,16 +721,13 @@ class TestParserFidelity:
         found = [ref for _, _, ref in gate.scan_file(Path("x.md"), text)]
         assert found == ["docs/a.md"], f"bypassed by {block!r}"
 
-    def test_invalid_yaml_falls_back_to_the_line_scan(self) -> None:
-        """The SkillForge templates are real files that a loader rejects.
-
-        Failing closed on unparseable frontmatter would block them; failing
-        open to the line scan reads them the way it always did.
-        """
+    def test_invalid_yaml_is_a_config_error(self) -> None:
+        """A value the validator cannot parse is not a clean value."""
         text = "---\nname: {{PLACEHOLDER}\ndescription: Per docs/a.md.\n---\n"
         with pytest.raises(yaml.YAMLError):
             yaml.safe_load(text.split("---")[1])
-        assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
+        with pytest.raises(gate.FrontmatterParseError):
+            gate.scan_file(Path("x.md"), text)
 
     def test_valid_yaml_that_is_not_a_mapping_degrades_instead_of_crashing(self) -> None:
         """Kills the mutant that tests ``not data`` instead of the type.
@@ -673,17 +755,11 @@ class TestParserFidelity:
         text = "---\n# description: some note\ndescription: Per docs/a.md.\n---\n"
         assert gate.scan_file(Path("x.md"), text) == [(3, "description", "docs/a.md")]
 
-    def test_the_fallback_still_reads_continuation_lines(self) -> None:
-        """A wrapped description is the common shape, and the fallback owns it.
-
-        Once YAML handles the valid files, the line scan's continuation branch
-        is reachable only through unparseable frontmatter, so that is where it
-        has to be tested. Without this the branch can be deleted outright and
-        every other test stays green.
-        """
+    def test_placeholder_templates_still_read_continuation_lines(self) -> None:
+        """The only YAML fallback is the shipped placeholder template shape."""
         text = (
             "---\n"
-            "name: {{PLACEHOLDER}\n"
+            "name: {{PLACEHOLDER}}\n"
             "description: A description long enough to wrap\n"
             "  onto a second line that carries docs/a.md with it.\n"
             "---\n"
@@ -713,6 +789,8 @@ class TestParserFidelity:
         false positive this class exists to prevent, and every unit test stays
         green. This is the test that goes red.
         """
+        _write_marketplace_manifests(tmp_path, ("src/copilot-cli", ".claude"))
+        (tmp_path / ".claude").mkdir()
         shipped = tmp_path / "src/copilot-cli"
         (shipped / "docs").mkdir(parents=True)
         (shipped / "docs" / "guide.md").write_text("x", encoding="utf-8")
@@ -722,7 +800,6 @@ class TestParserFidelity:
         )
         assert gate.main(["--repo-root", str(tmp_path)]) == 0
 
-        (tmp_path / ".claude").mkdir()
         (tmp_path / ".claude" / "b.md").write_text(
             _frontmatter("Per docs/guide.md."), encoding="utf-8"
         )
@@ -739,6 +816,7 @@ class TestParserFidelity:
         swap reintroduces the false positive against the skill-bundle
         convention while the whole unit suite stays green.
         """
+        _write_marketplace_manifests(tmp_path, (".claude",))
         skill = tmp_path / ".claude" / "skills" / "demo"
         (skill / "scripts").mkdir(parents=True)
         (skill / "scripts" / "collect.py").write_text("x", encoding="utf-8")
@@ -758,6 +836,7 @@ class TestParserFidelity:
         spelling is the violation: the target ships, but the repo-relative name
         for it does not travel with the root a consumer installs.
         """
+        _write_marketplace_manifests(tmp_path, (".claude",))
         root = tmp_path / ".claude"
         (root / "rules").mkdir(parents=True)
         (root / "rules" / "y.md").write_text("x", encoding="utf-8")

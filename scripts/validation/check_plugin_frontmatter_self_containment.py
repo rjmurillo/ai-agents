@@ -141,14 +141,73 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
 import yaml
 
-PLUGIN_ROOTS = (".claude", "src/claude", "src/copilot-cli")
+MARKETPLACE_MANIFESTS = (".claude-plugin/marketplace.json", ".github/plugin/marketplace.json")
+
+
+class ConfigError(Exception):
+    """Configuration prevents a trustworthy measurement."""
+
+
+class FrontmatterParseError(ConfigError):
+    """A file's frontmatter could not be decoded or parsed."""
+
+
+def _normalize_source(value: object, manifest: Path) -> str:
+    """Return a repository-relative plugin source from a marketplace manifest."""
+    if not isinstance(value, str) or not value:
+        raise ConfigError(f"{manifest} has a plugin without a string source")
+    source = value.removeprefix("./").replace("\\", "/").rstrip("/")
+    if not source or source.startswith("/") or ".." in Path(source).parts:
+        raise ConfigError(f"{manifest} has an invalid plugin source: {value!r}")
+    return source
+
+
+def _manifest_sources(manifest: Path) -> list[str]:
+    """Plugin sources from one marketplace manifest."""
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise ConfigError(f"Marketplace manifest not found: {manifest}") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ConfigError(f"Could not read marketplace manifest {manifest}: {error}") from error
+
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        raise ConfigError(f"{manifest} must contain a plugins list")
+    sources: list[str] = []
+    for plugin in plugins:
+        if not isinstance(plugin, dict):
+            raise ConfigError(f"{manifest} has a non-object plugin entry")
+        sources.append(_normalize_source(plugin.get("source"), manifest))
+    return sources
+
+
+def plugin_roots(repo_root: Path) -> tuple[str, ...]:
+    """Plugin source directories declared by both marketplace manifests."""
+    roots: list[str] = []
+    for name in MARKETPLACE_MANIFESTS:
+        for source in _manifest_sources(repo_root / name):
+            if source not in roots:
+                roots.append(source)
+
+    for source in roots:
+        if not (repo_root / source).is_dir():
+            raise ConfigError(f"Plugin source directory does not exist: {source}")
+    if not roots:
+        raise ConfigError("Marketplace manifests declare no plugin sources")
+    return tuple(roots)
+
+
+PLUGIN_ROOTS = plugin_roots(Path(__file__).resolve().parents[2])
 
 # A path that spells out a plugin root. The directory exists here, so this is
 # not an upstream-only reference, but it does not resolve for a consumer
@@ -161,7 +220,22 @@ PLUGIN_ROOTS = (".claude", "src/claude", "src/copilot-cli")
 # tried against the file's own directory and against the owning root first, so
 # a relative path that genuinely resolves is never flagged, while a
 # root-prefixed spelling of that same file has nowhere to land and is.
-ROOT_PREFIXED = tuple(re.escape(root) for root in PLUGIN_ROOTS)
+def _path_pattern(path: str) -> str:
+    """Regex for a repository path, accepting POSIX and Windows separators."""
+    return r"[/\\]".join(re.escape(part) for part in path.split("/"))
+
+
+def compile_outward_file(plugin_roots_: tuple[str, ...]) -> re.Pattern[str]:
+    """Matcher for an outward file path under the given plugin roots."""
+    roots = tuple(_path_pattern(root) for root in plugin_roots_)
+    watched = UPSTREAM_ONLY + roots
+    return re.compile(
+        r"(?:^|[^\w./\\-])"
+        r"(/?(?:\.{1,2}[/\\])*(?:"
+        + "|".join(watched)
+        + r")[/\\][\w./\\+ -]*?[\w+ -]\.[A-Za-z][A-Za-z0-9]{0,9})"
+        r"(?!\.[A-Za-z][A-Za-z0-9]{0,9}(?![\w/\\]))(?![\w/\\])"
+    )
 
 # Directories that exist only in this repository. A consumer who installs a
 # plugin receives the plugin root and nothing above it.
@@ -266,12 +340,7 @@ LOCAL_URI = re.compile(
 # and after. The extension alphabet is deliberately not widened: nothing
 # tracked here carries an extension past nine characters that this pattern
 # could reach, and a looser tail reads more prose as a path.
-OUTWARD_FILE = re.compile(
-    r"(?:^|[^\w./-])"
-    r"(/?(?:\.{1,2}/)*(?:"
-    + "|".join(UPSTREAM_ONLY + ROOT_PREFIXED)
-    + r")/[\w./+-]*\w\.[A-Za-z][A-Za-z0-9]{0,9})(?![\w/])"
-)
+OUTWARD_FILE = compile_outward_file(PLUGIN_ROOTS)
 
 DECLARATION = re.compile(r"<!--\s*vendor-portability:(.*?)-->", re.IGNORECASE | re.DOTALL)
 
@@ -326,6 +395,28 @@ def _line_scan(lines: list[tuple[int, str]]) -> list[tuple[int, str, str]]:
     return found
 
 
+PLACEHOLDER = re.compile(r"\{\{[A-Z][A-Z0-9_]*\}\}")
+
+
+def _is_placeholder_template(lines: list[tuple[int, str]]) -> bool:
+    """True only for the shipped SkillForge frontmatter placeholder format."""
+    saw_placeholder = False
+    for _, line in lines:
+        stripped = line.strip()
+        if "{{" not in stripped and "}}" not in stripped:
+            continue
+        saw_placeholder = True
+        if stripped.startswith("#"):
+            continue
+        match = re.match(r"[A-Za-z0-9_-]+\s*:\s*(.*)$", stripped)
+        value = match.group(1).strip() if match else stripped
+        if value in {">", "|", ">-", "|-"}:
+            continue
+        if not PLACEHOLDER.fullmatch(value):
+            return False
+    return saw_placeholder
+
+
 def _key_line(lines: list[tuple[int, str]], key: str) -> int:
     """The frontmatter line that opens ``key``, or the block's first line.
 
@@ -352,19 +443,19 @@ def checked_values(text: str) -> list[tuple[int, str, str]]:
     those is valid YAML that a consumer's loader resolves to a path, and each
     one would walk past a reader that only matches a bare key at line start.
 
-    The line scan remains as the fallback for frontmatter that is not valid
-    YAML. This repository ships two such files on purpose: the SkillForge
-    templates carry placeholder syntax that a real loader rejects. Parsing
-    strictly and failing closed would break them; parsing strictly and falling
-    back reads every valid file correctly and still reads the invalid ones.
+    The line scan remains only for the shipped SkillForge placeholder template
+    format. Every other YAML error is a configuration failure, because a
+    measurement the validator did not take is not a measurement of zero.
     """
     lines = frontmatter_lines(text)
     if not lines:
         return []
     try:
         data = yaml.safe_load("\n".join(line for _, line in lines))
-    except yaml.YAMLError:
-        data = None
+    except yaml.YAMLError as error:
+        if _is_placeholder_template(lines):
+            return _line_scan(lines)
+        raise FrontmatterParseError(f"Unparseable frontmatter: {error}") from error
     if not isinstance(data, dict):
         return _line_scan(lines)
     found: list[tuple[int, str, str]] = []
@@ -393,7 +484,35 @@ def _path_surface(value: str) -> str:
     return OPAQUE_URI.sub(" ", REMOTE_URI.sub(" ", value))
 
 
-def declared_paths(text: str) -> set[str]:
+def _normalize_reference(reference: str) -> str:
+    """Use the separator a plugin consumer can resolve."""
+    return reference.replace("\\", "/")
+
+
+def _candidate_surfaces(value: str) -> list[str]:
+    """Whole value plus common Markdown containers that may hold paths."""
+    surfaces = [value]
+    surfaces.extend(re.findall(r"`([^`]+)`", value))
+    surfaces.extend(re.findall(r'"([^"]+)"', value))
+    surfaces.extend(re.findall(r"'([^']+)'", value))
+    surfaces.extend(re.findall(r"\[[^\]]+\]\(([^)]+)\)", value))
+    return surfaces
+
+
+def extract_references(value: str, outward_file: re.Pattern[str] = OUTWARD_FILE) -> list[str]:
+    """Outward file references from plain text, quotes, backticks, and links."""
+    found: list[str] = []
+    seen: set[str] = set()
+    for surface in _candidate_surfaces(value):
+        for reference in outward_file.findall(surface):
+            normalized = _normalize_reference(reference)
+            if normalized not in seen:
+                found.append(normalized)
+                seen.add(normalized)
+    return found
+
+
+def declared_paths(text: str, outward_file: re.Pattern[str] = OUTWARD_FILE) -> set[str]:
     """Paths named inside this file's ``vendor-portability`` markers.
 
     Scoping the opt-out to the paths it names is the difference between an
@@ -403,7 +522,7 @@ def declared_paths(text: str) -> set[str]:
     declared: set[str] = set()
     for body in DECLARATION.findall(text):
         surface = _path_surface(body)
-        declared.update(OUTWARD_FILE.findall(surface))
+        declared.update(extract_references(surface, outward_file))
         # A local file URI is checked as a whole string, and `OUTWARD_FILE`
         # cannot produce that string: the character before any directory name
         # inside a URI is always `/`, which the boundary rejects. Reading the
@@ -445,7 +564,8 @@ def reference_shipper(repo_root: Path, root: str, file_dir: Path) -> Callable[[s
     bases = (file_dir, repo_root / root)
 
     def ships(reference: str) -> bool:
-        candidate = reference[2:] if reference.startswith("./") else reference
+        normalized = _normalize_reference(reference)
+        candidate = normalized[2:] if normalized.startswith("./") else normalized
         if candidate.startswith("/"):
             return False
         if ".." in candidate.split("/"):
@@ -456,17 +576,20 @@ def reference_shipper(repo_root: Path, root: str, file_dir: Path) -> Callable[[s
 
 
 def scan_file(
-    path: Path, text: str, ships: Callable[[str], bool] | None = None
+    path: Path,
+    text: str,
+    ships: Callable[[str], bool] | None = None,
+    outward_file: re.Pattern[str] = OUTWARD_FILE,
 ) -> list[tuple[int, str, str]]:
     """Return ``(line_number, key, reference)`` violations for one file."""
-    declared = declared_paths(text)
+    declared = declared_paths(text, outward_file)
     violations: list[tuple[int, str, str]] = []
     for number, key, value in checked_values(text):
         surface = _path_surface(value)
         for local in LOCAL_URI.findall(surface):
             if local not in declared:
                 violations.append((number, key, local))
-        for reference in OUTWARD_FILE.findall(surface):
+        for reference in extract_references(surface, outward_file):
             if reference in declared:
                 continue
             if ships is not None and ships(reference):
@@ -475,30 +598,48 @@ def scan_file(
     return violations
 
 
-def iter_markdown(root: Path) -> list[Path]:
+def _tracked_files(root: Path, plugin_roots_: tuple[str, ...]) -> list[Path] | None:
+    """Tracked files under plugin roots, or ``None`` outside a git checkout."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", *plugin_roots_],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    names = [name for name in result.stdout.decode("utf-8").split("\0") if name]
+    return [root / name for name in names if name.endswith(".md") and (root / name).is_file()]
+
+
+def iter_markdown(root: Path, plugin_roots_: tuple[str, ...] | None = None) -> list[Path]:
     """Every ``.md`` file under the plugin roots, in a stable order.
 
-    ``.claude/worktrees`` holds nested checkouts of this same repository. They
-    are not source, and scanning them multiplies every finding by the number of
-    live agent worktrees.
+    In a git checkout, the source of truth is tracked files. That excludes
+    nested worktrees, dependency directories, caches, and other local clutter
+    without guessing from directory names that a shipped plugin could legally
+    use. Tests that build synthetic trees outside git fall back to a filesystem
+    walk over the declared roots.
     """
+    roots = plugin_roots_ or plugin_roots(root)
+    tracked = _tracked_files(root, roots)
+    if tracked is not None:
+        return sorted(tracked)
+
     found: list[Path] = []
-    for name in PLUGIN_ROOTS:
+    for name in roots:
         base = root / name
-        if not base.is_dir():
-            continue
         for path in base.rglob("*.md"):
-            parts = path.relative_to(root).parts
-            if "worktrees" in parts or "__pycache__" in parts or "node_modules" in parts:
-                continue
             found.append(path)
     return sorted(found)
 
 
-def owning_root(path: Path, repo_root: Path) -> str | None:
+def owning_root(
+    path: Path, repo_root: Path, plugin_roots_: tuple[str, ...] = PLUGIN_ROOTS
+) -> str | None:
     """The plugin root that ships ``path``, or ``None`` if it is outside them."""
     relative = path.relative_to(repo_root).as_posix()
-    for name in PLUGIN_ROOTS:
+    for name in plugin_roots_:
         if relative.startswith(f"{name}/"):
             return name
     return None
@@ -518,27 +659,35 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = args.repo_root or Path(__file__).resolve().parents[2]
-    if not any((root / name).is_dir() for name in PLUGIN_ROOTS):
-        print(f"No plugin root found under {root}", file=sys.stderr)
+    try:
+        roots = plugin_roots(root)
+    except ConfigError as error:
+        print(str(error), file=sys.stderr)
         return EXIT_CONFIG
 
-    files = iter_markdown(root)
+    outward_file = compile_outward_file(roots)
+    files = iter_markdown(root, roots)
     violations: list[tuple[Path, int, str, str]] = []
     for path in files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError as error:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
             print(f"Could not read {path}: {error}", file=sys.stderr)
             return EXIT_CONFIG
-        root_name = owning_root(path, root)
+        root_name = owning_root(path, root, roots)
         ships = reference_shipper(root, root_name, path.parent) if root_name else None
-        for number, key, reference in scan_file(path, text, ships):
+        try:
+            file_violations = scan_file(path, text, ships, outward_file)
+        except FrontmatterParseError as error:
+            print(f"{path}: {error}", file=sys.stderr)
+            return EXIT_CONFIG
+        for number, key, reference in file_violations:
             violations.append((path, number, key, reference))
 
     if not violations:
         print(
             f"No outward frontmatter references. Scanned {len(files)} files "
-            f"across {len(PLUGIN_ROOTS)} plugin roots."
+            f"across {len(roots)} plugin roots."
         )
         return EXIT_OK
 

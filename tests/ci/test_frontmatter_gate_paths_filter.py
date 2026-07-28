@@ -10,6 +10,7 @@ whole, not a hand-listed subset of their subdirectories.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -17,6 +18,10 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/validate-generated-agents.yml"
+MARKETPLACE_MANIFESTS = (
+    REPO_ROOT / ".github/plugin/marketplace.json",
+    REPO_ROOT / ".claude-plugin/marketplace.json",
+)
 
 
 def _gate():
@@ -38,11 +43,27 @@ def _filter_patterns() -> list[str]:
     raise AssertionError("no paths-filter step in check-paths")
 
 
-def test_every_scanned_root_is_covered_whole() -> None:
+def _manifest_sources() -> list[str]:
+    sources: list[str] = []
+    for manifest in MARKETPLACE_MANIFESTS:
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+        for plugin in document["plugins"]:
+            source = plugin["source"].removeprefix("./").rstrip("/")
+            if source not in sources:
+                sources.append(source)
+    return sources
+
+
+def test_scanner_roots_match_marketplace_manifest_sources() -> None:
+    expected = _manifest_sources()
+    assert set(_gate().PLUGIN_ROOTS) == set(expected)
+
+
+def test_every_manifest_source_is_covered_whole() -> None:
     patterns = set(_filter_patterns())
-    missing = [root for root in _gate().PLUGIN_ROOTS if f"{root}/**" not in patterns]
+    missing = [root for root in _manifest_sources() if f"{root}/**" not in patterns]
     assert missing == [], (
-        f"The gate scans {missing} but the paths filter does not cover them whole, "
+        f"The manifests ship {missing} but the paths filter does not cover them whole, "
         "so a PR touching only those files would skip the required check."
     )
 
@@ -54,6 +75,9 @@ def test_the_gate_step_is_present_and_guarded() -> None:
     matches = [step for step in steps if needle in str(step.get("run", ""))]
     assert len(matches) == 1, "expected exactly one frontmatter gate step"
     assert matches[0].get("if") == "steps.should-run.outputs.skip != 'true'"
+    assert str(matches[0].get("run", "")).startswith("uv run python "), (
+        "the gate must run through the project environment"
+    )
 
 
 def test_the_filter_result_actually_reaches_the_gate() -> None:
