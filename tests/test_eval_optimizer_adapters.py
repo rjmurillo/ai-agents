@@ -288,7 +288,7 @@ class TestRuleResults:
         assert rule_results(scenarios, "full") == {"S1": False}
 
     def test_activation_floor_is_inclusive(self):
-        scenarios = [_scenario("S1", "full", (3.5, 3.5, 3.5))]
+        scenarios = [_scenario("S1", "full", (4, 4, 3))]
         assert rule_results(scenarios, "full") == {"S1": True}
 
     def test_negative_scenario_passes_when_the_rule_stays_quiet(self):
@@ -320,8 +320,8 @@ class TestRuleResults:
     def test_negative_and_positive_use_the_same_threshold(self):
         """Both polarities read the same normalized scale, so one floor fits."""
         scenarios = [
-            _scenario("POS", "full", (3.5, 3.5, 3.5)),
-            _scenario("NEG", "full", (3.5, 3.5, 3.5), negative=True),
+            _scenario("POS", "full", (4, 4, 3)),
+            _scenario("NEG", "full", (4, 4, 3), negative=True),
         ]
         assert rule_results(scenarios, "full") == {"POS": True, "NEG": True}
 
