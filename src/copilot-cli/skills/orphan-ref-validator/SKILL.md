@@ -49,7 +49,7 @@ uv run python .claude/skills/orphan-ref-validator/scripts/scan.py \
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--targets` | Files or directories to scan | tracked `.md`, `.json`, `.yaml`, and `.yml` files under `.agents/`, `.claude/`, `.github/`, `docs/`, `scripts/`, and `tests/`, excluding `references/` and `templates/` subtrees |
+| `--targets` | Files or directories to scan | tracked `.md`, `.json`, `.yaml`, and `.yml` files under `.agents/specs/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/`, and `tests/`, plus plugin manifest JSON files |
 | `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
 | `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
 | `--allow-missing-targets` | Treat missing targets as optional vendored-install paths | off |
