@@ -14,6 +14,7 @@ which is precisely the overfitting the gate exists to stop.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -1377,31 +1378,84 @@ class TestGate:
 
 
 class TestBuffer:
+    def _artifact(self, tmp_path: Path, text: str = "artifact v1") -> Path:
+        path = tmp_path / f"artifact-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}.md"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def _check(self, capsys, buffer: Path, patches: Path, artifact: Path):
+        return _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
+
+    def _add(self, capsys, buffer: Path, patches: Path, artifact: Path, reason: str = "no"):
+        return _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+            "--reason",
+            reason,
+        )
+
     def test_novel_patch_passes_the_check(self, tmp_path, capsys):
         buffer = _write(tmp_path, "b.json", [])
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = self._artifact(tmp_path)
+        code, out = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
     def test_missing_buffer_file_is_treated_as_empty(self, tmp_path, capsys):
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, out = _run(
-            capsys, "buffer-check", "--buffer", tmp_path / "none.json", "--patches", patches
-        )
+        artifact = self._artifact(tmp_path)
+        code, out = self._check(capsys, tmp_path / "none.json", patches, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
     def test_add_then_check_reports_seen(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "regressed"
-        )
+        artifact = self._artifact(tmp_path)
+        code, _ = self._add(capsys, buffer, patches, artifact, "regressed")
         assert code == EXIT_OK
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        code, out = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_LOGIC
         assert out["seen"] is True
+
+    def test_same_patch_can_be_retried_after_artifact_changes(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        old_artifact = self._artifact(tmp_path, "artifact v1")
+        new_artifact = self._artifact(tmp_path, "artifact v2")
+        self._add(capsys, buffer, patches, old_artifact)
+
+        code, out = self._check(capsys, buffer, patches, new_artifact)
+
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_legacy_buffer_entries_without_artifact_state_are_expired(self, tmp_path, capsys):
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        fingerprint = oa.patch_fingerprint([oa.Patch("append", None, "x")])
+        buffer = _write(tmp_path, "b.json", [{"fingerprint": fingerprint}])
+        artifact = self._artifact(tmp_path)
+
+        code, out = self._check(capsys, buffer, patches, artifact)
+
+        assert code == EXIT_OK
+        assert out["seen"] is False
 
     def test_a_reflowed_patch_is_a_different_edit(self, tmp_path, capsys):
         """Whitespace is content: a newline in patch text splits one line into two.
@@ -1412,8 +1466,9 @@ class TestBuffer:
         buffer = tmp_path / "b.json"
         original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha beta"}])
         reflowed = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha   \n beta"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", reflowed)
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, original, artifact)
+        code, out = self._check(capsys, buffer, reflowed, artifact)
         assert code == EXIT_OK
         assert out["seen"] is False
 
@@ -1421,43 +1476,56 @@ class TestBuffer:
         buffer = tmp_path / "b.json"
         original = _write(tmp_path, "p.json", [{"op": "append", "text": "alpha\r\nbeta"}])
         same = _write(tmp_path, "p2.json", [{"op": "append", "text": "alpha\nbeta"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", original, "--reason", "no")
-        code, out = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", same)
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, original, artifact)
+        code, out = self._check(capsys, buffer, same, artifact)
         assert code == EXIT_LOGIC
         assert out["seen"] is True
 
     def test_add_records_the_reason_and_fingerprint(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(
-            capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "regressed"
-        )
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, patches, artifact, "regressed")
         entries = json.loads(buffer.read_text(encoding="utf-8"))
         assert len(entries) == 1
         assert entries[0]["reason"] == "regressed"
         assert entries[0]["fingerprint"]
+        assert entries[0]["artifact_fingerprint"]
         assert entries[0]["patches"] == [{"op": "append", "anchor": None, "text": "x"}]
 
     def test_add_appends_rather_than_replacing(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         first = _write(tmp_path, "p1.json", [{"op": "append", "text": "x"}])
         second = _write(tmp_path, "p2.json", [{"op": "append", "text": "y"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", first, "--reason", "a")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", second, "--reason", "b")
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, first, artifact, "a")
+        self._add(capsys, buffer, second, artifact, "b")
         assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 2
 
     def test_add_is_idempotent_for_the_same_patch(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "a")
-        _run(capsys, "buffer-add", "--buffer", buffer, "--patches", patches, "--reason", "a")
+        artifact = self._artifact(tmp_path)
+        self._add(capsys, buffer, patches, artifact, "a")
+        self._add(capsys, buffer, patches, artifact, "a")
         assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 1
+
+    def test_add_records_the_same_patch_for_a_new_artifact_state(self, tmp_path, capsys):
+        buffer = tmp_path / "b.json"
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        first_artifact = self._artifact(tmp_path, "artifact v1")
+        second_artifact = self._artifact(tmp_path, "artifact v2")
+        self._add(capsys, buffer, patches, first_artifact, "a")
+        self._add(capsys, buffer, patches, second_artifact, "a")
+        assert len(json.loads(buffer.read_text(encoding="utf-8"))) == 2
 
     def test_corrupt_buffer_is_a_config_error(self, tmp_path, capsys):
         buffer = tmp_path / "b.json"
         buffer.write_text("{oops", encoding="utf-8")
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = self._artifact(tmp_path)
+        code, _ = self._check(capsys, buffer, patches, artifact)
         assert code == EXIT_CONFIG
 
 
@@ -1539,7 +1607,18 @@ class TestMalformedInputs:
     def test_buffer_must_be_an_array(self, tmp_path, capsys):
         buffer = _write(tmp_path, "b.json", {"not": "a list"})
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buffer, "--patches", patches)
+        artifact = tmp_path / "artifact.md"
+        artifact.write_text("artifact", encoding="utf-8")
+        code, _ = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buffer,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
         assert code == EXIT_CONFIG
 
 
@@ -1921,7 +2000,18 @@ class TestMalformedInputsAreConfigErrors:
     def test_a_buffer_of_non_objects_is_a_config_error(self, tmp_path, capsys):
         buf = _write(tmp_path, "buf.json", [1, 2])
         patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
-        code, _ = _run(capsys, "buffer-check", "--buffer", buf, "--patches", patches)
+        artifact = tmp_path / "artifact.md"
+        artifact.write_text("artifact", encoding="utf-8")
+        code, _ = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            buf,
+            "--patches",
+            patches,
+            "--artifact",
+            artifact,
+        )
         assert code == EXIT_CONFIG
 
 
