@@ -11,7 +11,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified the premise before editing. .claude/agents/memory.md does not exist, templates/agents/memory.shared.md does not exist, and .claude/skills/memory does. Of 18 orchestrator matrix rows exactly one had no agent file. Lines 8 and 16 of the template list memory under tools_vscode and tools_copilot; those are tool names, not agents, and were left alone.",
-      "caused_by": [],
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -192,7 +194,77 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial round 6 on a further model family found the new BOM matrix test vacuous; reproduced by reverting the scan-site fix and watching it still pass.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First rewrite was also vacuous: the fixture opened with a heading, so the mark landed there and not on the table. Rewrote against a bare table.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added two BOM mutants; both killed. Full sweep now 54 of 54 killed, 0 survived, 0 invalid, baseline green.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured rows on tracked files at 02a4be1c30: 69,785 rows in 3,912 files, 0 cellless. Matches the reviewer exactly; the earlier figure swept untracked scratch.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-derived the YAML bomb with merge keys rather than alias lists: depth 8 is 446 bytes and 21.46s. Restated as under 500 bytes and 21.5s with the byte range, since spelling moves the count.",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 02a4be1c30",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -200,8 +272,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 106
+    "commits": 1,
+    "files_changed": 1018
   },
   "lessons": []
 }

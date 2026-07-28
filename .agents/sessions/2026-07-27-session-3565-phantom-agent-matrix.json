@@ -151,6 +151,26 @@
     },
     {
       "step": "Filed #3594 as the correct issue for this work. The PR body cited #3565, which belongs to another PR, so merging would have closed an issue whose work is unfinished."
+    },
+    {
+      "timestamp": "2026-07-28T23:10:00Z",
+      "action": "Adversarial round 6 on a further model family found the new BOM matrix test vacuous; reproduced by reverting the scan-site fix and watching it still pass."
+    },
+    {
+      "timestamp": "2026-07-28T23:25:00Z",
+      "action": "First rewrite was also vacuous: the fixture opened with a heading, so the mark landed there and not on the table. Rewrote against a bare table."
+    },
+    {
+      "timestamp": "2026-07-28T23:35:00Z",
+      "action": "Added two BOM mutants; both killed. Full sweep now 54 of 54 killed, 0 survived, 0 invalid, baseline green."
+    },
+    {
+      "timestamp": "2026-07-28T23:50:00Z",
+      "action": "Re-measured rows on tracked files at 02a4be1c30: 69,785 rows in 3,912 files, 0 cellless. Matches the reviewer exactly; the earlier figure swept untracked scratch."
+    },
+    {
+      "timestamp": "2026-07-29T00:05:00Z",
+      "action": "Re-derived the YAML bomb with merge keys rather than alias lists: depth 8 is 446 bytes and 21.46s. Restated as under 500 bytes and 21.5s with the byte range, since spelling moves the count."
     }
   ],
   "endingCommit": "",
@@ -160,6 +180,7 @@
     "Split the validator and its test file, both now over the 500 line advisory.",
     "#3465 tracks widening the portability ratchet to cover agent, rule, and instruction trees. Until it lands, shared agent prose must name no tree-specific path.",
     "Twelve agents ship without a row in the orchestrator capability matrix: backlog-generator, code-simplifier, comment-analyzer, debug, dependency-auditor, janitor, merge-resolver, negotiation, pr-comment-responder, pr-test-analyzer, silent-failure-hunter, type-design-analyzer. Whether to add them trades routing coverage against context budget and needs a human call.",
-    "The validator enforces name resolution only. It does not check that a matrix row's Model column names a real tier, nor that the Use For text matches the agent's own description."
+    "The validator enforces name resolution only. It does not check that a matrix row's Model column names a real tier, nor that the Use For text matches the agent's own description.",
+    "Watch CI on #3587, especially validate-generated-agents and pytest."
   ]
 }

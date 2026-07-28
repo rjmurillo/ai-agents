@@ -387,22 +387,37 @@ class TestKnownAgents:
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
     def test_a_byte_order_mark_does_not_hide_a_matrix(self, tmp_path):
-        """The same BOM must not hide the table either.
+        """The same mark must not hide a table either.
 
         ``scan`` reads matrix files on a separate path from the roster, so
         fixing one and not the other leaves a file whose agent is known and
         whose rows are invisible.
+
+        The mark has to sit against the table row to test this. Ahead of
+        anything else, frontmatter or a heading, it only breaks that, and the
+        table further down is found either way, so the assertion holds whether
+        or not the matrix read was fixed. The first two versions of this test
+        did exactly that and passed with the fix reverted. A matrix carried by a
+        document that is not itself an agent, opening on the header row, puts
+        the mark where it decides the outcome. Such documents are ordinary:
+        ``scan`` globs every markdown file in a tree, not only the agents.
         """
         repo = _repo(
             tmp_path,
             {},
-            {CANONICAL: ["analyst", "implementer", "orchestrator"]},
+            {CANONICAL: ["analyst", "implementer"]},
             complete=True,
         )
-        (repo / _canonical_file("orchestrator")).write_bytes(
-            ("\ufeff---\ndescription: An agent.\n---\n\n" + BOLD_MATRIX).encode()
+        routing = Path(CANONICAL) / "ROUTING.md"
+        table = (
+            "| Agent | Use For |\n"
+            "|-------|---------|\n"
+            "| **analyst** | Research |\n"
+            "| **implementer** | Code |\n"
         )
+        (repo / routing).write_bytes(("\ufeff" + table).encode())
         result = vamr.scan(repo)
+        assert routing in result.files_with_matrix
         assert [c.name for c in result.citations] == ["analyst", "implementer"]
 
     def test_directory_matching_the_suffix_is_excluded(self, tmp_path):

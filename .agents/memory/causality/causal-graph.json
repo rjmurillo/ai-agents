@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T01:49:24.711632+00:00",
+  "updated": "2026-07-28T02:10:30.033111+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22834,6 +22834,60 @@
         "episode-2026-07-27-session-3565-phantom-agent-matrix"
       ],
       "created": "2026-07-28T01:49:24.705548+00:00"
+    },
+    {
+      "id": "b099cc7768d4",
+      "type": "milestone",
+      "label": "milestone: Adversarial round 6 on a further model family found the new BOM matrix test vacuous; reproduced by reverting the scan-site fix and watching it still pass.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.023955+00:00"
+    },
+    {
+      "id": "652efcc8c3d6",
+      "type": "milestone",
+      "label": "milestone: First rewrite was also vacuous: the fixture opened with a heading, so the mark landed there and not on the table. Rewrote against a bare table.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.024090+00:00"
+    },
+    {
+      "id": "fd4863c20472",
+      "type": "milestone",
+      "label": "milestone: Added two BOM mutants; both killed. Full sweep now 54 of 54 killed, 0 survived, 0 invalid, baseline green.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.024205+00:00"
+    },
+    {
+      "id": "5912b0e82c98",
+      "type": "milestone",
+      "label": "milestone: Re-measured rows on tracked files at 02a4be1c30: 69,785 rows in 3,912 files, 0 cellless. Matches the reviewer exactly; the earlier figure swept untracked scratch.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.024326+00:00"
+    },
+    {
+      "id": "40df0cf025c5",
+      "type": "milestone",
+      "label": "milestone: Re-derived the YAML bomb with merge keys rather than alias lists: depth 8 is 446 bytes and 21.46s. Restated as under 500 bytes and 21.5s with the byte range, since spelling moves the count.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.024441+00:00"
+    },
+    {
+      "id": "9ce88718cf9b",
+      "type": "commit",
+      "label": "commit: Commit: 02a4be1c30",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T02:10:30.024555+00:00"
     }
   ],
   "patterns": [

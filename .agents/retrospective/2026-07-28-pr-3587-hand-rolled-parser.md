@@ -102,7 +102,7 @@ The rewrite introduced `yaml.safe_load` on frontmatter. The old code never parse
 
 `safe_load` blocks arbitrary object construction. It does not block resource exhaustion. `SafeConstructor.flatten_mapping` expands a YAML merge key by copying every entry of the mapping the alias names, so a chain where each level references the level below it nine times multiplies the entry count by nine per level.
 
-Measured: a **433 byte** frontmatter block held the scan for **21.67 seconds**. Two more levels reach roughly half an hour. The validator runs on `pull_request`, so a fork supplies the file.
+Measured at depth eight, each level referencing the level below it nine times: a frontmatter block **under 500 bytes** held the scan for **21.5 seconds**. Depth seven takes 2.5 seconds and depth six 0.3, so each level costs roughly nine times the last and two more levels reach roughly half an hour. The exact byte count moves with how the block is spelled, between 422 and 446 across three independent measurements, so it is the shape that matters and not the number: a chain of merge keys short enough to hide in a diff. The validator runs on `pull_request`, so a fork supplies the file.
 
 Fixed by refusing alias references outright. Zero of 176 shipped frontmatter blocks use an anchor, alias, or merge key, so the guard excludes nothing real, and a test pins that fact so the tradeoff surfaces if it ever changes.
 
@@ -128,9 +128,13 @@ Fixed by running the unmutated suite first and refusing to report anything if it
 | After the gate | 44/53 | 9 | Yes |
 | After closing the gaps | 52/52 | 0 | Yes |
 
-The nine survivors were real. Six were untested behaviour, now tested: alt text spliced into an agent name, a name kept unstripped, uppercase and spaced names accepted. Three were branches for a row holding no cell, which the parser cannot produce. Measured across 69,847 table rows in 3,106 files plus rows built to hold nothing, it never happened. Those branches were removed and the invariant stated where it is relied upon.
+The nine survivors were real. Six were untested behaviour, now tested: alt text spliced into an agent name, a name kept unstripped, uppercase and spaced names accepted. Three were branches for a row holding no cell, which the parser cannot produce. Measured across every tracked markdown file at `02a4be1c30`, 69,785 table rows in 3,912 files, plus rows built to hold nothing, it never happened. Those branches were removed and the invariant stated where it is relied upon.
 
 The false report nearly shipped as evidence. It had been written into a working note as "48/48 killed" and would have gone into the PR body as the argument that the tests were sound.
+
+A sixth round, on a further model family, found the same shape once more in a test written to close one of those gaps. A byte order mark was placed ahead of the frontmatter to prove the matrix read had been fixed. The mark sat ahead of the wrong thing: it breaks whatever it precedes, and the table further down the file is found either way, so the test passed with the fix reverted. A second attempt put the mark ahead of a heading and failed for the same reason. Only a document opening on the table row itself puts the mark where it decides the outcome.
+
+The reviewer also could not reproduce three figures in an earlier draft of this document. It was right. Two came from a working tree scan that included untracked files, and one from a generator whose exact spelling was not recorded. They are restated above against tracked files at a named commit, and the byte figure is given as a range because it is the shape that carries the argument, not the number. A measurement whose method is not stated is not reproducible, and a reviewer who cannot reproduce it is correct to treat it as unverified.
 
 
 1. **Never hand-write a parser for a documented format.** If a grammar has a specification, something already implements it. Check the dependency list before writing the first pattern. Cost of checking: one file read. Cost of skipping: three rounds and two live defects.
@@ -139,7 +143,8 @@ The false report nearly shipped as evidence. It had been written into a working 
 4. **A test that hangs on regression is a bad test.** The first version of the bomb test used a depth that runs for half an hour when the guard is removed. It was capped at a depth that fails in 22 seconds. A regression must fail and say why, not stall the runner.
 5. **Verify the exit code you are reading.** A push reported as succeeding had actually been rejected; the `0` came from the last command in a pipe, not from `git push`.
 6. **An instrument with no control reports success by construction.** The mutation harness said 48 of 48 defects were caught while catching none, because it never ran the unmutated code and could not tell a kill from a suite that failed to start. Any measurement whose failing case is indistinguishable from its passing case is not a measurement. Establish the negative before believing the positive.
-7. **An assertion that cannot fail is a defect, not a passing check.** Two turned up in one session. A pre-flight check walked `ast.Assign` looking for an annotated assignment and reported zero problems while examining zero things. A guard scanned whole file text for a pattern that only means something inside frontmatter. Both were green. Both were empty. A check earns trust by being shown to fail on input that deserves failure.
+7. **An assertion that cannot fail is a defect, not a passing check.** Three turned up in one session. A pre-flight check walked `ast.Assign` looking for an annotated assignment and reported zero problems while examining zero things. A guard scanned whole file text for a pattern that only means something inside frontmatter. Both were green. Both were empty. A check earns trust by being shown to fail on input that deserves failure. The cheap way to earn it: break the code the test names and watch the test go red. Two of the three survived review by inspection and died in seconds under that.
+8. **State the method with the measurement.** Three figures in the first draft of this document could not be reproduced by a reviewer, because the scan behind them was never described. A number without its method is a claim, not evidence, and the reviewer is right to reject it.
 
 ---
 
