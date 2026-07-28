@@ -508,7 +508,11 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     if not isinstance(rules, Mapping) or not rules:
         raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
     degraded: list[str] = []
-    entries: list[tuple[str, Sequence[object]]] = []
+    # `list[Any]`, matching `_rule_scenarios`, not the `Sequence[object]` the
+    # degraded scan takes. `scenarios` is bound from that call above and reused
+    # as the loop variable below, so a widened element type here makes the
+    # second binding an incompatible assignment to the first.
+    entries: list[tuple[str, list[Any]]] = []
     for name, entry in rules.items():
         if not isinstance(entry, Mapping) or "scenarios" not in entry:
             raise ConfigError(f"rule {name!r} has no 'scenarios' list")
