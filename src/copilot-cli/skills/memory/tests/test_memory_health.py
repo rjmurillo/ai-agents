@@ -13,9 +13,6 @@ from ..scripts.test_memory_health import (
     main,
 )
 from ..scripts.test_memory_health import (
-    test_causal_graph_available as check_causal_graph,
-)
-from ..scripts.test_memory_health import (
     test_episodes_available as check_episodes,
 )
 from ..scripts.test_memory_health import (
@@ -98,45 +95,6 @@ class TestEpisodesAvailable:
         assert result["count"] == 0
 
 
-class TestCausalGraphAvailable:
-    """Tests for causal graph availability."""
-
-    def test_missing_directory(self, tmp_path: Path) -> None:
-        result = check_causal_graph(tmp_path / "missing")
-        assert result["available"] is False
-
-    def test_directory_no_graph(self, tmp_path: Path) -> None:
-        causality = tmp_path / "causality"
-        causality.mkdir()
-
-        result = check_causal_graph(causality)
-        assert result["available"] is True
-        assert result["nodes"] == 0
-
-    def test_valid_graph(self, tmp_path: Path) -> None:
-        causality = tmp_path / "causality"
-        causality.mkdir()
-        graph = {
-            "nodes": [{"id": "a"}, {"id": "b"}],
-            "edges": [{"source": "a", "target": "b"}],
-            "patterns": [],
-        }
-        (causality / "causal-graph.json").write_text(json.dumps(graph))
-
-        result = check_causal_graph(causality)
-        assert result["available"] is True
-        assert result["nodes"] == 2
-        assert result["edges"] == 1
-
-    def test_invalid_json(self, tmp_path: Path) -> None:
-        causality = tmp_path / "causality"
-        causality.mkdir()
-        (causality / "causal-graph.json").write_text("not json")
-
-        result = check_causal_graph(causality)
-        assert result["available"] is False
-
-
 class TestModulesAvailable:
     """Tests for module availability check."""
 
@@ -166,7 +124,6 @@ class TestMainFunction:
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
         (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
-        (base / ".agents" / "memory" / "causality").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])
@@ -184,7 +141,6 @@ class TestMainFunction:
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
         (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
-        (base / ".agents" / "memory" / "causality").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--format", "table", "--base-path", str(base)])
@@ -200,7 +156,6 @@ class TestMainFunction:
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
         (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
-        (base / ".agents" / "memory" / "causality").mkdir(parents=True)
         # Create .claude/skills/memory/ but NOT memory_core/
         (base / ".claude" / "skills" / "memory").mkdir(parents=True)
 
@@ -221,10 +176,6 @@ class TestMainFunction:
         serena.mkdir(parents=True)
         (serena / "test.md").write_text("content")
         (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
-        causality = base / ".agents" / "memory" / "causality"
-        causality.mkdir(parents=True)
-        graph = {"nodes": [{"id": "1"}], "edges": [], "patterns": []}
-        (causality / "causal-graph.json").write_text(json.dumps(graph))
 
         # Create memory_core modules
         mem_root = base / ".claude" / "skills" / "memory"
@@ -248,7 +199,6 @@ class TestMainFunction:
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
         (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
-        (base / ".agents" / "memory" / "causality").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])
