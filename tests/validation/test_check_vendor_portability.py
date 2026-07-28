@@ -213,9 +213,9 @@ def test_raw_string_without_escape_is_still_an_offender(fake_repo: Path) -> None
 def test_argparse_help_text_is_not_an_offender(fake_repo: Path) -> None:
     """An argparse `help=` value containing `.agents/` is prose, not a path.
 
-    Evidence: .claude/skills/memory/scripts/update_causal_graph.py:280 references
-    `.agents/memory/episodes/` only inside `help=` to document a default. The
-    string is rendered by argparse onto stderr and never opens or writes a file.
+    Evidence: .claude/skills/orphan-ref-validator/scripts/scan.py:563 references
+    `.agents/architecture/` only inside `help=` to document a flag. The string is
+    rendered by argparse onto stderr and never opens or writes a file.
     """
     _write(
         fake_repo,
