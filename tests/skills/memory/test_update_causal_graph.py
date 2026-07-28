@@ -7,6 +7,7 @@ import shlex
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -1519,7 +1520,7 @@ class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
     """
 
     def test_a_type_outside_the_accepted_set_is_not_added(self) -> None:
-        graph = {"nodes": [], "edges": [], "patterns": []}
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
 
         result = update_causal_graph.add_causal_node(
             graph, "unknown", "orphan label", "ep-1"
@@ -1531,7 +1532,7 @@ class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
     def test_the_refusal_names_the_type_and_the_label(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        graph = {"nodes": [], "edges": [], "patterns": []}
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
 
         update_causal_graph.add_causal_node(graph, "event", "a label", "ep-1")
 
@@ -1540,7 +1541,7 @@ class TestAnUnknownNodeTypeIsRefusedRatherThanWritten:
         assert "a label" in captured.err
 
     def test_every_accepted_type_is_still_written(self) -> None:
-        graph = {"nodes": [], "edges": [], "patterns": []}
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
 
         for node_type in sorted(update_causal_graph.NODE_TYPES):
             added = update_causal_graph.add_causal_node(

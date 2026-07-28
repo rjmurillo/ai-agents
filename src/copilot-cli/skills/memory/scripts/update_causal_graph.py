@@ -978,7 +978,7 @@ def main(argv: list[str] | None = None) -> int:
             chains = build_causal_chains(episode)
         except EpisodeValidationError as exc:
             print(f"ERROR: {file_path.name}: {exc}", file=sys.stderr)
-            return exc.exit_code
+            return int(exc.exit_code)
         for chain in chains:
             from_id = generate_node_id(chain["from_type"], chain["from_label"])
             to_id = generate_node_id(chain["to_type"], chain["to_label"])
