@@ -1,0 +1,115 @@
+{
+  "id": "episode-2026-07-27-session-3475-memory-causal-order",
+  "session": "2026-07-27-session-3475-memory-causal-order",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bb2d29e1c4",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f633ad31c9",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 735cc876f7",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4de79677af",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}
