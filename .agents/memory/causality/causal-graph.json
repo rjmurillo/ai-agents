@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T05:18:53.542312+00:00",
+  "updated": "2026-07-28T07:10:29.361250+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -23392,6 +23392,24 @@
         "episode-2026-07-28-session-3456-orphan-ref-r2"
       ],
       "created": "2026-07-28T04:30:35.084101+00:00"
+    },
+    {
+      "id": "5e8dba4fe225",
+      "type": "commit",
+      "label": "commit: Commit: 22cd08ec3",
+      "episodes": [
+        "episode-2026-07-28-session-3550-r3-review-fixes"
+      ],
+      "created": "2026-07-28T07:10:29.354729+00:00"
+    },
+    {
+      "id": "b62b3896a81d",
+      "type": "outcome",
+      "label": "Outcome: success - Recover cancelled autofix work for PR #3550. Fix remaining review threads: symlink error_type misclassification, TASK-013 label accuracy.",
+      "episodes": [
+        "episode-2026-07-28-session-3550-r3-review-fixes"
+      ],
+      "created": "2026-07-28T07:10:29.354827+00:00"
     }
   ],
   "patterns": [

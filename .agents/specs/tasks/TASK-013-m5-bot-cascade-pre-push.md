@@ -69,7 +69,7 @@ Implement REQ-011 via TDD-first sequence per `.claude/commands/build.md`. Add Ph
 ### TASK-013-01: Capture structural test foundation
 
 **Files**:
-- `tests/test_lefthook_integration.py` (new test file)
+- `tests/test_lefthook_integration.py` (existing)
 - `tests/hooks/__init__.py` if absent
 
 **AC**: REQ-013-05.
