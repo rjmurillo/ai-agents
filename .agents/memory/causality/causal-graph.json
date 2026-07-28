@@ -20079,50 +20079,40 @@
       "created": "2026-07-27T01:45:53.050088+00:00"
     },
     {
-      "id": "67ded865ef9c",
+      "id": "fcb6f96ff092",
       "type": "milestone",
-      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
       "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159793+00:00"
-    },
-    {
-      "id": "f2d7d47e373c",
-      "type": "milestone",
-      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159876+00:00"
-    },
-    {
-      "id": "8483b7aa02d2",
-      "type": "milestone",
-      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.159951+00:00"
-    },
-    {
-      "id": "c2dd9c2d885d",
-      "type": "milestone",
-      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160023+00:00"
-    },
-    {
-      "id": "6e5bea63d2be",
-      "type": "commit",
-      "label": "commit: Commit: 19d4a761",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
-      "created": "2026-07-27T04:09:55.160095+00:00"
+      "created": "2026-07-27T04:45:13.317091+00:00"
+    },
+    {
+      "id": "d9a52f8e4422",
+      "type": "milestone",
+      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317207+00:00"
+    },
+    {
+      "id": "99e8b9814264",
+      "type": "milestone",
+      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317283+00:00"
+    },
+    {
+      "id": "f45b7eb16607",
+      "type": "milestone",
+      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.317373+00:00"
     },
     {
       "id": "740e7f0c9204",
@@ -20133,25 +20123,6 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:09:55.160168+00:00"
-    },
-    {
-      "id": "d39c4dcdb31a",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
-      ],
-      "created": "2026-07-27T04:09:55.160242+00:00"
-    },
-    {
-      "id": "22a60c38150d",
-      "type": "commit",
-      "label": "commit: Commit: 9f1df6b3",
-      "episodes": [
-        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:24:15.154595+00:00"
     },
     {
       "id": "dc2a616055e1",
@@ -20224,6 +20195,16 @@
       "created": "2026-07-27T04:24:15.155119+00:00"
     },
     {
+      "id": "6e5bea63d2be",
+      "type": "commit",
+      "label": "commit: Commit: 19d4a761",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:09:55.160095+00:00"
+    },
+    {
       "id": "3c207343a40b",
       "type": "commit",
       "label": "commit: Commit: 1bf125d7",
@@ -20232,6 +20213,52 @@
         "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
       ],
       "created": "2026-07-27T04:24:15.155191+00:00"
+    },
+    {
+      "id": "22a60c38150d",
+      "type": "commit",
+      "label": "commit: Commit: 9f1df6b3",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans",
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:24:15.154595+00:00"
+    },
+    {
+      "id": "e0f161010107",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T04:45:13.318386+00:00"
+    },
+    {
+      "id": "2d5d7edffe7e",
+      "type": "milestone",
+      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294867+00:00"
+    },
+    {
+      "id": "8a2cea8f7bc4",
+      "type": "milestone",
+      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:12:19.294953+00:00"
+    },
+    {
+      "id": "59384feeea81",
+      "type": "commit",
+      "label": "commit: Commit: c40fc2b3",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:14:10.574057+00:00"
     },
     {
       "id": "6eafa0686f54",
@@ -20322,6 +20349,60 @@
         "episode-2026-07-26-session-2615"
       ],
       "created": "2026-07-27T04:49:49.793110+00:00"
+    },
+    {
+      "id": "3be75c7c8f0d",
+      "type": "milestone",
+      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
+      "episodes": [
+        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
+      ],
+      "created": "2026-07-27T05:34:46.577440+00:00"
+    },
+    {
+      "id": "67ded865ef9c",
+      "type": "milestone",
+      "label": "milestone: 12 of 13 plans verified complete or superseded; spec-005 carries a real residual defect",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159793+00:00"
+    },
+    {
+      "id": "f2d7d47e373c",
+      "type": "milestone",
+      "label": "milestone: .agents/plans/active/ is empty except .gitkeep; nothing deleted",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159876+00:00"
+    },
+    {
+      "id": "8483b7aa02d2",
+      "type": "milestone",
+      "label": "milestone: Issues #3424, #3425, #3426 opened with reproduction commands and file-line evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.159951+00:00"
+    },
+    {
+      "id": "c2dd9c2d885d",
+      "type": "milestone",
+      "label": "milestone: Ran the pre-PR gate and cleared both failures. The dash gate flagged 165 pre-existing dashes in 1574-stage1-claude-kit-vendor.md and req-003-multi-tool-artifact-build.md, surfaced only because git mv put them in the branch diff. Considered a .agents/archive/ carve-out in checks_dash.py and rejected it: it would expand a docs-only change into a validator plus rule plus two mirrors plus a plugin manifest bump, and the dashes are ordinary prose, not bytes the archive needs to preserve. Replaced them instead, semantically neutral: label glosses take a colon, ID ranges take a hyphen, clause breaks take a comma or period.",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160023+00:00"
+    },
+    {
+      "id": "d39c4dcdb31a",
+      "type": "outcome",
+      "label": "Outcome: success - Triage .agents/plans/active/, archive plans whose work has shipped, and open tracking issues for the residual work",
+      "episodes": [
+        "episode-2026-07-26-session-3423-archive-stale-execution-plans"
+      ],
+      "created": "2026-07-27T04:09:55.160242+00:00"
     },
     {
       "id": "e17a5f8f0260",
@@ -20421,159 +20502,6 @@
         "episode-2026-07-26-session-3402-plugin-self-containment"
       ],
       "created": "2026-07-27T05:58:30.440248+00:00"
-    },
-    {
-      "id": "fa8c918f8fa0",
-      "type": "milestone",
-      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.811965+00:00"
-    },
-    {
-      "id": "fae5e4dee3ee",
-      "type": "milestone",
-      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812053+00:00"
-    },
-    {
-      "id": "8425e192230d",
-      "type": "milestone",
-      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812129+00:00"
-    },
-    {
-      "id": "0c4b2ecdcdbe",
-      "type": "milestone",
-      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812203+00:00"
-    },
-    {
-      "id": "442eb62cfbff",
-      "type": "milestone",
-      "label": "milestone: Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812276+00:00"
-    },
-    {
-      "id": "c7388b1a8df4",
-      "type": "commit",
-      "label": "commit: Commit: ac9a29da8",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812349+00:00"
-    },
-    {
-      "id": "5bff97ce7760",
-      "type": "outcome",
-      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:13:51.812423+00:00"
-    },
-    {
-      "id": "de932fb4f79c",
-      "type": "milestone",
-      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
-      "episodes": [
-        "episode-2026-07-27-session-3459-templates-portability"
-      ],
-      "created": "2026-07-27T09:34:27.612874+00:00"
-    },
-    {
-      "id": "fcb6f96ff092",
-      "type": "milestone",
-      "label": "milestone: INDEX.md declares a milestone current that closed with 139 issues completed. Every milestone in the repo reports zero open issues.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317091+00:00"
-    },
-    {
-      "id": "d9a52f8e4422",
-      "type": "milestone",
-      "label": "milestone: Not one of the 235 referenced issues or PRs is open. Signal one of the two-signal bar is universally satisfied.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317207+00:00"
-    },
-    {
-      "id": "99e8b9814264",
-      "type": "milestone",
-      "label": "milestone: Both gates return 0 on an empty directory. The directory stays; only its stale contents move.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317283+00:00"
-    },
-    {
-      "id": "f45b7eb16607",
-      "type": "milestone",
-      "label": "milestone: No duplication to reconcile. The 33 JSON files are orphan eval output. No residual convention defect worth an issue.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.317373+00:00"
-    },
-    {
-      "id": "e0f161010107",
-      "type": "outcome",
-      "label": "Outcome: success - Triage .agents/planning/, archive the stale corpus whose work has shipped, and rewrite the index so it stops pointing agents at closed milestones",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T04:45:13.318386+00:00"
-    },
-    {
-      "id": "2d5d7edffe7e",
-      "type": "milestone",
-      "label": "milestone: 110 files archived. .agents/planning/ holds only a current index. Nothing deleted.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294867+00:00"
-    },
-    {
-      "id": "8a2cea8f7bc4",
-      "type": "milestone",
-      "label": "milestone: Consensus reached in one round: four Accept, two Disagree-and-Commit. Every P0 and all but one P1 resolved and verified. One P1 deferred to issue 3435 with the reason recorded. The review earned its cost by catching two P0 defects that would otherwise have shipped, including a broken link inside a file this change claimed to have fixed.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:12:19.294953+00:00"
-    },
-    {
-      "id": "59384feeea81",
-      "type": "commit",
-      "label": "commit: Commit: c40fc2b3",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:14:10.574057+00:00"
-    },
-    {
-      "id": "3be75c7c8f0d",
-      "type": "milestone",
-      "label": "milestone: Branch contains the tip of main, the causal graph is resolved by the driver that owns it, and both plugin manifests are strictly greater than base at 0.6.130.",
-      "episodes": [
-        "episode-2026-07-27-session-3431-archive-stale-planning-artifacts"
-      ],
-      "created": "2026-07-27T05:34:46.577440+00:00"
     },
     {
       "id": "0100c10367bc",
@@ -20909,85 +20837,40 @@
       "created": "2026-07-27T09:04:44.443947+00:00"
     },
     {
-      "id": "10fe1640de52",
+      "id": "c84e7ed0eeb4",
+      "type": "milestone",
+      "label": "milestone: Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
+      "episodes": [
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
+      ],
+      "created": "2026-07-27T09:23:34.232554+00:00"
+    },
+    {
+      "id": "9007876af7b1",
       "type": "commit",
-      "label": "commit: Commit: 192a71cfbe",
+      "label": "commit: Commit: 7686d85d5",
       "episodes": [
-        "episode-2026-07-27-session-3460-decompose-change-control"
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
-      "created": "2026-07-27T10:26:30.994075+00:00"
+      "created": "2026-07-27T09:23:34.232695+00:00"
     },
     {
-      "id": "a86d06e195d8",
-      "type": "outcome",
-      "label": "Outcome: success - Fix CI (version bump), resolve Copilot review threads, merge main to unblock PR #3460",
-      "episodes": [
-        "episode-2026-07-27-session-3460-decompose-change-control"
-      ],
-      "created": "2026-07-27T10:26:30.994200+00:00"
-    },
-    {
-      "id": "c71da9963354",
+      "id": "215adbcb0b09",
       "type": "milestone",
-      "label": "milestone: Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "label": "milestone: Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
-      "created": "2026-07-27T11:03:30.789887+00:00"
+      "created": "2026-07-27T09:35:07.622472+00:00"
     },
     {
-      "id": "5dd79bb3e1e3",
-      "type": "milestone",
-      "label": "milestone: Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "id": "4bb9e115c196",
+      "type": "commit",
+      "label": "commit: Commit: e9f28051d",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-26-session-3422-eval-holdout-gate"
       ],
-      "created": "2026-07-27T11:03:30.789975+00:00"
-    },
-    {
-      "id": "8a1d210a7471",
-      "type": "milestone",
-      "label": "milestone: Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:03:30.790054+00:00"
-    },
-    {
-      "id": "b9fd3a72f7a0",
-      "type": "milestone",
-      "label": "milestone: Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:03:30.790133+00:00"
-    },
-    {
-      "id": "db6ff31d3dba",
-      "type": "milestone",
-      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:03:30.790209+00:00"
-    },
-    {
-      "id": "d6cb2653c4d1",
-      "type": "milestone",
-      "label": "milestone: Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:03:30.790284+00:00"
-    },
-    {
-      "id": "4b9e3c39be98",
-      "type": "outcome",
-      "label": "Outcome: success - Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:03:30.790359+00:00"
+      "created": "2026-07-27T09:35:07.622558+00:00"
     },
     {
       "id": "f5403a9d8bc2",
@@ -21305,6 +21188,78 @@
       "created": "2026-07-27T09:40:56.261899+00:00"
     },
     {
+      "id": "fa8c918f8fa0",
+      "type": "milestone",
+      "label": "milestone: Confirmed a real gap rather than a baseline artifact. Filed issue #3459 with the evidence before writing code",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.811965+00:00"
+    },
+    {
+      "id": "fae5e4dee3ee",
+      "type": "milestone",
+      "label": "milestone: Patterns verified to fire on the true positives and stay silent on the four negative shapes",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812053+00:00"
+    },
+    {
+      "id": "8425e192230d",
+      "type": "milestone",
+      "label": "milestone: Validator stays at baseline 0 with the wider patterns in force, so the ratchet tightens without grandfathering anything",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812129+00:00"
+    },
+    {
+      "id": "0c4b2ecdcdbe",
+      "type": "milestone",
+      "label": "milestone: Regex verified through the validator itself, not only in isolation: templates/agents/x.md, ./templates/platforms/y.yaml and a bare templates/agents each fail it, while src/templates/agents/x.md and an https:// URL containing the same segments do not. 55 tests pass, ruff clean, ratchet reports zero refs across zero files.",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812203+00:00"
+    },
+    {
+      "id": "442eb62cfbff",
+      "type": "milestone",
+      "label": "milestone: Memory artifacts removed; portability fix unaffected; session file retained for hook compliance",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812276+00:00"
+    },
+    {
+      "id": "c7388b1a8df4",
+      "type": "commit",
+      "label": "commit: Commit: ac9a29da8",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812349+00:00"
+    },
+    {
+      "id": "5bff97ce7760",
+      "type": "outcome",
+      "label": "Outcome: success - Close the templates/ gap in check_skill_md_portability.py so shipped SKILL.md files cannot point at generator inputs that never ship with the plugin",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:13:51.812423+00:00"
+    },
+    {
+      "id": "de932fb4f79c",
+      "type": "milestone",
+      "label": "milestone: Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log",
+      "episodes": [
+        "episode-2026-07-27-session-3459-templates-portability"
+      ],
+      "created": "2026-07-27T09:34:27.612874+00:00"
+    },
+    {
       "id": "031157b555e6",
       "type": "milestone",
       "label": "milestone: fix-grammar",
@@ -21323,148 +21278,67 @@
       "created": "2026-07-27T10:28:13.754988+00:00"
     },
     {
-      "id": "b555fd025f7b",
-      "type": "decision",
-      "label": "recovery: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "id": "10fe1640de52",
+      "type": "commit",
+      "label": "commit: Commit: 192a71cfbe",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3460-decompose-change-control"
       ],
-      "created": "2026-07-27T11:56:11.193373+00:00"
+      "created": "2026-07-27T10:26:30.994075+00:00"
     },
     {
-      "id": "575cf347691a",
+      "id": "a86d06e195d8",
+      "type": "outcome",
+      "label": "Outcome: success - Fix CI (version bump), resolve Copilot review threads, merge main to unblock PR #3460",
+      "episodes": [
+        "episode-2026-07-27-session-3460-decompose-change-control"
+      ],
+      "created": "2026-07-27T10:26:30.994200+00:00"
+    },
+    {
+      "id": "0c971adbbd46",
       "type": "milestone",
-      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "label": "milestone: Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-27T11:56:11.193936+00:00"
+      "created": "2026-07-27T11:35:50.736393+00:00"
     },
     {
-      "id": "a0517c9b1743",
+      "id": "a974ddb659de",
       "type": "milestone",
-      "label": "milestone: Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "label": "milestone: Verified round-13 evidence claims against source",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-27T11:56:11.194018+00:00"
+      "created": "2026-07-27T11:35:50.736491+00:00"
     },
     {
-      "id": "f9340323fdc1",
+      "id": "0453f68fca0d",
       "type": "milestone",
-      "label": "milestone: Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "label": "milestone: Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-27T11:56:11.194097+00:00"
+      "created": "2026-07-27T11:35:50.736575+00:00"
     },
     {
-      "id": "41229488c916",
-      "type": "milestone",
-      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "id": "705ec2515c5c",
+      "type": "outcome",
+      "label": "Outcome: success - Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-27T11:56:11.194176+00:00"
+      "created": "2026-07-27T11:35:50.736662+00:00"
     },
     {
-      "id": "1ace54b3d8e1",
-      "type": "decision",
-      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "id": "0bfd6d378543",
+      "type": "commit",
+      "label": "commit: Commit: 341682152a",
       "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-27T11:56:11.194438+00:00"
-    },
-    {
-      "id": "18999928d683",
-      "type": "milestone",
-      "label": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.194525+00:00"
-    },
-    {
-      "id": "f2e1fa9b338c",
-      "type": "milestone",
-      "label": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.194706+00:00"
-    },
-    {
-      "id": "c247cf23409c",
-      "type": "milestone",
-      "label": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.194869+00:00"
-    },
-    {
-      "id": "30522784ce2b",
-      "type": "milestone",
-      "label": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195032+00:00"
-    },
-    {
-      "id": "bbe14da4f47d",
-      "type": "milestone",
-      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195192+00:00"
-    },
-    {
-      "id": "b8e7470d3dea",
-      "type": "milestone",
-      "label": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195355+00:00"
-    },
-    {
-      "id": "f4fe6633f53d",
-      "type": "milestone",
-      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195515+00:00"
-    },
-    {
-      "id": "e2b33bfd32ff",
-      "type": "milestone",
-      "label": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195685+00:00"
-    },
-    {
-      "id": "9d2f52558392",
-      "type": "milestone",
-      "label": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.195847+00:00"
-    },
-    {
-      "id": "2a05f360f556",
-      "type": "milestone",
-      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T11:56:11.196007+00:00"
+      "created": "2026-07-27T11:58:41.229748+00:00"
     },
     {
       "id": "e4909911a66e",
@@ -21565,384 +21439,6 @@
         "episode-2026-07-27-session-3471-portability-boundary"
       ],
       "created": "2026-07-27T11:25:54.835838+00:00"
-    },
-    {
-      "id": "521419055a2b",
-      "type": "milestone",
-      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T12:43:51.818108+00:00"
-    },
-    {
-      "id": "636303e9a180",
-      "type": "milestone",
-      "label": "milestone: Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T12:43:51.818198+00:00"
-    },
-    {
-      "id": "6b453cb88caa",
-      "type": "milestone",
-      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T12:43:51.820086+00:00"
-    },
-    {
-      "id": "7cfbfe3e3448",
-      "type": "milestone",
-      "label": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
-      "episodes": [
-        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
-      ],
-      "created": "2026-07-27T12:43:51.820251+00:00"
-    },
-    {
-      "id": "c84e7ed0eeb4",
-      "type": "milestone",
-      "label": "milestone: Ran a thirteenth adversarial round (gemini-3.1-pro-preview) which returned the first ACCEPT, then verified its load-bearing claim independently",
-      "episodes": [
-        "episode-2026-07-26-session-3422-eval-holdout-gate"
-      ],
-      "created": "2026-07-27T09:23:34.232554+00:00"
-    },
-    {
-      "id": "9007876af7b1",
-      "type": "commit",
-      "label": "commit: Commit: 7686d85d5",
-      "episodes": [
-        "episode-2026-07-26-session-3422-eval-holdout-gate"
-      ],
-      "created": "2026-07-27T09:23:34.232695+00:00"
-    },
-    {
-      "id": "215adbcb0b09",
-      "type": "milestone",
-      "label": "milestone: Discovered PR #3458 was squash-merged mid-session and moved the orphaned round-13 docs commit to a fresh branch",
-      "episodes": [
-        "episode-2026-07-26-session-3422-eval-holdout-gate"
-      ],
-      "created": "2026-07-27T09:35:07.622472+00:00"
-    },
-    {
-      "id": "4bb9e115c196",
-      "type": "commit",
-      "label": "commit: Commit: e9f28051d",
-      "episodes": [
-        "episode-2026-07-26-session-3422-eval-holdout-gate"
-      ],
-      "created": "2026-07-27T09:35:07.622558+00:00"
-    },
-    {
-      "id": "0c971adbbd46",
-      "type": "milestone",
-      "label": "milestone: Fetched review threads: 1 unresolved from copilot-pull-request-reviewer (PRRT_kwDOQoWRls6UAKX2)",
-      "episodes": [
-        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T11:35:50.736393+00:00"
-    },
-    {
-      "id": "a974ddb659de",
-      "type": "milestone",
-      "label": "milestone: Verified round-13 evidence claims against source",
-      "episodes": [
-        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T11:35:50.736491+00:00"
-    },
-    {
-      "id": "0453f68fca0d",
-      "type": "milestone",
-      "label": "milestone: Merged origin/main to resolve CONFLICTING state, then fixed stale sentence",
-      "episodes": [
-        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T11:35:50.736575+00:00"
-    },
-    {
-      "id": "705ec2515c5c",
-      "type": "outcome",
-      "label": "Outcome: success - Process PR #3467 review feedback: fix internal inconsistency in debate log summary",
-      "episodes": [
-        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T11:35:50.736662+00:00"
-    },
-    {
-      "id": "0bfd6d378543",
-      "type": "commit",
-      "label": "commit: Commit: 341682152a",
-      "episodes": [
-        "episode-2026-07-27-session-3467-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-27T11:58:41.229748+00:00"
-    },
-    {
-      "id": "1070b8f189e0",
-      "type": "milestone",
-      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T04:33:56.615224+00:00"
-    },
-    {
-      "id": "ccb10a8598d0",
-      "type": "milestone",
-      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T04:33:56.615321+00:00"
-    },
-    {
-      "id": "ae4384fa1407",
-      "type": "milestone",
-      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T04:33:56.615402+00:00"
-    },
-    {
-      "id": "fd0498b1f9da",
-      "type": "commit",
-      "label": "commit: Commit: 6c19696ac",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T04:33:56.615480+00:00"
-    },
-    {
-      "id": "bcbf184a4c55",
-      "type": "outcome",
-      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T04:33:56.615557+00:00"
-    },
-    {
-      "id": "a305a0ccef47",
-      "type": "commit",
-      "label": "commit: Commit: 6f0315519",
-      "episodes": [
-        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
-      ],
-      "created": "2026-07-28T05:06:51.357047+00:00"
-    },
-    {
-      "id": "a5f583a537a7",
-      "type": "milestone",
-      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360269+00:00"
-    },
-    {
-      "id": "490a5ebfd48d",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360687+00:00"
-    },
-    {
-      "id": "ae5a0c2da073",
-      "type": "milestone",
-      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153011+00:00"
-    },
-    {
-      "id": "51060209facf",
-      "type": "milestone",
-      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153104+00:00"
-    },
-    {
-      "id": "5aeecf9e0278",
-      "type": "milestone",
-      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153183+00:00"
-    },
-    {
-      "id": "55400f477c3c",
-      "type": "milestone",
-      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153259+00:00"
-    },
-    {
-      "id": "c344608e8310",
-      "type": "milestone",
-      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153337+00:00"
-    },
-    {
-      "id": "29955f0931ab",
-      "type": "milestone",
-      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153412+00:00"
-    },
-    {
-      "id": "97aa5ba576fd",
-      "type": "test",
-      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153487+00:00"
-    },
-    {
-      "id": "ec1115156a69",
-      "type": "outcome",
-      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153636+00:00"
-    },
-    {
-      "id": "4472302e0698",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143367+00:00"
-    },
-    {
-      "id": "04798dd6ab2b",
-      "type": "test",
-      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143461+00:00"
-    },
-    {
-      "id": "45f169b4e8de",
-      "type": "milestone",
-      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218813+00:00"
-    },
-    {
-      "id": "00b8bf54800b",
-      "type": "milestone",
-      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218902+00:00"
-    },
-    {
-      "id": "6fd7cc4cdc3c",
-      "type": "milestone",
-      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218983+00:00"
-    },
-    {
-      "id": "924d259f8650",
-      "type": "milestone",
-      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219065+00:00"
-    },
-    {
-      "id": "39f7c5894a10",
-      "type": "milestone",
-      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219143+00:00"
-    },
-    {
-      "id": "f188dee3c58e",
-      "type": "milestone",
-      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219221+00:00"
-    },
-    {
-      "id": "cb74c7701693",
-      "type": "test",
-      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219300+00:00"
-    },
-    {
-      "id": "600d5ed0bc31",
-      "type": "error",
-      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219381+00:00"
-    },
-    {
-      "id": "1afb97b06903",
-      "type": "milestone",
-      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219462+00:00"
-    },
-    {
-      "id": "f2fedd92db5a",
-      "type": "error",
-      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219690+00:00"
-    },
-    {
-      "id": "7c36d1ff15c0",
-      "type": "outcome",
-      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219770+00:00"
     },
     {
       "id": "cfdc4a24bbfd",
@@ -22161,94 +21657,544 @@
       "created": "2026-07-27T12:49:56.856388+00:00"
     },
     {
-      "id": "4a8aa4aecca4",
+      "id": "c71da9963354",
       "type": "milestone",
-      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "label": "milestone: Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189306+00:00"
+      "created": "2026-07-27T11:03:30.789887+00:00"
     },
     {
-      "id": "e190568c7d5d",
+      "id": "5dd79bb3e1e3",
       "type": "milestone",
-      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "label": "milestone: Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189397+00:00"
+      "created": "2026-07-27T11:03:30.789975+00:00"
     },
     {
-      "id": "04893c67ce46",
+      "id": "8a1d210a7471",
       "type": "milestone",
-      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "label": "milestone: Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189478+00:00"
+      "created": "2026-07-27T11:03:30.790054+00:00"
     },
     {
-      "id": "9e49ad65f1ed",
+      "id": "b9fd3a72f7a0",
       "type": "milestone",
-      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "label": "milestone: Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189559+00:00"
+      "created": "2026-07-27T11:03:30.790133+00:00"
     },
     {
-      "id": "891703ffd915",
+      "id": "db6ff31d3dba",
       "type": "milestone",
-      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189638+00:00"
+      "created": "2026-07-27T11:03:30.790209+00:00"
     },
     {
-      "id": "a948387eb20e",
+      "id": "d6cb2653c4d1",
       "type": "milestone",
-      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "label": "milestone: Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189724+00:00"
+      "created": "2026-07-27T11:03:30.790284+00:00"
     },
     {
-      "id": "3db0ad216ab1",
-      "type": "milestone",
-      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189803+00:00"
-    },
-    {
-      "id": "a1019a5fdcd2",
-      "type": "milestone",
-      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189880+00:00"
-    },
-    {
-      "id": "8a96c34dcf0c",
+      "id": "4b9e3c39be98",
       "type": "outcome",
-      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+      "label": "Outcome: success - Close the three MUST violations of the SKIP-clause rule in .agents/governance/skill-description-trigger-standard.md, where a skill sharing a naming family with a sibling carries no negative trigger routing away from it.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T02:59:43.189960+00:00"
+      "created": "2026-07-27T11:03:30.790359+00:00"
     },
     {
-      "id": "83cd3e96c275",
-      "type": "milestone",
-      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "id": "b555fd025f7b",
+      "type": "decision",
+      "label": "recovery: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
       "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
       ],
-      "created": "2026-07-28T04:11:14.074233+00:00"
+      "created": "2026-07-27T11:56:11.193373+00:00"
+    },
+    {
+      "id": "575cf347691a",
+      "type": "milestone",
+      "label": "milestone: Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.193936+00:00"
+    },
+    {
+      "id": "a0517c9b1743",
+      "type": "milestone",
+      "label": "milestone: Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194018+00:00"
+    },
+    {
+      "id": "f9340323fdc1",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194097+00:00"
+    },
+    {
+      "id": "41229488c916",
+      "type": "milestone",
+      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194176+00:00"
+    },
+    {
+      "id": "1ace54b3d8e1",
+      "type": "decision",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194438+00:00"
+    },
+    {
+      "id": "18999928d683",
+      "type": "milestone",
+      "label": "Measured the SKIP-clause rule mechanically instead of reading descriptions by hand. Parsed the frontmatter description of all 96 skills under .claude/skills, grouped them into naming families by leading token, and flagged every family member whose description carries no negative trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194525+00:00"
+    },
+    {
+      "id": "f2e1fa9b338c",
+      "type": "milestone",
+      "label": "Found 8 families with more than one member, covering 37 of the 96 skills, and exactly 3 members with no SKIP clause: github, session-end, session-log-fixer.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194706+00:00"
+    },
+    {
+      "id": "c247cf23409c",
+      "type": "milestone",
+      "label": "Falsified a wider claim from an earlier pass. A looser heuristic had flagged autoplan, benchmark-models, steering-matcher, and stuck-detection for naming no real skill. Reading the actual clauses shows none of the four sits in a multi-member family, so the family-scoped rule does not bind them, and panning-for-gold's referents both resolve: analyst is an agent and spec-generator is a skill. Scope reduced from 7 edits to 3.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.194869+00:00"
+    },
+    {
+      "id": "30522784ce2b",
+      "type": "milestone",
+      "label": "Wrote reciprocal clauses. github now routes URL reading to github-url-intercept, which already routed PR and comment work back to github. session-log-fixer routes local completion to session-end, and session-end routes creation to session-init and CI repair to session-log-fixer. session-init already routes to the session parent, which satisfies the chaining-parent escape in the standard.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195032+00:00"
+    },
+    {
+      "id": "bbe14da4f47d",
+      "type": "milestone",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.137.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195192+00:00"
+    },
+    {
+      "id": "b8e7470d3dea",
+      "type": "milestone",
+      "label": "Re-ran the measurement after the edits: 0 family members without a SKIP clause. Verified each edited description stays under 1024 chars, carries no angle brackets, and carries no en or em dash.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195355+00:00"
+    },
+    {
+      "id": "f4fe6633f53d",
+      "type": "milestone",
+      "label": "Regenerated the copilot-cli skill mirrors with build_all.py so the generated tree matches the canonical tree, and bumped both parity plugin manifests to 0.6.138. The first bump chose 0.6.137, which collided once PR #3455 merged that same version to main. The version gate compares against the merge base rather than the tip, so it passed while the published version would not have moved. Adversarial review caught it; merging main and re-bumping fixed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195515+00:00"
+    },
+    {
+      "id": "e2b33bfd32ff",
+      "type": "milestone",
+      "label": "Corrected the chaining-parent argument after review disproved it. session-init pointed at session, and session does not orchestrate the family, so session-end routing to session-init had no back-pointer. Added a direct session-init to session-end route. The session family now has no non-reciprocal routing edge.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195685+00:00"
+    },
+    {
+      "id": "9d2f52558392",
+      "type": "milestone",
+      "label": "Rebuilt the audit script twice after it produced wrong numbers. Splitting negative clauses on a period truncated the github clause at github.com and hid a real target; matching any skill name inside the clause counted the prose phrase 'a new session log' as a route and invented two reciprocity violations. Restricting extraction to the documented (use X) form gave a stable count.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.195847+00:00"
+    },
+    {
+      "id": "2a05f360f556",
+      "type": "milestone",
+      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 17 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T11:56:11.196007+00:00"
+    },
+    {
+      "id": "521419055a2b",
+      "type": "milestone",
+      "label": "milestone: Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818108+00:00"
+    },
+    {
+      "id": "636303e9a180",
+      "type": "milestone",
+      "label": "milestone: Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.818198+00:00"
+    },
+    {
+      "id": "6b453cb88caa",
+      "type": "milestone",
+      "label": "Scoped the compliance claim to the predicate actually measured. Zero of 37 prefix-family members lack a negative clause. The standard also says families share a prefix or theme and that the clause must name the sibling; under those readings 5 members route to no family sibling and 19 within-family edges have no back-pointer. Filed as issue #3484 rather than patched here, because pairwise reciprocity cannot fit the 1024-char budget in a 15-member family and the rule needs a decision first.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820086+00:00"
+    },
+    {
+      "id": "7cfbfe3e3448",
+      "type": "milestone",
+      "label": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log.",
+      "episodes": [
+        "episode-2026-07-27-session-3474-skill-family-skip-clauses"
+      ],
+      "created": "2026-07-27T12:43:51.820251+00:00"
+    },
+    {
+      "id": "795da0e7b424",
+      "type": "milestone",
+      "label": "milestone: Issue #3260 protected against a commit being linked as caused_by a later PR-review milestone; issue #3464 shows the same rank table creates a false edge when the milestone records pre-code work",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203806+00:00"
+    },
+    {
+      "id": "799cbceb4129",
+      "type": "milestone",
+      "label": "milestone: Implemented option 3: keep lifecycle rank as an ordering guard, but emit no edge when rank is the only evidence for adjacent events at the same timestamp",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203897+00:00"
+    },
+    {
+      "id": "84e8edd4243f",
+      "type": "milestone",
+      "label": "milestone: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.203977+00:00"
+    },
+    {
+      "id": "f66db840deaf",
+      "type": "test",
+      "label": "test: Targeted suites passed: 70 passed for .claude and 70 passed for src/copilot-cli; ruff passed; plugin-version-bump passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204054+00:00"
+    },
+    {
+      "id": "94e08d369053",
+      "type": "commit",
+      "label": "commit: Commit: bb2d29e1c4",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204131+00:00"
+    },
+    {
+      "id": "ecf26dd68a81",
+      "type": "commit",
+      "label": "commit: Commit: f633ad31c9",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204207+00:00"
+    },
+    {
+      "id": "4052aa5dccd8",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3464 by preventing rank-only causal edges from inverting pre-code milestones while preserving the issue #3260 commit and review case",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:14:05.204285+00:00"
+    },
+    {
+      "id": "87e25b954ab0",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679346+00:00"
+    },
+    {
+      "id": "ea3c9ed5124f",
+      "type": "commit",
+      "label": "commit: Commit: 735cc876f7",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679435+00:00"
+    },
+    {
+      "id": "fbee51fcb51f",
+      "type": "commit",
+      "label": "commit: Commit: 4de79677af",
+      "episodes": [
+        "episode-2026-07-27-session-3475-memory-causal-order"
+      ],
+      "created": "2026-07-27T16:48:35.679513+00:00"
+    },
+    {
+      "id": "a5f583a537a7",
+      "type": "milestone",
+      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T12:06:26.360269+00:00"
+    },
+    {
+      "id": "490a5ebfd48d",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T12:06:26.360687+00:00"
+    },
+    {
+      "id": "ae5a0c2da073",
+      "type": "milestone",
+      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153011+00:00"
+    },
+    {
+      "id": "51060209facf",
+      "type": "milestone",
+      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153104+00:00"
+    },
+    {
+      "id": "5aeecf9e0278",
+      "type": "milestone",
+      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153183+00:00"
+    },
+    {
+      "id": "55400f477c3c",
+      "type": "milestone",
+      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153259+00:00"
+    },
+    {
+      "id": "c344608e8310",
+      "type": "milestone",
+      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153337+00:00"
+    },
+    {
+      "id": "29955f0931ab",
+      "type": "milestone",
+      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153412+00:00"
+    },
+    {
+      "id": "97aa5ba576fd",
+      "type": "test",
+      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153487+00:00"
+    },
+    {
+      "id": "ec1115156a69",
+      "type": "outcome",
+      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153636+00:00"
+    },
+    {
+      "id": "4472302e0698",
+      "type": "milestone",
+      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143367+00:00"
+    },
+    {
+      "id": "04798dd6ab2b",
+      "type": "test",
+      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143461+00:00"
+    },
+    {
+      "id": "45f169b4e8de",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218813+00:00"
+    },
+    {
+      "id": "00b8bf54800b",
+      "type": "milestone",
+      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218902+00:00"
+    },
+    {
+      "id": "6fd7cc4cdc3c",
+      "type": "milestone",
+      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.218983+00:00"
+    },
+    {
+      "id": "924d259f8650",
+      "type": "milestone",
+      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219065+00:00"
+    },
+    {
+      "id": "39f7c5894a10",
+      "type": "milestone",
+      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219143+00:00"
+    },
+    {
+      "id": "f188dee3c58e",
+      "type": "milestone",
+      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219221+00:00"
+    },
+    {
+      "id": "cb74c7701693",
+      "type": "test",
+      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219300+00:00"
+    },
+    {
+      "id": "600d5ed0bc31",
+      "type": "error",
+      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219381+00:00"
+    },
+    {
+      "id": "1afb97b06903",
+      "type": "milestone",
+      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219462+00:00"
+    },
+    {
+      "id": "f2fedd92db5a",
+      "type": "error",
+      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219690+00:00"
+    },
+    {
+      "id": "7c36d1ff15c0",
+      "type": "outcome",
+      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T13:33:30.219770+00:00"
     },
     {
       "id": "6850aee5d39b",
@@ -22827,78 +22773,6 @@
       "created": "2026-07-27T20:22:25.573133+00:00"
     },
     {
-      "id": "2b8b56898e35",
-      "type": "milestone",
-      "label": "milestone: Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510230+00:00"
-    },
-    {
-      "id": "7c0a9c14c5ad",
-      "type": "commit",
-      "label": "commit: Commit: b61cf1cff3",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510327+00:00"
-    },
-    {
-      "id": "0dfa2736ccc0",
-      "type": "commit",
-      "label": "commit: Commit: 56f4f861aa",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510409+00:00"
-    },
-    {
-      "id": "10d3309b4e61",
-      "type": "commit",
-      "label": "commit: Commit: ee1de31d5a",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510490+00:00"
-    },
-    {
-      "id": "414d19412e66",
-      "type": "commit",
-      "label": "commit: Commit: 31a015587d",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510569+00:00"
-    },
-    {
-      "id": "612866ea6c33",
-      "type": "commit",
-      "label": "commit: Commit: 23e41ffb80",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:57:54.510659+00:00"
-    },
-    {
-      "id": "da830ac8b5fb",
-      "type": "milestone",
-      "label": "milestone: Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got a real result of zero issues across both changed markdown documents, and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) First reading of metrics.commits was wrong and is superseded by the next entry: the naive line-match count at extract_session_episode.py line 336 is only the no-existing-episode path, and the preserve path at line 1197 overrides it with _count_commit_events. The finding held.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T05:15:32.963689+00:00"
-    },
-    {
-      "id": "21e578e0053a",
-      "type": "milestone",
-      "label": "milestone: Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T05:18:53.535055+00:00"
-    },
-    {
       "id": "b5b863b63986",
       "type": "milestone",
       "label": "milestone: Confirmed the conflict against the wiki concept note Rule Weaponization, which forbids letting the model self-report context usage and names Session Escape as the end of the attack chain. Both agents carried a pressure-signal list ending in 'Any of these means you are near the limit', plus a step 3 authorizing a stop or handoff when 'the budget is nearly spent'.",
@@ -23007,6 +22881,168 @@
       "created": "2026-07-28T04:39:38.801440+00:00"
     },
     {
+      "id": "4a8aa4aecca4",
+      "type": "milestone",
+      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189306+00:00"
+    },
+    {
+      "id": "e190568c7d5d",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189397+00:00"
+    },
+    {
+      "id": "04893c67ce46",
+      "type": "milestone",
+      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189478+00:00"
+    },
+    {
+      "id": "9e49ad65f1ed",
+      "type": "milestone",
+      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189559+00:00"
+    },
+    {
+      "id": "891703ffd915",
+      "type": "milestone",
+      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189638+00:00"
+    },
+    {
+      "id": "a948387eb20e",
+      "type": "milestone",
+      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189724+00:00"
+    },
+    {
+      "id": "3db0ad216ab1",
+      "type": "milestone",
+      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189803+00:00"
+    },
+    {
+      "id": "a1019a5fdcd2",
+      "type": "milestone",
+      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189880+00:00"
+    },
+    {
+      "id": "8a96c34dcf0c",
+      "type": "outcome",
+      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189960+00:00"
+    },
+    {
+      "id": "83cd3e96c275",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:11:14.074233+00:00"
+    },
+    {
+      "id": "2b8b56898e35",
+      "type": "milestone",
+      "label": "milestone: Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510230+00:00"
+    },
+    {
+      "id": "7c0a9c14c5ad",
+      "type": "commit",
+      "label": "commit: Commit: b61cf1cff3",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510327+00:00"
+    },
+    {
+      "id": "0dfa2736ccc0",
+      "type": "commit",
+      "label": "commit: Commit: 56f4f861aa",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510409+00:00"
+    },
+    {
+      "id": "10d3309b4e61",
+      "type": "commit",
+      "label": "commit: Commit: ee1de31d5a",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510490+00:00"
+    },
+    {
+      "id": "414d19412e66",
+      "type": "commit",
+      "label": "commit: Commit: 31a015587d",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510569+00:00"
+    },
+    {
+      "id": "612866ea6c33",
+      "type": "commit",
+      "label": "commit: Commit: 23e41ffb80",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:57:54.510659+00:00"
+    },
+    {
+      "id": "da830ac8b5fb",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got a real result of zero issues across both changed markdown documents, and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) First reading of metrics.commits was wrong and is superseded by the next entry: the naive line-match count at extract_session_episode.py line 336 is only the no-existing-episode path, and the preserve path at line 1197 overrides it with _count_commit_events. The finding held.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:15:32.963689+00:00"
+    },
+    {
+      "id": "21e578e0053a",
+      "type": "milestone",
+      "label": "milestone: Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:18:53.535055+00:00"
+    },
+    {
       "id": "5f569abea7c8",
       "type": "milestone",
       "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
@@ -23077,6 +23113,60 @@
         "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
       ],
       "created": "2026-07-28T01:33:45.877354+00:00"
+    },
+    {
+      "id": "1070b8f189e0",
+      "type": "milestone",
+      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615224+00:00"
+    },
+    {
+      "id": "ccb10a8598d0",
+      "type": "milestone",
+      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615321+00:00"
+    },
+    {
+      "id": "ae4384fa1407",
+      "type": "milestone",
+      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615402+00:00"
+    },
+    {
+      "id": "fd0498b1f9da",
+      "type": "commit",
+      "label": "commit: Commit: 6c19696ac",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615480+00:00"
+    },
+    {
+      "id": "bcbf184a4c55",
+      "type": "outcome",
+      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T04:33:56.615557+00:00"
+    },
+    {
+      "id": "a305a0ccef47",
+      "type": "commit",
+      "label": "commit: Commit: 6f0315519",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T05:06:51.357047+00:00"
     }
   ],
   "patterns": [
