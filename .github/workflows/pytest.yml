@@ -183,9 +183,9 @@ jobs:
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
-        run: |
-          mkdir -p artifacts
-          pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
+        run: uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
       # Issue #1963: test_ai_review.py was split by tested module into
       # test_verdict.py (get_verdict, merge_verdicts, extract_verdict, verdict
