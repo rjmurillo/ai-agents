@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 FindingPayload = dict[str, str | int | bool]
@@ -159,7 +159,7 @@ def render_error_envelope(
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
@@ -212,7 +212,7 @@ def render_scan_error_envelope(result: ScanResult, message: str, output: str) ->
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
@@ -268,7 +268,7 @@ def render_envelope(result: ScanResult, output: str) -> str:
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
