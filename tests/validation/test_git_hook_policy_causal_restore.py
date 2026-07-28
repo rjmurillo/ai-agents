@@ -1803,6 +1803,35 @@ class TestGovernedDocumentIdentity:
             ".agents/architecture/ADR-201-first.md"
         )
 
+    def test_a_directory_named_for_a_record_does_not_shadow_the_file(self):
+        """The number is read where the path test anchors: the last segment.
+
+        Read across the whole path, the first number wins, so a file under a
+        directory carrying another record's number reports that record. Two
+        different decisions would then share one identity and a walk would
+        cross between them, which is the hole scoping the walk closed.
+        """
+        nested = ".agents/ADR-201-old/ADR-202-new.md"
+
+        assert policy._governed_document_identity(
+            nested
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+        assert policy._governed_document_identity(
+            nested
+        ) != policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        )
+
+    def test_a_windows_separator_still_names_the_last_segment(self):
+        """The path test accepts a backslash, so reading the number must too."""
+        assert policy._governed_document_identity(
+            r".agents\ADR-201-old\ADR-202-new.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+
     @pytest.mark.parametrize(
         "path",
         [

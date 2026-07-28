@@ -45,6 +45,7 @@ ADR_REVIEW_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
     re.compile(r"/adr-review"),
@@ -1007,7 +1008,11 @@ def _governed_document_identity(path: str) -> str | None:
     protocol has no number and stands for itself.
     """
     if ADR_PATH_RE.search(path):
-        identifier = ADR_ID_RE.search(path)
+        # Read the number from the final segment, which is where the path test
+        # anchors. Across the whole path the first number wins, so a directory
+        # named for another record would shadow the one the file holds and two
+        # decisions would share one identity.
+        identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
         return identifier.group(0).upper() if identifier else None
     if SESSION_PROTOCOL_PATH_RE.search(path):
         return "SESSION-PROTOCOL"
