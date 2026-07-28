@@ -240,7 +240,7 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| `search_memory.py` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
+| `search_memory.py` | Search across Serena, the episode store, and Forgetful | 0=success, 1=error |
 | `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
