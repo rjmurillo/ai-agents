@@ -177,5 +177,5 @@
   ],
   "endingCommit": "b02150b671",
   "nextSteps": [],
-  "workNotes": " | Retrospective evidence created for session. | Restructured repo param to break Semgrep taint chain via regex match sanitization."
+  "workNotes": " | Retrospective evidence created for session. | Restructured repo param to break Semgrep taint chain via regex match sanitization. | Removed os.environ taint source for Semgrep compliance."
 }

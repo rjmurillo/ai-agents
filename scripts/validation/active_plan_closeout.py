@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 import sys
@@ -194,8 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"[ERROR] repo root does not exist: {repo_root}", file=sys.stderr)
         return EXIT_CONFIG
 
-    repo = os.environ.get("GH_REPO", DEFAULT_REPO)
-    validate_active_plan_closeout(repo_root, repo=repo)
+    validate_active_plan_closeout(repo_root)
     return EXIT_OK
 
 
