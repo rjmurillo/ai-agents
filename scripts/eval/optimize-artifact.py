@@ -193,12 +193,12 @@ def _absent(path: Path) -> bool:
     unreadable ledger reads as an unspent budget.
 
     Absence is asked of the directory entry with `lstat`, not of the target
-    with `stat`. A symlink whose target is gone is an entry that exists, and
-    answering "absent" for it hands both readers their fail-open path: an
-    empty buffer un-rejects every patch recorded in it, and an unspent ledger
-    resets the consultation budget. The realistic cause is a state directory
-    linked into a volume that did not mount, which should stop the run rather
-    than quietly restore the budget.
+    with `stat`. A symlink is an entry that exists, and state readers reject
+    it rather than following it. A dangling buffer link un-rejects every patch
+    recorded in it, and a dangling ledger link resets the consultation budget.
+    A live symlink has the same integrity problem because the later atomic
+    write replaces the link itself rather than updating the target the operator
+    thought held state.
 
     Only `FileNotFoundError` means absent. Everything else is a config error,
     which is what `_read_json` already does one call further in, so the pair
@@ -211,23 +211,15 @@ def _absent(path: Path) -> bool:
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
     if path.is_symlink():
-        try:
-            path.stat()
-        except FileNotFoundError as exc:
-            # Named here rather than left to the reader, which would report
-            # "no such file" about a path the operator can see in `ls`.
-            target = "an unreadable target"
-            # readlink can fail if the entry changes underneath this handler,
-            # and an OSError raised inside it would escape `main`, which does
-            # not catch OSError, and exit 1. Exit 1 is the reject verdict.
-            with suppress(OSError):
-                target = os.readlink(path)
-            raise ConfigError(
-                f"{path} is a broken symlink to {target}: refusing to read "
-                f"it as an absent file"
-            ) from exc
-        except OSError as exc:
-            raise ConfigError(f"could not read {path}: {exc}") from exc
+        target = "an unreadable target"
+        # readlink can fail if the entry changes underneath this handler, and
+        # an OSError raised inside it would escape `main`, which does not catch
+        # OSError, and exit 1. Exit 1 is the reject verdict.
+        with suppress(OSError):
+            target = os.readlink(path)
+        raise ConfigError(
+            f"{path} is a symlink to {target}: state paths must be real files"
+        )
     return False
 
 
@@ -885,6 +877,25 @@ def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[
     return extracted
 
 
+def _agent_task_inventory(report: Mapping[str, Any]) -> list[str]:
+    raw_ids = report.get("fixture_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise ConfigError(
+            "agent report needs a non-empty fixture_ids inventory before it "
+            "can be used for optimizer results"
+        )
+    task_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in raw_ids:
+        if not isinstance(raw_id, str) or not raw_id:
+            raise ConfigError("agent report fixture_ids must be non-empty strings")
+        if raw_id in seen:
+            raise ConfigError(f"agent report fixture_ids repeats {raw_id!r}")
+        seen.add(raw_id)
+        task_ids.append(raw_id)
+    return task_ids
+
+
 def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
     """Refuse a bar that sits off the scale it is compared against.
 
@@ -969,12 +980,14 @@ def cmd_extract(args: argparse.Namespace) -> int:
         if not isinstance(report, Mapping):
             raise ConfigError(f"{path} must hold an agent report object")
         _refuse_degraded_agent_report(report)
+        expected_task_ids = _agent_task_inventory(report)
         corpus = _report_corpus(path, report)
         results = agent_results(
             report,
             args.variant,
             reduce=args.reduce,
             pass_threshold=args.pass_threshold,
+            expected_task_ids=expected_task_ids,
         )
     else:
         results = _extract_rule([_read_json(path) for path in args.input], args)
