@@ -9966,11 +9966,17 @@ class TestEveryMissingFileReadsTheSameWay:
     stringified into `[Errno 2] No such file or directory: 'nope.json'`.
 
     The same mistake reported two ways depending on which flag carried it. The
-    peek is best-effort by contract, so answering `_UNREADABLE` here is not a
-    softening: `_corpus_refused` already declines to decide on an unreadable
-    file, so the full read below still raises and still exits 2. The peek
-    stops being the layer that names the failure, which it was never meant to
-    be.
+    peek stops being the layer that names the failure, which it was never
+    meant to be, by reading through `_read_text` and letting the `ConfigError`
+    that reader already raises travel past its own decode clause.
+
+    The first attempt answered `_UNREADABLE` instead, on the argument that
+    `_corpus_refused` declines to decide on an unreadable file so the full
+    read would still raise. An outside review found the hole: the full read is
+    not what runs next. `_guard` is, and an exhausted consultation budget
+    turns a missing file into a REJECT at exit 1. A file that cannot be opened
+    has to be refused before anything that can emit a decision, which is what
+    the last test here pins.
     """
 
     def _split_for(self, tmp_path, capsys):
@@ -10003,6 +10009,49 @@ class TestEveryMissingFileReadsTheSameWay:
         )
         assert code == EXIT_CONFIG
         assert out["error"] == f"no such file: {tmp_path / 'gone.json'}"
+
+    def test_a_missing_file_outranks_an_exhausted_budget(self, tmp_path, capsys):
+        """The peek must refuse before anything that can emit a decision.
+
+        `_gate_entry` runs the header peek, then takes the ledger lock, then
+        runs `_guard`, and only then does the authoritative read. So a peek
+        that answers instead of raising hands the next decision-producing
+        guard a file nobody could open. With the budget already spent, the
+        gate reported REJECT at exit 1 for a path that does not exist, telling
+        the operator to re-split when the real fix was to fix the typo.
+
+        This is the test the first version of the fix would have failed. It
+        does not assert the message, only that a config error still outranks a
+        verdict, which is the property the ordering has to preserve.
+        """
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i < 2 for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _, record = _split(capsys, tmp_path, "--results", inc, "--seed", "pin")
+        split_path = _write(tmp_path, "split.json", record)
+        fp = str(record["fingerprint"])
+
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+        assert code == EXIT_OK, out
+
+        spent, _ = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+        assert spent == EXIT_LOGIC
+
+        code, out = _run(
+            capsys, "gate", "--incumbent", tmp_path / "typo.json", "--candidate", cand,
+            "--split", split_path, "--max-consultations", "1",
+            "--incumbent-fingerprint", fp,
+        )
+        assert code == EXIT_CONFIG, out
+        assert "decision" not in out
+        assert out["error"] == f"no such file: {tmp_path / 'typo.json'}"
 
     def test_no_errno_prefix_survives_on_any_input_flag(self, tmp_path, capsys):
         """One assertion over both peeked flags, so neither regresses alone."""
