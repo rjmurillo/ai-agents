@@ -59,7 +59,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Committed on fix/3630-episode-reader with hooks enabled. No --no-verify."
+        "evidence": "Committed on fix/3630-episode-reader with hooks enabled. No --no-verify. Commits: 0ef4dabc3 the episode-store reader, 88418b9d9 its tests and store isolation, 0c7508b56 the copilot mirror and plugin bump, 1dc5caefa the mypy type annotations, 3fefdcb6a the parsed recency key."
       },
       "validationPassed": {
         "complete": true,
@@ -160,5 +160,5 @@
     "Round 6 of the adversarial review against the round-5 semgrep tokenizer rules.",
     "Continue the open-issue campaign: the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
-  "endingCommit": ""
+  "endingCommit": "3fefdcb6a"
 }
