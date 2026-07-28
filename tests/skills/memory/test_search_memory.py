@@ -108,6 +108,60 @@ class TestSearchEpisodes:
         results = search_memory.search_episodes("alpha", tmp_path, 10)
         assert results[0]["Name"].startswith("episode-2026-06-30")
 
+    def test_higher_session_number_wins_a_same_date_tie(self, tmp_path):
+        """A digit-width change must not invert recency within one date.
+
+        A reverse string sort compares "9" against "1" at the first differing
+        position, so session-9 outranks session-10 even though session-10 is
+        newer. Measured across the 302-episode corpus in
+        `.agents/memory/episodes`, no date currently spans a digit-width
+        boundary, so this has never fired in production. It is a latent trap,
+        not an observed regression.
+        """
+        self._episode(tmp_path, "episode-2026-01-02-session-9-alpha")
+        self._episode(tmp_path, "episode-2026-01-02-session-10-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert results[0]["Name"] == "episode-2026-01-02-session-10-alpha"
+
+    def test_session_ordering_holds_across_the_hundreds_boundary(self, tmp_path):
+        """The same inversion recurs at every power of ten, not just at ten."""
+        self._episode(tmp_path, "episode-2026-01-02-session-99-alpha")
+        self._episode(tmp_path, "episode-2026-01-02-session-100-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert results[0]["Name"] == "episode-2026-01-02-session-100-alpha"
+
+    def test_date_outranks_the_session_number(self, tmp_path):
+        """Negative control: the session number must not override the date.
+
+        Session numbers are globally increasing, so a naive numeric sort that
+        dropped the date would still pass the two tests above. This one fails
+        if the date stops being the primary key.
+        """
+        self._episode(tmp_path, "episode-2026-01-02-session-500-alpha")
+        self._episode(tmp_path, "episode-2026-06-30-session-9-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert results[0]["Name"] == "episode-2026-06-30-session-9-alpha"
+
+    def test_an_unnumbered_episode_sorts_below_a_numbered_one(self, tmp_path):
+        """Edge: four of the 302 real episodes carry no session number.
+
+        They must still sort deterministically rather than raise. A numbered
+        session is the more specific record, so it wins the date tie.
+        """
+        self._episode(tmp_path, "episode-2026-01-02-plain-alpha")
+        self._episode(tmp_path, "episode-2026-01-02-session-1-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert results[0]["Name"] == "episode-2026-01-02-session-1-alpha"
+        assert results[1]["Name"] == "episode-2026-01-02-plain-alpha"
+
+    def test_a_name_matching_no_pattern_still_sorts(self, tmp_path):
+        """Edge: a filename with no parseable date must not crash the sort."""
+        self._episode(tmp_path, "episode-nodate-alpha")
+        self._episode(tmp_path, "episode-2026-01-02-session-1-alpha")
+        results = search_memory.search_episodes("alpha", tmp_path, 10)
+        assert len(results) == 2
+        assert results[0]["Name"] == "episode-2026-01-02-session-1-alpha"
+
 
 class TestGetMemoryRouterStatus:
     """Tests for get_memory_router_status function."""

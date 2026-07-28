@@ -32,6 +32,35 @@ TOKEN_DECOMPOSE_THRESHOLD = 10000
 # keywords "episode" and "session" match nearly the whole corpus.
 EPISODE_NAME_PREFIX = re.compile(r"^episode-\d{4}-\d{2}-\d{2}-(?:session-\d+-?)?")
 
+# Same shape as EPISODE_NAME_PREFIX, but capturing so the recency sort can read
+# the date and the session number instead of comparing the raw string.
+EPISODE_RECENCY = re.compile(r"^episode-(\d{4}-\d{2}-\d{2})-(?:session-(\d+)\b)?")
+
+
+def _recency_key(name: str) -> tuple[str, int, str]:
+    """Order an episode name newest-first under a reverse sort.
+
+    The date is fixed-width ISO, so it compares correctly as a string. The
+    session number does not: a reverse string sort reads it digit by digit, so
+    `session-9` outranks `session-10` at every power of ten. Parsing it as an
+    integer fixes that without disturbing the date, which stays the primary key
+    because session numbers are globally increasing and would otherwise let a
+    high-numbered old session outrank a low-numbered new one.
+
+    Names that carry no parseable date return an empty date, which sorts last
+    under a reverse sort rather than first as the raw string did. Names with a
+    date but no session number use -1, placing them below any numbered session
+    on the same date: a numbered session is the more specific record. Four of
+    the 302 episodes in `.agents/memory/episodes` are in that shape.
+
+    The full name is the final element so the order is total and stable across
+    runs when the date and session number both tie.
+    """
+    match = EPISODE_RECENCY.match(name)
+    if not match:
+        return ("", -1, name)
+    return (match.group(1), int(match.group(2)) if match.group(2) else -1, name)
+
 
 def estimate_tokens(file_path: Path) -> int:
     """Estimate token count from file size (chars / 4)."""
@@ -126,9 +155,14 @@ def search_episodes(
         })
 
     # Ties are common because scoring is a fraction of matched keywords. Within
-    # a score tier the newest episode is the most useful, and the date sits at a
-    # fixed position in the filename, so a stable name sort orders by recency.
-    results.sort(key=lambda r: str(r["Name"]), reverse=True)
+    # a score tier the newest episode is the most useful, so order by the date
+    # and session number the filename carries rather than by the raw string.
+    # A reverse string sort compares digit by digit, so `session-9` outranks
+    # `session-10` and any name that fails the pattern outranks every dated one.
+    # Measured across the 302-episode corpus in `.agents/memory/episodes`, no
+    # date yet spans a digit-width boundary, so this was a latent trap rather
+    # than an observed regression (issue #3630 review).
+    results.sort(key=lambda r: _recency_key(str(r["Name"])), reverse=True)
     results.sort(key=lambda r: float(r["Score"]), reverse=True)
     return results[:max_results]
 
