@@ -69,7 +69,7 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "One commit for the decision memory, one for this session log."
+        "evidence": "Four content commits on docs/skill-description-context-cost: 56f4f861aa (decision memory), ee1de31d5a (retro), 31a015587d (failure mode classification and remediation), b61cf1cff3 (retro pointers and real markdownlint evidence). One merge of origin/main, 23e41ffb80, resolving the causal-graph conflict via the installed merge driver."
       },
       "validationPassed": {
         "complete": true,
@@ -113,9 +113,12 @@
     },
     {
       "step": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact."
+    },
+    {
+      "step": "Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it."
     }
   ],
-  "endingCommit": "0f402c8e61",
+  "endingCommit": "b61cf1cff3",
   "nextSteps": [
     "The saturation mechanism is unexplained: a skill past the ceiling still auto-invokes without searching. Settling it needs an instrument that inspects the serialized request rather than asking the model what it can see.",
     "None of this is verified for interactive sessions, subagents, or Copilot CLI. The subagent path is documented to inject full skill content, so it may behave differently.",

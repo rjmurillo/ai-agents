@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
       "caused_by": [
-        "e009"
+        "e016"
       ],
       "leads_to": [
         "e002"
@@ -99,26 +99,28 @@
         "e007"
       ],
       "leads_to": [
-        "e010"
+        "e009"
       ]
     },
     {
       "id": "e009",
       "timestamp": "2026-07-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 0f402c8e61",
-      "caused_by": [],
+      "type": "milestone",
+      "content": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
-        "e001"
+        "e010"
       ]
     },
     {
       "id": "e010",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "content": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact.",
       "caused_by": [
-        "e008"
+        "e009"
       ],
       "leads_to": [
         "e011"
@@ -128,11 +130,69 @@
       "id": "e011",
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact.",
+      "content": "Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
       "caused_by": [
         "e010"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b61cf1cff3",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 56f4f861aa",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ee1de31d5a",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 31a015587d",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 23e41ffb80",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -140,8 +200,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 5,
+    "files_changed": 2
   },
   "lessons": []
 }
