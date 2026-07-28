@@ -1,0 +1,259 @@
+"""Tests for which text the routing gate treats as a route.
+
+A route counts only inside a table cell the CommonMark parser actually
+recognises. These cases pin that boundary in both directions:
+
+- suppression: fenced blocks (nested, longer, and tilde fences), HTML comments
+  (terminated and not), indented code, and inline code spans hold no routes,
+  and neither does pipe-shaped prose without a delimiter row
+- detection: tables written without outer pipes, inside a blockquote, or
+  indented under a list item are scanned, and emphasis does not hide a route
+
+Every fixture here carries a ``| --- | --- |`` delimiter row on purpose. An
+earlier revision omitted it, so the content rendered as a paragraph rather than
+a table and each suppression test passed whether or not the defence it named
+existed. A mutation battery surfaced eight such tests.
+
+Enforcement of the invariant itself lives in
+test_check_shipped_skill_routes.py.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from tests.validation.shipped_skill_routes_helpers import (
+    EXIT_DRIFT,
+    EXIT_OK,
+    repo,
+    run_gate,
+    write_doc,
+    write_skill,
+)
+
+__all__ = ["repo"]
+
+
+def test_fenced_block_is_ignored(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "```markdown\n| Task | Route |\n| --- | --- |\n| X | Skill: ghost |\n```\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_longer_outer_fence_is_not_closed_by_a_shorter_inner_one(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "````markdown\n```\n| X | R |\n| --- | --- |\n| X | Skill: ghost |\n```\n````\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_tilde_fence_is_not_closed_by_backticks(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "~~~\n```\n| X | R |\n| --- | --- |\n| X | Skill: ghost |\n~~~\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_html_comment_is_ignored(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "<!--\n| X | R |\n| --- | --- |\n| X | Skill: ghost |\n-->\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_line_numbers_are_reported_after_an_html_comment(repo: Path) -> None:
+    write_skill(
+        repo,
+        "src/copilot-cli",
+        "autoplan",
+        "# autoplan\n<!--\nfiller\nfiller\n-->\n\n| X | R |\n| --- | --- |\n| X | Skill: ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "SKILL.md:9:" in result.stdout
+
+
+def test_indented_code_block_is_ignored(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "text\n\n    | X | R |\n    | --- | --- |\n    | X | Skill: ghost |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_inline_code_span_is_ignored(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "| X | R |\n| --- | --- |\n| X | route with `Skill: ghost` shown |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_prose_outside_a_table_is_ignored(repo: Path) -> None:
+    """Heading text such as `# Skill: API Documentation Generator` is not a route."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "# Skill: API Documentation Generator\n\n- [ ] Skill: create a test file\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_compound_word_is_not_a_route(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "guide.md",
+        "| X | R |\n| --- | --- |\n| X | MetaSkill: ghost |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_blockquoted_table_row_is_scanned(repo: Path) -> None:
+    """A table inside a blockquote still routes readers."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "quoted.md",
+        "> | M | R |\n> | --- | --- |\n> | Merge | Skill: ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "ghost" in result.stdout
+
+
+def test_blockquote_support_does_not_readmit_indented_code(repo: Path) -> None:
+    """Guard the indent bound that blockquote support could have relaxed away."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "indented.md",
+        "    | Merge | R |\n    | --- | --- |\n    | Merge | Skill: ghost |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_unterminated_html_comment_does_not_fail_the_build(repo: Path) -> None:
+    """An unterminated comment hides its content from every reader.
+
+    Matching ``<!--.*?-->`` over the whole document found nothing here, so the
+    commented-out route was scanned as live and failed the build on text
+    nobody sees. A false positive in a push-blocking gate is worse than a miss.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "open.md",
+        "<!-- draft\n| Merge | R |\n| --- | --- |\n| Merge | Skill: ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_quoted_comment_markers_do_not_hide_a_table(repo: Path) -> None:
+    """Documenting the comment syntax must not blank out the table between."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "syntax.md",
+        "`<!--`\n\n| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n\n`-->`\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "ghost" in result.stdout
+
+
+def test_table_without_outer_pipes_is_scanned(repo: Path) -> None:
+    """GFM outer pipes are optional; a pipe-shaped-line scanner missed this."""
+    write_doc(repo, "src/copilot-cli", "bare.md", "I | R\n--- | ---\nM | Skill: ghost\n")
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "ghost" in result.stdout
+
+
+def test_table_indented_under_a_list_item_is_scanned(repo: Path) -> None:
+    """Four spaces inside a list is continuation, not an indented code block."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "listed.md",
+        "1. Routes:\n\n    | I | R |\n    | --- | --- |\n    | M | Skill: ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "ghost" in result.stdout
+
+
+def test_pipe_shaped_paragraph_is_not_a_table(repo: Path) -> None:
+    """Without a delimiter row markdown renders a paragraph, so it routes nobody.
+
+    The original fixtures in this suite omitted the delimiter row and asserted
+    the gate treated them as routes, encoding a model markdown does not have.
+    """
+    write_doc(repo, "src/copilot-cli", "prose.md", "| I | R |\n| M | Skill: ghost |\n")
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+def test_emphasised_route_is_scanned(repo: Path) -> None:
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "bold.md",
+        "| I | R |\n| --- | --- |\n| M | **Skill: ghost** |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_DRIFT
+
+
+def test_invalid_fence_does_not_hide_a_table(repo: Path) -> None:
+    """```lang`bad is not a CommonMark fence; the parser knows, a regex did not."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "badfence.md",
+        "```lang`bad\n\n| I | R |\n| --- | --- |\n| M | Skill: ghost |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_DRIFT
+
+
+def test_malformed_name_is_reported_not_prefix_matched(repo: Path) -> None:
+    """Capturing to the first illegal character would resolve a bogus route."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "slash.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: merge-resolver/ghost |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT
+    assert "not a legal skill name" in result.stdout
+
+
+def test_several_routes_in_one_cell_resolve(repo: Path) -> None:
+    """The live tables list skills comma-separated, so punctuation must strip."""
+    write_skill(repo, "src/copilot-cli", "github")
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "list.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: github, Skill: merge-resolver. |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
