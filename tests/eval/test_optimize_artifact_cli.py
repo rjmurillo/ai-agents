@@ -10195,12 +10195,13 @@ class TestEveryMissingFileReadsTheSameWay:
     def test_a_missing_file_outranks_an_exhausted_budget(self, tmp_path, capsys):
         """The peek must refuse before anything that can emit a decision.
 
-        `_gate_entry` runs the header peek, then takes the ledger lock, then
-        runs `_guard`, and only then does the authoritative read. So a peek
-        that answers instead of raising hands the next decision-producing
-        guard a file nobody could open. With the budget already spent, the
-        gate reported REJECT at exit 1 for a path that does not exist, telling
-        the operator to re-split when the real fix was to fix the typo.
+        `cmd_gate` runs the header peek, then takes the ledger lock, and
+        only inside `_gate_decision` does `_guard` run and the authoritative
+        read follow. So a peek that answers instead of raising hands the next
+        decision-producing guard a file nobody could open. With the budget
+        already spent, the gate reported REJECT at exit 1 for a path that does
+        not exist, telling the operator to re-split when the real fix was to
+        fix the typo.
 
         This is the test the first version of the fix would have failed. It
         does not assert the message, only that a config error still outranks a
