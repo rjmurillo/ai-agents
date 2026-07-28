@@ -662,14 +662,37 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     return best
 
 
-def _split_frontmatter(content: str) -> tuple[str, str]:
+def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
+    """Split a document into its frontmatter and its body, without decoding.
+
+    The body is what callers compare for "unchanged", and that question is
+    about bytes. Decoding first with ``errors="replace"`` maps every byte the
+    decoder cannot read to the same replacement character, so two bodies
+    holding different invalid bytes came back equal and a real body edit rode
+    in under a metadata change.
+    """
     lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return "", content
+    if not lines or lines[0].strip() != b"---":
+        return b"", content
     for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
-            return "".join(lines[1:index]), "".join(lines[index + 1 :])
-    return "", content
+        if lines[index].strip() == b"---":
+            return b"".join(lines[1:index]), b"".join(lines[index + 1 :])
+    return b"", content
+
+
+def _decoded_frontmatter(raw: bytes) -> str | None:
+    """Decode frontmatter strictly, or report that it cannot be reasoned about.
+
+    Frontmatter has to become text to be parsed as YAML. Decoding it lossily
+    would let two different field values collide on the replacement character
+    and drop out of the changed-key set, hiding an edit the exemption was never
+    meant to cover. Bytes YAML could not have meant are a reason to run the
+    validator, so this fails closed instead.
+    """
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
@@ -715,16 +738,37 @@ def _only_implemented_field_changed(
     return bool(changed) and changed <= {"implemented"}
 
 
-def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
+def _frontmatter_pair_for_a_body_unchanged_edit(
+    path: str,
+    repo_root: Path,
+) -> tuple[str, str] | None:
+    """Return HEAD and staged frontmatter for an edit that left the body alone.
+
+    `None` means no exemption is on offer: a blob is missing, either document
+    has no frontmatter, the bodies differ, or a frontmatter holds bytes UTF-8
+    cannot read. Both exemptions ask this same question and differ only in
+    which changed fields they will then accept.
+    """
     old_blob = _read_head_blob(repo_root, path)
     new_blob = _read_index_blob(repo_root, path)
     if old_blob is None or new_blob is None:
-        return False
-    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
-    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
+        return None
+    old_frontmatter, old_body = _split_frontmatter(old_blob)
+    new_frontmatter, new_body = _split_frontmatter(new_blob)
     if not old_frontmatter or not new_frontmatter or old_body != new_body:
+        return None
+    old_text = _decoded_frontmatter(old_frontmatter)
+    new_text = _decoded_frontmatter(new_frontmatter)
+    if old_text is None or new_text is None:
+        return None
+    return old_text, new_text
+
+
+def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
+    pair = _frontmatter_pair_for_a_body_unchanged_edit(path, repo_root)
+    if pair is None:
         return False
-    return _only_implemented_field_changed(old_frontmatter, new_frontmatter)
+    return _only_implemented_field_changed(*pair)
 
 
 def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
@@ -735,8 +779,8 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     (required and allowed keys). A body-unchanged edit cannot regress the
     structural verdict, but a frontmatter edit still can, so this exemption is
     deliberately narrow: it skips validation only when the body text is
-    unchanged from HEAD (bodies decoded as UTF-8 with ``errors="replace"`` and
-    compared as strings, not raw bytes) AND the sole changed frontmatter keys
+    unchanged from HEAD (bodies compared as the bytes git stored, never as
+    decoded text) AND the sole changed frontmatter keys
     are the ADR-080 model-pin
     fields (``model``, ``model-rationale``). Any other frontmatter delta, for
     example deleting ``name``/``description`` or introducing an unexpected key,
@@ -746,15 +790,10 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     Returns False for newly added skills (no HEAD blob) so genuinely new skills
     are always validated.
     """
-    old_blob = _read_head_blob(repo_root, path)
-    new_blob = _read_index_blob(repo_root, path)
-    if old_blob is None or new_blob is None:
+    pair = _frontmatter_pair_for_a_body_unchanged_edit(path, repo_root)
+    if pair is None:
         return False
-    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
-    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
-    if not old_frontmatter or not new_frontmatter or old_body != new_body:
-        return False
-    return _only_model_pin_fields_changed(old_frontmatter, new_frontmatter)
+    return _only_model_pin_fields_changed(*pair)
 
 
 _ADR080_MODEL_PIN_FIELDS = frozenset({"model", "model-rationale"})
