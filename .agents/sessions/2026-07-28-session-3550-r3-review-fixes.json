@@ -100,6 +100,13 @@
       "filesChanged": 4,
       "testsRun": 270,
       "testsPassed": 270
+    },
+    {
+      "sha": "pending",
+      "message": "fix(memory): add missing episode nodes to causal graph",
+      "filesChanged": 1,
+      "testsRun": 2,
+      "testsPassed": 2
     }
   ],
   "reviewThreadsAddressed": [

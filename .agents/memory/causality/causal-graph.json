@@ -23725,6 +23725,24 @@
         "episode-2026-07-27-session-3360-validation-modules-resolution"
       ],
       "created": "2026-07-28T04:28:48.065013+00:00"
+    },
+    {
+      "id": "04ecc99cd317",
+      "type": "milestone",
+      "label": "milestone: PR #3550 round-two review fixes for orphan-ref validator (issue #3456).",
+      "episodes": [
+        "episode-2026-07-28-session-3456-orphan-ref-r2"
+      ],
+      "created": "2026-07-28T08:46:21.131462+00:00"
+    },
+    {
+      "id": "3c880f84dc5d",
+      "type": "milestone",
+      "label": "milestone: PR #3550 round-three review fixes: outside-repo symlink error_type reclassification.",
+      "episodes": [
+        "episode-2026-07-28-session-3550-r3-review-fixes"
+      ],
+      "created": "2026-07-28T08:46:21.131462+00:00"
     }
   ],
   "patterns": [
