@@ -24,10 +24,11 @@ if str(_SCRIPT_DIR) not in sys.path:
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
+    _run_subprocess,
 )
-from checks_common import (
-    _run_subprocess as _run_subprocess_untyped,
-)
+
+# Shadow the untyped import with a typed wrapper for call-site safety.
+_run_subprocess_raw = _run_subprocess
 
 
 def _run_subprocess(
@@ -39,7 +40,7 @@ def _run_subprocess(
     """Typed wrapper for the bare-imported subprocess helper."""
     return cast(
         tuple[int, str, str],
-        _run_subprocess_untyped(args, timeout=timeout, cwd=cwd, env=env),
+        _run_subprocess_raw(args, timeout=timeout, cwd=cwd, env=env),
     )
 
 
