@@ -76,6 +76,19 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
 })
 
 
+# Hyphenated skill names that are genuinely absent from the live catalog but
+# existed as skills in repository history. Prose-heavy targets such as Serena
+# memories only report typed missing-skill claims for this bounded historical
+# set, avoiding an unbounded denylist of non-skill kebab tokens.
+KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
+    "doc-coverage",
+    "doc-sync",
+    "github-pr-reply",
+    "session-migration",
+    "session-qa-eligibility",
+})
+
+
 # Single-word (no-hyphen) skill names the validator treats as skill-reference
 # candidates. SKILL_REF_RE requires a hyphen, so single-word skills are
 # invisible to it; a backticked single word is otherwise indistinguishable from
@@ -97,6 +110,16 @@ KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
     # surface (specs, evals, plugin manifests) has dropped the backticked ref.
     "incoherence",  # DEPRECATED 2026-05-29, absorbed by doc-accuracy; retired #2662
 })
+
+
+def is_known_retired_kebab_skill(token: str) -> bool:
+    """Return True if a hyphenated token names a retired skill.
+
+    Used by prose-heavy memory scans after a line explicitly claims a token is
+    a skill. The historical allowlist catches real deleted skill references
+    without making every typed-looking kebab phrase a CI blocker.
+    """
+    return token in KNOWN_RETIRED_KEBAB_SKILLS
 
 
 def is_known_single_word_skill(token: str) -> bool:
