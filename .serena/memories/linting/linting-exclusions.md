@@ -100,8 +100,8 @@ the patterns in this config, so treat the percentage as close rather than
 exact.
 
 To actually lint an excluded file, copy it to a scratch directory outside the
-repo, copy `.markdownlint-cli2.yaml` alongside it, delete the `ignores` key from
-that copy, and run the linter there:
+repo, copy `.markdownlint-cli2.yaml` alongside it, delete the `ignores` and
+`globs` keys from that copy, and run the linter there:
 
 ```bash
 mkdir -p /tmp/mdl && cp path/to/excluded.md /tmp/mdl/
@@ -109,10 +109,20 @@ python3 -c "
 import yaml
 d = yaml.safe_load(open('.markdownlint-cli2.yaml'))
 d.pop('ignores', None)
+d.pop('globs', None)
 yaml.safe_dump(d, open('/tmp/mdl/.markdownlint-cli2.yaml','w'), sort_keys=False)
 "
 cd /tmp/mdl && npx --yes markdownlint-cli2 "*.md"
 ```
+
+The `globs` pop is defensive: this repo's config has no `globs` key today, so
+the line is a no-op against the current file. It matters because a config
+`globs` list does not narrow the command-line argument, it adds to it.
+Measured with markdownlint-cli2 v0.23.2: a scratch config carrying
+`globs: ['other.md']`, invoked as `markdownlint-cli2 "target.md"`, printed
+`Finding: target.md other.md` and `Linting: 2 files`. The verification step
+below would then read `2` where you expected `1`, and the summary would mix a
+file you did not ask about into the result you are reading.
 
 Confirm the output says `Linting: 1 file` before you read the summary. If it
 says `Linting: 0 files` you are still being excluded and the result is
