@@ -124,10 +124,10 @@ class _Unflushable(io.TextIOBase):
     PytestUnraisableExceptionWarning in whichever test happened to trigger it.
     """
 
-    def flush(self):  # noqa: ANN202
+    def flush(self) -> None:
         raise BrokenPipeError(32, "broken pipe")
 
-    def close(self):  # noqa: ANN202
+    def close(self) -> None:
         """Finalization calls close, which would flush and raise again."""
 
 
@@ -8841,7 +8841,7 @@ class TestAStdoutThatCannotBeWrittenIsNotARejectVerdict:
     """
 
     class _Broken(io.TextIOBase):
-        def write(self, s):  # noqa: ANN001, ANN202
+        def write(self, s: str) -> int:
             raise BrokenPipeError(32, "broken pipe")
 
     def test_a_broken_stdout_answers_config_not_reject(self, monkeypatch):
