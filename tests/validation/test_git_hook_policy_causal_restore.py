@@ -1745,6 +1745,79 @@ class TestAdrReviewPolicyMergeScope:
 
         assert side_blob in policy._origin_main_blob_ids(repo, name)
 
+    def test_a_rename_that_only_repads_the_number_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """One record padded differently is still the same record.
+
+        The identity is read as the literal text of the number, so `ADR-0003`
+        and `ADR-003` compare unequal and the walk stops at the rename between
+        them. This repo really made that rename, so a branch restoring a state
+        the record held under its wider name is refused for no reason.
+        """
+        repo, name, before = _repo_where_a_rename_repadded_the_number(tmp_path, "ADR-003")
+
+        assert before in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_rename_that_changes_the_number_is_still_refused(
+        self,
+        tmp_path,
+    ):
+        """The negative control. Repadding is not licence to cross records.
+
+        Reading `ADR-0003` and `ADR-003` as one record must not also read
+        `ADR-0003` and `ADR-004` as one: those are two decisions, and a state
+        of the first is not a reviewed state of the second.
+        """
+        repo, name, before = _repo_where_a_rename_repadded_the_number(tmp_path, "ADR-004")
+
+        assert before not in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_number_written_in_other_digits_stays_its_own_record(
+        self,
+        tmp_path,
+    ):
+        """Normalizing the padding must not normalize away the digits.
+
+        `\\d` matches every decimal digit, not only ASCII, so a name written
+        in Arabic-Indic digits is governed too. Reading its number as an
+        integer would give it the identity of the ASCII record holding the
+        same value, and a brand new file would inherit that record's reviewed
+        history. Padding is normalized by text, so this stays distinct.
+        """
+        arabic = policy._governed_document_identity("ADR-\u0660\u0660\u0663.md")
+
+        assert arabic is not None
+        assert arabic != policy._governed_document_identity("ADR-3.md")
+
+    def test_a_zero_inside_the_number_is_not_stripped(
+        self,
+        tmp_path,
+    ):
+        """Dropping the padding must not drop the value.
+
+        Only the zeros in front are padding. Removing every zero would read
+        `ADR-100` as `ADR-1`, and a hundredth record would inherit the first
+        record's reviewed history.
+        """
+        hundredth = policy._governed_document_identity("ADR-100.md")
+
+        assert hundredth != policy._governed_document_identity("ADR-1.md")
+        assert hundredth == "ADR-100"
+
+    def test_a_record_numbered_zero_keeps_a_number(
+        self,
+        tmp_path,
+    ):
+        """Stripping the padding off `ADR-000` must leave a number behind.
+
+        The edge case of the strip: every digit is padding. The identity has
+        to stay a number rather than become the bare prefix, or `ADR-000` and
+        a name carrying no digits at all would read alike.
+        """
+        assert policy._governed_document_identity("ADR-000.md") == "ADR-0"
+
     def test_a_signed_history_is_still_read(
         self,
         tmp_path,
@@ -2149,6 +2222,44 @@ def _repo_where_the_history_is_signed(
 
     carried = _git(repo, "rev-parse", "HEAD:" + adr).stdout.strip()
     return repo, adr, carried
+
+
+def _repo_where_a_rename_repadded_the_number(
+    tmp_path: Path,
+    renamed_to: str,
+) -> tuple[Path, str, str]:
+    """Build a history where main renamed one record and kept its value.
+
+    Modelled on this repo's own `ADR-0003-...` to `ADR-003-...` rename. The
+    caller chooses the new number so the same fixture serves the negative
+    control, where the rename really does cross into another record.
+    """
+    repo = tmp_path / ("repad-" + renamed_to)
+    repo.mkdir()
+    _init_push_repo(repo)
+
+    before_name = ".agents/architecture/ADR-0003-tool-selection.md"
+    after_name = f".agents/architecture/{renamed_to}-tool-selection.md"
+    # Git reads a rename by similarity, so the revision has to leave most of
+    # the body alone or there is no rename for the walk to cross.
+    body = ["# Tool selection", "", "## Context", "", "One line per criterion.", ""]
+    body += [f"criterion {n}" for n in range(20)]
+    document = repo / before_name
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("\n".join(body) + "\n", encoding="utf-8")
+    _git(repo, "add", before_name)
+    _git(repo, "commit", "-m", "record the decision")
+    before = _git(repo, "rev-parse", "HEAD:" + before_name).stdout.strip()
+
+    _git(repo, "mv", before_name, after_name)
+    body[4] = "One line per criterion, revised."
+    (repo / after_name).write_text("\n".join(body) + "\n", encoding="utf-8")
+    _git(repo, "add", after_name)
+    _git(repo, "commit", "-m", "drop the extra zero")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+
+    return repo, after_name, before
 
 
 if __name__ == "__main__":

@@ -1013,10 +1013,29 @@ def _governed_document_identity(path: str) -> str | None:
         # named for another record would shadow the one the file holds and two
         # decisions would share one identity.
         identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
-        return identifier.group(0).upper() if identifier else None
+        return _normalized_record_number(identifier.group(0)) if identifier else None
     if SESSION_PROTOCOL_PATH_RE.search(path):
         return "SESSION-PROTOCOL"
     return None
+
+
+def _normalized_record_number(identifier: str) -> str:
+    """One record's number, written the one way, so a repad is not a new record.
+
+    This repo renamed `ADR-0003-...` to `ADR-003-...`. Compared as text those
+    are two identities, and the walk stops at the rename between them, which
+    refuses states the record plainly held.
+
+    Only the leading zeros go, and they go as text. Reading the number as an
+    integer instead would fold two records together twice over: `\\d` matches
+    every decimal digit, so a name written in another script is governed too
+    and would take the identity of the ASCII record holding the same value,
+    and a new file would inherit a real record's reviewed history. Stripping
+    zeros anywhere rather than in front would fold `ADR-100` into `ADR-1` the
+    same way. Text stripping leaves both pairs distinct.
+    """
+    prefix, _, number = identifier.upper().partition("-")
+    return f"{prefix}-{number.lstrip('0') or '0'}"
 
 
 def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
