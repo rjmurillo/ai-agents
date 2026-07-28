@@ -618,6 +618,29 @@
         "Verified the fix against the gate's own predicate instead of assuming the file was enough: imported git_hook_policy and called _today_retrospective_exists directly, which returned True."
       ],
       "evidence": "uv run --frozen python -c \"import sys; sys.path.insert(0,'scripts/validation'); from pathlib import Path; import git_hook_policy as g; print(g._recent_date_prefixes(), g._today_retrospective_exists(Path('.')))\" reports ('2026-07-28', '2026-07-27') True. checks_coverage.py:31 documents the advisory default; git_hook_policy.py:2660 gates the validator on a Reviewed-By trailer that the merge commit does not carry."
+    },
+    {
+      "phase": "Phase thirty-eight: a reviewer right about the bug and wrong about the remedy",
+      "actions": [
+        "Answered three unresolved bot threads on PR 3579 by checking each against the current file rather than adopting it. Thread one (_lock_held can crash with an uncaught OSError) is stale: round 34 already converted all five filesystem stages, verified by reading optimize-artifact.py lines 1101 through 1131. Replying with the line table cost less than a fix would have and left a record for the next reader.",
+        "Thread two (_lock_refused drops context) was live in one half and false in the other. The strerror half is right: no errno reached the operator. The lost-path half is not, and the first test written for it passed against the unfixed code, because the failing ancestor is a prefix of the lock path that the message already carried. Rewrote the class to assert the delimited sentence rather than bare containment, so the assertion can only be satisfied by the claim it names.",
+        "Probing mkdir(parents=True) found a worse defect than the one reported: it blames the deepest path it tried, not the entry in the way. With a regular file at a and a lock at a/b/c/d.lock it raises NotADirectoryError naming a/b/c, which does not exist, and never mentions a. The reviewer's own remedy, printing str(exc), would have left the reviewer's stated defect in place. Added _blocking_ancestor to walk up and name the entry an operator can delete.",
+        "Wrote a suppress(OSError) around the walk, then tested it for reachability instead of leaving it in. Probed a mode-000 ancestor, a 5000-character name, an embedded null byte, and a symlink loop: neither os.path.lexists nor Path.is_dir raised on any of them, and is_dir also swallows the ValueError that suppress(OSError) would have missed. Removed it as dead code and pinned the no-raise contract with eight tests. The contract is load-bearing because an OSError raised inside the handler escapes main and exits 1, the reject verdict.",
+        "M46, M47, M48 each took 2 red. M49 reversed the walk and survived. Resisted the reflex to write a sharper test: nothing can exist beneath a regular file, verified by probe against mkdir, write_text, and symlink_to, so a path has at most one non-directory ancestor and the mutant is equivalent. The defect was in the docstring, which claimed an ordering property for a walk whose order is unobservable. Replaced the unfalsifiable test with the reachable fact and added one pinning the premise the equivalence rests on.",
+        "Committed e555921841c33c329ac21453408654066b6aa0c8 (17 tests, 1554 eval tests passing, ruff and mypy clean, 0 dashes). Pushed with output redirected to a file and no pipe, after last phase established that head -N in a push pipeline sends SIGPIPE up and kills the push mid-gate with no rejection message. b9a72d790..e55592184.",
+        "Resolved threads one and two. Left the _absent dangling-symlink thread open: the defect is in this PR's diff and the fix is on the stacked branch, so resolving it would claim something this PR does not deliver. Offered the cherry-pick and named its cost rather than deciding sequencing unilaterally.",
+        "Recorded shapes 47 and 48 in the debate log. Forty-seven is the test that passed before the fix and the worse defect underneath it. Forty-eight is the surviving mutant that is equivalent, and the lesson that a surviving mutant is a question rather than a verdict: when the property is not constructible, a stronger test is a second test that also cannot fail."
+      ],
+      "decisions": [
+        "Answer a stale finding with the line table rather than a defensive fix. Adding a guard where one already exists would have made the file longer and the next reader less sure which guard is load-bearing.",
+        "Correct the reviewer's stated impact in the reply rather than quietly fixing only what was real. Five consecutive rounds have had a true finding with a false impact, and a reply that accepts the framing teaches the next round to keep sending it.",
+        "Remove the suppress rather than keep it as cheap insurance. A suppress over calls that cannot raise asserts a risk that is not there and hides the day one of them starts raising."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
   "endingCommit": "e4d5c0d6c",
