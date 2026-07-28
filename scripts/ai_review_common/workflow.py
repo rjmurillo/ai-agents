@@ -51,6 +51,8 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             repo = result.stdout.strip() if result.returncode == 0 else ""
@@ -63,13 +65,17 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"repos/{repo}/pulls/{pr_number}/files",
                 "--paginate",
-                "--jq", ".[].filename",
+                "--jq",
+                ".[].filename",
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0 or not result.stdout.strip():
@@ -95,6 +101,8 @@ def get_workflow_runs_by_pr(
                 ["git", "remote", "get-url", "origin"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", result.stdout)
@@ -107,12 +115,16 @@ def get_workflow_runs_by_pr(
 
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
-            "--jq", ".workflow_runs",
+            "--jq",
+            ".workflow_runs",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     if result.returncode != 0:
@@ -123,9 +135,7 @@ def get_workflow_runs_by_pr(
     try:
         all_runs: list[dict[str, Any]] = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}") from exc
     pr_runs = [
         run
         for run in all_runs
