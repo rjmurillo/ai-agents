@@ -293,7 +293,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 | File | Action | Description |
 |---|---|---|
-| `tests/test_command_bundles.py` | create | Pytest test that parses each command file for required `Skill(skill="...")` calls from the BundleRegistry |
+| `tests/test_command_bundles.py` | create | Pytest test that parses each command file for required `Skill(skill="...")` calls from the BundleRegistry <!-- orphan-ref-ignore --> |
 | `scripts/validation/pre_pr.py` | modify | Add a new check that runs the same parser; advisory WARN by default, escalates to BLOCKING when `BUNDLE_CHECK_ENFORCED=1` (per AC-14 and Q3 resolution) |
 
 **In Scope**:
@@ -342,13 +342,13 @@ Both `tests/test_command_bundles.py` and the new function in `scripts/validation
 **Out of Scope**: Runtime execution of skills. Testing skill behavior. The test is a static contract check only.
 
 **Acceptance Criteria**:
-- [ ] `tests/test_command_bundles.py` exists. Rows for not-yet-edited commands carry `@pytest.mark.xfail` so CI stays green during M1 (per plan §M1 Stays Green).
+- [ ] `tests/test_command_bundles.py` exists. Rows for not-yet-edited commands carry `@pytest.mark.xfail` so CI stays green during M1 (per plan §M1 Stays Green). <!-- orphan-ref-ignore -->
 - [ ] Each test case names the command file and skill clearly in its ID (e.g., `test_bundle[spec.md-session-init]`).
 - [ ] Running `pytest tests/test_command_bundles.py` exits 0 throughout (xfail counts as pass; M3 closing commit removes xfail marks).
 - [ ] `scripts/validation/pre_pr.py` includes `validate_command_bundle_coverage()`.
 - [ ] Running `pre_pr.py` against a command file with a missing registry entry produces a WARN finding (not BLOCKING) when `BUNDLE_CHECK_ENFORCED=0` (default), and BLOCKING when `BUNDLE_CHECK_ENFORCED=1`.
 - [ ] Running `pre_pr.py` against complete command files produces no findings related to bundles regardless of env var.
-- [ ] New pre_pr.py function has a unit test in `tests/test_pre_pr.py` (or equivalent existing test file) covering: all-present (pass), one-missing under env=0 (WARN), one-missing under env=1 (BLOCKING), empty-registry (pass).
+- [ ] New pre_pr.py function has a unit test in `tests/test_pre_pr.py` (or equivalent existing test file) covering: all-present (pass), one-missing under env=0 (WARN), one-missing under env=1 (BLOCKING), empty-registry (pass). <!-- orphan-ref-ignore -->
 - [ ] Python style and exit code contract match existing `pre_pr.py` conventions.
 
 **Done when**: `pytest tests/test_command_bundles.py` exits 0 (xfails as designed during M1; un-xfailed rows pass), `python3 scripts/validation/pre_pr.py` produces no BLOCKING issues with `BUNDLE_CHECK_ENFORCED=0` (default; advisory WARN findings are expected during M1/M2), and the CWE-78 path-quoting test passes (verifies all `git log` commands in build.md and review.md quote file paths).
@@ -410,9 +410,9 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 
 ## Testing Requirements
 
-- `tests/test_command_bundles.py`: pure static parse; no subprocess, no skill execution; pytest 8+.
+- `tests/test_command_bundles.py`: pure static parse; no subprocess, no skill execution; pytest 8+. <!-- orphan-ref-ignore -->
 - Coverage: 80% business logic per AGENTS.md (the parser function is the business logic).
-- `tests/test_pre_pr.py` (or existing): three new parametrized test cases for `validate_command_bundle_coverage()`.
+- `tests/test_pre_pr.py` (or existing): three new parametrized test cases for `validate_command_bundle_coverage()`. <!-- orphan-ref-ignore -->
 - No test mocks network or file system writes; all reads are against the actual command files under `.claude/commands/`.
 
 ---
@@ -430,7 +430,7 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 | `.claude/commands/pr-review.md` | T5-7 | modify |
 | `.claude/commands/research.md` | T5-7 | modify |
 | `scripts/validation/bundle_registry.py` | T5-8 | create <!-- orphan-ref-ignore --> |
-| `tests/test_command_bundles.py` | T5-8 | create |
+| `tests/test_command_bundles.py` | T5-8 | create <!-- orphan-ref-ignore --> |
 | `scripts/validation/pre_pr.py` | T5-8 | modify |
 
 ---
