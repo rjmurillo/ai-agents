@@ -739,9 +739,28 @@
         ".agents/architecture/ADR-087-held-out-validated-improvement.md",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Phase forty-four: round forty, and a third answer that covered only the case that prompted it",
+      "actions": [
+        "Pushed the rewritten branch clean past both gates at 37 commits, opened PR #3608 against fix/eval-refuse-malformed-input, and filed #3610 for the deadlock: the commit-ceiling relief needs a label on an open PR, and the PR needs a push the ceiling blocks, while the suppression gate closes the usual prefix-push escape.",
+        "Ran round forty with claude-opus-4.8 at xhigh, a model used in neither round thirty-eight nor thirty-nine. One Critical, F40-1, and explicit clearance of the multi-run reduction, the extract dispatch, and the exit path.",
+        "Reproduced F40-1 independently before accepting it. Read _corpus_header line 381 and confirmed by inspection that a non-string or bad-hex corpus fell into the same None as 'declares no corpus', then wrote seven failing tests and watched all seven fail with decision REJECT exit 1.",
+        "Fixed by mirroring _checked_corpus rather than enumerating the bad shapes: None for absent or null only, _UNREADABLE for everything the authoritative reader would raise on. Suite 1702, up from 1695; ruff clean, mypy clean, zero suppressions, dash count 0."
+      ],
+      "decisions": [
+        "Mirror the authoritative reader by construction, not by enumeration. Listing the four bad shapes would have needed a second edit the next time _checked_corpus learns to refuse something, which is the same maintenance shape that produced this defect.",
+        "Keep the README unchanged. It already documented that a truncated or upper-case value exits 2, written two rounds earlier. The documentation was right and the implementation had drifted, so the fix restores the contract rather than changing it. That a documented claim went unchecked for two rounds is the finding worth carrying forward.",
+        "Treat the round thirty-nine negative control as the test that decides whether the fix widened. It was green before and after, which answered 'did this eat the anti-strip rule' by running the suite rather than by reasoning about it."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "1e850a8bc",
+  "endingCommit": "67b0dcb0d",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",

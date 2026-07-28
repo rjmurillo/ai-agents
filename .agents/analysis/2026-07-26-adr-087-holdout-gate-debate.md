@@ -2475,3 +2475,41 @@ conflict rule had to carry.
 The cheap check this session did not run: when you add a refusal, ask what runs
 before it. A refusal is only as good as the earliest reader that can answer the
 same question.
+
+## Shape 59: a third answer must cover the whole question, not the first case that raised it
+
+Round forty found the shape 58 fix incomplete, one input class over, in the
+function it had just changed. `_UNREADABLE` was introduced for a file that
+would not parse, because that was the input the round-thirty-nine finding
+arrived on. A file that parses cleanly but carries a corpus the authoritative
+reader refuses, a truncated digest, upper-case hex, an empty string, a number,
+still answered `None`, and `None` is the envelope strip. So the same wrong
+verdict came back: `decision: REJECT` exit 1, with a reason saying the two
+files disagree on a corpus, for a pair where neither declares one that can be
+compared, and advice to re-score both artifacts when the real fault is one
+corrupt field. Re-scoring is the expensive remedy in this system, so a false
+reason here costs judge budget as well as trust.
+
+The tell was available without the review. `_checked_corpus` is the
+authoritative reader and it raises on four things: a non-string, a
+non-matching string, and by extension every value that is not a whole digest.
+`_corpus_header` is the best-effort peek at the same field, and it answered
+`None` for all four. Two functions reading one field disagreed about how many
+outcomes that field has. Whenever a best-effort reader shadows an
+authoritative one, the cheap check is to line up their branches and count: if
+the peek has fewer answers than the reader has outcomes, the missing ones are
+being laundered into whichever answer the peek does have. The fix makes the
+peek mirror the reader by construction rather than by enumeration, so the next
+value `_checked_corpus` learns to refuse is covered without a second edit.
+
+Two things made this a small correction rather than a repeat investigation.
+The negative control from round thirty-nine was still in the suite, so the
+question "did the widening eat the anti-strip rule" was answered by running
+the tests rather than by reasoning. And the README already documented the
+correct behavior, in a sentence written two rounds earlier: a truncated or
+upper-case value is a config error and exits 2. The documentation was right
+and the implementation had drifted from it. That inverts shape 57, where
+writing the sentence found the defect. Here the sentence was already written,
+and nothing was checking that the code still agreed with it. A documented
+contract with no test behind it is a claim, and this one was false for two
+rounds before a reviewer read both.
