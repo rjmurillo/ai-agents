@@ -817,16 +817,14 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
-    # `origin/main` is checked alongside the approved parents because a branch
-    # takes main's work two ways and only one of them leaves a main ancestor in
-    # MERGE_HEAD. Merging main in directly does. Merging the shared branch's
-    # own remote tip, after a collaborator merged main there and pushed, does
-    # not: the parent is the branch. Without this every ADR main contributed
-    # reads as branch-authored and the gate demands review evidence for a file
-    # the author never opened. Comparing content rather than ancestry does not
-    # widen the gate, since a blob already on main cleared this same policy on
-    # the pull request that put it there.
-    parent_commits = [*_approved_merge_head_commits(repo_root), "origin/main"]
+    # A branch takes main's work two ways and only one of them leaves a main
+    # ancestor in MERGE_HEAD. Merging main in directly does. Merging the shared
+    # branch's own remote tip, after a collaborator merged main there and
+    # pushed, does not: the parent is the branch. Without the second rule below
+    # every ADR main contributed reads as branch-authored and the gate demands
+    # review evidence for a file the author never opened.
+    approved_parents = _approved_merge_head_commits(repo_root)
+    merge_parents = _merge_head_commits(repo_root)
     authored: list[str] = []
     for path in paths:
         staged_blob = _read_index_blob(repo_root, path)
@@ -835,13 +833,40 @@ def _merge_authored_adr_paths(paths: Sequence[str], repo_root: Path) -> list[str
             continue
         if _read_head_blob(repo_root, path) == staged_blob:
             continue
-        if any(
-            _read_commit_blob_bytes(repo_root, parent, path) == staged_blob
-            for parent in parent_commits
-        ):
+        if _blob_is_at_any(repo_root, approved_parents, path, staged_blob):
+            continue
+        if _blob_arrived_through_the_merge(repo_root, merge_parents, path, staged_blob):
             continue
         authored.append(path)
     return authored
+
+
+def _blob_is_at_any(
+    repo_root: Path,
+    commits: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    return any(_read_commit_blob_bytes(repo_root, commit, path) == blob for commit in commits)
+
+
+def _blob_arrived_through_the_merge(
+    repo_root: Path,
+    merge_parents: Sequence[str],
+    path: str,
+    blob: bytes,
+) -> bool:
+    """Report whether a staged blob is main's content carried in by the merge.
+
+    Both halves are load-bearing. Matching `origin/main` alone would let an
+    author revert an ADR to a stale local ref mid-merge and walk past the gate,
+    and that revert would overwrite the newer copy on the next push. Requiring
+    the content to sit on a merge parent as well means it arrived with the
+    merge rather than being typed during it.
+    """
+    if not _blob_is_at_any(repo_root, merge_parents, path, blob):
+        return False
+    return _read_commit_blob_bytes(repo_root, "origin/main", path) == blob
 
 
 def _approved_merge_head_commits(repo_root: Path) -> list[str]:
