@@ -1,12 +1,14 @@
 # Reflexion Memory
 
-<!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .agents/memory/ for episodic and causal memory schemas. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
+<!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .agents/memory/ for the episodic memory schema. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
 
 ## Overview
 
-The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`, `update_causal_graph.py`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.
+The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`) provides episodic replay. This implements Tier 2 of the memory architecture.
 
-**ADR**: ADR-038 Reflexion Memory Schema
+ADR-089 removed the Tier 3 derived causal graph this module once maintained: nothing read it, and its aggregated output was noise. Episodes are unaffected and remain the system of record.
+
+**ADR**: ADR-038 Reflexion Memory Schema, ADR-089 Causal Tier Removal
 
 **Task**: M-005 (Phase 2A Memory System)
 
@@ -19,11 +21,10 @@ The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_epis
 │                    (.agents/memory/episodes/)                        │
 └───────────────────────────┬───────────────────────────────────┘
                             │
-┌───────────────────────────▼───────────────────────────────────┐
-│                    Causal Memory (Tier 3)                     │
-│        Cause-effect graphs, counterfactual analysis           │
-│                  (.agents/memory/causality/)                         │
-└───────────────────────────────────────────────────────────────┘
+                            ▼
+        No code reads these files today. The query API has no
+        caller outside its own module, its tests, and doc
+        examples. Tracked in issue 3630.
 ```
 
 ## Core Concepts
@@ -41,19 +42,6 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 - Lessons learned
 
 **Token Efficiency**: Episodes are 500-2000 tokens vs 10K-50K tokens for full session logs.
-
-### Causal Memory
-
-Causal graphs track cause-effect relationships across episodes.
-
-**Key Features**:
-
-- Nodes: decisions, events, outcomes, patterns, errors
-- Edges: causes, enables, prevents, correlates
-- Patterns: recurring successful/failed sequences
-- Success rates: statistical tracking of pattern effectiveness
-
-**Causal Integrity**: All edges have evidence count showing supporting episodes.
 
 ## Storage Formats
 
@@ -105,48 +93,6 @@ Causal graphs track cause-effect relationships across episodes.
 }
 ```
 
-### Causal Graph Schema
-
-**Location**: `.agents/memory/causality/causal-graph.json`
-
-```json
-{
-  "version": "1.0",
-  "updated": "2026-01-01T18:00:00Z",
-  "nodes": [
-    {
-      "id": "n001",
-      "type": "decision",
-      "label": "Choose Serena-first routing",
-      "episodes": ["episode-2026-01-01-126"],
-      "frequency": 1,
-      "success_rate": 1.0
-    }
-  ],
-  "edges": [
-    {
-      "source": "n001",
-      "target": "n002",
-      "type": "causes",
-      "weight": 0.95,
-      "evidence_count": 1
-    }
-  ],
-  "patterns": [
-    {
-      "id": "p001",
-      "name": "Pre-commit bypass pattern",
-      "description": "When lint errors are in unrelated files, use --no-verify with justification",
-      "trigger": "E_MARKDOWNLINT_FAIL on unstaged files",
-      "action": "Document justification, use --no-verify",
-      "success_rate": 1.0,
-      "occurrences": 2,
-      "last_used": "2026-01-01T18:00:00Z"
-    }
-  ]
-}
-```
-
 ## Usage
 
 ### Episode Queries
@@ -168,47 +114,6 @@ $successes = Get-Episodes -Outcome "success" -MaxResults 50
 $decisions = Get-DecisionSequence -EpisodeId "episode-2026-01-01-126"
 ```
 
-### Causal Queries
-
-```powershell
-# Add decision node
-$node = Add-CausalNode -Type "decision" -Label "Choose Serena-first routing" -EpisodeId "episode-126"
-
-# Add causal edge
-$edge = Add-CausalEdge -SourceId "n001" -TargetId "n002" -Type "causes" -Weight 0.9
-
-# Find causal path
-$path = Get-CausalPath -FromLabel "routing decision" -ToLabel "performance target met" -MaxDepth 5
-
-# Check if path was found
-if ($path.found) {
-    Write-Host "Path depth: $($path.depth)"
-    foreach ($node in $path.path) {
-        Write-Host "  - $($node.label)"
-    }
-}
-```
-
-### Pattern Queries
-
-```powershell
-# Get high-success patterns
-$patterns = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 3
-
-foreach ($pattern in $patterns) {
-    Write-Host "$($pattern.name): $($pattern.success_rate * 100)% success over $($pattern.occurrences) uses"
-    Write-Host "  Trigger: $($pattern.trigger)"
-    Write-Host "  Action: $($pattern.action)"
-}
-
-# Get anti-patterns (low success rate)
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
-
-foreach ($ap in $antiPatterns) {
-    Write-Host "AVOID: $($ap.name) - $($ap.success_rate * 100)% success rate"
-}
-```
-
 ### System Status
 
 ```powershell
@@ -216,11 +121,6 @@ foreach ($ap in $antiPatterns) {
 $status = Get-ReflexionMemoryStatus
 
 Write-Host "Episodes: $($status.Episodes.Count) in $($status.Episodes.Path)"
-Write-Host "Causal Graph:"
-Write-Host "  Nodes: $($status.CausalGraph.Nodes)"
-Write-Host "  Edges: $($status.CausalGraph.Edges)"
-Write-Host "  Patterns: $($status.CausalGraph.Patterns)"
-Write-Host "  Updated: $($status.CausalGraph.Updated)"
 ```
 
 ## Functions
@@ -371,235 +271,6 @@ foreach ($d in $decisions) {
 }
 ```
 
-### Causal Graph Functions
-
-#### Add-CausalNode
-
-Adds a node to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalNode
-    -Type <String>
-    -Label <String>
-    [-EpisodeId <String>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| Type | String | Yes | Node type: decision, event, outcome, pattern, error |
-| Label | String | Yes | Human-readable label |
-| EpisodeId | String | No | Source episode ID |
-
-**Returns**: Hashtable with node data. Returns existing node (with updated frequency) if label already exists.
-
-**Example**:
-
-```powershell
-$node = Add-CausalNode `
-    -Type "decision" `
-    -Label "Choose Serena-first routing" `
-    -EpisodeId "episode-2026-01-01-126"
-
-Write-Host "Node ID: $($node.id), Frequency: $($node.frequency)"
-```
-
-#### Add-CausalEdge
-
-Adds an edge to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalEdge
-    -SourceId <String>
-    -TargetId <String>
-    -Type <String>
-    [-Weight <Double>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| SourceId | String | Yes | - | Source node ID |
-| TargetId | String | Yes | - | Target node ID |
-| Type | String | Yes | - | Edge type: causes, enables, prevents, correlates |
-| Weight | Double | No | 0.5 | Confidence weight (0-1) |
-
-**Returns**: Hashtable with edge data. Returns existing edge (with updated weight via running average) if edge exists.
-
-**Example**:
-
-```powershell
-$edge = Add-CausalEdge `
-    -SourceId "n001" `
-    -TargetId "n002" `
-    -Type "causes" `
-    -Weight 0.9
-
-Write-Host "Edge weight: $($edge.weight), Evidence: $($edge.evidence_count)"
-```
-
-#### Get-CausalPath
-
-Finds causal path between two nodes using breadth-first search.
-
-**Syntax**:
-
-```powershell
-Get-CausalPath
-    -FromLabel <String>
-    -ToLabel <String>
-    [-MaxDepth <Int32>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| FromLabel | String | Yes | - | Source node label (partial match supported) |
-| ToLabel | String | Yes | - | Target node label (partial match supported) |
-| MaxDepth | Int32 | No | 5 | Maximum path depth to search (1-10) |
-
-**Returns**: Hashtable with:
-
-- `found`: Boolean indicating if path was found
-- `path`: Array of node objects along the path
-- `depth`: Number of edges in the path (if found)
-- `error`: Error message (if not found)
-
-**Example**:
-
-```powershell
-$path = Get-CausalPath `
-    -FromLabel "routing decision" `
-    -ToLabel "performance target" `
-    -MaxDepth 5
-
-if ($path.found) {
-    Write-Host "Found path with $($path.depth) edges:"
-    foreach ($node in $path.path) {
-        Write-Host "  -> $($node.label)"
-    }
-}
-else {
-    Write-Host "No path found: $($path.error)"
-}
-```
-
-### Pattern Functions
-
-#### Add-Pattern
-
-Adds a pattern to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-Pattern
-    -Name <String>
-    -Trigger <String>
-    -Action <String>
-    [-Description <String>]
-    [-SuccessRate <Double>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| Name | String | Yes | - | Pattern name |
-| Trigger | String | Yes | - | Condition that triggers this pattern |
-| Action | String | Yes | - | Recommended action |
-| Description | String | No | - | Pattern description |
-| SuccessRate | Double | No | 1.0 | Success rate (0-1) |
-
-**Returns**: Hashtable with pattern data. Returns existing pattern (with updated occurrences and success_rate) if name exists.
-
-**Example**:
-
-```powershell
-$pattern = Add-Pattern `
-    -Name "Lint bypass" `
-    -Trigger "Unrelated lint errors in pre-commit hook" `
-    -Action "Use --no-verify with justification in commit message" `
-    -Description "Pattern for handling unrelated linting failures" `
-    -SuccessRate 1.0
-
-Write-Host "Pattern added: $($pattern.id), Occurrences: $($pattern.occurrences)"
-```
-
-#### Get-Patterns
-
-Retrieves patterns matching criteria.
-
-**Syntax**:
-
-```powershell
-Get-Patterns
-    [-MinSuccessRate <Double>]
-    [-MinOccurrences <Int32>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| MinSuccessRate | Double | No | 0 | Minimum success rate filter (0-1) |
-| MinOccurrences | Int32 | No | 1 | Minimum occurrences filter (1-1000) |
-
-**Returns**: Array of pattern objects sorted by success_rate descending.
-
-**Example**:
-
-```powershell
-# Get proven patterns (70%+ success, 3+ uses)
-$proven = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 3
-
-foreach ($p in $proven) {
-    Write-Host "$($p.name):"
-    Write-Host "  Success: $($p.success_rate * 100)%"
-    Write-Host "  Uses: $($p.occurrences)"
-    Write-Host "  Last: $($p.last_used)"
-}
-```
-
-#### Get-AntiPatterns
-
-Retrieves anti-patterns (low success rate patterns).
-
-**Syntax**:
-
-```powershell
-Get-AntiPatterns
-    [-MaxSuccessRate <Double>]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| MaxSuccessRate | Double | No | 0.3 | Maximum success rate to qualify as anti-pattern (0-1) |
-
-**Returns**: Array of anti-pattern objects sorted by success_rate ascending. Only includes patterns with at least 2 occurrences.
-
-**Example**:
-
-```powershell
-# Get patterns that usually fail
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
-
-foreach ($ap in $antiPatterns) {
-    Write-Host "AVOID: $($ap.name)"
-    Write-Host "  Failure rate: $((1 - $ap.success_rate) * 100)%"
-    Write-Host "  Failed $($ap.occurrences) times"
-}
-```
-
 ### Status Functions
 
 #### Get-ReflexionMemoryStatus
@@ -615,8 +286,7 @@ Get-ReflexionMemoryStatus
 **Returns**: `PSCustomObject` with:
 
 - `Episodes`: Path and count of episode files
-- `CausalGraph`: Path, version, updated timestamp, node/edge/pattern counts
-- `Configuration`: EpisodesPath and CausalityPath settings
+- `Configuration`: EpisodesPath setting
 
 **Example**:
 
@@ -627,13 +297,6 @@ Write-Host "=== Reflexion Memory Status ==="
 Write-Host "Episodes:"
 Write-Host "  Path: $($status.Episodes.Path)"
 Write-Host "  Count: $($status.Episodes.Count)"
-Write-Host ""
-Write-Host "Causal Graph:"
-Write-Host "  Version: $($status.CausalGraph.Version)"
-Write-Host "  Nodes: $($status.CausalGraph.Nodes)"
-Write-Host "  Edges: $($status.CausalGraph.Edges)"
-Write-Host "  Patterns: $($status.CausalGraph.Patterns)"
-Write-Host "  Updated: $($status.CausalGraph.Updated)"
 ```
 
 ## Scripts
@@ -645,19 +308,21 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-python3 scripts/extract_session_episode.py
-    --session-log-path <String>
+python3 scripts/extract_session_episode.py <session-log-path>
     [--output-path <String>]
-    [--force]
+    [--force | --preserve]
+    [--pending-stage]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| --session-log-path | String | Yes | - | Path to session log file |
+| session_log_path | String | Yes | - | Positional. Path to the session log file |
 | --output-path | String | No | .agents/memory/episodes/ | Output directory for episode JSON |
-| --force | Switch | No | - | Overwrite existing episode file |
+| --force | Switch | No | - | Overwrite an existing episode file |
+| --preserve | Switch | No | - | Merge fresh extraction over an existing episode. Mutually exclusive with --force |
+| --pending-stage | Switch | No | - | Count the not-yet-staged episode file in the staged-file total |
 
 **Extraction Targets**:
 
@@ -671,7 +336,7 @@ python3 scripts/extract_session_episode.py
 
 ```bash
 python3 scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
+    ".agents/sessions/2026-01-01-session-126.json"
 
 # Output:
 # Episode extracted:
@@ -682,57 +347,6 @@ python3 scripts/extract_session_episode.py \
 #   Events:    12
 #   Lessons:   3
 #   Output:    .agents/memory/episodes/episode-2026-01-01-session-126.json
-```
-
-### update_causal_graph.py
-
-Updates the causal graph from episode data.
-
-**Syntax**:
-
-```bash
-python3 scripts/update_causal_graph.py
-    [--episode-path <String>]
-    [--since <String>]
-    [--dry-run]
-```
-
-**Parameters**:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| --episode-path | String | No | .agents/memory/episodes/ | Path to episode file or directory |
-| --since | String | No | - | Only process episodes since this date |
-| --dry-run | Switch | No | - | Show what would be updated without making changes |
-
-**Processing**:
-
-- Adds decision nodes and their relationships
-- Adds event nodes and causal chains
-- Builds error-recovery chains
-- Extracts patterns from decision sequences
-- Updates success rates based on outcomes
-
-**Example**:
-
-```bash
-# Update from all episodes
-python3 scripts/update_causal_graph.py
-
-# Update from last week only
-python3 scripts/update_causal_graph.py --since "7 days ago"
-
-# Dry run to preview changes
-python3 scripts/update_causal_graph.py --dry-run
-
-# Output:
-# ═══════════════════════════════════════════════════
-# Causal Graph Update Complete
-# ═══════════════════════════════════════════════════
-#   Episodes processed: 3
-#   Nodes added:        15
-#   Edges added:        8
-#   Patterns added:     2
 ```
 
 ## Integration
@@ -746,10 +360,7 @@ The retrospective agent auto-extracts episodes at session end:
 SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
 
 # Extract episode
-python3 scripts/extract_session_episode.py --session-log-path "$SESSION_LOG"
-
-# Update causal graph
-python3 scripts/update_causal_graph.py --episode-path ".agents/memory/episodes/episode-${SESSION_ID}.json"
+python3 scripts/extract_session_episode.py "$SESSION_LOG"
 
 # Store in Serena/Forgetful
 EPISODE_SUMMARY="Episode ${SESSION_ID}: ${TASK} outcome=${OUTCOME}"
@@ -765,9 +376,8 @@ Episode extraction is part of session end checklist:
 
 - [ ] Complete session log
 - [ ] Extract episode: `scripts/extract_session_episode.py`
-- [ ] Update causal graph: `scripts/update_causal_graph.py`
 - [ ] Update Serena memory
-- [ ] Commit all changes (including .agents/memory/episodes/ and .agents/memory/causality/)
+- [ ] Commit all changes (including .agents/memory/episodes/)
 ```
 
 ### With Memory Router
@@ -806,36 +416,6 @@ foreach ($failure in $failures) {
 }
 ```
 
-### Identify Success Patterns
-
-```powershell
-# Get patterns with 80%+ success rate and at least 3 occurrences
-$successPatterns = Get-Patterns -MinSuccessRate 0.8 -MinOccurrences 3
-
-Write-Host "=== Proven Success Patterns ==="
-foreach ($pattern in $successPatterns) {
-    Write-Host "`n$($pattern.name)"
-    Write-Host "  Success Rate: $($pattern.success_rate * 100)%"
-    Write-Host "  Occurrences: $($pattern.occurrences)"
-    Write-Host "  When: $($pattern.trigger)"
-    Write-Host "  Do: $($pattern.action)"
-}
-```
-
-### Trace Root Cause
-
-```powershell
-# Find causal path from decision to failure
-$path = Get-CausalPath -FromLabel "chose parallel implementation" -ToLabel "race condition error"
-
-if ($path.found) {
-    Write-Host "Root cause trace ($($path.depth) steps):"
-    foreach ($node in $path.path) {
-        Write-Host "  -> $($node.label) ($($node.type))"
-    }
-}
-```
-
 ### Compare Decision Outcomes
 
 ```powershell
@@ -867,37 +447,20 @@ foreach ($group in $outcomes) {
 | Get-Episode | <50ms | Single JSON file read |
 | Get-Episodes | ~200ms | O(n) scan of episode directory |
 | Get-DecisionSequence | <10ms | In-memory array sort |
-| Add-CausalNode | ~50ms | Load, modify, save graph JSON |
-| Add-CausalEdge | ~50ms | Load, modify, save graph JSON |
-| Get-CausalPath | ~100ms | BFS traversal of graph |
-| Get-Patterns | <20ms | Filter in-memory patterns array |
 | Extract-SessionEpisode | ~500ms | Parse markdown, extract structured data |
-| Update-CausalGraph | ~1s | Process episode, update graph |
-
-**Scaling**: Causal graph may grow large over time. Pruning strategy needed for >1000 nodes.
 
 ## Best Practices
 
 ### For Agents
 
-1. **Check patterns before deciding**: Use `Get-Patterns` to find proven approaches
-2. **Avoid anti-patterns**: Use `Get-AntiPatterns` to identify failure-prone choices
-3. **Learn from failures**: Query `Get-Episodes -Outcome "failure"` for similar scenarios
-4. **Trace causality**: Use `Get-CausalPath` to understand why past approaches worked/failed
+1. **Learn from failures**: Query `Get-Episodes -Outcome "failure"` for similar scenarios
+
 
 ### For Episode Extraction
 
 1. **Run at session end**: Extract episodes while session is fresh
-2. **Update causal graph immediately**: Keep graph in sync with episodes
-3. **Validate extraction**: Check episode JSON for completeness
-4. **Commit with session**: Include episodes in session commit
-
-### For Causal Graph Maintenance
-
-1. **Regular updates**: Run `update_causal_graph.py` periodically
-2. **Prune stale nodes**: Remove nodes with frequency=1 and old timestamps (future enhancement)
-3. **Review patterns**: Manually verify high-occurrence patterns
-4. **Monitor graph size**: Watch for performance degradation as graph grows
+2. **Validate extraction**: Check episode JSON for completeness
+3. **Commit with session**: Include episodes in session commit
 
 ## Troubleshooting
 
@@ -910,39 +473,6 @@ foreach ($group in $outcomes) {
 1. Verify episode file exists: `Test-Path ".agents/memory/episodes/episode-$sessionId.json"`
 2. Check session ID format: Must match file naming convention
 3. Re-extract from session log: `scripts/extract_session_episode.py`
-
-### Causal Graph Not Updating
-
-**Symptoms**: `update_causal_graph.py` runs but graph unchanged
-
-**Solutions**:
-
-1. Check for JSON errors: Validate `.agents/memory/causality/causal-graph.json`
-2. Verify episode format: Ensure decisions and events have required fields
-3. Check write permissions: Ensure `.agents/memory/causality/` is writable
-4. Review script output: Look for warnings about malformed episodes
-
-### Path Not Found
-
-**Symptoms**: `Get-CausalPath` returns `found: false`
-
-**Solutions**:
-
-1. Verify node labels exist: Check `causal-graph.json` for matching labels
-2. Increase MaxDepth: Default 5 may be insufficient for long chains
-3. Check label matching: Labels use partial match (`-like "*$label*"`)
-4. Review graph connectivity: Ensure edges connect the relevant nodes
-
-### Pattern Extraction Issues
-
-**Symptoms**: `update_causal_graph.py` creates no patterns
-
-**Solutions**:
-
-1. Check decision outcomes: Patterns require outcome field
-2. Verify decision structure: Ensure decisions have context, chosen, type fields
-3. Review extraction logic: Check `Get-DecisionPattern` function
-4. Add patterns manually: Use `Add-Pattern` if auto-extraction insufficient
 
 ## Related Documentation
 

@@ -42,9 +42,9 @@ SCANNABLE_EXTENSIONS = {
 }
 
 # Path segments whose files are exempt from the file-size rule. These hold
-# append-only generated data (the episode-extraction hook appends a node to
-# .agents/memory/causality/causal-graph.json on every session-log commit). The
-# data has no module boundaries to split on, so a line ceiling is the wrong gate,
+# append-only generated data (the episode-extraction hook writes an episode
+# record under .agents/memory/episodes/ on every session-log commit). The data
+# has no module boundaries to split on, so a line ceiling is the wrong gate,
 # and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
 # exemption is the only mechanism. See issue #2785.
 FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
