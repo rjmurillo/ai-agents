@@ -155,7 +155,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: |
           echo "Running agent generation in validation mode..."
-          python3 build/generate_agents.py --validate
+          uv run python3 build/generate_agents.py --validate
 
       - name: Build-all staleness check (REQ-003-005)
         if: steps.should-run.outputs.skip != 'true'
@@ -164,11 +164,11 @@ jobs:
         # "forgot to regenerate skills/agents" class of error before merge.
         run: |
           echo "Running build_all.py --check..."
-          python3 build/scripts/build_all.py --check
+          uv run python3 build/scripts/build_all.py --check
 
       - name: Validate platform template schema (REQ-003-002)
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 build/scripts/validate_templates_schema.py
+        run: uv run python3 build/scripts/validate_templates_schema.py
 
       - name: Validate plugin frontmatter self-containment (issue #3565)
         if: steps.should-run.outputs.skip != 'true'
@@ -196,7 +196,7 @@ jobs:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
-          python3 scripts/validation/run_install_parity_ci.py
+          uv run python3 scripts/validation/run_install_parity_ci.py
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
@@ -209,7 +209,7 @@ jobs:
         # the lib copy would silently fall behind.
         run: |
           echo "Running sync_plugin_lib.py --check..."
-          python3 scripts/sync_plugin_lib.py --check
+          uv run python3 scripts/sync_plugin_lib.py --check
 
       - name: Plugin manifest version parity check (Issue #2222)
         if: steps.should-run.outputs.skip != 'true'
@@ -220,14 +220,14 @@ jobs:
         # Exits 1 on mismatch, 2 on malformed input, 0 on parity.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
-          python3 build/scripts/check_plugin_manifest_parity.py
+          uv run python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
         shell: bash
         run: |
           echo "Validating GitHub Actions SHA pinning..."
-          python3 scripts/validation/sha_pinning.py --ci
+          uv run python3 scripts/validation/sha_pinning.py --ci
 
       - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
         if: steps.should-run.outputs.skip != 'true'
@@ -237,9 +237,9 @@ jobs:
         # class in CI (not only the local pre_pr gate). Exit 1 on malformed.
         run: |
           echo "Validating Copilot agent frontmatter..."
-          python3 scripts/validation/validate_copilot_agent_frontmatter.py
-          python3 scripts/validation/validate_argument_hint.py
-          python3 scripts/validation/agent_registry.py
+          uv run python3 scripts/validation/validate_copilot_agent_frontmatter.py
+          uv run python3 scripts/validation/validate_argument_hint.py
+          uv run python3 scripts/validation/agent_registry.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
@@ -249,7 +249,7 @@ jobs:
           echo ""
 
           # Regenerate without validation to get the expected content
-          python3 build/generate_agents.py
+          uv run python3 build/generate_agents.py
 
           # Show which files changed
           CHANGED_FILES=$(git diff --name-only)
