@@ -239,7 +239,7 @@ def _unsafe_symlink_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
     try:
         resolved.relative_to(repo_root.resolve())
     except ValueError:
-        return WalkProblem(entry, "symlink resolves outside repo root", "auth")
+        return WalkProblem(entry, "symlink resolves outside repo root", "config")
     return None
 
 

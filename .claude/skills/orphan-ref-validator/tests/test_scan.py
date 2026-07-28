@@ -543,6 +543,8 @@ def test_ac6_paths_outside_repo_are_skipped(tmp_path, fake_repo, caplog):
     with caplog.at_level("WARNING"):
         result = scan([target], fake_repo)
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
+    assert len(result.incomplete_scans) >= 1
+    assert result.incomplete_scans[0].error_type == "config"
     assert result.verdict == "PASS"
     assert len(result.incomplete_scans) == 1
 
@@ -901,6 +903,8 @@ def test_walk_skips_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
         result = scan([docs], fake_repo)
     assert [f for f in result.findings if f.kind == "skill_name"] == []
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
+    assert len(result.incomplete_scans) >= 1
+    assert result.incomplete_scans[0].error_type == "config"
 
 
 def test_walk_skips_symlink_to_directory_outside_repo(tmp_path, fake_repo, caplog):
@@ -916,6 +920,8 @@ def test_walk_skips_symlink_to_directory_outside_repo(tmp_path, fake_repo, caplo
         result = scan([docs], fake_repo)
     assert [f for f in result.findings if f.kind == "skill_name"] == []
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
+    assert len(result.incomplete_scans) >= 1
+    assert result.incomplete_scans[0].error_type == "config"
 
 
 def test_enumerate_skills_returns_none_when_path_is_file(tmp_path):
@@ -962,6 +968,8 @@ def test_walk_skips_file_symlink_resolving_outside_repo(tmp_path, fake_repo, cap
         result = scan([docs], fake_repo)
     assert [f for f in result.findings if f.kind == "skill_name"] == []
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
+    assert len(result.incomplete_scans) >= 1
+    assert result.incomplete_scans[0].error_type == "config"
 
 
 def test_broken_symlink_is_incomplete_scan(fake_repo, caplog):
