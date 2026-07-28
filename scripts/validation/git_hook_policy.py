@@ -9,6 +9,7 @@ import difflib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -99,30 +100,34 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # template syntax, which the runner substitutes before any shell sees it.
 # Semgrep reports both as warn-level errors. Tolerate only those two shapes;
 # every other scan error still blocks the push.
-# The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
-# `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
-# string makes the interpreter token exact.
-NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
-    re.IGNORECASE,
-)
-# A `shell:` value naming a second interpreter cannot be trusted to describe what
-# actually runs the script. `pwsh -NoProfile -Command "& '{0}'"` is the idiomatic
-# form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
-# declares Python and executes Bash. Refuse to classify the latter as non-Bash.
-FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
-# A custom shell template that hands the script to a repository file says nothing
-# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
-# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
-# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
-# file means the value is delegating and must not be trusted. Windows flags such as
-# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
-SCRIPT_FILE_RE = re.compile(
-    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
-    re.IGNORECASE,
-)
-RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
-MIN_PATH_SEPARATORS = 2
+# Classification is an allowlist of interpreter tokens and argument shapes, not a
+# blocklist of shell names. #3683 demonstrated that every name-based blocklist is
+# defeatable: `python3 -c "import os;os.system(...)" {0}` reaches `/bin/sh`
+# without spelling a shell, ``pwsh -c "bas`h {0}"`` splits the name with a
+# backtick, and `cmd /cbash {0}` glues it into a token that `\b` cannot see.
+#
+# The interpreter token must be exact and lowercase. The Actions runner names the
+# step's temp script by looking the FIRST token of `shell:` up in a six-key
+# extension table (cmd, pwsh, powershell, bash, sh, python); a miss writes the
+# file with no extension. PowerShell's call operator hands an extensionless file
+# to the OS, which honours a `#!/bin/bash` first line, so `pwsh.exe -Command "&
+# '{0}'"` runs Bash while declaring PowerShell. The `(?:\.exe)?` suffix this
+# classification used to accept was itself the bypass, so it is gone.
+#
+# `perl` is absent deliberately: per `man perlrun`, perl execs the interpreter
+# named in a `#!` line that does not contain "perl", so `perl {0}` runs Bash.
+# `node`, `ruby`, and `cmd` are absent because this repository uses none of them
+# and every entry widens the surface. A push using one blocks, which is the
+# correct direction for a security gate. Refs #3683, #3663.
+NON_BASH_INTERPRETERS = frozenset({"pwsh", "powershell", "python", "python3"})
+# `-NoProfile`, `-Command`, `-c`. A flag carries no interpreter of its own.
+SHELL_FLAG_TOKEN_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+# The script placeholder, bare or quoted.
+SHELL_PLACEHOLDER_TOKEN_RE = re.compile(r"^[\"']?\{0\}[\"']?$")
+# PowerShell's canonical custom-shell template invokes the script through the
+# call operator: `pwsh -NoProfile -Command "& '{0}'"`. Permit exactly that shape.
+# Any other argument text is free to name a second interpreter.
+POWERSHELL_CALL_TOKEN_RE = re.compile(r"^[&.]\s*(?:'\{0\}'|\"\{0\}\"|\{0\})$")
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
@@ -2273,7 +2278,8 @@ def _is_tolerated_semgrep_parse_error(
     if target not in targets:
         return False
     try:
-        content = target.read_text(encoding="utf-8")
+        raw = target.read_bytes()
+        content = raw.decode("utf-8")
     except (OSError, UnicodeError):
         return False
     scripts = _yaml_run_scripts(content)
@@ -2284,7 +2290,7 @@ def _is_tolerated_semgrep_parse_error(
         and SEMGREP_POWERSHELL_ERROR_MARKER in message
     ):
         return _message_matches_unparseable_run(message, scripts)
-    spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
+    spans = _powershell_partial_parsing_spans(error, message, target, repo_root, raw)
     return bool(spans) and all(_span_belongs_to_unparseable_step(scripts, span) for span in spans)
 
 
@@ -2342,7 +2348,11 @@ def _semgrep_snippet_matches_run(
     truncated: bool,
 ) -> bool:
     snippet_lines = snippet.splitlines()
-    run_lines = run.splitlines()
+    # Strip both sides. The snippet arrives stripped; leaving the body unstripped
+    # made a `|+` block scalar's trailing blank lines inflate its line count so
+    # the body failed to match its own snippet, which excluded the real step from
+    # the tolerated list and left only a decoy. Refs #3673.
+    run_lines = run.strip().splitlines()
     if not snippet_lines or len(snippet_lines) > len(run_lines):
         return False
     complete_lines = snippet_lines[:-1] if truncated else snippet_lines
@@ -2385,6 +2395,13 @@ def _semgrep_line_matches_pattern(
     *,
     allow_expected_suffix: bool,
 ) -> bool:
+    # A non-ASCII character in `expected` acts as a wildcard because Semgrep
+    # re-encodes them in its error text. A line made entirely of non-ASCII is
+    # therefore all wildcard and matches any observed line of the same shape,
+    # which let an all-non-ASCII decoy step claim an unrelated snippet. Require
+    # at least one ASCII anchor. Refs #3673.
+    if expected and not any(character.isascii() for character in expected):
+        return False
     observed_index = 0
     expected_index = 0
     wildcard_expected_index: int | None = None
@@ -2415,28 +2432,30 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _delegates_to_a_script(remainder: str) -> bool:
-    for token in remainder.split():
-        candidate = token.strip("\"'")
-        if SCRIPT_FILE_RE.search(candidate):
-            return True
-        if candidate.startswith(RELATIVE_PATH_PREFIXES):
-            return True
-        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
-            return True
-    return False
+def _is_reviewed_shell_argument(token: str) -> bool:
+    return bool(
+        SHELL_FLAG_TOKEN_RE.match(token)
+        or SHELL_PLACEHOLDER_TOKEN_RE.match(token)
+        or POWERSHELL_CALL_TOKEN_RE.match(token)
+    )
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
+    """Report whether ``shell`` provably hands the step to a non-Bash interpreter.
+
+    Allowlist, not blocklist: the token must be an exact interpreter name and
+    every remaining token must be a flag or the script placeholder. Anything
+    else, including unbalanced quoting, fails closed. Refs #3683.
+    """
     if shell is None:
         return False
-    match = NON_BASH_SHELL_RE.match(shell)
-    if match is None:
+    try:
+        tokens = shlex.split(shell)
+    except ValueError:
         return False
-    remainder = shell[match.end() :]
-    if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
+    if not tokens or tokens[0] not in NON_BASH_INTERPRETERS:
         return False
-    return not _delegates_to_a_script(remainder)
+    return all(_is_reviewed_shell_argument(token) for token in tokens[1:])
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -2502,11 +2521,29 @@ def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     return _body_is_valid_shell_syntax(run)
 
 
+def _byte_offset_to_char_index(raw: bytes, offset: int) -> int | None:
+    """Convert a Semgrep byte offset into a PyYAML character index.
+
+    Semgrep reports ``start.offset`` and ``end.offset`` in bytes while PyYAML
+    exposes ``start_mark.index`` as a character index. The two diverge on any
+    file holding multibyte content, so the containment test read the wrong
+    region. An offset that lands mid-character returns ``None`` and the caller
+    drops the span, which blocks the push. Refs #3672.
+    """
+    if offset < 0 or offset > len(raw):
+        return None
+    try:
+        return len(raw[:offset].decode("utf-8"))
+    except UnicodeDecodeError:
+        return None
+
+
 def _powershell_partial_parsing_spans(
     error: dict[object, object],
     message: str,
     target: Path,
     repo_root: Path,
+    raw: bytes,
 ) -> list[tuple[int, int, int, int]]:
     error_type = error.get("type")
     rule_ids = SEMGREP_PARTIAL_RULE_RE.findall(message)
@@ -2570,7 +2607,11 @@ def _powershell_partial_parsing_spans(
             or (end_line == start_line and end_col < start_col)
         ):
             return []
-        spans.append((start_line, end_line, start_offset, end_offset))
+        start_index = _byte_offset_to_char_index(raw, start_offset)
+        end_index = _byte_offset_to_char_index(raw, end_offset)
+        if start_index is None or end_index is None:
+            return []
+        spans.append((start_line, end_line, start_index, end_index))
     return spans
 
 
