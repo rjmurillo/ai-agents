@@ -183,6 +183,14 @@ jobs:
         # shipped. See .claude/rules/plugin-self-containment.md.
         run: uv run python scripts/validation/check_plugin_frontmatter_self_containment.py
 
+      - name: Validate shipped skill routes (issue #2026)
+        if: steps.should-run.outputs.skip != 'true'
+        # A routing table that names a skill its own tree does not ship sends
+        # the consumer to a dead route. #2026 dropped merge-resolver from the
+        # Copilot toolkit as repo-specific and left autoplan routing to it.
+        # Both control planes stayed self-consistent, so every gate passed.
+        run: uv run python scripts/validation/check_shipped_skill_routes.py
+
       - name: Validate agent capability matrix references
         if: steps.should-run.outputs.skip != 'true'
         # Matrix rows are model-routing contracts. A row that names an agent
