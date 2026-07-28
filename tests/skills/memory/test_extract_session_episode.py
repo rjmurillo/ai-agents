@@ -1986,3 +1986,96 @@ class TestFilesChangedPrefersTheStagedDiff:
         repo, log = self._repo_with_log(tmp_path, "Reviewed the design", staged=0)
         episode = self._run(repo, log, tmp_path / "ep")
         assert episode["metrics"]["files_changed"] == 0
+
+
+class TestDecisionRecordsCarryIndependentSignal:
+    """Decision records used to duplicate one string across `context` and
+    `chosen` and to hard-code `outcome` to "success" (issue #3628). In the
+    shipped corpus that produced 19 of 28 records with the two fields
+    byte-identical and 24 of 24 outcomes reading "success" while 8 of 302
+    episodes were partial or failure at the session level.
+    """
+
+    def _decision(self, entry):
+        return extract_session_episode.json_decisions({"workLog": [entry]}, "2026-01-01T00:00:00Z")
+
+    def test_a_title_alone_populates_chosen_and_leaves_context_empty(self):
+        got = self._decision({"task": "Selected the fail-closed option"})
+        assert len(got) == 1
+        assert got[0]["chosen"] == "Selected the fail-closed option"
+        assert got[0]["context"] == ""
+
+    def test_a_title_and_a_distinct_selection_populate_both_fields(self):
+        got = self._decision(
+            {"task": "Chose a gate strategy", "outcome": "Fail-closed (Option 2)"}
+        )
+        assert got[0]["context"] == "Chose a gate strategy"
+        assert got[0]["chosen"] == "Fail-closed (Option 2)"
+
+    def test_a_bare_status_word_is_not_treated_as_a_selection(self):
+        got = self._decision(
+            {"task": "Chose a gate strategy", "outcome": "success"}
+        )
+        assert got[0]["chosen"] == "Chose a gate strategy"
+        assert got[0]["context"] == ""
+
+    def test_context_never_duplicates_chosen(self):
+        for entry in (
+            {"task": "Decided to keep the ratchet"},
+            {"task": "Chose X", "outcome": "Chose X"},
+            {"summary": "opted for the narrow rule", "outcome": "Opted for the narrow rule"},
+        ):
+            got = self._decision(entry)
+            if got:
+                assert got[0]["context"] != got[0]["chosen"] or got[0]["chosen"] == ""
+
+    def test_both_fields_are_always_strings(self):
+        got = self._decision({"task": None, "summary": "decided to ship"})
+        for dec in got:
+            assert isinstance(dec["context"], str)
+            assert isinstance(dec["chosen"], str)
+
+    def test_the_stamp_applies_the_measured_session_outcome(self):
+        decisions = [{"id": "d001", "outcome": "success"}, {"id": "d002", "outcome": "success"}]
+        extract_session_episode._stamp_decision_outcomes(decisions, "failure")
+        assert [d["outcome"] for d in decisions] == ["failure", "failure"]
+
+    def test_the_stamp_skips_a_non_dict_entry(self):
+        decisions = [{"id": "d001", "outcome": "success"}, "not-a-dict"]
+        extract_session_episode._stamp_decision_outcomes(decisions, "partial")
+        assert decisions[0]["outcome"] == "partial"
+        assert decisions[1] == "not-a-dict"
+
+    def test_an_empty_decision_list_is_left_alone(self):
+        decisions: list = []
+        extract_session_episode._stamp_decision_outcomes(decisions, "failure")
+        assert decisions == []
+
+    def test_a_failed_session_produces_decisions_distinguishable_from_a_successful_one(
+        self, tmp_path
+    ):
+        """The acceptance test issue #3628 names: a record extracted from a
+        known failure must be distinguishable from one extracted from a known
+        success.
+        """
+        outcomes = {}
+        for label, complete in (("succeeded", True), ("failed", False)):
+            log_dir = tmp_path / label
+            log_dir.mkdir()
+            log = log_dir / f"{SESSION_DAY}-session-77.json"
+            data = _json_log(
+                [
+                    {"phase": "implementation", "summary": "Chose the narrow rule"},
+                    {"phase": "validation", "summary": "1 test failed"},
+                ],
+                end_complete=complete,
+            )
+            log.write_text(json.dumps(data), encoding="utf-8")
+            out = log_dir / "ep"
+            rc = extract_session_episode.main([str(log), "--output-path", str(out)])
+            assert rc == 0
+            episode = json.loads(next(out.glob("episode-*.json")).read_text(encoding="utf-8"))
+            assert episode["decisions"], f"{label} produced no decision record"
+            outcomes[label] = {d["outcome"] for d in episode["decisions"]}
+        assert outcomes["succeeded"] == {"success"}
+        assert outcomes["failed"] != outcomes["succeeded"]

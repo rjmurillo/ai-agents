@@ -817,25 +817,35 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_decisions(data: dict, now_iso: str) -> list[dict]:
-    """Surface work-log entries that describe a choice as decisions."""
+    """Surface work-log entries that describe a choice as decisions.
+
+    ``context`` and ``chosen`` are only both populated when the entry records
+    two distinct things: a label and a separate selection. A work-log title
+    like "Selected issue #1798" is the choice itself, not the situation
+    prompting it, so it goes to ``chosen`` and ``context`` stays empty. Writing
+    it to both was the majority shape: 19 of 28 decisions in the shipped corpus
+    had ``context`` byte-identical to ``chosen``, which reads as corroboration
+    while carrying no independent signal (issue #3628).
+    """
     decisions: list[dict] = []
     idx = 0
     for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
         if not _DECISION_RE.search(_decision_signal_text(entry)):
             continue
-        title = _entry_title(entry)
+        title = str(_entry_title(entry) or "").strip()
         outcome = _entry_field(entry, "outcome").strip()
-        # Prefer the decision label; fall back to the outcome only when it is
-        # not a bare status word ("success", "ok", ...).
-        chosen = title or (outcome if outcome.lower() not in _STATUS_WORDS else "")
+        # A bare status word ("success", "ok", ...) is not a selection.
+        selection = outcome if outcome.lower() not in _STATUS_WORDS else ""
+        chosen = selection or title
+        context = title if selection and title != selection else ""
         idx += 1
         decisions.append(
             {
                 "id": f"d{idx:03d}",
                 "timestamp": now_iso,
                 "type": get_decision_type(text),
-                "context": title,
+                "context": context,
                 "chosen": chosen,
                 "rationale": _entry_field(entry, "evidence").strip(),
                 "outcome": "success",
@@ -1410,6 +1420,27 @@ def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]
     return _causal_rank(previous) == _causal_rank(current)
 
 
+def _stamp_decision_outcomes(decisions: list, outcome: str) -> None:
+    """Replace the placeholder decision outcome with the session's measured one.
+
+    Both producers wrote the literal `"success"`, so the field never
+    discriminated: all 24 decisions in the shipped corpus that carried an
+    outcome carried `"success"`, while 8 of 302 episodes were `partial` or
+    `failure` at the session level. A constant that reads as a measurement is
+    worse than no measurement, because a reader cannot tell the two apart
+    (issue #3628).
+
+    The session outcome is the strongest signal the extractor actually has:
+    `json_outcome` derives it from the sessionEnd MUST gates plus counted
+    work-log failures, and it uses the same three values the decision schema
+    allows. Every decision in an episode belongs to that one session, so the
+    session verdict applies to each of them.
+    """
+    for dec in decisions:
+        if isinstance(dec, dict):
+            dec["outcome"] = outcome
+
+
 def _renumber_events(events: list) -> None:
     """Reassign contiguous, unique ids to the final event list, in place.
 
@@ -1646,6 +1677,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     _renumber_events(episode["events"])
+    _stamp_decision_outcomes(episode["decisions"], episode["outcome"])
     _link_sequential_events(episode["events"])
 
     try:
