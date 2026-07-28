@@ -109,11 +109,17 @@ class TestFileMatches:
 
 
 class TestExtractMentionedFiles:
-    def test_inline_code(self) -> None:
-        desc = "Changed `scripts/foo.py` and `bar.ts`"
+    def test_inline_code_under_changes_is_claim(self) -> None:
+        desc = "## Changes\nChanged `scripts/foo.py` and `bar.ts`"
         result = extract_mentioned_files(desc)
         assert "scripts/foo.py" in result
         assert "bar.ts" in result
+
+    def test_inline_code_outside_change_claim_section_is_informational(self) -> None:
+        desc = "## Summary\nChanged `scripts/foo.py` and `bar.ts`"
+        result = extract_mentioned_files(desc)
+        assert "scripts/foo.py" not in result
+        assert "bar.ts" not in result
 
     def test_bold_text(self) -> None:
         desc = "Modified **config.yml**"
@@ -147,13 +153,18 @@ class TestExtractMentionedFiles:
         # Backticks must be fully stripped from the extracted paths.
         assert not any("`" in path for path in result)
 
-    def test_markdown_links(self) -> None:
-        desc = "See [config.json] for details"
+    def test_markdown_links_under_changes_are_claims(self) -> None:
+        desc = "## Changes\nSee [config.json] for details"
         result = extract_mentioned_files(desc)
         assert "config.json" in result
 
+    def test_markdown_links_outside_change_claim_section_are_informational(self) -> None:
+        desc = "## Summary\nSee [config.json] for details"
+        result = extract_mentioned_files(desc)
+        assert "config.json" not in result
+
     def test_deduplication(self) -> None:
-        desc = "`foo.py` and `foo.py` again"
+        desc = "## Changes\n`foo.py` and `foo.py` again"
         result = extract_mentioned_files(desc)
         assert result.count("foo.py") == 1
 
@@ -169,12 +180,12 @@ class TestExtractMentionedFiles:
         assert result == []
 
     def test_path_normalization_applied(self) -> None:
-        desc = "`./scripts/foo.py`"
+        desc = "## Changes\n`./scripts/foo.py`"
         result = extract_mentioned_files(desc)
         assert "scripts/foo.py" in result
 
     def test_multiple_patterns_combined(self) -> None:
-        desc = "`a.py` and **b.yml** and\n- c.ts"
+        desc = "## Changes\n`a.py` and **b.yml** and\n- c.ts"
         result = extract_mentioned_files(desc)
         assert len(result) == 3
 
@@ -195,7 +206,7 @@ class TestExtractMentionedFiles:
             " * `.github/workflows/pytest.yml` (github-actions)\n"
             " * `pyproject.toml` (pep621)\n\n"
             "---\n\n"
-            "Changed `renovate.json` configuration."
+            "## Changes\n- `renovate.json`: configuration."
         )
         result = extract_mentioned_files(desc)
         assert "renovate.json" in result
@@ -209,7 +220,7 @@ class TestExtractMentionedFiles:
             "> Please correct these dependency lookup failures.\n"
             ">\n"
             "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
-            "Updated `renovate.json`."
+            "## Changes\n- `renovate.json`: updated configuration."
         )
         result = extract_mentioned_files(desc)
         assert "renovate.json" in result
@@ -222,7 +233,7 @@ class TestExtractMentionedFiles:
             "  - Upgrade `actions/cache` to `abc123`\n"
             "  - Branch: `renovate/actions-cache-digest`\n\n"
             "</details>\n\n"
-            "Updated `renovate.json`."
+            "## Changes\n- `renovate.json`: updated configuration."
         )
         result = extract_mentioned_files(desc)
         assert "renovate.json" in result
@@ -249,7 +260,7 @@ class TestExtractMentionedFiles:
     def test_test_plan_section_ignored(self) -> None:
         desc = (
             "## Summary\n"
-            "Updated `skill.md` with new patterns.\n\n"
+            "Updated **skill.md** with new patterns.\n\n"
             "## Test plan\n"
             "- [ ] Skill validates against `.claude/skills/CLAUDE.md` conventions\n"
             "- [ ] No breaking changes\n"
@@ -276,7 +287,7 @@ class TestExtractMentionedFiles:
     def test_related_section_ignored(self) -> None:
         desc = (
             "## Summary\n"
-            "Refactor of `scripts/foo.py`.\n\n"
+            "Refactor of **scripts/foo.py**.\n\n"
             "## Related\n"
             "- See `scripts/legacy.py` for the prior approach\n"
             "- ADR-008\n"
@@ -286,33 +297,33 @@ class TestExtractMentionedFiles:
         assert "scripts/legacy.py" not in result
 
     def test_references_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## References\n- `b.py` documents the spec\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## References\n- `b.py` documents the spec\n"
         result = extract_mentioned_files(desc)
         assert "a.py" in result
         assert "b.py" not in result
 
     def test_see_also_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## See Also\n- `b.py`\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## See Also\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_notes_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Notes\nInspired by approach in `b.py`.\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Notes\nInspired by approach in `b.py`.\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_background_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Background\nBuilds on work in `b.py`.\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Background\nBuilds on work in `b.py`.\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_inspired_by_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Inspired By\n- `b.py`\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Inspired By\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_pattern_from_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Pattern From\n- `b.py`\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Pattern From\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -320,7 +331,7 @@ class TestExtractMentionedFiles:
         """Issue #2119 repro: agent PR bodies cite files in an Evidence section
         as proof, not as change claims."""
         desc = (
-            "## Summary\nChanged `a.py`.\n\n"
+            "## Summary\nChanged **a.py**.\n\n"
             "## Evidence\n- `the retired marketplace count validator --fix` updated counts\n"
             "- pre-existing failures in `pre_pr.py` are unrelated\n"
         )
@@ -332,7 +343,7 @@ class TestExtractMentionedFiles:
     def test_evidence_with_suffix_section_ignored(self) -> None:
         """Prefix match absorbs a trailing word: 'Evidence For' strips too."""
         desc = (
-            "## Summary\nChanged `a.py`.\n\n"
+            "## Summary\nChanged **a.py**.\n\n"
             "## Evidence For\n- `b.py` demonstrates the prior behavior\n"
         )
         result = extract_mentioned_files(desc)
@@ -340,7 +351,7 @@ class TestExtractMentionedFiles:
 
     def test_validation_section_ignored(self) -> None:
         desc = (
-            "## Summary\nChanged `a.py`.\n\n"
+            "## Summary\nChanged **a.py**.\n\n"
             "## Validation\n- ran `b.py`; `c.json` config unchanged\n"
         )
         result = extract_mentioned_files(desc)
@@ -349,12 +360,12 @@ class TestExtractMentionedFiles:
         assert "c.json" not in result
 
     def test_validation_summary_suffix_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Validation Summary\n- `b.py` passed\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Validation Summary\n- `b.py` passed\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_verification_results_suffix_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Verification Results\n- `b.py` exit 0\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Verification Results\n- `b.py` exit 0\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -362,7 +373,7 @@ class TestExtractMentionedFiles:
         """Issue #2119 repro (PR #2114): 'Out of scope' names files explicitly
         NOT changed; treating them as change claims is backwards."""
         desc = (
-            "## Summary\nChanged `a.py`.\n\n"
+            "## Summary\nChanged **a.py**.\n\n"
             "## Out of scope\n- `marketplace.json` count drift is pre-existing\n"
         )
         result = extract_mentioned_files(desc)
@@ -370,19 +381,22 @@ class TestExtractMentionedFiles:
         assert "marketplace.json" not in result
 
     def test_out_of_scope_hyphenated_section_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Out-of-Scope\n- `b.py`\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Out-of-Scope\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_related_issues_multiword_heading_ignored(self) -> None:
         """The strict exact-match anchor rejected 'Related Issues' (only bare
         'Related' matched); it is now listed explicitly."""
-        desc = "## Summary\nChanged `a.py`.\n\n## Related Issues\n- see `b.py` from #100\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## Related Issues\n- see `b.py` from #100\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_notes_for_reviewers_multiword_heading_ignored(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## Notes for Reviewers\n- `b.py` is the prior art\n"
+        desc = (
+            "## Summary\nChanged **a.py**.\n\n"
+            "## Notes for Reviewers\n- `b.py` is the prior art\n"
+        )
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -390,7 +404,7 @@ class TestExtractMentionedFiles:
         """`\\b` after the prefix prevents matching a longer word. A section
         named 'Validations' (plural, not a known proof kind) must NOT strip, so
         a real change claim inside it is still validated."""
-        desc = "## Summary\nWork.\n\n## Validationsxyz\n- changed `b.py`\n"
+        desc = "## Summary\nWork.\n\n## Validationsxyz\n- changed **b.py**\n"
         result = extract_mentioned_files(desc)
         assert "b.py" in result
 
@@ -407,7 +421,8 @@ class TestExtractMentionedFiles:
         strip because they can describe real validator changes. Only bare
         'Validation' and known proof suffixes (Summary, Results, Report) strip."""
         desc = (
-            "## Summary\nUpdated the validator.\n\n## Validation Script\n- rewrote `validator.py`\n"
+            "## Summary\nUpdated the validator.\n\n"
+            "## Validation Script\n- rewrote **validator.py**\n"
         )
         result = extract_mentioned_files(desc)
         assert "validator.py" in result
@@ -415,12 +430,12 @@ class TestExtractMentionedFiles:
     def test_verification_steps_heading_not_stripped(self) -> None:
         """'Verification Steps' is a change-description heading, not a proof
         heading; it must NOT strip."""
-        desc = "## Summary\nAdded hook.\n\n## Verification Steps\n- run `hook.py` to confirm\n"
+        desc = "## Summary\nAdded hook.\n\n## Verification Steps\n- run **hook.py** to confirm\n"
         result = extract_mentioned_files(desc)
         assert "hook.py" in result
 
     def test_contextual_section_case_insensitive(self) -> None:
-        desc = "## Summary\nChanged `a.py`.\n\n## DESIGN DECISIONS\n- See `b.py`\n"
+        desc = "## Summary\nChanged **a.py**.\n\n## DESIGN DECISIONS\n- See `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -446,8 +461,8 @@ class TestExtractMentionedFiles:
             "## Summary\n"
             "Refactor.\n\n"
             "## Notes on iteration 2\n"
-            "- Added `new_module.py`\n"
-            "- Removed `legacy.py`\n"
+            "- Added **new_module.py**\n"
+            "- Removed **legacy.py**\n"
         )
         result = extract_mentioned_files(desc)
         assert "new_module.py" in result
@@ -463,7 +478,7 @@ class TestExtractMentionedFiles:
 
     def test_bare_heading_with_trailing_whitespace_still_strips(self) -> None:
         """Trailing whitespace on a bare heading line must still strip."""
-        desc = "## Summary\nChanged `real.py`.\n\n## Design Decisions   \n- See `pattern.py`\n"
+        desc = "## Summary\nChanged **real.py**.\n\n## Design Decisions   \n- See `pattern.py`\n"
         result = extract_mentioned_files(desc)
         assert "pattern.py" not in result
 
@@ -476,7 +491,7 @@ class TestExtractMentionedFiles:
             "## Design Decisions\n"
             "- See `pattern.py`\n\n"
             "# Major Section Reset\n"
-            "- Modified `real.py`\n"
+            "- Modified **real.py**\n"
         )
         result = extract_mentioned_files(desc)
         assert "pattern.py" not in result
@@ -489,7 +504,7 @@ class TestExtractMentionedFiles:
         as phantom claims. Self-finding from /review iteration."""
         desc = (
             "## Summary\n"
-            "Changed `real.py`.\n\n"
+            "Changed **real.py**.\n\n"
             "## Design Decisions\n"
             "- Pattern from `pattern.py`\n\n"
             "### Trade-offs\n"
@@ -524,7 +539,7 @@ class TestExtractMentionedFiles:
     def test_h3_design_decisions_not_stripped(self) -> None:
         """Only `##` (h2) sections strip. `### Design Decisions` stays so we
         do not silently swallow file claims under nested headings."""
-        desc = "## Summary\n### Design Decisions\n- Modified `kept.py`\n"
+        desc = "## Summary\n### Design Decisions\n- Modified **kept.py**\n"
         result = extract_mentioned_files(desc)
         assert "kept.py" in result
 
@@ -535,7 +550,7 @@ class TestExtractMentionedFiles:
         change claims from inside the sample."""
         desc = (
             "## Summary\n"
-            "Changed `summary.py`.\n\n"
+            "Changed **summary.py**.\n\n"
             "```markdown\n"
             "example template snippet:\n"
             "## Design Decisions\n"
@@ -556,7 +571,7 @@ class TestExtractMentionedFiles:
         contextual references leak into extraction."""
         desc = (
             "## Summary\n"
-            "Changed `real.py`.\n\n"
+            "Changed **real.py**.\n\n"
             "## Design Decisions\n"
             "Pattern from earlier work:\n\n"
             "```python\n"
@@ -576,7 +591,7 @@ class TestExtractMentionedFiles:
         a sample heading inside `~~~` over-strips the surrounding document."""
         desc = (
             "## Summary\n"
-            "Changed `real.py`.\n\n"
+            "Changed **real.py**.\n\n"
             "~~~markdown\n"
             "## Design Decisions\n"
             "- `phantom.py`\n\n"
@@ -619,7 +634,7 @@ class TestExtractMentionedFiles:
         over-strips the surrounding document."""
         desc = (
             "## Summary\n"
-            "Changed `real.py`.\n\n"
+            "Changed **real.py**.\n\n"
             '<pre lang="markdown">\n'
             "## Design Decisions\n"
             "sample\n"
@@ -673,12 +688,12 @@ class TestExtensionBoundary:
         assert "script.bash" not in result
 
     def test_json_still_extracts(self) -> None:
-        desc = "Edited `foo.json`"
+        desc = "## Changes\nEdited `foo.json`"
         result = extract_mentioned_files(desc)
         assert "foo.json" in result
 
     def test_md_still_extracts(self) -> None:
-        desc = "Updated `bar.md`"
+        desc = "## Changes\nUpdated `bar.md`"
         result = extract_mentioned_files(desc)
         assert "bar.md" in result
 
@@ -846,7 +861,7 @@ class TestExtensionBoundary:
         assert "foo.json" in result
 
     def test_trailing_period_end_of_string_still_extracts(self) -> None:
-        desc = "Updated `bar.md`."
+        desc = "## Changes\nUpdated `bar.md`."
         result = extract_mentioned_files(desc)
         assert "bar.md" in result
 
@@ -1037,7 +1052,7 @@ class TestStripInformationalSections:
         stripping so a sample heading inside a fence does not anchor the
         regex and over-strip across the real document structure."""
         text = (
-            "## Summary\nChanged `real.py`.\n\n"
+            "## Summary\nChanged **real.py**.\n\n"
             "```\n## Design Decisions\nphantom\n```\n\n"
             "## Changes\n- `actual.py`\n"
         )
@@ -1097,7 +1112,7 @@ class TestValidatePRDescription:
         NOT in the diff must still fire CRITICAL even when an Evidence section
         is present."""
         description = (
-            "## Summary\nRewrites `scripts/missing.py`.\n\n## Evidence\n- `proof.py` shows it\n"
+            "## Summary\nRewrites **scripts/missing.py**.\n\n## Evidence\n- `proof.py` shows it\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
@@ -1164,12 +1179,9 @@ class TestValidatePRDescription:
         assert len(warnings) == 1
 
     # ------------------------------------------------------------------
-    # Issue #2252 Part A regression tests
+    # Issue #2252 Part B regression tests
     # ------------------------------------------------------------------
-    def test_issue_2252_failure_message_is_actionable(self) -> None:
-        """The Check 1 failure message must enumerate the three silencing
-        mechanisms (fenced block, admonition, contextual H2 heading) and
-        name the bypass label so PR authors get concrete guidance."""
+    def test_issue_2252_failure_message_names_change_claim_rule(self) -> None:
         issues = validate_pr_description(
             pr_files=["scripts/changed.py"],
             mentioned_files=["scripts/missing.py"],
@@ -1177,46 +1189,31 @@ class TestValidatePRDescription:
         critical = [i for i in issues if i.severity == "CRITICAL"]
         assert len(critical) == 1
         msg = critical[0].message
-        # Silencing mechanisms
-        assert "fenced code block" in msg
-        assert "admonition" in msg
-        assert "contextual H2 heading" in msg
-        # Representative heading examples
-        assert "## Related Files" in msg
-        assert "## References" in msg
-        # Bypass label name (must come from DEFAULT_BYPASS_LABEL constant)
-        assert "description-validation-bypass" in msg
+        assert "Inline-backtick file paths outside" in msg
+        assert "## Changes" in msg
+        assert "## Per-file changes" in msg
+        assert "## Files Changed" in msg
+        assert "## Changed Files" in msg
+        assert "- path.ext" in msg
+        assert "**path.ext**" in msg
+        assert "code fence" in msg
 
-    def test_issue_2252_pr_2214_shape_flagged_with_actionable_message(
-        self,
-    ) -> None:
-        """PR #2214 shape: a .claude/... reference path cited inside the
-        narrative of ## Per-file changes is currently a CRITICAL claim
-        (Part A does not flip the default). The test asserts the new
-        actionable message text so authors get concrete remediation."""
+    def test_issue_2252_pr_2214_shape_not_flagged(self) -> None:
         description = (
             "## Per-file changes\n"
-            "- `scripts/foo.py`: rewires the loader so it picks up "
+            "The loader now handles the reference path "
             "`.claude/commands/spec.md` correctly when probing.\n"
+            "- `scripts/foo.py`: rewires the loader.\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
             pr_files=["scripts/foo.py"],
             mentioned_files=mentioned,
         )
-        critical = [i for i in issues if i.severity == "CRITICAL"]
-        offenders = [i.file for i in critical]
-        assert ".claude/commands/spec.md" in offenders
-        msg = next(i.message for i in critical if i.file == ".claude/commands/spec.md")
-        assert "## Related Files" in msg
-        assert "description-validation-bypass" in msg
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert ".claude/commands/spec.md" not in offenders
 
-    def test_issue_2252_pr_2225_shape_flagged_with_actionable_message(
-        self,
-    ) -> None:
-        """PR #2225 shape: an ADR path cited inside ## Testing narrative is
-        still a CRITICAL claim under Part A; new message text must guide
-        the author to the silencing mechanisms."""
+    def test_issue_2252_pr_2225_shape_not_flagged(self) -> None:
         description = (
             "## Testing\n"
             "- Ran the new exit-code check; behavior matches "
@@ -1227,34 +1224,58 @@ class TestValidatePRDescription:
             pr_files=["scripts/validation/pre_pr.py"],
             mentioned_files=mentioned,
         )
-        critical = [i for i in issues if i.severity == "CRITICAL"]
-        offenders = [i.file for i in critical]
-        assert ".agents/architecture/ADR-035-exit-code-standardization.md" in offenders
-        msg = next(
-            i.message
-            for i in critical
-            if i.file == ".agents/architecture/ADR-035-exit-code-standardization.md"
-        )
-        assert "fenced code block" in msg
-        assert "## Related Files" in msg
-        assert "description-validation-bypass" in msg
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert ".agents/architecture/ADR-035-exit-code-standardization.md" not in offenders
 
-    def test_issue_2252_related_files_heading_strips_reference(self) -> None:
-        """Positive test for change #1: when the same ADR reference is
-        moved under a `## Related Files` H2 heading, the stripper now
-        absorbs it and no CRITICAL fires."""
+    def test_issue_2252_pr_1873_author_preflight_shape_not_flagged(self) -> None:
         description = (
-            "## Summary\nTouches the validator.\n\n"
-            "## Related Files\n"
-            "- `.agents/architecture/ADR-035-exit-code-standardization.md`\n"
+            "## Author Pre-flight\n"
+            "Code follows project style guidelines (`.gemini/styleguide.md`).\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
-            pr_files=["scripts/validation/pre_pr.py"],
+            pr_files=["scripts/eval/report.py"],
             mentioned_files=mentioned,
         )
-        critical = [i for i in issues if i.severity == "CRITICAL"]
-        assert critical == []
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert ".gemini/styleguide.md" not in offenders
+
+    def test_issue_2252_inline_backtick_under_changes_is_flagged(self) -> None:
+        description = "## Changes\nChanged `foo.py`.\n"
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=["bar.py"], mentioned_files=mentioned)
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert offenders == ["foo.py"]
+
+    def test_issue_2252_bold_path_in_summary_is_still_flagged(self) -> None:
+        description = "## Summary\nChanged **foo.py**.\n"
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=["bar.py"], mentioned_files=mentioned)
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert offenders == ["foo.py"]
+
+    def test_issue_2252_bullet_path_in_summary_is_still_flagged(self) -> None:
+        description = "## Summary\n- bar.py\n"
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=["foo.py"], mentioned_files=mentioned)
+        offenders = [i.file for i in issues if i.severity == "CRITICAL"]
+        assert offenders == ["bar.py"]
+
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "## Changes",
+            "## per-file changes",
+            "## Files Changed",
+            "## changed files",
+        ],
+    )
+    def test_issue_2252_change_claim_heading_variants_accept_inline_paths(
+        self,
+        heading: str,
+    ) -> None:
+        mentioned = extract_mentioned_files(f"{heading}\nChanged `foo.py`.\n")
+        assert mentioned == ["foo.py"]
 
 
 # ---------------------------------------------------------------------------
@@ -1474,7 +1495,7 @@ class TestMain:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
-            "body": "Changed `foo.py`",
+            "body": "## Changes\nChanged `foo.py`",
             "files": [{"path": "foo.py"}],
         }
         code = main(["--pr-number", "1"])
@@ -1490,7 +1511,7 @@ class TestMain:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "foo.py"}],
         }
         code = main(["--pr-number", "1", "--ci"])
@@ -1604,7 +1625,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1621,7 +1642,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "some-other-label"}],
         }
@@ -1638,7 +1659,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "skip-pr-desc"}],
         }
@@ -1656,7 +1677,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `foo.py`",
+            "body": "## Changes\nChanged `foo.py`",
             "files": [{"path": "foo.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1674,7 +1695,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
         }
         code = main(["--pr-number", "1", "--ci"])
@@ -1693,7 +1714,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [],
         }
@@ -1712,7 +1733,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "Description-Validation-Bypass"}],
         }
@@ -1736,7 +1757,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1761,7 +1782,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1786,7 +1807,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py` and `phantom.py`",
+            "body": "## Changes\nChanged `ghost.py` and `phantom.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1814,7 +1835,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `foo.py`",
+            "body": "## Changes\nChanged `foo.py`",
             "files": [{"path": "foo.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1847,7 +1868,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1876,7 +1897,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -1950,7 +1971,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "weird=label"}],
         }
@@ -1979,7 +2000,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "description-validation-bypass"}],
         }
@@ -2009,7 +2030,7 @@ class TestBypassLabel:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
-            "body": "Changed `ghost.py`",
+            "body": "## Changes\nChanged `ghost.py`",
             "files": [{"path": "real.py"}],
             "labels": [{"name": "weird`label"}],
         }

@@ -1,8 +1,8 @@
 """Tests for .claude/rules/canonical-source-mirror.md applyTo coverage.
 
 Pins REQ-012-03: the canonical-source-mirror rule's applyTo glob must cover
-`.claude/review-axes/**` and `.github/prompts/**` in addition to the
-original hooks/validation/build/skills scopes. Existing coverage of
+`.claude/skills/review/references/**` and `.github/prompts/**` in addition to
+the original hooks/validation/build/skills scopes. Existing coverage of
 `.claude/hooks/**` is preserved.
 
 Test contract handles both YAML shapes the field can take:
@@ -53,7 +53,7 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
     fnmatch treats `**` as `*` semantically, which is acceptable here because
     the patterns are anchored at the top of a repo path. The `*` greedy match
     captures intermediate directory segments in the candidate paths used by
-    this test (e.g. `.claude/review-axes/analyst.md`).
+    this test (e.g. `.claude/skills/review/references/analyst.md`).
     """
     return any(fnmatch.fnmatch(path, pat) for pat in patterns)
 
@@ -74,9 +74,9 @@ def apply_to_patterns() -> list[str]:
 
 
 def test_review_axes_path_matches(apply_to_patterns: list[str]) -> None:
-    """REQ-012-03 AC: .claude/review-axes/analyst.md must match the glob."""
-    assert _matches_any(".claude/review-axes/analyst.md", apply_to_patterns), (
-        f"applyTo does not cover .claude/review-axes/; patterns={apply_to_patterns}"
+    """REQ-012-03 AC: review axes at their current location must match the glob."""
+    assert _matches_any(".claude/skills/review/references/analyst.md", apply_to_patterns), (
+        f"applyTo does not cover .claude/skills/review/references/; patterns={apply_to_patterns}"
     )
 
 

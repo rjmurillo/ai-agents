@@ -17,7 +17,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from _eval_agent_types import SCHEMA_VERSION
+from _eval_agent_types import REPORT_SCHEMA_VERSION
 from _report_aggregator import AggregateResult, FormFactorComparison
 
 
@@ -67,8 +67,10 @@ def _build_report_json(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    system_fingerprints: list[str] | None = None,
+    seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
-) -> dict:
+) -> dict[str, object]:
     """Serialize the AggregateResult into the report.json shape.
 
     `recommendation` is `null` until a caller supplies the verdict
@@ -79,7 +81,7 @@ def _build_report_json(
     external consumers can rely on them.
     """
     payload = {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": REPORT_SCHEMA_VERSION,
         "run_id": run_id,
         "model_id": model_id,
         "agent_prompt_sha": agent_prompt_sha,
@@ -106,6 +108,8 @@ def _build_report_json(
         "tokens_estimated": aggregate.tokens_estimated,
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
+        "system_fingerprints": system_fingerprints or [],
+        "seed": seed,
         "recommendation": recommendation,
     }
     if form_factor is not None:
@@ -113,7 +117,7 @@ def _build_report_json(
     return payload
 
 
-def _form_factor_payload(form_factor: FormFactorComparison) -> dict:
+def _form_factor_payload(form_factor: FormFactorComparison) -> dict[str, object]:
     return {
         "schemaVersion": form_factor.schema_version,
         "agent_recall": round(form_factor.agent_recall, 6),
@@ -232,14 +236,18 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
         )
     else:
         caveat = ""
+    effect_text = (
+        "statistically distinguishable from no effect"
+        if excludes_zero
+        else "not statistically distinguishable from no effect at the 95% level"
+    )
     return (
         "## Confidence Interval\n\n"
         f"{caveat}"
         f"Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the "
         f"signed recall delta is **[{_format_pp(ci_low)}, {_format_pp(ci_high)}]**. "
         f"The interval {'**excludes** zero' if excludes_zero else '**includes** zero'}, "
-        f"so the observed delta is "
-        f"{'statistically distinguishable from no effect' if excludes_zero else 'not statistically distinguishable from no effect at the 95% level'}.\n"
+        f"so the observed delta is {effect_text}.\n"
     )
 
 
@@ -304,6 +312,8 @@ def _render_markdown(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    system_fingerprints: list[str] | None = None,
+    seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
@@ -314,6 +324,11 @@ def _render_markdown(
         f"- Baseline prompt SHA: `{baseline_prompt_sha[:16]}...`\n"
         f"- Fixture set SHA: `{fixture_set_sha[:16]}...`\n"
     )
+    if system_fingerprints:
+        rendered = ", ".join(f"`{value}`" for value in system_fingerprints)
+        header += f"- System fingerprints: {rendered}\n"
+    if seed is not None:
+        header += f"- Seed: `{seed}`\n"
     sections = [
         header,
         _render_summary_table(aggregate),
@@ -344,6 +359,8 @@ class ReportWriter:
         fixture_set_sha: str,
         wall_clock_seconds: float,
         recommendation: str | None = None,
+        system_fingerprints: list[str] | None = None,
+        seed: int | None = None,
         form_factor: FormFactorComparison | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
@@ -357,6 +374,8 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            system_fingerprints=system_fingerprints,
+            seed=seed,
             form_factor=form_factor,
         )
         report_md = _render_markdown(
@@ -368,6 +387,8 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            system_fingerprints=system_fingerprints,
+            seed=seed,
             form_factor=form_factor,
         )
         json_path = run_reports_dir / "report.json"

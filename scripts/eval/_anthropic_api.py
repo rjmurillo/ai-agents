@@ -14,7 +14,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Single source of truth for the default eval model. Every eval script imports
 # this instead of hard-coding an id, so a model bump is a one-line change here
@@ -90,6 +90,8 @@ def call_api(
     max_tokens: int = 1024,
     temperature: float = 0.0,
     provider: str | None = None,
+    seed: int | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> str:
     """Call the Anthropic Messages API.
 
@@ -105,6 +107,10 @@ def call_api(
             urllib path unchanged; any other value routes through
             `_providers.resolve_provider` (openai, github, anthropic-sdk).
             `api_key` is ignored for non-Anthropic providers.
+        seed: Optional seed forwarded to OpenAI-compatible providers. None
+            omits the argument.
+        metadata: Optional output mapping for provider response metadata such
+            as OpenAI-compatible `system_fingerprint`.
 
     Returns:
         The assistant's text response.
@@ -119,13 +125,21 @@ def call_api(
         from _providers import is_default_anthropic, resolve_provider
 
         if not is_default_anthropic(selected):
-            return resolve_provider(selected).complete(
-                messages=messages,
-                system=system,
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+            selected_provider = resolve_provider(selected)
+            kwargs: dict[str, object] = {
+                "messages": messages,
+                "system": system,
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+            if seed is not None:
+                kwargs["seed"] = seed
+            text = cast(str, selected_provider.complete(**kwargs))
+            fingerprint = getattr(selected_provider, "system_fingerprint", None)
+            if metadata is not None and isinstance(fingerprint, str):
+                metadata["system_fingerprint"] = fingerprint
+            return text
     body: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,

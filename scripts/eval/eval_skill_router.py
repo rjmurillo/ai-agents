@@ -60,9 +60,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from _anthropic_api import load_api_key, call_api
+from _anthropic_api import call_api, load_api_key
 
 MODEL = "claude-sonnet-4-6"
 BEFORE_REF = "origin/main"
@@ -110,7 +110,7 @@ def load_fixtures(path: str) -> list[dict[str, Any]]:
 
 
 def _validate_fixture(
-    fx: Any, index: int, path: str, seen_ids: set[str]
+    fx: object, index: int, path: str, seen_ids: set[str]
 ) -> None:
     """Validate one fixture's shape. Raises RuntimeError on any violation."""
     if not isinstance(fx, dict):
@@ -137,9 +137,10 @@ def _validate_fixture(
 
     candidates = fx["candidates"]
     if not isinstance(candidates, list) or not (2 <= len(candidates) <= 4):
+        got = len(candidates) if isinstance(candidates, list) else type(candidates).__name__
         raise RuntimeError(
             f"Fixture {fid} in {path}: 'candidates' must be a list of 2-4 names "
-            f"(got {len(candidates) if isinstance(candidates, list) else type(candidates).__name__})."
+            f"(got {got})."
         )
     if len(set(candidates)) != len(candidates):
         raise RuntimeError(f"Fixture {fid} in {path}: 'candidates' contains duplicates.")
@@ -225,7 +226,12 @@ def load_description_before(rel_path: str, repo_root: Path) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo_root), "show", f"{BEFORE_REF}:{rel_path}"],
-            capture_output=True, text=True, check=True, timeout=30,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=30,
         )
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
@@ -326,12 +332,15 @@ def call_router(api_key: str, prompt: str) -> str:
     external-failure exit code.
     """
     try:
-        return call_api(
-            api_key,
-            [{"role": "user", "content": prompt}],
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            temperature=0,
+        return cast(
+            str,
+            call_api(
+                api_key,
+                [{"role": "user", "content": prompt}],
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                temperature=0,
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - normalize all transport errors to one type
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc

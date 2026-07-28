@@ -364,7 +364,7 @@ No title, no parent pointers, no dates.
 
 ## Related Decisions
 
-- [PRD-skills-index-registry.md](../planning/PRD-skills-index-registry.md): Superseded flat registry approach
+- [PRD-skills-index-registry.md](../archive/planning/PRD-skills-index-registry.md): Superseded flat registry approach
 - [Issue #307](https://github.com/rjmurillo/ai-agents/issues/307): Memory automation tracking
 - [Session 51](../sessions/2025-12-20-session-51-token-efficiency-debate.md): 10-agent token efficiency debate
 - `.agents/critique/017-tiered-memory-index-critique.md`: 5-agent review

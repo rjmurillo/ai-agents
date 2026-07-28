@@ -1657,6 +1657,77 @@ def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) 
     assert policy.check_branch_context(repo) == 1
 
 
+def _worktree_on(repo: Path, branch: str, target: Path) -> Path:
+    """Check ``branch`` out into a linked worktree at ``target`` and return it."""
+    _git(repo, "branch", branch)
+    _git(repo, "worktree", "add", "-q", str(target), branch)
+    return target
+
+
+def test_branch_context_exempts_a_committed_log_in_a_linked_worktree(
+    tmp_path: Path,
+) -> None:
+    """A worktree checkout carries whatever log its branch last committed.
+
+    That file names another branch and blocks every commit made in the
+    worktree, so the documented workaround became --no-verify, which turns off
+    every other hook to silence this one (issue #3408).
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(repo, branch="feature/other", name="session-imported")
+    _git(repo, "add", "--", imported.relative_to(repo).as_posix())
+    _git(repo, "commit", "-qm", "test: commit a log for another branch")
+
+    # The primary checkout still blocks: nothing about it changed.
+    assert policy.check_branch_context(repo) == 1
+
+    worktree = _worktree_on(repo, "feature/x", tmp_path / "wt")
+
+    assert policy.check_branch_context(worktree) == 0
+
+
+def test_branch_context_still_blocks_a_live_log_inside_a_worktree(
+    tmp_path: Path,
+) -> None:
+    """The exemption covers imported history, not a session started elsewhere.
+
+    A log written in the worktree today is untracked, so the co-mingling
+    signal from issue #682 keeps its teeth inside worktrees too.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/other", name="session-imported", mtime=1_000_000_000.0
+    )
+    _git(repo, "add", "--", imported.relative_to(repo).as_posix())
+    _git(repo, "commit", "-qm", "test: commit a log for another branch")
+    worktree = _worktree_on(repo, "feature/x", tmp_path / "wt")
+    _write_session_log(
+        worktree,
+        branch="feature/elsewhere",
+        name="session-live",
+        mtime=2_000_000_000.0,
+    )
+
+    assert policy.check_branch_context(worktree) == 1
+
+
+def test_a_primary_checkout_is_not_mistaken_for_a_worktree(tmp_path: Path) -> None:
+    """The probe must not hand the exemption to every repository."""
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+
+    assert policy._is_linked_worktree(repo) is False
+
+    worktree = _worktree_on(repo, "feature/y", tmp_path / "wt")
+
+    assert policy._is_linked_worktree(worktree) is True
+
+
 def test_branch_context_merged_history_exemption_needs_an_upstream(tmp_path: Path) -> None:
     """Without a resolvable origin/HEAD the exemption fails closed."""
     repo = tmp_path / "repo"
@@ -5283,8 +5354,14 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    results = iter([_completed(0), _completed(1)])
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    validator_results = iter([_completed(0), _completed(1)])
+
+    def _dispatch(command, *_args, **_kwargs):
+        if command[0] == "git":
+            return _completed(0, stdout="deadbee\n")
+        return next(validator_results)
+
+    monkeypatch.setattr(policy, "_run_command", _dispatch)
     assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
@@ -5423,10 +5500,10 @@ def test_immutable_suppression_error_and_clean_paths(
         "_changed_commit_paths",
         lambda *_args: ["README.md", "source.py"],
     )
-    monkeypatch.setattr(policy, "_read_commit_blob", lambda *_args: None)
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="error"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 2
 
-    monkeypatch.setattr(policy, "_read_commit_blob", lambda *_args: "clean\n")
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "clean\n"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 0
 
 
@@ -5837,9 +5914,6 @@ def test_changed_commit_path_and_scan_edge_cases(
 ) -> None:
     real_commit_paths = policy._commit_paths
     real_scan_pushed_head = policy._scan_pushed_head
-    root_update = _push_update(range_spec="head")
-    monkeypatch.setattr(policy, "_commit_paths", lambda *_args: ["root.py"])
-    assert policy._changed_commit_paths(root_update, tmp_path) == ["root.py"]
 
     range_update = _push_update()
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))

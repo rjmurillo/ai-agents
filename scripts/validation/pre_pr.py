@@ -57,7 +57,6 @@ from checks_common import (  # noqa: E402, F401
 # Area check modules. Each ``validate_*`` is re-exported below so existing
 # imports of ``scripts.validation.pre_pr`` continue to resolve (issue #2223).
 from checks_coverage import (  # noqa: E402, F401
-    validate_command_bundle_coverage,
     validate_review_marker,
 )
 from checks_dash import (  # noqa: E402, F401

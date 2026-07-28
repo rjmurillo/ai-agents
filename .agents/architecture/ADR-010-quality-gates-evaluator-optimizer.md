@@ -125,7 +125,7 @@ Specifically:
 - Issue #172: SPARC-like Methodology
 - [claude-flow SPARC documentation](https://github.com/ruvnet/claude-flow)
 - [Anthropic evaluator-optimizer pattern](https://www.anthropic.com/engineering/building-effective-agents)
-- `.agents/planning/enhancement-PROJECT-PLAN.md` Phase 5
+- `.agents/archive/planning/enhancement-PROJECT-PLAN.md` Phase 5
 
 ---
 

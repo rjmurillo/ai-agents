@@ -86,8 +86,10 @@ class _FakeChoice:
 
 
 class _FakeResponse:
-    def __init__(self, content: object) -> None:
+    def __init__(self, content: object, system_fingerprint: str | None = "fp-test") -> None:
         self.choices = [_FakeChoice(content)]
+        if system_fingerprint is not None:
+            self.system_fingerprint = system_fingerprint
 
 
 class _FakeCompletions:
@@ -149,6 +151,73 @@ def test_openai_provider_returns_message_content(
     )
 
     assert result == "answer-for-gpt-4o"
+
+
+def test_openai_provider_passes_seed_when_provided(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[_FakeOpenAI] = []
+    original_init = _FakeOpenAI.__init__
+
+    def _record_init(self: _FakeOpenAI, **kwargs: object) -> None:
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
+    provider = _providers.resolve_provider("openai")
+
+    provider.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-4o",
+        seed=3475,
+    )
+
+    assert captured[0].recorder[0]["seed"] == 3475
+
+
+def test_openai_provider_omits_seed_when_unset(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[_FakeOpenAI] = []
+    original_init = _FakeOpenAI.__init__
+
+    def _record_init(self: _FakeOpenAI, **kwargs: object) -> None:
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
+    provider = _providers.resolve_provider("openai")
+
+    provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+
+    assert "seed" not in captured[0].recorder[0]
+
+
+def test_openai_provider_captures_system_fingerprint(
+    fake_openai: type[_FakeOpenAI],
+) -> None:
+    provider = _providers.resolve_provider("openai")
+
+    provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+
+    assert provider.system_fingerprint == "fp-test"
+
+
+def test_openai_provider_tolerates_missing_system_fingerprint(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _return_without_fingerprint(
+        self: _FakeCompletions, **kwargs: object
+    ) -> _FakeResponse:
+        self._recorder.append(kwargs)
+        return _FakeResponse("answer", system_fingerprint=None)
+
+    monkeypatch.setattr(_FakeCompletions, "create", _return_without_fingerprint)
+    provider = _providers.resolve_provider("openai")
+
+    provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+
+    assert provider.system_fingerprint is None
 
 
 def test_openai_provider_raises_on_non_text_content(

@@ -14,6 +14,7 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**,.claude/commands/**
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
 5. **No internal references in `src/claude/`**. Files under `src/claude/` MUST NOT reference `.agents/` paths that will not exist for downstream installers.
 6. **Python for skill scripts**. New skill scripts MUST be Python per ADR-042.
+7. **Test what the prose promises**. When a `SKILL.md` names a script, an exit code, and what that code means, it has defined an executable contract, and at least one file under `tests/` MUST assert the documented exit-code behavior. Prose is not enforcement: a documented exit code that nothing asserts drifts from the script the first time someone edits the script and not the document, and the drift is invisible because the document still reads correctly. `check_skill_contract_tests.py` enforces this.
 
 ## SHOULD
 
@@ -32,4 +33,6 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**,.claude/commands/**
 - `build/scripts/detect_agent_drift.py`. Enforces `src/claude/*.md` stays in sync with the shared template body
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards
+- `scripts/validation/check_skill_contract_tests.py`. Enforces the executable-contract test requirement
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
+- Issue #3402. worktree identity and stale helper resolution

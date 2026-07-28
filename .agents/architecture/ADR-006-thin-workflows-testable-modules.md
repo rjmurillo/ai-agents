@@ -4,7 +4,7 @@
 **Date**: 2025-12-18
 **Deciders**: User, High-Level-Advisor Agent
 **Context**: [PR #60](https://github.com/rjmurillo/ai-agents/pull/60) AI workflow implementation
-**Related**: [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-Only Scripting), [PR #60 Remediation Plan](../planning/PR-60/002-pr-60-remediation-plan.md)
+**Related**: [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-Only Scripting), [PR #60 Remediation Plan](../archive/planning/PR-60/002-pr-60-remediation-plan.md)
 
 ---
 
@@ -410,7 +410,7 @@ This amendment does NOT permit:
 ### References
 
 - Spec: `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md`
-- Plan: `.agents/plans/active/req-003-multi-tool-artifact-build.md`
+- Plan: `.agents/archive/plans/req-003-multi-tool-artifact-build.md`
 - Regression that motivated REQ-003: `.agents/incidents/2026-04-27-pir-plugin-manifest-schema-1773.md`
 - Existing build-pipeline YAML following the proposed pattern: `templates/platforms/{copilot-cli,visual-studio,vscode}.yaml`
 - Architect review: completed 2026-04-28; verdict APPROVE_WITH_CHANGES; all 10 revisions incorporated

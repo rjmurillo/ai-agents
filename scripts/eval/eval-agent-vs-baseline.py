@@ -60,6 +60,7 @@ from _run_persistence import (
     MalformedRunRecordError,
     RunDirectoryNotFreshError,
     RunPersistence,
+    RunSeedMismatchError,
 )
 from _scoring_engine import ScoringEngine, build_default_engine
 
@@ -71,6 +72,7 @@ EXIT_AUTH = 4
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_N_RUNS = 3
+DEFAULT_SEED = 0
 ALLOWED_PROVENANCE = frozenset(
     {"synthetic", "public-cve", "paraphrased-from-public"}
 )
@@ -545,6 +547,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "comparable (ADR-058)."
         ),
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=(
+            "Optional seed forwarded to OpenAI-compatible providers. The "
+            f"default for eval runs is {DEFAULT_SEED}."
+        ),
+    )
     return parser
 
 
@@ -615,6 +626,7 @@ def _execute_one(
     agent_prompt_ref: str,
     adapter: AnthropicAPIAdapter,
     scoring_engine: ScoringEngine,
+    seed: int | None,
     skill_prompt: str | None = None,
     skill_prompt_ref: str | None = None,
 ) -> RunRecord:
@@ -666,6 +678,8 @@ def _execute_one(
         error_category=api_result.error_category,
         attempts=api_result.attempts,
         tokens_estimated=getattr(api_result, "tokens_estimated", True),
+        system_fingerprint=api_result.system_fingerprint,
+        seed=seed,
     )
 
 
@@ -725,7 +739,9 @@ def _run_live(
     )
 
     try:
-        persistence = RunPersistence(run_dir, resume=bool(args.resume))
+        persistence = RunPersistence(
+            run_dir, resume=bool(args.resume), seed=args.seed
+        )
     except RunDirectoryNotFreshError as exc:
         # Fresh-run mode is forbidden against a populated runs.jsonl.
         print(f"error: {exc}", file=sys.stderr)
@@ -734,7 +750,7 @@ def _run_live(
         # Bad existing JSONL detected at startup.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LOGIC
-    except (SchemaVersionError, MalformedRunRecordError) as exc:
+    except (SchemaVersionError, MalformedRunRecordError, RunSeedMismatchError) as exc:
         # Existing JSONL carries an unsupported schemaVersion, or a
         # line cannot be parsed back into a record. Per DESIGN-004
         # §Failure Modes, both are config-class failures: the on-disk
@@ -745,7 +761,7 @@ def _run_live(
     fixture_path_by_id = {
         f.id: p for f, p in zip(fixtures, fixture_paths, strict=True)
     }
-    adapter = AnthropicAPIAdapter()
+    adapter = AnthropicAPIAdapter(seed=args.seed)
     engine = build_default_engine()
 
     import time as _time
@@ -800,6 +816,7 @@ def _run_live(
                         agent_prompt_ref=agent_prompt_ref,
                         adapter=adapter,
                         scoring_engine=engine,
+                        seed=args.seed,
                         skill_prompt=skill_prompt,
                         skill_prompt_ref=skill_prompt_ref,
                     )
@@ -929,6 +946,15 @@ def _generate_report(
 ) -> int:
     """Aggregate records and write report. Halts on >30% flakiness."""
     aggregator = ReportAggregator(records, model_id=model_id)
+    system_fingerprints = sorted(
+        {
+            record.system_fingerprint
+            for record in records
+            if isinstance(record.system_fingerprint, str)
+        }
+    )
+    seeds = {record.seed for record in records}
+    seed = seeds.pop() if len(seeds) == 1 else None
     try:
         aggregate = aggregator.aggregate()
     except EmptyRunError as exc:
@@ -979,6 +1005,8 @@ def _generate_report(
                 fixture_set_sha=_fixture_set_sha(fixture_paths),
                 wall_clock_seconds=wall_clock_seconds,
                 recommendation="form-factor-invalid",
+                system_fingerprints=system_fingerprints,
+                seed=seed,
             )
             print(
                 json.dumps(
@@ -1009,6 +1037,8 @@ def _generate_report(
         fixture_set_sha=_fixture_set_sha(fixture_paths),
         wall_clock_seconds=wall_clock_seconds,
         recommendation="halt-due-to-flakiness" if halt else None,
+        system_fingerprints=system_fingerprints,
+        seed=seed,
         form_factor=form_factor,
     )
     if halt:
