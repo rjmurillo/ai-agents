@@ -11,9 +11,7 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "milestone",
       "content": "First end-to-end run of the loop against a real model. Fingerprint 06f74397...",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e002"
       ]
@@ -165,11 +163,9 @@
       "timestamp": "2026-07-27T00:00:00+00:00",
       "type": "test",
       "content": "['uv run pytest tests/eval/ tests/test_eval_optimizer_core.py tests/test_eval_optimizer_adapters.py: 1050 passed', 'coverage: optimize-artifact.py 461 stmts 100%, _optimizer_core.py 259 stmts 100%, _optimizer_adapters.py 89 stmts 100%', 'gate on evals/architect-spike/reports/20260528T051601Z-70c6ae97 against 20260528T055934Z-5f4d8ad4: REJECT, compared false, consultations 0', 'same pair with the candidate envelope stripped to a bare mapping: REJECT, compared false, consultations 0']",
-      "caused_by": [
-        "e040"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e001"
+        "e041"
       ]
     },
     {
@@ -228,7 +224,9 @@
       "caused_by": [
         "e018"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e045"
+      ]
     },
     {
       "id": "e020",
@@ -479,8 +477,110 @@
         "e039"
       ],
       "leads_to": [
-        "e014"
+        "e049"
       ]
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Forced interleaving before the fix: two added:true reports, one stored entry. After: one success, one explicit ConfigError naming the lock, lock cleaned up. 1437 eval tests pass with 100% statement coverage on optimize-artifact.py (587), _optimizer_core.py (283), _optimizer_adapters.py (89). Full suite 15651 passed, 26 skipped. ruff clean on both changed files; RUFF_RATCHET_BASE_REF=origin/main ruff_ratchet.py reports passed for 3 changed files; mypy clean.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e042"
+      ]
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "['Eval suite 1472 to 1494 passed, all three optimizer modules at 100 percent statement coverage.', 'Full suite 15713 passed, 26 skipped, 262.82s.', 'Ruff ratchet passed for 5 changed Python files against origin/main. mypy clean. Zero dashes, zero lines over 100 columns.', 'Commits 8af188e16 finding four, 3b04293fb finding three, f187cb0bc finding two, 8583129b3 finding one.', 'Eight mutations M24 through M31, every one red, each multi-part fix falsified in halves.', 'Shape 45 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md.']",
+      "caused_by": [
+        "e041"
+      ],
+      "leads_to": [
+        "e043"
+      ]
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "['Eval suite 1494 to 1505 passed, all three optimizer modules still at 100 percent statement coverage.', 'Commits 4fc921120 the contention split, e4d5c0d6c the permission guard hoist.', 'M32 reverts the split, 5 red. M33 lets the mkdir handler borrow the contention message, 6 red.', 'Guard verified to fire: 16 tests go from run to skipped when the predicate sees a zero euid.', 'Both review threads answered with the measured output and resolved.', 'Shape 46 written to .agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md.']",
+      "caused_by": [
+        "e042"
+      ],
+      "leads_to": [
+        "e044"
+      ]
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Eval suite 1562 to 1609 passing. Ruff ratchet passed for 5 changed files. Mutations M41, M42, M43b, M44 and M45 all killed. Issues #3588 and #3591 filed. Commits f401792ba, 479076dd2 and 75515e0ac on fix/eval-refuse-malformed-input.",
+      "caused_by": [
+        "e043"
+      ],
+      "leads_to": [
+        "e046"
+      ]
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e047"
+      ]
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "PR #3579 re-merged with main and pushed as 1ebc1fb3d with 1697 passing. The disproved-justification episode is recorded as shape 66 so the next round treats a plan's stated rationale as a claim to verify, not a premise.",
+      "caused_by": [
+        "e044"
+      ],
+      "leads_to": [
+        "e048"
+      ]
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Three atomic commits on feat/eval-rule-multirun: 1c17fbd97 the bool bar, 45070a105 the parser module narrowing, 652555541 the parser-derived window. Suite 1849 passed with ruff and mypy clean on both changed files, and the reviewer has the new implementation to attack.",
+      "caused_by": [
+        "e045"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "test",
+      "content": "Three atomic commits on feat/eval-rule-multirun: 1c17fbd97 the bool bar, 45070a105 the parser module narrowing, 652555541 the parser-derived window. Suite 1849 passed with ruff and mypy clean on both changed files, and the reviewer has the new implementation to attack.",
+      "caused_by": [
+        "e046"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 691dcfb0e",
+      "caused_by": [
+        "e040"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -488,7 +588,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 24,
+    "commits": 25,
     "files_changed": 6
   },
   "lessons": []
