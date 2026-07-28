@@ -127,10 +127,37 @@
     },
     {
       "step": "Cited issue #3465 for the agent-tree gate gap rather than filing a duplicate. That issue already carries the per-surface measurement. The rule text adds what the issue lacks: the working practice to follow until the ratchet widens, plus the near-miss from this branch as evidence."
+    },
+    {
+      "step": "Replaced the hand-written matrix parser with markdown-it-py, already a project dependency. Three adversarial rounds had each found a new spelling the patterns missed; the fourth asked why the code was approximating a documented grammar at all. Frontmatter now parses as YAML rather than by pattern."
+    },
+    {
+      "step": "Fixed a denial of service the rewrite introduced. safe_load blocks object construction, not resource use: SafeConstructor.flatten_mapping expands a merge key by copying every entry of the aliased mapping, so a 433 byte frontmatter block held the scan for 21.67 seconds. Aliases are refused outright. Zero of 176 shipped blocks use one, and a test pins that."
+    },
+    {
+      "step": "Made the frontmatter fences agree. The open required exactly three hyphens and a newline while the close tolerated trailing whitespace, so a file opening with a padded fence was not an agent and every matrix row citing it reported that it does not ship. The close search also moved off a hardcoded offset of four, correct only for a bare fence."
+    },
+    {
+      "step": "Fixed two disagreements between the validator and what a reader sees. A UTF-8 byte order mark made a well-formed agent invisible at both read sites. A degenerate scan printed its errors and then announced that every agent checks out; the exit code was already right, only the summary contradicted it."
+    },
+    {
+      "step": "Discovered the mutation harness was measuring nothing. It reported 48 of 48 planted defects caught. It copied the tree without .git, a teardown fixture reads the repository HEAD, so the suite died on its first test and the harness read that nonzero exit as a kill. The trigger is the .git strip; the cause is that the harness never ran the unmutated code, so it could not tell a kill from a suite that failed to start."
+    },
+    {
+      "step": "Added a baseline gate that refuses to report anything unless the unmutated suite is green. Corrected figure: 44 of 53. The nine survivors were real. Six were untested behaviour and are now tested. Three were branches for a table row holding no cell, which the parser cannot produce: measured across 69,847 rows in 3,106 files it never happened, so the branches are gone and the invariant is stated where it is relied upon. 52 of 52 now."
+    },
+    {
+      "step": "Two assertions in this session could not fail. A pre-flight check walked ast.Assign looking for an annotated assignment and reported zero problems while examining zero things. A guard scanned whole file text for a pattern that only means something inside frontmatter. Both were green and both were empty. The alias test now carries a non-vacuity floor."
+    },
+    {
+      "step": "Filed #3594 as the correct issue for this work. The PR body cited #3565, which belongs to another PR, so merging would have closed an issue whose work is unfinished."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
+    "Correct the PR #3587 body: cite #3594, drop the wrong #3565, and replace the claim that the phantom survived months with the measured 8 weeks (memory retired 2026-06-02 in ce4ebabbb4).",
+    "File the deferred findings from round five: footnotes in a matrix cell fail the run and fixing it needs mdit-py-plugins; the roster derives names from filenames rather than frontmatter name, latent today because all 117 declared names match their stem; nested agent directories are never scanned; null and duplicate description values are accepted though hosts reject them.",
+    "Split the validator and its test file, both now over the 500 line advisory.",
     "#3465 tracks widening the portability ratchet to cover agent, rule, and instruction trees. Until it lands, shared agent prose must name no tree-specific path.",
     "Twelve agents ship without a row in the orchestrator capability matrix: backlog-generator, code-simplifier, comment-analyzer, debug, dependency-auditor, janitor, merge-resolver, negotiation, pr-comment-responder, pr-test-analyzer, silent-failure-hunter, type-design-analyzer. Whether to add them trades routing coverage against context budget and needs a human call.",
     "The validator enforces name resolution only. It does not check that a matrix row's Model column names a real tier, nor that the Use For text matches the agent's own description."

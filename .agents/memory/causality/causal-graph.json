@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T22:07:46.247891+00:00",
+  "updated": "2026-07-28T01:49:24.711632+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22762,6 +22762,78 @@
         "episode-2026-07-27-session-3565-phantom-agent-matrix"
       ],
       "created": "2026-07-27T22:07:46.242006+00:00"
+    },
+    {
+      "id": "b522e074d22a",
+      "type": "milestone",
+      "label": "milestone: Replaced the hand-written matrix parser with markdown-it-py, already a project dependency. Three adversarial rounds had each found a new spelling the patterns missed; the fourth asked why the code was approximating a documented grammar at all. Frontmatter now parses as YAML rather than by pattern.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.704926+00:00"
+    },
+    {
+      "id": "e56caba1d7ea",
+      "type": "milestone",
+      "label": "milestone: Fixed a denial of service the rewrite introduced. safe_load blocks object construction, not resource use: SafeConstructor.flatten_mapping expands a merge key by copying every entry of the aliased mapping, so a 433 byte frontmatter block held the scan for 21.67 seconds. Aliases are refused outright. Zero of 176 shipped blocks use one, and a test pins that.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705024+00:00"
+    },
+    {
+      "id": "e83c932a52ae",
+      "type": "milestone",
+      "label": "milestone: Made the frontmatter fences agree. The open required exactly three hyphens and a newline while the close tolerated trailing whitespace, so a file opening with a padded fence was not an agent and every matrix row citing it reported that it does not ship. The close search also moved off a hardcoded offset of four, correct only for a bare fence.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705112+00:00"
+    },
+    {
+      "id": "44cab9f4693c",
+      "type": "milestone",
+      "label": "milestone: Fixed two disagreements between the validator and what a reader sees. A UTF-8 byte order mark made a well-formed agent invisible at both read sites. A degenerate scan printed its errors and then announced that every agent checks out; the exit code was already right, only the summary contradicted it.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705200+00:00"
+    },
+    {
+      "id": "3fdd49fc123c",
+      "type": "milestone",
+      "label": "milestone: Discovered the mutation harness was measuring nothing. It reported 48 of 48 planted defects caught. It copied the tree without .git, a teardown fixture reads the repository HEAD, so the suite died on its first test and the harness read that nonzero exit as a kill. The trigger is the .git strip; the cause is that the harness never ran the unmutated code, so it could not tell a kill from a suite that failed to start.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705300+00:00"
+    },
+    {
+      "id": "2bf52688cb5f",
+      "type": "milestone",
+      "label": "milestone: Added a baseline gate that refuses to report anything unless the unmutated suite is green. Corrected figure: 44 of 53. The nine survivors were real. Six were untested behaviour and are now tested. Three were branches for a table row holding no cell, which the parser cannot produce: measured across 69,847 rows in 3,106 files it never happened, so the branches are gone and the invariant is stated where it is relied upon. 52 of 52 now.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705383+00:00"
+    },
+    {
+      "id": "dc69d68e4ad0",
+      "type": "milestone",
+      "label": "milestone: Two assertions in this session could not fail. A pre-flight check walked ast.Assign looking for an annotated assignment and reported zero problems while examining zero things. A guard scanned whole file text for a pattern that only means something inside frontmatter. Both were green and both were empty. The alias test now carries a non-vacuity floor.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705466+00:00"
+    },
+    {
+      "id": "d4c2d6d615d9",
+      "type": "milestone",
+      "label": "milestone: Filed #3594 as the correct issue for this work. The PR body cited #3565, which belongs to another PR, so merging would have closed an issue whose work is unfinished.",
+      "episodes": [
+        "episode-2026-07-27-session-3565-phantom-agent-matrix"
+      ],
+      "created": "2026-07-28T01:49:24.705548+00:00"
     }
   ],
   "patterns": [

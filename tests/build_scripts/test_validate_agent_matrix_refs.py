@@ -28,6 +28,7 @@ from pathlib import Path
 
 import frontmatter
 import pytest
+from markdown_it.token import Token
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -331,14 +332,26 @@ class TestKnownAgents:
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
     def test_a_wider_opening_fence_shifts_the_search_for_the_close(self, tmp_path):
-        """The close is searched from the end of the open, not a fixed offset.
+        """The block is sliced from the end of the open fence, not a fixed offset.
 
-        A hardcoded offset of four is correct only for a bare ``---\\n``. With a
-        wider opening fence it lands mid-key, so a block whose first key would
-        be truncated proves the offset follows the match.
+        A hardcoded offset of four is correct only for a bare ``---\\n``. The
+        fence tolerates trailing spaces and tabs, so a wider one leaves the
+        offset short and the residue in front of the first key.
+
+        Tabs are what make this observable. A residue of spaces is indentation
+        YAML accepts, so the block still parses and the wrong offset stays
+        invisible. YAML forbids a tab there, so a tab-padded fence turns a real
+        agent into an unreadable one, and every row citing it reports that the
+        agent does not ship.
         """
         (tmp_path / "analyst.md").write_text(
-            "---\t \ndescription: An agent.\n---\n", encoding="utf-8"
+            "---\t\t\ndescription: An agent.\n---\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_a_space_padded_opening_fence_is_also_an_agent(self, tmp_path):
+        (tmp_path / "analyst.md").write_text(
+            "---   \ndescription: An agent.\n---\n", encoding="utf-8"
         )
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
 
@@ -400,6 +413,81 @@ class TestKnownAgents:
 
     def test_empty_directory_returns_empty_set(self, tmp_path):
         assert vamr.known_agents(tmp_path, ".md") == set()
+
+
+class TestCellReading:
+    """A matrix row is read through the parser's tokens, not its raw text.
+
+    Every case here is one a hand-written pattern got wrong or would get wrong.
+    The mutation harness reached each of them: without the test beside it, the
+    corresponding mutant survives.
+    """
+
+    HEADER = "| Agent | Role |\n|-------|------|\n"
+
+    def _rows(self, cell: str):
+        return vamr.parse_matrix_rows(f"{self.HEADER}| {cell} | Research |\n")
+
+    def test_image_alt_text_is_not_part_of_the_name(self):
+        """An image carries its alt text as token content.
+
+        ``![memory](u)analyst`` renders as an icon beside ``analyst``. Reading
+        every child rather than only text and code spans splices the alt text
+        into the name, so the row cites ``memoryanalyst``: a name no file can
+        ever match, and a phantom that no longer names the agent it meant.
+        """
+        rows, unparsed = self._rows("![memory](u)analyst")
+        assert rows == [("analyst", 3)]
+        assert unparsed == []
+
+    def test_a_link_contributes_only_its_visible_text(self):
+        rows, unparsed = self._rows("[analyst](./analyst.md)")
+        assert rows == [("analyst", 3)]
+        assert unparsed == []
+
+    def test_trailing_space_before_a_line_break_is_stripped(self):
+        """``analyst <br>`` splits into ``text('analyst ')`` and the tag.
+
+        The tag drops out, and what survives keeps the space that sat before it.
+        An unstripped name fails the name pattern, so a real agent is reported as
+        an unparsed row and the file fails as a parse gap.
+        """
+        rows, unparsed = self._rows("analyst <br>")
+        assert rows == [("analyst", 3)]
+        assert unparsed == []
+
+    def test_an_uppercase_name_does_not_parse(self):
+        """No agent file in any tree is uppercase, so no row should be.
+
+        Accepting one means the row names a file that cannot exist, and the
+        error blames the roster rather than the row.
+        """
+        rows, unparsed = self._rows("Analyst")
+        assert rows == []
+        assert unparsed == [(3, "| Analyst | Research |")]
+
+    def test_a_name_holding_a_space_does_not_parse(self):
+        """``two words`` is prose in the agent column, not an agent."""
+        rows, unparsed = self._rows("two words")
+        assert rows == []
+        assert unparsed == [(3, "| two words | Research |")]
+
+    def test_an_empty_cell_does_not_parse(self):
+        rows, unparsed = self._rows("")
+        assert rows == []
+        assert unparsed == [(3, "|  | Research |")]
+
+    def test_a_row_without_a_cell_names_the_parser(self):
+        """The invariant every caller leans on, stated where it is relied upon.
+
+        The parser emits an inline token for each cell, empty ones included, so
+        this row cannot come from a document. It is built from tokens directly.
+        Were the invariant to break silently, every row of every matrix would
+        become unparsed and the run would blame the documents.
+        """
+        tokens = [Token("tr_open", "tr", 1), Token("tr_close", "tr", -1)]
+        with pytest.raises(vamr.ParserInvariantError, match="no longer emits an inline token"):
+            vamr._first_cell(tokens, 0)
 
 
 class TestAliasAmplification:
