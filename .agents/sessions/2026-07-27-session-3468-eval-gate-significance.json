@@ -901,6 +901,28 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Landing the base branch under multirun, then fixing the two round-44 test-bar findings",
+      "actions": [
+        "Resolved the half-applied merge of fix/eval-buffer-crash-exit-code into feat/eval-rule-multirun. Both conflicts in scripts/eval/optimize-artifact.py were add/add: this branch added _single_input while the base added _refuse_degraded_agent_report, and cmd_extract had a rename of args.input to path on one side and an inserted refusal call on the other. Kept both in each case, with the refusal still ahead of _report_corpus so a degraded report never reaches corpus extraction. Suite 1772 passed.",
+        "Fixed F4. The flag-default audit read float(actual) == expected while its own comment said the digits are what must agree. Measured that float('0.4000000000000000000000000001') == 0.4 is True, so a default that drifted that far read as unchanged. Mutation-verified end to end: with --sel-ratio defaulted to that string the old bar passes and the new one fails.",
+        "Disproved the planned F4 justification before writing it. The intended fix was an exact-string bar, justified by the claim that split_fingerprint hashes the JSON string. Read the code and found _canonical_ratio runs ratios through Fraction first, then measured that 0.4, '0.4' and '0.40' all produce the identical fingerprint while '0.4000000000000000000000000001' does not. An exact-string bar would have reported drift for a respelling nobody made.",
+        "Fixed F5. _readme_paragraph claimed a blank-line paragraph cannot borrow a word from a neighbour. CommonMark lets a heading, list, ordered list, blockquote and fence interrupt a paragraph with no blank line, so that claim is false. Mutation-verified against the real README: injecting a heading plus a contradicting exit-code sentence with no blank line leaves the old window returning both, and the new window returning the marker line alone.",
+        "Cleared a push block that a merged main commit created. #3503 tightened the suppression parser enough to start catching three pre-existing '# noqa: ANN202' comments on this branch. Confirmed ANN is already waived for tests by per-file-ignores, so the comments never suppressed anything, and replaced them with the real annotations.",
+        "Merged the newest main into fix/eval-buffer-crash-exit-code after #3579 went CONFLICTING again. Clean merge, 1697 passed, branch still owns zero plugin paths so no manifest bump."
+      ],
+      "decisions": [
+        "Compare ratio defaults through _canonical_ratio, the function split_fingerprint itself calls, rather than through float or through str. Float is too loose in the direction that matters and exact-string is too tight in the other, and reusing the product's own canonicalization is the only spelling that cannot drift from what it protects.",
+        "Split the README windowing rule out as a pure _markdown_block(text, marker) and pin it to written-out cases. The four earlier windows were each correct for the README that motivated them and wrong for the next one, so testing the rule against the current file is how a fifth one would go unnoticed.",
+        "Treat the vestigial noqa comments as an idiomatic-fix problem rather than a gate problem. The suppression policy has no bypass by design, and the annotation the comment stood in for is the better code regardless.",
+        "Record that F4 and F5 are latent rather than live. No current call site over-spans and no default has drifted, so both fixes protect against a future edit rather than repairing a present wrong answer."
+      ],
+      "filesModified": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
   "endingCommit": "691dcfb0e",
