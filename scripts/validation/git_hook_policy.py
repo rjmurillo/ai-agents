@@ -194,6 +194,13 @@ SHELL_CODE_FLAGS = frozenset(
 # A variable reference, so an expression assigned to a name can be followed to
 # the command position that later expands it.
 SHELL_VARIABLE_REFERENCE_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+# Semgrep sub-parses a run: body as Bash only for a Bash step, so a PowerShell
+# step that shells out to any of these is invisible to the ruleset. Refs #3684.
+POSIX_SHELLS = frozenset({"ash", "bash", "busybox", "dash", "ksh", "sh", "zsh"})
+POWERSHELL_SHELLS = frozenset({"pwsh", "powershell"})
+POWERSHELL_EXEC_PARAMETERS = frozenset({"start-process", "-filepath", "saps", "invoke-item"})
+POWERSHELL_BLOCK_COMMENT_RE = re.compile(r"<#.*?#>", re.DOTALL)
+POWERSHELL_COMMAND_RESET = ";|\n({}&"
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
 # the step is unscannable. A body it rejects is genuinely malformed, and an
@@ -2116,7 +2123,142 @@ def _scan_pushed_head(
             return materialized
         result = _run_semgrep_tree(tree, paths, repo_root)
         _print_process_output(result)
-        return result.returncode
+        if result.returncode != 0:
+            return result.returncode
+        return _scan_powershell_shell_outs(tree, paths)
+
+
+def _scan_powershell_shell_outs(tree: Path, paths: Sequence[str]) -> int:
+    """Refuse a PowerShell step that hands work to a POSIX shell.
+
+    Semgrep's ``curl-eval`` and ``gha-curl-pipe-shell`` rules sub-parse a
+    ``run:`` body as Bash. A ``shell: pwsh`` step invoking ``bash -c $payload``
+    produces zero findings and zero errors, so no gate decision can see it while
+    the payload still runs under Bash on the runner. That is a ruleset coverage
+    gap rather than a gate bypass, so it is closed here instead. Refs #3684.
+    """
+    findings: list[tuple[str, str]] = []
+    for path in paths:
+        if PurePosixPath(path).suffix.lower() not in {".yml", ".yaml"}:
+            continue
+        try:
+            text = (tree / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        for shell, body, _node in _yaml_run_scripts(text):
+            if not _is_powershell_shell(shell):
+                continue
+            findings.extend((path, name) for name in _posix_shell_invocations(body))
+    if not findings:
+        return 0
+    print("Semgrep cannot read a POSIX shell command written inside a PowerShell step.")
+    for path, name in findings:
+        print(f"  {path}: invokes {name}")
+    print(
+        "  Run the POSIX commands from a step with 'shell: bash' so the ruleset "
+        "reads them, or move them into their own bash step."
+    )
+    return 1
+
+
+def _is_powershell_shell(shell: str | None) -> bool:
+    if not shell:
+        return False
+    try:
+        tokens = shlex.split(shell, posix=False)
+    except ValueError:
+        tokens = shell.split()
+    if not tokens:
+        return False
+    name = tokens[0].strip("'\"").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name.removesuffix(".exe") in POWERSHELL_SHELLS
+
+
+def _posix_shell_invocations(body: str) -> list[str]:
+    """Return every POSIX shell a PowerShell body runs as a command."""
+    invocations: list[str] = []
+    previous = ""
+    for word, at_command in _powershell_words(body):
+        executes = at_command or previous.strip("'\"").lower() in POWERSHELL_EXEC_PARAMETERS
+        if executes and _is_posix_shell_name(word):
+            invocations.append(word)
+        previous = word
+    return invocations
+
+
+def _is_posix_shell_name(word: str) -> bool:
+    name = word.strip("'\"").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name.removesuffix(".exe") in POSIX_SHELLS
+
+
+def _powershell_words(body: str) -> list[tuple[str, bool]]:
+    """Split a PowerShell body into words, marking those in command position.
+
+    Quoting decides whether text is code or data. A quoted string in command
+    position stays, because PowerShell's call operator runs it; a quoted string
+    anywhere else is dropped, because it is an argument or a message. Without
+    that split, a real workflow comment reading "the bash echo" and a real
+    message reading "install with curl | sh" both read as invocations.
+    """
+    text = POWERSHELL_BLOCK_COMMENT_RE.sub(" ", body)
+    words: list[tuple[str, bool]] = []
+    current: list[str] = []
+    index = 0
+    length = len(text)
+    expecting = True
+    word_expecting = True
+
+    def flush() -> None:
+        nonlocal current, expecting, word_expecting
+        if not current:
+            return
+        words.append(("".join(current), word_expecting))
+        current = []
+        expecting = False
+
+    def start_word() -> None:
+        nonlocal word_expecting
+        if not current:
+            word_expecting = expecting
+
+    while index < length:
+        character = text[index]
+        if character == "`" and index + 1 < length:
+            # Backtick is PowerShell's escape character, so ``ba`sh`` is ``bash``.
+            start_word()
+            current.append(text[index + 1])
+            index += 2
+            continue
+        if character in "'\"":
+            start_word()
+            end = text.find(character, index + 1)
+            end = length if end == -1 else end + 1
+            if word_expecting:
+                current.append(text[index + 1 : end - 1])
+            index = end
+            continue
+        if character == "#":
+            end = text.find("\n", index)
+            index = length if end == -1 else end
+            continue
+        if character in POWERSHELL_COMMAND_RESET:
+            flush()
+            expecting = True
+            index += 1
+            continue
+        if character.isspace():
+            flush()
+            index += 1
+            continue
+        if character == "." and not current and expecting:
+            # A leading dot is the dot-source operator, so the command follows it.
+            index += 1
+            continue
+        start_word()
+        current.append(character)
+        index += 1
+    flush()
+    return words
 
 
 def _materialize_commit_tree(
