@@ -62,10 +62,13 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
+
 from scripts.validation.portability_common import (
     build_portability_parser,
     write_baseline,

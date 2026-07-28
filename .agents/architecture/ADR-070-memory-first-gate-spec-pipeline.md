@@ -145,7 +145,7 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
 |-------------|------|------|----------------|
 | Post-hoc check (validate prior-art after Step 1) | No gate friction before clarification; proposer drafts freely | Discovers ADR collisions after design work is sunk; same late-feedback cost ADR-054 cites for CI-only security findings | A backward-looking check is worthless if it runs after the design is committed; the PR #1887 cost was incurred precisely because the search ran (if at all) too late |
 | Merge into Step 0 (one combined gate) | Single gate, less prose, one metrics file | Conflates forward-looking demand ("is this wanted") with backward-looking prior art ("do we know why the current state exists"); a proposer can pass demand and still skip recall | The two questions are distinct and fail independently; merging them hides which gate a halt came from and breaks the clean H1-H5 vs H6-H11 split |
-| Centralized middleware (one memory-first gate for all lifecycle commands) | DRY; `/plan`, `/build`, `/test` would inherit the gate for free | No second consumer exists yet; premature abstraction (per `.claude/rules/philosophy-of-software-design.md`); the per-command halt schema and tier-gated depth are tuned to `/spec`'s Step 0 inputs | YAGNI; promoting the gate to other commands is explicitly out of scope for REQ-017; build the seam when the second consumer appears, not before |
+| Centralized middleware (one memory-first gate for all lifecycle commands) | DRY; `/plan`, `/build`, `/test` would inherit the gate for free | No second consumer exists yet; premature abstraction (per `.claude/rules/philosophy-of-software-design.md`); the per-command halt schema and tier-gated depth are tuned to `/spec`'s Step 0 inputs | YAGNI; promoting the gate to other commands is explicitly out of scope for REQ-017; build the seam when the second consumer appears, not before | <!-- orphan-ref-ignore -->
 | Advisory gate (warn, do not halt) | Zero blast radius; proposer keeps control | The memory skill measured <50% compliance with advisory "check memory first" guidance; advisory reproduces the exact failure the BLOCKING declaration was written to fix | The whole point of the gate is 100% compliance; advisory is the status quo the gate replaces |
 
 ### Trade-offs
@@ -293,3 +293,10 @@ behavior).
   for the failure the gate prevents
 - `.claude/rules/governance.md`: the rule requiring this ADR
 - `.claude/rules/canonical-source-mirror.md`: the rule the M4 episode produced
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/philosophy-of-software-design.md`.
+

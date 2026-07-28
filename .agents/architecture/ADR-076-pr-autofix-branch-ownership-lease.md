@@ -185,7 +185,7 @@ The chosen design accepts that the lease is best-effort, not a true lock. It buy
 
 ## Security
 
-The lease comment is untrusted input read from the PR timeline, so the acquire path is an integration point (per `.claude/rules/release-it.md`) and an injection surface.
+The lease comment is untrusted input read from the PR timeline, so the acquire path is an integration point (per `.claude/rules/release-it.md`) and an injection surface. <!-- orphan-ref-ignore -->
 
 - **Parse defensively.** The lease block is parsed with a strict, anchored format (the five known keys, RFC3339 timestamps, a 40-hex `base_sha`, an `owner` from the fixed vocabulary). A malformed or unparseable lease comment is treated as "no live lease" and the loop fails open to `ACT`; it is never executed, evaluated, or used to drive a shell command. This blocks the lease comment becoming a command-injection (CWE-78) or deserialization vector.
 - **Enforce MAX_TTL against the reader's clock, not the forgeable `acquired_at`.** Liveness is computed at the reader. A marker is live only when `expires_at` is in the future relative to reader-now AND `expires_at <= reader-now + MAX_TTL` (15 minutes). A body-relative check (`expires_at <= acquired_at + MAX_TTL`) alone is bypassable: a forger sets `acquired_at` and `expires_at` 15 minutes apart but both far in the future (for example 2030-01-01), passing the relative check while reading as live indefinitely (CWE-400 resource exhaustion / CWE-367 time-of-check). The reader-clock bound caps any marker to at most one TTL of liveness from the instant it is read, so the "self-DoS bounded to one TTL" guarantee actually holds. The parser still applies the relative `expires_at <= acquired_at + MAX_TTL` check to reject internally-inconsistent markers; the reader-clock bound is the one that defeats far-future forgery.
@@ -233,6 +233,13 @@ Phased rollout, each phase a separate PR.
 - `.claude/commands/pr-autofix.md` (Force-Push Safety, lines 100 to 105). The authoritative SHA gate this lease sits beside.
 - `docs/autonomous-pr-monitor.md` (line 716). `--force-with-lease` push path.
 - `.agents/architecture/ADR-035-exit-code-standardization.md`. Exit-code contract.
-- `.claude/rules/release-it.md`. Integration-point, fail-open, and timeout guidance for the lease store call.
+- `.claude/rules/release-it.md`. Integration-point, fail-open, and timeout guidance for the lease store call. <!-- orphan-ref-ignore -->
 - `.agents/critique/ADR-076-debate-log.md`. The 6-agent adr-review debate (2026-06-19, 6 APPROVE-WITH-CHANGES, 0 BLOCK) whose must_fix items this revision addresses.
 - RFC 3339 (timestamp format for `acquired_at` / `expires_at`): <https://www.rfc-editor.org/rfc/rfc3339>
+
+## Amendment 2026-07-27
+
+ADR-088 moved the book-derived rule cited above into the `software-engineering-library` skill. The original citation remains as historical decision text. Use these paths for current guidance:
+
+- Current guidance now lives at `.claude/skills/software-engineering-library/references/release-it.md`.
+
