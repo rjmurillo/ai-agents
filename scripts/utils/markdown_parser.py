@@ -40,11 +40,31 @@ class ParsedTable:
 
 
 @dataclass(frozen=True)
-class TableCell:
-    """A table cell's rendered text and its 1-based source line."""
+class CellSegment:
+    """One inline run inside a table cell.
 
-    text: str
+    ``code`` marks a span written between backticks. A caller that treats a
+    code span as documentation rather than as content has to tell the two
+    apart, and only the token stream knows which is which. Keeping that
+    distinction here, instead of a policy decision about which spans matter,
+    leaves the policy with the caller that owns it.
+    """
+
+    content: str
+    code: bool
+
+
+@dataclass(frozen=True)
+class TableCell:
+    """A table cell's inline segments and its 1-based source line."""
+
+    segments: tuple[CellSegment, ...]
     line: int
+
+    @property
+    def text(self) -> str:
+        """The cell's rendered text, code spans included."""
+        return "".join(segment.content for segment in self.segments)
 
 
 @dataclass
@@ -206,11 +226,12 @@ def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
     under a list item, and it matches pipe-shaped prose that renders as a
     paragraph because it has no delimiter row.
 
-    Only ``text`` children are joined, so an inline code span such as
-    ``` `Skill: x` ``` contributes nothing while emphasis such as
-    ``**Skill: x**`` contributes its text. Fenced and indented code blocks
-    and HTML comments never parse as tables, so they are excluded by
-    construction rather than by a second stripping pass.
+    Each cell is yielded as its inline segments rather than as one string, so
+    a caller can decide what a code span means to it. Emphasis contributes its
+    text because the emphasis markers are not part of the rendered content.
+    Fenced and indented code blocks and HTML comments never parse as tables,
+    so they are excluded by construction rather than by a second stripping
+    pass.
 
     Fails closed on input the parser cannot fully represent, for the reason
     given in :class:`MarkdownNestingError`.
@@ -231,8 +252,12 @@ def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
             and tokens[index + 1].type == "inline"
         ):
             children = tokens[index + 1].children or []
-            text = "".join(c.content for c in children if c.type == "text")
-            yield TableCell(text=text, line=line)
+            segments = tuple(
+                CellSegment(content=child.content, code=child.type == "code_inline")
+                for child in children
+                if child.type in ("text", "code_inline")
+            )
+            yield TableCell(segments=segments, line=line)
             index += 1
         index += 1
 
