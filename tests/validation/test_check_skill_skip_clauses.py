@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import subprocess
 import sys
 from pathlib import Path
@@ -14,9 +15,9 @@ VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(VALIDATION_DIR))
 
-import check_skill_skip_clauses as skip_clauses  # noqa: E402
-import checks_spec  # noqa: E402
-import pre_pr_sequence  # noqa: E402
+skip_clauses = importlib.import_module("check_skill_skip_clauses")
+checks_spec = importlib.import_module("checks_spec")
+pre_pr_sequence = importlib.import_module("pre_pr_sequence")
 
 
 def _write_skill(root: Path, name: str, description: str | None) -> Path:

@@ -25,7 +25,7 @@ from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
 )
-from checks_common import (  # noqa: E402
+from checks_common import (
     _run_subprocess as _run_subprocess_untyped,
 )
 
