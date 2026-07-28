@@ -21684,229 +21684,265 @@
       "created": "2026-07-27T11:58:41.229748+00:00"
     },
     {
-      "id": "5f569abea7c8",
+      "id": "1070b8f189e0",
       "type": "milestone",
-      "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
+      "label": "milestone: Created worktree, acquired lease, ran live-state gate (ACT).",
       "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-28T01:33:45.876782+00:00"
+      "created": "2026-07-28T04:33:56.615224+00:00"
     },
     {
-      "id": "5073fd57c325",
+      "id": "ccb10a8598d0",
       "type": "milestone",
-      "label": "milestone: Forced builtin textual git diff output in the suppression scan path.",
+      "label": "milestone: Fixed 7 review threads: FileNotFoundError handling (4 scripts), health_status monotonicity, encoding portability (2 scripts). Added 5 regression tests.",
       "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-28T01:33:45.876877+00:00"
+      "created": "2026-07-28T04:33:56.615321+00:00"
     },
     {
-      "id": "7c86d556c295",
+      "id": "ae4384fa1407",
       "type": "milestone",
-      "label": "milestone: Derived Ruff scan suffixes and added Bandit pyw coverage.",
+      "label": "milestone: All 26 ai-review tests pass. ruff, mypy, workflow validator, ADR-006 scanner (80), pre_pr.py all pass.",
       "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-28T01:33:45.876961+00:00"
+      "created": "2026-07-28T04:33:56.615402+00:00"
     },
     {
-      "id": "421da8e3b371",
-      "type": "milestone",
-      "label": "milestone: Decoded notebook code cells before scanning for added suppressions.",
-      "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
-      ],
-      "created": "2026-07-28T01:33:45.877040+00:00"
-    },
-    {
-      "id": "a102c831c3da",
-      "type": "milestone",
-      "label": "milestone: Distinguished true orphan branches from missing history.",
-      "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
-      ],
-      "created": "2026-07-28T01:33:45.877118+00:00"
-    },
-    {
-      "id": "61bbe72e47c6",
-      "type": "milestone",
-      "label": "milestone: Retrospective section: recorded validation and mutation evidence.",
-      "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
-      ],
-      "created": "2026-07-28T01:33:45.877197+00:00"
-    },
-    {
-      "id": "cf11fa826517",
+      "id": "fd0498b1f9da",
       "type": "commit",
-      "label": "commit: Commit: a9b1f20f92",
+      "label": "commit: Commit: 6c19696ac",
       "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-28T01:33:45.877275+00:00"
+      "created": "2026-07-28T04:33:56.615480+00:00"
     },
     {
-      "id": "c92c47681c9f",
+      "id": "bcbf184a4c55",
       "type": "outcome",
-      "label": "Outcome: success - Fix PR #3503 suppression gate analyzer bypasses reported by adversarial review.",
+      "label": "Outcome: success - Address review feedback on PR #3508: harden run_command against FileNotFoundError and encoding",
       "episodes": [
-        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
       ],
-      "created": "2026-07-28T01:33:45.877354+00:00"
+      "created": "2026-07-28T04:33:56.615557+00:00"
     },
     {
-      "id": "6850aee5d39b",
+      "id": "a305a0ccef47",
+      "type": "commit",
+      "label": "commit: Commit: 6f0315519",
+      "episodes": [
+        "episode-2026-07-28-session-3508-pr-autofix-review-feedback"
+      ],
+      "created": "2026-07-28T05:06:51.357047+00:00"
+    },
+    {
+      "id": "a5f583a537a7",
       "type": "milestone",
-      "label": "milestone: Added ADR prose hook reference scanning",
+      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3471-portability-boundary"
       ],
-      "created": "2026-07-27T12:07:20.365281+00:00"
+      "created": "2026-07-27T12:06:26.360269+00:00"
     },
     {
-      "id": "0e559d9e3e2f",
+      "id": "490a5ebfd48d",
       "type": "milestone",
-      "label": "milestone: Corrected stale ADR prose hook references",
+      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3471-portability-boundary"
       ],
-      "created": "2026-07-27T12:07:20.365378+00:00"
+      "created": "2026-07-27T12:06:26.360687+00:00"
     },
     {
-      "id": "26cc38e703a3",
+      "id": "ae5a0c2da073",
       "type": "milestone",
-      "label": "milestone: ADR Review Protocol",
+      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T12:07:20.365462+00:00"
+      "created": "2026-07-27T12:28:54.153011+00:00"
     },
     {
-      "id": "5f795771a5c2",
+      "id": "51060209facf",
+      "type": "milestone",
+      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153104+00:00"
+    },
+    {
+      "id": "5aeecf9e0278",
+      "type": "milestone",
+      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153183+00:00"
+    },
+    {
+      "id": "55400f477c3c",
+      "type": "milestone",
+      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153259+00:00"
+    },
+    {
+      "id": "c344608e8310",
+      "type": "milestone",
+      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153337+00:00"
+    },
+    {
+      "id": "29955f0931ab",
+      "type": "milestone",
+      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153412+00:00"
+    },
+    {
+      "id": "97aa5ba576fd",
+      "type": "test",
+      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
+      "episodes": [
+        "episode-2026-07-27-session-3489-anchor-blockquote"
+      ],
+      "created": "2026-07-27T12:28:54.153487+00:00"
+    },
+    {
+      "id": "ec1115156a69",
       "type": "outcome",
-      "label": "Outcome: success - Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
+      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T12:07:20.365545+00:00"
+      "created": "2026-07-27T12:28:54.153636+00:00"
     },
     {
-      "id": "9ef31c494e3d",
+      "id": "4472302e0698",
       "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 1",
+      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3471-portability-boundary"
       ],
-      "created": "2026-07-27T12:08:31.070239+00:00"
+      "created": "2026-07-27T13:33:30.143367+00:00"
     },
     {
-      "id": "621481c0a816",
+      "id": "04798dd6ab2b",
+      "type": "test",
+      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
+      "episodes": [
+        "episode-2026-07-27-session-3471-portability-boundary"
+      ],
+      "created": "2026-07-27T13:33:30.143461+00:00"
+    },
+    {
+      "id": "45f169b4e8de",
       "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 2",
+      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T12:08:52.747258+00:00"
+      "created": "2026-07-27T13:33:30.218813+00:00"
     },
     {
-      "id": "3b0c002fd583",
+      "id": "00b8bf54800b",
       "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 3",
+      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T12:09:12.833127+00:00"
+      "created": "2026-07-27T13:33:30.218902+00:00"
     },
     {
-      "id": "b5f909bf6e7a",
+      "id": "6fd7cc4cdc3c",
       "type": "milestone",
-      "label": "milestone: Committed ADR prose batch 4",
+      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T12:09:33.646223+00:00"
+      "created": "2026-07-27T13:33:30.218983+00:00"
     },
     {
-      "id": "d58487111fd1",
-      "type": "commit",
-      "label": "commit: Commit: 22c786aff6aa249b640309157526f4119afe1f74",
-      "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
-      ],
-      "created": "2026-07-27T12:45:59.501066+00:00"
-    },
-    {
-      "id": "6a13e225b00e",
+      "id": "924d259f8650",
       "type": "milestone",
-      "label": "milestone: Strengthened ADR prose scanner after adversarial review",
+      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:30:49.705338+00:00"
+      "created": "2026-07-27T13:33:30.219065+00:00"
     },
     {
-      "id": "22c6c2d4f4fd",
+      "id": "39f7c5894a10",
       "type": "milestone",
-      "label": "milestone: Corrected remaining stale ADR prose references after adversarial review",
+      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:30:49.705425+00:00"
+      "created": "2026-07-27T13:33:30.219143+00:00"
     },
     {
-      "id": "5f651d3b4ac3",
-      "type": "commit",
-      "label": "commit: Commit: 133534d99315",
+      "id": "f188dee3c58e",
+      "type": "milestone",
+      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:30:49.705505+00:00"
+      "created": "2026-07-27T13:33:30.219221+00:00"
     },
     {
-      "id": "0a47b33fd696",
-      "type": "commit",
-      "label": "commit: Commit: 32d681173ddf",
+      "id": "cb74c7701693",
+      "type": "test",
+      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:33:34.529441+00:00"
+      "created": "2026-07-27T13:33:30.219300+00:00"
     },
     {
-      "id": "50591e37eb2d",
-      "type": "commit",
-      "label": "commit: Commit: f1e77bf6b1dc",
+      "id": "600d5ed0bc31",
+      "type": "error",
+      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:34:47.018224+00:00"
+      "created": "2026-07-27T13:33:30.219381+00:00"
     },
     {
-      "id": "4a5bba0e7a76",
-      "type": "commit",
-      "label": "commit: Commit: a729ddc7c174",
+      "id": "1afb97b06903",
+      "type": "milestone",
+      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:35:38.095196+00:00"
+      "created": "2026-07-27T13:33:30.219462+00:00"
     },
     {
-      "id": "b444bc07b88f",
-      "type": "commit",
-      "label": "commit: Commit: b016d5deaf15",
+      "id": "f2fedd92db5a",
+      "type": "error",
+      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:36:36.597306+00:00"
+      "created": "2026-07-27T13:33:30.219690+00:00"
     },
     {
-      "id": "1b7bfa89e2d6",
-      "type": "commit",
-      "label": "commit: Commit: 6b41483632d0",
+      "id": "7c36d1ff15c0",
+      "type": "outcome",
+      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
       "episodes": [
-        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+        "episode-2026-07-27-session-3489-anchor-blockquote"
       ],
-      "created": "2026-07-27T13:37:21.440478+00:00"
+      "created": "2026-07-27T13:33:30.219770+00:00"
     },
     {
       "id": "cfdc4a24bbfd",
@@ -22125,6 +22161,249 @@
       "created": "2026-07-27T12:49:56.856388+00:00"
     },
     {
+      "id": "4a8aa4aecca4",
+      "type": "milestone",
+      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189306+00:00"
+    },
+    {
+      "id": "e190568c7d5d",
+      "type": "milestone",
+      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189397+00:00"
+    },
+    {
+      "id": "04893c67ce46",
+      "type": "milestone",
+      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189478+00:00"
+    },
+    {
+      "id": "9e49ad65f1ed",
+      "type": "milestone",
+      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189559+00:00"
+    },
+    {
+      "id": "891703ffd915",
+      "type": "milestone",
+      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189638+00:00"
+    },
+    {
+      "id": "a948387eb20e",
+      "type": "milestone",
+      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189724+00:00"
+    },
+    {
+      "id": "3db0ad216ab1",
+      "type": "milestone",
+      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189803+00:00"
+    },
+    {
+      "id": "a1019a5fdcd2",
+      "type": "milestone",
+      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189880+00:00"
+    },
+    {
+      "id": "8a96c34dcf0c",
+      "type": "outcome",
+      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T02:59:43.189960+00:00"
+    },
+    {
+      "id": "83cd3e96c275",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T04:11:14.074233+00:00"
+    },
+    {
+      "id": "6850aee5d39b",
+      "type": "milestone",
+      "label": "milestone: Added ADR prose hook reference scanning",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365281+00:00"
+    },
+    {
+      "id": "0e559d9e3e2f",
+      "type": "milestone",
+      "label": "milestone: Corrected stale ADR prose hook references",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365378+00:00"
+    },
+    {
+      "id": "26cc38e703a3",
+      "type": "milestone",
+      "label": "milestone: ADR Review Protocol",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365462+00:00"
+    },
+    {
+      "id": "5f795771a5c2",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3399 by gating ADR prose hook references and correcting stale prose references.",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:07:20.365545+00:00"
+    },
+    {
+      "id": "9ef31c494e3d",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 1",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:08:31.070239+00:00"
+    },
+    {
+      "id": "621481c0a816",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 2",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:08:52.747258+00:00"
+    },
+    {
+      "id": "3b0c002fd583",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 3",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:09:12.833127+00:00"
+    },
+    {
+      "id": "b5f909bf6e7a",
+      "type": "milestone",
+      "label": "milestone: Committed ADR prose batch 4",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:09:33.646223+00:00"
+    },
+    {
+      "id": "d58487111fd1",
+      "type": "commit",
+      "label": "commit: Commit: 22c786aff6aa249b640309157526f4119afe1f74",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T12:45:59.501066+00:00"
+    },
+    {
+      "id": "6a13e225b00e",
+      "type": "milestone",
+      "label": "milestone: Strengthened ADR prose scanner after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705338+00:00"
+    },
+    {
+      "id": "22c6c2d4f4fd",
+      "type": "milestone",
+      "label": "milestone: Corrected remaining stale ADR prose references after adversarial review",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705425+00:00"
+    },
+    {
+      "id": "5f651d3b4ac3",
+      "type": "commit",
+      "label": "commit: Commit: 133534d99315",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:30:49.705505+00:00"
+    },
+    {
+      "id": "0a47b33fd696",
+      "type": "commit",
+      "label": "commit: Commit: 32d681173ddf",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:33:34.529441+00:00"
+    },
+    {
+      "id": "50591e37eb2d",
+      "type": "commit",
+      "label": "commit: Commit: f1e77bf6b1dc",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:34:47.018224+00:00"
+    },
+    {
+      "id": "4a5bba0e7a76",
+      "type": "commit",
+      "label": "commit: Commit: a729ddc7c174",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:35:38.095196+00:00"
+    },
+    {
+      "id": "b444bc07b88f",
+      "type": "commit",
+      "label": "commit: Commit: b016d5deaf15",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:36:36.597306+00:00"
+    },
+    {
+      "id": "1b7bfa89e2d6",
+      "type": "commit",
+      "label": "commit: Commit: 6b41483632d0",
+      "episodes": [
+        "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
+      ],
+      "created": "2026-07-27T13:37:21.440478+00:00"
+    },
+    {
       "id": "142ba3369761",
       "type": "milestone",
       "label": "milestone: Strengthened ADR prose scanner for review r2",
@@ -22159,213 +22438,6 @@
         "episode-2026-07-27-session-3461-issue-3399-adr-prose-hooks"
       ],
       "created": "2026-07-27T14:55:12.642374+00:00"
-    },
-    {
-      "id": "a5f583a537a7",
-      "type": "milestone",
-      "label": "milestone: Compared the old and new boundary regex across 32 path shapes through the real count_upstream_refs API with zero mismatches, then added 21 regression tests: 18 for the start-of-context anchor and 3 for blockquoted code fences.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360269+00:00"
-    },
-    {
-      "id": "490a5ebfd48d",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded main's module and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against main's module: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce by copying tests/validation/test_check_skill_md_portability.py into a worktree checked out at origin/main and running pytest on it.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T12:06:26.360687+00:00"
-    },
-    {
-      "id": "ae5a0c2da073",
-      "type": "milestone",
-      "label": "milestone: Verified both review findings against the code before accepting either. The tight blockquote >/templates/agents/x.md returned 0 while the spaced form returned 1, and the old negative lookbehind returned 1 for both, so the anchor change had regressed it.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153011+00:00"
-    },
-    {
-      "id": "51060209facf",
-      "type": "milestone",
-      "label": "milestone: Measured the reviewer's other two suggestions rather than applying them. Building the anchor with a colon added makes C:\\templates\\agents\\x.md and C:\\.agents\\specs\\x.md count, because a drive letter is a colon followed by a single separator. Adding an equals sign makes the URL query parameter ?next=/.agents/x count. Each fixes one shape and breaks one, so only the blockquote marker was added.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153104+00:00"
-    },
-    {
-      "id": "5aeecf9e0278",
-      "type": "milestone",
-      "label": "milestone: Fixed the blockquoted fence. A fenced code block has no lazy continuation, so it ends with its blockquote, but the close test stripped the quote prefix from every later line without checking the quote was still open. An unquoted line inside a quoted fence and an unterminated quoted fence both swallowed real top-level prose, which is the dangerous direction for a gate.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153183+00:00"
-    },
-    {
-      "id": "55400f477c3c",
-      "type": "milestone",
-      "label": "milestone: Ended the fence when the blockquote ends and re-read that line at top level rather than consuming it, so a bare fence marker there opens the top-level fence it should. Without the re-read the shape flipped from a false negative to a false positive instead of being correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153259+00:00"
-    },
-    {
-      "id": "c344608e8310",
-      "type": "milestone",
-      "label": "milestone: Added 10 tests: 1 anchor shape, 3 for the fence behavior, and 6 that pin the colon and equals trade so a future contributor who adds either character sees the casualties fail. Confirmed the 4 behavioral ones fail against origin/main's module and the 6 guards pass on both, because they document a deliberate limit rather than a change.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153337+00:00"
-    },
-    {
-      "id": "29955f0931ab",
-      "type": "milestone",
-      "label": "milestone: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153412+00:00"
-    },
-    {
-      "id": "97aa5ba576fd",
-      "type": "test",
-      "label": "test: Corrected three stale test counts the review found in the merged PR's own documents. The session log gate said 93 passed and the decision memory said 55 to 93 and nineteen of 93. An earlier correction pass had fixed only the workLog and the episode.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153487+00:00"
-    },
-    {
-      "id": "ec1115156a69",
-      "type": "outcome",
-      "label": "Outcome: success - Close the two gaps a third adversarial review round found in the path anchor that PR #3472 shipped: the anchor set omitted the blockquote marker, and a fence opened inside a blockquote outlived its blockquote. Correct the test counts that went stale in the merged PR's own documents.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T12:28:54.153636+00:00"
-    },
-    {
-      "id": "4472302e0698",
-      "type": "milestone",
-      "label": "milestone: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143367+00:00"
-    },
-    {
-      "id": "04798dd6ab2b",
-      "type": "test",
-      "label": "test: Measured the change rather than asserting it. Loaded the module at 303f918ea and the branch module side by side and compared count_upstream_refs across 32 path shapes, then ran the branch test file against the module at 303f918ea: 22 of the 96 tests fail there, which is the behavior difference this branch encodes. Reproduce against 303f918ea, not against origin/main, because main has since absorbed this fix and reports 96 passed there.",
-      "episodes": [
-        "episode-2026-07-27-session-3471-portability-boundary"
-      ],
-      "created": "2026-07-27T13:33:30.143461+00:00"
-    },
-    {
-      "id": "45f169b4e8de",
-      "type": "milestone",
-      "label": "milestone: Adversarial review on gpt-5.6-sol falsified this PR's central design claim. The PR asserted that admitting a colon or an equals sign to the anchor set trades one false negative for one false positive, so neither is a net gain, and pinned that assertion with three tests asserting false negatives. The review supplied a contextual formulation and a nine-shape matrix showing the trade is not forced.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218813+00:00"
-    },
-    {
-      "id": "00b8bf54800b",
-      "type": "milestone",
-      "label": "milestone: Verified the reviewer's premise independently before complying, rather than accepting the verdict. Ran the nine-shape matrix against this branch's module: naming the two contexts, a label or link-reference-definition colon and an HTML attribute equals, counts all three shapes the raw characters would reach and admits none of the six that the raw characters would wrongly count. 9 of 9 correct.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218902+00:00"
-    },
-    {
-      "id": "6fd7cc4cdc3c",
-      "type": "milestone",
-      "label": "milestone: Replaced the raw-character trade with two named context anchors. _LABEL_ANCHOR requires the label itself to sit at an anchor, which is what keeps a Windows drive letter and a colon inside a URL out. _ATTR_ANCHOR requires an enclosing tag and a real attribute name, which is what keeps a URL query parameter out. Rewrote the three tests that pinned the false negatives and extended the negative control from three shapes to six.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.218983+00:00"
-    },
-    {
-      "id": "924d259f8650",
-      "type": "milestone",
-      "label": "milestone: Fixed a second defect the review found with two CommonMark cross-checks: the quoted-fence state recorded only a boolean, so a depth-2 marker closed a depth-1 fence, exposing code as prose, and a fence opened at depth 2 survived a drop to depth 1, hiding real prose. Replaced the boolean with the opening depth and added helpers that count markers and strip exactly the opening depth.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219065+00:00"
-    },
-    {
-      "id": "39f7c5894a10",
-      "type": "milestone",
-      "label": "milestone: Measured the result: 112 tests pass on the branch. Against the module on origin/main, 9 of those 112 fail, and each maps to a specific defect: 1 for the tight blockquote anchor, 3 for the labelled and attribute contexts, 3 for the quoted-fence lifecycle, 2 for the depth tracking. The corpus scan reports no drift, so the widened anchors catch nothing new in the shipped skills.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219143+00:00"
-    },
-    {
-      "id": "f188dee3c58e",
-      "type": "milestone",
-      "label": "milestone: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219221+00:00"
-    },
-    {
-      "id": "cb74c7701693",
-      "type": "test",
-      "label": "test: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219300+00:00"
-    },
-    {
-      "id": "600d5ed0bc31",
-      "type": "error",
-      "label": "error: Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219381+00:00"
-    },
-    {
-      "id": "1afb97b06903",
-      "type": "milestone",
-      "label": "milestone: Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219462+00:00"
-    },
-    {
-      "id": "f2fedd92db5a",
-      "type": "error",
-      "label": "Corrected two documents that pinned a historical reproduction to origin/main, a moving target. main has since absorbed PR #3472, so the documented command now reports 96 passed and proves nothing. Both now pin to 303f918ea, and the reproduction was re-run there to confirm the recorded 22 failed and 74 passed.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219690+00:00"
-    },
-    {
-      "id": "7c36d1ff15c0",
-      "type": "outcome",
-      "label": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix.",
-      "episodes": [
-        "episode-2026-07-27-session-3489-anchor-blockquote"
-      ],
-      "created": "2026-07-27T13:33:30.219770+00:00"
     },
     {
       "id": "290f01c75f6e",
@@ -22755,96 +22827,6 @@
       "created": "2026-07-27T20:22:25.573133+00:00"
     },
     {
-      "id": "4a8aa4aecca4",
-      "type": "milestone",
-      "label": "milestone: Isolated CLAUDE_CONFIG_DIR after finding the author's 264 global skills masked the effect entirely. The unisolated run showed 54,128 tokens at 0 project skills and 54,504 at 200, which had produced a first conclusion that descriptions are never loaded. That conclusion was wrong.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189306+00:00"
-    },
-    {
-      "id": "e190568c7d5d",
-      "type": "milestone",
-      "label": "milestone: Rebuilt the fixtures with unique random-word descriptions after an adversarial review flagged that the original filler was one sentence repeated 24 times and could not support a character-to-token conversion.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189397+00:00"
-    },
-    {
-      "id": "04893c67ce46",
-      "type": "milestone",
-      "label": "milestone: Measured the curve on a clean profile: 21,129 tokens at 0 skills, then 38,222 / 38,391 / 38,670 / 37,941 at 25 / 50 / 100 / 200 skills with 1,000-character descriptions. Flat from 25 upward.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189478+00:00"
-    },
-    {
-      "id": "9e49ad65f1ed",
-      "type": "milestone",
-      "label": "milestone: Briefly concluded the saturation was refuted, by assuming English token density for random-word text. Recomputing at the measured 1.45 characters per token reconciled the token instrument with the model's own report. Recorded as the second wrong draft.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189559+00:00"
-    },
-    {
-      "id": "891703ffd915",
-      "type": "milestone",
-      "label": "milestone: Measured the flag arm: 50 skills with disable-model-invocation true cost 21,525 tokens against a 21,129 baseline, versus 38,391 unflagged. About 8 tokens per skill remain.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189638+00:00"
-    },
-    {
-      "id": "a948387eb20e",
-      "type": "milestone",
-      "label": "milestone: Confirmed ordering is alphabetical by building 40 skills whose alphabetical order reversed their creation order. Survivors were exactly the alphabetically first 24.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189724+00:00"
-    },
-    {
-      "id": "3db0ad216ab1",
-      "type": "milestone",
-      "label": "milestone: Ran the invocation test the adversarial review demanded. A skill 51st alphabetically, past the saturation point, was still invoked correctly on the first try in three runs with a single Skill tool call and no search. That refuted the consequence claim the draft was about to record.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189803+00:00"
-    },
-    {
-      "id": "a1019a5fdcd2",
-      "type": "milestone",
-      "label": "milestone: Recorded the two verified facts and the unresolved contradiction. Did not write a rule and did not prescribe a rollout, because the saving saturates and the flag costs automatic invocation.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189880+00:00"
-    },
-    {
-      "id": "8a96c34dcf0c",
-      "type": "outcome",
-      "label": "Outcome: success - Test the wiki claim that every skill description is resident in context at all times and that disable-model-invocation buys zero standing context cost, then record only what an instrument with controls can prove.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T02:59:43.189960+00:00"
-    },
-    {
-      "id": "83cd3e96c275",
-      "type": "milestone",
-      "label": "milestone: Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:11:14.074233+00:00"
-    },
-    {
       "id": "2b8b56898e35",
       "type": "milestone",
       "label": "milestone: Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
@@ -23023,6 +23005,78 @@
         "episode-2026-07-27-session-3607-agent-context-self-report"
       ],
       "created": "2026-07-28T04:39:38.801440+00:00"
+    },
+    {
+      "id": "5f569abea7c8",
+      "type": "milestone",
+      "label": "milestone: Broadened suppression detection to match analyzer honored bare forms.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876782+00:00"
+    },
+    {
+      "id": "5073fd57c325",
+      "type": "milestone",
+      "label": "milestone: Forced builtin textual git diff output in the suppression scan path.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876877+00:00"
+    },
+    {
+      "id": "7c86d556c295",
+      "type": "milestone",
+      "label": "milestone: Derived Ruff scan suffixes and added Bandit pyw coverage.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.876961+00:00"
+    },
+    {
+      "id": "421da8e3b371",
+      "type": "milestone",
+      "label": "milestone: Decoded notebook code cells before scanning for added suppressions.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877040+00:00"
+    },
+    {
+      "id": "a102c831c3da",
+      "type": "milestone",
+      "label": "milestone: Distinguished true orphan branches from missing history.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877118+00:00"
+    },
+    {
+      "id": "61bbe72e47c6",
+      "type": "milestone",
+      "label": "milestone: Retrospective section: recorded validation and mutation evidence.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877197+00:00"
+    },
+    {
+      "id": "cf11fa826517",
+      "type": "commit",
+      "label": "commit: Commit: a9b1f20f92",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877275+00:00"
+    },
+    {
+      "id": "c92c47681c9f",
+      "type": "outcome",
+      "label": "Outcome: success - Fix PR #3503 suppression gate analyzer bypasses reported by adversarial review.",
+      "episodes": [
+        "episode-2026-07-28-session-3503-suppression-gate-bypass-fixes"
+      ],
+      "created": "2026-07-28T01:33:45.877354+00:00"
     }
   ],
   "patterns": [
