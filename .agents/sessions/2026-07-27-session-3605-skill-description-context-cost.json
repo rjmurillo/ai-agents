@@ -77,9 +77,9 @@
         "evidence": "Experiment carried a positive and a negative control in every arm. Order rule confirmed by permuting names against creation order. Flag arm measured at 50 skills. Invocation arm reproduced three times."
       },
       "retrospectiveInvoked": {
-        "complete": false,
+        "complete": true,
         "level": "SHOULD",
-        "evidence": "Not warranted; a measurement session with no shipped code."
+        "evidence": ".agents/retrospective/2026-07-27-session-3605-skill-description-context-cost.md records both refuted conclusions and the seven learnings."
       }
     }
   },
