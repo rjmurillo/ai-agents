@@ -597,6 +597,51 @@ class TestMainCli:
         assert result == Path(""), "absolute path outside root must return empty Path"
 
 
+class TestUnexpectedScanException:
+    """Unexpected parser exceptions must return exit 2, not bubble up as exit 1.
+
+    Exit 1 means 'drift detected'. A scan-time exception is a configuration
+    or tool failure, not drift, so it must return exit 2. Without the catch-all
+    handler, an unexpected ValueError from markdown-it propagates as an unhandled
+    exception (exit 1) and misreports a scan failure as drift.
+    """
+
+    def test_unexpected_exception_returns_exit_2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+
+        def _exploding_scan(skills_dir: Path) -> None:
+            raise RuntimeError("simulated markdown-it internal error")
+
+        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    def test_unexpected_exception_prints_type_and_message(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+
+        def _exploding_scan(skills_dir: Path) -> None:
+            raise TypeError("bad token type")
+
+        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "TypeError" in err
+        assert "bad token type" in err
+
+
 class TestCommittedRepoHasNoDrift:
     """The CI ratchet: the committed baseline must match the committed tree."""
 

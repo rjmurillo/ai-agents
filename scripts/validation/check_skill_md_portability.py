@@ -418,6 +418,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
         return 2
+    except Exception as exc:
+        print(
+            f"Unexpected scan error in {skills_dir}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
 
     if scan.scanned == 0:
         print(
