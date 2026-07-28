@@ -7193,3 +7193,260 @@ class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
         assert not link.is_symlink()
         assert json.loads(real.read_text(encoding="utf-8")) == []
         assert json.loads(link.read_text(encoding="utf-8")) != []
+class TestARefusedLockNamesTheAncestorThatRefusedIt:
+    """`mkdir` fails on an ancestor, and the lock's name does not say which.
+
+    `_lock_refused` built its parenthetical from `exc.strerror or exc.errno`,
+    which is the errno's generic text and nothing else. A thirty-seventh
+    review reported that this loses the offending path. Checking the claim
+    rather than adopting it narrowed it: for the `mkdir` stage the offending
+    path is always an *ancestor* of the lock, and the lock is already in the
+    message, so the path is a prefix of what the operator was shown. Nothing
+    was lost. The first draft of this class asserted `str(parent) in error`
+    and passed before the fix, which is how the overclaim was caught.
+
+    Two things are genuinely missing. `parents=True` walks up, so with a deep
+    lock path the message names four candidate ancestors and does not say
+    which one is the regular file. And the errno number never appears, so the
+    operator has the sentence "File exists" and no code to search on. Both
+    are what `str(exc)` already formats as `[Errno 17] File exists: 'path'`.
+
+    "File exists" beside a lock also reads as contention, which is the one
+    conclusion the round-35 split exists to prevent. Splitting the acquire
+    without fixing the sentence left the operator at the same wrong answer by
+    a different route.
+
+    `str(exc)` rather than reassembling errno, strerror, and filename by hand:
+    the interpreter already formats all three, and a second formatter is a
+    second thing to keep in step with the first.
+    """
+
+    def _add(self, capsys, tmp_path, buffer):
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        return _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            str(buffer),
+            "--patches",
+            str(patches),
+            "--reason",
+            "r",
+        )
+
+    def test_the_failing_ancestor_is_named_as_a_path_not_as_a_prefix(
+        self, tmp_path, capsys
+    ):
+        """Positive: the finding, stated so a prefix cannot satisfy it.
+
+        The lock sits four levels below the regular file, so every ancestor
+        appears inside the lock's own name. Asserting the quoted form is what
+        separates "the operator can see which one" from "the characters are
+        somewhere on the line".
+        """
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "a" / "b" / "c" / "b.json")
+        assert f"{occupied} exists and is not a directory" in out["error"]
+
+    def test_the_deeper_ancestors_are_not_the_ones_blamed(self, tmp_path, capsys):
+        """Negative: only the ancestor that actually failed is quoted."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "a" / "b" / "c" / "b.json")
+        assert f"{occupied / 'a'} exists and is not" not in out["error"]
+
+    def test_the_errno_reaches_the_operator(self, tmp_path, capsys):
+        """Positive: the numeric code survives, so a search finds the cause."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        _, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert "Errno 17" in out["error"]
+
+    def test_the_refusal_is_still_a_config_error(self, tmp_path, capsys):
+        """Positive control: the exit contract does not move with the wording."""
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        code, out = self._add(capsys, tmp_path, occupied / "b.json")
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+
+    def test_a_real_holder_still_reports_contention_and_no_errno(
+        self, tmp_path, capsys
+    ):
+        """Negative control: the contention branch keeps its own sentence.
+
+        Contention is not an errno the operator should chase. `O_EXCL` raising
+        `FileExistsError` is the mechanism, not the news, so this branch must
+        not grow the code that the refusal branch just gained.
+        """
+        buffer = tmp_path / "b.json"
+        (tmp_path / "b.json.lock").write_text("4242")
+        _, out = self._add(capsys, tmp_path, buffer)
+        assert "another buffer-add holds" in out["error"]
+        assert "Errno" not in out["error"]
+
+    def test_an_ordinary_add_is_unaffected(self, tmp_path, capsys):
+        """Negative control: no refusal, no message, on the ordinary path."""
+        code, _ = self._add(capsys, tmp_path, tmp_path / "b.json")
+        assert code == EXIT_OK
+
+    def test_an_error_carrying_no_filename_still_reads(self, tmp_path):
+        """Edge: `exc.filename` is optional, and `None` must not be printed.
+
+        `os.write` and `os.close` raise with no filename, so the parenthetical
+        has to stay readable when the path the fix exists to add is absent.
+        """
+        message = oa._lock_refused(tmp_path / "l.lock", OSError(28, "No space left"))
+        assert "None" not in message
+        assert "No space left" in message
+        assert "Errno 28" in message
+
+    def test_the_lock_is_still_named_as_the_lock(self, tmp_path):
+        """Edge: adding the offending path must not drop the one already there.
+
+        Two paths in one sentence is the point. The lock says which operation
+        was refused; the quoted filename says what refused it. Reporting only
+        the second would trade one missing fact for another.
+        """
+        occupied = tmp_path / "occupied"
+        occupied.write_text("a file, not a directory")
+        lock = occupied / "a" / "l.lock"
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._lock_held(lock, "another gate holds a lock", lambda exc: "w"):
+                pass
+        assert str(lock) in str(caught.value)
+        assert f"{occupied} exists and is not a directory" in str(caught.value)
+
+    def test_the_held_out_digest_is_still_scrubbed_from_the_fuller_message(
+        self, tmp_path
+    ):
+        """Edge: a longer message must not outrun the redaction seam.
+
+        The parenthetical now carries a quoted filesystem path, and under the
+        ledger every such path ends in the digest of the held-out set. The
+        scrub reads the whole message rather than a list of known call sites,
+        so it covers this, and that is the property worth pinning rather than
+        assuming.
+        """
+        key = "a" * 16
+        lock = tmp_path / f"{key}.lock"
+        lock.write_text("4242")
+        with pytest.raises(oa.ConfigError) as caught:
+            with oa._digest_scrubbed(key):
+                with oa._lock_held(lock, f"another gate holds {lock}", lambda e: "w"):
+                    pass
+        assert key not in str(caught.value)
+
+
+class TestTheBlockingAncestorWalkNeverRaises:
+    """A diagnostic that raises replaces a verdict with a crash.
+
+    `_blocking_ancestor` runs inside the handler that builds a lock refusal.
+    `main` catches `ConfigError` and not `OSError`, so an exception here exits
+    1, and exit 1 is the REJECT verdict a driver branches on. That is the same
+    defect this branch opened with, one function away.
+
+    The helper carries no `suppress`, because `os.path.lexists` returns False
+    on any `OSError` and `Path.is_dir` returns False on `OSError` or
+    `ValueError`. That is a claim about two standard-library functions, so it
+    is pinned here against the four hostile inputs rather than asserted in a
+    comment: a mode-000 ancestor, a name past `NAME_MAX`, an embedded null
+    byte, and a symlink loop.
+    """
+
+    def test_an_unreadable_ancestor_does_not_raise(self, tmp_path):
+        """Edge: a mode-000 directory on the path is walked, not tripped over."""
+        secret = tmp_path / "secret"
+        (secret / "inner").mkdir(parents=True)
+        secret.chmod(0o000)
+        try:
+            assert oa._blocking_ancestor(secret / "inner" / "x.lock") is None
+        finally:
+            secret.chmod(0o755)
+
+    def test_an_unreadable_ancestor_is_not_blamed(self, tmp_path):
+        """Negative: unreadable is not the same as not-a-directory.
+
+        Blaming it would send the operator to delete a directory that is fine.
+        """
+        secret = tmp_path / "secret"
+        (secret / "inner").mkdir(parents=True)
+        secret.chmod(0o000)
+        try:
+            message = oa._lock_refused(
+                secret / "inner" / "x.lock", OSError(13, "Permission denied")
+            )
+            assert "exists and is not a directory" not in message
+        finally:
+            secret.chmod(0o755)
+
+    def test_a_name_past_the_filesystem_limit_does_not_raise(self, tmp_path):
+        """Edge: ENAMETOOLONG is swallowed by both predicates."""
+        assert oa._blocking_ancestor(tmp_path / ("z" * 5000) / "x.lock") is None
+
+    def test_an_embedded_null_byte_does_not_raise(self, tmp_path):
+        """Edge: the null byte raises `ValueError`, not `OSError`, at the syscall.
+
+        `suppress(OSError)` would not have covered it. Both predicates do.
+        """
+        assert oa._blocking_ancestor(tmp_path / "a\x00b" / "x.lock") is None
+
+    def test_a_symlink_loop_is_named_rather_than_skipped(self, tmp_path):
+        """Positive: `lexists` sees the loop, so the operator is told about it.
+
+        `exists` would resolve and report absent, and the loop would go
+        unmentioned while `mkdir` kept failing on it.
+        """
+        loop = tmp_path / "loop"
+        loop.symlink_to(loop)
+        assert oa._blocking_ancestor(loop / "x.lock") == loop
+
+    def test_a_dangling_symlink_is_named_rather_than_skipped(self, tmp_path):
+        """Positive: the same reason, for the ordinary broken link."""
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path / "gone")
+        assert oa._blocking_ancestor(link / "x.lock") == link
+
+    def test_an_all_directory_path_blames_nothing(self, tmp_path):
+        """Negative control: nothing in the way means no clause."""
+        (tmp_path / "a" / "b").mkdir(parents=True)
+        assert oa._blocking_ancestor(tmp_path / "a" / "b" / "x.lock") is None
+
+    def test_only_one_ancestor_can_ever_block(self, tmp_path):
+        """Edge: walk order is unobservable, and that is worth writing down.
+
+        A mutation that reversed the walk to outermost-first survived the
+        whole suite. That is not a coverage gap. Nothing can exist beneath a
+        regular file: `mkdir`, `write_text`, and `symlink_to` under one all
+        raise `ENOTDIR`, so a path has at most one non-directory ancestor and
+        both orders return it. The mutant is equivalent.
+
+        The test that produced the survivor claimed the nearest blocker wins
+        when two are on the path, which cannot happen and so could not fail.
+        This asserts the reachable fact instead: the blocker is found no
+        matter how deep below it the lock sits.
+        """
+        blocker = tmp_path / "outer" / "inner"
+        blocker.parent.mkdir()
+        blocker.write_text("a file, not a directory")
+        for depth in range(1, 5):
+            lock = blocker.joinpath(*("d",) * depth) / "x.lock"
+            assert oa._blocking_ancestor(lock) == blocker
+
+    def test_nothing_can_be_created_beneath_a_regular_file(self, tmp_path):
+        """Edge: the premise the equivalence rests on, pinned rather than assumed.
+
+        If a future filesystem or Python version let an entry exist under a
+        regular file, the walk order would become observable and the class
+        above would silently stop covering it.
+        """
+        blocker = tmp_path / "f"
+        blocker.write_text("a file, not a directory")
+        for make in (
+            lambda: (blocker / "sub").mkdir(),
+            lambda: (blocker / "sub").write_text("x"),
+            lambda: (blocker / "sub").symlink_to(tmp_path),
+        ):
+            with pytest.raises(NotADirectoryError):
+                make()

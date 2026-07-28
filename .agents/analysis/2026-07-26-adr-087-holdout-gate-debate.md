@@ -2217,3 +2217,65 @@ A false claim in a comment costs more than no claim. No claim leaves the next
 reader to look. A confident one answers the question they came with, and this
 one had already answered it wrong for every reader since it was written,
 including the person who wrote the paragraph above it.
+## Shape 50: the test that passed before the fix, and what it was hiding
+
+A reviewer said `_lock_refused` dropped the offending path by building its
+message from `exc.strerror` alone. Half of that is right and easy: the errno
+never reached the operator, so `File exists` sat next to a lock path with no
+number to search on, which is the contention reading the acquire split exists
+to prevent.
+
+The other half was checked rather than adopted, and the first test written for
+it passed against the unfixed code. It asserted the occupied path appeared in
+the error string. The failing ancestor is always a prefix of the lock path,
+and the lock path was already in the message, so the assertion was satisfied
+by text that had nothing to do with the claim. The reviewer's stated impact
+was false for the shallow case, and the test could not have said so.
+
+What the probe found underneath is worse than what was reported.
+`mkdir(parents=True)` blames the deepest path it tried rather than the entry
+in the way. With a regular file at `a` and a lock at `a/b/c/d.lock` it raises
+`NotADirectoryError` naming `a/b/c`, a path that does not exist, and never
+mentions `a` at all. So the reviewer's own remedy, printing `str(exc)`, would
+not have fixed the defect the reviewer described. The operator is handed a
+path that is not there and told it is not a directory. Naming the real culprit
+takes a walk up the ancestors, which is a different change than the one asked
+for.
+
+Two things generalize. Substring containment is not evidence when the
+candidate can appear as a prefix of something the string already carries;
+assert the delimited form, `f"{p} exists and is not a directory"`, so the
+assertion can only be satisfied by the sentence that makes the claim. And a
+remedy that arrives attached to a finding has not been tested against the
+finding. This is the fifth consecutive round where the finding was real and
+the stated impact was wrong, and the first where following the stated remedy
+would have left the stated defect in place.
+
+## Shape 51: the mutant that survived because the property cannot be violated
+
+The ancestor walk shipped with a docstring saying the nearest blocker wins,
+and a test named for it. Reversing the walk to outermost-first survived the
+entire suite. The reflex is to call that a coverage gap and write a sharper
+test. The reflex is wrong here.
+
+Nothing can exist beneath a regular file. `mkdir`, `write_text`, and
+`symlink_to` under one all raise `ENOTDIR`, and a symlink pointing at a file
+gives `ENOENT` rather than a usable component. So a path has at most one
+non-directory ancestor, both walk orders return it, and the mutant is
+equivalent. The test that let it through built a directory with a file inside
+it, which is one blocker, not two, and could not have distinguished the orders
+no matter how it was written.
+
+The defect was never in the coverage. It was in the docstring. An ordering
+claim was written down for a walk whose order is unobservable, a test was
+named after that claim, and the pair looked like a covered property from the
+outside. The correction is to assert the reachable fact, that the blocker is
+found however deep below it the lock sits, and to pin the premise the
+equivalence rests on with a test that fails if some future filesystem ever
+lets an entry exist under a regular file. That second test is the one that
+earns its place: it is the only thing standing between the equivalence
+argument and a silent hole if the premise stops holding.
+
+A surviving mutant is a question, not a verdict. Answering it starts with
+asking whether the property is constructible at all, because when it is not,
+writing a stronger test is writing a second test that also cannot fail.

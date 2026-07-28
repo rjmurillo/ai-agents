@@ -143,9 +143,9 @@ on disk.
 
 | Hook | Retired by | Reason of record |
 |------|-----------|------------------|
-| `invoke_false_completion_gate.py` | #3184 | Hook ROI reduction; the claim it gated is covered by CI test evidence |
-| `invoke_plan_state_sync.py` | #3184 | Same program; the state it checkpointed had no reader |
-| `invoke_auto_retrospective.py` | #3349 | Same program; retrospectives are authored, not generated |
+| `invoke_false_completion_gate.py` | #3184 | Retired for hook ROI reduction; the claim it gated is covered by CI test evidence |
+| `invoke_plan_state_sync.py` | #3184 | Retired under the same program; the state it checkpointed had no reader |
+| `invoke_auto_retrospective.py` | #3349 | Retired under the same program; retrospectives are authored, not generated |
 
 A fourth hook, `invoke_test_auto_approval.py`, was retired by #3295. It is
 named in the prose below but was never one of the five this ADR introduced, so

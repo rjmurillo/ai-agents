@@ -1036,14 +1036,66 @@ def _ledger_path(holdout_key: str) -> Path:
     return _ledger_root() / f"{holdout_key}.ledger"
 
 
+def _blocking_ancestor(lock: Path) -> Path | None:
+    """The nearest thing on the lock's path that exists and is not a directory.
+
+    `mkdir(parents=True)` reports the deepest path it tried, not the one that
+    stopped it. With the lock at `a/b/c/d.lock` and `a` a regular file, the
+    error names `a/b/c` and errno 20, and `a` is never mentioned. The operator
+    is handed a path that does not exist and told it is not a directory.
+
+    Walking finds the one they have to delete or move. `lexists` rather than
+    `exists` so a dangling symlink counts as present, which is what `mkdir`
+    sees, and so a symlink loop is named rather than skipped.
+
+    This runs inside an exception handler, where raising is the expensive
+    mistake: `main` catches `ConfigError` and not `OSError`, so a raise here
+    would replace a config failure at exit 2 with a traceback at exit 1, and
+    exit 1 is the reject verdict a driver branches on. There is no `suppress`
+    around it because both predicates already swallow. `os.path.lexists`
+    returns False on any `OSError`, and `Path.is_dir` returns False on
+    `OSError` or `ValueError`, which was checked against an unreadable
+    ancestor, a 5000-character name, an embedded null byte, and a symlink
+    loop. A `suppress` over calls that cannot raise would assert a risk that
+    is not there and hide the day one of them starts raising for real; the
+    tests pin the no-raise contract instead.
+
+    An unreadable ancestor yields no blame rather than the wrong blame:
+    `lexists` on a path under a mode-000 directory is False, so the candidate
+    fails the first half of the conjunction and never reaches `is_dir`.
+    """
+    for candidate in lock.parents:
+        if os.path.lexists(candidate) and not candidate.is_dir():
+            return candidate
+    return None
+
+
 def _lock_refused(lock: Path, exc: OSError) -> str:
     """Why the lock could not be taken, in the shape the other errors use.
 
     Named rather than inlined at both raise sites so the acquire and the pid
     write cannot drift into reporting the same failure two ways.
+
+    `str(exc)` rather than `exc.strerror`, after a thirty-seventh review found
+    the bare text unusable. "File exists" beside a lock reads as contention,
+    which is the reading the round-35 acquire split exists to prevent, and no
+    errno number reached the operator to search on. The interpreter already
+    formats errno, text, and filename together; a second formatter here would
+    be a second thing to keep in step with the first.
+
+    The reviewer also said the offending path was lost. It is not lost for the
+    shallow case, where the failing ancestor is the lock's own parent and the
+    lock is already named. It is lost for the deep one, which is why the
+    ancestor is looked up rather than taken from `exc.filename`.
     """
+    blocking = _blocking_ancestor(lock)
+    culprit = (
+        f" {blocking} exists and is not a directory;"
+        if blocking is not None and str(blocking) != (exc.filename or "")
+        else ""
+    )
     return (
-        f"could not take the lock {lock} ({exc.strerror or exc.errno}); the "
+        f"could not take the lock {lock} ({exc});{culprit} the "
         f"read-modify-write it serializes was not attempted."
     )
 
