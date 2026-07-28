@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3644,
+    "date": "2026-07-28",
+    "branch": "fix/causal-graph-false-conflict",
+    "startingCommit": "87b1176674",
+    "objective": "Record why GitHub reports a false conflict on causal-graph.json and what the safe resolution is."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project and initial_instructions were not exposed in this Copilot CLI session. Read .serena/memories/ directly per the documented fallback."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work ran on fix/causal-graph-false-conflict, branched from origin/main at 87b1176674."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/causal-graph-false-conflict after checkout."
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: no Serena MCP tools were available in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Context carried from PR #3636 in the same session, where the false conflict was first observed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every claim in the memory was verified against the repository: .gitattributes:541, the two script paths, the 41 of 242 figure at merge_causal_graph.py:14, the lefthook registration at lefthook.yml:20, and all three Related links."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run out of tree with the repository config, since .serena/** is excluded in-tree. Three MD040 errors fixed, then 0 issues in 0 files."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-push gate ran build-all-check, path-normalization, pre-pr-validation, and python-tests."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One memory file plus this log."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The deliverable is the Serena memory .serena/memories/git/git-causal-graph-github-false-conflict.md."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-28T00:00:00Z",
+      "action": "Observed PR #3636 reporting CONFLICTING while git merge-tree exited 0 against the same two commits.",
+      "outcome": "Local git and the GitHub API disagreed, so one of them was wrong about the same merge."
+    },
+    {
+      "timestamp": "2026-07-28T00:10:00Z",
+      "action": "Polled gh pr view four times at 30 second intervals on the correct head SHA.",
+      "outcome": "CONFLICTING/DIRTY every time. Ruled out a stale mergeability cache."
+    },
+    {
+      "timestamp": "2026-07-28T00:20:00Z",
+      "action": "Ran a throwaway worktree merge of origin/main.",
+      "outcome": "Exit 0, Automatic merge went well, with causal-graph.json auto-merged. The conflict was not real locally."
+    },
+    {
+      "timestamp": "2026-07-28T00:30:00Z",
+      "action": "Checked git check-attr and git config for a custom merge driver on the graph.",
+      "outcome": "Found merge=causal-graph at .gitattributes:541, driver registered by scripts/maintenance/install_merge_drivers.py. GitHub does not run custom drivers, which explains the disagreement."
+    },
+    {
+      "timestamp": "2026-07-28T00:40:00Z",
+      "action": "Merged origin/main into the branch and pushed, then compared node counts across HEAD, HEAD^1, and HEAD^2.",
+      "outcome": "Status moved to MERGEABLE. Merged graph had 2616 nodes against 2575 and 2586, confirming a union rather than a discarded side."
+    },
+    {
+      "timestamp": "2026-07-28T00:50:00Z",
+      "action": "Tested whether the finding generalizes by diagnosing PR #3497, which had also gone CONFLICTING.",
+      "outcome": "Negative result that sharpened the memory: 3497 auto-merged the graph but carried a real conflict in src/copilot-cli/.claude-plugin/plugin.json. CONFLICTING does not always mean the false conflict, so the memory prescribes a local test merge before acting."
+    },
+    {
+      "timestamp": "2026-07-28T01:00:00Z",
+      "action": "Searched .serena/memories/git/ and the driver docstring for existing coverage of the GitHub side symptom.",
+      "outcome": "Not covered. Issue #3345 closed the local half only. Filed #3644 for the durable fix and wrote the memory as the interim."
+    }
+  ],
+  "endingCommit": "6e906b4e42",
+  "nextSteps": []
+}
