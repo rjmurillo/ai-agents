@@ -386,7 +386,8 @@ class WorkflowValidator:
             if not isinstance(step, dict):
                 continue
             run_block = step.get("run")
-            step_env = step.get("env") if isinstance(step.get("env"), dict) else {}
+            raw_env = step.get("env")
+            step_env: dict[Any, Any] = raw_env if isinstance(raw_env, dict) else {}
             reads_unsafe = False
 
             if isinstance(run_block, str):
