@@ -231,6 +231,8 @@ pre-commit:
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py memory-size
             glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
 
           - name: memory-index
             timeout: 5m

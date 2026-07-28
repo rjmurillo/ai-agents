@@ -212,7 +212,7 @@ git commit
 ### For Developers
 
 1. **Create session log first** - Don't wait until commit
-2. **Use validated PR wrapper**: `scripts/New-ValidatedPR.ps1`
+2. **Use validated PR wrapper**: `scripts/new_validated_pr.py`
 3. **Check pre-commit warnings** - Even non-blocking ones matter
 4. **Invoke QA for code changes** - Required, not optional
 

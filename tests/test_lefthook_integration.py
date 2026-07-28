@@ -681,6 +681,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-sync-advisory",
         "extract-session-episodes",
         "update-causal-graph",
+        "memory-size",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -693,7 +694,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "planning-advisory",
         "infrastructure-advisory",
         "memory-index",
-        "memory-size",
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
@@ -5144,7 +5144,12 @@ def test_pytest_policy_cleans_hook_environment(
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / "src/copilot-cli")
-    assert captured["timeout"] == policy.TEST_SUITE_TIMEOUT_SECONDS
+    # The suite budget is shared across the split pytest commands, so each one
+    # receives what remains of TEST_SUITE_TIMEOUT_SECONDS rather than the full
+    # ceiling. Bound it instead of pinning it to the constant.
+    timeout = captured["timeout"]
+    assert isinstance(timeout, (int, float))
+    assert 0 < timeout <= policy.TEST_SUITE_TIMEOUT_SECONDS
     for key in (
         "CLAUDE_PROJECT_DIR",
         "COPILOT_PLUGIN_ROOT",
