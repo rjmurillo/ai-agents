@@ -56,10 +56,14 @@ from typing import Any, NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _optimizer_adapters import (  # noqa: E402
+    _DEFAULT_REDUCER,
+    _DEFAULT_SKIP_POLICY,
     _MAX_PASS_RATE,
     _MAX_RULE_SCORE,
+    _REDUCERS,
     _RULE_SCORE_KEYS,
     _SKIP_POLICIES,
+    DEFAULT_MIN_ACTIVATION_SCORE,
     AdapterError,
     agent_results,
     pytest_results,
@@ -2118,11 +2122,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="scorer output; --kind rule accepts several, one per run, and reduces them",
     )
     extract.add_argument("--variant", default="agent", help="agent eval variant column")
-    extract.add_argument("--reduce", default="mean", choices=("mean", "min", "max", "median"))
+    extract.add_argument(
+        "--reduce", default=_DEFAULT_REDUCER, choices=tuple(_REDUCERS)
+    )
     extract.add_argument("--pass-threshold", type=float, default=1.0)
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
-    extract.add_argument("--min-score", type=float, default=3.5)
-    extract.add_argument("--on-skip", default=_SKIP_POLICIES[0], choices=_SKIP_POLICIES)
+    extract.add_argument(
+        "--min-score", type=float, default=DEFAULT_MIN_ACTIVATION_SCORE
+    )
+    extract.add_argument(
+        "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES
+    )
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")

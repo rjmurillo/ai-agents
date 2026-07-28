@@ -147,6 +147,34 @@ raise SystemExit(oa._final_exit_code(oa.EXIT_OK))
 """
 
 
+def _readme_paragraph(marker: str) -> str:
+    """The one README paragraph containing `marker`.
+
+    Documentation tests need a window or they assert nothing, and every window
+    this file has tried was too wide. A file-wide search passes on an unrelated
+    historical mention elsewhere, which is the state the `--on-skip` gap was
+    found in: the words existed and the contract did not. A fixed character
+    count silently changes meaning whenever correct prose grows. Bounding at
+    the next heading looked principled and was not: the enclosing section
+    already said "consultations" three paragraphs down, so an assertion meant
+    for the new prose passed on someone else's.
+
+    A blank-line-delimited paragraph is the narrowest real structural unit in
+    Markdown, so it is the only one of the four that cannot borrow a word from
+    a neighbour.
+
+    Raises:
+        AssertionError: `marker` is absent, which means the paragraph was
+            rewritten and the test needs updating rather than quietly widening.
+    """
+    text = (_EVAL_DIR / "README.md").read_text(encoding="utf-8")
+    at = text.find(marker)
+    assert at != -1, f"README no longer contains {marker!r}"
+    start = text.rfind("\n\n", 0, at)
+    end = text.find("\n\n", at)
+    return text[0 if start == -1 else start + 2 : len(text) if end == -1 else end]
+
+
 def _run(capsys, *argv: str | Path) -> tuple[int, dict]:
     """Invoke the CLI and return (exit code, parsed stdout JSON)."""
     code = oa.main([str(a) for a in argv])
@@ -5852,36 +5880,50 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
         ]
         assert oa.rule_results_multi([scenarios], "full") == {"S1": True, "S2": False}
 
-    def test_the_readme_names_every_skip_policy_the_flag_offers(self):
-        """The same paragraph stated a policy the CLI lets you turn off.
+    def test_the_readme_documents_the_flag_where_the_policy_is_stated(self):
+        """The paragraph stating the policy has to name the flag that changes it.
 
         It said a skipped test scores as a failure "rather than being dropped",
         with no qualifier, while `extract --kind hook` has always taken
         `--on-skip exclude`, which drops exactly those. The flag appeared
-        nowhere in the README, so the sentence read as the whole contract when
-        it described only the default.
+        nowhere in the README, so a sentence true of the default read as the
+        whole contract.
 
-        This asserts the weaker, durable claim: every value the flag accepts is
-        named somewhere in the README. Adding a third policy without documenting
-        it turns this red. Pinning the prose itself would only pin today's
-        wording, and the defect was an omission, not a misstatement.
+        Scoped to the paragraph rather than the whole file. A file-wide search
+        passes on an unrelated historical mention elsewhere, which is the state
+        this defect was found in: the words existed, the contract did not.
         """
-        readme = (_EVAL_DIR / "README.md").read_text()
-        missing = [p for p in oa._SKIP_POLICIES if f"`{p}`" not in readme]
-        assert missing == []
+        para = _readme_paragraph("That is the default and not the only policy.")
+        assert [p for p in oa._SKIP_POLICIES if f"`{p}`" not in para] == []
+        assert "--on-skip" in para
 
-    def test_the_flag_offers_exactly_what_the_adapter_accepts(self, tmp_path, capsys):
-        """One policy set, not two.
+    def test_the_readme_names_the_measured_cost_of_dropping_a_task(self):
+        """Naming the escape hatch is not enough; it has to carry its cost.
 
-        The command hardcoded `("fail", "exclude")` beside the adapter's own
-        tuple, so a third policy added to the adapter would have been refused by
-        argparse before the adapter ever saw it, and the error would have named
-        the wrong layer. It also gave the README two places to drift from.
+        The first version of this paragraph said `exclude` "moves the split
+        fingerprint and stops the gate", inherited from the adapter docstring.
+        Measured, both halves are false. The fingerprint is the split's own and
+        is echoed back unchanged, and the gate does not stop: a dropped
+        held-out task charges a consultation and reports REJECT at exit 1 with
+        `compared: false`. Naming a harmless-sounding halt understates a cost
+        the operator pays out of a small budget.
 
-        Driven through the command rather than read off the parser, because the
-        contract is what an operator can pass, and reading `choices` off a
-        private argparse attribute would pass even if the value never reached
-        the adapter.
+        Asserts the words the measurement produced, not a positional window.
+        The earlier version searched 700 characters after the first backtick,
+        which passed on an unrelated nearby "fingerprint" and failed when
+        correct prose grew.
+        """
+        para = _readme_paragraph("That is the default and not the only policy.")
+        assert "consultation" in para
+        assert "REJECT" in para
+
+    def test_every_accepted_skip_policy_reaches_the_adapter(self, tmp_path, capsys):
+        """Accepting a value is not forwarding it.
+
+        The first version of this test only asserted exit 0 for each policy,
+        which stays green if the command drops the flag on the floor. This
+        pins the command's output to the adapter's own answer for the same
+        input, so a lost or reordered argument turns it red.
         """
         xml = tmp_path / "j.xml"
         xml.write_text(
@@ -5890,27 +5932,107 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
             "</testsuite></testsuites>",
             encoding="utf-8",
         )
-        refused = [
-            policy
-            for policy in oa._SKIP_POLICIES
-            if _run(
+        text = xml.read_text(encoding="utf-8")
+        for policy in oa._SKIP_POLICIES:
+            code, out = _run(
                 capsys, "extract", "--kind", "hook", "--input", xml,
                 "--on-skip", policy,
+            )
+            assert (code, out["results"]) == (
+                EXIT_OK, oa.pytest_results(text, on_skip=policy)
+            )
+
+    def test_a_policy_the_adapter_never_accepts_is_refused(self, tmp_path, capsys):
+        """The other direction, which "exactly" needs and forwarding cannot show.
+
+        Driving only the known-good set proves the command accepts everything
+        the adapter does, never that it rejects anything else. Without this the
+        command could take an unknown policy and hand the adapter a value it
+        raises on, turning a typo into a stack trace.
+        """
+        xml = tmp_path / "j.xml"
+        xml.write_text(
+            '<testsuites><testsuite name="s" tests="1">'
+            '<testcase classname="t" name="a"/></testsuite></testsuites>',
+            encoding="utf-8",
+        )
+        with pytest.raises(SystemExit) as exc:
+            oa.main([
+                "extract", "--kind", "hook", "--input", str(xml),
+                "--on-skip", "drop",
+            ])
+        assert exc.value.code == EXIT_CONFIG
+
+
+class TestOneNameForEachFlagDefaultAndChoiceSet:
+    """Every CLI flag whose values a module owns reads them from that module.
+
+    `--on-skip` hardcoded `("fail", "exclude")` beside the adapter's own
+    `_SKIP_POLICIES`. The audit that followed found the same split in two more
+    places: `--reduce` listed the four `_REDUCERS` keys, and `--min-score`
+    repeated the literal 3.5 while `DEFAULT_MIN_ACTIVATION_SCORE` sat in the
+    adapter's `__all__`, exported for exactly this use and ignored.
+
+    Each duplicate fails the same way. Add a policy, a reducer, or move a
+    threshold in the module that owns it, and argparse refuses the new value
+    before the owner sees it, so the operator reads an error naming the wrong
+    layer. Each also gives the README a second place to drift from.
+
+    Defaults are read off the parsed namespace rather than the parser's
+    private action list, and choice sets are driven through the command,
+    because a value that argparse accepts and the command never forwards is
+    the failure the introspection spelling cannot see.
+    """
+
+    def _extract_args(self, tmp_path, kind, name):
+        path = tmp_path / name
+        path.write_text("{}", encoding="utf-8")
+        return ["extract", "--kind", kind, "--input", str(path)]
+
+    def test_the_skip_default_is_the_adapters_own(self, tmp_path):
+        argv = self._extract_args(tmp_path, "hook", "j.xml")
+        assert oa.build_parser().parse_args(argv).on_skip == oa._DEFAULT_SKIP_POLICY
+
+    def test_the_reduce_default_is_a_reducer_the_adapter_owns(self, tmp_path):
+        argv = self._extract_args(tmp_path, "rule", "r.json")
+        parsed = oa.build_parser().parse_args(argv)
+        assert parsed.reduce == oa._DEFAULT_REDUCER
+        assert parsed.reduce in oa._REDUCERS
+
+    def test_the_min_score_default_is_the_exported_constant(self, tmp_path):
+        argv = self._extract_args(tmp_path, "rule", "r.json")
+        parsed = oa.build_parser().parse_args(argv)
+        assert parsed.min_score == oa.DEFAULT_MIN_ACTIVATION_SCORE
+
+    def test_every_reducer_the_adapter_owns_survives_the_command(
+        self, tmp_path, capsys
+    ):
+        report = _write(tmp_path, "r.json", [
+            {"id": "S1", "negative_case": False, "mechanisms": {
+                "full": {"scores": {
+                    "activation_score": 5, "citation_score": 5,
+                    "behavior_score": 5,
+                }},
+            }},
+        ])
+        refused = [
+            name
+            for name in oa._REDUCERS
+            if _run(
+                capsys, "extract", "--kind", "rule", "--input", report,
+                "--mechanism", "full", "--reduce", name,
             )[0] != EXIT_OK
         ]
         assert refused == []
 
-    def test_the_readme_does_not_claim_a_bare_drop_is_safe(self):
-        """Naming the escape hatch is not enough; it has to carry its cost.
-
-        A conditionally skipped test changes the task-id set between runs, which
-        moves the split fingerprint and stops the gate. The adapter docstring
-        says so. If the README gained the flag without that warning, an operator
-        would read it as a free way to quiet a noisy suite.
-        """
-        readme = (_EVAL_DIR / "README.md").read_text()
-        at = readme.index("`exclude`")
-        assert "fingerprint" in readme[at : at + 700]
+    def test_a_reducer_the_adapter_does_not_own_is_refused(self, tmp_path):
+        report = _write(tmp_path, "r.json", [])
+        with pytest.raises(SystemExit) as exc:
+            oa.main([
+                "extract", "--kind", "rule", "--input", str(report),
+                "--mechanism", "full", "--reduce", "sum",
+            ])
+        assert exc.value.code == EXIT_CONFIG
 
 
 @_NEEDS_PERMISSION_BARRIER

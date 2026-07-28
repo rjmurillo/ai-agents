@@ -53,6 +53,13 @@ _REDUCERS: dict[str, Callable[[list[float]], float]] = {
 
 _SKIP_POLICIES = ("fail", "exclude")
 
+# Named rather than repeated as a literal at each default, and not spelled as
+# an index into the collection above. An index makes the order of a choice set
+# load-bearing without saying so, and reordering it for help text would then
+# silently change behaviour.
+_DEFAULT_SKIP_POLICY = "fail"
+_DEFAULT_REDUCER = "mean"
+
 _RULE_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 # The judge is told "1-5 each" and `eval-rule-activation.py` clamps its own
 # output to [0, 5]; the floor is 0 rather than 1 because `_clamp_score` maps a
@@ -114,7 +121,7 @@ def agent_results(
     report: Mapping[str, Any],
     variant: str,
     *,
-    reduce: str = "mean",
+    reduce: str = _DEFAULT_REDUCER,
     pass_threshold: float = 1.0,
 ) -> dict[str, bool]:
     """Map an agent eval report to per-fixture pass or fail.
@@ -325,7 +332,7 @@ def rule_results_multi(
     mechanism: str,
     *,
     min_score: float = DEFAULT_MIN_ACTIVATION_SCORE,
-    reduce: str = "mean",
+    reduce: str = _DEFAULT_REDUCER,
 ) -> dict[str, bool]:
     """Reduce a rule scenario across repeated runs, then threshold once.
 
@@ -408,7 +415,7 @@ def rule_results_multi(
     return out
 
 
-def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
+def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> dict[str, bool]:
     """Map a pytest JUnit XML report to per-test pass or fail.
 
     Uses `--junitxml`, which is pytest core, so hook and script suites need no
@@ -421,8 +428,12 @@ def pytest_results(junit_xml: str, *, on_skip: str = "fail") -> dict[str, bool]:
         on_skip: `fail` scores a skipped test as a failure, `exclude` drops it
             from the mapping. `fail` is the default because a skipped test
             demonstrated nothing. Prefer `exclude` only when skips are static,
-            since a conditionally skipped test changes the task-id set between
-            runs, which moves the split fingerprint and stops the gate.
+            because dropping a task is not free. A conditionally skipped test
+            changes the task-id set between runs while the split was drawn once
+            from the full set, so a dropped id in the held-out group makes the
+            gate charge a consultation and report `REJECT` at exit 1 with
+            `compared: false`, and a dropped id outside it leaves the drift
+            invisible.
             `exclude` drops only a testcase whose skip stands alone: one that
             also carries a failure or an error did demonstrate something and
             is scored as a failure under either policy.
