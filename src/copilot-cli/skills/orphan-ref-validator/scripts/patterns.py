@@ -44,6 +44,11 @@ SKILL_SCRIPT_REF_RE = re.compile(
     r"/(?:scripts|tests)/[a-zA-Z0-9_/-]+\.py(?!\w)",
     re.IGNORECASE,
 )
+# Repo-local rule and instruction mirror paths can appear as Markdown links,
+# backticked refs, JSON/YAML/frontmatter values, bare fenced-code paths, or
+# Python string literals. Split into two Kinds (rule_path, instruction_path)
+# so a finding names which canonical generated-rule surface is stale
+# (issue #3556).
 RULE_REF_RE = re.compile(
     r"(?<![\w/])(\.claude/rules/[a-zA-Z0-9_.-]+\.md)(?!\w)",
     re.IGNORECASE,

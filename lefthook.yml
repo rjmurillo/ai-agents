@@ -340,6 +340,20 @@ pre-push:
             run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
             glob: "**/*.py"
 
+          - name: python-lint-ratchet
+            timeout: 5m
+            run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
+            env:
+              RUFF_RATCHET_BASE_REF: origin/main
+            glob: "**/*.py"
+
+          - name: python-lint-count-ratchet
+            timeout: 5m
+            run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
+            glob:
+              - "**/*.py"
+              - "scripts/ci/ruff_count_baseline.txt"
+
           - name: python-type-check
             timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
