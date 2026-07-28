@@ -118,6 +118,30 @@
       "step": 7,
       "phase": "validation",
       "summary": "Added tests/ci/test_setup_code_env_installs_locked_deps.py, 5 tests pinning that the step reads the lock, installs from the export, installs the project with --no-deps, and permits the unpinned command only on the lock-absent fallback branch. Negative control: stashing the action fails 4 of the 5; restoring it passes all 5. The full tests/ci suite passes at 330."
+    },
+    {
+      "step": 8,
+      "action": "First CI run on PR #3724 failed one check: the ADR-006 run-block ratchet, 78 violations against --max 77. The new install step reached 15 code lines with two branches, which is exactly the shape ADR-006 forbids in YAML."
+    },
+    {
+      "step": 9,
+      "action": "Chose extraction over raising the ratchet. Bumping --max would have banked the regression the ratchet exists to prevent, and 34 open issues are extraction chores against the same counter."
+    },
+    {
+      "step": 10,
+      "action": "Moved the logic to scripts/ci/install_locked_deps.py, standard library only because it runs before the dependencies it installs exist. The action step is now a single call. The measurement and both rejected alternatives moved into the module docstring, which is a better home than a YAML comment. Scanner now reports 77, so the gate passes without moving the threshold."
+    },
+    {
+      "step": 11,
+      "action": "Confirmed python3 is available at that point in the action: the preceding Store Python version step already runs python3 --version, after actions/setup-python."
+    },
+    {
+      "step": 12,
+      "action": "Rewrote the tests to drive the module with a recording stub uv on PATH rather than pattern matching a shell string. 20 tests now cover the locked path ordering, the no-lock and no-pyproject fallbacks, failure propagation, and that the action delegates instead of regrowing its own copy of the logic."
+    },
+    {
+      "step": 13,
+      "action": "Negative controls on the extraction: making the script do the pre-fix unpinned install fails 9 tests; re-inlining the logic in the action fails the 2 delegation tests. Restored, all 20 pass. ruff and mypy clean, 346 tests pass in tests/ci/."
     }
   ],
   "nextSteps": [

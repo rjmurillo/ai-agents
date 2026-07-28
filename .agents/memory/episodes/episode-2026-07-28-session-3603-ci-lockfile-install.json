@@ -4,7 +4,18 @@
   "timestamp": "2026-07-28T00:00:00+00:00",
   "outcome": "success",
   "task": "Issue #3603: CI installs Python dependencies unpinned, ignoring uv.lock, so every gate runs a different resolution than the lock pins.",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Chose extraction over raising the ratchet. Bumping --max would have banked the regression the ratchet exists to prevent, and 34 open issues are extraction chores against the same counter.",
+      "chosen": "Chose extraction over raising the ratchet. Bumping --max would have banked the regression the ratchet exists to prevent, and 34 open issues are extraction chores against the same counter.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -92,6 +103,78 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First CI run on PR #3724 failed one check: the ADR-006 run-block ratchet, 78 violations against --max 77. The new install step reached 15 code lines with two branches, which is exactly the shape ADR-006 forbids in YAML.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose extraction over raising the ratchet. Bumping --max would have banked the regression the ratchet exists to prevent, and 34 open issues are extraction chores against the same counter.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved the logic to scripts/ci/install_locked_deps.py, standard library only because it runs before the dependencies it installs exist. The action step is now a single call. The measurement and both rejected alternatives moved into the module docstring, which is a better home than a YAML comment. Scanner now reports 77, so the gate passes without moving the threshold.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed python3 is available at that point in the action: the preceding Store Python version step already runs python3 --version, after actions/setup-python.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the tests to drive the module with a recording stub uv on PATH rather than pattern matching a shell string. 20 tests now cover the locked path ordering, the no-lock and no-pyproject fallbacks, failure propagation, and that the action delegates instead of regrowing its own copy of the logic.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative controls on the extraction: making the script do the pre-fix unpinned install fails 9 tests; re-inlining the logic in the action fails the 2 delegation tests. Restored, all 20 pass. ruff and mypy clean, 346 tests pass in tests/ci/.",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": []
     }
   ],
@@ -101,7 +184,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 0,
-    "files_changed": 4
+    "files_changed": 5
   },
   "lessons": []
 }
