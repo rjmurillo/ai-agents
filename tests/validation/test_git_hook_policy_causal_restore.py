@@ -36,6 +36,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -1385,43 +1386,149 @@ class TestAdrReviewPolicyMergeScope:
 
         Found by adversarial review round 52.
         """
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        _git(repo, "init", "-b", "main")
-        _git(repo, "config", "user.email", "test@example.invalid")
-        _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
-        adr_dir.mkdir(parents=True)
-        name = ".agents/architecture/ADR-096-contested.md"
-        (repo / name).write_text("# ADR 096\n\nbase.\n", encoding="utf-8")
-        _commit(repo, "base")
+        repo, name, resolved = _repo_where_main_resolved_an_adr_in_a_merge(tmp_path)
 
-        _git(repo, "checkout", "-b", "sideways")
-        (repo / name).write_text("# ADR 096\n\nsideways.\n", encoding="utf-8")
-        _commit(repo, "sideways position")
-
-        _git(repo, "checkout", "main")
-        (repo / name).write_text("# ADR 096\n\nmainline.\n", encoding="utf-8")
-        _commit(repo, "mainline position")
-
-        conflicted = _run(["git", "merge", "--no-edit", "sideways"], repo)
-        assert conflicted.returncode != 0, "the fixture needs a real conflict"
-        resolved = "# ADR 096\n\nresolved in the merge.\n"
-        (repo / name).write_text(resolved, encoding="utf-8")
-        _git(repo, "add", name)
-        _git(repo, "commit", "--no-edit", "-m", "resolve the ADR while merging")
-        _git(repo, "branch", "local")
-
-        # Main moves past the resolution, so it is no longer the tip blob and
-        # only the merge commit's own diff can account for it.
-        (repo / name).write_text("# ADR 096\n\nlater still.\n", encoding="utf-8")
-        _commit(repo, "revise after the merge")
-        _point_origin_main_at_head(repo)
-
-        _git(repo, "checkout", "local")
-        assert policy._read_head_blob(repo, name) == resolved.encode("utf-8")
+        assert policy._read_head_blob(repo, name) == resolved
 
         assert policy._head_copy_is_one_main_has_carried(repo, name) is True
+
+    def test_a_users_diff_merges_setting_does_not_hide_the_resolution(
+        self,
+        tmp_path,
+    ):
+        """`-m` takes its output format from the user's `log.diffMerges`.
+
+        `-m` means `--diff-merges=on`, and `on` defers to whatever
+        `log.diffMerges` says. Set to `combined` or `dense-combined`, the merge
+        prints one `::` record instead of one `:` record per parent, and that
+        record is laid out differently: the fourth field is the first parent's
+        pre-image rather than the post-image. So the resolution blob went
+        missing again, and a blob nobody asked about took its place in the set.
+
+        Asking for `separate` by name pins the format the parser was written
+        for. The setting is a normal user preference, not an attack, and the
+        gate runs on whatever machine the developer configured.
+
+        Found by a bot reviewer on PR #3680.
+        """
+        repo, name, resolved = _repo_where_main_resolved_an_adr_in_a_merge(
+            tmp_path,
+            diff_merges="combined",
+        )
+
+        assert policy._read_head_blob(repo, name) == resolved
+
+        assert policy._head_copy_is_one_main_has_carried(repo, name) is True
+
+    def test_the_blob_set_is_the_same_under_every_diff_merges_setting(
+        self,
+        tmp_path,
+    ):
+        """No user preference may change what this gate accepts.
+
+        `log.diffMerges` has five values and `-m` honours all of them, so the
+        set the gate reasons about moved with a setting the developer chose for
+        readability. Naming the format instead makes the answer the same on
+        every machine, which is the property worth asserting: not that one
+        value works, but that the setting is not an input.
+        """
+        answers = {}
+        for setting in ("combined", "dense-combined", "separate", "on", "first-parent"):
+            repo, name, _ = _repo_where_main_resolved_an_adr_in_a_merge(
+                tmp_path / setting,
+                diff_merges=setting,
+            )
+            answers[setting] = policy._origin_main_blob_ids(repo, name)
+
+        assert len(set(map(frozenset, answers.values()))) == 1, answers
+
+    def test_a_combined_diff_record_is_never_read_as_a_post_image(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Refuse a record shape the field positions do not describe.
+
+        A `::` record carries one pre-image per parent before the post-image,
+        so its fourth field is a pre-image and its width grows with the parent
+        count. Reading it as a post-image puts a blob in the carried set that
+        answers a question nobody asked.
+
+        Naming the format should mean these never arrive. Skipping them is what
+        keeps that true when a later git, or a flag someone adds here, produces
+        one anyway, and the field positions are not self-describing enough to
+        notice on their own.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        combined = (
+            "::100644 100644 100644 "
+            "1111111111111111111111111111111111111111 "
+            "2222222222222222222222222222222222222222 "
+            "3333333333333333333333333333333333333333 MM\tdoc.md\n"
+            ":100644 100644 "
+            "4444444444444444444444444444444444444444 "
+            "5555555555555555555555555555555555555555 M\tdoc.md\n"
+        )
+        monkeypatch.setattr(
+            policy,
+            "_run_git",
+            lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=combined),
+        )
+
+        assert policy._origin_main_blob_ids(repo, "doc.md") == {"5" * 40}
+
+
+def _repo_where_main_resolved_an_adr_in_a_merge(
+    tmp_path: Path,
+    diff_merges: str | None = None,
+) -> tuple[Path, str, bytes]:
+    """Build a repo whose ADR reached its current text inside a merge.
+
+    Main and a side branch each revise the ADR, the merge conflicts, and main
+    resolves it by hand. Main then revises the file again, which is what makes
+    the resolution observable: without that last commit the resolution is
+    `origin/main`'s tip and the separate tip lookup accounts for it.
+
+    `local` sits on the resolution, so it holds content main really carried
+    and any answer other than True demands review evidence for a file the
+    branch never opened.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    if diff_merges is not None:
+        _git(repo, "config", "log.diffMerges", diff_merges)
+    adr_dir = repo / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    name = ".agents/architecture/ADR-096-contested.md"
+    (repo / name).write_text("# ADR 096\n\nbase.\n", encoding="utf-8")
+    _commit(repo, "base")
+
+    _git(repo, "checkout", "-b", "sideways")
+    (repo / name).write_text("# ADR 096\n\nsideways.\n", encoding="utf-8")
+    _commit(repo, "sideways position")
+
+    _git(repo, "checkout", "main")
+    (repo / name).write_text("# ADR 096\n\nmainline.\n", encoding="utf-8")
+    _commit(repo, "mainline position")
+
+    conflicted = _run(["git", "merge", "--no-edit", "sideways"], repo)
+    assert conflicted.returncode != 0, "the fixture needs a real conflict"
+    resolved = "# ADR 096\n\nresolved in the merge.\n"
+    (repo / name).write_text(resolved, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "--no-edit", "-m", "resolve the ADR while merging")
+    _git(repo, "branch", "local")
+
+    (repo / name).write_text("# ADR 096\n\nlater still.\n", encoding="utf-8")
+    _commit(repo, "revise after the merge")
+    _point_origin_main_at_head(repo)
+
+    _git(repo, "checkout", "local")
+    return repo, name, resolved.encode("utf-8")
 
 
 def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:

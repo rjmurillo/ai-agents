@@ -1005,18 +1005,25 @@ def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
     at those older commits the current name does not exist yet. The widening
     is exactly one file's lineage, not any blob main happens to contain.
 
-    `-m` is what makes merges count. `--raw` prints nothing for a merge commit
-    unless asked, so an ADR whose only appearance in some state was a conflict
-    main resolved left no id behind, and a branch sitting on that resolution
-    failed on content main really had carried. `-m` splits the merge into one
-    diff per parent, which keeps the single-parent `:` raw form rather than
-    the `::` combined form, so the post-image stays the fourth field.
+    `--diff-merges=separate` is what makes merges count. `--raw` prints nothing
+    for a merge commit unless asked, so an ADR whose only appearance in some
+    state was a conflict main resolved left no id behind, and a branch sitting
+    on that resolution failed on content main really had carried. `separate`
+    splits the merge into one diff per parent, which keeps the single-parent
+    `:` raw form, so the post-image stays the fourth field.
+
+    The format is named rather than left to `-m`, which means
+    `--diff-merges=on` and takes its format from the user's `log.diffMerges`.
+    Set to `combined` or `dense-combined`, a merge prints one `::` record whose
+    fourth field is the first parent's pre-image, so the resolution went
+    missing again and a blob nobody asked about took its place. What this gate
+    accepts is not a readability preference.
     """
     result = _run_git(
         repo_root,
         [
             "log",
-            "-m",
+            "--diff-merges=separate",
             "--follow",
             "--format=",
             "--raw",
@@ -1030,7 +1037,11 @@ def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
         return set()
     blob_ids: set[str] = set()
     for line in result.stdout.splitlines():
-        if not line.startswith(":"):
+        if not line.startswith(":") or line.startswith("::"):
+            # A `::` record lists one pre-image per parent before the
+            # post-image, so its fourth field is a pre-image and its width
+            # depends on the parent count. Naming the format should keep these
+            # away; skipping them is what keeps that true if one arrives.
             continue
         fields = line.split()
         if len(fields) < 4:
