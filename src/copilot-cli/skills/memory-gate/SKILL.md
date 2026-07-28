@@ -41,7 +41,7 @@ Before changing existing systems, you MUST:
 
 1. Search memory for the topic you are about to change.
 2. Review results for historical context.
-3. If Tier 1 is insufficient, escalate to Tier 2 (episodes) or Tier 3 (causal).
+3. If Tier 1 is insufficient, escalate to Tier 2 (episodes).
 4. Document findings in your decision rationale.
 5. Only then proceed with the change.
 
@@ -115,11 +115,6 @@ the required search:
 - What happened when we tried approach X? (session replay)
 - What edge cases did we hit? (failure episodes)
 
-**Tier 3 (Causal)**: decision patterns.
-
-- What decisions led to success? (causal paths)
-- What patterns should we repeat or avoid? (success and failure patterns)
-
 Memory is your investigation tool. It holds the "why" that Chesterton's Fence
 requires you to discover before you act. For the full four-phase decision
 framework (Investigation, Understanding, Evaluation, Action) and the decision
@@ -136,11 +131,8 @@ Change target identified?
 ├─► Tier 1: search_memory.py "[topic]"
 │   └─► Facts, constraints, ADR rationale. Enough? Proceed.
 │
-├─► Not enough context? Escalate to Tier 2 (episodes)
-│   └─► What happened last time we touched this?
-│
-└─► Still unclear? Escalate to Tier 3 (causal)
-    └─► Which decisions led to the current shape?
+└─► Not enough context? Escalate to Tier 2 (episodes)
+    └─► What happened last time we touched this, and how did it end?
 ```
 
 Escalate only when the cheaper tier is insufficient. Starting at Tier 1 keeps
@@ -152,7 +144,7 @@ the token cost low; most gate checks resolve there.
 |-----------|--------------|
 | Gate search ran | Result count greater than 0 OR logged "no results" |
 | Ordering correct | Search appears BEFORE the change in the session log |
-| Escalation justified | Tier 2 or 3 used only after Tier 1 came back thin |
+| Escalation justified | Tier 2 used only after Tier 1 came back thin |
 | Rationale recorded | Decision rationale cites the memory findings |
 
 ## Anti-Patterns
@@ -163,7 +155,7 @@ the token cost low; most gate checks resolve there.
 | Treating the gate as advisory | The gate is BLOCKING; a skipped search is a failure |
 | Refactoring complex code blind | Search the component's edge cases before you touch it |
 | Removing a constraint on sight | Search the constraint name; recover why it was set |
-| Escalating straight to Tier 3 | Start at Tier 1; escalate only when it is thin |
+| Escalating straight to Tier 2 | Start at Tier 1; escalate only when it is thin |
 
 ## Process
 
@@ -174,7 +166,7 @@ row in the Investigation Protocol table.
 
 ### Phase 2: Search
 
-Run `search_memory.py` for the topic. Escalate to Tier 2 or Tier 3 only when
+Run `search_memory.py` for the topic. Escalate to Tier 2 only when
 Tier 1 is insufficient.
 
 ### Phase 3: Decide
@@ -188,7 +180,7 @@ with equal safety. Never proceed with the change before the search is logged.
 |-------|---------------------|
 | `memory` | Router for search, reflexion, or maintenance operations |
 | `memory-search` | Plain Tier 1 lookup with no pre-change gate semantics |
-| `memory-reflexion` | Record a completed session as an episode and causal update |
+| `memory-reflexion` | Record a completed session as an episode |
 | `chestertons-fence` | The full four-phase investigation framework and matrix |
 
 ## References
