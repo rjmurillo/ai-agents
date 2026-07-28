@@ -209,6 +209,7 @@ def test_module_imports_without_fcntl(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -229,6 +230,7 @@ def test_push_updates_requested_ref_and_reports_verified(tmp_path: Path) -> None
     assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") == local_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_uses_resolved_sha_when_head_moves_before_transport(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -270,6 +272,7 @@ def test_push_uses_resolved_sha_when_head_moves_before_transport(
     assert _bare_git(bare, "rev-parse", "refs/heads/feature-x") != interloper_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_audit_records_full_remote_sha_on_update(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -286,6 +289,7 @@ def test_audit_records_full_remote_sha_on_update(tmp_path: Path) -> None:
     assert audit.observed_remote_sha == local_sha
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_force_with_lease_pushes_only_expected_remote_sha(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -434,6 +438,7 @@ def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -450,6 +455,7 @@ def test_push_refuses_when_head_on_other_branch(tmp_path: Path) -> None:
     assert "some-other-branch" not in refs
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_refuses_on_detached_head_even_when_branch_is_head(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -466,6 +472,7 @@ def test_push_refuses_on_detached_head_even_when_branch_is_head(tmp_path: Path) 
     assert "refs/heads/HEAD" not in refs
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
     bare = _bare_remote(tmp_path)
@@ -495,6 +502,7 @@ def test_push_fails_on_non_fast_forward_rejection(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_concurrent_worktrees_same_destination_detects_competing_update(
     tmp_path: Path,
@@ -675,6 +683,7 @@ def test_safe_push_rejects_invalid_expected_remote_sha_before_transport(
     assert [args for args in calls if args and args[0] == "push"] == []
 
 
+@pytest.mark.safe_push_transport
 @pytest.mark.integration
 def test_main_success_emits_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     bare = _bare_remote(tmp_path)
