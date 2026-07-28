@@ -10311,8 +10311,13 @@ class TestAnUnparseableReportOutranksAnExhaustedBudget:
     document at all is a question no reading of the document can answer
     differently. The schema it declares, the corpus it names and whether its
     verdicts are booleans are judgments about the document, and those stay
-    behind the guard. The last three tests here are the negative controls for
-    that line, one on each side of it.
+    behind the guard. Three tests hold that line from the far side, by name
+    rather than by position:
+    `test_a_schema_this_build_cannot_read_still_yields_to_the_budget`,
+    `test_a_bare_mapping_with_bad_verdicts_still_yields_to_the_budget` and
+    `test_a_readable_report_with_bad_verdicts_still_yields_to_the_budget`.
+    Each parses, so each is still the guard's to decide, and each must still
+    yield to the budget.
     """
 
     def _exhausted(self, tmp_path, capsys):
