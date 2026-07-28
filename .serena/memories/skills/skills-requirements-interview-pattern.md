@@ -1,7 +1,7 @@
 # Skill: requirements-interview (grill-me pattern)
 
 **Status:** Active in `/spec` step 2 as of PR #1812 (feat/1798-autonomous).
-**Issue:** #1798 (Option C — skill + /spec wiring + spec-generator handoff).
+**Issue:** #1798 (Option C, skill + /spec wiring + spec-generator handoff).
 **Source:** Matt Pocock's grill-me skill (https://github.com/mattpocock/skills),
 adapted from Brooks' "design tree" concept in *The Design of Design*.
 
@@ -59,7 +59,7 @@ The skill is the alignment forcing function.
 - **`/spec` step 6 used to drop the PRD schema.** CodeRabbit caught it on
   PR #1812. Refactor commit `f036ad54` carries every PRD section forward.
   Feature commit `d6284f80` then hands the PRD to spec-generator.
-- **Two-commit discipline (refactor then feat) per `.claude/rules/refactoring.md`
+- **Two-commit discipline (refactor then feat) per `.claude/skills/software-engineering-library/references/refactoring.md`
   was preserved** even when the bot's original commit shipped both at once.
   Bisectability is worth the extra commit.
 
