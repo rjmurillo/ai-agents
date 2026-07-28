@@ -2655,3 +2655,74 @@ The heading-bounded window was caught by mutation, not by review, and only
 because two mutations passed together. One passing mutation is ambiguous, since
 the mutation itself may be incomplete, which is the trap recorded in shape 60.
 Two passing mutations against the same window are a finding about the window.
+
+## Shape 62: a test can read the wrong module and still be mutation-sensitive
+
+Shape 61 recorded that mutation sensitivity proves a test reads its subject but
+not that it reads the right subject, and offered three examples. Round 42 found
+a fourth in the fix itself, and it is the cleanest instance of the rule the
+branch has produced.
+
+The five tests added in shape 61 assert that a parsed flag default equals the
+constant that owns it. They read that constant off the module under test. Both
+sides of every comparison therefore resolve through the same module, so the
+assertion is about that module agreeing with itself, which nothing threatens.
+Delete the import and hardcode a different copy beside the parser, which is
+exactly the duplication the class exists to catch, and all five stay green while
+the command answers `median` and the adapter answers `mean`.
+
+Every one of those five was mutation-verified last round. The mutations moved
+the constant, and moving a shared constant moves both sides of a tautology at
+once, so the test went red and looked sound. A tautology is not insensitive. It
+is sensitive to the wrong thing, and no amount of mutating the thing it does
+read will say so. The only mutation that exposes it is the one that breaks the
+sharing, which is also the only mutation that reproduces the real defect. So the
+rule is narrower than shape 61 stated: a mutation has to be the defect, not
+merely a change the test can feel.
+
+The audit was incomplete for the second round running, which is now a pattern
+rather than an accident. Round 41 found two instances after round 40 declared
+the class closed; round 42 found six more after round 41 declared it closed
+again. Twice the audit stopped at the instances that shared a shape with the one
+that surfaced, and both times the remainder differed only in where the canonical
+value lived. `--reduce` and `--min-score` were found because a named constant
+existed to point at. The six missed ones declare their defaults in function
+signatures, so there was no name to grep for and nothing to notice.
+
+That is the useful part. An audit anchored on the fix rather than on the defect
+finds the instances that look like the fix. The defect is a value with two
+authors; where the first author keeps the value is incidental, and searching for
+the shape of the first fix is what hid two thirds of the class twice.
+
+The six are pinned rather than single-sourced. Extracting six constants would
+add six names to remove six literals and leave the same relationship implicit.
+Reading the owner's signature compares the two directly, needs nothing new in
+production, and covers whatever flag is added next. The table earned itself
+immediately by failing: walking `action.required` misses `--tasks`, because
+argparse records a mutually exclusive requirement on the group rather than on
+its members.
+
+The paragraph window failed on invisible input. A blank line carrying one space
+still separates paragraphs to every Markdown renderer, and the newline-pair
+search walks past it into the neighbour, restoring precisely the borrowing that
+the heading-bounded window was replaced to prevent. Shape 61 called a
+blank-line-delimited paragraph the narrowest real structural unit Markdown
+offers. That was right about Markdown and wrong about the code, which was
+matching a stricter thing than the format defines. The fourth window treats a
+line of whitespace as a break and refuses a marker that occurs more than once.
+
+Four windows, four failures, and each failure was a place where the code's idea
+of a boundary was narrower or wider than the format's. Worth stating plainly
+because the next one will be too: a window over prose is a parser, and a parser
+written from an example rather than from the format is wrong in whichever
+direction the example did not vary.
+
+Round 42 also reported that the new `--on-skip` paragraph conflates two withheld
+groups, on the grounds that `split` draws both `sel` and `test`. Checked and
+rejected. `_optimizer_core.split_tasks` documents its partition as "optimize,
+held-out, and reserve", so `test` is the reserve group and not a held-out one,
+and the README's own table already says no command scores it. Measured to be
+sure: dropping a `test` id yields `compared: true` and the run proceeds, which
+is what the paragraph says happens outside the held-out group. The finding was
+right that the drift is invisible there and wrong that the prose claims
+otherwise.

@@ -838,9 +838,32 @@
         "tests/eval/test_optimize_artifact_cli.py",
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
       ]
+    },
+    {
+      "phase": "Round 42: the fix for the tautology was a tautology",
+      "actions": [
+        "Ran a fifth distinct model against the round 41 commits.",
+        "Reproduced its critical finding: the five new default tests read the constant off the module under test, so both sides of every comparison resolve through the same module.",
+        "Confirmed the reproduction is the real defect, not a contrived one: deleting the import and hardcoding a different copy beside the parser left all five green while the command answered median and the adapter answered mean.",
+        "Verified the six further duplications it reported, each against the function signature that declares the same default.",
+        "Verified the paragraph window breaks when a blank line carries a single space, which is still a paragraph break to every Markdown renderer.",
+        "Checked and rejected its fourth finding: split partitions into optimize, held-out, and reserve, so the test group is not a held-out group, and the README table already says no command scores it. Measured a dropped test id and got compared true, which is what the paragraph says.",
+        "Replaced the three vacuous default tests with one parametrized case per flag-and-owner pair read from the owner's signature, plus a check that the table names a real parameter.",
+        "Fixed the window to treat a line of whitespace as a break and to refuse a marker that occurs more than once.",
+        "Mutation-verified eight cases including the reviewer's own reproduction, with a negative control confirming intact prose stays green under whitespace-only blank lines."
+      ],
+      "decisions": [
+        "Pinned the six further duplications with a test rather than extracting six constants. The values live in function signatures, so single-sourcing would add six names to remove six literals and leave the relationship implicit. Reading the signature compares the two directly and covers the next flag added.",
+        "Recorded that the shape 61 rule was too weak. A tautology is not insensitive to mutation; it is sensitive to the wrong thing, and mutating what it does read will never say so. Only a mutation that is the defect exposes it.",
+        "Recorded that two consecutive audits stopped at the instances sharing a shape with the fix rather than with the defect, which is why two thirds of the class stayed hidden twice."
+      ],
+      "filesModified": [
+        "tests/eval/test_optimize_artifact_cli.py",
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md"
+      ]
     }
   ],
-  "endingCommit": "837726a1b",
+  "endingCommit": "082cf653c",
   "nextSteps": [
     "PR #3478 carries twenty-one adversarial review rounds. It is green and blocked only on human approval; I cannot merge it.",
     "#3552 (the test group split produces has no CLI read path) is the round-20 capability gap. Widening score --group is the wrong fix and the issue says so.",
