@@ -47,9 +47,117 @@ class Section:
     body: str
 
 
-def _create_parser() -> MarkdownIt:
-    """Create a configured markdown-it parser with table support."""
-    return MarkdownIt("commonmark").enable("table")
+class MarkdownNestingError(ValueError):
+    """Raised when input nests past the parser's ``maxNesting`` limit.
+
+    markdown-it stops emitting block tokens once container nesting reaches
+    ``maxNesting`` and silently discards the rest of the input (see
+    ``ParserBlock.tokenize``: it sets ``state.line = endLine`` and breaks). A
+    code-stripping pass over a truncated token stream leaves the dropped,
+    deeply-nested fenced code unblanked, so a ``vendor-portability`` marker or
+    an example path hidden that deep would leak into the prose the caller
+    scans. Refusing the file keeps the gate fail-closed: input the parser
+    cannot fully represent is an incomplete scan, not clean prose.
+    """
+
+
+def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
+    """Create a configured markdown-it parser with table support.
+
+    ``max_nesting`` overrides the CommonMark default only for the bounded
+    second parse in :func:`_raise_if_nesting_truncated`. The primary parse keeps
+    the default so its recursion stays bounded; the limit exists to stop a
+    pathologically nested document from exhausting the stack, and raising it for
+    the primary parse would reintroduce that denial-of-service vector.
+    """
+    md = MarkdownIt("commonmark").enable("table")
+    if max_nesting is not None:
+        md.options["maxNesting"] = max_nesting
+    return md
+
+
+# Block token types whose source lines are code, not prose. ``fence`` covers
+# ```` ``` ```` and ``~~~`` blocks; ``code_block`` covers indented code. Both
+# are resolved by the CommonMark parser, which tracks fence termination,
+# blockquote depth, and list-relative indentation that a line-based scanner
+# gets wrong.
+_CODE_BLOCK_TOKEN_TYPES = frozenset({"fence", "code_block"})
+
+
+def _block_token_shape(tokens: list) -> list:
+    """Structural fingerprint of the block token stream.
+
+    Inline nesting lives inside an ``inline`` token's ``children`` and is
+    excluded here, so deeply-nested emphasis or links (which cannot hide a code
+    block) do not trigger a refusal. Only block-level truncation, which changes
+    which lines a code-stripping pass blanks, changes this fingerprint.
+    """
+    return [
+        (token.type, token.tag, token.level, tuple(token.map) if token.map else None)
+        for token in tokens
+    ]
+
+
+def _raise_if_nesting_truncated(
+    markdown: str, tokens: list, md: MarkdownIt
+) -> None:
+    """Fail closed when the primary parse dropped content at ``maxNesting``.
+
+    The primary token stream cannot reveal truncation on its own: markdown-it
+    caps reported nesting at ``maxNesting - 1`` whether the input stopped one
+    level below the limit (complete) or ran past it (truncated). A bounded
+    second parse at a higher limit disambiguates. If raising the limit changes
+    the block structure, the primary parse was truncated and the file is
+    refused. Content nesting past the second limit diverges further still, so
+    the check never passes by merely moving the cliff, and the second parse
+    stays bounded so no denial-of-service vector reopens.
+
+    The second parse runs only when the primary reached ``maxNesting - 1``. The
+    committed corpus peaks at level 9, far below the limit, so this path never
+    fires on real files and adds no cost to a normal scan.
+    """
+    if not tokens:
+        return
+    max_nesting = md.options["maxNesting"]
+    if max(token.level for token in tokens) < max_nesting - 1:
+        return
+    deep = _create_parser(max_nesting * 2)
+    if _block_token_shape(tokens) != _block_token_shape(deep.parse(markdown)):
+        raise MarkdownNestingError(
+            f"Markdown nests past the parser limit (maxNesting={max_nesting}); "
+            "the document cannot be fully scanned and is refused (issue #3499)."
+        )
+
+
+def blank_code_block_lines(markdown: str) -> str:
+    """Return ``markdown`` with fenced and indented code block lines blanked.
+
+    Every source line that CommonMark attributes to a fenced or indented code
+    block, including the fence marker lines, is replaced by an empty string.
+    Line count and every non-code line are preserved, so a caller that matches
+    against the result keeps stable line numbers.
+
+    Inline code spans are left intact; strip those separately when needed.
+
+    Any exception the parser raises propagates to the caller, which must not
+    treat a parse failure as clean prose. Failing closed here is deliberate: a
+    silent empty return would let an unparseable file bypass the portability
+    gate. For the same reason, input that nests past the parser's ``maxNesting``
+    limit raises :class:`MarkdownNestingError` rather than being scanned from a
+    silently truncated token stream.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+    lines = markdown.split("\n")
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in _CODE_BLOCK_TOKEN_TYPES or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+    return "\n".join(lines)
 
 
 def parse_tables(markdown: str) -> list[ParsedTable]:
