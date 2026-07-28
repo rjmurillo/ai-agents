@@ -10,6 +10,7 @@ branch that changes user-facing output.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from decimal import localcontext
@@ -270,7 +271,7 @@ sys.exit(1)
             check=False,
             capture_output=True,
             cwd=_REPO_ROOT,
-            env={"PYTHONPATH": str(_EVAL_DIR)},
+            env={**os.environ, "PYTHONPATH": str(_EVAL_DIR)},
             text=True,
             timeout=2,
         )

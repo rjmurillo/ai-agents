@@ -445,8 +445,16 @@ def _legacy_numeric_split_groups(
             raise ValueError("split_tasks requires non-empty task ids")
         cleaned.append(raw)
     if len(set(cleaned)) != len(cleaned):
-        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
-        raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for tid in cleaned:
+            if tid in seen:
+                duplicates.add(tid)
+            else:
+                seen.add(tid)
+        raise ValueError(
+            f"split_tasks received duplicate task ids: {', '.join(sorted(duplicates))}"
+        )
 
     total = len(cleaned)
     n_sel = int(total * sel_ratio + 0.5)
