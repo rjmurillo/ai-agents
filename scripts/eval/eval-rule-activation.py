@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import re
 import sys
 import time
@@ -238,14 +237,10 @@ Respond in JSON only, no other text:
 
 
 def _clamp_score(value: object) -> int:
-    """Coerce a judge-supplied score to int in [0, 5]."""
-    if not isinstance(value, (int, float, str)):
-        return 0
-    try:
-        n = int(value)
-    except (OverflowError, TypeError, ValueError):
-        return 0
-    return max(0, min(5, n))
+    """Return an exact judge score, or 0 after shape validation fails."""
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 5:
+        return value
+    return 0
 
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
@@ -255,15 +250,13 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
         return f"judge returned missing score field(s): {', '.join(missing)}"
     for field in required_fields:
         value = parsed[field]
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-        ):
+        if not isinstance(value, int) or isinstance(value, bool):
             return (
-                f"judge returned non-numeric {field}: "
+                f"judge returned non-integral {field}: "
                 f"{type(value).__name__}"
             )
+        if not 0 <= value <= 5:
+            return f"judge returned out-of-range {field}: {value!r}"
     return None
 
 
