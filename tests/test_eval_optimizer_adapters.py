@@ -120,8 +120,15 @@ class TestNullScoresBlock:
             rule_results([{"id": "S1", "mechanisms": {"m": {"scores": [1, 2, 3]}}}], "m")
 
     def test_a_missing_scores_block_still_scores_zero(self):
-        """Absent is different from malformed and keeps its existing meaning."""
-        assert rule_results([{"id": "S1", "mechanisms": {"m": {}}}], "m") == {"S1": False}
+        """Renamed contract: an absent block is refused like an incomplete one.
+
+        This used to reduce to False. The adapter and the command-layer
+        degraded scan now agree that a mapping the reduction cannot read in
+        full is a claim about the report, so the CLI verdict for this input
+        is unchanged and only the direct-adapter contract moved.
+        """
+        with pytest.raises(AdapterError, match="missing"):
+            rule_results([{"id": "S1", "mechanisms": {"m": {}}}], "m")
 
 
 class TestAgentResults:
@@ -325,8 +332,10 @@ class TestRuleResults:
         assert rule_results(scenarios, "full") == {"S1": False}
 
     def test_missing_score_keys_count_as_zero(self):
+        """Renamed contract: an empty mapping is refused, not scored as zero."""
         scenarios = [{"id": "S1", "negative_case": False, "mechanisms": {"full": {"scores": {}}}}]
-        assert rule_results(scenarios, "full") == {"S1": False}
+        with pytest.raises(AdapterError, match="missing"):
+            rule_results(scenarios, "full")
 
     def test_custom_floor_is_honored(self):
         scenarios = [_scenario("S1", "full", (3, 3, 3))]
@@ -586,15 +595,17 @@ class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
     a file can reach the adapter without passing through the producer that
     clamps.
 
-    Inside the domain the fail-closed property already held. A rule scenario
-    missing `behavior_score`, with the other two at the legal maximum of 5,
-    reduces to 3.33 and fails against the 3.5 bar, which is the intended
-    behavior: a measurement that is not there is not evidence. Measured, the
-    only thing that broke it was leaving the domain. The same scenario with
-    the other two at 6 reduces to 4.0 and passed, and a scenario carrying
-    nothing but `activation_score` at 11 passed as well. Two thirds of the
-    evidence was missing and the verdict was still a pass, because one
-    out-of-range number was allowed to cover for it.
+    Inside the domain the fail-closed property looked like it already held. A
+    rule scenario missing `behavior_score`, with the other two at the legal
+    maximum of 5, reduces to 3.33 and fails against the 3.5 bar. That reading
+    was too generous to the design: 3.33 clears `--min-score 3.0`, which is a
+    legal value of a documented flag, so the property held at the default bar
+    and nowhere below 3.34. Partial mappings are now refused outright rather
+    than reduced, so what this class still proves is narrower and true: an
+    out-of-range value must not be accepted at all. Measured before that fix,
+    a scenario missing one key with the other two at 6 reduced to 4.0 and
+    passed, and a scenario carrying nothing but `activation_score` at 11
+    passed as well.
 
     So this is enforcement of a contract already written in three places, not
     a new one. It also removes the reduction's order dependence: the values
@@ -613,9 +624,13 @@ class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:
             rule_results(self._scen(activation_score=11), "full")
 
     def test_a_missing_score_still_fails_closed_inside_the_domain(self):
-        """Unchanged, and the reason the domain is load-bearing."""
-        got = rule_results(self._scen(activation_score=5, citation_score=5), "full")
-        assert got == {"S": False}
+        """Renamed contract: the mapping is refused before the bar is applied.
+
+        This asserted False, which was the right verdict reached by the wrong
+        route. The bar only cleared it because 3.5 happens to sit above 3.33.
+        """
+        with pytest.raises(AdapterError, match="missing"):
+            rule_results(self._scen(activation_score=5, citation_score=5), "full")
 
     def test_the_legal_maximum_still_passes(self):
         got = rule_results(
@@ -815,3 +830,125 @@ class TestAnIntegerTooBigForAFloatIsOutOfRangeNotACrash:
 
     def test_an_ordinary_float_still_passes(self):
         assert agent_results(_report({"C1": {"agent": [0.5]}}), "agent") == {"C1": False}
+
+
+class TestAPartialScoreMappingIsNotAMeasurement:
+    """Absent keys defaulted to zero, so present maxima carried the absent one.
+
+    Rule scoring reduces three dimensions. A missing key defaulted to 0 and
+    then went into the mean with the two that were recorded, which dilutes an
+    unknown instead of refusing it. That reads as fail-closed only while the
+    bar sits above the value the present maxima can reach on their own: two
+    fives and one absent key reduce to 3.33, which clears `--min-score 3.0`
+    and misses the 3.5 default by luck rather than by design. One absent key
+    passes any bar under 3.34, two absent keys pass any bar under 1.67, and
+    both of those bars are legal values of a documented flag.
+
+    `eval-rule-activation.py` writes all three keys unconditionally, each
+    through `_clamp_score` (:218-220), so a mapping that reaches here missing
+    one did not come from the canonical producer intact. That makes it a
+    malformed input rather than a low-scoring scenario, and the difference
+    matters at the exit code: a reject verdict is a claim about the candidate,
+    and this is a claim about the report.
+
+    Refusing rather than scoring 0 also keeps a systematic producer break
+    visible. If a schema change dropped `behavior_score`, scoring the absence
+    would mark every scenario failed and reject a candidate for a reason that
+    has nothing to do with the candidate.
+    """
+
+    # Every nonempty proper subset of the three keys: three of size one, three
+    # of size two. The empty subset is covered separately because it used to
+    # be the only case the degraded scan caught, and the complete subset is
+    # the control.
+    PARTIAL = [
+        {"activation_score": 5},
+        {"citation_score": 5},
+        {"behavior_score": 5},
+        {"activation_score": 5, "citation_score": 5},
+        {"activation_score": 5, "behavior_score": 5},
+        {"citation_score": 5, "behavior_score": 5},
+    ]
+
+    def _scen(self, scores, sid="S"):
+        return [{"id": sid, "mechanisms": {"full": {"scores": scores}}}]
+
+    @pytest.mark.parametrize("scores", PARTIAL)
+    def test_every_partial_combination_is_refused(self, scores):
+        with pytest.raises(AdapterError, match="missing"):
+            rule_results(self._scen(scores), "full")
+
+    @pytest.mark.parametrize("scores", PARTIAL)
+    def test_no_partial_combination_can_clear_a_low_bar(self, scores):
+        """The bar that used to let two maxima cover a third measurement."""
+        with pytest.raises(AdapterError):
+            rule_results(self._scen(scores), "full", min_score=3.0)
+
+    def test_an_empty_mapping_is_refused_as_missing_all_three(self):
+        with pytest.raises(AdapterError, match="missing"):
+            rule_results(self._scen({}), "full")
+
+    def test_the_refusal_names_every_missing_key(self):
+        with pytest.raises(AdapterError) as caught:
+            rule_results(self._scen({"activation_score": 5}), "full")
+        message = str(caught.value)
+        assert "citation_score" in message
+        assert "behavior_score" in message
+
+    def test_the_refusal_does_not_name_a_key_that_is_present(self):
+        with pytest.raises(AdapterError) as caught:
+            rule_results(self._scen({"activation_score": 5}), "full")
+        assert "activation_score" not in str(caught.value)
+
+    def test_the_refusal_names_the_scenario(self):
+        with pytest.raises(AdapterError, match="S7"):
+            rule_results(self._scen({"citation_score": 5}, sid="S7"), "full")
+
+    def test_a_complete_mapping_still_reduces(self):
+        got = rule_results(
+            self._scen(
+                {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
+            ),
+            "full",
+        )
+        assert got == {"S": True}
+
+    def test_a_complete_mapping_can_still_fail(self):
+        got = rule_results(
+            self._scen(
+                {"activation_score": 0, "citation_score": 0, "behavior_score": 0}
+            ),
+            "full",
+        )
+        assert got == {"S": False}
+
+    def test_an_explicit_zero_is_a_measurement_and_is_kept(self):
+        """A recorded 0 is evidence; an absent key is not. They must differ."""
+        got = rule_results(
+            self._scen(
+                {"activation_score": 5, "citation_score": 5, "behavior_score": 0}
+            ),
+            "full",
+            min_score=3.0,
+        )
+        assert got == {"S": True}
+
+    def test_a_judge_failure_is_still_reported_before_completeness(self):
+        """A broken judge names itself; it must not be reported as a bad shape."""
+        got = rule_results(
+            self._scen({"judge_failed": True}),
+            "full",
+        )
+        assert got == {"S": False}
+
+    def test_a_judge_failure_beside_partial_scores_is_still_a_judge_failure(self):
+        got = rule_results(
+            self._scen({"judge_failed": True, "activation_score": 5}),
+            "full",
+        )
+        assert got == {"S": False}
+
+    def test_a_malformed_scores_block_still_names_the_block(self):
+        """Shape of the block precedes completeness of its keys."""
+        with pytest.raises(AdapterError, match="malformed"):
+            rule_results(self._scen(None), "full")

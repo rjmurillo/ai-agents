@@ -55,6 +55,9 @@ from typing import Any, NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _optimizer_adapters import (  # noqa: E402
+    _MAX_PASS_RATE,
+    _MAX_RULE_SCORE,
+    _RULE_SCORE_KEYS,
     AdapterError,
     agent_results,
     pytest_results,
@@ -135,16 +138,42 @@ def _absent(path: Path) -> bool:
     reads as an empty one, which un-rejects every patch in it, and an
     unreadable ledger reads as an unspent budget.
 
+    Absence is asked of the directory entry with `lstat`, not of the target
+    with `stat`. A symlink whose target is gone is an entry that exists, and
+    answering "absent" for it hands both readers their fail-open path: an
+    empty buffer un-rejects every patch recorded in it, and an unspent ledger
+    resets the consultation budget. The realistic cause is a state directory
+    linked into a volume that did not mount, which should stop the run rather
+    than quietly restore the budget.
+
     Only `FileNotFoundError` means absent. Everything else is a config error,
     which is what `_read_json` already does one call further in, so the pair
     now reports one failure one way.
     """
     try:
-        path.stat()
+        path.lstat()
     except FileNotFoundError:
         return True
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
+    if path.is_symlink():
+        try:
+            path.stat()
+        except FileNotFoundError as exc:
+            # Named here rather than left to the reader, which would report
+            # "no such file" about a path the operator can see in `ls`.
+            target = "an unreadable target"
+            # readlink can fail if the entry changes underneath this handler,
+            # and an OSError raised inside it would escape `main`, which does
+            # not catch OSError, and exit 1. Exit 1 is the reject verdict.
+            with suppress(OSError):
+                target = os.readlink(path)
+            raise ConfigError(
+                f"{path} is a broken symlink to {target}: refusing to read "
+                f"it as an absent file"
+            ) from exc
+        except OSError as exc:
+            raise ConfigError(f"could not read {path}: {exc}") from exc
     return False
 
 
@@ -444,8 +473,13 @@ def _rule_degraded_scenario_ids(
         scores = mech_data.get("scores")
         if isinstance(scores, Mapping) and scores.get("judge_failed"):
             degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        elif not isinstance(scores, Mapping) or any(
+            key not in scores for key in _RULE_SCORE_KEYS
+        ):
+            # Missing, empty, or short of a key: scoring never completed for
+            # every dimension the reduction reads. An empty mapping was already
+            # caught here; a partial one was not, and the reduction filled the
+            # gap with a zero that the present scores then averaged away.
             degraded.append(task_id)
     return degraded
 
@@ -458,7 +492,7 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     raise ConfigError(
         "refusing to extract degraded rule report: "
         f"{len(task_ids)} scenario(s) have missing mechanism output, mechanism "
-        f"errors, missing scores, or judge failures: {shown}{suffix}"
+        f"errors, missing or incomplete scores, or judge failures: {shown}{suffix}"
     )
 
 
@@ -473,12 +507,17 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     """
     if not isinstance(rules, Mapping) or not rules:
         raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
-    out: dict[str, bool] = {}
     degraded: list[str] = []
+    # `list[Any]`, matching `_rule_scenarios`, not the `Sequence[object]` the
+    # degraded scan takes. `scenarios` is bound from that call above and reused
+    # as the loop variable below, so a widened element type here makes the
+    # second binding an incompatible assignment to the first.
+    entries: list[tuple[str, list[Any]]] = []
     for name, entry in rules.items():
         if not isinstance(entry, Mapping) or "scenarios" not in entry:
             raise ConfigError(f"rule {name!r} has no 'scenarios' list")
         scenarios = _rule_scenarios(entry)
+        entries.append((str(name), scenarios))
         degraded.extend(
             _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
         )
@@ -486,12 +525,18 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
         if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
             if not any(task_id.startswith(f"{name}::") for task_id in degraded):
                 degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
+    # Refuse before scoring any rule, the way the single-rule path already
+    # does. Scoring inside the collection loop let an adapter error about one
+    # scenario replace the scan's enumeration of every degraded scenario, and
+    # the enumeration is the whole reason the scan runs ahead of the adapter.
+    _refuse_degraded_rule_report(degraded)
+    out: dict[str, bool] = {}
+    for name, scenarios in entries:
         scored: dict[str, bool] = rule_results(
             scenarios, args.mechanism, min_score=args.min_score
         )
         for sid, passed in scored.items():
             out[f"{name}::{sid}"] = passed
-    _refuse_degraded_rule_report(degraded)
     return out
 
 
@@ -515,7 +560,36 @@ def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
     return extracted
 
 
+def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
+    """Refuse a bar that sits off the scale it is compared against.
+
+    `_as_float` already refuses a score outside its scale, because a value
+    outside the range decides a verdict without measuring anything. A bar is
+    the other side of that same comparison and had no check on the two extract
+    flags, so the identical defect was reachable from the command line.
+    Measured against a fixture whose pass rate is 0.0, `--pass-threshold -0.1`
+    reported it as passing: a fixture that satisfied none of its assertions,
+    admitted by a floor below the bottom of the scale.
+
+    One range test is enough for every bad value. Infinity leaves any bounded
+    interval, and every comparison against NaN is False, so both fail the same
+    check that catches -0.1 and 2.0 without a separate finiteness question.
+    That differs from `_as_float`, which keeps the two apart because a NaN in
+    a scorer's output says something specific about the producer. A flag has
+    no producer to diagnose; the caller typed it.
+
+    Bounds format with `g` so a whole number prints without its decimal tail,
+    which is what `--max-p` has said since it was added.
+    """
+    if not lo <= value <= hi:
+        raise ConfigError(f"{flag} must be in [{lo:g}, {hi:g}], got {value}")
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
+    # Before the input is read. A bar off its scale is decidable on its own,
+    # and refusing it here means an unreadable file cannot mask a bad flag.
+    _on_scale("--pass-threshold", args.pass_threshold, 0.0, _MAX_PASS_RATE)
+    _on_scale("--min-score", args.min_score, 0.0, _MAX_RULE_SCORE)
     corpus: str | None = None
     if args.kind == "hook":
         results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
@@ -1314,8 +1388,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # Before anything reads the split or the ledger. A bar outside [0, 1] is
     # decidable without the held-out group, so it must not cost a consultation
     # and must not be masked by an exhausted budget refusing first.
-    if args.max_p is not None and not 0.0 <= args.max_p <= 1.0:
-        raise ConfigError(f"--max-p must be in [0, 1], got {args.max_p}")
+    if args.max_p is not None:
+        _on_scale("--max-p", args.max_p, 0.0, 1.0)
 
     split = _read_split(args.split)
     if _split_drifted(split):
@@ -1607,8 +1681,23 @@ def _fsync_dir(directory: Path) -> None:
     parses.
 
     Windows cannot open a directory as a descriptor, so there is nothing to
-    sync and ``os.replace`` is atomic there regardless. That is a skip rather
-    than a warning.
+    sync and the step is skipped. The skip is a real gap, not a no-op, and
+    the reason usually offered for it answers a different question than the
+    one this function asks. ``os.replace`` is atomic on Windows, but the
+    paragraph above is about durability, not atomicity. CPython calls
+    ``MoveFileExW`` with ``MOVEFILE_REPLACE_EXISTING`` alone (see
+    ``Modules/posixmodule.c``), omitting ``MOVEFILE_WRITE_THROUGH``, the flag
+    Microsoft documents as waiting for the move to reach disk. A Windows host
+    that loses power just after a ledger charge can therefore come back with
+    the charge undone, which is the same loss an unsynced POSIX host takes.
+
+    The skip stays silent rather than warning like the failure path above,
+    because it is a property of the platform and not an anomaly in this run.
+    It holds for every write, so warning on each one would spend the stderr
+    channel's signal and teach the operator to ignore it. Recording it here
+    is the report. Closing it needs a Windows-only write-through path that
+    this repo's CI cannot exercise, so it is tracked in issue #3591 rather
+    than guessed at here.
     """
     if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
         return

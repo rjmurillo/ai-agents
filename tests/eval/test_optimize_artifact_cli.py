@@ -412,7 +412,15 @@ class TestExtract:
                         {
                             "id": "S4",
                             "negative_case": False,
-                            "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 5,
+                                        "citation_score": 5,
+                                        "behavior_score": 5,
+                                    }
+                                }
+                            },
                         }
                     ],
                 }
@@ -433,14 +441,22 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                        "mechanisms": {
+                            "full": {
+                                "scores": {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                }
+                            }
+                        },
                     }
                 ]
             },
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out["results"] == {"S1": False}
+        assert out["results"] == {"S1": True}
 
     def test_hook_junit(self, tmp_path, capsys):
         junit = tmp_path / "j.xml"
@@ -6569,6 +6585,614 @@ class TestCleanupCannotSpeakOverTheFailureItCleansUpAfter:
         assert capsys.readouterr().err == ""
 
 
+class TestABarOutsideItsScaleIsRefusedLikeAScoreOutsideIts:
+    """The measurements are bounded now. The bars they are compared against were not.
+
+    `_as_float` refuses a score outside its scale, on the argument that a value
+    outside the range does what infinity does, only quietly: it decides a
+    verdict without measuring anything. The bar sits on the other side of the
+    same comparison and had no check at all, so the same defect was reachable
+    from the command line instead of from a scorer file. Measured before the
+    fix, against a fixture whose pass rate is 0.0:
+
+        --pass-threshold -0.1  ->  {"C1": true}   exit 0
+        --pass-threshold nan   ->  {"C1": false}  exit 0
+        --pass-threshold inf   ->  {"C1": false}  exit 0
+        --pass-threshold 2.0   ->  {"C1": false}  exit 0
+
+    The first is the fail-closed property inverted: a fixture that satisfied
+    none of its assertions was reported as passing, because a negative floor
+    admits every rate there is. The rest mark every measured task false, and
+    an all-false side reads as a real regression rather than as a bad flag.
+    None of them says anything on the way past.
+
+    One range check covers all four, because every comparison against NaN is
+    False and infinity leaves any bounded interval, so both fall out of the
+    same test that catches -0.1 and 2.0. That is also what `--max-p` has done
+    since it was added, so this reuses a rule the module already applies
+    rather than inventing a second one.
+    """
+
+    def _report(self, tmp_path, rate=0.0):
+        return _write(
+            tmp_path, "r.json", {"per_fixture_pass_rates": {"C1": {"agent": [rate]}}}
+        )
+
+    def _scen(self, tmp_path, score=3.0):
+        return _write(
+            tmp_path,
+            "s.json",
+            [
+                {
+                    "id": "S1",
+                    "mechanisms": {
+                        "full": {
+                            "scores": {
+                                "activation_score": score,
+                                "behavior_score": score,
+                                "citation_score": score,
+                            }
+                        }
+                    },
+                }
+            ],
+        )
+
+    @pytest.mark.parametrize("bad", ["-0.1", "nan", "inf", "-inf", "2.0", "1.0001"])
+    def test_a_pass_threshold_off_its_scale_is_refused(self, capsys, tmp_path, bad):
+        # Joined with `=` because argparse reads a leading `-` as an option
+        # unless the token parses as a number, so `--pass-threshold -inf` is
+        # rejected as a missing argument before any of this code runs.
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path),
+            f"--pass-threshold={bad}",
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "--pass-threshold" in out["error"]
+
+    @pytest.mark.parametrize("bad", ["-0.1", "nan", "inf", "-inf", "5.1", "6"])
+    def test_a_min_score_off_its_scale_is_refused(self, capsys, tmp_path, bad):
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            f"--min-score={bad}",
+        )
+        assert code == EXIT_CONFIG
+        assert out["type"] == "ConfigError"
+        assert "--min-score" in out["error"]
+
+    def test_the_refusal_names_the_scale_so_the_caller_can_correct_it(
+        self, capsys, tmp_path
+    ):
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            "--min-score",
+            "6",
+        )
+        assert "[0, 5]" in out["error"]
+        assert "6" in out["error"]
+
+    def test_a_negative_floor_no_longer_passes_a_fixture_that_measured_nothing(
+        self, capsys, tmp_path
+    ):
+        """The specific inversion, asserted as itself.
+
+        A range check is the mechanism; this is the behavior it protects.
+        """
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path, rate=0.0),
+            "--pass-threshold",
+            "-0.1",
+        )
+        assert code == EXIT_CONFIG
+        assert "results" not in out
+
+    # --- the ends of each scale are legal ---------------------------------
+
+    @pytest.mark.parametrize("good", ["0", "0.0", "1", "1.0", "0.5"])
+    def test_every_point_on_the_pass_rate_scale_is_accepted(
+        self, capsys, tmp_path, good
+    ):
+        code, _ = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path),
+            "--pass-threshold",
+            good,
+        )
+        assert code == EXIT_OK
+
+    @pytest.mark.parametrize("good", ["0", "3.5", "5", "5.0"])
+    def test_every_point_on_the_rule_scale_is_accepted(self, capsys, tmp_path, good):
+        code, _ = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "rule",
+            "--input",
+            self._scen(tmp_path),
+            "--min-score",
+            good,
+        )
+        assert code == EXIT_OK
+
+    def test_a_floor_of_zero_still_passes_a_fixture_that_measured_nothing(
+        self, capsys, tmp_path
+    ):
+        """Zero is inside the scale, so it stays legal and keeps its meaning.
+
+        The fix refuses bars off the scale, not permissive ones on it.
+        """
+        code, out = _run(
+            capsys,
+            "extract",
+            "--kind",
+            "agent",
+            "--input",
+            self._report(tmp_path, rate=0.0),
+            "--pass-threshold",
+            "0",
+        )
+        assert code == EXIT_OK
+        assert out["results"] == {"C1": True}
+
+    def test_the_defaults_are_inside_their_own_scales(self, capsys, tmp_path):
+        """Control: neither default may be refused by the check guarding it."""
+        for kind, path in (
+            ("agent", self._report(tmp_path)),
+            ("rule", self._scen(tmp_path)),
+        ):
+            code, _ = _run(capsys, "extract", "--kind", kind, "--input", path)
+            assert code == EXIT_OK
+
+    def test_max_p_still_reports_its_own_scale_unchanged(self, capsys, tmp_path):
+        """Control: the flag whose rule this reuses must keep its message."""
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(10)})
+        _write(tmp_path, "tasks.txt", "")
+        (tmp_path / "tasks.txt").write_text(
+            "\n".join(f"t{i}" for i in range(10)), encoding="utf-8"
+        )
+        split = _split(capsys, tmp_path, "--tasks", tmp_path / "tasks.txt", "--seed", "s1")[1]
+        split_path = tmp_path / "split.json"
+        code, out = _run_gate(
+            capsys,
+            tmp_path,
+            "--incumbent",
+            inc,
+            "--candidate",
+            cand,
+            "--split",
+            split_path,
+            "--incumbent-fingerprint",
+            str(split.get("fingerprint", "unknown")),
+            "--max-p",
+            "1.5",
+        )
+        assert code == EXIT_CONFIG
+        assert "--max-p must be in [0, 1], got 1.5" in out["error"]
+
+
+class TestAnIncompleteScoreMappingIsRefusedBeforeItIsReduced:
+    """The degraded scan caught an empty score mapping and no partial one.
+
+    Rule scoring needs three keys, so a scenario's score mapping has eight
+    presence combinations. The scan refused exactly one of them, the empty
+    mapping, and let the six partial ones through to a reduction that filled
+    the gaps with zeros. Two recorded maxima and one absent key reduce to
+    3.33, which clears `--min-score 3.0`, so a verdict was reported on a
+    measurement that was never taken.
+
+    The scan is fixed here as well as the adapter because they answer
+    different questions. The adapter refuses the first scenario it cannot
+    reduce; the scan enumerates every degraded scenario and names them
+    together, which is the difference between fixing a report in one pass and
+    fixing it one scenario per run.
+    """
+
+    def _scen(self, scores, sid="S1"):
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {"full": {"scores": scores}},
+        }
+
+    def test_two_maxima_cannot_cover_a_third_measurement_at_a_low_bar(
+        self, tmp_path, capsys
+    ):
+        """The reviewer's fixture: this reported a pass at --min-score 3.0."""
+        path = _write(
+            tmp_path,
+            "partial.json",
+            [self._scen({"activation_score": 5, "citation_score": 5})],
+        )
+        code, out = _run(
+            capsys, "extract", "--kind", "rule", "--input", path, "--min-score", "3.0"
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("results") is None
+
+    def test_the_refusal_names_the_incomplete_scenario(self, tmp_path, capsys):
+        path = _write(
+            tmp_path, "partial.json", [self._scen({"activation_score": 5}, sid="S9")]
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "S9" in out["error"]
+
+    def test_an_empty_mapping_is_still_refused(self, tmp_path, capsys):
+        path = _write(tmp_path, "empty.json", [self._scen({})])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_a_complete_report_still_extracts(self, tmp_path, capsys):
+        path = _write(
+            tmp_path,
+            "full.json",
+            [
+                self._scen(
+                    {
+                        "activation_score": 5,
+                        "citation_score": 5,
+                        "behavior_score": 5,
+                    }
+                )
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": True}
+
+    def test_every_incomplete_scenario_is_listed_not_just_the_first(
+        self, tmp_path, capsys
+    ):
+        """The scan exists so one run names every scenario that needs fixing."""
+        path = _write(
+            tmp_path,
+            "many.json",
+            [
+                self._scen({"activation_score": 5}, sid="S1"),
+                self._scen({"citation_score": 5}, sid="S2"),
+                self._scen({"behavior_score": 5}, sid="S3"),
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        for sid in ("S1", "S2", "S3"):
+            assert sid in out["error"]
+
+    def test_a_complete_scenario_is_not_listed_beside_an_incomplete_one(
+        self, tmp_path, capsys
+    ):
+        path = _write(
+            tmp_path,
+            "mixed.json",
+            [
+                self._scen(
+                    {
+                        "activation_score": 5,
+                        "citation_score": 5,
+                        "behavior_score": 5,
+                    },
+                    sid="GOOD",
+                ),
+                self._scen({"activation_score": 5}, sid="BAD"),
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "BAD" in out["error"]
+        assert "GOOD" not in out["error"]
+
+    def test_the_multi_rule_envelope_namespaces_the_incomplete_scenario(
+        self, tmp_path, capsys
+    ):
+        envelope = {
+            "rules": {
+                "refactoring": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"activation_score": 5}, sid="S1")],
+                }
+            }
+        }
+        path = _write(tmp_path, "envelope.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "refactoring::S1" in out["error"]
+
+    def test_two_rules_are_both_named_not_just_the_one_scored_first(
+        self, tmp_path, capsys
+    ):
+        """Scoring inside the collection loop truncated the list at rule one."""
+        envelope = {
+            "rules": {
+                "alpha": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"activation_score": 5}, sid="S1")],
+                },
+                "beta": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"citation_score": 5}, sid="S1")],
+                },
+            }
+        }
+        path = _write(tmp_path, "two.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "alpha::S1" in out["error"]
+        assert "beta::S1" in out["error"]
+
+    def test_a_judge_failure_is_still_reported_as_a_judge_failure(
+        self, tmp_path, capsys
+    ):
+        """Ordering control: a broken judge must not be renamed a bad shape."""
+        path = _write(
+            tmp_path, "judge.json", [self._scen({"judge_failed": True}, sid="S5")]
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "S5" in out["error"]
+
+
+class TestADanglingSymlinkIsNotAnAbsentFile:
+    """Absence was asked with a call that follows the link, so a broken one lied.
+
+    `_absent` used `Path.stat`, which resolves the symlink before answering.
+    A link whose target is gone therefore raised `FileNotFoundError` and read
+    as "the file is not there", even though the directory entry is right there
+    and `ls` shows it.
+
+    Both readers fail open on absence by design, and that design is only safe
+    when absence is true. A missing buffer is an empty buffer, so a dangling
+    buffer link un-rejects every patch recorded in it. A missing ledger is an
+    unspent budget, so a dangling ledger link resets the consultation count,
+    which is the one integrity property the ledger exists to hold.
+
+    The realistic way to get here is not an attack. It is a symlinked state
+    directory pointing into a volume that did not mount, which is an ops
+    mistake that should stop the run rather than silently restore the budget.
+
+    `lstat` asks about the directory entry instead of the target, so the entry
+    exists and absence is false. The dangling case is then named on its own
+    rather than left to the reader, which would report "no such file" about a
+    path the operator can see.
+    """
+
+    def _dangling(self, tmp_path, name):
+        link = tmp_path / name
+        link.symlink_to(tmp_path / "gone-target")
+        return link
+
+    def _patches(self, tmp_path):
+        return _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+
+    def test_buffer_check_refuses_a_dangling_buffer(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("seen") is None
+
+    def test_buffer_add_refuses_a_dangling_buffer(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+            "--reason",
+            "r",
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("added") is None
+
+    def test_buffer_add_leaves_the_dangling_link_in_place(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        _run(
+            capsys,
+            "buffer-add",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+            "--reason",
+            "r",
+        )
+        assert link.is_symlink()
+        assert not link.exists()
+
+    def test_the_refusal_names_the_missing_target(self, tmp_path, capsys):
+        link = self._dangling(tmp_path, "b.json")
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_CONFIG
+        assert "gone-target" in out["error"]
+
+    def test_a_truly_absent_buffer_is_still_absent(self, tmp_path, capsys):
+        """Control: the fail-open path this protects must still work."""
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            tmp_path / "none.json",
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def test_a_symlink_to_a_real_buffer_is_read_through(self, tmp_path, capsys):
+        """Control: only the broken link is refused, not every link."""
+        real = _write(tmp_path, "real.json", [])
+        link = tmp_path / "b.json"
+        link.symlink_to(real)
+        code, out = _run(
+            capsys,
+            "buffer-check",
+            "--buffer",
+            link,
+            "--patches",
+            self._patches(tmp_path),
+        )
+        assert code == EXIT_OK
+        assert out["seen"] is False
+
+    def _gate_fixture(self, tmp_path, capsys):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": i % 3 != 0 for i in range(12)})
+        _run(
+            capsys, "split", "--results", inc, "--seed", "s1",
+            "--out", tmp_path / "split.json",
+        )
+        cand = _write(tmp_path, "cand.json", {f"t{i}": True for i in range(12)})
+        split = tmp_path / "split.json"
+        record = json.loads(split.read_text(encoding="utf-8"))
+        return inc, cand, split, record["fingerprint"]
+
+    def _dangling_ledger(self, split):
+        ledger = oa._ledger_root() / f"{_key_of(split)}.ledger"
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.symlink_to(ledger.parent / "unmounted-volume.ledger")
+        return ledger
+
+    def test_a_dangling_ledger_does_not_reset_the_budget(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        self._dangling_ledger(split)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("decision") is None
+        assert out.get("consultations") is None
+
+    def test_a_dangling_ledger_is_left_in_place(self, tmp_path, capsys):
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        ledger = self._dangling_ledger(split)
+        _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert ledger.is_symlink()
+        assert not ledger.exists()
+
+    def test_an_absent_ledger_still_means_an_unspent_budget(self, tmp_path, capsys):
+        """Control: the gate must still run its first consultation."""
+        inc, cand, split, fingerprint = self._gate_fixture(tmp_path, capsys)
+        code, out = _run(
+            capsys, "gate", "--incumbent", inc, "--candidate", cand,
+            "--split", split, "--max-consultations", "3",
+            "--incumbent-fingerprint", fingerprint,
+        )
+        assert code in (EXIT_OK, EXIT_LOGIC)
+        assert out["consultations"] == 1
+
+
+class TestAbsenceAsksAboutTheEntryNotTheTarget:
+    """Unit-level enumeration of what `_absent` must answer for each entry."""
+
+    def test_a_missing_entry_is_absent(self, tmp_path):
+        assert oa._absent(tmp_path / "nothing") is True
+
+    def test_a_regular_file_is_present(self, tmp_path):
+        path = tmp_path / "f"
+        path.write_text("{}", encoding="utf-8")
+        assert oa._absent(path) is False
+
+    def test_a_symlink_to_a_regular_file_is_present(self, tmp_path):
+        target = tmp_path / "t"
+        target.write_text("{}", encoding="utf-8")
+        link = tmp_path / "l"
+        link.symlink_to(target)
+        assert oa._absent(link) is False
+
+    def test_a_dangling_symlink_is_neither_absent_nor_readable(self, tmp_path):
+        link = tmp_path / "l"
+        link.symlink_to(tmp_path / "missing")
+        with pytest.raises(oa.ConfigError, match="missing"):
+            oa._absent(link)
+
+    def test_a_symlink_loop_is_refused_rather_than_read_as_absent(self, tmp_path):
+        """ELOOP is an OSError that is not FileNotFoundError."""
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        a.symlink_to(b)
+        b.symlink_to(a)
+        with pytest.raises(oa.ConfigError):
+            oa._absent(a)
+
+    def test_a_directory_is_present(self, tmp_path):
+        assert oa._absent(tmp_path) is False
+
+
+class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
+    """Characterization, not a contract: `os.replace` swaps the entry.
+
+    `_write_atomic` renames a temp file over the destination path. When the
+    destination is a symlink, POSIX rename replaces the link itself, so the
+    target keeps its old contents and the link is gone. Writing through the
+    link instead would need the caller to resolve it first, and that is a
+    behavior change with its own risks: it would follow a link out of the
+    intended directory, which is the reason rename does not do it.
+
+    This test exists so the next reader learns the behavior from the suite
+    rather than from a surprise, and so a deliberate change to it fails here
+    first. It asserts what the code does today. It does not claim that is the
+    right answer for every caller.
+    """
+
+    def test_a_symlinked_buffer_is_replaced_and_its_target_is_untouched(
+        self, tmp_path, capsys
+    ):
+        real = _write(tmp_path, "real.json", [])
+        link = tmp_path / "b.json"
+        link.symlink_to(real)
+        patches = _write(tmp_path, "p.json", [{"op": "append", "text": "x"}])
+        code, _ = _run(
+            capsys, "buffer-add", "--buffer", link, "--patches", patches, "--reason", "r"
+        )
+        assert code == EXIT_OK
+        assert not link.is_symlink()
+        assert json.loads(real.read_text(encoding="utf-8")) == []
+        assert json.loads(link.read_text(encoding="utf-8")) != []
 class TestARefusedLockNamesTheAncestorThatRefusedIt:
     """`mkdir` fails on an ancestor, and the lock's name does not say which.
 
