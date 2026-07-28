@@ -244,7 +244,8 @@ def split_tasks(
     if not Fraction(0) <= test_fraction < Fraction(1):
         raise ValueError(f"test_ratio must be in [0, 1), got {test_display}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        min_sel_display = _ratio_display(str(min_sel))
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_fraction + test_fraction >= Fraction(1):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -285,8 +286,9 @@ def split_tasks(
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
+        min_sel_display = _ratio_display(str(min_sel))
         raise SplitTooSmallError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 
