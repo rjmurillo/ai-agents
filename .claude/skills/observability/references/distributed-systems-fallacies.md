@@ -66,7 +66,7 @@ invites.
 
 ## Related
 
-- `.claude/rules/release-it.md`: the stability-patterns rule (timeouts, retries,
+- `software-engineering-library` release-it reference: the stability patterns (timeouts, retries,
   circuit breakers, bounded queues) that turns these fallacies into review
   checks.
 - OTel semantic conventions: the failure modes here are only actionable if the

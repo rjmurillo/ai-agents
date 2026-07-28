@@ -1,0 +1,44 @@
+{
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/enterprise-patterns.md",
+  "rule_id": "enterprise-patterns",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Repository and unit-of-work boundary",
+      "input": "I am adding order checkout in service.py. It writes Order, OrderLine, and Payment rows and then sends a receipt. Should each repository commit independently, or should the use case own one transaction boundary? Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "unit of work",
+        "transaction boundary",
+        "repository",
+        "application service"
+      ],
+      "expected_gate": "single-use-case-transaction",
+      "rationale": "Persistence coordination is central. Enterprise patterns should route transaction ownership to a unit of work or application service boundary."
+    },
+    {
+      "id": "S2",
+      "desc": "Active Record leaking into domain logic",
+      "input": "The Customer model in Django currently computes credit risk, sends email, and calls save() in the same method. I want to add another billing rule. Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "domain model",
+        "data mapper",
+        "service layer",
+        "transaction script"
+      ],
+      "expected_gate": "separate-domain-and-persistence-responsibilities",
+      "rationale": "Persistence and domain policy are mixed. Enterprise patterns should name the split and keep transaction boundaries explicit."
+    },
+    {
+      "id": "S3",
+      "desc": "Pure string normalization negative case",
+      "input": "I need a helper that trims and lowercases email addresses before display. Plan in 5 short bullets. Do not modify files.",
+      "expected_signals": [
+        "helper",
+        "string"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No persistence or use-case orchestration exists, so enterprise patterns should not activate."
+    }
+  ]
+}

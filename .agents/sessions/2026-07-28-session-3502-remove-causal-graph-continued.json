@@ -166,6 +166,17 @@
         "Justification, shape: 20 of the changes are the deletions themselves and most of the remaining volume is one 1,074,565-byte JSON artifact, not reviewable logic",
         "Used the bypass for the scope heuristic only. The security push-suppression gate was not bypassed; it passes on its own merits at exit 0"
       ]
+    },
+    {
+      "phase": "Merge 3",
+      "actions": [
+        "Opened PR 3643, then found it CONFLICTING and DIRTY with 12 green checks and zero red",
+        "That is the silent-green failure mode recorded on issue 3502: GitHub could not build refs/pull/3643/merge, so every pull_request-triggered workflow, including PR Validation, never ran. The PR reads green because nothing that matters executed",
+        "Merged main commit 87b11766 and resolved two conflicts: causal-graph.json stays deleted, and the copilot plugin manifest took main's side before the bump",
+        "Confirmed the recurring shape: every main commit regenerates causal-graph.json, so this branch re-conflicts on it after every single push to main. That is the artifact's own maintenance cost, third most-touched file in the repo, charging one last time",
+        "Bumped both manifests to 0.6.146 after main reached 0.6.145",
+        "Full suite green after the merge: 15800 passed, 26 skipped, 0 failed"
+      ]
     }
   ],
   "endingCommit": "",
