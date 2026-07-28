@@ -102,8 +102,16 @@ jobs:
           # `0*` rejects zero and every leading-zero form in one arm. GitHub
           # issue numbers start at 1, so zero names nothing and the message
           # already promised it could not get through.
+          #
+          # The class is enumerated rather than written `[!0-9]` because a
+          # range resolves through the locale's collation table. Under
+          # en_US.UTF-8 Bash counts every Unicode decimal digit as a member,
+          # so Arabic-Indic and fullwidth digits satisfy "all digits" and
+          # reach the consumer, and a leading Arabic-Indic zero is not the
+          # ASCII `0` the arm above matches. An enumerated class is not a
+          # range and resolves the same everywhere.
           case "$number" in
-            ''|0*|*[!0-9]*)
+            ''|0*|*[!0123456789]*)
               echo "::error::issue_number must be a positive integer" >&2
               exit 1
               ;;

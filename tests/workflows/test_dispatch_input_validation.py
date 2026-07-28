@@ -13,6 +13,7 @@ constraint fails here rather than in production.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -46,18 +47,21 @@ def _run_block(workflow: str, job: str, step_id: str) -> str:
 def _execute(
     body: str, env: dict[str, str], tmp_path: Path, shell: str = _BASH
 ) -> int:
-    """Run a workflow `run:` body under sh and return its exit code.
+    """Run a workflow `run:` body and return its exit code.
 
     GitHub interpolates `${{ }}` before the shell sees the body. The steps under
     test route every input through `env:` precisely so no interpolation lands in
     the script, so the body executes verbatim.
+
+    `shell` defaults to bash because that is what the runner uses. Pass `_SH` to
+    assert a body is POSIX-clean.
     """
     full_env = {
         "PATH": "/usr/bin:/bin",
         "GITHUB_OUTPUT": str(tmp_path / "out.txt"),
         **env,
     }
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [shell, "-c", body],
         env=full_env,
         capture_output=True,
@@ -189,3 +193,78 @@ class TestGuardsArePosixClean:
         env = {"EVENT_NAME": "workflow_dispatch", "INPUT_ISSUE_NUMBER": "0",
                "EVENT_ISSUE_NUMBER": ""}
         assert _execute(_issue_body(), env, tmp_path, shell=_SH) == 1
+
+
+def _locale_available(name: str) -> bool:
+    """True when the runner can actually switch to `name`.
+
+    A locale that is not generated silently falls back, which would make the
+    Unicode-digit tests below pass for the wrong reason.
+    """
+    probe = 'case "٧" in *[!0-9]*) echo ascii ;; *) echo unicode ;; esac'
+    result = subprocess.run(
+        [_BASH, "-c", probe],
+        env={**os.environ, "LC_ALL": name},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() == "unicode"
+
+
+_UNICODE_DIGIT_LOCALE = "en_US.UTF-8"
+_needs_unicode_locale = pytest.mark.skipif(
+    not _locale_available(_UNICODE_DIGIT_LOCALE),
+    reason=f"{_UNICODE_DIGIT_LOCALE} is not generated on this machine",
+)
+
+
+class TestGuardsAreLocaleIndependent:
+    """The guard verdict must not depend on the runner's locale.
+
+    `[!0-9]` is a range, and Bash resolves ranges through the collation table,
+    so under a locale like en_US.UTF-8 it treats every Unicode decimal digit as
+    a member. Arabic-Indic and fullwidth digits then satisfy "all digits" and
+    reach the consumer. Worse, a leading Arabic-Indic zero is not the ASCII `0`
+    the `0*` arm matches, so the zero rejection is defeated too.
+
+    GitHub-hosted Ubuntu images run C.UTF-8 today, so this is latent rather
+    than live. It becomes live on a self-hosted runner, or the first time
+    anyone sets LANG or LC_ALL in a `env:` block, and it fails open.
+
+    An enumerated class is not a range, so it resolves the same way everywhere.
+    """
+
+    @pytest.mark.parametrize("value", ["٧", "٠٧", "０７", "1٧"])
+    @_needs_unicode_locale
+    def test_metrics_rejects_unicode_digits(self, tmp_path: Path, value: str) -> None:
+        env = {"EVENT_NAME": "workflow_dispatch", "INPUT_DAYS": value,
+               "INPUT_FORMAT": "markdown", "LC_ALL": _UNICODE_DIGIT_LOCALE}
+        assert _execute(_metrics_body(), env, tmp_path) == 1
+
+    @pytest.mark.parametrize("value", ["٧", "٠٧", "０７", "1٧"])
+    @_needs_unicode_locale
+    def test_issue_rejects_unicode_digits(self, tmp_path: Path, value: str) -> None:
+        env = {"EVENT_NAME": "workflow_dispatch", "INPUT_ISSUE_NUMBER": value,
+               "EVENT_ISSUE_NUMBER": "", "LC_ALL": _UNICODE_DIGIT_LOCALE}
+        assert _execute(_issue_body(), env, tmp_path) == 1
+
+    @pytest.mark.parametrize("value", ["7", "42", "999"])
+    @_needs_unicode_locale
+    def test_ascii_digits_still_accepted_under_that_locale(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """Control: the fix must not reject the values that always worked."""
+        env = {"EVENT_NAME": "workflow_dispatch", "INPUT_DAYS": value,
+               "INPUT_FORMAT": "markdown", "LC_ALL": _UNICODE_DIGIT_LOCALE}
+        assert _execute(_metrics_body(), env, tmp_path) == 0
+
+    @pytest.mark.parametrize("value", ["0", "07", "7a", "-1"])
+    @_needs_unicode_locale
+    def test_ascii_rejections_hold_under_that_locale(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """Control: switching locale must not weaken the ASCII rejections."""
+        env = {"EVENT_NAME": "workflow_dispatch", "INPUT_DAYS": value,
+               "INPUT_FORMAT": "markdown", "LC_ALL": _UNICODE_DIGIT_LOCALE}
+        assert _execute(_metrics_body(), env, tmp_path) == 1

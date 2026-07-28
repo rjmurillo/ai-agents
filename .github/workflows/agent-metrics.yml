@@ -78,8 +78,18 @@ jobs:
           # not the "positive integer" the message promises: `--since 0`
           # resolves to today, so the report would cover a same-day window
           # while claiming to be a period metrics run.
+          #
+          # The class is enumerated rather than written `[!0-9]` because a
+          # range resolves through the locale's collation table. Under
+          # en_US.UTF-8 Bash counts every Unicode decimal digit as a member,
+          # so Arabic-Indic and fullwidth digits satisfy "all digits" and
+          # reach the consumer, and a leading Arabic-Indic zero is not the
+          # ASCII `0` the arm above matches. GitHub-hosted images run
+          # C.UTF-8 today, so this is latent, but it fails open the moment
+          # anyone sets LANG or runs this on a self-hosted runner. An
+          # enumerated class is not a range and resolves the same everywhere.
           case "$days" in
-            ''|0*|*[!0-9]*)
+            ''|0*|*[!0123456789]*)
               echo "::error::days must be a positive integer" >&2
               exit 1
               ;;
