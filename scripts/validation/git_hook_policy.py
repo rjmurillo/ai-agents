@@ -3062,6 +3062,21 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
     )
 
 
+def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
+    """Read the commits `origin/main` reaches by first parent alone.
+
+    A branch main has landed is an ancestor of main, but it is not one of
+    these. It sits on the second parent of the merge that landed it. Merging
+    such a branch brings in no history main had not already handed out, so
+    asking only whether main can reach a parent answers a wider question than
+    the raised limit is for.
+    """
+    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
+    if result.returncode != 0:
+        return frozenset()
+    return frozenset(result.stdout.split())
+
+
 def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
     # `log.showSignature` makes `show` report the signature check before the
     # commit, and the first field of the split is then a word of that report
@@ -3075,15 +3090,9 @@ def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
     )
     if result.returncode != 0:
         return False
-    parents = result.stdout.split()
-    for parent in parents[1:]:
-        ancestor = _run_git(
-            repo_root,
-            ["merge-base", "--is-ancestor", parent, "origin/main"],
-        )
-        if ancestor.returncode == 0:
-            return True
-    return False
+    parents = result.stdout.split()[1:]
+    trunk = _main_trunk_commits(repo_root)
+    return any(parent in trunk for parent in parents)
 
 
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:

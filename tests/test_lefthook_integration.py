@@ -5079,6 +5079,8 @@ def test_commit_limit_relaxes_for_merge_from_main(
             return _completed(0, "30\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
+        if args[:2] == ["rev-list", "--first-parent"]:
+            return _completed(0, "main-parent\nolder-main\n")
         if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent main-parent\n")
         return _completed(0)
@@ -5086,6 +5088,38 @@ def test_commit_limit_relaxes_for_merge_from_main(
     monkeypatch.setattr(policy, "_run_git", fake_git)
 
     assert policy._check_commit_limit(update, tmp_path) == 0
+
+
+def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The negative control for the test above.
+
+    Only the trunk answer changes. A parent main can reach but did not reach
+    by first parent is a branch main landed, and the wider limit is refused.
+    """
+    update = _push_update()
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "30\n")
+        if args[:2] == ["rev-list", "--merges"]:
+            return _completed(0, "merge-sha\n")
+        if args[:2] == ["rev-list", "--first-parent"]:
+            return _completed(0, "some-other-main-commit\n")
+        if args[0] == "show" and "--format=%P" in args:
+            return _completed(0, "first-parent landed-parent\n")
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_handles_git_errors(
@@ -5195,6 +5229,114 @@ def test_main_merge_detection_still_reads_a_signed_merge_of_main(
     repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=True)
 
     assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def _repo_where_main_has_landed_a_branch(tmp_path: Path, name: str) -> Path:
+    """Build a repo whose main landed a feature branch through a merge.
+
+    `origin/main` then contains that branch's tip, but the tip is the second
+    parent of the merge that landed it, not a commit on main's own trunk.
+    Branch `trunk-landing` names the landing merge, and main carries one
+    commit past it, so a merge of an older trunk commit can be told from a
+    merge of main's tip.
+    """
+    repo = tmp_path / name
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "base.md", "base\n")
+    # Named refs only. A raw sha as a branch point is not resolvable under this
+    # suite's git environment (Refs #3661).
+    _git(repo, "branch", "local")
+    _git(repo, "branch", "landed")
+    _git(repo, "checkout", "-q", "landed")
+    _commit_file(repo, "landed.md", "landed\n")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "land the feature", "landed")
+    _git(repo, "branch", "trunk-landing")
+    _commit_file(repo, "after.md", "after\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-q", "local")
+    return repo
+
+
+def _merge_into_local(repo: Path, ref: str) -> str:
+    _git(repo, "merge", "-q", "--no-ff", "-m", f"merge {ref}", ref)
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_merging_a_branch_main_already_landed_is_not_a_merge_of_main(
+    tmp_path: Path,
+) -> None:
+    """A landed branch is an ancestor of main, and that is not enough.
+
+    Merging a branch main has already landed brings in no history main did
+    not already hand out, so it is not the case the raised limit exists for.
+    Reading the parent as main's because main can reach it lets any developer
+    take the wider limit by merging a branch whose pull request has landed,
+    which is ordinary git usage rather than an attack.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "landed-branch")
+    merge = _merge_into_local(repo, "landed")
+
+    assert policy._merge_has_main_parent(merge, repo) is False
+
+
+def test_merging_main_itself_is_still_a_merge_of_main(tmp_path: Path) -> None:
+    """The negative control. The case the raised limit exists for still reads."""
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "merge-of-main")
+    merge = _merge_into_local(repo, "main")
+
+    assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def test_merging_an_older_commit_on_main_is_a_merge_of_main(tmp_path: Path) -> None:
+    """Main's trunk is not just its tip.
+
+    A developer who merges main and then falls behind has still merged main,
+    so every commit main reaches by first parent counts, not only the newest.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "older-main")
+    merge = _merge_into_local(repo, "trunk-landing")
+
+    assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def test_a_landed_branch_does_not_widen_the_commit_limit(tmp_path: Path) -> None:
+    """The consumer reads the same way the detector does.
+
+    The limit is what this gate actually holds a push to, so the detector's
+    verdict is checked where it is spent as well as where it is made.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "limit-landed")
+    base = _git(repo, "rev-parse", "local").stdout.strip()
+    for index in range(21):
+        _git(repo, "commit", "-q", "--allow-empty", "-m", f"local {index:02d}")
+    head = _merge_into_local(repo, "landed")
+    update = policy.PushUpdate(
+        policy.PushRef("refs/heads/local", head, "refs/heads/local", base),
+        base,
+        head,
+        f"{base}..{head}",
+        "local",
+    )
+
+    assert policy._contains_main_merge(update, repo) is False
+
+
+def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
+    tmp_path: Path,
+) -> None:
+    """The edge case. An unreadable trunk must not widen the limit.
+
+    A clone that has never fetched `origin/main` cannot say what main's trunk
+    holds. Reading nothing as reaching everything would hand the wider limit
+    to exactly the repos the gate knows least about.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "no-origin")
+    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
+    merge = _merge_into_local(repo, "main")
+
+    assert policy._main_trunk_commits(repo) == frozenset()
+    assert policy._merge_has_main_parent(merge, repo) is False
 
 
 def test_review_marker_reports_git_error(
