@@ -1,0 +1,40 @@
+{
+  "skill_path": ".claude/skills/security-scan/SKILL.md",
+  "skill_id": "security-scan",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Shell-interpolated subprocess call in a pre-PR diff",
+      "input": "Here is a change before I open my PR:\n\nimport subprocess\ndef backup(path):\n    subprocess.run(f\"tar -czf backup.tgz {path}\", shell=True)\n\nAnything I should check before submitting? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "command injection",
+        "shell=True",
+        "CWE-78",
+        "untrusted"
+      ],
+      "expected_gate": "flag-command-injection",
+      "rationale": "The skill detects CWE-78 command injection. With the skill present the model should flag the shell=True string interpolation as an injection risk rather than treat it as a normal subprocess call."
+    },
+    {
+      "id": "S2",
+      "desc": "Explicit request to scan for command injection before PR",
+      "input": "Before I submit this PR, scan my Python for command injection risks and tell me what to fix. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "command injection",
+        "CWE-78",
+        "shell",
+        "subprocess"
+      ],
+      "expected_gate": "run-injection-scan",
+      "rationale": "This is the skill's documented trigger phrasing. The skill body should steer the model toward a CWE-78 injection scan focused on shell and subprocess sinks."
+    },
+    {
+      "id": "S3",
+      "desc": "Pure CSS layout question (negative case)",
+      "input": "What is the cleanest way to center a div with CSS grid? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A CSS layout question has no command-injection surface. The skill must not activate, so the negative case guards against a skill that fires on everything."
+    }
+  ]
+}
