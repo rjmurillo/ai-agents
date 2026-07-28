@@ -412,7 +412,15 @@ class TestExtract:
                         {
                             "id": "S4",
                             "negative_case": False,
-                            "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 5,
+                                        "citation_score": 5,
+                                        "behavior_score": 5,
+                                    }
+                                }
+                            },
                         }
                     ],
                 }
@@ -433,14 +441,22 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                        "mechanisms": {
+                            "full": {
+                                "scores": {
+                                    "activation_score": 5,
+                                    "citation_score": 5,
+                                    "behavior_score": 5,
+                                }
+                            }
+                        },
                     }
                 ]
             },
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out["results"] == {"S1": False}
+        assert out["results"] == {"S1": True}
 
     def test_hook_junit(self, tmp_path, capsys):
         junit = tmp_path / "j.xml"
@@ -6778,3 +6794,164 @@ class TestABarOutsideItsScaleIsRefusedLikeAScoreOutsideIts:
         )
         assert code == EXIT_CONFIG
         assert "--max-p must be in [0, 1], got 1.5" in out["error"]
+
+
+class TestAnIncompleteScoreMappingIsRefusedBeforeItIsReduced:
+    """The degraded scan caught an empty score mapping and no partial one.
+
+    Rule scoring needs three keys, so a scenario's score mapping has eight
+    presence combinations. The scan refused exactly one of them, the empty
+    mapping, and let the six partial ones through to a reduction that filled
+    the gaps with zeros. Two recorded maxima and one absent key reduce to
+    3.33, which clears `--min-score 3.0`, so a verdict was reported on a
+    measurement that was never taken.
+
+    The scan is fixed here as well as the adapter because they answer
+    different questions. The adapter refuses the first scenario it cannot
+    reduce; the scan enumerates every degraded scenario and names them
+    together, which is the difference between fixing a report in one pass and
+    fixing it one scenario per run.
+    """
+
+    def _scen(self, scores, sid="S1"):
+        return {
+            "id": sid,
+            "negative_case": False,
+            "mechanisms": {"full": {"scores": scores}},
+        }
+
+    def test_two_maxima_cannot_cover_a_third_measurement_at_a_low_bar(
+        self, tmp_path, capsys
+    ):
+        """The reviewer's fixture: this reported a pass at --min-score 3.0."""
+        path = _write(
+            tmp_path,
+            "partial.json",
+            [self._scen({"activation_score": 5, "citation_score": 5})],
+        )
+        code, out = _run(
+            capsys, "extract", "--kind", "rule", "--input", path, "--min-score", "3.0"
+        )
+        assert code == EXIT_CONFIG
+        assert out.get("results") is None
+
+    def test_the_refusal_names_the_incomplete_scenario(self, tmp_path, capsys):
+        path = _write(
+            tmp_path, "partial.json", [self._scen({"activation_score": 5}, sid="S9")]
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "S9" in out["error"]
+
+    def test_an_empty_mapping_is_still_refused(self, tmp_path, capsys):
+        path = _write(tmp_path, "empty.json", [self._scen({})])
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+
+    def test_a_complete_report_still_extracts(self, tmp_path, capsys):
+        path = _write(
+            tmp_path,
+            "full.json",
+            [
+                self._scen(
+                    {
+                        "activation_score": 5,
+                        "citation_score": 5,
+                        "behavior_score": 5,
+                    }
+                )
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_OK
+        assert out["results"] == {"S1": True}
+
+    def test_every_incomplete_scenario_is_listed_not_just_the_first(
+        self, tmp_path, capsys
+    ):
+        """The scan exists so one run names every scenario that needs fixing."""
+        path = _write(
+            tmp_path,
+            "many.json",
+            [
+                self._scen({"activation_score": 5}, sid="S1"),
+                self._scen({"citation_score": 5}, sid="S2"),
+                self._scen({"behavior_score": 5}, sid="S3"),
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        for sid in ("S1", "S2", "S3"):
+            assert sid in out["error"]
+
+    def test_a_complete_scenario_is_not_listed_beside_an_incomplete_one(
+        self, tmp_path, capsys
+    ):
+        path = _write(
+            tmp_path,
+            "mixed.json",
+            [
+                self._scen(
+                    {
+                        "activation_score": 5,
+                        "citation_score": 5,
+                        "behavior_score": 5,
+                    },
+                    sid="GOOD",
+                ),
+                self._scen({"activation_score": 5}, sid="BAD"),
+            ],
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "BAD" in out["error"]
+        assert "GOOD" not in out["error"]
+
+    def test_the_multi_rule_envelope_namespaces_the_incomplete_scenario(
+        self, tmp_path, capsys
+    ):
+        envelope = {
+            "rules": {
+                "refactoring": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"activation_score": 5}, sid="S1")],
+                }
+            }
+        }
+        path = _write(tmp_path, "envelope.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "refactoring::S1" in out["error"]
+
+    def test_two_rules_are_both_named_not_just_the_one_scored_first(
+        self, tmp_path, capsys
+    ):
+        """Scoring inside the collection loop truncated the list at rule one."""
+        envelope = {
+            "rules": {
+                "alpha": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"activation_score": 5}, sid="S1")],
+                },
+                "beta": {
+                    "summary": {"verdict": "PASS"},
+                    "scenarios": [self._scen({"citation_score": 5}, sid="S1")],
+                },
+            }
+        }
+        path = _write(tmp_path, "two.json", envelope)
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "alpha::S1" in out["error"]
+        assert "beta::S1" in out["error"]
+
+    def test_a_judge_failure_is_still_reported_as_a_judge_failure(
+        self, tmp_path, capsys
+    ):
+        """Ordering control: a broken judge must not be renamed a bad shape."""
+        path = _write(
+            tmp_path, "judge.json", [self._scen({"judge_failed": True}, sid="S5")]
+        )
+        code, out = _run(capsys, "extract", "--kind", "rule", "--input", path)
+        assert code == EXIT_CONFIG
+        assert "S5" in out["error"]

@@ -55,8 +55,9 @@ _SKIP_POLICIES = ("fail", "exclude")
 
 _RULE_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 # The judge is told "1-5 each" and `eval-rule-activation.py` clamps its own
-# output to [0, 5]; the floor is 0 rather than 1 because the absent-key default
-# is 0 and a scenario that recorded nothing must stay expressible.
+# output to [0, 5]; the floor is 0 rather than 1 because `_clamp_score` maps a
+# string, a None, or a negative number to 0, so 0 is a value the producer
+# really emits and not just the bottom of the prompt's scale.
 _MAX_RULE_SCORE = 5.0
 # Each run is the fraction of a fixture's assertions that were satisfied.
 _MAX_PASS_RATE = 1.0
@@ -256,9 +257,24 @@ def rule_results(
             out[sid] = False
             continue
 
+        missing = [key for key in _RULE_SCORE_KEYS if key not in raw_scores]
+        if missing:
+            # Defaulting an absent key to 0 put an unknown into the mean beside
+            # two real measurements, which dilutes it rather than refusing it.
+            # That reads as fail-closed only while the bar sits above what the
+            # present maxima reach alone: two fives and one absent key reduce
+            # to 3.33 and clear `--min-score 3.0`. `eval-rule-activation.py`
+            # writes all three keys unconditionally, so a mapping arriving here
+            # short of one did not come from that producer intact. It is a
+            # claim about the report, not about the candidate.
+            raise AdapterError(
+                f"scenario {sid!r} is missing {len(missing)} of "
+                f"{len(_RULE_SCORE_KEYS)} rule scores: {', '.join(missing)}"
+            )
+
         triple = [
             _as_float(
-                raw_scores.get(key, 0),
+                raw_scores[key],
                 f"scenario {sid!r} {key}",
                 lo=0.0,
                 hi=_MAX_RULE_SCORE,

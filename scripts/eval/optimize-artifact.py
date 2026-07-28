@@ -57,6 +57,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _optimizer_adapters import (  # noqa: E402
     _MAX_PASS_RATE,
     _MAX_RULE_SCORE,
+    _RULE_SCORE_KEYS,
     AdapterError,
     agent_results,
     pytest_results,
@@ -446,8 +447,13 @@ def _rule_degraded_scenario_ids(
         scores = mech_data.get("scores")
         if isinstance(scores, Mapping) and scores.get("judge_failed"):
             degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        elif not isinstance(scores, Mapping) or any(
+            key not in scores for key in _RULE_SCORE_KEYS
+        ):
+            # Missing, empty, or short of a key: scoring never completed for
+            # every dimension the reduction reads. An empty mapping was already
+            # caught here; a partial one was not, and the reduction filled the
+            # gap with a zero that the present scores then averaged away.
             degraded.append(task_id)
     return degraded
 
@@ -460,7 +466,7 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     raise ConfigError(
         "refusing to extract degraded rule report: "
         f"{len(task_ids)} scenario(s) have missing mechanism output, mechanism "
-        f"errors, missing scores, or judge failures: {shown}{suffix}"
+        f"errors, missing or incomplete scores, or judge failures: {shown}{suffix}"
     )
 
 
@@ -475,12 +481,13 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     """
     if not isinstance(rules, Mapping) or not rules:
         raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
-    out: dict[str, bool] = {}
     degraded: list[str] = []
+    entries: list[tuple[str, Sequence[object]]] = []
     for name, entry in rules.items():
         if not isinstance(entry, Mapping) or "scenarios" not in entry:
             raise ConfigError(f"rule {name!r} has no 'scenarios' list")
         scenarios = _rule_scenarios(entry)
+        entries.append((str(name), scenarios))
         degraded.extend(
             _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
         )
@@ -488,12 +495,18 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
         if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
             if not any(task_id.startswith(f"{name}::") for task_id in degraded):
                 degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
+    # Refuse before scoring any rule, the way the single-rule path already
+    # does. Scoring inside the collection loop let an adapter error about one
+    # scenario replace the scan's enumeration of every degraded scenario, and
+    # the enumeration is the whole reason the scan runs ahead of the adapter.
+    _refuse_degraded_rule_report(degraded)
+    out: dict[str, bool] = {}
+    for name, scenarios in entries:
         scored: dict[str, bool] = rule_results(
             scenarios, args.mechanism, min_score=args.min_score
         )
         for sid, passed in scored.items():
             out[f"{name}::{sid}"] = passed
-    _refuse_degraded_rule_report(degraded)
     return out
 
 
