@@ -120,6 +120,18 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact.",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": []
     }
   ],

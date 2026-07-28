@@ -64,7 +64,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "markdownlint-cli2 excludes .serena/** and .agents/**, so the scoped run reported 0 issues in 0 files. Byte check for U+2014 and U+2013 on the memory returned 0."
+        "evidence": "In-tree scoped run reported 0 files because .markdownlint-cli2.yaml lists .agents/** and .serena/** in its ignores block (lines 118-119). Re-ran out-of-tree to get a real result: copied both changed .md files plus the repo config into /tmp/mdlcheck and ran npx markdownlint-cli2 '*.md' there, which reported 'Linting: 2 files' and 'Summary: 0 issues in 0 files'. Byte check for U+2014 and U+2013 on the memory returned 0."
       },
       "changesCommitted": {
         "complete": true,
@@ -110,6 +110,9 @@
     },
     {
       "step": "Responded to PR #3606 review. Verified the finding before conceding: FAILURE-MODES.md exists, the reviewer's cited example retro carries the sections, and 11 of the 20 most recent retros do. No validator enforces it, so it is a convention rather than a hard gate, but the convention is real. Added Failure mode classification (FM9 primary, FM4 secondary) and Remediation."
+    },
+    {
+      "step": "Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact."
     }
   ],
   "endingCommit": "0f402c8e61",

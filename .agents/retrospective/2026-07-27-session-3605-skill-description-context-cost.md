@@ -3,6 +3,12 @@
 Session 3605. Branch `docs/skill-description-context-cost`. One decision memory
 shipped, no code.
 
+- Issue: #3605
+- PR: #3606
+- Starting commit: `a65181a264` (branch point from main)
+- Final code commit: `56f4f861aa` (`docs(memory): measure what skill descriptions actually cost in context`)
+- Artifact under review: `.serena/memories/decision-skill-description-context-cost.md`
+
 ## Failure mode classification
 
 Primary: Failure Mode #9, Confident-Incorrectness Recurrence (`.agents/governance/FAILURE-MODES.md`). The documented shape is partial signal, premature conclusion, confident delivery, multi-round correction. This session ran that loop twice before the third conclusion held. Both times the conclusion was drafted as settled and both times an adversarial reviewer on a second model family returned it.
