@@ -155,7 +155,17 @@ def _results_from_file(path: Path) -> dict[str, bool]:
     return data
 
 
+def _reject_duplicate_keys(pairs):
+    keys = [k for k, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError("duplicate keys")
+    return dict(pairs)
+
+
 def _enveloped_copy(path: Path) -> Path:
+    # A file the strict reader would refuse must reach the CLI untranslated,
+    # so the refusal under test happens in the CLI rather than in this shim.
+    json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys)
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and data.get("schema") == "optimizer-results/1":
         return path
@@ -187,7 +197,7 @@ def _translated_argv(argv: tuple[str | Path, ...]) -> list[str]:
             translated[index + 1] = str(_tasks_copy(source))
             if corpus is not None and "--corpus" not in translated:
                 translated += ["--corpus", str(corpus)]
-        except (ValueError, RecursionError):
+        except (OSError, ValueError, RecursionError):
             pass
     if command in {"gate", "score"}:
         for flag in ("--incumbent", "--candidate", "--results"):
@@ -195,7 +205,7 @@ def _translated_argv(argv: tuple[str | Path, ...]) -> list[str]:
                 index = translated.index(flag)
                 try:
                     translated[index + 1] = str(_enveloped_copy(Path(translated[index + 1])))
-                except (ValueError, RecursionError):
+                except (OSError, ValueError, RecursionError):
                     pass
     return translated
 
@@ -430,7 +440,10 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}}},
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"agent": [1.0]}, "C2": {"agent": [0.0]}},
+            },
         )
         code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
         assert code == EXIT_OK
@@ -440,7 +453,10 @@ class TestExtract:
         report = _write(
             tmp_path,
             "report.json",
-            {"per_fixture_pass_rates": {"C1": {"baseline": [0.6]}}},
+            {
+                "error_count": 0,
+                "per_fixture_pass_rates": {"C1": {"baseline": [0.6]}},
+            },
         )
         code, out = _run(
             capsys,
@@ -615,7 +631,9 @@ class TestExtract:
         )
         code, out = _run(capsys, "extract", "--kind", "rule", "--input", scenarios)
         assert code == EXIT_OK
-        assert out == _enveloped(None, {"S1": True})
+        assert out["schema"] == "optimizer-results/1"
+        assert out["corpus"] is None
+        assert out["results"] == {"S1": True}
 
     def test_rule_extract_refuses_judge_failed_sample(self, tmp_path, capsys):
         scenarios = _write(
@@ -762,7 +780,15 @@ class TestExtract:
                         {
                             "id": "S4",
                             "negative_case": False,
-                            "mechanisms": {"full": {"scores": {"activation_score": 5}}},
+                            "mechanisms": {
+                                "full": {
+                                    "scores": {
+                                        "activation_score": 5,
+                                        "citation_score": 5,
+                                        "behavior_score": 5,
+                                    }
+                                }
+                            },
                         }
                     ],
                 }
@@ -783,19 +809,6 @@ class TestExtract:
                     {
                         "id": "S1",
                         "negative_case": False,
-<<<<<<< HEAD
-                        "mechanisms": {"full": {"scores": {"activation_score": 5}}},
-||||||| 304355e9
-                        "mechanisms": {
-                            "full": {
-                                "scores": {
-                                    "activation_score": 1,
-                                    "citation_score": 1,
-                                    "behavior_score": 1,
-                                }
-                            }
-                        },
-=======
                         "mechanisms": {
                             "full": {
                                 "scores": {
@@ -844,7 +857,6 @@ class TestExtract:
                                 }
                             }
                         },
->>>>>>> origin/main
                     }
                 ]
             },
@@ -1919,6 +1931,25 @@ class TestSplitFileIsSelfValidating:
         assert code == EXIT_OK
         assert out["decision"] == "ACCEPT"
 
+    def test_legacy_numeric_false_test_ratio_is_a_schema_error(
+        self, tmp_path, capsys
+    ):
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = False
+        tasks = [str(t) for group in ("opt", "sel", "test") for t in split[group]]
+        split["fingerprint"] = _legacy_split_fingerprint(
+            tasks, seed=split["seed"], sel_ratio=0.4, test_ratio=0.0
+        )
+        path = _write(tmp_path, "split.json", split)
+
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", path
+        )
+
+        assert code == EXIT_CONFIG
+        assert "legacy numeric schema or both use string schema" in out["error"]
+
     @pytest.mark.parametrize(
         ("sel_ratio", "test_ratio"),
         [
@@ -2106,8 +2137,15 @@ class TestSplitFileIsSelfValidating:
         assert code == EXIT_OK
         assert len(out["sel"]) == 3
 
-    def test_split_million_digit_ratio_has_a_subprocess_deadline(self, tmp_path):
-        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
+    @staticmethod
+    def _assert_truncated_ratio_value(message: str, original_length: int) -> None:
+        assert "..." in message
+        assert f"(length {original_length})" in message
+        assert len(message) < 200
+
+    def test_split_million_digit_ratio_uses_text_length_guard(self, tmp_path):
+        tasks = tmp_path / "tasks.txt"
+        tasks.write_text("\n".join(f"t{i}" for i in range(10)) + "\n", encoding="utf-8")
         out_path = tmp_path / "split.json"
         script = f"""
 import importlib.util
@@ -2119,10 +2157,14 @@ module = importlib.util.module_from_spec(spec)
 sys.modules["optimize_artifact"] = module
 assert spec is not None and spec.loader is not None
 spec.loader.exec_module(module)
+class BoomDecimal:
+    def __init__(self, *_args, **_kwargs):
+        raise AssertionError("Decimal must not parse overlong ratios")
+sys.modules["_optimizer_core"].Decimal = BoomDecimal
 code = module.main([
     "split",
-    "--results",
-    {str(inc)!r},
+    "--tasks",
+    {str(tasks)!r},
     "--seed",
     "s1",
     "--sel-ratio",
@@ -2143,30 +2185,55 @@ print(code)
         assert result.returncode == 0
         assert result.stdout.splitlines()[-1] == str(EXIT_CONFIG)
         payload = json.loads("\n".join(result.stdout.splitlines()[:-1]))
-        assert len(payload["error"]) < 200
+        assert "at most 128 characters" in payload["error"]
+        assert "coefficient digits" not in payload["error"]
+        self._assert_truncated_ratio_value(payload["error"], 1_000_002)
 
+    @pytest.mark.parametrize(
+        ("argv", "pattern", "lengths"),
+        [
+            (("--sel-ratio", "0." + "0" * 64), "strictly between 0 and 1", (66,)),
+            (("--test-ratio", "1." + "0" * 63), "test_ratio must be in", (65,)),
+            (
+                ("--sel-ratio", "0." + "9" * 64, "--test-ratio", "0." + "1" * 64),
+                "leave at least one opt task",
+                (66, 66),
+            ),
+            (
+                ("--sel-ratio", "0." + "4" * 64, "--test-ratio", "0." + "4" * 64),
+                "leaves no opt tasks",
+                (66, 66),
+            ),
+            (("--sel-ratio", "0." + "0" * 63 + "1"), "holds out no tasks", (66,)),
+        ],
+    )
     def test_split_semantic_ratio_errors_truncate_long_values(
+        self, tmp_path, capsys, argv, pattern, lengths
+    ):
+        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(2)})
+        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
+                         *argv, "--min-sel", "0", "--out", tmp_path / "split.json")
+        assert code == EXIT_CONFIG
+        assert pattern in out["error"]
+        for original_length in lengths:
+            self._assert_truncated_ratio_value(out["error"], original_length)
+
+    def test_legacy_min_sel_shortfall_error_truncates_long_values(
         self, tmp_path, capsys
     ):
-        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
-        ratio = "0." + "0" * 125
-        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
-                         "--sel-ratio", ratio, "--min-sel", "0",
-                         "--out", tmp_path / "zero.json")
-        assert code == EXIT_CONFIG
-        assert "strictly between 0 and 1" in out["error"]
-        assert len(out["error"]) < 200
+        inc, cand, split = self._setup(tmp_path, capsys)
+        split["sel_ratio"] = 0.4
+        split["test_ratio"] = 0.0
+        split["min_sel"] = int("1" * 309)
+        path = _write(tmp_path, "split.json", split)
 
-    def test_split_ratio_sum_error_truncates_both_values(self, tmp_path, capsys):
-        inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(25)})
-        sel_ratio = "0." + "9" * 64
-        test_ratio = "0." + "1" * 64
-        code, out = _run(capsys, "split", "--results", inc, "--seed", "s1",
-                         "--sel-ratio", sel_ratio, "--test-ratio", test_ratio,
-                         "--min-sel", "0", "--out", tmp_path / "sum.json")
+        code, out = _run_gate(
+            capsys, tmp_path, "--incumbent", inc, "--candidate", cand, "--split", path
+        )
+
         assert code == EXIT_CONFIG
-        assert "leave at least one opt task" in out["error"]
-        assert len(out["error"]) < 200
+        assert "below min_sel" in out["error"]
+        self._assert_truncated_ratio_value(out["error"], 309)
 
     def test_split_writes_the_ratios_it_used(self, tmp_path, capsys):
         inc = _write(tmp_path, "inc.json", {f"t{i}": False for i in range(10)})
@@ -3935,8 +4002,9 @@ class TestTheSeamCarriesTheCorpusItWasScoredAgainst:
 
     def _agent_report(self, tmp_path, name, corpus, rates=None):
         payload = {
+            "error_count": 0,
             "per_fixture_pass_rates": rates
-            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
         }
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
@@ -4189,8 +4257,9 @@ class TestTheCorpusPinCannotBeStrippedAway:
 
     def _report(self, tmp_path, name, corpus, rates=None):
         payload = {
+            "error_count": 0,
             "per_fixture_pass_rates": rates
-            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)}
+            or {f"t{i}": {"agent": [1.0 if i < 5 else 0.0]} for i in range(10)},
         }
         if corpus is not None:
             payload["fixture_set_sha"] = corpus
@@ -6031,7 +6100,6 @@ class TestNumbersTooLargeToComputeWithNeverReachTheLedger:
         assert excinfo.value.code == EXIT_CONFIG
 
 
-<<<<<<< HEAD
 class TestExtractionProvenanceCustody:
     def _tasks(self, tmp_path, n: int = 10) -> Path:
         path = tmp_path / "tasks.txt"
@@ -6052,6 +6120,7 @@ class TestExtractionProvenanceCustody:
             {
                 "model_id": "model-a",
                 "seed": "seed-a",
+                "error_count": 0,
                 "per_fixture_pass_rates": {
                     task_id: {"agent": [1.0 if passed else 0.0]}
                     for task_id, passed in results.items()
@@ -6213,8 +6282,8 @@ class TestExtractionProvenanceCustody:
 
         assert code == EXIT_CONFIG
         assert "whole task set" in out["error"]
-||||||| 304355e9
-=======
+
+
 class TestAPatchTheBufferCannotFingerprintIsRefusedNotSkipped:
     """A crash in the buffer commands does not merely lose a document.
 
@@ -8001,8 +8070,9 @@ class TestAnUnreadableRecordIsNotAnEmptyOne:
         tasks = tmp_path / "tasks.txt"
         tasks.write_text("\n".join(f"t{i}" for i in range(12)), encoding="utf-8")
         _, split = _split(capsys, tmp_path, "--tasks", tasks, "--seed", "unread34")
-        inc = _write(tmp_path, "i.json", {t: False for t in split["sel"]})
-        cand = _write(tmp_path, "c.json", {t: True for t in split["sel"]})
+        universe = [t for group in ("opt", "sel", "test") for t in split[group]]
+        inc = _write(tmp_path, "i.json", {t: False for t in universe})
+        cand = _write(tmp_path, "c.json", {t: True for t in universe})
         return root, split, inc, cand
 
     def _run_the_gate(self, capsys, tmp_path, split, inc, cand):
@@ -10305,4 +10375,3 @@ class TestDuplicateKeysAreRefusedBeforeAnythingReadsTheObject:
         the subclassing is what keeps that promise true.
         """
         assert issubclass(oa._DuplicateKeyError, ValueError)
->>>>>>> origin/main

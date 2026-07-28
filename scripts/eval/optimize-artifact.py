@@ -75,6 +75,7 @@ from _optimizer_adapters import (  # noqa: E402
 from _optimizer_core import (  # noqa: E402
     Patch,
     ScoreEvidence,
+    _ratio_display,
     apply_patches,
     buffer_contains,
     edit_budget,
@@ -309,7 +310,25 @@ _CORPUS_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 _UNPINNED = object()
 
 
-<<<<<<< HEAD
+class _Unreadable:
+    """What `_corpus_header` answers when it could not parse the file at all.
+
+    A class rather than a bare `object()` so the reader's return type states
+    the three answers it actually has. `str | object | None` collapses to
+    `object` and checks nothing.
+
+    Distinct from `None`, which means the file parsed and declared no corpus.
+    The gate reads those two facts differently: an absent corpus beside a pin
+    is the envelope strip and refuses as a REJECT, while an unparseable file
+    has declared nothing and belongs to the full reader, which reports it as a
+    config failure. Answering `None` for both sent malformed input down the
+    anti-strip path and turned it into a verdict on a file nobody could read.
+    """
+
+
+_UNREADABLE = _Unreadable()
+
+
 def _file_digest(path: Path) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -370,26 +389,6 @@ def _checked_provenance(
             f"{path} extraction provenance does not match its results; re-run extract"
         )
     return provenance
-||||||| 304355e9
-=======
-class _Unreadable:
-    """What `_corpus_header` answers when it could not parse the file at all.
-
-    A class rather than a bare `object()` so the reader's return type states
-    the three answers it actually has. `str | object | None` collapses to
-    `object` and checks nothing.
-
-    Distinct from `None`, which means the file parsed and declared no corpus.
-    The gate reads those two facts differently: an absent corpus beside a pin
-    is the envelope strip and refuses as a REJECT, while an unparseable file
-    has declared nothing and belongs to the full reader, which reports it as a
-    config failure. Answering `None` for both sent malformed input down the
-    anti-strip path and turned it into a verdict on a file nobody could read.
-    """
-
-
-_UNREADABLE = _Unreadable()
->>>>>>> origin/main
 
 
 def _checked_corpus(path: Path, value: object) -> str | None:
@@ -671,7 +670,8 @@ def _legacy_numeric_split_groups(
     if not 0.0 <= test_ratio < 1.0:
         raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        min_sel_display = _ratio_display(str(min_sel))
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_ratio + test_ratio >= 1.0:
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -714,8 +714,9 @@ def _legacy_numeric_split_groups(
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
+        min_sel_display = _ratio_display(str(min_sel))
         raise ValueError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 
@@ -765,10 +766,7 @@ def _rule_degraded_scenario_ids(
             degraded.append(task_id)
             continue
         scores = mech_data.get("scores")
-        if isinstance(scores, Mapping) and scores.get("judge_failed"):
-            degraded.append(task_id)
-        elif not isinstance(scores, Mapping) or not scores:
-            # Missing or empty scores: scoring never completed. Fail closed.
+        if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
             continue
         samples = mech_data.get("score_samples")
@@ -784,27 +782,6 @@ def _rule_degraded_scenario_ids(
     return degraded
 
 
-<<<<<<< HEAD
-||||||| 304355e9
-def _rule_score_block_is_degraded(scores: object) -> bool:
-    if not isinstance(scores, Mapping) or not scores:
-        return True
-    if scores.get("judge_failed"):
-        return True
-    for field in ("activation_score", "citation_score", "behavior_score"):
-        value = scores.get(field)
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-            or value < 0
-            or value > 5
-        ):
-            return True
-    return False
-
-
-=======
 def _rule_score_block_is_degraded(scores: object) -> bool:
     """Whether a scenario's score block is too damaged to reduce.
 
@@ -834,7 +811,6 @@ def _rule_score_block_is_degraded(scores: object) -> bool:
     return False
 
 
->>>>>>> origin/main
 def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     if not task_ids:
         return
@@ -982,68 +958,6 @@ def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[
     return extracted
 
 
-<<<<<<< HEAD
-def _universe_ids(split: Mapping[str, Any]) -> list[str]:
-    return [str(t) for group in _GROUPS for t in split[group]]
-
-
-def _covers_universe(results: Mapping[str, Any], split: Mapping[str, Any]) -> bool:
-    return all(isinstance(results.get(task_id), bool) for task_id in _universe_ids(split))
-
-
-def _upstream_value(value: object, fallback: str) -> str:
-    if value is None:
-        return fallback
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int | float | str):
-        return str(value)
-    raise ConfigError(f"upstream metadata must be scalar, got {type(value).__name__}")
-
-
-def _extract_provenance(
-    args: argparse.Namespace,
-    results: Mapping[str, bool],
-    *,
-    report: Mapping[str, Any] | None = None,
-    group: str = "all",
-    split: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    upstream_model = args.upstream_model
-    upstream_seed = args.upstream_seed
-    if report is not None:
-        upstream_model = upstream_model or _upstream_value(report.get("model_id"), "unknown-model")
-        upstream_seed = upstream_seed or _upstream_value(report.get("seed"), "unseeded")
-    if upstream_model is None:
-        upstream_model = "not-applicable"
-    if upstream_seed is None:
-        upstream_seed = "not-applicable"
-    provenance: dict[str, Any] = {
-        "schema": _PROVENANCE_SCHEMA,
-        "extractor_version": _EXTRACTOR_VERSION,
-        "input_path": str(args.input),
-        "input_digest": _file_digest(args.input),
-        "results_digest": _results_digest(results),
-        "upstream_scorer": args.kind,
-        "upstream_model": upstream_model,
-        "upstream_seed": upstream_seed,
-        "kind": args.kind,
-        "group": group,
-    }
-    if args.kind == "agent":
-        provenance.update(
-            {
-                "variant": args.variant,
-                "reduce": args.reduce,
-                "pass_threshold": args.pass_threshold,
-            }
-||||||| 304355e9
-def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
-    if "error_count" not in report:
-        raise ConfigError(
-            "refusing to extract agent report with missing error_count; "
-            "rerun with a current report writer"
-=======
 def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
     """Refuse a bar that sits off the scale it is compared against.
 
@@ -1092,7 +1006,75 @@ def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
         raise ConfigError(
             "refusing to extract agent report with missing error_count; "
             "rerun with a current report writer"
->>>>>>> origin/main
+        )
+
+
+def _inputs_path(paths: Sequence[Path]) -> str:
+    return ",".join(str(path) for path in paths)
+
+
+def _inputs_digest(paths: Sequence[Path]) -> str:
+    """One digest naming the input set; a single file keeps its bare digest."""
+    digests = [_file_digest(path) for path in paths]
+    if len(digests) == 1:
+        return digests[0]
+    return hashlib.sha256(":".join(digests).encode("utf-8")).hexdigest()
+
+
+def _universe_ids(split: Mapping[str, Any]) -> list[str]:
+    return [str(t) for group in _GROUPS for t in split[group]]
+
+
+def _covers_universe(results: Mapping[str, Any], split: Mapping[str, Any]) -> bool:
+    return all(isinstance(results.get(task_id), bool) for task_id in _universe_ids(split))
+
+
+def _upstream_value(value: object, fallback: str) -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float | str):
+        return str(value)
+    raise ConfigError(f"upstream metadata must be scalar, got {type(value).__name__}")
+
+
+def _extract_provenance(
+    args: argparse.Namespace,
+    results: Mapping[str, bool],
+    *,
+    report: Mapping[str, Any] | None = None,
+    group: str = "all",
+    split: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    upstream_model = args.upstream_model
+    upstream_seed = args.upstream_seed
+    if report is not None:
+        upstream_model = upstream_model or _upstream_value(report.get("model_id"), "unknown-model")
+        upstream_seed = upstream_seed or _upstream_value(report.get("seed"), "unseeded")
+    if upstream_model is None:
+        upstream_model = "not-applicable"
+    if upstream_seed is None:
+        upstream_seed = "not-applicable"
+    provenance: dict[str, Any] = {
+        "schema": _PROVENANCE_SCHEMA,
+        "extractor_version": _EXTRACTOR_VERSION,
+        "input_path": _inputs_path(args.input),
+        "input_digest": _inputs_digest(args.input),
+        "results_digest": _results_digest(results),
+        "upstream_scorer": args.kind,
+        "upstream_model": upstream_model,
+        "upstream_seed": upstream_seed,
+        "kind": args.kind,
+        "group": group,
+    }
+    if args.kind == "agent":
+        provenance.update(
+            {
+                "variant": args.variant,
+                "reduce": args.reduce,
+                "pass_threshold": args.pass_threshold,
+            }
         )
     elif args.kind == "rule":
         provenance.update({"mechanism": args.mechanism, "min_score": args.min_score})
@@ -1126,26 +1108,13 @@ def cmd_extract(args: argparse.Namespace) -> int:
             _read_text(_single_input(args.input, "hook")), on_skip=args.on_skip
         )
     elif args.kind == "agent":
-<<<<<<< HEAD
-        raw_report = _read_json(args.input)
-        if not isinstance(raw_report, Mapping):
-            raise ConfigError(f"{args.input} must hold an agent report object")
-        report = raw_report
-        corpus = _report_corpus(args.input, report)
-||||||| 304355e9
-        report = _read_json(args.input)
-        if not isinstance(report, Mapping):
-            raise ConfigError(f"{args.input} must hold an agent report object")
-        _refuse_degraded_agent_report(report)
-        corpus = _report_corpus(args.input, report)
-=======
         path = _single_input(args.input, "agent")
-        report = _read_json(path)
-        if not isinstance(report, Mapping):
+        raw_report = _read_json(path)
+        if not isinstance(raw_report, Mapping):
             raise ConfigError(f"{path} must hold an agent report object")
-        _refuse_degraded_agent_report(report)
+        _refuse_degraded_agent_report(raw_report)
+        report = raw_report
         corpus = _report_corpus(path, report)
->>>>>>> origin/main
         results = agent_results(
             report,
             args.variant,
@@ -1153,8 +1122,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
             pass_threshold=args.pass_threshold,
         )
     else:
-<<<<<<< HEAD
-        results = _extract_rule(_read_json(args.input), args)
+        results = _extract_rule([_read_json(path) for path in args.input], args)
     split = None
     group = "all"
     if args.split is not None or args.group is not None:
@@ -1173,13 +1141,6 @@ def cmd_extract(args: argparse.Namespace) -> int:
             "results": results,
         }
     )
-||||||| 304355e9
-        results = _extract_rule(_read_json(args.input), args)
-    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
-=======
-        results = _extract_rule([_read_json(path) for path in args.input], args)
-    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
->>>>>>> origin/main
     return EXIT_OK
 
 
@@ -2616,17 +2577,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     extract.add_argument("--pass-threshold", type=float, default=1.0)
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
-<<<<<<< HEAD
-    extract.add_argument("--min-score", type=float, default=3.5)
-    extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
-    extract.add_argument("--split", type=Path, help="split used to filter a group")
-    extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
-    extract.add_argument("--upstream-model", help="model id used by the upstream scorer")
-    extract.add_argument("--upstream-seed", help="seed used by the upstream scorer")
-||||||| 304355e9
-    extract.add_argument("--min-score", type=float, default=3.5)
-    extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
-=======
     extract.add_argument(
         "--min-score", type=float, default=DEFAULT_MIN_ACTIVATION_SCORE
     )
@@ -2639,7 +2589,10 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument(
         "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES
     )
->>>>>>> origin/main
+    extract.add_argument("--split", type=Path, help="split used to filter a group")
+    extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
+    extract.add_argument("--upstream-model", help="model id used by the upstream scorer")
+    extract.add_argument("--upstream-seed", help="seed used by the upstream scorer")
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")
