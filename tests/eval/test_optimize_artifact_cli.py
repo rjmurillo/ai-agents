@@ -6257,6 +6257,35 @@ class TestTheThreeKindsDisagreeOnDegradedInputAsDocumented:
         assert exc.value.code == EXIT_CONFIG
 
 
+def _defaults_agree(expected: object, actual: object) -> bool:
+    """Whether a parsed flag default matches its owner's, as the system reads it.
+
+    `Ratio` is `float | str`, so argparse hands back the string it was given
+    while the owning signature declares a float. The two spellings have to be
+    compared through the same canonicalization the product uses, and both of
+    the obvious shortcuts are wrong in one direction.
+
+    `float(actual) == expected` is too loose. `float` collapses every decimal
+    within one ULP onto the same value, so a default that moved to
+    `"0.4000000000000000000000000001"` reads as unchanged here while
+    `split_fingerprint` hashes it to a different split.
+
+    `actual == str(expected)` is too tight. The fingerprint runs ratios
+    through `Fraction`, so `"0.40"` and `0.4` are the same split; reporting
+    that as drift sends a reader looking for a change nobody made.
+
+    `_canonical_ratio` is the function `split_fingerprint` itself calls, so
+    reusing it keeps this bar from ever drifting from the thing it protects.
+
+    Raises:
+        ValueError: when a ratio default is not a decimal, which is louder
+            and more specific than reading the same input as a mismatch.
+    """
+    if isinstance(expected, float) and isinstance(actual, str):
+        return core._canonical_ratio(actual) == core._canonical_ratio(expected)
+    return actual == expected
+
+
 class TestOneNameForEachFlagDefaultAndChoiceSet:
     """Every CLI flag whose values a module owns reads them from that module.
 
@@ -6284,8 +6313,9 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
 
     # Every flag whose value a module owns, paired with the function whose
     # signature is that owner. `Ratio` is `float | str`, so the two split
-    # ratios are compared numerically: argparse keeps the string because the
-    # value is parsed downstream, and the digits are what must agree.
+    # ratios arrive as the string argparse was given while the owner declares
+    # a float. `_defaults_agree` reconciles the two through the product's own
+    # `_canonical_ratio`, which is neither float-loose nor string-tight.
     _OWNED_DEFAULTS = (
         ("extract", "pass_threshold", "agent_results"),
         ("extract", "reduce", "rule_results_multi"),
@@ -6333,10 +6363,7 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
         fn = getattr(adapters, owner, None) or getattr(core, owner)
         expected = inspect.signature(fn).parameters[dest].default
         actual = getattr(self._parse(command, tmp_path), dest)
-        if isinstance(expected, float) and isinstance(actual, str):
-            assert float(actual) == expected
-        else:
-            assert actual == expected
+        assert _defaults_agree(expected, actual), f"{command} --{dest}"
 
     def test_the_pairs_above_name_a_parameter_each_owner_really_has(self):
         """A typo in the table above would silently test nothing.
@@ -6384,6 +6411,107 @@ class TestOneNameForEachFlagDefaultAndChoiceSet:
                 "--mechanism", "full", "--reduce", "sum",
             ])
         assert exc.value.code == EXIT_CONFIG
+
+
+class TestDefaultsAgreeIsAsStrictAsTheFingerprint:
+    """The bar the table above compares with needs its own coverage.
+
+    A test whose comparison is looser than the system's own passes while the
+    thing it pins is broken, which is how the previous spelling survived: it
+    read `float(actual) == expected`, and `float` collapses every decimal
+    string within one ULP of the default onto the default itself.
+
+    Both directions are failures, so both are pinned here. Too loose accepts a
+    drifted default that `split_fingerprint` would hash to a different split.
+    Too tight reports drift for a respelling the fingerprint canonicalizes
+    away, which sends a reader looking for a change nobody made.
+    """
+
+    @pytest.mark.parametrize(
+        ("expected", "actual"),
+        [
+            (0.4, "0.4"),
+            (0.0, "0.0"),
+            (0.4, "0.40"),
+            (0.0, "0.00"),
+            (0.4, "0.4000"),
+            (1.0, "1.0"),
+        ],
+    )
+    def test_a_respelling_the_fingerprint_cannot_see_is_not_drift(
+        self, expected, actual
+    ):
+        """Trailing zeros do not move the split, so they are not a mismatch.
+
+        `_canonical_ratio` runs the value through `Fraction`, so `"0.40"` and
+        `0.4` reach `split_fingerprint` as the same `2/5`. An exact-string bar
+        would fail these, which is why the fix is not "compare the strings".
+        """
+        assert _defaults_agree(expected, actual)
+
+    @pytest.mark.parametrize(
+        ("expected", "actual"),
+        [
+            (0.4, "0.4000000000000000000000000001"),
+            (0.4, "0.3999999999999999999999999999"),
+            (0.0, "0.0000000000000000000000000001"),
+            (0.4, "0.5"),
+        ],
+    )
+    def test_a_default_that_moves_the_split_is_drift(self, expected, actual):
+        """The first three are `float`-equal to the default and still drift.
+
+        These are the cases the previous bar could not see. Each hashes to a
+        different split, so a default that moved this far would have passed
+        the audit while every stored fingerprint stopped matching.
+        """
+        assert not _defaults_agree(expected, actual)
+
+    def test_the_drifting_values_really_do_move_the_fingerprint(self):
+        """The negative cases above are only meaningful if this holds.
+
+        Asserting the bar rejects them proves nothing on its own: the bar
+        could be rejecting values the system treats as identical. Recompute
+        the fingerprint to show the rejection tracks a real split change.
+        """
+        ids = ["a", "b", "c", "d", "e"]
+        base = core.split_fingerprint(ids, seed="s", sel_ratio=0.4)
+        moved = core.split_fingerprint(
+            ids, seed="s", sel_ratio="0.4000000000000000000000000001"
+        )
+        same = core.split_fingerprint(ids, seed="s", sel_ratio="0.40")
+        assert (moved != base, same == base) == (True, True)
+
+    @pytest.mark.parametrize(
+        ("expected", "actual"),
+        [("mean", "mean"), ("fail", "fail"), (3, 3), (5, 5), (1, 1)],
+    )
+    def test_a_non_ratio_flag_compares_directly(self, expected, actual):
+        """Six of the nine table entries are `str` or `int` on both sides.
+
+        Those never reach the ratio branch, and routing them through it would
+        make `3` and `"3"` agree, which for a count is a real mismatch.
+        """
+        assert _defaults_agree(expected, actual)
+
+    @pytest.mark.parametrize(
+        ("expected", "actual"),
+        [("mean", "median"), (3, 4), (3, "3"), (0.4, 0.5)],
+    )
+    def test_a_non_ratio_mismatch_is_reported(self, expected, actual):
+        """`(3, "3")` is the case that justifies not widening the branch."""
+        assert not _defaults_agree(expected, actual)
+
+    def test_a_ratio_default_that_is_not_a_decimal_fails_loudly(self):
+        """A garbage default raises rather than quietly reading as drift.
+
+        `"2/5"` is the value a reader most plausibly reaches for, and it is
+        exactly what `_canonical_ratio` prints, so a silent `False` here would
+        send them hunting for a numeric difference that does not exist. The
+        error names the flag and the format instead.
+        """
+        with pytest.raises(ValueError, match="must be a decimal ratio"):
+            _defaults_agree(0.4, "2/5")
 
 
 @_NEEDS_PERMISSION_BARRIER
