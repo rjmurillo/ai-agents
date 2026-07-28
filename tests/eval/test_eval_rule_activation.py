@@ -641,6 +641,152 @@ class TestClampScore:
     def test_clamps_to_zero_to_five(self, value: object, expected: int):
         assert eval_mod._clamp_score(value) == expected
 
+    @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
+    def test_non_finite_floats_fail_closed_to_zero(self, value: object):
+        # json.loads accepts Infinity / -Infinity by default, so a judge can
+        # emit a non-finite score. int(float("inf")) raises OverflowError, which
+        # is not caught by the (TypeError, ValueError) handler and crashes the
+        # evaluator. A non-finite score is garbage: it must clamp to 0 (fail
+        # closed, lowering the activation average) rather than crash or inflate.
+        assert eval_mod._clamp_score(value) == 0
+
+    def test_nan_fails_closed_to_zero(self):
+        # NaN reaches int() and raises ValueError today; lock the fail-closed 0.
+        assert eval_mod._clamp_score(float("nan")) == 0
+
+
+# ---------------------------------------------------------------------------
+# skill_path resolution (activation measurement extended from rules to skills)
+# ---------------------------------------------------------------------------
+
+
+class TestSkillPathResolution:
+    """skill_path validation mirrors rule_path: it must resolve under
+    .claude/skills/ as a SKILL.md file, and rejects traversal, out-of-tree
+    paths, and non-skill files so the `full` mechanism cannot exfiltrate
+    arbitrary repository content to the API.
+    """
+
+    def test_accepts_valid_skill_under_skills_dir(self, tmp_path: Path):
+        target = REPO_ROOT / ".claude" / "skills" / "security-scan" / "SKILL.md"
+        if not target.is_file():
+            pytest.skip("security-scan/SKILL.md not present in this checkout")
+        f = tmp_path / "ok.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/security-scan/SKILL.md",
+                    "skill_id": "security-scan",
+                    "scenarios": [{"id": "S1", "input": "scan for injection"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = eval_mod._load_scenarios_file(str(f))
+        assert isinstance(result, tuple)
+        _data, target_paths = result
+        resolved, reference_path = target_paths
+        assert resolved.is_file()
+        assert resolved.name == "SKILL.md"
+        assert reference_path is None
+
+    def test_rejects_skill_path_outside_skills_dir(self, tmp_path: Path):
+        f = tmp_path / "outside.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/rules/universal.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_skill_path_traversal(self, tmp_path: Path):
+        f = tmp_path / "traversal.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/../../etc/passwd",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_non_skill_md_filename(self, tmp_path: Path):
+        # A file under skills that is not named SKILL.md is rejected on name,
+        # before the is_file() check, so a crafted path cannot target other
+        # skill-tree files even if they exist.
+        f = tmp_path / "not_skill.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/security-scan/README.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_missing_skill_file(self, tmp_path: Path):
+        f = tmp_path / "missing.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "skill_path": ".claude/skills/does-not-exist-xyz/SKILL.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_both_rule_and_skill_path(self, tmp_path: Path):
+        f = tmp_path / "both.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/universal.md",
+                    "skill_path": ".claude/skills/security-scan/SKILL.md",
+                    "scenarios": [{"id": "S1", "input": "x"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_neither_rule_nor_skill_path(self, tmp_path: Path):
+        f = tmp_path / "neither.json"
+        f.write_text(
+            json.dumps({"scenarios": [{"id": "S1", "input": "x"}]}),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_process_one_rule_derives_skill_id_from_dir(self):
+        import types
+
+        target = REPO_ROOT / ".claude" / "skills" / "security-scan" / "SKILL.md"
+        if not target.is_file():
+            pytest.skip("security-scan/SKILL.md not present in this checkout")
+        scenarios_data = {"scenarios": [{"id": "S1", "input": "x"}]}
+        args = types.SimpleNamespace(
+            dry_run=True,
+            model="m",
+            seed=0,
+            judge_repeats=eval_mod.DEFAULT_JUDGE_REPEATS,
+            judge_reducer=eval_mod.DEFAULT_JUDGE_REDUCER,
+        )
+        rule_id, result, _n = eval_mod._process_one_rule(
+            "key", scenarios_data, (target, None), args
+        )
+        assert rule_id == "security-scan"
+        assert result is None
+
 
 class TestJudgeSampleReduction:
     def _scenario(self) -> dict[str, object]:
