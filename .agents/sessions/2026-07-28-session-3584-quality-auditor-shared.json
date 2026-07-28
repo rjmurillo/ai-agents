@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3584,
+    "date": "2026-07-28",
+    "branch": "fix/3584-quality-auditor-shared",
+    "startingCommit": "bbe26780",
+    "objective": "Fix issue #3584 by promoting quality-auditor to shared agent surfaces so routed installs can invoke it."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status reported branch fix/3584-quality-auditor-shared"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Prior context included issue handoff and .agents/HANDOFF summary; HANDOFF.md not edited"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3584-quality-auditor-shared"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena activation tool was unavailable; used repository fallback context and wrote memory quality-auditor-shared-routing-3584 before completion"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena initial instructions tool was unavailable; used repository fallback context from loaded instructions"
+      }
+    },
+    "sessionEnd": {
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/test_quality_auditor_agent_reachability.py returned 15 passed; revert worktree returned 15 failed; build/generate_agents.py --validate returned validation passed"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commits 19bd37e0, 9fbfa455, c517ae65, and 6a98b368 cover template, install prompts, tests, and plugin manifests"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md not touched"
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log updated before final validation"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote Serena memory quality-auditor-shared-routing-3584"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pre-commit markdownlint ran on changed Markdown files and reported 0 issues"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured issue #3584 on current main. Only .claude/agents carried quality-auditor while orchestrator rows already named it in install surfaces."
+    },
+    {
+      "step": "Added shared, GitHub, src/claude, Copilot CLI, and VS Code quality-auditor surfaces, then regenerated agent outputs and the catalog."
+    },
+    {
+      "step": "Added 15 reachability tests covering the five missing surfaces and the existing orchestrator route rows."
+    },
+    {
+      "step": "Revert check in sibling worktree ai-agents-3584-revert restored the five new agent surfaces to origin/main while keeping tests. Result: all 15 tests failed, proving the tests are not tautological."
+    }
+  ],
+  "endingCommit": "6a98b368",
+  "nextSteps": []
+}

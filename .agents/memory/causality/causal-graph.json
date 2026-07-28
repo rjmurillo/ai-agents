@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-27T20:22:25.579815+00:00",
+  "updated": "2026-07-28T01:47:36.446443+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22681,6 +22681,87 @@
         "episode-2026-07-27-session-3468-eval-gate-significance"
       ],
       "created": "2026-07-27T20:22:25.573133+00:00"
+    },
+    {
+      "id": "621f08e8def8",
+      "type": "milestone",
+      "label": "milestone: Measured issue #3584 on current main. Only .claude/agents carried quality-auditor while orchestrator rows already named it in install surfaces.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.439776+00:00"
+    },
+    {
+      "id": "cd56264956cd",
+      "type": "milestone",
+      "label": "milestone: Added shared, GitHub, src/claude, Copilot CLI, and VS Code quality-auditor surfaces, then regenerated agent outputs and the catalog.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.439877+00:00"
+    },
+    {
+      "id": "b22d7c4e5786",
+      "type": "milestone",
+      "label": "milestone: Added 15 reachability tests covering the five missing surfaces and the existing orchestrator route rows.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.439964+00:00"
+    },
+    {
+      "id": "24c84d4ccaa5",
+      "type": "milestone",
+      "label": "milestone: Revert check in sibling worktree ai-agents-3584-revert restored the five new agent surfaces to origin/main while keeping tests. Result: all 15 tests failed, proving the tests are not tautological.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440052+00:00"
+    },
+    {
+      "id": "4c393b35dc68",
+      "type": "commit",
+      "label": "commit: Commit: 6a98b368",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440135+00:00"
+    },
+    {
+      "id": "ca31bd7733c3",
+      "type": "commit",
+      "label": "commit: Commit: 19bd37e0",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440218+00:00"
+    },
+    {
+      "id": "21e32f0bdf25",
+      "type": "commit",
+      "label": "commit: Commit: 9fbfa455",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440301+00:00"
+    },
+    {
+      "id": "cc47d1740d1f",
+      "type": "commit",
+      "label": "commit: Commit: c517ae65",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440386+00:00"
+    },
+    {
+      "id": "606b284eada2",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue #3584 by promoting quality-auditor to shared agent surfaces so routed installs can invoke it.",
+      "episodes": [
+        "episode-2026-07-28-session-3584-quality-auditor-shared"
+      ],
+      "created": "2026-07-28T01:47:36.440470+00:00"
     }
   ],
   "patterns": [
