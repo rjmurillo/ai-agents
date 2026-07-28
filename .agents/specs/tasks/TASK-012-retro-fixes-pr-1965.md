@@ -28,7 +28,7 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 **Objective:** Add a pytest contract test that stubs the GitHub GraphQL endpoint and asserts `get_unresolved_review_threads.py` returns all threads across pagination boundaries. Pins REQ-012-01 and REQ-012-02.
 
 **In scope:**
-- Create `tests/skills/github/test_get_unresolved_review_threads.py`.
+- Create `tests/test_get_unresolved_review_threads.py`.
 - Stub the HTTP layer (do not patch at OS level).
 - Test multi-page case: 100 threads on page 1 (`hasNextPage=true`) + 1 thread on page 2 (`hasNextPage=false`) = 101 total.
 - Test single-page case: all threads fit in one response (`hasNextPage=false`); assert HTTP called once.
@@ -42,14 +42,14 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 - [ ] REQ-012-01: test asserts all 101 thread IDs returned for multi-page stub.
 - [ ] REQ-012-02: test asserts exactly one HTTP call for single-page stub.
 - [ ] No live network calls; all HTTP interactions are stubbed.
-- [ ] `pytest tests/skills/github/test_get_unresolved_review_threads.py` exits 0.
+- [ ] `pytest tests/test_get_unresolved_review_threads.py` exits 0.
 - [ ] Test file imports follow ADR-042 (Python, standard library mock only).
 
 **Files Affected:**
 
 | File | Action | Description |
 |------|--------|-------------|
-| `tests/skills/github/test_get_unresolved_review_threads.py` | Create | Contract test for GraphQL pagination behavior |
+| `tests/test_get_unresolved_review_threads.py` | Create | Contract test for GraphQL pagination behavior |
 
 **Implementation Notes:**
 - Read `get_unresolved_review_threads.py` first to identify the HTTP call site and the return type.
@@ -59,11 +59,11 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 - Each thread node needs at minimum an `id` field for the assertion to count IDs.
 
 **Testing Requirements:**
-- Self-testing: the new test file is its own test. Run `pytest tests/skills/github/test_get_unresolved_review_threads.py -v` to verify.
+- Self-testing: the new test file is its own test. Run `pytest tests/test_get_unresolved_review_threads.py -v` to verify.
 
 **Dependencies:** None.
 
-**Done Definition:** `pytest tests/skills/github/test_get_unresolved_review_threads.py` passes; both test cases are present and named descriptively.
+**Done Definition:** `pytest tests/test_get_unresolved_review_threads.py` passes; both test cases are present and named descriptively.
 
 ---
 
