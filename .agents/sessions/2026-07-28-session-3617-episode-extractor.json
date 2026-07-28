@@ -128,12 +128,37 @@
       "step": 9,
       "phase": "validation",
       "summary": "Regenerated the copilot mirror with build/scripts/generate_skills.py and confirmed the canonical and generated copies are byte-identical. Bumped .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json to the same strictly-greater 0.6.171 per the parity gate."
+    },
+    {
+      "step": 10,
+      "phase": "implementation",
+      "summary": "Issue #3633 asks for two things and only the second is reachable: _renumber_events already makes duplicate and non-contiguous ids unrepresentable on the write path, so a pre-write uniqueness check would be dead code. The reachable half is detection at rest, for files that never pass through the extractor again after a hand edit or a merge-conflict resolution. Added --validate over a file or directory, exiting 2 on a duplicate id, a gap, a missing id, a non-object event, a non-list events field, or unreadable JSON."
+    },
+    {
+      "step": 11,
+      "phase": "validation",
+      "summary": "An earlier corpus probe reported 0 duplicate and 0 non-contiguous ids across 301 episodes and I acted on that, concluding the at-rest validator was unmerited. The probe was broken: it filtered ids with isinstance(i, int) but episode ids are strings, so the list was always empty and the contiguity check never ran. Running the real validator instead found 4 violations on its first pass, all in episode-2026-05-31-session-1857.json, the exact file the issue names. Lesson: run the real implementation over the corpus rather than writing a separate probe."
+    },
+    {
+      "step": 12,
+      "phase": "implementation",
+      "summary": "Repaired episode-2026-05-31-session-1857.json, which shipped ids e002-e005 where e001-e004 belong. All four caused_by and leads_to edges are empty and the ids appear nowhere else in the file, so renumbering is lossless: a 4-line diff. The store now validates clean at 302 files, 0 violations."
+    },
+    {
+      "step": 13,
+      "phase": "implementation",
+      "summary": "Requirement 2 of the issue is to add the check to whatever validates episode files in CI. Traced the gates: memory-validation.yml has no episode path filter, and pytest.yml gates its whole test job behind a dorny/paths-filter whose python entry is '**/*.py'. An episode-only PR, exactly the hand-edit population the issue names, matches neither and skips the job, so the new store-clean pin would never have fired against it. Added '.agents/memory/episodes/**' to that filter, which already carries non-Python inputs (uv.lock, lefthook.yml, .config/wt.toml) and is therefore the set of inputs that change Python test outcomes, not the set of Python files."
+    },
+    {
+      "step": 14,
+      "phase": "validation",
+      "summary": "Three negative controls, all confirmed. Reverting the data repair fails the store-clean pin with the original 'event 1 has id e002, expected e001' message. Parking validate_event_ids fails 10 of the 14 new tests. Removing the paths-filter entry fails the wiring test. With everything restored, 886 tests pass across tests/skills/memory, tests/ci, and .claude/skills/memory/tests. mypy clean on all four changed Python files; portability gate exit 0 with no drift."
     }
   ],
   "nextSteps": [
-    "Open the PR for #3617 and #3633 and run the description validator against the live PR.",
-    "Evaluate #3628 (episode decision records carry no independent signal) and #3630 (Tier 2 episode store has no readers); #3630 is an ADR-level call, not a code fix.",
-    "Continue the open-issue campaign: the P1 queue and the 34 ADR-006 workflow extraction chores."
+    "Confirm PR #3718 CI, in particular the Validate Spec Coverage check that reported the #3633-AC1 gap this work closes.",
+    "Confirm PR #3688's Windows job is green on f6b7b16c3 and PR #3694's ADR-006 ratchet on 897ac7939.",
+    "Continue the open-issue campaign: adversarial round 6 against the round-5 tokenizer rules, then the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
   "endingCommit": ""
 }

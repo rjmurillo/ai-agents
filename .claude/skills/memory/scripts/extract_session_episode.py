@@ -1382,6 +1382,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--validate",
+        action="store_true",
+        help=(
+            "Validate an existing episode JSON file, or every *.json under a "
+            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "or non-contiguous event id"
+        ),
+    )
+    parser.add_argument(
         "--pending-stage",
         action="store_true",
         help=(
@@ -1515,6 +1524,86 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
         current["caused_by"] = [previous["id"]]
 
 
+def validate_event_ids(events: Any) -> list[str]:
+    """Return one message per event-id violation, empty when the list is sound.
+
+    ``_renumber_events`` makes duplicates unrepresentable on the write path, so
+    this never fires for a file the extractor produced. It exists for the case
+    issue #3633 names as the actual origin of the one duplicate found live: a
+    hand edit or a merge-conflict resolution, which lands a file without ever
+    passing through the extractor again. Prevention at write time and detection
+    at rest cover different populations; neither subsumes the other.
+
+    ``caused_by`` and ``leads_to`` reference events by id, so a duplicate makes
+    every edge touching it ambiguous and a gap means an edge can dangle.
+    """
+    problems: list[str] = []
+    if not isinstance(events, list):
+        return [f"events must be a list, got {type(events).__name__}"]
+
+    seen: dict[str, int] = {}
+    for position, event in enumerate(events, 1):
+        if not isinstance(event, dict):
+            problems.append(f"event {position} is not an object")
+            continue
+        identifier = event.get("id")
+        if not isinstance(identifier, str) or not identifier:
+            problems.append(f"event {position} has no id")
+            continue
+        if identifier in seen:
+            problems.append(
+                f"duplicate event id {identifier} at positions "
+                f"{seen[identifier]} and {position}"
+            )
+            continue
+        seen[identifier] = position
+        expected = f"e{position:03d}"
+        if identifier != expected:
+            problems.append(
+                f"event {position} has id {identifier}, expected {expected}"
+            )
+    return problems
+
+
+def validate_episode_file(path: Path) -> list[str]:
+    """Return one message per violation found in the episode JSON at ``path``."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"{path}: unreadable: {exc}"]
+    if not isinstance(data, dict):
+        return [f"{path}: top level must be an object"]
+    return [f"{path}: {problem}" for problem in validate_event_ids(data.get("events"))]
+
+
+def _episode_paths(target: Path) -> list[Path]:
+    """Expand ``target`` to the episode files it names."""
+    if target.is_dir():
+        return sorted(target.glob("*.json"))
+    return [target]
+
+
+def run_validate(target: Path) -> int:
+    """Validate an episode file or a directory of them. Exit 2 on violation."""
+    paths = _episode_paths(target)
+    if not paths:
+        print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
+        return 2
+    problems = [problem for path in paths for problem in validate_episode_file(path)]
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    if problems:
+        print(
+            json.dumps(
+                {"Validated": len(paths), "Violations": len(problems)},
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(json.dumps({"Validated": len(paths), "Violations": 0}), file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if ".." in args.session_log_path.parts:
@@ -1522,6 +1611,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"Error": msg}), file=sys.stderr)
         return 2
     session_log_path = args.session_log_path.resolve()
+
+    if args.validate:
+        if not session_log_path.exists():
+            print(
+                json.dumps({"Error": f"Path not found: {session_log_path}"}),
+                file=sys.stderr,
+            )
+            return 1
+        return run_validate(session_log_path)
 
     if not session_log_path.is_file():
         print(

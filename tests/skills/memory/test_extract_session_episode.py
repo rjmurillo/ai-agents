@@ -2079,3 +2079,106 @@ class TestDecisionRecordsCarryIndependentSignal:
             outcomes[label] = {d["outcome"] for d in episode["decisions"]}
         assert outcomes["succeeded"] == {"success"}
         assert outcomes["failed"] != outcomes["succeeded"]
+
+
+class TestValidateModeRejectsUnusableEventIds:
+    """`--validate` exits 2 on an episode whose event ids cannot be indexed.
+
+    `_renumber_events` makes duplicates unrepresentable on the write path, so
+    the write path can never trip this. Issue #3633 names the population it is
+    for: a hand edit or a merge-conflict resolution lands a file that never
+    passes through the extractor again. Prevention at write time and detection
+    at rest cover different files; neither subsumes the other.
+
+    The check found a real one on introduction:
+    `.agents/memory/episodes/episode-2026-05-31-session-1857.json` shipped a
+    list starting at `e002`, exactly as the issue reported. It is repaired in
+    the same change.
+    """
+
+    @staticmethod
+    def _episode(path: Path, events: list) -> Path:
+        path.write_text(
+            json.dumps({"session_id": "s1", "events": events}),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_a_duplicate_id_is_rejected(self, tmp_path):
+        target = self._episode(
+            tmp_path / "episode-dup.json",
+            [{"id": "e001"}, {"id": "e001"}],
+        )
+        problems = extract_session_episode.validate_episode_file(target)
+        assert any("duplicate event id e001" in p for p in problems)
+
+    def test_a_duplicate_id_exits_2(self, tmp_path, capsys):
+        self._episode(tmp_path / "episode-dup.json", [{"id": "e001"}, {"id": "e001"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "duplicate event id e001" in capsys.readouterr().err
+
+    def test_a_burned_index_exits_2(self, tmp_path, capsys):
+        """The shape found live: the list starts at e002."""
+        self._episode(tmp_path / "episode-gap.json", [{"id": "e002"}, {"id": "e003"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "expected e001" in capsys.readouterr().err
+
+    def test_a_missing_id_exits_2(self, tmp_path, capsys):
+        self._episode(tmp_path / "episode-noid.json", [{"type": "commit"}])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "has no id" in capsys.readouterr().err
+
+    def test_a_contiguous_list_exits_0(self, tmp_path):
+        self._episode(
+            tmp_path / "episode-ok.json",
+            [{"id": "e001"}, {"id": "e002"}, {"id": "e003"}],
+        )
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
+
+    def test_an_episode_with_no_events_exits_0(self, tmp_path):
+        self._episode(tmp_path / "episode-empty.json", [])
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
+
+    def test_a_non_list_events_field_is_rejected(self, tmp_path):
+        (tmp_path / "episode-bad.json").write_text(
+            json.dumps({"events": {"id": "e001"}}), encoding="utf-8"
+        )
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_non_object_entry_is_rejected(self, tmp_path):
+        self._episode(tmp_path / "episode-str.json", [{"id": "e001"}, "nope"])
+        problems = extract_session_episode.validate_episode_file(
+            tmp_path / "episode-str.json"
+        )
+        assert any("event 2 is not an object" in p for p in problems)
+
+    def test_unparseable_json_is_reported_not_raised(self, tmp_path):
+        (tmp_path / "episode-broken.json").write_text("{not json", encoding="utf-8")
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_missing_path_exits_1(self, tmp_path):
+        assert extract_session_episode.main([str(tmp_path / "nope"), "--validate"]) == 1
+
+    def test_an_empty_directory_exits_2(self, tmp_path):
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+
+    def test_a_traversal_path_is_refused_before_any_read(self, tmp_path):
+        assert extract_session_episode.main(["../etc/passwd", "--validate"]) == 2
+
+    def test_a_single_file_target_is_accepted(self, tmp_path):
+        target = self._episode(tmp_path / "episode-one.json", [{"id": "e001"}])
+        assert extract_session_episode.main([str(target), "--validate"]) == 0
+
+    def test_the_committed_episode_store_is_clean(self):
+        """Regression pin: the repaired file must not come back, and no new
+        episode may land with ids that tooling cannot index.
+        """
+        store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
+        if not store.is_dir():
+            pytest.skip("episode store not present")
+        problems = [
+            problem
+            for path in sorted(store.glob("*.json"))
+            for problem in extract_session_episode.validate_episode_file(path)
+        ]
+        assert problems == []

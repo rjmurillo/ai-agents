@@ -116,7 +116,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e011",
@@ -124,6 +126,64 @@
       "type": "commit",
       "content": "Commit: abc1234",
       "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3633 asks for two things and only the second is reachable: _renumber_events already makes duplicate and non-contiguous ids unrepresentable on the write path, so a pre-write uniqueness check would be dead code. The reachable half is detection at rest, for files that never pass through the extractor again after a hand edit or a merge-conflict resolution. Added --validate over a file or directory, exiting 2 on a duplicate id, a gap, a missing id, a non-object event, a non-list events field, or unreadable JSON.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "An earlier corpus probe reported 0 duplicate and 0 non-contiguous ids across 301 episodes and I acted on that, concluding the at-rest validator was unmerited. The probe was broken: it filtered ids with isinstance(i, int) but episode ids are strings, so the list was always empty and the contiguity check never ran. Running the real validator instead found 4 violations on its first pass, all in episode-2026-05-31-session-1857.json, the exact file the issue names. Lesson: run the real implementation over the corpus rather than writing a separate probe.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired episode-2026-05-31-session-1857.json, which shipped ids e002-e005 where e001-e004 belong. All four caused_by and leads_to edges are empty and the ids appear nowhere else in the file, so renumbering is lossless: a 4-line diff. The store now validates clean at 302 files, 0 violations.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Requirement 2 of the issue is to add the check to whatever validates episode files in CI. Traced the gates: memory-validation.yml has no episode path filter, and pytest.yml gates its whole test job behind a dorny/paths-filter whose python entry is '**/*.py'. An episode-only PR, exactly the hand-edit population the issue names, matches neither and skips the job, so the new store-clean pin would never have fired against it. Added '.agents/memory/episodes/**' to that filter, which already carries non-Python inputs (uv.lock, lefthook.yml, .config/wt.toml) and is therefore the set of inputs that change Python test outcomes, not the set of Python files.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Three negative controls, all confirmed. Reverting the data repair fails the store-clean pin with the original 'event 1 has id e002, expected e001' message. Parking validate_event_ids fails 10 of the 14 new tests. Removing the paths-filter entry fails the wiring test. With everything restored, 886 tests pass across tests/skills/memory, tests/ci, and .claude/skills/memory/tests. mypy clean on all four changed Python files; portability gate exit 0 with no drift.",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": []
     }
   ],
@@ -133,7 +193,7 @@
     "errors": 71,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 4
+    "files_changed": 6
   },
   "lessons": []
 }
