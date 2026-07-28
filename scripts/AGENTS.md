@@ -276,7 +276,6 @@ python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.
 |-------|---------------|----------|
 | sync_mcp_config.py | Source missing | Exit with path error |
 | validate_session_json.py | Session not found | Warning, continue |
-| consistency.py | Validation failure | Exit with error code |
 
 ## Security Considerations
 
