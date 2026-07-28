@@ -31,6 +31,10 @@ Fail-open vectors this gate refuses to treat as clean (all raise, none skip):
       entry, or a duplicate entry)                                  -> exit 2
   7.  a scenario file is not valid JSON / not an object             -> exit 2
   8.  a scenario file sets neither or both of rule_path/skill_path  -> exit 2
+      (exception: a rule-directory scenario carrying skill_path plus
+      reference_path is an ADR-088 progressive-disclosure reference
+      scenario; it is validated for existence and positive cases, then
+      excluded from the rule ratchet universe)
   9.  a scenario file's target key is the wrong kind for its dir    -> exit 2
   10. a scenario target escapes the allowed artifact directory      -> exit 2
   11. a scenario target does not exist (ORPHAN, e.g. a deleted rule)-> exit 2
@@ -46,7 +50,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 RULES_SUBDIR = Path(".claude") / "rules"
 SKILLS_SUBDIR = Path(".claude") / "skills"
@@ -172,6 +178,37 @@ def _resolve_target(
     return artifact_id
 
 
+def _is_reference_scenario(repo_root: Path, data: Mapping[str, Any], path: Path) -> bool:
+    """Whether a rule-directory scenario targets a skill reference (ADR-088).
+
+    Recognized by a reference_path beside a skill_path and no rule_path. Both
+    paths must exist in the tree; a dangling reference fails closed rather
+    than silently dropping the scenario from the ratchet.
+    """
+    reference = data.get("reference_path")
+    skill = data.get("skill_path")
+    rule = data.get("rule_path")
+    has_reference = isinstance(reference, str) and bool(reference.strip())
+    has_skill = isinstance(skill, str) and bool(skill.strip())
+    has_rule = isinstance(rule, str) and bool(rule.strip())
+    if not (has_reference and has_skill and not has_rule):
+        return False
+    for ref in (reference.strip(), skill.strip()):
+        target = (repo_root / ref).resolve()
+        try:
+            target.relative_to(repo_root.resolve())
+        except ValueError as exc:
+            raise CoverageConfigError(
+                f"reference scenario {path} escapes the repository: {ref}"
+            ) from exc
+        if not target.is_file():
+            raise CoverageConfigError(
+                f"reference scenario {path} points at a missing file: {ref}"
+            )
+    _validate_scenarios_measure(data, path)
+    return True
+
+
 def covered_ids(repo_root: Path, kind: str) -> set[str]:
     """Return the set of artifact ids covered by a well-formed scenario.
 
@@ -205,6 +242,11 @@ def covered_ids(repo_root: Path, kind: str) -> set[str]:
     covered: set[str] = set()
     for path in scenario_paths:
         data = _read_scenario_json(path)
+        if kind == "rule" and _is_reference_scenario(repo_root, data, path):
+            # Progressive-disclosure scenarios (ADR-088) measure a skill
+            # reference, not a .claude/rules artifact, so they neither cover
+            # nor orphan a rule id in this ratchet.
+            continue
         target = data.get(target_key)
         other = data.get(other_key)
         target_ref = target.strip() if isinstance(target, str) else ""
