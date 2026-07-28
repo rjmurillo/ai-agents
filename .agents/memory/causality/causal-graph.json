@@ -23185,6 +23185,159 @@
         "episode-2026-07-27-session-3475-memory-causal-order"
       ],
       "created": "2026-07-27T16:48:35.679513+00:00"
+    },
+    {
+      "id": "b0caf9aef992",
+      "type": "milestone",
+      "label": "milestone: Created the requested worktree from fresh origin/main and verified branch isolation.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602555+00:00"
+    },
+    {
+      "id": "9c53a9e30cdb",
+      "type": "milestone",
+      "label": "milestone: Added software-engineering-library and moved the eight book-derived rule bodies into references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602662+00:00"
+    },
+    {
+      "id": "8cbcef449069",
+      "type": "milestone",
+      "label": "milestone: Ran build_all.py. The generator pruned the 16 orphaned instruction mirrors for the moved book rules.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602746+00:00"
+    },
+    {
+      "id": "368d7a8b512d",
+      "type": "milestone",
+      "label": "milestone: Measured the new always-on instruction budget and lowered code-extension ceilings to 99 KB.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602826+00:00"
+    },
+    {
+      "id": "8fda9c19831c",
+      "type": "milestone",
+      "label": "milestone: Invoked adr-review skill and recorded the ADR-088 debate log.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602906+00:00"
+    },
+    {
+      "id": "8cdaaf48f1a9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted pytest, instruction budget, SkillForge, skill size, and pre-commit hooks on committed slices.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.602985+00:00"
+    },
+    {
+      "id": "d300effc56b7",
+      "type": "milestone",
+      "label": "milestone: Reworded changed review examples that looked like missing skill references and restored causal-graph.json to origin/main so generated graph debt is outside this PR.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.603064+00:00"
+    },
+    {
+      "id": "a32f0774548a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3419 Phase 2 progressive disclosure for book-derived rules.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T13:20:49.603148+00:00"
+    },
+    {
+      "id": "2696f7a677e3",
+      "type": "milestone",
+      "label": "milestone: Added autoplan and analyze routes for software-engineering-library, migrated activation evals to skill references, added enterprise-patterns and data-intensive-applications fixtures, fixed live deleted-rule references, and recorded ADR rollback criteria.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-27T16:00:15.548201+00:00"
+    },
+    {
+      "id": "1f97945aa9a4",
+      "type": "commit",
+      "label": "commit: Commit: f55ed31126928d52755009bd9ef8f241bc3cce92",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T04:12:32.393081+00:00"
+    },
+    {
+      "id": "3db100629688",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into fix/3419-progressive-disclosure after PR #3507 became conflicting. Conflict candidates were causal-graph.json, scripts/eval/README.md, and tests/eval/test_optimize_artifact_cli.py; git auto-merged them.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861277+00:00"
+    },
+    {
+      "id": "66f178daf8d7",
+      "type": "milestone",
+      "label": "milestone: Added behavioral routing tests that read autoplan, analyze, and software-engineering-library. Reproduced the synthetic evaluator false pass before the fix and confirmed it fails after the fix.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861370+00:00"
+    },
+    {
+      "id": "12832f8f3f47",
+      "type": "milestone",
+      "label": "milestone: Repointed two ordinary live deleted-rule references, amended ADR references with dated current-path notes, and kept historical records unchanged.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861454+00:00"
+    },
+    {
+      "id": "86b6e60f2533",
+      "type": "milestone",
+      "label": "milestone: Re-ran adr-review on amended ADR-088 and appended round 2 convergence evidence to the debate log. Filed issue #3589 for the wired rollback trigger.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:43:18.861536+00:00"
+    },
+    {
+      "id": "7a102f74b3fe",
+      "type": "milestone",
+      "label": "milestone: Added dated amendment notes to ADR-060, ADR-061, ADR-062, and ADR-063 for moved book-rule references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:46:56.344118+00:00"
+    },
+    {
+      "id": "eec2b04f2508",
+      "type": "milestone",
+      "label": "milestone: Added dated amendment notes to ADR-070, ADR-076, and ADR-087 for moved book-rule references.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:51:12.074687+00:00"
+    },
+    {
+      "id": "94d919432707",
+      "type": "milestone",
+      "label": "milestone: Updated ADR-088 to defer unwired rollback trigger to issue #3589 and appended round 2 adr-review convergence to ADR-088 debate log.",
+      "episodes": [
+        "episode-2026-07-27-session-3419-progressive-disclosure"
+      ],
+      "created": "2026-07-28T02:55:10.805049+00:00"
     }
   ],
   "patterns": [

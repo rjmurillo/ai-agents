@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Rule Activation Eval: measure whether `.claude/rules/*.md` files actually fire.
+"""Rule Activation Eval: measure whether rules and skill references actually fire.
 
-Tests how a rule activates across loading mechanisms:
+Tests how a rule or skill reference activates across loading mechanisms:
   - baseline       : no rule context (control)
-  - description    : only the rule's frontmatter description in system prompt
-  - full           : entire rule body in system prompt (mimics @import or alwaysApply: true)
+  - description    : only the rule description, or the skill catalog front door
+                     plus skill router, must select the reference before use
+  - full           : entire rule body, or skill router plus selected reference body,
+                     in system prompt as a diagnostic ceiling
 
 Each scenario is graded by an LLM judge on three dimensions (1-5):
   - activation_score : did the response apply rule-specific guidance vs generic advice?
@@ -78,7 +80,12 @@ DEFAULT_SEED = 0
 
 def parse_rule(rule_path: Path) -> dict[str, str]:
     """Split a rule file into frontmatter description and body."""
-    text = rule_path.read_text(encoding="utf-8")
+    return _parse_markdown_artifact(rule_path)
+
+
+def _parse_markdown_artifact(path: Path) -> dict[str, str]:
+    """Split a Markdown artifact into frontmatter description and body."""
+    text = path.read_text(encoding="utf-8")
     fm_match = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.DOTALL)
     if not fm_match:
         return {"description": "", "body": text, "frontmatter": ""}
@@ -96,6 +103,31 @@ def parse_rule(rule_path: Path) -> dict[str, str]:
     }
 
 
+def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, str]:
+    """Build the progressive-disclosure prompt surface for one skill reference."""
+    skill = _parse_markdown_artifact(skill_path)
+    reference = _parse_markdown_artifact(reference_path)
+    skill_name_match = re.search(r"^name:\s*(.+?)$", skill["frontmatter"], re.MULTILINE)
+    skill_name = skill_name_match.group(1).strip() if skill_name_match else skill_path.parent.name
+    reference_rel = str(reference_path.relative_to(skill_path.parent))
+    body = (
+        "Skill router:\n\n"
+        f"{skill['body']}\n\n"
+        "Selected reference:\n\n"
+        f"{reference['body']}"
+    )
+    return {
+        "description": skill["description"],
+        "body": body,
+        "frontmatter": skill["frontmatter"],
+        "skill_name": skill_name,
+        "skill_body": skill["body"],
+        "skill_path": str(skill_path.relative_to(REPO_ROOT)),
+        "reference_path": reference_rel,
+        "reference_body": reference["body"],
+    }
+
+
 def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> str:
     """Construct the system prompt for a given activation mechanism."""
     if mechanism == "baseline":
@@ -103,6 +135,14 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     if mechanism == "description":
         if not rule["description"]:
             return ""
+        if rule.get("skill_name"):
+            return (
+                "Project skills are available on demand. Available skill:\n\n"
+                f"  - {rule['skill_name']}: {rule['description']}\n\n"
+                "Decide whether to select this skill based on the user's request. "
+                "If selected, open the skill router and then the smallest matching "
+                "reference before advising the user."
+            )
         return (
             "Project rules apply to your work. Available rule:\n\n"
             f"  - {rule_id}: {rule['description']}\n\n"
@@ -116,6 +156,92 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
             f"{rule['body']}"
         )
     raise ValueError(f"Unknown mechanism: {mechanism}")
+
+
+def build_skill_route_prompt(rule: dict[str, str], scenario: dict[str, Any]) -> str:
+    """Build the progressive-disclosure routing prompt for a skill reference."""
+    return f"""Route the user request through the available skill catalog.
+
+Available skill:
+- {rule["skill_name"]}: {rule["description"]}
+
+If the skill is relevant, open this skill router and choose the smallest matching reference:
+
+{rule["skill_body"]}
+
+User request:
+{scenario.get("input", "")}
+
+Return JSON only with these fields:
+- selected_skill: skill name or null
+- selected_reference: reference path or null
+- reasoning: one sentence"""
+
+
+def _parse_json_object(text: str) -> dict[str, Any] | None:
+    """Extract one JSON object from a model response."""
+    stripped = text.strip()
+    if "```" in stripped:
+        match = re.search(r"```(?:json)?\s*\n(.*?)```", stripped, re.DOTALL)
+        if match:
+            stripped = match.group(1).strip()
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _normalize_selected_reference(value: object) -> str | None:
+    """Normalize a route response reference path."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().strip("`")
+    if not cleaned or cleaned.lower() == "null":
+        return None
+    if cleaned.startswith("references/"):
+        return cleaned
+    if "/references/" in cleaned:
+        return "references/" + cleaned.rsplit("/references/", maxsplit=1)[1]
+    if cleaned.endswith(".md"):
+        return f"references/{Path(cleaned).name}"
+    return cleaned
+
+
+def _resolve_reference_body(rule: dict[str, str], selected_reference: str | None) -> str:
+    """Return the selected reference body if it resolves under the skill reference dir."""
+    if not selected_reference:
+        return ""
+    skill_path_str = rule.get("skill_path")
+    if not skill_path_str:
+        return ""
+    skill_path = (REPO_ROOT / skill_path_str).resolve()
+    candidate = (skill_path.parent / selected_reference).resolve()
+    try:
+        candidate.relative_to((skill_path.parent / "references").resolve())
+    except ValueError:
+        return ""
+    if candidate.suffix != ".md" or not candidate.is_file():
+        return ""
+    return _parse_markdown_artifact(candidate)["body"]
+
+
+def _build_routed_reference_prompt(
+    rule: dict[str, str],
+    selected_reference: str | None,
+) -> str:
+    """Build the system prompt after the progressive route selected a reference."""
+    reference_body = _resolve_reference_body(rule, selected_reference)
+    if not reference_body:
+        return ""
+    return (
+        "The on-demand skill route selected this reference. Apply it when relevant.\n\n"
+        f"Skill: {rule['skill_name']}\n"
+        f"Reference: {selected_reference}\n\n"
+        f"{reference_body}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +417,7 @@ def eval_one_scenario(
 
     for mechanism in MECHANISMS:
         system = build_system_prompt(mechanism, rule, rule_id)
+        routing: dict[str, Any] | None = None
         if dry_run:
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
@@ -301,6 +428,42 @@ def eval_one_scenario(
 
         try:
             metadata: dict[str, object] = {}
+            if mechanism == "description" and rule.get("skill_name"):
+                route_response = _call_api(
+                    api_key,
+                    [{"role": "user", "content": build_skill_route_prompt(rule, scenario)}],
+                    system=system,
+                    model=model,
+                    max_tokens=300,
+                    seed=seed,
+                    metadata=metadata,
+                )
+                parsed_route = _parse_json_object(route_response)
+                if parsed_route is None:
+                    result["mechanisms"][mechanism] = {
+                        "error": "route parse failure",
+                        "response_preview": route_response[:400]
+                        + ("..." if len(route_response) > 400 else ""),
+                        "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+                        "routing": {
+                            "selected_skill": None,
+                            "selected_reference": None,
+                            "route_failed": True,
+                        },
+                    }
+                    continue
+                selected_skill = parsed_route.get("selected_skill")
+                selected_reference = _normalize_selected_reference(
+                    parsed_route.get("selected_reference")
+                )
+                routing = {
+                    "selected_skill": selected_skill if isinstance(selected_skill, str) else None,
+                    "selected_reference": selected_reference,
+                    "route_failed": False,
+                    "reasoning": str(parsed_route.get("reasoning", ""))[:300],
+                }
+                system = _build_routed_reference_prompt(rule, selected_reference)
+                metadata = {}
             response = _call_api(
                 api_key,
                 [{"role": "user", "content": scenario["input"]}],
@@ -333,6 +496,8 @@ def eval_one_scenario(
             "scores": scores,
             "system_prompt_chars": len(system),
         }
+        if routing is not None:
+            mechanism_result["routing"] = routing
         fingerprint = metadata.get("system_fingerprint")
         if isinstance(fingerprint, str):
             mechanism_result["system_fingerprint"] = fingerprint
@@ -399,14 +564,10 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
     full_avg = summary["per_mechanism"]["full"]["avg_score"]
 
-    # `best_mechanism` is what the rule author should ship. Baseline is the
-    # control; selecting it as best would say "the rule is not needed" and
-    # mask a real activation failure as FAIL_NO_DELTA. Pick from rule-enhanced
-    # mechanisms only.
+    # `description` is the progressive-disclosure gate. The `full` mechanism is
+    # retained only as a diagnostic ceiling and cannot rescue a failed front door.
     rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
-    best_mech = max(
-        rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"]
-    )
+    best_mech = max(rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"])
     best_avg = summary["per_mechanism"][best_mech]["avg_score"]
 
     total_judge_failures = sum(
@@ -428,10 +589,8 @@ def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     elif not pos_scenarios:
         summary["verdict"] = "NO_POSITIVE_CASES"
     else:
-        passes_threshold = best_avg >= MIN_ACTIVATION_SCORE
-        beats_baseline = (full_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE or (
-            desc_avg - baseline_avg
-        ) >= MIN_DELTA_VS_BASELINE
+        passes_threshold = desc_avg >= MIN_ACTIVATION_SCORE
+        beats_baseline = (desc_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE
         if passes_threshold and beats_baseline:
             summary["verdict"] = "PASS"
         elif not passes_threshold:
@@ -498,6 +657,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
+SKILLS_DIR = (REPO_ROOT / ".claude" / "skills").resolve()
 
 
 def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
@@ -569,12 +729,90 @@ def _resolve_rule_path(rule_path_str: str) -> Path | int:
     return rule_path
 
 
-def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
-    """Return (scenarios_data, resolved rule_path) on success, exit code on error.
+def _resolve_skill_reference(
+    skill_path_str: str,
+    reference_path_str: str,
+) -> tuple[Path, Path] | int:
+    """Resolve and validate a skill SKILL.md plus one reference file."""
+    skill_path = (REPO_ROOT / skill_path_str).resolve()
+    reference_path = (REPO_ROOT / reference_path_str).resolve()
+    try:
+        skill_path.relative_to(SKILLS_DIR)
+    except ValueError:
+        print(
+            f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if skill_path.name != "SKILL.md" or not skill_path.is_file():
+        print(f"ERROR: skill_path must point at a SKILL.md file: {skill_path_str}", file=sys.stderr)
+        return 2
+    references_dir = skill_path.parent / "references"
+    try:
+        reference_path.relative_to(references_dir.resolve())
+    except ValueError:
+        print(
+            "ERROR: reference_path must be under the skill's references/: "
+            f"{reference_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if reference_path.suffix != ".md" or not reference_path.is_file():
+        print(
+            f"ERROR: reference_path must point at a .md file: {reference_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    return skill_path, reference_path
 
-    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. A crafted
-    scenario file cannot point at config, secrets, or any other repository
-    file: the `full` mechanism would otherwise send that content to the LLM API.
+
+def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path | None] | int:
+    """Resolve either a rule path or a skill reference target."""
+    rule_path_str = data.get("rule_path")
+    skill_path_str = data.get("skill_path")
+
+    # rule_path and skill_path are mutually exclusive; fail fast on ambiguity.
+    if (isinstance(rule_path_str, str) and rule_path_str.strip()) and (
+        isinstance(skill_path_str, str) and skill_path_str.strip()
+    ):
+        print(
+            f"ERROR: rule_path and skill_path are mutually exclusive in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if isinstance(rule_path_str, str) and rule_path_str.strip():
+        resolved = _resolve_rule_path(rule_path_str.strip())
+        if isinstance(resolved, int):
+            return resolved
+        return resolved, None
+
+    reference_path_str = data.get("reference_path")
+    if not isinstance(skill_path_str, str) or not skill_path_str.strip():
+        print(
+            f"ERROR: rule_path or skill_path must be a non-empty string in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+    if not isinstance(reference_path_str, str) or not reference_path_str.strip():
+        print(
+            f"ERROR: reference_path must be a non-empty string in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+    return _resolve_skill_reference(skill_path_str.strip(), reference_path_str.strip())
+
+
+def _load_scenarios_file(
+    scenario_file: str,
+) -> tuple[dict[str, Any], tuple[Path, Path | None]] | int:
+    """Return (scenarios_data, resolved target paths) on success, exit code on error.
+
+    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`, or the
+    pair of `skill_path` and `reference_path` MUST resolve to a skill SKILL.md
+    and one reference under that skill. A crafted scenario file cannot point at
+    config, secrets, or any other repository file: the `full` mechanism would
+    otherwise send that content to the LLM API.
     """
     spath = Path(scenario_file)
     if not spath.is_file():
@@ -586,19 +824,11 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
         return parsed
     scenarios_data = parsed
 
-    rule_path_str = scenarios_data.get("rule_path")
-    if not isinstance(rule_path_str, str) or not rule_path_str.strip():
-        print(
-            f"ERROR: rule_path must be a non-empty string in {spath}",
-            file=sys.stderr,
-        )
-        return 2
-
     shape_err = _validate_scenarios_shape(scenarios_data, spath)
     if shape_err is not None:
         return shape_err
 
-    resolved = _resolve_rule_path(rule_path_str.strip())
+    resolved = _resolve_target_paths(scenarios_data, spath)
     if isinstance(resolved, int):
         return resolved
     return scenarios_data, resolved
@@ -607,19 +837,25 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
 def _process_one_rule(
     api_key: str,
     scenarios_data: dict[str, Any],
-    rule_path: Path,
+    target_paths: tuple[Path, Path | None],
     args: argparse.Namespace,
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
-    rule_id = scenarios_data.get("rule_id", rule_path.stem)
-    rule = parse_rule(rule_path)
+    primary_path, reference_path = target_paths
+    rule_id = scenarios_data.get("rule_id", primary_path.stem)
+    if reference_path is None:
+        rule = parse_rule(primary_path)
+    else:
+        rule = parse_skill_reference(primary_path, reference_path)
     scenarios = scenarios_data.get("scenarios", [])
-    n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
+    route_calls = len(scenarios) if reference_path is not None else 0
+    n_calls = len(scenarios) * len(MECHANISMS) * 2 + route_calls
 
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms x 2 (call + judge) = {n_calls} calls"
+            f"{len(MECHANISMS)} mechanisms x 2 (call + judge)"
+            f" + {route_calls} route calls = {n_calls} calls"
         )
         print(f"  description present: {bool(rule['description'])}")
         print(f"  body chars: {len(rule['body'])}")
@@ -642,8 +878,11 @@ def _process_one_rule(
 
     summary = aggregate(scenario_results)
     print(render_table(rule_id, summary))
+    result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
+    if reference_path is not None:
+        result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
     return rule_id, {
-        "rule_path": str(rule_path.relative_to(REPO_ROOT)),
+        **result_paths,
         "summary": summary,
         "scenarios": scenario_results,
     }, n_calls
@@ -710,10 +949,10 @@ def _process_scenario_file(
     loaded = _load_scenarios_file(scenario_file)
     if isinstance(loaded, int):
         return loaded
-    scenarios_data, rule_path = loaded
+    scenarios_data, target_paths = loaded
 
     rule_id, result, n_calls = _process_one_rule(
-        api_key, scenarios_data, rule_path, args
+        api_key, scenarios_data, target_paths, args
     )
     state.total_calls += n_calls
 

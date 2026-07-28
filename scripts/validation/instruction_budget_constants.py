@@ -8,8 +8,8 @@ INSTRUCTION_GLOB = "*.instructions.md"
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.
 DEFAULT_CEILINGS_BYTES: dict[str, int] = {
-    ".py": 220_000,
-    ".cs": 220_000,
-    ".ps1": 220_000,
+    ".py": 99_000,
+    ".cs": 99_000,
+    ".ps1": 99_000,
     ".md": 83_000,
 }
