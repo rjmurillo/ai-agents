@@ -298,10 +298,11 @@ def parse_sections(markdown: str) -> list[Section]:
                 j += 1
             j += 1  # skip heading_close
 
-            if j < len(tokens) and tokens[j].map is not None:
-                body_start_line = tokens[j].map[0]
-            else:
-                body_start_line = None
+            body_start_line = None
+            if j < len(tokens):
+                start_map = tokens[j].map
+                if start_map is not None:
+                    body_start_line = start_map[0]
 
             # Find end of section (next heading of same or higher level, or EOF)
             body_end_line = None
@@ -309,8 +310,9 @@ def parse_sections(markdown: str) -> list[Section]:
             while k < len(tokens):
                 if tokens[k].type == "heading_open":
                     next_level = int(tokens[k].tag[1])
-                    if next_level <= level and tokens[k].map is not None:
-                        body_end_line = tokens[k].map[0]
+                    end_map = tokens[k].map
+                    if next_level <= level and end_map is not None:
+                        body_end_line = end_map[0]
                         break
                 k += 1
 
