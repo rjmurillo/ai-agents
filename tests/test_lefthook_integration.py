@@ -2552,10 +2552,13 @@ def _episode_payload(episode_id: str, content: str) -> dict[str, object]:
 
 
 def _copy_causal_updater(repo: Path) -> None:
-    relative = ".claude/skills/memory/scripts/update_causal_graph.py"
-    destination = repo / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PROJECT_ROOT / relative, destination)
+    for relative in (
+        ".claude/skills/memory/scripts/extract_session_episode.py",
+        ".claude/skills/memory/scripts/update_causal_graph.py",
+    ):
+        destination = repo / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECT_ROOT / relative, destination)
 
 
 def test_causal_graph_uses_staged_episode_content(tmp_path: Path) -> None:

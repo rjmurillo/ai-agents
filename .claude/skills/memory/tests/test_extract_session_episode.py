@@ -633,11 +633,13 @@ class TestCausalEventLinks:
     def test_pre_and_post_code_milestones_in_same_log_use_observed_order(self):
         bundle = extract_from_json(_json_log([
             {
+                "timestamp": "2026-05-30T23:00:00+00:00",
                 "phase": "Reproduce",
                 "actions": ["Filed the issue before code changed"],
                 "outcome": "Filed issue #3464 before writing code",
             },
             {
+                "timestamp": "2026-05-31T01:00:00+00:00",
                 "phase": "Review",
                 "actions": ["Reviewed the completed branch"],
                 "outcome": "PR review round complete",
@@ -648,10 +650,11 @@ class TestCausalEventLinks:
         commit = next(e for e in bundle["events"] if e["type"] == "commit")
         pre_code = next(e for e in bundle["events"] if "before writing code" in e["content"])
         post_code = next(e for e in bundle["events"] if "review round" in e["content"])
-        assert commit["caused_by"] == []
         assert pre_code["caused_by"] == []
-        assert pre_code["leads_to"] == [post_code["id"]]
-        assert post_code["caused_by"] == [pre_code["id"]]
+        assert pre_code["leads_to"] == [commit["id"]]
+        assert commit["caused_by"] == [pre_code["id"]]
+        assert commit["leads_to"] == [post_code["id"]]
+        assert post_code["caused_by"] == [commit["id"]]
 
     def test_rank_only_timestamp_ties_do_not_emit_causal_edges(self):
         events = [
@@ -683,8 +686,13 @@ class TestCausalEventLinks:
 
         _link_sequential_events(events)
 
-        assert all(e["caused_by"] == [] for e in events)
-        assert all(e["leads_to"] == [] for e in events)
+        by_id = {e["id"]: e for e in events}
+        assert by_id["e001"]["caused_by"] == []
+        assert by_id["e001"]["leads_to"] == []
+        assert by_id["e002"]["caused_by"] == []
+        assert by_id["e002"]["leads_to"] == ["e003"]
+        assert by_id["e003"]["caused_by"] == ["e002"]
+        assert by_id["e003"]["leads_to"] == []
 
     def test_cli_returns_zero_and_keeps_real_3459_pre_code_edge_sparse(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
