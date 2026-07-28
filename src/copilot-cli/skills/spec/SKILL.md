@@ -3,8 +3,8 @@ name: spec
 description: Define what to build. Transform a problem into testable requirements with acceptance criteria.
 argument-hint: problem-statement-or-issue-number
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
-user-invocable: true
 size-exception: true
+user-invocable: true
 ---
 
 <!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
