@@ -145,6 +145,17 @@
         "Corrected the overstatement I had put in ADR-088, in the inverse-test docstring, and in issue 3635: a pure rename trips on one line, the E402 on the sys.path shim import, not on 21 fixture lines",
         "Reran the two affected test files: 47 passed. ruff check clean on both."
       ]
+    },
+    {
+      "phase": "Merge 2",
+      "actions": [
+        "Merged main commit 1940de47, fix(memory): skip rank-only causal edges (#3566), which lands a logic fix on the very extractor this branch edits",
+        "Resolved four conflicts: causal-graph.json stays deleted; the two extract_session_episode.py trees and the shared test take main's logic and wording, with my edit narrowed to naming the chain as in-episode",
+        "Confirmed the fix survives the removal on the merits: caused_by and leads_to are written inside each episode file and are not the aggregated graph ADR-088 deletes, so main's sparser rank-only edges remain correct",
+        "Verified both skill trees are byte-identical after resolution and that no causal-graph reference returned except the ADR-088 pointer",
+        "264 tests pass across the two extractor test trees and the inverse suite; ruff clean on all three changed files",
+        "Bumped both plugin manifests to 0.6.145 after main advanced to 0.6.144 and erased my strictly-greater margin"
+      ]
     }
   ],
   "endingCommit": "",
