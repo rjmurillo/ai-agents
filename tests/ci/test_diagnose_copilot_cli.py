@@ -73,3 +73,32 @@ def test_main_returns_config_error_without_github_output(monkeypatch):
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
 
     assert diagnose.main([]) == 2
+
+
+def test_run_command_catches_file_not_found_error():
+    result = diagnose.run_command(["__nonexistent_binary_xyz__"])
+
+    assert result.returncode == 127
+    assert "command not found" in result.stderr
+    assert result.stdout == ""
+
+
+def test_health_status_not_downgraded_from_failed_to_degraded(tmp_path):
+    """When copilot binary is missing (failed), subsequent checks must not downgrade to degraded."""
+
+    def runner(argv: Sequence[str], timeout_seconds: int | None = None) -> diagnose.CommandResult:
+        # All commands fail (binary not found)
+        return diagnose.CommandResult(1, "", "not found")
+
+    output_path = tmp_path / "github-output.txt"
+    diagnose.run_diagnostics(
+        env={"COPILOT_AGENT": "reviewer", "COPILOT_MODEL": "gpt-5"},
+        output_path=output_path,
+        runner=runner,
+        which=lambda _name: None,
+    )
+
+    output = output_path.read_text(encoding="utf-8")
+    assert "health_status=failed" in output
+    # Must NOT contain degraded - once failed, stays failed
+    assert "health_status=degraded" not in output

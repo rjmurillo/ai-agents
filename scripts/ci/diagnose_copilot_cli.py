@@ -30,12 +30,25 @@ def run_command(argv: Sequence[str], timeout_seconds: int | None = None) -> Comm
             list(argv),
             check=False,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout_seconds,
         )
+    except FileNotFoundError:
+        return CommandResult(
+            returncode=127,
+            stdout="",
+            stderr=f"{argv[0]}: command not found",
+        )
     except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        if isinstance(exc.stdout, bytes):
+            stdout = exc.stdout.decode("utf-8", errors="replace")
+        else:
+            stdout = exc.stdout or ""
+        if isinstance(exc.stderr, bytes):
+            stderr = exc.stderr.decode("utf-8", errors="replace")
+        else:
+            stderr = exc.stderr or ""
         return CommandResult(
             returncode=124,
             stdout=stdout,
@@ -123,7 +136,8 @@ def run_diagnostics(
         diagnostic.append("help: OK")
     else:
         print("   ✗ copilot --help failed")
-        health_status = "degraded"
+        if health_status != "failed":
+            health_status = "degraded"
         diagnostic.append("help: FAILED")
 
     print()
@@ -144,7 +158,8 @@ def run_diagnostics(
     else:
         print("   ✗ GitHub API authentication failed")
         print(f"   Response: {auth_response}")
-        health_status = "degraded"
+        if health_status != "failed":
+            health_status = "degraded"
         auth_status = "authentication failed"
         diagnostic.append(f"auth_error: {auth_response}")
 
@@ -175,7 +190,8 @@ def run_diagnostics(
         diagnostic.append("test_prompt: PASSED")
     elif test_result.returncode == 124:
         print("   ⚠ Copilot CLI test prompt timed out")
-        health_status = "degraded"
+        if health_status != "failed":
+            health_status = "degraded"
         diagnostic.append("test_prompt: TIMEOUT")
     else:
         print(f"   ✗ Copilot CLI test prompt failed (exit code: {test_result.returncode})")

@@ -97,3 +97,17 @@ def test_main_functions_return_config_error_for_unexpected_arguments(monkeypatch
     assert install.main(["extra"]) == 2
     assert auth.main(["extra"]) == 2
     assert prompt.main(["extra"]) == 2
+
+
+def test_install_run_command_catches_file_not_found_error():
+    result = install.run_command(["__nonexistent_binary_xyz__"])
+
+    assert result.returncode == 127
+    assert "command not found" in result.stderr
+
+
+def test_verify_auth_run_command_catches_file_not_found_error():
+    result = auth.run_command(["__nonexistent_binary_xyz__"])
+
+    assert result.returncode == 127
+    assert "command not found" in result.stderr

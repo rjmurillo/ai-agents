@@ -93,3 +93,11 @@ def test_parse_config_rejects_invalid_timeout(tmp_path):
         assert str(exc) == "TIMEOUT_MINUTES must be an integer"
     else:
         raise AssertionError("parse_config should reject a non-integer timeout")
+
+
+def test_run_command_catches_file_not_found_error():
+    result = invoke.run_command(["__nonexistent_binary_xyz__"])
+
+    assert result.returncode == 127
+    assert "command not found" in result.stderr
+    assert result.stdout == ""

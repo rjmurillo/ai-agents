@@ -52,7 +52,16 @@ class AttemptResult:
 
 
 def run_command(argv: Sequence[str]) -> CommandResult:
-    completed = subprocess.run(list(argv), check=False, capture_output=True, text=True)
+    try:
+        completed = subprocess.run(
+            list(argv), check=False, capture_output=True, encoding="utf-8", errors="replace"
+        )
+    except FileNotFoundError:
+        return CommandResult(
+            returncode=127,
+            stdout="",
+            stderr=f"{argv[0]}: command not found",
+        )
     return CommandResult(
         returncode=completed.returncode,
         stdout=completed.stdout,
