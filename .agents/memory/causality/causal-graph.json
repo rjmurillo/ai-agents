@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-28T04:57:54.517085+00:00",
+  "updated": "2026-07-28T05:15:32.970816+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -22773,15 +22773,6 @@
       "created": "2026-07-27T20:22:25.573133+00:00"
     },
     {
-      "id": "6743da603894",
-      "type": "milestone",
-      "label": "milestone: Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got 'Linting: 2 files, 0 issues', and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) The episode metrics.commits finding did not hold: extract_session_episode.py counts session-log lines matching [a-f0-9]{7,40}, not commits, so it counted the branch-point commit a65181a264 twice (startingCommit plus a prose evidence line). Hand-editing it would be overwritten by the next hook run. Filed the extractor defect separately rather than patching a generated artifact.",
-      "episodes": [
-        "episode-2026-07-27-session-3605-skill-description-context-cost"
-      ],
-      "created": "2026-07-28T04:53:00.903898+00:00"
-    },
-    {
       "id": "2b8b56898e35",
       "type": "milestone",
       "label": "milestone: Corrected the session record after PR #3606 review. endingCommit had pointed at a pre-rebase SHA that is no longer reachable from HEAD, so the episode's only commit event cited a commit that does not appear in the PR. Repointed endingCommit at the current head and listed the session's commits in the changesCommitted evidence, which _collect_shas treats as a primary source. Regenerated the episode with --force so the stale event was dropped rather than unioned forward; _dedupe_events unions without pruning, so a preserve run alone cannot remove it.",
@@ -22834,6 +22825,15 @@
         "episode-2026-07-27-session-3605-skill-description-context-cost"
       ],
       "created": "2026-07-28T04:57:54.510659+00:00"
+    },
+    {
+      "id": "da830ac8b5fb",
+      "type": "milestone",
+      "label": "milestone: Responded to PR #3606 review round 2 (3 threads). Reproduced each before acting. (1) Retro top matter: added Issue, PR, starting and final commit pointers to match the house format. (2) markdownLintRun evidence read as a false completion marker; re-ran the lint out-of-tree by copying both files plus the repo config into /tmp/mdlcheck, got a real result of zero issues across both changed markdown documents, and rewrote the evidence to cite the real run and the config lines that exclude the paths. (3) First reading of metrics.commits was wrong and is superseded by the next entry: the naive line-match count at extract_session_episode.py line 336 is only the no-existing-episode path, and the preserve path at line 1197 overrides it with _count_commit_events. The finding held.",
+      "episodes": [
+        "episode-2026-07-27-session-3605-skill-description-context-cost"
+      ],
+      "created": "2026-07-28T05:15:32.963689+00:00"
     }
   ],
   "patterns": [
