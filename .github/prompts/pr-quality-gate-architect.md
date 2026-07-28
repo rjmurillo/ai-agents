@@ -47,7 +47,7 @@ Ground architectural findings in the project's design artifacts. All paths are u
 - `cva-analysis` skill: invoke when the change introduces a new abstraction. It runs Commonality/Variability Analysis so the abstraction emerges from real requirements instead of being chosen up front.
 - Conway's Law (`.claude/skills/decision-critic/references/mental-models-conways-law.md`): apply when the diff crosses a module boundary. Check that the proposed boundary follows the domain, not the org chart, and that the teams behind components that must integrate actually communicate.
 - `SkillForge` multi-lens framework (`.claude/skills/SkillForge/references/multi-lens-framework.md`): apply to cross-cutting decisions that span more than one module or context.
-- `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/enterprise-patterns.md`: cite the specific rule a finding maps to for bounded-context, anemic-domain, dependency-direction, and persistence-boundary concerns.
+- `software-engineering-library` references for clean architecture, domain-driven design, and enterprise patterns: cite the specific reference a finding maps to for bounded-context, anemic-domain, dependency-direction, and persistence-boundary concerns.
 - `.claude/skills/observability/references/distributed-systems-fallacies.md`: the 8 Fallacies of Distributed Computing. Use it when the change adds or restructures a call across a process boundary (HTTP, MCP, child process, queue, orchestration step). Check that the design does not assume the network is reliable, zero-latency, secure, or topologically fixed.
 
 ## Analysis Focus Areas
@@ -210,8 +210,8 @@ Each finding MUST be reported with these structured fields:
 
 - **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
   precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
-- **category**: short keyword identifying the failure class (e.g. `coupling`,
-  `error-handling`, `command-injection`, `missing-test`). Used for clustering.
+- **category**: short keyword identifying the failure class, for example coupling,
+  error-handling, command-injection, or missing-test. Used for clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
 - **recommendation**: one-sentence imperative fix the author can act on.
 Top-level (NOT per-finding; the schema rejects `verdict` inside

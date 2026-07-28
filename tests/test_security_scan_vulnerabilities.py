@@ -14,7 +14,7 @@ flags commented-out code, and its "string concatenation" pattern only fires
 on a `+` inside the quoted argument rather than on real concatenation), the
 test documents the actual behavior in its name and docstring rather than
 encoding an imagined contract. See `.claude/rules/canonical-source-mirror.md`
-and `.claude/rules/working-with-legacy-code.md`.
+and the working-with-legacy-code reference in `software-engineering-library`.
 
 The module under test lives outside the package tree, so it is loaded by path
 via `importlib`. `conftest.py` already puts the repo root on `sys.path`; the
