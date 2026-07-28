@@ -1041,7 +1041,7 @@ def _upstream_value(value: object, fallback: str) -> str:
         return fallback
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, int | float | str):
+    if isinstance(value, (int, float, str)):
         return str(value)
     raise ConfigError(f"upstream metadata must be scalar, got {type(value).__name__}")
 
