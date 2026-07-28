@@ -57,18 +57,31 @@ means nothing. The trailing count in the summary is *files with issues*, so
 `0 issues in 0 files` and a real clean run are indistinguishable without the
 `Linting:` line.
 
-This surface is large. `ignores` currently holds 44 patterns and covers most of
-the markdown that gets edited here: `.claude/skills/**`, `src/copilot-cli/skills/**`,
-`.serena/**`, `.agents/**`, `**/CLAUDE.md`, `.github/agents/**/*.agent.md`,
-`docs/autonomous-pr-monitor.md`, and the five lifecycle command files.
+This surface is large. At the time of writing, `ignores` held 44 patterns and
+covered most of the markdown that gets edited here: `.claude/skills/**`,
+`src/copilot-cli/skills/**`, `.serena/**`, `.agents/**`, `**/CLAUDE.md`,
+`.github/agents/**/*.agent.md`, `docs/autonomous-pr-monitor.md`, and the five
+lifecycle command files.
+
+Both that count and the disabled-rule list below drift as the config changes.
+Regenerate them instead of trusting this text:
+
+```bash
+python3 -c "
+import yaml
+d = yaml.safe_load(open('.markdownlint-cli2.yaml'))
+print('ignore patterns:', len(d.get('ignores', [])))
+print('disabled rules:', sorted(k for k, v in d.get('config', {}).items() if v is False))
+"
+```
 
 To actually lint an excluded file, copy it to a scratch directory outside the
 repo, copy `.markdownlint-cli2.yaml` alongside it, and delete the `ignores` and
 `globs` keys from that copy. Keep the rest of the config. Running with the
 stock default rule set instead produces false positives, because this repo
-disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060. Linting this
-memory with defaults reported 9 issues; with the repo rules and `ignores`
-stripped it reported 0 at `Linting: 1 file`.
+disables MD003, MD013, MD029, MD048, MD049, MD050, and MD060 as of this
+writing. Linting this memory with defaults reported 9 issues; with the repo
+rules and `ignores` stripped it reported 0 at `Linting: 1 file`.
 
 Cost of not knowing this: two MD032 errors and a banned word survived into a
 commit in `docs/autonomous-pr-monitor.md` because the in-tree run said clean.
