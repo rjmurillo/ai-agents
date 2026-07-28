@@ -883,6 +883,24 @@
         ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
         ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
       ]
+    },
+    {
+      "phase": "Repairing the squash-merged stack and measuring the dead-hash guard",
+      "actions": [
+        "Repaired feat/eval-rule-multirun after #3595 squash-merged into its base. Verified the tree at the old base tip is byte-identical to the tree at the squash commit, which makes the rebase conflict free by construction, then rebased --onto the new base and confirmed git diff between the old and new heads is empty. Suite still 1722 passed. Force-pushed with lease. #3608 went from CONFLICTING to MERGEABLE and CLEAN with every check passing.",
+        "Investigated the one unresolved thread on #3579. Established with git show origin/main that the flagged README claim predates the PR, that #3579 only shortened the list the claim appears in, and that the correction ships in #3608.",
+        "Corrected my own reply on that thread. It cited a commit hash the rebase had just destroyed, which is the same dead-reference defect this stack fixed once already in a session log.",
+        "Measured whether a validator could catch dead hashes before proposing one. Over the session log and the debate log, a hex token rule found forty six candidates, thirty five resolving to commits and eleven not. All eleven were false positives: a p-value of 0.0078125, the interior of the word succeeded, dates and random suffixes from run directory names, and truncated corpus fingerprints. True positives: zero."
+      ],
+      "decisions": [
+        "Do not build the dead-hash validator. Its only finding bucket was one hundred percent false positives on the first run, and a gate that opens that way gets an ignore list and then a skip flag. Prose does not record intent, so a detector over prose can only match shape, and hex is a shape that dates, probabilities, digests and ordinary English words share.",
+        "Cite pull request numbers rather than commit hashes in anything that outlives a branch. A number survives every rewrite and cannot be confused with a p-value.",
+        "Leave the #3579 thread answered rather than cherry-picking the fix upstream. The claim is pre-existing on main and duplicating the insertion risks a rebase conflict for the child PR."
+      ],
+      "filesModified": [
+        ".agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md",
+        ".agents/sessions/2026-07-27-session-3468-eval-gate-significance.json"
+      ]
     }
   ],
   "endingCommit": "691dcfb0e",

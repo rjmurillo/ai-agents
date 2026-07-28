@@ -2785,3 +2785,45 @@ values, with an unmutated negative control still green. The general form, and
 the seventh instrument failure this session: a mutation result is a claim about
 the harness before it is a claim about the test, and a harness that reuses any
 state between cases can turn independent edits into a matched pair.
+
+## Shape 65: the obvious guard for a real defect can be undetectable
+
+A commit hash written into prose is a reference nothing checks. This stack
+produced the defect twice. Once in a session log that named a commit an amend
+had already replaced, and once in a review reply on #3579 that named
+`32ab12dbe` shortly before a rebase rewrote every hash on the branch. Both are
+the same event: a hash is a name for a specific history, and any rewrite of that
+history silently invalidates every copy of the name that lives outside it. A
+stacked branch makes this routine rather than rare, because the parent merging
+by squash rewrites the whole child.
+
+The obvious response is a validator: scan the durable artifacts for hashes and
+fail when one no longer resolves. It is cheap to write, so it was worth
+measuring before writing.
+
+Measured. Over the session log and this file, a token rule of seven to twelve
+lowercase hex characters not adjacent to more hex found forty six candidates,
+thirty five of which resolved to real commits. The remaining eleven were the
+finding the validator would have reported. All eleven were wrong.
+
+They were: `0078125`, from the decimal `0.0078125`, which is a p-value this very
+document quotes; `cceeded`, which is the interior of the English word
+"succeeded"; `20260528` and `20260531`, which are dates inside run directory
+names; `70c6ae97`, `5f4d8ad4` and `60538bcf`, which are the random suffixes of
+those same run directories; and `06f74397`, `77e97462`, `be99fa1b1180` and
+`26136df314d6`, which are truncated corpus fingerprints. Every one is
+legitimately hex shaped, and several are values this stack deliberately writes
+down. The false positive rate on the only bucket the validator would have
+surfaced was one hundred percent, and the true positive count was zero, because
+both real instances had already been corrected by hand.
+
+A gate whose first run is entirely false positives does not get tightened. It
+gets an ignore list, then a skip flag, then nobody reads it. This stack already
+documented that pattern from the other direction in the guard maturity work.
+
+The general form, and the eighth instrument failure this session: prose does not
+record intent, so a detector over prose can only match shape, and hex is a shape
+that dates, probabilities, digests, identifiers and ordinary English words all
+share. The durable fix is not detection. It is to stop writing the ambiguous
+token. A pull request number is stable across every rewrite, resolves for a
+reader without a checkout, and cannot be confused with a p-value.
