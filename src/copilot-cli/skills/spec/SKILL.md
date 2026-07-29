@@ -8,6 +8,34 @@ user-invocable: true
 ---
 
 <!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+<!--
+size-exception rationale. Required by `.claude/rules/code-quality.md` ("Suppressions
+Are a Last Resort"), which says a suppression is a last resort and must carry a short
+note saying why it was the only option left.
+
+What the check wants: the repository's size-linting validator blocks a file over 500
+lines and tells you to move content into `references/`, `modules/`, or `scripts/`.
+
+Why the idiomatic fix did not apply when the key was added: this command was already
+625 lines, so the overage was inherited, not introduced. The change that first
+tripped the gate (PR #3507) was a single reference reroute that moved the
+domain-driven-design citation into the software-engineering-library skill. The gate
+applies to files a change touches, so a one-line edit is what made a pre-existing
+overage newly blocking.
+
+Why it was the only option left: splitting a 625-line command into deferred parts
+changes runtime behavior for every `/spec` caller and needs its own tests, so folding
+that split into a reference reroute would have hidden a behavior change inside a
+refactor. Dropping the key instead would have left this file citing a rule path the
+same change deleted, which the orphan-ref validator blocks. Both alternatives were
+worse than a declared and tracked exception.
+
+Removal is tracked by issue #3632, which applies progressive disclosure to `/spec`
+and deletes this key. The Prior Art block is the first deferral candidate: it is
+roughly half the file, so moving it alone brings this under the ceiling. Do not copy
+this pattern into another file without doing the same.
+-->
+
 Spec: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, ask the user what problem to solve. Do not proceed without a problem statement.
