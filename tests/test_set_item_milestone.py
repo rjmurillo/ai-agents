@@ -283,6 +283,55 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["action"] == "failed"
 
+    def test_missing_milestone_ok_exits_0_with_a_warning(self, tmp_path, monkeypatch, capsys):
+        """A repository with no milestone is a state, not a failure of this run.
+
+        Without the flag the exit-2 path makes run_with_retry.py print an
+        ADR-035 configuration-error annotation, which the caller then has to
+        suppress in shell. That shell branch is the ADR-006 violation this
+        flag removes.
+        """
+        output_file = _setup_output(tmp_path, monkeypatch)
+        _setup_summary(tmp_path, monkeypatch)
+        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
+            f"{_MODULE_NAME}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE_NAME}.get_item_milestone",
+            return_value=None,
+        ), patch(
+            f"{_MODULE_NAME}.get_latest_semantic_milestone",
+            return_value={"title": "", "number": 0, "found": False},
+        ):
+            rc = main(["--item-type", "issue", "--item-number", "1", "--missing-milestone-ok"])
+        assert rc == 0, "the flag must keep run_with_retry.py off the exit-2 branch"
+        assert "::warning::" in capsys.readouterr().out, (
+            "the run still has to say why no milestone was assigned"
+        )
+        outputs = _read_outputs(output_file)
+        assert outputs["action"] == "skipped"
+
+    def test_missing_milestone_ok_still_assigns_when_one_exists(self, tmp_path, monkeypatch):
+        """Edge: the flag must not short-circuit the normal assignment path."""
+        output_file = _setup_output(tmp_path, monkeypatch)
+        _setup_summary(tmp_path, monkeypatch)
+        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
+            f"{_MODULE_NAME}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE_NAME}.get_item_milestone",
+            return_value=None,
+        ), patch(
+            f"{_MODULE_NAME}.get_latest_semantic_milestone",
+            return_value={"title": "0.3.0", "number": 5, "found": True},
+        ), patch(
+            f"{_MODULE_NAME}.assign_milestone",
+        ) as mock_assign:
+            rc = main(["--item-type", "pr", "--item-number", "42", "--missing-milestone-ok"])
+        assert rc == 0
+        mock_assign.assert_called_once_with("o", "r", 42, "0.3.0")
+        assert _read_outputs(output_file)["action"] == "assigned"
+
     def test_explicit_milestone_title(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
