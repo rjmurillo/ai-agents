@@ -615,6 +615,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Create PR
     print("Creating PR...")
+    sys.stdout.flush()
+    sys.stderr.flush()
     result = subprocess.run(gh_args, text=True, timeout=60, check=False)
     exit_code = result.returncode
 

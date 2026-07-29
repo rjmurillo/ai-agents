@@ -182,6 +182,66 @@ class TestMain:
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
 
+    def test_gh_pr_create_failure_keeps_stderr_when_output_redirected(self, tmp_path):
+        marker = "GH_STUB_PR_CREATE_ERROR_MARKER"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        gh_stub = bin_dir / "gh"
+        gh_stub.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "if sys.argv[1:] == ['--version']:\n"
+            "    print('gh version stub')\n"
+            "    raise SystemExit(0)\n"
+            "if sys.argv[1:3] == ['pr', 'create']:\n"
+            f"    sys.stderr.write({marker!r} + '\\n')\n"
+            "    sys.stderr.flush()\n"
+            "    raise SystemExit(1)\n"
+            "raise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        gh_stub.chmod(0o755)
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        body = tmp_path / "body.md"
+        body.write_text("## Summary\n\nRegression test.\n", encoding="utf-8")
+        log = tmp_path / "new-pr.log"
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+        env.pop("PYTHONUNBUFFERED", None)
+
+        with log.open("wb") as stdout_log, log.open("r+b") as stderr_log:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(_SCRIPTS_DIR / "new_pr.py"),
+                    "--title",
+                    "fix: buffered failure output",
+                    "--base",
+                    "main",
+                    "--head",
+                    "feat/branch",
+                    "--body-file",
+                    str(body),
+                    "--skip-validation",
+                    "--audit-reason",
+                    "redirected-output-regression-test",
+                ],
+                cwd=repo,
+                env=env,
+                stdout=stdout_log,
+                stderr=stderr_log,
+                timeout=30,
+                check=False,
+            )
+
+        log_text = log.read_text(encoding="utf-8")
+        assert result.returncode == 1
+        assert marker in log_text
+        assert "PR creation failed (exit code: 1)" in log_text
+
     def test_empty_branch_returns_2(self, tmp_path):
         with patch(
             "subprocess.run",
