@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 
 from __future__ import annotations
@@ -22,6 +23,11 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
