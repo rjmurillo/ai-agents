@@ -7903,8 +7903,87 @@ def test_naive_shell_name_regex_negative_control() -> None:
     assert all(policy._posix_shell_invocations(body) == [] for body in flagged)
 
 
+class TestQuotingAnArgumentDoesNotHideTheShellItNames:
+    """A quoted operand of an executing parameter is still the program that runs.
+
+    ``_powershell_words`` marks quoted text as data, which is correct for
+    command position: ``$x = "bash"`` names a shell without running one. It
+    then dropped that text from the word list entirely, so the word never
+    reached the check that reads the *preceding* token. ``-FilePath`` and
+    ``Start-Process`` execute their operand whether or not the author put
+    quotes around it, so dropping the quoted form let one keystroke defeat the
+    scan. Refs #3684.
+    """
+
+    def test_a_quoted_filepath_operand_is_reported(self) -> None:
+        body = 'Start-Process -FilePath "bash" -ArgumentList "-c","id"'
+        assert policy._posix_shell_invocations(body) == ["bash"]
+
+    def test_a_quoted_positional_operand_is_reported(self) -> None:
+        body = 'Start-Process "sh"'
+        assert policy._posix_shell_invocations(body) == ["sh"]
+
+    def test_quoting_does_not_change_the_verdict(self) -> None:
+        """The quoted and unquoted spellings of one command agree."""
+        quoted = 'Start-Process -FilePath "bash"'
+        bare = "Start-Process -FilePath bash"
+        assert policy._posix_shell_invocations(quoted) == policy._posix_shell_invocations(bare)
+
+    def test_a_quoted_word_outside_an_executing_parameter_stays_data(self) -> None:
+        """Emitting quoted words must not turn every string into an invocation.
+
+        This is the negative control for the widening: the same word, in the
+        same quotes, with a preceding token that does not execute it.
+        """
+        assert policy._posix_shell_invocations('Write-Output "sh"') == []
+        assert policy._posix_shell_invocations('$x = "bash"') == []
+        assert policy._posix_shell_invocations('Set-Content -Value "bash -c hi"') == []
+
+
+class TestACallTokenIsOnlyACallTokenUnderPowerShell:
+    """``&`` and ``.`` invoke a command in PowerShell and nowhere else.
+
+    ``_is_reviewed_shell_argument`` keys its flag allowlist per interpreter but
+    checked the call-token pattern globally, so ``python3 &'{0}'`` classified
+    as a reviewed non-Bash invocation. Under ``python3`` those characters are
+    an ordinary argument, not a call operator, so the exemption was granted on
+    a syntax the named interpreter does not have. Refs #3683.
+    """
+
+    @pytest.mark.parametrize("token", ["&'{0}'", ".'{0}'", '&"{0}"'])
+    def test_a_call_token_is_not_reviewed_under_a_non_powershell_interpreter(
+        self, token: str
+    ) -> None:
+        assert policy._is_reviewed_shell_argument(token, "python3") is False
+
+    @pytest.mark.parametrize("token", ["&'{0}'", ".'{0}'", '&"{0}"'])
+    @pytest.mark.parametrize("interpreter", ["pwsh", "powershell"])
+    def test_a_call_token_stays_reviewed_under_powershell(
+        self, interpreter: str, token: str
+    ) -> None:
+        """The narrowing must not withdraw the exemption PowerShell relies on."""
+        assert policy._is_reviewed_shell_argument(token, interpreter) is True
+
+    def test_the_placeholder_token_stays_reviewed_everywhere(self) -> None:
+        """``{0}`` is the runner's script path under every interpreter."""
+        assert policy._is_reviewed_shell_argument("{0}", "python3") is True
+        assert policy._is_reviewed_shell_argument("{0}", "pwsh") is True
+
+    @pytest.mark.parametrize(
+        "shell",
+        [
+            "pwsh -NoProfile -Command \"& '{0}'\"",
+            "pwsh",
+            "python3 {0}",
+        ],
+    )
+    def test_every_shell_string_used_in_this_repository_still_classifies(
+        self, shell: str
+    ) -> None:
+        """Pin the live workflow spellings so the narrowing cannot break them."""
+        assert policy._is_non_bash_shell(shell) is True
+
 def test_powershell_scan_reports_only_powershell_steps(tmp_path: Path) -> None:
-    """The scan reads PowerShell steps and leaves Bash steps to Semgrep."""
     workflow = tmp_path / ".github" / "workflows" / "w.yml"
     workflow.parent.mkdir(parents=True)
     _write_lf(workflow, "on: push\n"

@@ -2299,9 +2299,11 @@ def _powershell_words(body: str) -> list[tuple[str, bool]]:
 
     Quoting decides whether text is code or data. A quoted string in command
     position stays, because PowerShell's call operator runs it; a quoted string
-    anywhere else is dropped, because it is an argument or a message. Without
-    that split, a real workflow comment reading "the bash echo" and a real
-    message reading "install with curl | sh" both read as invocations.
+    anywhere else keeps its ``at_command`` flag clear, so the caller can decide
+    from the preceding token whether it is an argument, a message, or the
+    operand of a parameter that executes it. Without that split, a real
+    workflow comment reading "the bash echo" and a real message reading
+    "install with curl | sh" both read as invocations.
     """
     text = POWERSHELL_BLOCK_COMMENT_RE.sub(" ", body)
     words: list[tuple[str, bool]] = []
@@ -2336,8 +2338,7 @@ def _powershell_words(body: str) -> list[tuple[str, bool]]:
             start_word()
             end = text.find(character, index + 1)
             end = length if end == -1 else end + 1
-            if word_expecting:
-                current.append(text[index + 1 : end - 1])
+            current.append(text[index + 1 : end - 1])
             index = end
             continue
         if character == "#":
@@ -2765,10 +2766,15 @@ def _is_reviewed_shell_argument(token: str, interpreter: str) -> bool:
     """
     if token.lower() in SAFE_SHELL_FLAGS.get(interpreter, frozenset()):
         return True
-    return bool(
-        SHELL_PLACEHOLDER_TOKEN_RE.match(token)
-        or POWERSHELL_CALL_TOKEN_RE.match(token)
-    )
+    if SHELL_PLACEHOLDER_TOKEN_RE.match(token):
+        return True
+    if interpreter not in POWERSHELL_SHELLS:
+        # ``&`` and ``.`` are PowerShell's call operators. Under any other
+        # interpreter they are ordinary argument text, so reading them as a
+        # reviewed invocation grants the exemption on a syntax the named
+        # interpreter does not have.
+        return False
+    return bool(POWERSHELL_CALL_TOKEN_RE.match(token))
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
