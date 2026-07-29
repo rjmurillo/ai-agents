@@ -30,6 +30,27 @@ OWNER_LABEL = "agent-qa"
 AUTOMATED_LABEL = "automated"
 
 
+def _numeric_or(value: str, fallback: str) -> str:
+    """Return ``value`` when it is a decimal integer, else ``fallback``.
+
+    A run id and an issue number are numbers, and both reach argv. A value
+    beginning with a dash would be read by the receiving parser as a flag
+    rather than as a value, so enforcing the contract they already have
+    removes the argument-injection primitive rather than escaping it.
+
+    The ASCII test is not redundant with ``isdigit``. ``"\u0661\u0662\u0663".isdigit()``
+    is ``True`` and ``int()`` accepts it, so a bare ``isdigit`` guard forwards a
+    string that is a number to Python and a different token to every other
+    program that receives it.
+    """
+    return value if value.isascii() and value.isdigit() else fallback
+
+
+def run_id() -> str:
+    """The workflow run id, refused unless it is a plain number."""
+    return _numeric_or(os.environ.get("GITHUB_RUN_ID", ""), "unknown")
+
+
 def run(command: Sequence[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=check, text=True)
 
@@ -68,7 +89,7 @@ def live_eval() -> int:
         "--threshold-report",
         str(THRESHOLD_REPORT_PATH),
         "--run-id",
-        os.environ.get("GITHUB_RUN_ID", "unknown"),
+        run_id(),
         "--fail-on-threshold",
     ]
     gate_exit = run(gate_command).returncode
@@ -80,8 +101,7 @@ def live_eval() -> int:
 def workflow_url() -> str:
     server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
     repository = os.environ.get("GITHUB_REPOSITORY", "rjmurillo/ai-agents")
-    run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
-    return f"{server}/{repository}/actions/runs/{run_id}"
+    return f"{server}/{repository}/actions/runs/{run_id()}"
 
 
 def open_issue_number() -> str:
@@ -164,7 +184,7 @@ def comment_issue(issue_number: str) -> int:
 
 
 def alert_issue() -> int:
-    issue_number = open_issue_number()
+    issue_number = _numeric_or(open_issue_number(), "")
     if issue_number:
         return comment_issue(issue_number)
     return create_issue()
