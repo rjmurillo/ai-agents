@@ -136,7 +136,12 @@ def _git(args: list[str], cwd: Path, check: bool = True):
     env = os.environ.copy()
     env["LC_ALL"] = "C"
     return subprocess.run(
-        ["git", *args],
+        # init.defaultBranch is pinned to "master" on purpose. A stock runner
+        # ships that default, and pinning it here means these tests keep
+        # exercising the hostile configuration rather than whatever the
+        # developer happens to have set. Remove --initial-branch=main below and
+        # this pin turns the setup red again.
+        ["git", "-c", "init.defaultBranch=master", *args],
         cwd=cwd,
         capture_output=True,
         encoding="utf-8",
@@ -160,7 +165,12 @@ def two_agents(tmp_path: Path):
     pr-autofix instructions read from ``get_pr_context.py``.
     """
     origin = tmp_path / "origin.git"
-    _git(["init", "--quiet", "--bare", str(origin)], tmp_path)
+    # --initial-branch is load-bearing, not decoration. Without it the bare
+    # repo's HEAD follows init.defaultBranch, which is "master" on a stock
+    # runner. Agent A then pushes "main", leaving origin's HEAD pointing at an
+    # unborn ref, and agent B's clone lands on an unborn HEAD where
+    # "rev-parse HEAD" exits 128.
+    _git(["init", "--quiet", "--bare", "--initial-branch=main", str(origin)], tmp_path)
 
     agent_a = tmp_path / "agent_a"
     _git(["clone", "--quiet", str(origin), str(agent_a)], tmp_path)
