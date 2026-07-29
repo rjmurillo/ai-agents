@@ -572,6 +572,13 @@ def _subprocess_names(
     queue = list(groups)
     while queue:
         value, names = groups[queue.pop()]
+        # A group whose names are all known has nothing left to learn, and
+        # reading it again would walk the whole value for nothing. That walk
+        # is what turns one value reading many names quadratic, because each
+        # of those names resolving queues the group afresh: 4000 names took
+        # 3.28 seconds that way.
+        if all(name in functions for name in names):
+            continue
         resolved = _resolve_callable(value, modules, functions, containers)
         if resolved is None:
             continue
@@ -1265,6 +1272,12 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "H[0], y = subprocess.run, 1\nH[0](['x'], capture_output=True, text=True)",
             "a subscript inside a tuple target writes just the same",
         ),
+        (
+            "import subprocess\nb = c = a\na = subprocess.run\n"
+            "b = subprocess.check_output\n"
+            'c(["x"], capture_output=True, text=True)',
+            "one name of a shared binding resolving does not answer for the rest",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -1374,6 +1387,32 @@ def test_unpacking_a_wide_container_stays_linear() -> None:
 
     assert flagged == [], "no call is made, so nothing can decode"
     assert elapsed < 3.0, f"unpacking took {elapsed:.1f}s for {width} names"
+
+
+def test_a_value_reading_many_names_stays_linear() -> None:
+    """A binding that reads many names must be read once, not once per name.
+
+    The mirror of the case above. There one value was shared by many names;
+    here one value reads many names, and each of them resolving queues the
+    group that reads it. Reading that group again walks the whole node, so a
+    container of ``width`` names is walked ``width`` times: 4000 names took
+    3.28 seconds, growing fourfold for every doubling.
+
+    A group whose names are all resolved has nothing left to learn, so it can
+    be dropped without reading it. Every later queue entry for it is then
+    free, and the node is walked at most twice.
+    """
+    width = 4000
+    bindings = "\n".join(f"held{index} = subprocess.run" for index in range(width))
+    elements = ", ".join(f"held{index}" for index in range(width))
+    source = f"import subprocess\n{bindings}\nkept = [{elements}]\n"
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [], "no call is made, so nothing can decode"
+    assert elapsed < 1.5, f"resolution took {elapsed:.1f}s for {width} names"
 
 
 @pytest.mark.parametrize(
