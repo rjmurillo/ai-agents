@@ -46,9 +46,9 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | CLI contract | argv-failure exits, exit codes, stdout vs `--output` tested |
 | Coverage proof | 100% block coverage on changed files (see Phase 4) |
 
-Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-14). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front.
+Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front.
 
-Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:95-101): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
+Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:112-118): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
 
 Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans coverage theater (assertion-free tests), brittle mocks for impossible scenarios, unit-tests-as-only-testing, quantity over quality, and testing entirely after the fact. A test that never failed during development may not be testing anything (TESTING-ANTI-PATTERNS.md:91).
 
@@ -94,7 +94,7 @@ Beyond pos+neg+edge, this repo demands three specific disciplines:
 
 ### Phase 4: Prove coverage
 
-100% block coverage on changed files, with only defensive-unreachable exclusions (`# pragma: no cover`) plus written justification (TESTING-RIGOR.md:51).
+100% block coverage on changed files, with only defensive-unreachable exclusions (`# pragma: no cover`) plus written justification (TESTING-RIGOR.md:53).
 
 ```bash
 uv run pytest tests/test_verdict.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
@@ -111,14 +111,14 @@ Related discipline, FM-10: there is no neutral default for a missing signal (FAI
 
 ### Phase 5: QA gate semantics at session end
 
-Session protocol Phase 2.5 makes QA validation BLOCKING before committing feature code (SESSION-PROTOCOL.md:739-756). Skip classes (ADR-034, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md`):
+Session protocol Phase 2.5 makes QA validation BLOCKING before committing feature code (SESSION-PROTOCOL.md:738-756). Skip classes (ADR-034, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md`):
 
 | Evidence string | When valid | Staged files limited to |
 |-----------------|-----------|------------------------|
 | `SKIPPED: docs-only` | Strictly editorial doc edits: no code, config, tests, workflows, or code blocks changed | Documentation files |
-| `SKIPPED: investigation-only` | No code/config changes at all | The 9 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. The ADR-034 text (ADR-034:75-86) lists only the first 5; the divergence needs an ADR-034 amendment (surfaced in `ai-agents-change-control` Phase 1) |
+| `SKIPPED: investigation-only` | No code/config changes at all | The 8 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. ADR-034:78-87 lists the same 8 after the 2026-07-08 amendments (issues #831 and #732), so the ADR and the code agree |
 
-Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*` (ADRs; `REVIEW-*` files ARE allowlisted by the enforcement module), `.github/`, `.claude/agents/`, `src/`, `scripts/` (ADR-034 "Not Allowed" table, which predates the module's wider allowlist). Session logs, analysis artifacts, and memory updates are audit trail, not implementation: they are filtered out automatically when deciding whether QA is required, so they can ride along with implementation commits (SESSION-PROTOCOL.md:759).
+Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*` (ADRs; `REVIEW-*` files ARE allowlisted by the enforcement module), `.github/`, `.claude/agents/`, `src/`, `scripts/` (ADR-034 "Not Allowed" table, which predates the module's wider allowlist). Session logs, analysis artifacts, and memory updates are audit trail, not implementation: they are filtered out automatically when deciding whether QA is required, so they can ride along with implementation commits (SESSION-PROTOCOL.md:758).
 
 Mixed session (investigation turned into code)? Split it: commit investigation work with the skip evidence, then start a new session for the code change with real QA (SESSION-PROTOCOL.md:799-800). Abusing skip markers is a trust failure with precedent; escape-hatch history lives in `ai-agents-config-catalog` and `ai-agents-failure-archaeology`.
 
@@ -165,7 +165,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
