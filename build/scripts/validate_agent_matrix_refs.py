@@ -481,6 +481,40 @@ def known_agents(
     return names
 
 
+def nested_agent_definitions(
+    tree_root: Path, suffix: str, repo_root: Path | None = None
+) -> list[str]:
+    """Return nested files that carry agent frontmatter, as reportable strings.
+
+    Every host contract in this repository names the flat form:
+    ``.claude/agents/*.md`` and ``.github/agents/*.agent.md`` (ADR-003,
+    ADR-036, ADR-057, ADR-080). :func:`known_agents` matches that with a
+    non-recursive glob, so a definition placed one directory down loads in no
+    host and appears in no roster. Without this check the only symptom is a
+    matrix row reporting a phantom, which points at the citation instead of at
+    the misplaced file (issue #3601).
+
+    Subdirectories that hold sidecar prose stay silent. ``agents/security/
+    references/`` already ships three such files, and they carry no agent
+    frontmatter, so requiring frontmatter is what separates a misplaced agent
+    from reference material.
+    """
+    found: list[str] = []
+    for path in sorted(tree_root.rglob(f"*{suffix}")):
+        if path.parent == tree_root:
+            continue
+        if not path.name[: -len(suffix)]:
+            continue
+        if not is_agent_definition(path):
+            continue
+        shown = path.relative_to(repo_root) if repo_root else path
+        found.append(
+            f"{shown}: agent definition in a subdirectory. Hosts load only the "
+            f"flat form {tree_root.name}/*{suffix}; move it up one level."
+        )
+    return found
+
+
 def frontmatter_name_mismatches(repo_root: Path, tree: Path, suffix: str) -> list[NameMismatch]:
     """Return agent files whose optional frontmatter name disagrees with filename."""
     mismatches: list[NameMismatch] = []
@@ -646,6 +680,7 @@ def scan(repo_root: Path) -> ScanResult:
             continue
         result.trees_scanned.append(tree)
         agents = known_agents(directory, suffix, result.config_errors, repo_root)
+        result.config_errors.extend(nested_agent_definitions(directory, suffix, repo_root))
         result.agents_by_tree[tree] = agents
         result.name_mismatches.extend(frontmatter_name_mismatches(repo_root, tree, suffix))
         if not agents:
