@@ -126,6 +126,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 from markdown_it import MarkdownIt
@@ -267,6 +268,28 @@ class ScanResult:
         return reasons
 
 
+class DuplicateFrontmatterKey(yaml.YAMLError):
+    """Raised when frontmatter carries the agent key more than once.
+
+    PyYAML keeps the last occurrence and reports nothing, so ``description``
+    written twice loads as the second value with no signal that the first was
+    discarded. A stricter reader rejects the document outright, which means the
+    validator and the host disagree about a file that ships.
+
+    Subclassing ``YAMLError`` keeps every existing caller correct: a handler
+    that treats a parse failure as "not an agent" already catches this. Callers
+    that want the detail catch this class first. Line numbers are zero-based and
+    relative to the frontmatter block, not the file; the caller owns the offset
+    because only it knows where the block starts.
+    """
+
+    def __init__(self, key: str, first_line: int, second_line: int) -> None:
+        super().__init__(f"frontmatter repeats the {key!r} key")
+        self.key = key
+        self.first_line = first_line
+        self.second_line = second_line
+
+
 class FrontmatterLoader(yaml.SafeLoader):
     """A ``SafeLoader`` that refuses YAML alias references.
 
@@ -298,39 +321,39 @@ class FrontmatterLoader(yaml.SafeLoader):
             )
         return super().compose_node(parent, index)
 
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        """Reject a repeated agent key before PyYAML silently collapses it.
 
-def agent_frontmatter(path: Path) -> dict[str, object] | None:
+        Only ``FRONTMATTER_KEY`` is checked. Repeating any key is sloppy, but
+        that key alone decides whether the file counts as a shipping agent, so
+        it is the only one whose duplication makes the validator disagree with
+        the host. Checking every key would also fire on sibling documents that
+        are not agents at all, which turns a targeted signal into noise.
+
+        The scan runs before ``super()`` so it reads the keys as written. The
+        base implementation calls ``flatten_mapping`` first, which rewrites
+        ``node.value`` when a merge key is present and would hide the original
+        pairs.
+        """
+        first_seen: int | None = None
+        for key_node, _ in node.value:
+            if getattr(key_node, "value", None) != FRONTMATTER_KEY:
+                continue
+            if first_seen is not None:
+                raise DuplicateFrontmatterKey(
+                    FRONTMATTER_KEY, first_seen, key_node.start_mark.line
+                )
+            first_seen = key_node.start_mark.line
+        mapping: dict[Any, Any] = super().construct_mapping(node, deep)
+        return mapping
+
+
+def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str, object] | None:
     """Return parsed agent frontmatter for ``path``, or ``None`` when absent.
 
     The caller decides what to do with optional keys. This helper only answers
     whether the file is an agent definition by requiring a loadable mapping with
-    the standard ``description`` key.
-    """
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeDecodeError):
-        return None
-    if not (opened := FRONTMATTER_OPEN.match(text)):
-        return None
-    close = FRONTMATTER_CLOSE.search(text, opened.end())
-    if close is None:
-        return None
-    try:
-        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
-    except yaml.YAMLError:
-        return None
-    if isinstance(block, dict) and FRONTMATTER_KEY in block:
-        return block
-    return None
-
-
-def is_agent_definition(path: Path) -> bool:
-    """Report whether ``path`` is an agent definition rather than a sibling doc.
-
-    An agent opens with a YAML frontmatter block carrying a ``description:``
-    key. Filename suffix alone cannot decide this: in the trees whose suffix is
-    a bare ``.md`` it admits any sibling markdown file, which is how
-    ``claude-instructions.template.md`` became a citable agent name.
+    a usable ``description`` key.
 
     Both fences are required, and the opening fence must sit at the first byte.
     Without that anchor a body-level ``---`` horizontal rule turns any prose
@@ -347,23 +370,113 @@ def is_agent_definition(path: Path) -> bool:
 
     A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
     no separate ``is_file`` guard is needed.
+
+    ``reasons`` collects why a file that looked like an agent was refused. Only
+    the two shapes a host rejects are recorded: a ``description`` that is not a
+    non-empty string, and the key written twice. Every other refusal means the
+    file was never an agent, which is the normal case for a sibling document and
+    is not worth reporting. Entries carry no path prefix; the caller owns how
+    the file is named because only it knows the root to display against.
+
+    Validation lives here rather than in ``is_agent_definition`` so that every
+    caller reading frontmatter gets the same answer. Splitting the parse from
+    the checks let a file be refused as an agent by one caller and read for its
+    ``name`` by another.
     """
-    return agent_frontmatter(path) is not None
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not (opened := FRONTMATTER_OPEN.match(text)):
+        return None
+    close = FRONTMATTER_CLOSE.search(text, opened.end())
+    if close is None:
+        return None
+    try:
+        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
+    except DuplicateFrontmatterKey as exc:
+        # Marks are zero-based within the block, and the block starts on the
+        # line after the opening fence, so file line = mark + 2.
+        _record(
+            reasons,
+            f"frontmatter repeats the {exc.key!r} key at lines "
+            f"{exc.first_line + 2} and {exc.second_line + 2}; PyYAML keeps the "
+            "last value and a stricter reader rejects the file outright",
+        )
+        return None
+    except yaml.YAMLError:
+        return None
+    if not isinstance(block, dict) or FRONTMATTER_KEY not in block:
+        return None
+    value = block[FRONTMATTER_KEY]
+    if not isinstance(value, str) or not value.strip():
+        _record(
+            reasons,
+            f"frontmatter {FRONTMATTER_KEY!r} must be a non-empty string, "
+            f"found {_describe(value)}; an agent with no dispatch text is "
+            "rejected by every host",
+        )
+        return None
+    return block
 
 
-def known_agents(tree_root: Path, suffix: str) -> set[str]:
+def is_agent_definition(path: Path, reasons: list[str] | None = None) -> bool:
+    """Report whether ``path`` is an agent definition rather than a sibling doc.
+
+    An agent opens with a YAML frontmatter block carrying a ``description:``
+    key. Filename suffix alone cannot decide this: in the trees whose suffix is
+    a bare ``.md`` it admits any sibling markdown file, which is how
+    ``claude-instructions.template.md`` became a citable agent name.
+
+    See ``agent_frontmatter`` for the parse rules and for what ``reasons``
+    collects.
+    """
+    return agent_frontmatter(path, reasons) is not None
+
+
+def _record(reasons: list[str] | None, message: str) -> None:
+    """Append ``message`` when the caller asked for reasons."""
+    if reasons is not None:
+        reasons.append(message)
+
+
+def _describe(value: object) -> str:
+    """Name the offending value without quoting a payload of unknown size."""
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return "a blank string"
+    name = type(value).__name__
+    return f"{'an' if name[:1].lower() in 'aeiou' else 'a'} {name}"
+
+
+def known_agents(
+    tree_root: Path, suffix: str, problems: list[str] | None = None, repo_root: Path | None = None
+) -> set[str]:
     """Return the agent names one tree ships, by stripping ``suffix``.
 
     Files not ending in ``suffix`` are not agent definitions and are excluded.
     So are files that carry the suffix but no agent frontmatter, which is what
     keeps ``AGENTS.md``, ``CLAUDE.md``, and ``claude-instructions.template.md``
     out of the roster.
+
+    ``problems`` collects path-prefixed reasons for files that looked like
+    agents and were refused. Without it such a file drops out silently and the
+    only symptom is a matrix row reporting an agent nobody ships, which points
+    at the citation rather than at the malformed definition.
     """
     names: set[str] = set()
-    for path in tree_root.glob(f"*{suffix}"):
+    for path in sorted(tree_root.glob(f"*{suffix}")):
         name = path.name[: -len(suffix)]
-        if name and is_agent_definition(path):
+        if not name:
+            continue
+        reasons: list[str] = []
+        if is_agent_definition(path, reasons):
             names.add(name)
+        if problems is None:
+            continue
+        shown = path.relative_to(repo_root) if repo_root else path
+        problems.extend(f"{shown}: {reason}" for reason in reasons)
     return names
 
 
@@ -531,7 +644,7 @@ def scan(repo_root: Path) -> ScanResult:
         if not directory.is_dir():
             continue
         result.trees_scanned.append(tree)
-        agents = known_agents(directory, suffix)
+        agents = known_agents(directory, suffix, result.config_errors, repo_root)
         result.agents_by_tree[tree] = agents
         result.name_mismatches.extend(frontmatter_name_mismatches(repo_root, tree, suffix))
         if not agents:
