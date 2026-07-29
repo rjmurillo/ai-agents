@@ -15,8 +15,9 @@ earlier revision omitted it, so the content rendered as a paragraph rather than
 a table and each suppression test passed whether or not the defence it named
 existed. A mutation battery surfaced eight such tests.
 
-Enforcement of the invariant itself lives in
-test_check_shipped_skill_routes.py.
+This suite decides only what text is a route. The verdict returned for a route
+is pinned in test_check_shipped_skill_routes.py, and which files the gate is
+willing to read at all is pinned in test_check_shipped_skill_routes_paths.py.
 
 File-size suppression rationale: this module is already the markdown half of
 one split, and the tests are a flat list of independent functions with no
@@ -611,3 +612,187 @@ def test_raw_html_code_is_read_as_a_route(repo: Path) -> None:
     result = run_gate(repo)
     assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
     assert "ghost" in result.stdout
+
+
+def test_a_bare_keyword_span_is_not_saved_by_a_later_documented_route(
+    repo: Path,
+) -> None:
+    """The forward read must skip spans that are about to be blanked.
+
+    `` `Skill:` `Skill: ghost` `` is two syntax examples. Letting the second
+    satisfy the first keeps a keyword whose only name is then erased, and the
+    cell reports an empty malformed route over documentation.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "two-spans.md",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` `Skill: ghost` |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        "Skill: (merge-resolver])",
+        "Skill: [merge-resolver})",
+        "Skill: {merge-resolver)}",
+    ],
+)
+def test_a_mismatched_wrapper_never_reduces_to_an_installed_name(
+    repo: Path, cell: str
+) -> None:
+    """Balanced stripping followed by a blind one is still fail-open.
+
+    The outer pair reduces, then the stray closer is taken for sentence
+    punctuation, and a malformed route lands on a real skill.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "mismatched.md",
+        f"| I | R |\n| --- | --- |\n| M | {cell} |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "not a legal skill name" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        "[Skill: merge-resolver]",
+        "(use Skill: merge-resolver)",
+        "{Skill: merge-resolver}",
+        "[see (Skill: merge-resolver)]",
+        "[a (b {Skill: merge-resolver})]",
+    ],
+)
+def test_a_closer_owed_by_an_earlier_opener_is_stripped(
+    repo: Path, cell: str
+) -> None:
+    """A cell can carry only the closing half of every wrapper it opened.
+
+    Nesting arrives outermost first when the captured name is stripped from
+    its right end, so the owed closers are spent in that order.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "owed.md",
+        f"| I | R |\n| --- | --- |\n| M | {cell} |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        "Skill: merge-resolver]",
+        "[Skill: merge-resolver]]",
+        "[see (Skill: merge-resolver)]]",
+        "[done] Skill: merge-resolver]",
+        "`[Skill: x]` Skill: merge-resolver]",
+    ],
+)
+def test_a_closer_no_opener_owes_is_malformed(repo: Path, cell: str) -> None:
+    """Each opener pays for one closer.
+
+    A bracket already closed before the route, or one inside a span the
+    renderer shows as documentation, owes nothing.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "unowed.md",
+        f"| I | R |\n| --- | --- |\n| M | {cell} |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "not a legal skill name" in result.stdout
+
+
+def test_wrapping_a_dangling_route_never_hides_it(repo: Path) -> None:
+    """Punctuation reduction must not change which skill a route names."""
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "wrapped-drift.md",
+        "| I | R |\n| --- | --- |\n| M | [see (Skill: ghost)] |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+def test_two_keywords_around_ambiguous_text_read_the_same_either_way(
+    repo: Path,
+) -> None:
+    """Reported as malformed, and reported identically without the backticks.
+
+    Rendered, ``Skill: (some text) Skill: merge-resolver`` does read as a route
+    to ``(some text)``. What matters is that styling the keyword cannot change
+    the verdict, because that would make two backticks a way to silence a
+    report.
+    """
+    plain = write_doc(
+        repo,
+        "src/copilot-cli",
+        "plain.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: (some text) Skill: merge-resolver |\n",
+    )
+    first = run_gate(repo)
+    plain.unlink()
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "styled.md",
+        "| I | R |\n| --- | --- |\n"
+        "| M | `Skill:` (some text) `Skill:` merge-resolver |\n",
+    )
+    second = run_gate(repo)
+    assert first.returncode == EXIT_DRIFT, first.stdout + first.stderr
+    assert second.returncode == first.returncode, second.stdout + second.stderr
+
+
+def test_a_route_ending_a_sentence_outranks_a_name_ending_in_a_dot(
+    repo: Path,
+) -> None:
+    """``_unwrap`` strips the period, so ``my.skill.`` can never be routed to.
+
+    Documented rather than fixed: forbidding a trailing dot in ``_NAME_RE``
+    rejects one-character skill names, and a directory named with a trailing
+    period is pathological while a route ending a sentence is ordinary.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "sentence.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: merge-resolver. |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK
+    write_skill(repo, "src/copilot-cli", "dotted.")
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "dotted.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: dotted. |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_DRIFT
+
+
+@pytest.mark.parametrize("name", ["x", "go", "a1"])
+def test_a_short_skill_name_is_legal(repo: Path, name: str) -> None:
+    """Pins the cost of the rejected fix for the trailing-dot limitation.
+
+    Requiring the last character to be alphanumeric would reject these.
+    """
+    write_skill(repo, "src/copilot-cli", name)
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        f"short-{name}.md",
+        f"| I | R |\n| --- | --- |\n| M | Skill: {name} |\n",
+    )
+    assert run_gate(repo).returncode == EXIT_OK

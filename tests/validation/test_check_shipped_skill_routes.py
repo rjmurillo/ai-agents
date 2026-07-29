@@ -1,4 +1,4 @@
-"""Tests for the plugin-root routing invariant.
+"""Tests for the verdict the plugin-root routing gate returns.
 
 Pins behaviour of scripts/validation/check_shipped_skill_routes.py:
 
@@ -6,12 +6,18 @@ Pins behaviour of scripts/validation/check_shipped_skill_routes.py:
 - neg: the #2026 drift shape (canonical keeps the skill, the shipped root drops
   it, the routing prose stays) returns exit 1 and names the file, the line, and
   the skill; so does a typo and a mixed-case name
-- config: no plugin root, a vacuous scan, an unreadable file or directory,
-  undecodable bytes, and nesting past the parser limit are exit 2 per ADR-035
+- config: a scan that resolves nothing is exit 2 per ADR-035, because a gate
+  that matches no input passes for the wrong reason
 - regression: the live repository satisfies the invariant
 
-Markdown scoping (which text counts as a route at all) is pinned separately in
-test_check_shipped_skill_routes_markdown.py.
+Two sibling suites hold the other halves of this gate. Which text counts as a
+route at all is pinned in test_check_shipped_skill_routes_markdown.py. Which
+files the gate is willing to read is pinned in
+test_check_shipped_skill_routes_paths.py. The seam is deliberate: a defect in
+this file is a wrong answer about a route that was read correctly, and a defect
+in the paths suite is a route that was never read. Round six of adversarial
+review found two fail-opens, both in the second category and neither visible
+from a routing assertion.
 
 The negatives deliberately use several different skill names. An earlier
 revision of this suite only ever used ``merge-resolver``, so a validator that
@@ -22,7 +28,6 @@ See the module docstring in the validator for the incident this encodes.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -36,7 +41,6 @@ from tests.validation.shipped_skill_routes_helpers import (
     drop_skill,
     repo,
     run_gate,
-    write_doc,
     write_manifest,
     write_skill,
 )
@@ -161,34 +165,6 @@ def test_remediation_hint_names_the_agent_fallback(repo: Path) -> None:
 # --- edge: false-positive suppression ---
 
 
-def test_nested_working_copies_are_not_walked(repo: Path) -> None:
-    """A worktree carries a full copy of the repo; drift there is not ours."""
-    nested = repo / "src/copilot-cli" / "worktrees" / "wt1" / "skills" / "autoplan"
-    nested.mkdir(parents=True, exist_ok=True)
-    (nested / "SKILL.md").write_text(
-        "| X | R |\n| --- | --- |\n| X | Skill: ghost |\n", encoding="utf-8"
-    )
-
-    assert run_gate(repo).returncode == EXIT_OK
-
-
-# --- config errors (ADR-035: exit 2) ---
-
-
-def test_missing_plugin_root_is_config_error(tmp_path: Path) -> None:
-    result = run_gate(tmp_path)
-    assert result.returncode == EXIT_CONFIG
-    assert "no plugin roots" in result.stderr
-
-
-def test_manifestless_directory_is_not_a_root(tmp_path: Path) -> None:
-    write_skill(tmp_path, ".claude", "autoplan", "| X | R |\n| --- | --- |\n| X | Skill: ghost |\n")
-    result = run_gate(tmp_path)
-    # No plugin.json, so .claude is not a root and nothing is scanned.
-    assert result.returncode == EXIT_CONFIG
-    assert "no plugin roots" in result.stderr
-
-
 def test_zero_routes_is_a_vacuous_pass_and_fails(tmp_path: Path) -> None:
     """A renamed skills directory must not read as success."""
     for tree in TREES:
@@ -197,112 +173,6 @@ def test_zero_routes_is_a_vacuous_pass_and_fails(tmp_path: Path) -> None:
     result = run_gate(tmp_path)
     assert result.returncode == EXIT_CONFIG
     assert "vacuous" in result.stderr
-
-
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
-def test_unreadable_file_is_config_error_not_a_silent_pass(repo: Path) -> None:
-    """Swallowing OSError would let an unreadable file hide a live route."""
-    blocked = write_doc(
-        repo, "src/copilot-cli", "blocked.md", "| X | R |\n| --- | --- |\n| X | Skill: ghost |\n"
-    )
-    blocked.chmod(0o000)
-    try:
-        result = run_gate(repo)
-    finally:
-        blocked.chmod(0o644)
-    assert result.returncode == EXIT_CONFIG
-    assert "cannot read" in result.stderr
-
-
-def test_nesting_past_the_parser_limit_is_refused(repo: Path) -> None:
-    """Content the parser cannot fully represent is an incomplete scan.
-
-    markdown-it stops at ``maxNesting``, so a table nested past the limit is
-    dropped from the token stream. Reporting success on a file the parser
-    truncated would pass a root whose routes were never read, so the file is
-    refused as a config error instead.
-    """
-    quote = "> " * 40
-    write_doc(
-        repo,
-        "src/copilot-cli",
-        "deep.md",
-        f"{quote}| X | R |\n{quote}| --- | --- |\n{quote}| X | Skill: ghost |\n",
-    )
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "cannot parse" in result.stdout + result.stderr
-
-
-def test_a_tooling_directory_nested_in_a_skill_is_pruned(repo: Path) -> None:
-    """A venv or node_modules inside a skill is tool output, not content.
-
-    Root-only pruning walked these. That scans thousands of third-party files
-    and trips the symlink refusal on the interpreter links every virtualenv
-    carries, which hard-fails the gate and blocks every push in the repo.
-    Measured across the live plugin roots, no such directory holds authored
-    content today, so the blocking failure is the expensive one to allow.
-    """
-    path = repo / "src/copilot-cli/skills/autoplan/venv/notes.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n", encoding="utf-8")
-    result = run_gate(repo)
-    assert result.returncode == EXIT_OK
-
-
-def test_a_symlink_inside_a_nested_tooling_directory_does_not_block(repo: Path) -> None:
-    """npm ci leaves symlinks in node_modules/.bin. That is not a config error."""
-    nested = repo / "src/copilot-cli/skills/autoplan/node_modules"
-    nested.mkdir(parents=True, exist_ok=True)
-    (nested / ".bin").symlink_to(repo, target_is_directory=True)
-    result = run_gate(repo)
-    assert result.returncode == EXIT_OK
-
-
-def test_a_skill_named_venv_is_still_scanned(repo: Path) -> None:
-    """A SKILL.md under skills/ exempts the name, so a collision is safe."""
-    write_skill(
-        repo, "src/copilot-cli", "venv", "| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n"
-    )
-    result = run_gate(repo)
-    assert result.returncode == EXIT_DRIFT
-    assert "ghost" in result.stdout
-
-
-@pytest.mark.parametrize("name", [".venv", "venv", "node_modules"])
-def test_real_tooling_directly_under_skills_is_pruned(repo: Path, name: str) -> None:
-    """Exempting the whole skills namespace by location was too broad.
-
-    A virtualenv created in that directory is a direct child of ``skills/``
-    too. Exempting by location walked into it and the interpreter symlinks
-    every virtualenv carries hit the symlink refusal, which is exit 2 on every
-    push in the repository. The marker file is what separates a real skill
-    from tooling that happens to sit beside one.
-    """
-    tooling = repo / "src/copilot-cli" / "skills" / name
-    (tooling / "lib").mkdir(parents=True)
-    (tooling / "lib64").symlink_to("lib")
-    (tooling / "notes.md").write_text(
-        "| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n", encoding="utf-8"
-    )
-    result = run_gate(repo)
-    assert result.returncode == EXIT_OK, result.stdout + result.stderr
-
-
-def test_tooling_under_skills_is_pruned_before_its_contents_are_read(
-    repo: Path,
-) -> None:
-    """Pruning has to happen ahead of the per-directory symlink refusal.
-
-    Order is the whole point: a refusal that ran first would report the
-    virtualenv's own interpreter links and block the push before the name
-    check ever got a say.
-    """
-    tooling = repo / ".claude" / "skills" / ".venv" / "bin"
-    tooling.mkdir(parents=True)
-    (tooling / "python3").symlink_to("/usr/bin/python3")
-    result = run_gate(repo)
-    assert result.returncode == EXIT_OK, result.stdout + result.stderr
 
 
 def test_populated_root_with_zero_routes_is_a_config_error(repo: Path) -> None:
@@ -314,142 +184,6 @@ def test_populated_root_with_zero_routes_is_a_config_error(repo: Path) -> None:
     assert "vacuous" in result.stderr
 
 
-def test_skill_named_worktrees_is_scanned(repo: Path) -> None:
-    """Reserving worktree container names globally would hide a real skill."""
-    write_skill(
-        repo,
-        "src/copilot-cli",
-        "worktrees",
-        "| I | R |\n| --- | --- |\n| M | Skill: ghost |\n",
-    )
-    result = run_gate(repo)
-    assert result.returncode == EXIT_DRIFT
-    assert "ghost" in result.stdout
-
-
-def test_undecodable_bytes_are_a_config_error(repo: Path) -> None:
-    """errors='replace' would corrupt a route into a silent pass."""
-    path = repo / "src/copilot-cli/skills/autoplan/broken.md"
-    path.write_bytes(b"| I | R |\n| --- | --- |\n| M | Skill: gh\xffost |\n")
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG
-    assert "cannot decode" in result.stderr
-
-
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
-def test_unreadable_directory_is_config_error_not_a_silent_skip(repo: Path) -> None:
-    """os.walk swallows directory errors by default, shrinking the scan."""
-    blocked = repo / "src/copilot-cli/skills/autoplan/locked"
-    blocked.mkdir(parents=True)
-    (blocked / "x.md").write_text("| I | R |\n| --- | --- |\n| M | Skill: ghost |\n")
-    blocked.chmod(0o000)
-    try:
-        result = run_gate(repo)
-    finally:
-        blocked.chmod(0o755)
-    assert result.returncode == EXIT_CONFIG
-    assert "cannot walk" in result.stderr
-
-
-# --- regression ---
-
-
 def test_live_repository_satisfies_the_invariant() -> None:
     result = run_gate(REPO_ROOT)
     assert result.returncode == EXIT_OK, result.stdout + result.stderr
-
-
-@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
-def test_unlistable_platform_parent_is_a_config_error(repo: Path) -> None:
-    """A root the process cannot enumerate must fail closed, not vanish.
-
-    Dropping src/copilot-cli silently would leave .claude to carry the pass,
-    which is the same vacuous-success shape the per-root guard exists to stop.
-    """
-    (repo / "src").chmod(0o000)
-    try:
-        result = run_gate(repo)
-    finally:
-        (repo / "src").chmod(0o755)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "cannot list" in result.stderr
-
-
-@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
-def test_unstattable_manifest_is_a_config_error(repo: Path) -> None:
-    """``Path.is_file`` answers False for a manifest it cannot stat.
-
-    That turns an inaccessible plugin root into an absent one, so the gate
-    would scan fewer roots than the repository ships and still report success.
-    """
-    (repo / "src" / "copilot-cli" / ".claude-plugin").chmod(0o000)
-    try:
-        result = run_gate(repo)
-    finally:
-        (repo / "src" / "copilot-cli" / ".claude-plugin").chmod(0o755)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "cannot stat" in result.stderr
-
-
-def test_symlinked_directory_inside_a_root_is_refused(repo: Path) -> None:
-    """os.walk will not descend into it, so its markdown would go unscanned.
-
-    A route that drifted inside a symlinked directory passed silently. The
-    gate refuses rather than following the link, because followlinks=True
-    walks a cycle dozens of times and double-reports any file reachable two
-    ways. No plugin root ships a symlinked directory today.
-    """
-    outside = repo / "shared-docs"
-    outside.mkdir()
-    (outside / "doc.md").write_text(
-        "| T | R |\n| --- | --- |\n| M | Skill: ghost |\n", encoding="utf-8"
-    )
-    (repo / "src" / "copilot-cli" / "linked").symlink_to(outside)
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "symlinked directory" in result.stderr
-
-
-def test_a_manifest_that_is_a_directory_is_a_config_error(repo: Path) -> None:
-    """Reporting it absent would drop that root and let a sibling carry a pass."""
-    manifest = repo / "src/copilot-cli/.claude-plugin/plugin.json"
-    manifest.unlink()
-    manifest.mkdir()
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "not a regular file" in result.stderr
-
-
-def test_a_skills_path_that_is_a_file_is_a_config_error(repo: Path) -> None:
-    """An empty skill set would report every route in that root as drift."""
-    skills = repo / "src/copilot-cli/skills"
-    for child in sorted(skills.rglob("*"), reverse=True):
-        child.unlink() if child.is_file() else child.rmdir()
-    skills.rmdir()
-    skills.write_text("not a directory\n", encoding="utf-8")
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "not a directory" in result.stderr
-
-
-def test_a_regular_file_beside_a_plugin_root_is_not_a_config_error(repo: Path) -> None:
-    """src/ holds AGENTS.md beside the roots; a non-directory sibling is normal."""
-    (repo / "src" / "AGENTS.md").write_text("# notes\n", encoding="utf-8")
-    assert run_gate(repo).returncode == EXIT_OK
-
-
-def test_a_symlinked_plugin_root_is_refused(repo: Path) -> None:
-    """os.walk follows its own top path, so the symlink policy would not hold.
-
-    The refusal inside a root covers directories found during the walk. A
-    root that is itself a link slips past it, which would apply one policy to
-    the root and another to everything under it.
-    """
-    elsewhere = repo / "elsewhere"
-    elsewhere.mkdir()
-    (elsewhere / ".claude-plugin").mkdir()
-    (elsewhere / ".claude-plugin" / "plugin.json").write_text("{}\n", encoding="utf-8")
-    (repo / "src" / "linked").symlink_to(elsewhere, target_is_directory=True)
-    result = run_gate(repo)
-    assert result.returncode == EXIT_CONFIG, result.stdout + result.stderr
-    assert "symlinked plugin root" in result.stderr
