@@ -17,7 +17,9 @@ hold the hand-written command paths to the same contract.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -119,3 +121,122 @@ def test_guarded_doc_actually_contains_a_force_push(rel: str):
         f"{rel} no longer contains a refspec push, so the lease guard for it is "
         f"passing vacuously. Remove it from GUARDED_DOCS or restore the command."
     )
+
+
+# ---------------------------------------------------------------------------
+# Concurrency regression (issue #3413 acceptance criterion)
+#
+# "A concurrency regression proves only one of two same-user agents can mutate
+# a PR branch." These two tests are the two-sided control: the bare lease loses
+# a sibling's commit, the pinned lease refuses the identical push.
+# ---------------------------------------------------------------------------
+
+
+def _git(args: list[str], cwd: Path, check: bool = True):
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=check,
+    )
+
+
+def _identify(clone: Path, who: str) -> None:
+    _git(["config", "user.email", f"{who}@example.invalid"], clone)
+    _git(["config", "user.name", who], clone)
+
+
+@pytest.fixture
+def two_agents(tmp_path: Path):
+    """One shared remote and two clones racing to mutate the same branch.
+
+    Returns ``(agent_a, agent_b, origin, observed_sha)`` where ``observed_sha``
+    is the branch tip agent B last reasoned about, exactly the value the
+    pr-autofix instructions read from ``get_pr_context.py``.
+    """
+    origin = tmp_path / "origin.git"
+    _git(["init", "--quiet", "--bare", str(origin)], tmp_path)
+
+    agent_a = tmp_path / "agent_a"
+    _git(["clone", "--quiet", str(origin), str(agent_a)], tmp_path)
+    _identify(agent_a, "agent-a")
+    (agent_a / "f.txt").write_text("base\n")
+    _git(["add", "f.txt"], agent_a)
+    _git(["commit", "--quiet", "-m", "base"], agent_a)
+    _git(["branch", "-M", "main"], agent_a)
+    _git(["push", "--quiet", "origin", "main"], agent_a)
+
+    agent_b = tmp_path / "agent_b"
+    _git(["clone", "--quiet", str(origin), str(agent_b)], tmp_path)
+    _identify(agent_b, "agent-b")
+    observed_sha = _git(["rev-parse", "HEAD"], agent_b).stdout.strip()
+
+    # Agent A lands work that agent B has not seen.
+    (agent_a / "f.txt").write_text("base\nagent-a work\n")
+    _git(["commit", "--quiet", "-am", "agent-a work"], agent_a)
+    _git(["push", "--quiet", "origin", "main"], agent_a)
+
+    # Agent B builds a divergent commit, then something fetches. This is the
+    # documented defeat condition: B's origin/main now points at A's commit.
+    (agent_b / "f.txt").write_text("base\nagent-b work\n")
+    _git(["commit", "--quiet", "-am", "agent-b work"], agent_b)
+    _git(["fetch", "--quiet", "origin"], agent_b)
+
+    return agent_a, agent_b, origin, observed_sha
+
+
+def _remote_tip(cwd: Path) -> str:
+    out = _git(["ls-remote", "origin", "main"], cwd).stdout
+    return out.split("\t")[0].strip()
+
+
+def test_bare_lease_lets_one_agent_destroy_another(two_agents):
+    """Hazard control. Without this passing, the fix has nothing to prevent.
+
+    Pushes to the remote *name*, not a URL. Bare ``--force-with-lease`` reads its
+    expected value from ``refs/remotes/origin/main``; pushing to a bare path has
+    no tracking ref, so git refuses for an unrelated reason and the hazard would
+    never reproduce. The real pr-autofix command pushes to ``origin``.
+    """
+    agent_a, agent_b, _origin, _ = two_agents
+    victim = _git(["rev-parse", "HEAD"], agent_a).stdout.strip()
+    pushed = _git(["rev-parse", "HEAD"], agent_b).stdout.strip()
+
+    result = _git(
+        ["push", "--force-with-lease", "origin", f"{pushed}:refs/heads/main"],
+        agent_b,
+        check=False,
+    )
+
+    assert result.returncode == 0, "bare lease unexpectedly blocked; re-derive the hazard"
+    assert _remote_tip(agent_b) != victim, (
+        "bare --force-with-lease overwrote the sibling's commit, which is the "
+        "hazard this guard exists to prevent (issues #3653, #3413)"
+    )
+
+
+def test_pinned_lease_refuses_to_destroy_another_agents_commit(two_agents):
+    """The fix. Identical push, lease pinned to the SHA agent B observed."""
+    agent_a, agent_b, _origin, observed_sha = two_agents
+    victim = _git(["rev-parse", "HEAD"], agent_a).stdout.strip()
+    pushed = _git(["rev-parse", "HEAD"], agent_b).stdout.strip()
+
+    result = _git(
+        [
+            "push",
+            f"--force-with-lease=refs/heads/main:{observed_sha}",
+            "origin",
+            f"{pushed}:refs/heads/main",
+        ],
+        agent_b,
+        check=False,
+    )
+
+    assert result.returncode != 0, "pinned lease should have rejected a stale push"
+    assert "stale info" in (result.stderr + result.stdout).lower()
+    assert _remote_tip(agent_b) == victim, "the sibling's commit must survive"
