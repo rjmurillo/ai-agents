@@ -96,6 +96,8 @@ def run_pytest(command: list[str], timeout: float, cwd: Path | None = None) -> t
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except subprocess.TimeoutExpired:
