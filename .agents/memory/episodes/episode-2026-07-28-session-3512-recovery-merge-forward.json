@@ -1,0 +1,110 @@
+{
+  "id": "episode-2026-07-28-session-3512-recovery-merge-forward",
+  "session": "2026-07-28-session-3512-recovery-merge-forward",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Recover cancelled PR #3512 autofix: resolve merge conflicts, fix ruff E402 ratchet, update causal graph",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "chosen": "Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree from origin/fix/3484-skip-clause-standard",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main to resolve CONFLICTING state (plugin.json version conflict)",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed noqa suppression comments: used importlib in tests, consolidated imports in checks_spec",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified git merge-tree splitting aliased imports due to function insertion after block",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adopted shadow-assignment pattern: import _run_subprocess bare (matching main), then _run_subprocess_raw = _run_subprocess",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified merge-tree simulation produces correct result with new pattern",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated causal graph for session-3512 episode",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

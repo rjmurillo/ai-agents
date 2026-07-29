@@ -37,9 +37,10 @@ def get_repo_root(
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError, UnicodeDecodeError):
         return None
 
     if result.returncode != 0:

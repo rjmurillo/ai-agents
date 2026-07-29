@@ -4,13 +4,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-05-03 |
 | **Owner** | implementer |
 | **Complexity** | Medium |
 | **Spec** | REQ-004 / DESIGN-004 / TASK-004 |
 | **Issue** | #1854 |
 | **Spec PR** | #1870 (draft) |
+
+> **Closeout note:** Completed on 2026-07-27. Evidence: issue #1854 closed; ADR-058 and evals/ spike reports landed.
 
 ## Objectives
 

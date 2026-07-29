@@ -137,6 +137,8 @@ def fetch_current_pr_body(owner: str, repo: str) -> str | None:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -159,6 +161,8 @@ def fetch_issue_body(issue_number: int, owner: str, repo: str) -> str | None:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -314,6 +318,8 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     if diff.returncode != 0:
@@ -326,6 +332,8 @@ def _changed_agent_files(repo_root: Path, base_ref: str) -> dict[str, str]:
             ["git", "-C", str(repo_root), "show", f"HEAD:{relpath}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if show.returncode != 0:
@@ -342,6 +350,8 @@ def _resolve_base_ref(repo_root: Path) -> str | None:
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", ref],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode == 0:

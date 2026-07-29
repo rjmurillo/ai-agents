@@ -23,6 +23,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from active_plan_closeout import validate_active_plan_closeout
 from checks_coverage import (  # noqa: E402
     validate_review_marker,
 )
@@ -33,6 +34,7 @@ from checks_plugin import (  # noqa: E402
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402
@@ -41,11 +43,14 @@ from checks_spec import (  # noqa: E402
     validate_canonical_citations,
     validate_model_pins,
     validate_orchestrator_citations,
+    validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_shells,
+    validate_skill_skip_clauses,
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
+    validate_traceability,
     validate_vendor_portability,
 )
 from checks_tooling import (  # noqa: E402
@@ -208,6 +213,12 @@ def run_all_validations(
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    run_validation(
+        "Traceability",
+        state,
+        lambda: validate_traceability(repo_root),
+    )
+
     # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
     run_validation(
         "Vendor Portability",
@@ -231,7 +242,25 @@ def run_all_validations(
         lambda: validate_skill_shells(repo_root),
     )
 
-    # 3.765.5 Copilot Routing Exclusions: ensure Copilot shipped skills do not
+    # 3.767 Skill SKIP clauses (Issue #3484). Fails when a multi-member
+    # leading-token skill family lacks a well-formed route to a real sibling.
+    run_validation(
+        "Skill SKIP Clause Routing",
+        state,
+        lambda: validate_skill_skip_clauses(repo_root),
+    )
+
+    # 3.768 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
+    # when a rule or skill has no activation scenario and is not baselined, or
+    # when a scenario points at a deleted artifact. Fail-closed on any config
+    # or structural fault so an unmeasured artifact never reads as clean.
+    run_validation(
+        "Rule Activation Coverage",
+        state,
+        lambda: validate_rule_activation_coverage(repo_root),
+    )
+
+    # 3.769 Copilot Routing Exclusions: ensure Copilot shipped skills do not
     # route to an excluded skill name (templates/platforms/copilot-cli.yaml)
     try:
         from checks_copilot import validate_copilot_routing_exclusions
@@ -261,6 +290,14 @@ def run_all_validations(
         "Agent Catalog Drift",
         state,
         lambda: validate_agent_catalog(repo_root),
+    )
+
+    # 3.79 Shipped Skill Routes (Issue #2026 coordination drift). Fails when a
+    # routing table in a shipped tree points at a skill that tree does not ship.
+    run_validation(
+        "Shipped Skill Routes",
+        state,
+        lambda: validate_shipped_skill_routes(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
@@ -305,6 +342,15 @@ def run_all_validations(
         "Model Pin Governance (warn)",
         state,
         lambda: validate_model_pins(repo_root),
+    )
+
+    # 3.89 Active Plan Closeout (Issue #3426). Advisory warning when every
+    # tracking issue on an active execution plan is closed, so stale plans do
+    # not silently refill .agents/plans/active/.
+    run_validation(
+        "Active Plan Closeout Advisory",
+        state,
+        lambda: validate_active_plan_closeout(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)

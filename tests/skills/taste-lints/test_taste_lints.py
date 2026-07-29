@@ -75,7 +75,7 @@ class TestCheckFileSize:
     def test_memory_data_file_exempt_despite_size(self) -> None:
         # .agents/memory/ holds append-only generated data (issue #2785).
         lines = ["{}\n"] * 9000
-        result = check_file_size(".agents/memory/causality/causal-graph.json", lines)
+        result = check_file_size(".agents/memory/episodes/episode-batch.json", lines)
         assert result == []
 
     def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:

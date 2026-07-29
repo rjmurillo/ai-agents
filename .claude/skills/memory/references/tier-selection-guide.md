@@ -9,7 +9,6 @@ Deep guidance for selecting the correct memory tier.
 | **0: Working** | Instant | Current session | 100% | Active context |
 | **1: Semantic** | ~500ms | All projects | 100% (Serena) | Facts, patterns, rules |
 | **2: Episodic** | ~100ms | This project | 100% (local) | Session history, decisions |
-| **3: Causal** | ~100ms | This project | 100% (local) | Relationships, patterns |
 
 ## Selection by Question Type
 
@@ -30,20 +29,12 @@ Get-Episode -SessionId "2026-01-01-session-126"
 Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
 ```
 
-### "Why did X lead to Y?" → Tier 3
+### "Why did X lead to Y?" → Tier 2
 
-Causal questions about relationships.
-
-```powershell
-Get-CausalPath -FromLabel "decision: retry logic" -ToLabel "outcome: success"
-```
-
-### "What usually works?" → Tier 3
-
-Pattern questions about success/failure rates.
+Read the episodes that recorded the decision and its outcome.
 
 ```powershell
-Get-Patterns -MinSuccessRate 0.7
+Get-Episodes -Outcome "failure" -MaxResults 20
 ```
 
 ### "What should I try?" → Multi-Tier
@@ -52,9 +43,8 @@ Complex questions requiring synthesis.
 
 ```text
 1. Tier 1: Search for relevant patterns
-2. Tier 2: Check if similar situation occurred before
-3. Tier 3: Find what worked in similar situations
-4. Synthesize recommendation
+2. Tier 2: Check if a similar situation occurred before, and how it ended
+3. Synthesize recommendation
 ```
 
 ## Selection by Task Phase
@@ -62,10 +52,10 @@ Complex questions requiring synthesis.
 | Task Phase | Primary Tier | Secondary Tier |
 |------------|--------------|----------------|
 | **Starting work** | 1 (context) | 2 (similar sessions) |
-| **Encountering error** | 1 (solutions) | 3 (error patterns) |
-| **Making decision** | 3 (patterns) | 1 (constraints) |
-| **Completing session** | 2 (extract) | 3 (update) |
-| **Debugging issue** | 2 (timeline) | 3 (causation) |
+| **Encountering error** | 1 (solutions) | 2 (prior occurrences) |
+| **Making decision** | 1 (constraints) | 2 (prior outcomes) |
+| **Completing session** | 2 (extract) | 1 (record the fact) |
+| **Debugging issue** | 2 (timeline) | 1 (known causes) |
 
 ## Fallback Strategy
 
@@ -78,10 +68,6 @@ Primary tier unavailable?
 ├── Tier 2 unavailable
 │   └── Check .agents/memory/episodes/ exists
 │   └── If missing, no historical data yet
-│
-└── Tier 3 unavailable
-    └── Check .agents/memory/causality/ exists
-    └── If missing, no causal data yet
 ```
 
 ## Common Mistakes
@@ -91,14 +77,9 @@ Primary tier unavailable?
 **Wrong**: `Search-Memory -Query "what did I do yesterday"`
 **Right**: `Get-Episodes -Since (Get-Date).AddDays(-1)`
 
-### Mistake: Using Tier 2 for pattern discovery
+### Mistake: Using Tier 2 for fact lookup
 
-**Wrong**: Scanning through multiple episodes manually
-**Right**: `Get-Patterns -MinSuccessRate 0.7`
-
-### Mistake: Using Tier 3 for fact lookup
-
-**Wrong**: Searching causal graph for API documentation
+**Wrong**: Scanning episodes for API documentation
 **Right**: `Search-Memory -Query "API authentication"`
 
 ## Multi-Tier Query Example
@@ -109,11 +90,8 @@ When answering "How should I handle authentication errors?":
 # Tier 1: Get documented patterns
 facts=$(python3 .claude/skills/memory/scripts/search_memory.py --query "authentication error handling")
 
-# Tier 2: Find relevant past sessions
+# Tier 2: Find relevant past sessions and how they ended
 $episodes = Get-Episodes -Task "authentication" -MaxResults 10
 
-# Tier 3: Check what worked
-$patterns = Get-Patterns | Where-Object { $_.name -match "auth" }
-
-# Synthesize answer from all three tiers
+# Synthesize answer from both tiers
 ```
