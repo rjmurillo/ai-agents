@@ -1101,6 +1101,32 @@ class TestRunPersistenceMalformedJsonl:
         with pytest.raises(MalformedRunRecordError, match=r"line 2 is not valid JSON"):
             list(persistence.iter_records())
 
+    def test_resume_accepts_error_record_with_null_raw_response(self, tmp_path):
+        # `RunRecord.raw_response` is `str | None`; error-path records are
+        # written with `raw_response=None` (see `_eval_api_adapter.py`).
+        # Resume must not fail closed on a legitimate error record just
+        # because the field is null.
+        payload = json.loads(
+            _record_json_for_test(
+                _make_record(outcome="error", seed=0)
+            )
+        )
+        payload["raw_response"] = None
+        payload["assertions"] = []
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+
+        persistence = RunPersistence(run_dir, resume=True, seed=0)
+
+        assert not persistence.is_completed("F001", "agent", 0)
+
+    def test_non_object_json_line_raises_malformed(self, tmp_path):
+        # A line that parses as valid JSON but is not an object (e.g. a
+        # bare array) must surface as `MalformedRunRecordError`, not an
+        # unhandled `AttributeError` from calling `.get()` on a list.
+        run_dir = self._seed(tmp_path, "[]\n")
+        with pytest.raises(MalformedRunRecordError, match="not a JSON object"):
+            RunPersistence(run_dir, resume=True)
+
 
 # ===========================================================================
 # T4-2: CLI integration with mocked adapter

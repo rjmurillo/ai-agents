@@ -168,6 +168,16 @@ def _strict_str(payload: dict[str, Any], field: str, line_context: str) -> str:
     return value
 
 
+def _strict_optional_str(payload: dict[str, Any], field: str, line_context: str) -> str | None:
+    value = payload.get(field)
+    if value is not None and not isinstance(value, str):
+        raise MalformedRunRecordError(
+            f"{line_context} field {field!r} has wrong type "
+            f"(expected str or null, got {type(value).__name__})"
+        )
+    return value
+
+
 def _normalize_seed(payload: dict[str, Any], schema_version: int) -> None:
     if schema_version == 1 and "seed" not in payload:
         payload["seed"] = 0
@@ -220,7 +230,10 @@ def _validate_payload(payload: dict[str, Any], line_context: str) -> None:
     _strict_str(payload, "prompt_sha", line_context)
     _strict_str(payload, "prompt_ref", line_context)
     _strict_str(payload, "fixture_sha", line_context)
-    _strict_str(payload, "raw_response", line_context)
+    # `RunRecord.raw_response` is `str | None` (DESIGN-004): error-path
+    # records are written with `raw_response=None`, so requiring `str`
+    # here would fail closed on legitimate error records during resume.
+    _strict_optional_str(payload, "raw_response", line_context)
     _strict_str(payload, "outcome", line_context)
     _strict_number(payload, "latency_ms", line_context)
     _strict_int(payload, "tokens_in", line_context)
@@ -336,6 +349,11 @@ class RunPersistence:
                     raise MalformedRunRecordError(
                         f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
                     ) from exc
+                if not isinstance(payload, dict):
+                    raise MalformedRunRecordError(
+                        f"{self._jsonl_path}: line {line_no} is not a JSON object "
+                        f"(got {type(payload).__name__})"
+                    )
                 # Reject incompatible schemas at resume time, before
                 # `_seen`/`_completed` get seeded with rows whose shape
                 # the writer would otherwise accept.
