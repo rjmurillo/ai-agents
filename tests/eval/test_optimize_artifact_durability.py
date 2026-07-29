@@ -202,6 +202,14 @@ class TestTheWindowsBranch:
 
 class TestThePosixBranch:
     def test_posix_replaces_and_fsyncs_the_parent(self, tmp_path, monkeypatch):
+        # Force the POSIX arm rather than inferring it from the host. On
+        # Windows the real `_is_windows` sends this through the Win32 arm, so
+        # the parent fsync never runs and the assertion below reads an empty
+        # list; measured as a CI failure on the Windows runner. Pinning the
+        # branch tests it on every platform, which skipping would not, and
+        # costs nothing here because the one POSIX-only syscall in the arm,
+        # the directory fsync, is already replaced by the recorder below.
+        monkeypatch.setattr(oa, "_is_windows", lambda: False)
         synced: list[Path] = []
         monkeypatch.setattr(oa, "_fsync_dir", synced.append)
         # If the Windows branch were taken by mistake this stand-in would
