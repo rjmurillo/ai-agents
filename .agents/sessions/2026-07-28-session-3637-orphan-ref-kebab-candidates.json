@@ -5,8 +5,7 @@
     "date": "2026-07-28",
     "branch": "fix/3637-orphan-ref-kebab-candidates",
     "startingCommit": "d62a8a7e0a",
-    "objective": "Issue #3637: the orphan-ref skill_name detector scored 0 true positives against the .serena/memories corpus while emitting 183 findings there, so the corpus could never be gated. Narrow the kebab arm to require evidence that a token was ever a skill. Ordering in workLog is sequential; timestamps mark order only, not measured wall-clock times.",
-    "endingCommit": "60eedc34b"
+    "objective": "Issue #3637: the orphan-ref skill_name detector scored 0 true positives against the .serena/memories corpus while emitting 183 findings there, so the corpus could never be gated. Narrow the kebab arm to require evidence that a token was ever a skill. Ordering in workLog is sequential; timestamps mark order only, not measured wall-clock times."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -154,6 +153,12 @@
       "action": "Scoped the drift guard to the canonical catalog after the mirror run failed",
       "detail": "Running the mirrored copy failed the drift guard because the mirror's deletion history lists merge-resolver, which is live canonically. That exposed a separate defect: merge-resolver exists in .claude/skills but is absent from the generated src/copilot-cli/skills catalog, while AGENTS.md routes conflict resolution to it. Filed separately. The guard now skips in the mirror, since generated deletions are generation events rather than retirements, and the curated set describes retirements.",
       "outcome": "Canonical 191 pass, mirror 190 pass 1 skip, both together 381 pass with no module-key collision."
+    },
+    {
+      "step": 11,
+      "action": "Dropped the ScanResult annotation on the _skill_names test helper",
+      "evidence": "git_hook_policy.py mypy is a changed-line ratchet (issue #2993); it blocked on test_scan.py:1855 valid-type and :1856 attr-defined because ScanResult is a runtime alias of a dynamically loaded module, not a static type. No other use in the file annotates with it. After the edit the ratchet exits 0 and ruff passes on the file."
     }
-  ]
+  ],
+  "endingCommit": "b4e257631"
 }

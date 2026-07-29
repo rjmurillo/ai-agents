@@ -1852,7 +1852,7 @@ def _filters_module():
     return module
 
 
-def _skill_names(result: ScanResult) -> set[str]:
+def _skill_names(result) -> set[str]:
     return {f.referenced_entity for f in result.findings if f.kind == "skill_name"}
 
 

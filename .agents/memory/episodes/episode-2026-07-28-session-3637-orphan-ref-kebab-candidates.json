@@ -131,6 +131,26 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dropped the ScanResult annotation on the _skill_names test helper",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b4e257631",
+      "caused_by": [],
       "leads_to": []
     }
   ],
@@ -139,7 +159,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
