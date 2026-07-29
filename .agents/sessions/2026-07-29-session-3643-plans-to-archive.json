@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3643,
+    "date": "2026-07-29",
+    "branch": "chore/plans-to-archive",
+    "startingCommit": "ffe2320c",
+    "objective": "Return the 13 audited execution plans to .agents/archive/plans/ per user direction, and reconcile the two READMEs that disagreed about where retired plans live."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = chore/plans-to-archive, cut from origin/main at ffe2320c"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md, .claude/rules/universal.md read before acting"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HEAD == origin/main (ffe2320c) at branch creation, clean tree"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch = chore/plans-to-archive"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read, left unmodified (read-only per ADR-014)"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP not exposed in this harness; read .serena/memories/decision-plans-archive-not-completed.md directly per the AGENTS.md fallback"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP not exposed in this harness; read .serena/memories/decision-plans-archive-not-completed.md directly per the AGENTS.md fallback"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "execution-plans SKILL.md and .agents/plans/README.md read before moving artifacts"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "detect_adr_changes.py, validate_session_json.py, pre_pr.py identified as the gates for this change"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, corrected after PR #3819 review caught sessionEnd evidence copied from session 3502"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "13 plan renames, both READMEs, and this log committed as be6c0878 on chore/plans-to-archive"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "pre-pr-validation, staged-dash-policy, session-policy and markdown-check green at commit; 113 of 113 CI checks green on PR #3819"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; absent from git status"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 run scoped to changed markdown via lefthook pre-commit"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Updated .serena/memories/decision-plans-archive-not-completed.md with the 2026-07-27 round trip and its cause, so the next reader does not repeat it"
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session-end checklist walked: log complete, HANDOFF untouched, markdown lint run via lefthook, all commit gates green"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Investigation",
+      "actions": [
+        "Read .agents/plans/, .agents/archive/plans/ and both READMEs to establish actual placement.",
+        "Found .agents/archive/plans/ held only a README while the 13 plans sat in .agents/plans/completed/ (11) and abandoned/ (2).",
+        "Read .serena/memories/decision-plans-archive-not-completed.md, which records the archive as the decided destination and asserts it holds all 13. That assertion was stale.",
+        "Traced the round trip: the archive README itself records a 2026-07-27 rehome into the lifecycle directories, and session 3429 was a PR-autofix pass touching .agents/plans/README.md."
+      ],
+      "outcome": "Root cause is two disagreeing sources of truth, not a misplaced file. The execution-plans skill writes to completed/ and abandoned/, while the archive README and the decision memory name .agents/archive/plans/."
+    },
+    {
+      "phase": "Blast radius",
+      "actions": [
+        "git grep for plans/completed and plans/abandoned across the tree: only the decision memory referenced them.",
+        "Confirmed build/scripts/validate_planning_artifacts.py scopes .agents/planning/, a different directory, so the CI gate is unaffected.",
+        "Confirmed scripts/validation/active_plan_closeout.py scans only active/ and is advisory."
+      ],
+      "outcome": "No code path or CI gate reads the two staging directories. Move is documentation-only."
+    },
+    {
+      "phase": "Move",
+      "actions": [
+        "git mv 13 plans from .agents/plans/completed/ and .agents/plans/abandoned/ into .agents/archive/plans/.",
+        "Preserved .gitkeep in both staging directories so the lifecycle paths survive.",
+        "Corrected the archive README: replaced the 2026-07-27 rehome sentence with the full round-trip history, and rewrote the Reading these files section that claimed the plans lived elsewhere.",
+        "Corrected .agents/plans/README.md: the Directory Structure table described completed/ and abandoned/ as terminal destinations while the paragraph below named the archive. Table now describes them as staging that should be empty at rest."
+      ],
+      "outcome": "13 plans in .agents/archive/plans/, both READMEs agree, zero em or en dashes."
+    },
+    {
+      "phase": "Review",
+      "actions": [
+        "PR #3819 review flagged three inconsistencies in the generated artifacts.",
+        "protocolCompliance.sessionEnd was copied wholesale from the session 3502 log and never audited: changesCommitted cited the causal graph removal and serenaMemoryUpdated cited graph and episode findings, neither of which happened in this session.",
+        "endingCommit was left empty while changesCommitted claimed complete.",
+        "The extracted episode recorded commits 0 against files_changed 17."
+      ],
+      "outcome": "All three corrected. The sessionEnd copy is the notable one: reusing a prior log as a template put false compliance evidence in the record, and only the bot review caught it."
+    }
+  ],
+  "endingCommit": "be6c0878",
+  "nextSteps": [
+    "The execution-plans skill still writes complete plan and abandon plan output to completed/ and abandoned/. That is the drift that caused this round trip; it ships in two plugin trees so it was left out of scope here and flagged on #3426.",
+    "scripts/validation/active_plan_closeout.py advises Move the plan to completed/ or abandoned/, which now names staging rather than the terminal destination.",
+    "Episode metrics duration_minutes and tool_calls are still 0 in the extracted episode. Left alone rather than fabricated; sessions 3618 and 3619 are already working the endingCommit and episode-ordering gaps."
+  ]
+}

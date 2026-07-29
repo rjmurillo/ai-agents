@@ -267,13 +267,84 @@
       "artifacts": [
         ".agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json"
       ]
+    },
+    {
+      "timestamp": "2026-07-27T15:00:00Z",
+      "action": "Ran adversarial rounds 14 through 36 against the gate, rotating the reviewing model each round so no round shared a blind spot with the code's author",
+      "outcome": "PRs #3430, #3458, #3467, and #3478 merged. #3478 is the objective's deliverable and closed #3422: a consultation-budgeted held-out comparison gate whose seam to any scorer is a single {task_id: bool} mapping, which is what generalizes it past skills to agents by fixture id, rules by scenario id, and hooks by pytest node id. Every accepted finding got a failing test before its fix. The rounds also produced a standing measurement result: roughly five of six rounds contain at least one confidently stated false claim, so a finding is reproduced before it is accepted.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "tests/eval/test_optimize_artifact_cli.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T18:00:00Z",
+      "action": "Ran rounds 37 through 45 and shipped #3595, #3608, and #3579",
+      "outcome": "#3595 taught the gate to refuse input it cannot measure rather than score it anyway. #3608 reduced a rule scenario across runs instead of trusting a single judge. #3579 stopped a crash from taking the branch that means skip, which had been failing open. #3573 and #3608 both claim Fixes #3445 and now ship two surfaces for ADR-087 OR6, per-sample --rule-reduce and per-run --reduce; which is canonical is an architecture call and is flagged, not decided.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T21:00:00Z",
+      "action": "Ran rounds 46 through 50 and recorded the branch-lifetime hazard that cost three pushes",
+      "outcome": "PRs here merge within minutes and the squash deletes the branch, so a commit written after a PR is opened can be orphaned before it is pushed. The push fails with 'cannot lock ref', which reads like corruption and means the branch is gone. It happened on #3579, #3659, and #3662. The rule that came out of it: push immediately after every commit, and verify a fix landed by content with git show origin/main:<file> | grep -c <symbol>, never by SHA ancestry, because a squash merge makes the original SHA a non-ancestor.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-27T22:30:00Z",
+      "action": "Rebuilt both round-50 fixes after discovering neither had landed, because #3659 and #3662 merged in the two-minute window before the follow-up commits were pushed",
+      "outcome": "Confirmed by content that main carried neither _refuse_unparseable_input nor _blob_arrived_through_the_merge. Cherry-picked both onto fresh branches off main and opened PR #3667 (Fixes #3665) and PR #3669 (Fixes #3666). Filed #3666 because #3660 was already closed. A round-50 nit was also correct: a docstring named _gate_entry, a function that does not exist, where the real names are cmd_gate and _gate_decision. That is the second defect this session that was a falsehood in my own prose rather than in code.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-28T00:00:00Z",
+      "action": "Ran a security review (gpt-5.6-sol) against the ADR merge gate and reproduced its three HIGH findings by hand before accepting any of them",
+      "outcome": "Critical 3 was a real bypass of my own round-50 fix and needed no .git write and no ref surgery. An author who builds the merge defeats the two-clause conjunction: branch off the newer commit, commit the older ADR text on the carrier, merge it back. The blob then sits on a merge parent because the author put it there, and it matches a stale origin/main, so the gate exits 0 and the ADR silently reverts. Reproduced in /tmp/c3. Criticals 1 and 2 require .git write access and cannot be closed by any local narrowing, so they were filed as #3670 rather than patched.",
+      "artifacts": [
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-28T01:30:00Z",
+      "action": "Closed Critical 3 with a third clause that asks a question the offline gate can actually answer",
+      "outcome": "The gate cannot tell a stale origin/main from a current one, so instead of trusting that ref it asks whether HEAD's own copy of the path is one that ref has ever carried. Content arriving from main replaces a copy main has carried; a reversion replaces newer text written locally that main has never seen. Verified against four scenarios, two exempt and two gated. Mutation M7, inverting the absent-path pass, failed two legitimate-flow tests, which proves the clause is load-bearing in both directions rather than only as a way to say no. _merge_head_commits now also drops entries HEAD already contains, since git merge <ancestor> writes no MERGE_HEAD, making any ancestral MERGE_HEAD provably synthetic.",
+      "artifacts": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/validation/test_git_hook_policy_causal_restore.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-28T02:00:00Z",
+      "action": "Filed #3670 for the architectural gap the security review exposed, and rewrote PR #3669's body to stop overclaiming",
+      "outcome": "check_adr_review_policy runs only as a lefthook client-side step at lefthook.yml:140 and has no CI backstop; grep across .github/workflows/ returns nothing. Every input to its decision is author-controlled, and an author who can rewrite a ref can also pass --no-verify. The PR body now carries a 'What this does not fix' section saying plainly that the hook is a guardrail and not a security boundary. #3670 offers two options and is an owner call, not a fold-in.",
+      "artifacts": [
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-28T03:00:00Z",
+      "action": "Accepted two Copilot bot review comments, both substantive, and caught a void mutation result while proving the first",
+      "outcome": "On #3667 the hand-rolled decode probe collapsed to _read_json, verified line by line as behavior-identical across all seven failure modes, which removed a second place that had to remember duplicate keys, RecursionError, and that UnicodeDecodeError is a ValueError. On #3669 a docstring claimed the blob 'is main's content' when every comparison is against a possibly stale local origin/main; both it and its sibling now say what they actually prove. The first mutation run of the simplification used an anchor with a 'return' the source does not have, so it reported caught_by_tests 0 against unmutated source. Re-run with the correct anchor, it is caught by all three negative controls plus the round-16 test.",
+      "artifacts": [
+        "scripts/eval/optimize-artifact.py",
+        "scripts/validation/git_hook_policy.py"
+      ]
     }
   ],
-  "endingCommit": "e9f28051d",
+  "endingCommit": "a09c11e9c",
   "nextSteps": [
-    "Drive PR #3430 CI to green.",
-    "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express.",
-    "Open Requirement 11 (a lock lease with renewal and a fencing token) and 12 (a corpus namespace with a trusted source) are both live and unowned.",
-    "Live LLM eval spend is unavailable until 2026-08-01, so the rule adapter has been validated against real error-path output only."
+    "Drive PR #3667 (eval, Fixes #3665) and PR #3669 (hooks, Fixes #3666) to merge. Both were green or running at the time of writing.",
+    "Decide #3670. The ADR review policy reads as enforced but runs only client-side with no CI backstop, so it is a guardrail, not a security boundary. Either add a CI job running the policy against the GitHub API base SHA, or document it as advisory and stop hardening it. Owner call; the issue carries both options.",
+    "Decide which surface for ADR-087 OR6 is canonical. #3573 and #3608 both claim Fixes #3445 and shipped per-sample --rule-reduce and per-run --reduce respectively.",
+    "Decide #3661. The root conftest exports GIT_TRACE_REFS for every test, which breaks git branch and git checkout -b from an explicit start point on git 2.43.0. Tests work around it with git update-ref. Unset it, narrow the guard, or document the constraint.",
+    "Decide #3634. The gate can ACCEPT a pair differing only in extraction policy, and the fix would change the published optimizer-results/1 schema.",
+    "Decide issue #3437, whether the gate seam should carry {task_id: float} instead of {task_id: bool}. Every reviewer across five rounds pushed for it. Surfaced rather than decided, because it changes what the mechanism can express."
   ]
 }

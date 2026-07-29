@@ -1,6 +1,9 @@
 # Archived Execution Plans
 
-Plans retired from `.agents/plans/active/` on 2026-07-26. Every plan here was
+Plans retired from `.agents/plans/active/` on 2026-07-26. They were briefly
+rehomed into `.agents/plans/completed/` and `.agents/plans/abandoned/` on
+2026-07-27 and returned here on 2026-07-29; this directory is the terminal
+destination. Every plan was
 verified against two independent signals before it moved: its tracking issue
 closed as completed, and the deliverable it names present on disk. Twelve of
 the 13 are finished or superseded outright. The rest is residual work, tracked
@@ -48,9 +51,9 @@ tracking issue and the named deliverable present in the working tree.
 
 ## Reading these files
 
-Treat every document here as a historical record. The `Status: In Progress`
-headers were accurate when written and were left untouched so the archive
-matches what shipped. For current state, follow the evidence column above.
+Treat the inventory as a historical audit. The plan files sit beside this
+README with their original `Status: In Progress` headers intact, so the archive
+matches what shipped; the real verdict for each is in the table above.
 
 ## Follow-ups filed
 

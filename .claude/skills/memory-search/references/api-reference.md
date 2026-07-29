@@ -7,7 +7,7 @@ Complete reference for all public functions in the Phase 2A Memory System (v0.2.
 | Module | Purpose | Location |
 |--------|---------|----------|
 | [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | .claude/skills/memory/scripts/search_memory.py |
-| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | .claude/skills/memory/scripts/extract_session_episode.py, update_causal_graph.py |
+| [ReflexionMemory](#reflexionmemory-module) | Session episodes (Tier 2) | .claude/skills/memory/scripts/extract_session_episode.py |
 
 ## MemoryRouter Module
 
@@ -270,251 +270,6 @@ foreach ($d in $decisions) {
 
 ---
 
-### Causal Graph Functions
-
-#### Add-CausalNode
-
-Adds a node to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalNode
-    -Type <String>
-    -Label <String>
-    [-EpisodeId <String>]
-```
-
-**Parameters**:
-
-- **Type** (String, Required): Node type ("decision", "event", "outcome", "pattern", "error")
-- **Label** (String, Required): Human-readable label
-- **EpisodeId** (String, Optional): Source episode ID
-
-**Returns**: Hashtable with node data
-
-**Properties**:
-
-- `id` (String): Node ID (e.g., "n001")
-- `type` (String): Node type
-- `label` (String): Human-readable label
-- `episodes` (Array): Episode IDs referencing this node
-- `frequency` (Int32): Number of occurrences
-- `success_rate` (Double): Success rate (0-1)
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If label exists, increments frequency and adds episode to list
-
-**Example**:
-
-```powershell
-$node = Add-CausalNode -Type "decision" -Label "Choose routing" -EpisodeId "episode-126"
-Write-Host "Node ID: $($node.id)"
-```
-
----
-
-#### Add-CausalEdge
-
-Adds an edge to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-CausalEdge
-    -SourceId <String>
-    -TargetId <String>
-    -Type <String>
-    [-Weight <Double>]
-```
-
-**Parameters**:
-
-- **SourceId** (String, Required): Source node ID
-- **TargetId** (String, Required): Target node ID
-- **Type** (String, Required): Edge type ("causes", "enables", "prevents", "correlates")
-- **Weight** (Double, Optional): Confidence weight (0-1, default: 0.5)
-
-**Returns**: Hashtable with edge data
-
-**Properties**:
-
-- `source` (String): Source node ID
-- `target` (String): Target node ID
-- `type` (String): Edge type
-- `weight` (Double): Confidence weight (running average)
-- `evidence_count` (Int32): Number of supporting episodes
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If edge exists, updates weight with running average and increments evidence count
-
-**Example**:
-
-```powershell
-$edge = Add-CausalEdge -SourceId "n001" -TargetId "n002" -Type "causes" -Weight 0.9
-Write-Host "Evidence count: $($edge.evidence_count)"
-```
-
----
-
-#### Get-CausalPath
-
-Finds causal path between two nodes using breadth-first search.
-
-**Syntax**:
-
-```powershell
-Get-CausalPath
-    -FromLabel <String>
-    -ToLabel <String>
-    [-MaxDepth <Int32>]
-```
-
-**Parameters**:
-
-- **FromLabel** (String, Required): Source node label (partial match with `-like "*$label*"`)
-- **ToLabel** (String, Required): Target node label (partial match with `-like "*$label*"`)
-- **MaxDepth** (Int32, Optional): Maximum path depth (1-10, default: 5)
-
-**Returns**: Hashtable with:
-
-- `found` (Boolean): Whether path was found
-- `path` (Array): Node objects along the path (empty if not found)
-- `depth` (Int32): Number of edges in path (only if found)
-- `error` (String): Error message (only if not found)
-
-**Algorithm**: Breadth-first search with cycle detection
-
-**Example**:
-
-```powershell
-$path = Get-CausalPath -FromLabel "decision" -ToLabel "outcome" -MaxDepth 5
-if ($path.found) {
-    Write-Host "Path depth: $($path.depth)"
-    foreach ($node in $path.path) {
-        Write-Host "  -> $($node.label)"
-    }
-}
-```
-
----
-
-### Pattern Functions
-
-#### Add-Pattern
-
-Adds a pattern to the causal graph.
-
-**Syntax**:
-
-```powershell
-Add-Pattern
-    -Name <String>
-    -Trigger <String>
-    -Action <String>
-    [-Description <String>]
-    [-SuccessRate <Double>]
-```
-
-**Parameters**:
-
-- **Name** (String, Required): Pattern name
-- **Trigger** (String, Required): Condition that triggers this pattern
-- **Action** (String, Required): Recommended action
-- **Description** (String, Optional): Pattern description
-- **SuccessRate** (Double, Optional): Success rate (0-1, default: 1.0)
-
-**Returns**: Hashtable with pattern data
-
-**Properties**:
-
-- `id` (String): Pattern ID (e.g., "p001")
-- `name` (String): Pattern name
-- `description` (String): Description
-- `trigger` (String): Triggering condition
-- `action` (String): Recommended action
-- `success_rate` (Double): Success rate (running average)
-- `occurrences` (Int32): Number of times pattern used
-- `last_used` (String): ISO 8601 timestamp of last use
-
-**Side Effects**: Updates `.agents/memory/causality/causal-graph.json`
-
-**Deduplication**: If name exists, increments occurrences, updates success_rate, and sets last_used
-
-**Example**:
-
-```powershell
-$pattern = Add-Pattern `
-    -Name "Lint bypass" `
-    -Trigger "Unrelated lint errors" `
-    -Action "Use --no-verify with justification" `
-    -SuccessRate 1.0
-```
-
----
-
-#### Get-Patterns
-
-Retrieves patterns matching criteria.
-
-**Syntax**:
-
-```powershell
-Get-Patterns
-    [-MinSuccessRate <Double>]
-    [-MinOccurrences <Int32>]
-```
-
-**Parameters**:
-
-- **MinSuccessRate** (Double, Optional): Minimum success rate (0-1, default: 0)
-- **MinOccurrences** (Int32, Optional): Minimum occurrences (1-1000, default: 1)
-
-**Returns**: `PSCustomObject[]` sorted by success_rate descending
-
-**Example**:
-
-```powershell
-$proven = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 3
-foreach ($p in $proven) {
-    Write-Host "$($p.name): $($p.success_rate * 100)% over $($p.occurrences) uses"
-}
-```
-
----
-
-#### Get-AntiPatterns
-
-Retrieves anti-patterns (low success rate patterns).
-
-**Syntax**:
-
-```powershell
-Get-AntiPatterns
-    [-MaxSuccessRate <Double>]
-```
-
-**Parameters**:
-
-- **MaxSuccessRate** (Double, Optional): Maximum success rate (0-1, default: 0.3)
-
-**Returns**: `PSCustomObject[]` sorted by success_rate ascending
-
-**Filter**: Only includes patterns with at least 2 occurrences
-
-**Example**:
-
-```powershell
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
-foreach ($ap in $antiPatterns) {
-    Write-Host "AVOID: $($ap.name) - $($ap.success_rate * 100)% success"
-}
-```
-
----
-
 ### Status Functions
 
 #### Get-ReflexionMemoryStatus
@@ -534,23 +289,14 @@ Get-ReflexionMemoryStatus
 - `Episodes` (Hashtable):
   - `Path` (String): Episodes directory path
   - `Count` (Int32): Number of episode files
-- `CausalGraph` (Hashtable):
-  - `Path` (String): Causal graph file path
-  - `Version` (String): Schema version
-  - `Updated` (String): Last update timestamp (ISO 8601)
-  - `Nodes` (Int32): Number of nodes
-  - `Edges` (Int32): Number of edges
-  - `Patterns` (Int32): Number of patterns
 - `Configuration` (Hashtable):
   - `EpisodesPath` (String): Episodes directory
-  - `CausalityPath` (String): Causality directory
 
 **Example**:
 
 ```powershell
 $status = Get-ReflexionMemoryStatus
 Write-Host "Episodes: $($status.Episodes.Count)"
-Write-Host "Nodes: $($status.CausalGraph.Nodes)"
 ```
 
 ---
@@ -564,15 +310,15 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-python3 .claude/skills/memory/scripts/extract_session_episode.py
-    --session-log-path <String>
+python3 .claude/skills/memory/scripts/extract_session_episode.py <session-log-path>
     [--output-path <String>]
-    [--force]
+    [--force | --preserve]
+    [--pending-stage]
 ```
 
 **Parameters**:
 
-- **SessionLogPath** (String, Required): Path to session log file (must exist)
+- **session_log_path** (String, Required): Positional. Path to session log file (must exist)
 - **OutputPath** (String, Optional): Output directory (default: `.agents/memory/episodes/`)
 - **Force** (Switch, Optional): Overwrite existing episode file
 
@@ -587,46 +333,7 @@ python3 .claude/skills/memory/scripts/extract_session_episode.py
 
 ```bash
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/2026-01-01-session-126.json"
-```
-
----
-
-### update_causal_graph.py
-
-Updates the causal graph from episode data.
-
-**Syntax**:
-
-```bash
-python3 .claude/skills/memory/scripts/update_causal_graph.py
-    [--episode-path <String>]
-    [--since <duration>]
-    [--dry-run]
-```
-
-**Parameters**:
-
-- **EpisodePath** (String, Optional): Path to episode file or directory (default: `.agents/memory/episodes/`)
-- **Since** (DateTime, Optional): Only process episodes since this date
-- **DryRun** (Switch, Optional): Show what would be updated without making changes
-
-**Returns**: `PSCustomObject` with statistics:
-
-- `episodes_processed` (Int32): Number of episodes processed
-- `nodes_added` (Int32): Number of nodes added
-- `edges_added` (Int32): Number of edges added
-- `patterns_added` (Int32): Number of patterns added
-
-**Exit Codes**:
-
-- `0`: Success or no episodes to process
-- `1`: Module not found or critical error
-
-**Example**:
-
-```bash
-python3 .claude/skills/memory/scripts/update_causal_graph.py --since 7d
+    ".agents/sessions/2026-01-01-session-126.json"
 ```
 
 ---
@@ -702,9 +409,6 @@ All functions follow PowerShell error handling conventions:
 | Get-Episode | <50ms | JSON file read |
 | Get-Episodes | ~200ms | O(n) directory scan |
 | New-Episode | ~100ms | JSON serialization + write |
-| Add-CausalNode | ~50ms | Load + modify + save |
-| Add-CausalEdge | ~50ms | Load + modify + save |
-| Get-CausalPath | ~100ms | BFS traversal |
 | Get-Patterns | <20ms | In-memory filter |
 | Get-ReflexionMemoryStatus | <50ms | File stats + JSON read |
 
@@ -721,4 +425,4 @@ All functions follow PowerShell error handling conventions:
 - ADR-037 - Memory Router Architecture
 - ADR-038 - Reflexion Memory Schema
 
-<!-- vendor-portability: declared. This API reference documents PowerShell defaults that write episodes to .agents/memory/episodes/ and the causal graph to .agents/memory/causality/. These are configurable output paths (OutputPath/EpisodePath params); a vendored install overrides them or lets the tool create the default dir. Issue #2050. -->
+<!-- vendor-portability: declared. This API reference documents PowerShell defaults that write episodes to .agents/memory/episodes/. That is a configurable output path (OutputPath/EpisodePath params); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->

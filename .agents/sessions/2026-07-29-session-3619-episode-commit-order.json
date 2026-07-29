@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3619,
+    "date": "2026-07-29",
+    "branch": "fix/3619-episode-commit-order",
+    "startingCommit": "fa83fca61b",
+    "objective": "Fix issue #3619. Episode commit events were emitted in provenance order, endingCommit first, and _link_sequential_events chains by list position, so a multi-commit episode claimed its newest commit caused its oldest. Order commit events by committer date, refusing to reorder at all when git cannot resolve every SHA, and pin both behaviours with tests."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3619-episode-commit-order origin/main at fa83fca61b."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3619-episode-commit-order, cut fresh from origin/main."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign; unchanged since."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, written before the first commit on the branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole campaign; no serena/ or mcp__serena__ tool exposed."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same cause. Fell back to reading the tree directly."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All workLog steps carry the measurement that produced them."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. 80 tests in the memory episode suite, 17,447 in the repository suite, and three mutations each produced a red."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown file changed. The six changed files are Python sources, their generated mirrors, and two plugin manifests."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest: 17,447 passed, 26 skipped, 0 failed in 325s. ruff check clean on the changed source."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable; the reasoning is recorded in the code docstrings and this log instead."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item in this block is recorded with its evidence."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Committed on fix/3619-episode-commit-order."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched, per ADR-014."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Reproduced the reported chain before changing anything. The five SHAs the issue names all resolve, and git reports committer dates 19:59:57, 20:11:41, 21:11:10, 21:19:38 and 21:52:57 on 2026-07-27. b61cf1cff3 at 21:52:57 is the last of the five and the shipped episode places it first, exactly as filed."
+    },
+    {
+      "step": "Traced the cause rather than trusting the issue text. _collect_shas documents its order as source-of-truth ranking: endingCommit, then the changesCommitted evidence, then work-log prose as a fallback. endingCommit is by definition the session's final commit, so the ranking is anti-chronological at position one by construction, not by accident."
+    },
+    {
+      "step": "Chose the emission site over _collect_shas. _collect_shas also feeds metrics.commits, where order is irrelevant, and its docstring states the provenance contract that three prior issues (#3123, #3301, #3328) depend on. Sorting inside it would have silently rewritten that contract."
+    },
+    {
+      "step": "Extracted the git lookup _prose_sha_predates_session already ran into a cached _commit_datetime and shared it, so the two callers cannot drift on GIT_* scrubbing, the 10 second timeout, or ISO parse handling. This removed duplicated knowledge rather than adding a second copy."
+    },
+    {
+      "step": "Decided the partial-resolution rule deliberately. _chronological reorders only when every SHA resolves. Placing unresolved commits first or last would assert a position git did not supply, in an artifact read as a record of what happened, so a partial answer preserves the input order unchanged. That is also the pre-fix behaviour, so episodes stay extractable outside a checkout."
+    },
+    {
+      "step": "Verified against the reported case end to end. Re-running the extractor on 2026-07-27-session-3605-skill-description-context-cost.json produces 56f4f861aa -> ee1de31d5a -> 31a015587d -> 23e41ffb80 -> b61cf1cff3, byte-identical to the chronology the issue states as correct.",
+      "evidence": "1 passed"
+    },
+    {
+      "step": "Added 10 tests across three classes, each building a real temporary git repository with pinned GIT_COMMITTER_DATE values so the chronology under test is stated independently of the code under test. Suite went from 70 to 80 passing.",
+      "evidence": "80 passed"
+    },
+    {
+      "step": "Made the tie test a real mutation detector. Asserting one direction only would be satisfied by luck if a tiebreak fell through to SHA text, so it asserts both directions; no sha-text tiebreak can satisfy both."
+    },
+    {
+      "step": "Mutation tested the fix three ways. Reverting the ordering call turned 2 tests red. Making _chronological guess on partial resolution turned 1 red. Dropping the index from the sort key turned 1 red. Each element is individually load-bearing.",
+      "evidence": "3 mutations, 3 reds, then 80 passed on restore"
+    },
+    {
+      "step": "Measured the shipped corpus rather than assuming the blast radius. 71 of the episodes carry more than one commit event; 9 of those are fully resolvable and out of chronological order.",
+      "evidence": "9 of 71"
+    },
+    {
+      "step": "Left the 9 shipped episodes alone on evidence. --preserve merges fresh extraction over existing data but keeps the existing event order, so it does not repair the chain; --force does repair it but drops metrics.files_changed, measured as 3 to 0 on the 3605 episode. Neither path is lossless, so the artifact repair needs its own decision and is filed separately rather than folded in here."
+    },
+    {
+      "step": "Confirmed the change adds no format debt. ruff format already wants to reformat this file on pristine origin/main, and the two hunks it reports are both pre-existing, at the blank line before _link_sequential_events and a string wrap in the duplicate-id message."
+    },
+    {
+      "step": "Regenerated the copilot-cli mirror with build/scripts/build_all.py and bumped both plugin manifests from 0.6.191 to 0.6.192, verified equal by the parity suite.",
+      "evidence": "108 passed"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "File the artifact-repair issue: 9 shipped episodes carry a chronologically false chain and neither --preserve nor --force repairs one without loss.",
+    "The markdown extraction path emits commit events in document line order, which is the author's narrative order rather than committer date. Untouched here; no reported symptom."
+  ]
+}

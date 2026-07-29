@@ -5,6 +5,10 @@ session-protocol workflow, which invokes ``validate_session_json.py`` directly.
 The rule lives here rather than in either caller so they cannot disagree, and
 so the workflow does not restate it in YAML (ADR-006).
 
+The same validator also needs to ask git whether a commit a log names is
+really there (issue #3618), so that question lives here too rather than
+teaching a second module how to shell out to git.
+
 Standard library only, on purpose. The workflow's ``validate`` job installs no
 dependencies and runs a bare ``python3``; importing ``git_hook_policy`` there
 would drag in PyYAML and fail.
@@ -12,11 +16,13 @@ would drag in PyYAML and fail.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
 _GIT_TIMEOUT_SECONDS = 30
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
@@ -30,6 +36,45 @@ def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
     )
+
+
+def commit_reachability_problem(sha: str, repo_root: Path) -> str | None:
+    """Describe why ``sha`` is not a usable commit reference here, else None.
+
+    None means "no complaint", and it covers two different situations on
+    purpose. The commit may be present and reachable from HEAD, or this
+    checkout may be unable to answer at all: not a work tree, or a shallow
+    clone where older commits are genuinely absent. Complaining in the second
+    case would describe the clone rather than the log.
+
+    A commit cannot contain its own SHA, so a recorded ending commit is always
+    at least one commit behind the log that names it. The satisfiable contract
+    is therefore "names a commit reachable from HEAD", not "names HEAD".
+
+    Args:
+        sha: Candidate commit SHA. A value that is not a bare hex SHA is
+            rejected without asking git: it reaches git as an argument, where a
+            leading dash would be read as an option (CWE-88).
+        repo_root: Repository to ask.
+
+    Returns:
+        A sentence fragment naming the problem, or None when there is none.
+    """
+    if not _COMMIT_SHA.match(sha):
+        return "is not a commit SHA"
+    try:
+        if _git(["rev-parse", "--is-inside-work-tree"], repo_root).returncode != 0:
+            return None
+        shallow = _git(["rev-parse", "--is-shallow-repository"], repo_root)
+        if shallow.returncode != 0 or shallow.stdout.strip() == "true":
+            return None
+        if _git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root).returncode != 0:
+            return "names no commit in this repository"
+        if _git(["merge-base", "--is-ancestor", sha, "HEAD"], repo_root).returncode != 0:
+            return "names a commit that is not an ancestor of HEAD"
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return None
 
 
 def session_merge_base(repo_root: Path) -> str:

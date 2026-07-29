@@ -3,8 +3,8 @@
 SkillForge validation (``validate-skill.py``) checks both the body (Triggers,
 Process, Verification, Scripts sections) and the frontmatter (required and
 allowed keys). The exemption is deliberately narrow: it skips validation only
-when the body text is unchanged (bodies decoded as UTF-8 with
-``errors="replace"`` and compared as strings, not raw bytes) AND the sole
+when the body is unchanged (compared as the bytes git stored, never as
+decoded text) AND the sole
 changed frontmatter keys are the
 ADR-080 model-pin fields (``model``, ``model-rationale``), so a pin migration
 is not forced to pay down unrelated pre-existing structural debt while any other
@@ -16,7 +16,10 @@ frontmatter change still reaches the validator. These tests pin that behavior:
   new skill (no HEAD); each is not exempt (validate). ``run_skillforge`` also
   invokes the validator and propagates its failure when not exempt;
 - edge: a file without frontmatter, and a no-op (identical) blob, are both not
-  exempt.
+  exempt; bodies and frontmatter holding bytes UTF-8 cannot read are compared
+  as bytes and refused rather than collapsed onto the replacement character
+  (round 52). The ADR gate's ``implemented``-field exemption shares the code
+  under test, so its cases live here too.
 """
 
 from __future__ import annotations
@@ -190,3 +193,94 @@ def test_pin_change_mixed_with_other_field_is_not_exempt(monkeypatch, tmp_path):
     new = _doc("name: example\ndescription: new\n", _BODY)
     _patch_blobs(monkeypatch, old, new)
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+_ADR = ".agents/architecture/ADR-042-example.md"
+
+
+def test_a_body_that_differs_only_in_undecodable_bytes_is_not_unchanged(
+    monkeypatch, tmp_path
+):
+    """Two different bodies must not be one body because neither decodes.
+
+    `errors="replace"` maps every byte the decoder cannot read to the same
+    replacement character, so bodies holding different invalid bytes compared
+    equal and a real body edit rode in under a model-pin change.
+
+    Found by adversarial review round 52.
+    """
+    old = _doc("name: example\ndescription: x\nmodel: haiku\n", "body ")
+    new = _doc("name: example\ndescription: x\nmodel: sonnet\n", "body ")
+    _patch_blobs(monkeypatch, old + b"\xff", new + b"\xfe")
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_an_identical_undecodable_body_still_earns_the_pin_exemption(
+    monkeypatch, tmp_path
+):
+    old = _doc("name: example\ndescription: x\nmodel: haiku\n", "body ")
+    new = _doc("name: example\ndescription: x\nmodel: sonnet\n", "body ")
+    _patch_blobs(monkeypatch, old + b"\xff", new + b"\xff")
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is True
+
+
+def test_undecodable_bytes_in_skill_frontmatter_refuse_the_exemption(
+    monkeypatch, tmp_path
+):
+    """A frontmatter the decoder cannot read is not one this can reason about."""
+    old = _doc("name: example\ndescription: x\nmodel: haiku\n", _BODY)
+    new = b"---\nname: example\ndescription: x\nmodel: sonnet\n"
+    new += b"note: \xff\n---\n" + _BODY.encode()
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_an_adr_body_differing_only_in_undecodable_bytes_is_not_unchanged(
+    monkeypatch, tmp_path
+):
+    """The ADR gate carries the same exemption and had the same hole."""
+    old = _doc("implemented: false\n", "body ")
+    new = _doc("implemented: true\n", "body ")
+    _patch_blobs(monkeypatch, old + b"\xff", new + b"\xfe")
+    assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is False
+
+
+def test_an_adr_with_an_identical_undecodable_body_stays_exempt(monkeypatch, tmp_path):
+    old = _doc("implemented: false\n", "body ")
+    new = _doc("implemented: true\n", "body ")
+    _patch_blobs(monkeypatch, old + b"\xff", new + b"\xff")
+    assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is True
+
+
+def test_undecodable_bytes_in_adr_frontmatter_refuse_the_exemption(
+    monkeypatch, tmp_path
+):
+    old = _doc("implemented: false\n", _BODY)
+    new = b"---\nimplemented: true\nnote: \xff\n---\n" + _BODY.encode()
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is False
+
+
+def test_a_frontmatter_field_hidden_behind_undecodable_bytes_is_not_unchanged(
+    monkeypatch, tmp_path
+):
+    """A lossy frontmatter decode drops a changed field out of the change set.
+
+    `note` really changed here. Decoded with `errors="replace"` both values
+    become the same replacement character, the changed set collapses to the
+    model pin alone, and the exemption is granted for an edit that touched a
+    field it was never meant to cover.
+    """
+    old = b"---\nname: example\ndescription: x\nmodel: haiku\nnote: \xff\n---\n"
+    new = b"---\nname: example\ndescription: x\nmodel: sonnet\nnote: \xfe\n---\n"
+    _patch_blobs(monkeypatch, old + _BODY.encode(), new + _BODY.encode())
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_an_adr_field_hidden_behind_undecodable_bytes_is_not_unchanged(
+    monkeypatch, tmp_path
+):
+    old = b"---\nimplemented: false\nnote: \xff\n---\n"
+    new = b"---\nimplemented: true\nnote: \xfe\n---\n"
+    _patch_blobs(monkeypatch, old + _BODY.encode(), new + _BODY.encode())
+    assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is False
