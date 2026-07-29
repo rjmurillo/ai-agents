@@ -134,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
             _color_print(f"Configuration script not found: {config_script}", "error")
             return 3
 
+        sys.stdout.flush()
         result = subprocess.run(
             ["pwsh", "-NoProfile", "-File", str(config_script)],
             check=False,
@@ -178,6 +179,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("", file=sys.stderr)
 
+    sys.stdout.flush()
     result = subprocess.run(scan_args, check=False)
     exit_code = result.returncode
 

@@ -91,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print("   Scope: ALL projects")
     print(f"   Output: {output_path}")
 
+    sys.stdout.flush()
     subprocess.run(plugin_args)
 
     if not output_path.exists():
@@ -123,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
     if security_script.exists():
         print("\nRunning security review...")
+        sys.stdout.flush()
         result = subprocess.run(
             [sys.executable, str(security_script), "--export-file", str(output_path)]
         )
