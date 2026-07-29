@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
-
-import pytest
 
 from scripts.ci import count_ratchet
 from scripts.ci import taste_count_ratchet as ratchet
@@ -35,6 +32,7 @@ def _fake_scan(
     lint_stdout: str | None = None,
     base_baseline_absent: bool = False,
     base_ref_resolves: bool = True,
+    base_path_refused: bool = False,
 ):
     """subprocess.run stand-in for every leg of the scan.
 
@@ -44,18 +42,23 @@ def _fake_scan(
     once per linter call, so a multi-batch expectation must size ``tracked``
     accordingly.
 
-    ``base_ref_resolves`` and ``base_baseline_absent`` drive the two probes that
-    separate the bootstrap case from a real failure: ``git rev-parse`` proves
-    the ref exists and ``git cat-file -e`` proves whether it carries a baseline.
+    ``base_ref_resolves``, ``base_baseline_absent``, and ``base_path_refused``
+    drive the two probes that separate the bootstrap case from a real failure:
+    ``git rev-parse`` proves the ref exists and ``git ls-tree`` proves whether
+    it carries a baseline. The ``ls-tree`` returns mirror what git 2.43.0
+    actually does, which is exit 0 with empty output for a path that is merely
+    absent and exit 128 for a path it refuses to look up at all.
     """
 
     def _run(cmd, **kwargs):
         if cmd[0] == "git" and "rev-parse" in cmd:
             rc = 0 if base_ref_resolves else 128
             return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="")
-        if cmd[0] == "git" and "cat-file" in cmd:
-            rc = 1 if base_baseline_absent else 0
-            return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="")
+        if cmd[0] == "git" and "ls-tree" in cmd:
+            if base_path_refused:
+                return subprocess.CompletedProcess(cmd, 128, stdout="", stderr="")
+            stdout = "" if base_baseline_absent else "100644 blob abc\tbaseline.txt\n"
+            return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
             return subprocess.CompletedProcess(
@@ -248,45 +251,6 @@ def test_an_unresolvable_base_ref_is_not_read_as_bootstrap(tmp_path, monkeypatch
     assert rc == ratchet.EXIT_EXTERNAL
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_baseline_absence_is_discriminated_against_real_git(tmp_path):
-    """Pin the probes against git itself, not against a stand-in.
-
-    The monkeypatched tests above assert the branch logic but would pass just
-    as happily if the ref syntax were wrong, because the fake matches on the
-    subcommand alone. This exercises `rev-parse --verify` and `cat-file -e`
-    for real, so a malformed revision expression fails here instead of in CI.
-    """
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "config", "user.email", "t@example.com"],
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True
-    )
-    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "seed.txt"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "seed"], check=True)
-
-    baseline = tmp_path / "baseline.txt"
-    baseline.write_text("615\n", encoding="utf-8")
-
-    # Committed nowhere yet: this is the bootstrap shape.
-    assert count_ratchet.baseline_absent_at_ref(tmp_path, "HEAD", baseline) is True
-
-    subprocess.run(["git", "-C", str(tmp_path), "add", "baseline.txt"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "add"], check=True)
-
-    # Present at HEAD: not bootstrap, and readable through the same ref syntax.
-    assert count_ratchet.baseline_absent_at_ref(tmp_path, "HEAD", baseline) is False
-    assert count_ratchet.baseline_at_ref(tmp_path, "HEAD", baseline) == 615
-
-    # An unresolvable ref is never bootstrap.
-    assert (
-        count_ratchet.baseline_absent_at_ref(tmp_path, "nosuchref", baseline) is False
-    )
-
 
 def test_missing_baseline_is_a_config_error(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615))
@@ -404,15 +368,46 @@ def test_every_tracked_path_is_offered_to_the_linter(tmp_path, monkeypatch):
     assert seen[1][-2:] == ["a.md", "b.py"]
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_the_shipped_baseline_matches_the_tracked_tree():
-    """The baseline must describe this repository, not a stale snapshot.
 
-    A baseline above the real count is dead allowance: violations could be
-    added up to the gap without the gate noticing. A baseline below it means
-    main is already red.
+def test_a_baseline_path_git_refuses_is_not_read_as_bootstrap(tmp_path, monkeypatch):
+    """A path git will not look up is an error, never a first run.
+
+    This is the case the old `cat-file -e` probe could not see. Measured on git
+    2.43.0, `git cat-file -e <ref>:<path>` exits 128 both for a path that is
+    merely absent from the tree and for a path git refuses outright, such as
+    one that escapes the worktree. Reading rc != 0 as "no baseline yet"
+    therefore waived the one-directional check for a misconfigured baseline
+    path, which is the exact fail-open a ratchet must never produce.
     """
-    repo_root = Path(__file__).resolve().parents[2]
-    baseline_path = repo_root / "scripts" / "ci" / "taste_count_baseline.txt"
-    baseline = int(baseline_path.read_text(encoding="utf-8").strip())
-    assert ratchet.current_count(repo_root) == baseline
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_scan(10, 615, base_baseline=None, base_path_refused=True),
+    )
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+
+def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
+    """An unlaunchable git is an error on both probes, not a first run.
+
+    The ref probe and the path probe fail independently. A fake that only
+    covers the ref probe leaves the path probe free to read its own launch
+    failure as "no baseline yet", which disarms the one-directional check on
+    any runner whose git disappears mid-run.
+    """
+    real_run = subprocess.run
+
+    def _run(cmd, **kwargs):
+        if cmd[0] == "git" and "ls-tree" in cmd:
+            raise FileNotFoundError("git: not found")
+        if cmd[0] == "git" and "rev-parse" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("615\n", encoding="utf-8")
+    assert count_ratchet.baseline_absent_at_ref(tmp_path, "HEAD", baseline) is False

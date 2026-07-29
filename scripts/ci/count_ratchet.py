@@ -107,10 +107,12 @@ def _baseline_rel(repo_root: Path, baseline: Path) -> str:
         return baseline.as_posix()
 
 
-def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
-    """Exit status of a git command, or None when git could not be launched."""
+def _git_run(
+    repo_root: Path, argv: Sequence[str]
+) -> subprocess.CompletedProcess[str] | None:
+    """Run a git command, or None when git could not be launched."""
     try:
-        proc = subprocess.run(
+        return subprocess.run(
             ["git", "-C", str(repo_root), *argv],
             capture_output=True,
             text=True,
@@ -121,7 +123,12 @@ def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"git could not be launched: {exc}\n")
         return None
-    return proc.returncode
+
+
+def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
+    """Exit status of a git command, or None when git could not be launched."""
+    proc = _git_run(repo_root, argv)
+    return None if proc is None else proc.returncode
 
 
 def baseline_absent_at_ref(repo_root: Path, ref: str, baseline: Path) -> bool:
@@ -137,12 +144,24 @@ def baseline_absent_at_ref(repo_root: Path, ref: str, baseline: Path) -> bool:
     gate that reads any git error as "nothing to compare against" would fail
     open on a typo'd ref or a missing git binary, which is the one outcome a
     ratchet must never produce.
+
+    The lookup reads ``ls-tree`` because it is the only form measured here that
+    keeps that promise. On git 2.43.0, ``git cat-file -e`` and
+    ``git rev-parse --verify`` both answer 128 for a path that is merely
+    absent and for a path expression git refuses outright, and adding
+    ``--quiet`` to ``rev-parse`` collapses both to 1 instead. Either way the
+    two cases are indistinguishable, so a baseline path that escapes the
+    worktree would read as "first run" and skip the raise check. ``ls-tree``
+    exits 0 with empty output for an absent path and non-zero for a path it
+    will not look up, which is the split this function needs.
     """
     if _git_rc(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]) != 0:
         return False
     rel = _baseline_rel(repo_root, baseline)
-    rc = _git_rc(repo_root, ["cat-file", "-e", f"{ref}:{rel}"])
-    return rc is not None and rc != 0
+    proc = _git_run(repo_root, ["ls-tree", ref, "--", rel])
+    if proc is None or proc.returncode != 0:
+        return False
+    return proc.stdout.strip() == ""
 
 
 def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
