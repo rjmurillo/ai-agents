@@ -260,13 +260,49 @@ def test_a_symlink_inside_a_nested_tooling_directory_does_not_block(repo: Path) 
 
 
 def test_a_skill_named_venv_is_still_scanned(repo: Path) -> None:
-    """Pruning is exempt directly under skills/, so a name collision is safe."""
+    """A SKILL.md under skills/ exempts the name, so a collision is safe."""
     write_skill(
         repo, "src/copilot-cli", "venv", "| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n"
     )
     result = run_gate(repo)
     assert result.returncode == EXIT_DRIFT
     assert "ghost" in result.stdout
+
+
+@pytest.mark.parametrize("name", [".venv", "venv", "node_modules"])
+def test_real_tooling_directly_under_skills_is_pruned(repo: Path, name: str) -> None:
+    """Exempting the whole skills namespace by location was too broad.
+
+    A virtualenv created in that directory is a direct child of ``skills/``
+    too. Exempting by location walked into it and the interpreter symlinks
+    every virtualenv carries hit the symlink refusal, which is exit 2 on every
+    push in the repository. The marker file is what separates a real skill
+    from tooling that happens to sit beside one.
+    """
+    tooling = repo / "src/copilot-cli" / "skills" / name
+    (tooling / "lib").mkdir(parents=True)
+    (tooling / "lib64").symlink_to("lib")
+    (tooling / "notes.md").write_text(
+        "| M | R |\n| --- | --- |\n| Merge | Skill: ghost |\n", encoding="utf-8"
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_tooling_under_skills_is_pruned_before_its_contents_are_read(
+    repo: Path,
+) -> None:
+    """Pruning has to happen ahead of the per-directory symlink refusal.
+
+    Order is the whole point: a refusal that ran first would report the
+    virtualenv's own interpreter links and block the push before the name
+    check ever got a say.
+    """
+    tooling = repo / ".claude" / "skills" / ".venv" / "bin"
+    tooling.mkdir(parents=True)
+    (tooling / "python3").symlink_to("/usr/bin/python3")
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
 
 
 def test_populated_root_with_zero_routes_is_a_config_error(repo: Path) -> None:

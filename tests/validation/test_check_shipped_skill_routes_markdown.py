@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Tests for which text the routing gate treats as a route.
 
 A route counts only inside a table cell the CommonMark parser actually
@@ -16,6 +17,16 @@ existed. A mutation battery surfaced eight such tests.
 
 Enforcement of the invariant itself lives in
 test_check_shipped_skill_routes.py.
+
+File-size suppression rationale: this module is already the markdown half of
+one split, and the tests are a flat list of independent functions with no
+shared state, so a reader greps for a behaviour rather than navigating
+structure. Splitting again would put the code-span tests in a different file
+from the punctuation tests that share their fixtures and their failure mode,
+and would leave nobody with a single place to answer "how does the gate read
+markdown". Forty-nine tracked test files in this repository exceed the same
+limit, the largest by a factor of eighteen. Revisit if the file grows a second
+concern rather than more cases of this one.
 """
 
 from __future__ import annotations
@@ -408,6 +419,79 @@ def test_a_code_span_holding_only_the_keyword_still_resolves(repo: Path) -> None
     assert run_gate(repo).returncode == EXIT_OK
 
 
+def test_a_code_span_holding_only_the_keyword_alone_is_documentation(
+    repo: Path,
+) -> None:
+    """`Skill:` with nothing after it documents the keyword, it is not a route.
+
+    Keeping every bare-keyword span so the two tests above could pass made a
+    cell that only shows the keyword report as an empty malformed name, which
+    blocks the push over prose. What follows the span in the cell is what
+    separates the two, so the decision needs cell context, not just the span.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "keyword-only.md",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_a_code_span_holding_only_the_keyword_reads_across_later_spans(
+    repo: Path,
+) -> None:
+    """The name after the keyword counts whether or not it is itself styled.
+
+    Looking only at plain text after the span would read ``Skill:`` ``ghost``
+    as a bare keyword and pass, which is the fail-open direction.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "keyword-split.md",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` `ghost` |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+    assert "ghost" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("label", "tail", "expected"),
+    [
+        ("resolves", "autoplan", EXIT_OK),
+        ("drift", "ghost", EXIT_DRIFT),
+        ("prose", "see the syntax above", EXIT_DRIFT),
+    ],
+)
+def test_backticking_the_keyword_never_changes_the_verdict(
+    repo: Path, label: str, tail: str, expected: int
+) -> None:
+    """A code span on the keyword must not decide what follows it.
+
+    If it did, an author could silence a drift report by typing two backticks,
+    which is a fail-open escape hatch made of punctuation. The third case is
+    the uncomfortable one: prose after a bare keyword is indistinguishable
+    from a misspelled target, and both forms report it. That is the
+    fail-closed default, and the workaround is to put the whole example inside
+    the span.
+    """
+    for prefix, name in (("Skill:", "plain"), ("`Skill:`", "spanned")):
+        path = write_doc(
+            repo,
+            "src/copilot-cli",
+            f"paired-{label}-{name}.md",
+            f"| I | R |\n| --- | --- |\n| M | {prefix} {tail} |\n",
+        )
+        result = run_gate(repo)
+        path.unlink()
+        assert result.returncode == expected, (
+            f"{name} form diverged: " + result.stdout + result.stderr
+        )
+
+
 @pytest.mark.parametrize(
     ("label", "wrapped"),
     [
@@ -444,6 +528,67 @@ def test_stripping_wrapping_punctuation_does_not_mask_drift(repo: Path) -> None:
     result = run_gate(repo)
     assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
     assert "ghost" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("label", "name"),
+    [
+        ("doubled-paren", "((autoplan"),
+        ("opener-only", "(autoplan"),
+        ("open-quote", '"autoplan'),
+        ("all-openers", "((("),
+    ],
+)
+def test_an_unmatched_opening_wrapper_is_malformed(
+    repo: Path, label: str, name: str
+) -> None:
+    """Unwrapping must be balanced or it invents a legal name from a broken one.
+
+    Stripping any leading bracket unconditionally made ``Skill: ((autoplan``
+    resolve to an installed skill and pass. That is the fail-open direction:
+    text nobody wrote deliberately reported as a healthy route, so a real
+    typo next to a bracket would never be seen.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        f"unbalanced-{label}.md",
+        f"| I | R |\n| --- | --- |\n| M | Skill: {name} |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_DRIFT, result.stdout + result.stderr
+
+
+def test_a_wrapper_closed_by_a_sentence_reduces_fully(repo: Path) -> None:
+    """``Skill: (autoplan).`` needs both rules, alternating, to resolve.
+
+    The trailing period hides the closing bracket from the balance test, so a
+    single pass of either rule alone leaves a name that is not legal.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "wrap-sentence.md",
+        "| I | R |\n| --- | --- |\n| M | Skill: (autoplan). |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_a_closing_bracket_alone_is_still_stripped(repo: Path) -> None:
+    """``[Skill: autoplan]`` puts only the closer inside the captured name.
+
+    Requiring balance for the closing half too would report every link-wrapped
+    route as malformed.
+    """
+    write_doc(
+        repo,
+        "src/copilot-cli",
+        "wrap-closer.md",
+        "| I | R |\n| --- | --- |\n| M | [Skill: autoplan] |\n",
+    )
+    result = run_gate(repo)
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
 
 
 def test_raw_html_code_is_read_as_a_route(repo: Path) -> None:
