@@ -49,6 +49,7 @@ from .protocol import GitHubClient  # noqa: F401
 from .repo import get_repo_root  # noqa: F401
 from .validation import (  # noqa: F401
     assert_valid_body_file,
+    escaped_newline_body_error,
     is_github_name_valid,
     is_safe_file_path,
 )
@@ -66,6 +67,7 @@ __all__ = [
     "count_unresolved_threads",
     "create_issue_comment",
     "error_and_exit",
+    "escaped_newline_body_error",
     "filter_unresolved_threads",
     "get_all_prs_with_comments",
     "get_bot_authors",
