@@ -22,6 +22,12 @@ def _ok():
     return subprocess.CompletedProcess(args=[], returncode=0)
 
 
+def _record(sink: list, value):
+    """Record `value` and return the stand-in result a monkeypatched `run` owes."""
+    sink.append(value)
+    return _ok()
+
+
 def _load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
@@ -230,13 +236,14 @@ class TestValuesThatBecomeArgvAreNumericByContract:
 
         assert ci.run_id() == "30416078819"
 
-    def test_a_non_numeric_issue_number_is_not_forwarded_to_argv(self, monkeypatch):
+    def test_a_non_numeric_issue_number_is_not_forwarded_to_argv(self, monkeypatch, tmp_path: Path):
         """`gh` stdout is process output, so it is data and not yet trusted."""
         ci = _load_ci_module()
         commands: list[list[str]] = []
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(ci, "open_issue_number", lambda: "--body-file")
         monkeypatch.setattr(
-            ci, "run", lambda command, **kwargs: commands.append(list(command)) or _ok()
+            ci, "run", lambda command, **kwargs: _record(commands, list(command))
         )
 
         ci.alert_issue()
@@ -244,20 +251,22 @@ class TestValuesThatBecomeArgvAreNumericByContract:
         assert all("--body-file" != command[2] for command in commands if len(command) > 2)
         assert any("create" in command for command in commands)
 
-    def test_a_numeric_issue_number_is_still_commented_on(self, monkeypatch):
+    def test_a_numeric_issue_number_is_still_commented_on(self, monkeypatch, tmp_path: Path):
         """Negative control: the guard must not break the ordinary path."""
         ci = _load_ci_module()
         commands: list[list[str]] = []
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(ci, "open_issue_number", lambda: "3701")
         monkeypatch.setattr(
-            ci, "run", lambda command, **kwargs: commands.append(list(command)) or _ok()
+            ci, "run", lambda command, **kwargs: _record(commands, list(command))
         )
 
         ci.alert_issue()
 
-        assert commands == [
-            ["gh", "issue", "comment", "3701", "--body-file", "comment-body.md"]
-        ]
+        assert len(commands) == 1
+        assert commands[0][:5] == ["gh", "issue", "comment", "3701", "--body-file"]
+        assert len(commands[0]) == 6
+        assert Path(commands[0][5]).name == "comment-body.md"
 
     def test_no_call_hands_a_string_to_a_shell(self):
         """The structural property that makes the injection claim unreachable.
@@ -269,3 +278,77 @@ class TestValuesThatBecomeArgvAreNumericByContract:
         source = CI_SCRIPT_PATH.read_text(encoding="utf-8")
 
         assert "shell=True" not in source
+
+
+class TestTheAlertBodyIsScratchAndNotRepositoryState:
+    """The `gh` body file is an argument-passing detail, not an output.
+
+    It once resolved relative to the caller, so every suite run from the
+    repository root left `issue-body.md` and `comment-body.md` there as
+    untracked files. A validator that reads repository contents cannot tell
+    that leftover apart from real state, so the write must land outside the
+    caller's directory and be removed once `gh` has read it.
+    """
+
+    @staticmethod
+    def _body_path(command: list[str]) -> Path:
+        return Path(command[command.index("--body-file") + 1])
+
+    def test_alert_issue_leaves_the_working_directory_empty(self, monkeypatch, tmp_path: Path):
+        """The regression guard. `create_issue` runs on the unopened path."""
+        ci = _load_ci_module()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: "")
+        monkeypatch.setattr(ci, "run", lambda command, **kwargs: _ok())
+
+        ci.alert_issue()
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_commenting_also_leaves_the_working_directory_empty(self, monkeypatch, tmp_path: Path):
+        """The other branch. An open issue is commented on rather than created."""
+        ci = _load_ci_module()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: "3701")
+        monkeypatch.setattr(ci, "run", lambda command, **kwargs: _ok())
+
+        ci.alert_issue()
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_the_body_file_is_readable_while_gh_is_running(self, monkeypatch, tmp_path: Path):
+        """Negative control: moving the write must not break the feature.
+
+        A path that no longer exists when `gh` opens it would still satisfy the
+        two emptiness assertions above, so the content has to be read from the
+        argv path at the moment of the call.
+        """
+        ci = _load_ci_module()
+        seen: list[str] = []
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: "3701")
+        monkeypatch.setattr(
+            ci,
+            "run",
+            lambda command, **kwargs: _record(
+                seen, self._body_path(command).read_text(encoding="utf-8")
+            ),
+        )
+
+        ci.alert_issue()
+
+        assert seen and "activation gate failed again" in seen[0]
+
+    def test_the_body_file_is_gone_once_gh_has_returned(self, monkeypatch, tmp_path: Path):
+        """Scratch is removed rather than relocated to another litter site."""
+        ci = _load_ci_module()
+        paths: list[Path] = []
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(ci, "open_issue_number", lambda: "3701")
+        monkeypatch.setattr(
+            ci, "run", lambda command, **kwargs: _record(paths, self._body_path(command))
+        )
+
+        ci.alert_issue()
+
+        assert paths and not paths[0].exists()
