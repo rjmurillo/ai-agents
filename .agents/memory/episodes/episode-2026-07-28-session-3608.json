@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-28-session-3608",
+  "session": "2026-07-28-session-3608",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "pr-autofix: triage 26 open PRs, resolve conflict backlog (causal-graph keystone 3643, manifest bumps, code conflicts), merge ready PRs",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged 26 open PRs with test_pr_merge_ready.py; 24 DIRTY, verified real conflicts via git merge-tree. Identified keystone PR 3643 (ADR-089 causal tier removal) gating 17 causal-graph.json conflicts.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Landed 3583 and 3608 (direct merge after four-condition gate). Resolved 3643 modify/delete conflict, renumbered its ADR to 089 after collision with main's 088, armed auto-merge. Delegated merge-resolver agents for 3590, 3581, 3576, 3560.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed and resolved 30+ review threads across the queue (Copilot, semgrep, CodeRabbit) with code fixes: TEMP/TMP mirroring, --extra dev ratchets, nosemgrep with rationale, fail-closed gaps in coverage gate, chunked hashing, provenance sentinel. Manifest version ladder maintained across 0.6.146-0.6.170 and 0.3.46-0.3.53.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Keystone 3643 landed after 5 update cycles racing external merges; freed ARM runner starvation by sweep-cancelling ~110 queued sibling runs (all re-triggered by post-keystone refresh pushes). Post-keystone refresh waves re-resolved manifest and content conflicts.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Serial drain of remaining queue. Notable fixes: ADR-088 reference scenarios admitted to 3576's coverage gate with baseline refresh; 3587's validator wired into workflow; 3569 catalog regen removed committed conflict markers; 3560 seven-hunk union with restored error_count validation and ADR-087 amendment; commit-limit-bypass on 3569 and 3560 for merge churn. Root-caused phantom BLOCKED to required_review_thread_resolution with outdated-flagged threads.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
