@@ -13,14 +13,8 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-<<<<<<< HEAD
 from typing import Any, NoReturn, Self, cast
-||||||| 9407d451
-from typing import Any, NoReturn, Self
-=======
-from typing import Any, NoReturn, Self
 from unittest import mock
->>>>>>> origin/main
 
 import pytest
 import yaml
