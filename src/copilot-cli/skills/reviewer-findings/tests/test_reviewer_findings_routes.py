@@ -97,14 +97,37 @@ def test_route_patterns_reject_a_non_route_mention() -> None:
 # The router's phases are ordered work. Verification has to happen while the
 # finding is being triaged, not after the fix is written, or the skill's whole
 # premise ("verify before you fix") is lost while the route still exists.
-PHASE_HEADING_RE = re.compile(r"^### Phase (-?\d+)[^\n]*$", re.MULTILINE)
+PHASE_HEADING_RE = re.compile(r"^### Phase (-?\d+)(?![.\d])[^\n]*$", re.MULTILINE)
+FENCE_RE = re.compile(
+    r"^(?P<fence>```+|~~~+)[^\n]*\n.*?^(?P=fence)[^\n]*$\n?",
+    re.MULTILINE | re.DOTALL,
+)
 TRIAGE_PHASE = "2"
 VERIFY_PHASE = "3"
 
 
+def _blank_fences(text: str) -> str:
+    """Blank fenced blocks, preserving offsets so heading positions stay comparable."""
+    return FENCE_RE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
+def _phase_headings(text: str) -> list[tuple[str, int, int]]:
+    """Return ``(number, heading_start, body_start)`` for each real phase heading."""
+    scannable = _blank_fences(text)
+    return [(m.group(1), m.start(), m.end()) for m in PHASE_HEADING_RE.finditer(scannable)]
+
+
+def _phase_heading_start(text: str, phase: str) -> int:
+    """Return the offset where ``### Phase N`` begins, failing loudly when absent."""
+    for number, start, _ in _phase_headings(text):
+        if number == phase:
+            return start
+    pytest.fail(f"no '### Phase {phase}' heading found outside fenced blocks")
+
+
 def _phase_section(text: str, phase: str) -> str:
     """Return the body of one ``### Phase N`` section, excluding later phases."""
-    starts = [(m.group(1), m.start(), m.end()) for m in PHASE_HEADING_RE.finditer(text)]
+    starts = _phase_headings(text)
     for index, (number, _, body_start) in enumerate(starts):
         if number != phase:
             continue
@@ -130,11 +153,12 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
         router = _read(ROUTER_SKILL)
         route = re.search(rf'Skill\(skill="{SKILL_NAME}"\)|skill:\s*"{SKILL_NAME}"', router)
         assert route is not None, f"{ROUTER_SKILL} contains no route to {SKILL_NAME}"
-        verify = next(
-            (m.start() for m in PHASE_HEADING_RE.finditer(router) if m.group(1) == VERIFY_PHASE),
-            None,
+        triage = _phase_heading_start(router, TRIAGE_PHASE)
+        verify = _phase_heading_start(router, VERIFY_PHASE)
+        assert triage < verify, (
+            f"Phase {TRIAGE_PHASE} begins after Phase {VERIFY_PHASE} in "
+            f"{ROUTER_SKILL}, so triage no longer precedes verification"
         )
-        assert verify is not None, f"{ROUTER_SKILL} has no Phase {VERIFY_PHASE} heading"
         assert route.start() < verify, (
             f"the {SKILL_NAME} route appears after Phase {VERIFY_PHASE} begins, "
             f"so the workflow reaches verification before it has verified the "
@@ -152,4 +176,48 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
         assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
             "the phase slice leaked a later phase's route, so the positive "
             "assertion above would pass for a route in any phase at all"
+        )
+
+    def test_a_heading_inside_a_fenced_block_is_not_a_phase(self) -> None:
+        """Negative control: illustrative markdown must not stand in for structure."""
+        synthetic = (
+            "```markdown\n"
+            "### Phase 2: Triage and Delegate\n"
+            f'Run `Skill(skill="{SKILL_NAME}")`.\n'
+            "```\n"
+            "### Phase 2: Triage and Delegate\n"
+            "Nothing routes here.\n"
+            "### Phase 3: Verify\n"
+        )
+        assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
+            "a phase heading quoted inside a fenced example was treated as the "
+            "real section, so a documentation snippet could satisfy the route"
+        )
+
+    def test_a_subphase_heading_is_not_its_parent_phase(self) -> None:
+        """Negative control: 'Phase 2.1' is a different section from 'Phase 2'."""
+        synthetic = (
+            "### Phase 2.1: Not the triage phase\n"
+            f'Run `Skill(skill="{SKILL_NAME}")`.\n'
+            "### Phase 2: Triage and Delegate\n"
+            "Nothing routes here.\n"
+            "### Phase 3: Verify\n"
+        )
+        assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
+            "'### Phase 2.1' was captured as phase 2, so a route in any "
+            "sub-numbered section would satisfy the triage assertion"
+        )
+
+    def test_the_ordering_check_compares_the_two_phase_headings(self) -> None:
+        """Negative control: a stray early mention must not stand in for Phase 2."""
+        synthetic = (
+            f'Mentioned early: `Skill(skill="{SKILL_NAME}")`.\n'
+            "### Phase 3: Verify\n"
+            "### Phase 2: Triage and Delegate\n"
+        )
+        triage = _phase_heading_start(synthetic, TRIAGE_PHASE)
+        verify = _phase_heading_start(synthetic, VERIFY_PHASE)
+        assert triage > verify, (
+            "the heading offsets no longer reflect document order, so the "
+            "ordering assertion could not detect a swapped Phase 2 and Phase 3"
         )
