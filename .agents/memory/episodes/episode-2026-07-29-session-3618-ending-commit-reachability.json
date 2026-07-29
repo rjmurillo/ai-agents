@@ -165,7 +165,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e014"
+      ]
     },
     {
       "id": "e013",
@@ -173,6 +175,40 @@
       "type": "commit",
       "content": "Commit: 309f8e141568b88cdb4bf46140f8a3887240caa2",
       "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Answered the open question about merge strategy, and it corrected the diagnosis. The repository allows squash merges only: allow_merge_commit and allow_rebase_merge are both false. A squash merge replaces every branch commit with one new commit on main, so a SHA naming the session's own final branch commit is unreachable from main the moment the PR lands. The 427 broken values are therefore mostly structural, not authoring mistakes, and the amend-and-rebase framing in the commit message understates that.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the survivors rather than assuming. Only 12 endingCommit values are ancestors of origin/main, and their commit subjects all carry the (#NNNN) suffix that GitHub appends on squash merge, so they name commits that were already on main when the log was written. No session log in the corpus records its own final branch commit and survives. This does not weaken the check: it runs only on new logs, on the branch, before any squash, which is exactly where a correct value is reachable and an amended one is not.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The push gate rejected the first attempt and the fix went in at source. security-suppression-policy flagged a new '# noqa: E402' at scripts/validate_session_json.py:51, which appeared only because widening the existing single-name import into a parenthesized list rewrote the line that already carried that suppression. Restored the line byte-for-byte to match origin/main and moved the new name to a function-local import, which is below module scope and needs no E402 suppression at all. The net diff against origin/main now adds zero suppression comments.",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": []
     }
   ],

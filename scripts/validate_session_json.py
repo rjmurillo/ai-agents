@@ -48,10 +48,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
-from scripts.validation.session_scope import (  # noqa: E402
-    commit_reachability_problem,
-    session_log_is_new,
-)
+from scripts.validation.session_scope import session_log_is_new  # noqa: E402
 
 SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 
@@ -575,6 +572,13 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
     elif ending and COMMIT_SHA_PATTERN.match(ending):
         # A malformed value is the schema's to report; restating it here would
         # print the same fact under two spellings.
+        #
+        # Imported here rather than at module scope: every module-level import
+        # in this file sits below a sys.path insert and so needs an E402
+        # suppression, and a new suppression is exactly what the push gate
+        # refuses. Function scope needs none, and the module is already loaded.
+        from scripts.validation.session_scope import commit_reachability_problem
+
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
             result.warnings.append(

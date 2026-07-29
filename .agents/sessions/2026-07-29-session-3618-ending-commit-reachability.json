@@ -119,12 +119,21 @@
     },
     {
       "step": "Caught an eighth probe defect while validating. A pytest invocation naming one real path and one path that does not exist reported success having collected zero items. Re-ran against real paths: 572 pass. Same family as the markdownlint exclusion trap, where a green result means nothing was selected rather than nothing was wrong."
+    },
+    {
+      "step": "Answered the open question about merge strategy, and it corrected the diagnosis. The repository allows squash merges only: allow_merge_commit and allow_rebase_merge are both false. A squash merge replaces every branch commit with one new commit on main, so a SHA naming the session's own final branch commit is unreachable from main the moment the PR lands. The 427 broken values are therefore mostly structural, not authoring mistakes, and the amend-and-rebase framing in the commit message understates that."
+    },
+    {
+      "step": "Checked the survivors rather than assuming. Only 12 endingCommit values are ancestors of origin/main, and their commit subjects all carry the (#NNNN) suffix that GitHub appends on squash merge, so they name commits that were already on main when the log was written. No session log in the corpus records its own final branch commit and survives. This does not weaken the check: it runs only on new logs, on the branch, before any squash, which is exactly where a correct value is reachable and an amended one is not."
+    },
+    {
+      "step": "The push gate rejected the first attempt and the fix went in at source. security-suppression-policy flagged a new '# noqa: E402' at scripts/validate_session_json.py:51, which appeared only because widening the existing single-name import into a parenthesized list rewrote the line that already carried that suppression. Restored the line byte-for-byte to match origin/main and moved the new name to a function-local import, which is below module scope and needs no E402 suppression at all. The net diff against origin/main now adds zero suppression comments."
     }
   ],
   "endingCommit": "309f8e141568b88cdb4bf46140f8a3887240caa2",
   "nextSteps": [
     "complete_session_log.py line 368 guards on 'if ending_commit and not session.get(\"endingCommit\")', so it fills the field only when empty and never refreshes a stale value. That file is mirrored under src/copilot-cli/skills/session-end/scripts/, so fixing it costs a mirror sync plus a plugin manifest bump. Separable from this change and deliberately out of scope.",
     "The consumer side is untouched. extract_session_episode.py seeds a causal-graph node from endingCommit without checking it, so the 427 historical bad values still pollute the graph. Skipping unreachable SHAs at the consumer would fix the pollution durably, independent of log hygiene.",
-    "Consider whether endingCommit earns its place at all. A commit cannot contain its own SHA, so the field is always at least one commit behind and is only ever satisfiable as 'a commit reachable from HEAD'. If the repository squash-merges, every value is orphaned at merge by construction."
+    "Reconsider whether endingCommit earns its place, now that the merge strategy is known. The repository squash-merges only, so a value naming the session's own final commit is unreachable from main by construction the moment the PR lands. Only 12 of 1003 logs hold a value that is an ancestor of origin/main, and every one of those names a commit that was already merged before the log was written. Either the field should name something that survives, such as the pull request number, or it should be removed. Filed for separate discussion rather than decided here."
   ]
 }
