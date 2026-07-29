@@ -920,3 +920,84 @@ class TestCapturedOutputPinsItsCodec:
         assert self._capturing_runs(
             "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
         ) == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: Validation 6 (escaped-newline check on body, Issue #3777)
+# ---------------------------------------------------------------------------
+
+
+class TestValidation6EscapedNewlineCheck:
+    """Validation 6 rejects an inline body whose line breaks are literal.
+
+    Issue #3777. Two issues (#3598, #3646) shipped with every line break
+    written as the two characters backslash and n, so GitHub rendered each as
+    one unbroken paragraph and dropped every heading, list and table.
+
+    new_pr.py carries a second copy of the predicate rather than importing
+    scripts/github_core/validation.py::escaped_newline_body_error, because
+    new_pr.py resolves only its own directory on sys.path and a lib bootstrap
+    would hard-exit 2 whenever .claude/lib is absent on the push path. These
+    tests pin the copy; tests/test_github_core.py pins the canonical version.
+    """
+
+    @staticmethod
+    def _validate(tmp_path, *, body, body_file=None):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            run_validations(
+                str(tmp_path), "main", "feat/branch",
+                title="feat: clean title",
+                body=body,
+                body_file=body_file,
+            )
+
+    def test_escaped_newlines_with_no_real_break_blocks(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="## Summary\\n\\nDetail\\n- item")
+        assert excinfo.value.code == 1
+
+    def test_error_names_the_count_and_the_remedy(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            self._validate(tmp_path, body="a\\nb\\nc")
+        err = capsys.readouterr().err
+        assert "2 literal backslash-n" in err
+        assert "--body-file" in err
+
+    def test_trailing_newline_only_body_still_blocks(self, tmp_path):
+        """The measured shape of #3598: 15 escapes plus 1 real newline."""
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="## Summary\\n\\nDetail\\n" + "\n")
+        assert excinfo.value.code == 1
+
+    def test_escaped_newline_inside_a_real_multiline_body_passes(
+        self, tmp_path, capsys
+    ):
+        self._validate(
+            tmp_path, body='## Notes\n\n```python\nprint("a\\nb")\n```\n'
+        )
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_normal_body_passes(self, tmp_path, capsys):
+        self._validate(tmp_path, body="## Summary\n\nDetail\n")
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_single_line_body_without_escapes_passes(self, tmp_path, capsys):
+        self._validate(tmp_path, body="Just one line.")
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_body_file_contents_are_checked_too(self, tmp_path):
+        """--body-file is the recommended remedy, so it must not be a bypass."""
+        path = tmp_path / "body.md"
+        path.write_text("## Summary\\n\\nDetail", encoding="utf-8")
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="", body_file=str(path))
+        assert excinfo.value.code == 1
+
+    def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):
+        self._validate(tmp_path, body="## Summary\n\nDetail\n")
+        out = capsys.readouterr().out
+        for step in range(1, 7):
+            assert f"[{step}/6]" in out, f"missing step {step}/6"
