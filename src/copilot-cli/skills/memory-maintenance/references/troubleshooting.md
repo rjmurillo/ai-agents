@@ -222,7 +222,7 @@ Test-Path ".agents/sessions/$sessionId.md"
 **Extracting Episode**:
 
 ```bash
-python3 scripts/extract_session_episode.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     ".agents/sessions/2026-01-01-session-130.json"
 ```
 

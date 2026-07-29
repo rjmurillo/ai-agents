@@ -308,7 +308,7 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-python3 scripts/extract_session_episode.py <session-log-path>
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path>
     [--output-path <String>]
     [--force | --preserve]
     [--pending-stage]
@@ -335,7 +335,7 @@ python3 scripts/extract_session_episode.py <session-log-path>
 **Example**:
 
 ```bash
-python3 scripts/extract_session_episode.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     ".agents/sessions/2026-01-01-session-126.json"
 
 # Output:
@@ -360,7 +360,7 @@ The retrospective agent auto-extracts episodes at session end:
 SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
 
 # Extract episode
-python3 scripts/extract_session_episode.py "$SESSION_LOG"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
 
 # Store in Serena/Forgetful
 EPISODE_SUMMARY="Episode ${SESSION_ID}: ${TASK} outcome=${OUTCOME}"
@@ -375,7 +375,7 @@ Episode extraction is part of session end checklist:
 ## Session End (BLOCKING)
 
 - [ ] Complete session log
-- [ ] Extract episode: `scripts/extract_session_episode.py`
+- [ ] Extract episode: `.claude/skills/memory/scripts/extract_session_episode.py`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .agents/memory/episodes/)
 ```
@@ -472,7 +472,7 @@ foreach ($group in $outcomes) {
 
 1. Verify episode file exists: `Test-Path ".agents/memory/episodes/episode-$sessionId.json"`
 2. Check session ID format: Must match file naming convention
-3. Re-extract from session log: `scripts/extract_session_episode.py`
+3. Re-extract from session log: `.claude/skills/memory/scripts/extract_session_episode.py`
 
 ## Related Documentation
 
