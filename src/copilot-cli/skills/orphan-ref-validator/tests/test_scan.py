@@ -2032,11 +2032,58 @@ class TestKebabTokensNeedEvidence:
         )
         assert (findings, checked) == ([], 0)
 
-    # -- the denylist still wins, even against a type claim --
+    # -- a hyphenated token is reachable once prose calls it a skill --
 
-    def test_a_denylisted_token_is_not_flagged_even_when_typed(self, fake_repo):
-        write(fake_repo / "notes" / "s.md", "Run the `pre-commit` skill.\n")
+    def test_a_hyphenated_non_skill_is_flagged_when_typed(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `read-only` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"read-only"}
+
+    def test_a_hyphenated_non_skill_is_silent_without_a_type_claim(
+        self, fake_repo
+    ):
+        write(fake_repo / "notes" / "s.md", "The file is `read-only` here.\n")
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_a_model_identifier_is_never_a_candidate(self, fake_repo):
+        write(fake_repo / "notes" / "s.md", "Run the `claude-opus-5` skill.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    # -- a field noun after the token makes it a noun adjunct, not a name --
+
+    def test_a_field_noun_after_the_token_is_not_a_type_claim(self, fake_repo):
+        write(
+            fake_repo / "notes" / "s.md",
+            "Iterate on the skill `description` field until it passes.\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_the_same_token_without_the_field_noun_is_still_a_claim(
+        self, fake_repo
+    ):
+        write(fake_repo / "notes" / "s.md", "Run the skill `description`.\n")
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "description"
+        }
+
+    # -- a skill owned by another catalog is a correct reference --
+
+    def test_a_known_foreign_skill_is_not_an_orphan(self, fake_repo):
+        write(
+            fake_repo / "notes" / "s.md",
+            "gizmo `claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_an_unknown_foreign_looking_skill_is_still_an_orphan(
+        self, fake_repo
+    ):
+        write(
+            fake_repo / "notes" / "s.md",
+            "gizmo `not-a-foreign-skill` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "not-a-foreign-skill"
+        }
 
     # -- sibling resolution is unchanged --
 
@@ -2047,6 +2094,73 @@ class TestKebabTokensNeedEvidence:
     def test_a_typed_sibling_artifact_is_still_flagged(self, fake_repo):
         write(fake_repo / "notes" / "s.md", "Run the `agent-one` skill.\n")
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"agent-one"}
+
+
+class TestFindingsAreDeduplicated:
+    """Issue #3727: identical findings must not each spend a budget slot."""
+
+    def _finding(self, **over):
+        base = dict(
+            kind="skill_name",
+            severity="critical",
+            target_file="a.md",
+            line=7,
+            referenced_entity="ghost",
+            recommendation="anything",
+        )
+        base.update(over)
+        return _scan.Finding(**base)
+
+    def test_an_identical_repeat_is_dropped(self):
+        findings = [self._finding(), self._finding()]
+        _scan._deduplicate_findings(findings)
+        assert len(findings) == 1
+
+    def test_a_differing_recommendation_still_counts_as_a_repeat(self):
+        findings = [self._finding(), self._finding(recommendation="other")]
+        _scan._deduplicate_findings(findings)
+        assert len(findings) == 1
+
+    def test_findings_differing_in_any_key_field_are_both_kept(self):
+        for field, value in (
+            ("target_file", "b.md"),
+            ("line", 8),
+            ("kind", "script_path"),
+            ("referenced_entity", "other"),
+        ):
+            findings = [self._finding(), self._finding(**{field: value})]
+            _scan._deduplicate_findings(findings)
+            assert len(findings) == 2, field
+
+    def test_the_first_of_a_repeat_pair_is_the_one_kept(self):
+        findings = [self._finding(), self._finding(recommendation="second")]
+        _scan._deduplicate_findings(findings)
+        assert findings[0].recommendation == "anything"
+
+    def test_one_line_naming_a_token_twice_yields_one_finding(self, fake_repo):
+        """End to end: proves ``scan`` calls the deduplicator.
+
+        A token written twice on one line is extracted twice, so before
+        issue #3727 the same finding was appended twice and spent two slots
+        of the ``MAX_FINDINGS`` budget. Real instances of this shape include
+        ADR-040 line 232 and the scanner's own ``patterns.py`` line 65.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "The `ghost` skill replaced the `ghost` skill.\n",
+        )
+        findings = [
+            f
+            for f in scan([fake_repo / "notes"], fake_repo).findings
+            if f.referenced_entity == "ghost"
+        ]
+        assert len(findings) == 1
+
+    def test_deduplication_runs_before_the_budget_is_spent(self, fake_repo):
+        """A repeat must not push a real finding past ``max_findings``."""
+        findings = [self._finding(), self._finding(), self._finding(line=9)]
+        _scan._deduplicate_findings(findings)
+        assert [f.line for f in findings] == [7, 9]
 
 
 class TestRetiredKebabSkillsStayHonest:
@@ -2069,6 +2183,13 @@ class TestRetiredKebabSkillsStayHonest:
         while it is live canonically, so asserting against it would fail for a
         reason that has nothing to do with skill retirement.
 
+        Walks ``HEAD`` rather than ``--all``. ``--all`` reads every ref the
+        clone happens to hold, including ``refs/remotes/pr/*`` caches of
+        unmerged pull request heads and any local branch. Those are properties
+        of the clone, not of the repository, so the same commit passed in CI
+        and failed locally (issue #3753). ``HEAD`` is the history of the commit
+        under test, which is what the curated set describes.
+
         Skipped on a shallow clone, where the deletion history is absent and
         the derived set would be empty for the wrong reason.
         """
@@ -2083,7 +2204,7 @@ class TestRetiredKebabSkillsStayHonest:
             pytest.skip("shallow clone: deletion history unavailable")
         rel = _catalog().relative_to(repo_root).as_posix()
         log = subprocess.run(
-            ["git", "-C", str(repo_root), "log", "--all", "--diff-filter=D",
+            ["git", "-C", str(repo_root), "log", "HEAD", "--diff-filter=D",
              "--name-only", "--format=", "--", f"{rel}/*/SKILL.md"],
             capture_output=True, text=True, check=False,
         )

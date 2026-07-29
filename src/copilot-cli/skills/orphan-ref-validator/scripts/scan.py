@@ -85,6 +85,7 @@ if __package__ in (None, ""):
         scan_error_exit_code,
     )
     from filters import (
+        foreign_skill_catalog,
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
@@ -120,6 +121,7 @@ else:
         scan_error_exit_code,
     )
     from .filters import (
+        foreign_skill_catalog,
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
@@ -159,6 +161,7 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
 
 
 _is_known_kebab_word = is_known_kebab_word
+_foreign_skill_catalog = foreign_skill_catalog
 _is_known_retired_kebab_skill = is_known_retired_kebab_skill
 _is_known_single_word_skill = is_known_single_word_skill
 
@@ -382,7 +385,7 @@ def _check_skill_refs(
     typed = extract_typed_skill_refs(text)
     typed_only = _requires_typed_skill_refs(rel)
     for lineno, ref in extract_skill_refs(text):
-        if _is_known_kebab_word(ref):
+        if _is_known_kebab_word(ref) or _foreign_skill_catalog(ref):
             continue
         is_typed = (lineno, ref) in typed
         in_retired = _is_known_retired_kebab_skill(ref)
@@ -702,6 +705,31 @@ def _strip_verdict_suffix(stripped: str) -> str:
     return stripped
 
 
+def _deduplicate_findings(findings: list[Finding]) -> None:
+    """Drop repeats that name the same reference at the same place.
+
+    Two extractors can reach one token by different routes and each append.
+    The pair is byte-identical, so the second carries nothing a reader can
+    act on and only spends a slot of the ``MAX_FINDINGS`` budget that a real
+    finding needs. Deduplicating before the truncation check is what returns
+    the slot rather than merely tidying the report (issue #3727).
+    """
+    seen: set[tuple[str, int, str, str]] = set()
+    kept: list[Finding] = []
+    for finding in findings:
+        key = (
+            finding.target_file,
+            finding.line,
+            finding.kind,
+            finding.referenced_entity,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(finding)
+    findings[:] = kept
+
+
 def scan(
     targets: list[Path],
     repo_root: Path,
@@ -804,6 +832,7 @@ def scan(
                 result.findings.extend(findings)
                 result.refs_checked += refs_checked
                 result.files_scanned += 1
+    _deduplicate_findings(result.findings)
     _prioritize_findings(result.findings)
     if len(result.findings) > max_findings:
         keep = max(0, max_findings - 1)

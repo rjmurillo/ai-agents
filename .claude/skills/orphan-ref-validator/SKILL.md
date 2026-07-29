@@ -202,7 +202,7 @@ Invoke directly with `uv run python .claude/skills/orphan-ref-validator/scripts/
 | `rule_path` | `.claude/rules/<name>.md` in backticks or Markdown link targets | file existence on disk |
 | `instruction_path` | `.github/instructions/<name>.instructions.md` or `src/copilot-cli/instructions/<name>.instructions.md` in backticks or Markdown link targets | file existence on disk |
 
-Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, etc.) are filtered to reduce false positives. The filter list lives in `filters.py:is_known_kebab_word`.
+Ordinary hyphenated prose is not reported, because a bare backticked token is only a candidate when the sentence calls it a skill or when the retired-skill allowlist names it. The curated denylist that used to do this job was deleted in issue #3726: it predated that rule and, measured across the full corpus, 98 of its 101 entries suppressed nothing. Skills owned by another repository's catalog are listed in `filters.py:FOREIGN_SKILL_CATALOGS` and are correct references, not orphans.
 
 Single-word (no-hyphen) skill names are detected separately: a backticked single word is treated as a skill reference only when it resolves to a live `.claude/skills/<name>/` directory (valid, no finding) or is a curated known single-word skill name in `filters.py:KNOWN_SINGLE_WORD_SKILLS` (flagged when absent). Arbitrary backticked English words are never flagged. Add a retired or renamed single-word skill to `KNOWN_SINGLE_WORD_SKILLS` so lingering references surface instead of going silent (issue #2679).
 
