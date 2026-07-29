@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
 
 def validate_no_escaped_newlines(body_content: str) -> None:
-    """Reject a body whose line breaks are literal backslash-n. Issue #3777.
+    r"""Reject a body whose line breaks are literal backslash-n. Issue #3777.
 
     Issues #3598 and #3646 shipped with every line break written as the two
     characters backslash and n, so GitHub rendered each as one unbroken
@@ -252,8 +252,11 @@ def validate_no_escaped_newlines(body_content: str) -> None:
     own directory on sys.path, so importing github_core would mean adding
     the lib bootstrap the other skill scripts use, which hard-exits 2
     whenever .claude/lib is absent. That trades a rendering bug for an
-    outage. The canonical predicate quoted verbatim is::
+    outage. The canonical guard and predicate, quoted verbatim as the
+    leading lines of that function's body::
 
+        if not body:
+            return None
         count = body.count("\\n")
         if count == 0 or "\n" in body.strip():
             return None
@@ -265,7 +268,9 @@ def validate_no_escaped_newlines(body_content: str) -> None:
 
     Keep the two copies in step. tests/test_github_core.py pins the shared
     version; tests/test_new_pr.py::TestValidation6EscapedNewlineCheck pins
-    this one and asserts the citation above still names its source.
+    this one, and test_quoted_canonical_predicate_is_verbatim compares the
+    block above against the real source of the canonical function so the
+    word "verbatim" is checked rather than asserted.
 
     Args:
         body_content: Resolved body text, from --body or --body-file.

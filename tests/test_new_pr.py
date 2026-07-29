@@ -1013,6 +1013,64 @@ class TestValidation6EscapedNewlineCheck:
             self._validate(tmp_path, body="", body_file=str(path))
         assert excinfo.value.code == 1
 
+    def test_quoted_canonical_predicate_is_verbatim(self):
+        """The docstring calls its quote verbatim, so check it against source.
+
+        The first version of this quote was a fragment: it omitted the
+        ``if not body`` guard, so "verbatim" was false. The docstring was
+        also a non-raw string, which turned the quoted ``"\\n"`` into a real
+        newline at runtime, so even the fragment was not reproduced. Both
+        defects are invisible to a reader who trusts the word "verbatim",
+        which is why this compares the two texts instead.
+        """
+        import ast
+        import textwrap
+
+        repo_root = Path(__file__).resolve().parent.parent
+        canonical = repo_root / "scripts" / "github_core" / "validation.py"
+        tree = ast.parse(canonical.read_text(encoding="utf-8"))
+        func = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef)
+            and n.name == "escaped_newline_body_error"
+        )
+        # Skip the docstring statement; the quote covers the code that follows.
+        body_start = func.body[1].lineno
+        lines = canonical.read_text(encoding="utf-8").splitlines()
+
+        for mirror in (
+            ".claude/skills/github/scripts/pr/validate_pr_description.py",
+            "src/copilot-cli/skills/github/scripts/pr/validate_pr_description.py",
+        ):
+            mod = ast.parse((repo_root / mirror).read_text(encoding="utf-8"))
+            copy = next(
+                n
+                for n in ast.walk(mod)
+                if isinstance(n, ast.FunctionDef)
+                and n.name == "validate_no_escaped_newlines"
+            )
+            doc = ast.get_docstring(copy, clean=False)
+            assert doc is not None, mirror
+            marker = "body::"
+            assert marker in doc, f"{mirror}: citation marker missing"
+            quoted = textwrap.dedent(
+                doc.split(marker, 1)[1].split("\n\n", 2)[1]
+            ).strip("\n")
+            quoted_lines = quoted.splitlines()
+            # Without this, an empty quote would compare [] to [] and pass.
+            assert len(quoted_lines) >= 5, (
+                f"{mirror}: quote too short to be the guard plus predicate: "
+                f"{quoted_lines!r}"
+            )
+            actual = [
+                line[4:] for line in lines[body_start - 1 : body_start - 1 + len(quoted_lines)]
+            ]
+            assert quoted_lines == actual, (
+                f"{mirror}: quote is not verbatim.\n"
+                f"quoted={quoted_lines!r}\nactual={actual!r}"
+            )
+
     def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):
         self._validate(tmp_path, body="## Summary\n\nDetail\n")
         out = capsys.readouterr().out
