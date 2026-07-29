@@ -46,7 +46,7 @@ from .output import (  # noqa: F401
     write_skill_output,
 )
 from .protocol import GitHubClient  # noqa: F401
-from .repo import (  # noqa: F401
+from .repo import (
     REPO_ROOT_GIT_FAILED,
     REPO_ROOT_NOT_A_REPO,
     REPO_ROOT_OK,

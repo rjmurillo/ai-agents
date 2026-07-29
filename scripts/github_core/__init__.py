@@ -46,7 +46,7 @@ from scripts.github_core.output import (  # noqa: F401
     write_skill_output,
 )
 from scripts.github_core.protocol import GitHubClient  # noqa: F401
-from scripts.github_core.repo import (  # noqa: F401
+from scripts.github_core.repo import (
     REPO_ROOT_GIT_FAILED,
     REPO_ROOT_NOT_A_REPO,
     REPO_ROOT_OK,
