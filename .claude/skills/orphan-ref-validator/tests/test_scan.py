@@ -2132,6 +2132,52 @@ class TestKebabTokensNeedEvidence:
         )
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
+    def test_a_catalog_name_embedded_in_a_longer_word_is_not_a_qualifier(
+        self, fake_repo
+    ):
+        """The qualifier pattern is word-bounded, so a substring must not count.
+
+        Without the boundaries ``gstack`` would match inside ``gstackoverflow``
+        and silently exempt a token that nothing in the sentence actually
+        attributes to the owning catalog.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstackoverflow `front-gate-before-pipeline` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "front-gate-before-pipeline"
+        }
+
+    def test_every_catalog_name_has_a_compiled_qualifier_pattern(self):
+        """The qualifier lookup indexes directly, so the table must be total.
+
+        ``is_qualified_foreign_skill`` reads
+        ``_CATALOG_QUALIFIER_PATTERNS[catalog]`` without a fallback, which is
+        safe only while the pattern table covers every value in
+        ``FOREIGN_SKILL_CATALOGS``. Adding a catalog entry without rebuilding
+        the table would raise ``KeyError`` on the first reference instead of
+        returning a finding, so pin the invariant here rather than discover it
+        from a traceback.
+        """
+        filters = _filters_module()
+        assert set(filters._CATALOG_QUALIFIER_PATTERNS) == set(
+            filters.FOREIGN_SKILL_CATALOGS.values()
+        )
+
+    def test_a_catalog_qualifier_still_matches_case_insensitively(self, fake_repo):
+        """``re.IGNORECASE`` moved from the call site into the compiled pattern.
+
+        Prose capitalizes a catalog name at the start of a sentence, so losing
+        the flag during that move would turn every sentence-initial mention
+        back into a finding while the lowercase tests kept passing.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "GStack `front-gate-before-pipeline` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
     # -- sibling resolution is unchanged --
 
     def test_an_untyped_sibling_artifact_is_not_flagged(self, fake_repo):
