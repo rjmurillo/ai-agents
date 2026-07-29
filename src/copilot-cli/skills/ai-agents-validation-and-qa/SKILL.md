@@ -46,7 +46,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | CLI contract | argv-failure exits, exit codes, stdout vs `--output` tested |
 | Coverage proof | 100% block coverage on changed files (see Phase 4) |
 
-Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front.
+Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front (TESTING-RIGOR.md:81).
 
 Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:112-118): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
 
@@ -62,7 +62,7 @@ pytest collects only `testpaths = ["tests"]` (pyproject.toml:61). Everything els
 | `tests/skills/NAME/` | Yes | Tests for a skill's Python scripts (importable via conftest sys.path) | `uv run pytest tests/skills/github/ -x` |
 | `.claude/skills/NAME/tests/` | NO | Per-skill structure tests, colocated with the skill (claude-agents.md MUST 3) | `uv run pytest .claude/skills/NAME/tests/ -q` |
 
-Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI coverage pins reference both (`.github/workflows/pytest.yml:214-222` runs `tests/skills/github/test_wait_for_unresolved_zero.py`). When you add a skill, you usually need both (Phase 6).
+Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI pins only the second location (`.github/workflows/pytest.yml:214-222` runs `tests/skills/github/test_wait_for_unresolved_zero.py`); no workflow collects `.claude/skills/*/tests/` at all, so those files run only when you name them explicitly (issue #3593, `.agents/retrospective/2026-07-28-autopilot-issue-burndown.md:72-74`). When you add a skill, you usually need both (Phase 6).
 
 Useful invocations, all verified (as of 2026-07-03):
 
@@ -80,7 +80,7 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 
 ### Phase 3: Write tests that count
 
-Beyond pos+neg+edge, this repo demands three specific disciplines:
+Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
 
@@ -88,16 +88,16 @@ Beyond pos+neg+edge, this repo demands three specific disciplines:
 
 **3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first #2205 fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
 
-**Threshold detectors need calibration.** Any threshold-based signal (rework count, thread count, file count) must be replayed against roughly the last 5 real merged PRs and shown to fire correctly before shipping. PR #1989's M4 warning shipped with threshold 6 in a repo whose PRs maxed at 4 file edits: it could never fire (retro 2026-05-10-pr-1989-recursive-failure.md:151-157). A detector that cannot fire on recent real work is not calibrated.
+**4. Threshold detectors need calibration.** Any threshold-based signal (rework count, thread count, file count) must be replayed against roughly the last 5 real merged PRs and shown to fire correctly before shipping. PR #1989's M4 warning shipped with threshold 6 in a repo whose PRs maxed at 4 file edits: it could never fire (retro 2026-05-10-pr-1989-recursive-failure.md:151-157). A detector that cannot fire on recent real work is not calibrated.
 
-**Guards run on their own branch.** A PR shipping a pre-push or pre-commit guard must show that guard running against its own branch, terminal output in the PR description (retro 2026-05-10-pr-1989-recursive-failure.md:131-137; M5 was never applied to the PR that shipped it).
+**5. Guards run on their own branch.** A PR shipping a pre-push or pre-commit guard must show that guard running against its own branch, terminal output in the PR description (retro 2026-05-10-pr-1989-recursive-failure.md:131-137; M5 was never applied to the PR that shipped it).
 
 ### Phase 4: Prove coverage
 
 100% block coverage on changed files, with only defensive-unreachable exclusions (`# pragma: no cover`) plus written justification (TESTING-RIGOR.md:53).
 
 ```bash
-uv run pytest tests/test_verdict.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
+uv run pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
 ```
 
 Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
@@ -107,7 +107,7 @@ Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
 | File-set sensitivity | A `--cov-fail-under=100` pin must run EVERY test file that exercises the module. After a test-file split, running one file alone reported 63% and tripped the gate | Issue #1963; pytest.yml:196-205 |
 | Coverage target form | Use the module-name form (`--cov=wait_for_unresolved_zero`), never the file-path form. File paths produce "Module never imported" + 0% with pytest-cov 7.x on Python 3.14 | Issue #2063, tested in PR #2078; pytest.yml:207-222 |
 
-Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). A verdict parser that defaults a missing verdict to PASS took 3 fix rounds in PR #1965. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
+Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). PR #1965 still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
 ### Phase 5: QA gate semantics at session end
 
@@ -116,13 +116,13 @@ Session protocol Phase 2.5 makes QA validation BLOCKING before committing featur
 | Evidence string | When valid | Staged files limited to |
 |-----------------|-----------|------------------------|
 | `SKIPPED: docs-only` | Strictly editorial doc edits: no code, config, tests, workflows, or code blocks changed | Documentation files |
-| `SKIPPED: investigation-only` | No code/config changes at all | The 8 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. ADR-034:78-87 lists the same 8 after the 2026-07-08 amendments (issues #831 and #732), so the ADR and the code agree |
+| `SKIPPED: investigation-only` | No code/config changes at all | The 8 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. ADR-034:78-87 lists the same 8 after the 2026-07-08 amendments (issues #831 and #732), so the ADR and the code agree. `SESSION-PROTOCOL.md:754` still lists only the first 5, so treat the module and ADR-034 as authoritative |
 
 Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*` (ADRs; `REVIEW-*` files ARE allowlisted by the enforcement module), `.github/`, `.claude/agents/`, `src/`, `scripts/` (ADR-034 "Not Allowed" table, which predates the module's wider allowlist). Session logs, analysis artifacts, and memory updates are audit trail, not implementation: they are filtered out automatically when deciding whether QA is required, so they can ride along with implementation commits (SESSION-PROTOCOL.md:758).
 
-Mixed session (investigation turned into code)? Split it: commit investigation work with the skip evidence, then start a new session for the code change with real QA (SESSION-PROTOCOL.md:799-800). Abusing skip markers is a trust failure with precedent; escape-hatch history lives in `ai-agents-config-catalog` and `ai-agents-failure-archaeology`.
+Mixed session (investigation turned into code)? Split it: commit investigation work with the skip evidence, then start a new session for the code change with real QA (SESSION-PROTOCOL.md:798-800). Abusing skip markers is a trust failure with precedent; escape-hatch history lives in `ai-agents-config-catalog` and `ai-agents-failure-archaeology`.
 
-Full evidence line in the session log looks like `"qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" }` or a QA report path under `.agents/qa/`.
+Full evidence line in the session log looks like `"qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" }` or a QA report path under `.agents/qa/` (SESSION-PROTOCOL.md:996).
 
 ### Phase 6: Add tests for a new skill, hook, or script
 
@@ -165,7 +165,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800,996`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
@@ -175,7 +175,7 @@ sed -n '315,386p' conftest.py                                     # #2316 HEAD g
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
 grep -n "SKIPPED" .agents/SESSION-PROTOCOL.md | head -5           # QA skip evidence strings
 ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
-find . -name "*.Tests.ps1" | wc -l                                # Pester doc still stale if 0
+git ls-files '*.Tests.ps1' | wc -l                                # Pester doc still stale if 0
 ```
 
 If TESTING-RIGOR.md, ADR-034, or the pytest.yml pins change, update the matching phase here in the same PR.
