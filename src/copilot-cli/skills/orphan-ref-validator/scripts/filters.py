@@ -99,6 +99,14 @@ KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
 })
 
 
+METASYNTACTIC_PLACEHOLDERS: frozenset[str] = frozenset({
+    # Conventional placeholder names used while documenting scanner syntax.
+    # They remain non-candidates even when nearby prose says "skill" because
+    # `Skill: `x`` describes the route grammar, not a real skill reference.
+    "x", "y", "foo", "bar", "baz", "name",
+})
+
+
 def is_known_single_word_skill(token: str) -> bool:
     """Return True if a single-word token is a curated known skill name.
 
@@ -108,6 +116,11 @@ def is_known_single_word_skill(token: str) -> bool:
     as ordinary prose and ignored, keeping false positives at zero.
     """
     return token in KNOWN_SINGLE_WORD_SKILLS
+
+
+def is_metasyntactic_placeholder(token: str) -> bool:
+    """Return True if token is conventional example syntax, not a skill ref."""
+    return len(token) == 1 or token in METASYNTACTIC_PLACEHOLDERS
 
 
 def is_known_kebab_word(token: str) -> bool:

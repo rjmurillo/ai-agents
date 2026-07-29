@@ -60,7 +60,11 @@ if __package__ in (None, ""):
         render_envelope,
         render_error_envelope,
     )
-    from filters import is_known_kebab_word, is_known_single_word_skill
+    from filters import (
+        is_known_kebab_word,
+        is_known_single_word_skill,
+        is_metasyntactic_placeholder,
+    )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_script_refs,
@@ -82,7 +86,11 @@ else:
         render_envelope,
         render_error_envelope,
     )
-    from .filters import is_known_kebab_word, is_known_single_word_skill
+    from .filters import (
+        is_known_kebab_word,
+        is_known_single_word_skill,
+        is_metasyntactic_placeholder,
+    )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_script_refs,
@@ -115,6 +123,7 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
 
 _is_known_kebab_word = is_known_kebab_word
 _is_known_single_word_skill = is_known_single_word_skill
+_is_metasyntactic_placeholder = is_metasyntactic_placeholder
 
 
 def scan_file(
@@ -188,9 +197,10 @@ def _check_skill_refs(
     - Single-word tokens (``incoherence``): a backticked single word is a
       candidate only when it resolves to a live catalog entry (valid, no
       finding) or is a curated known single-word skill name (flagged when
-      absent). Arbitrary backticked English words are ignored, so widening
-      detection to no-hyphen names does not flood false positives (issue
-      #2679).
+      absent). Conventional placeholder tokens (``x``, ``foo``, ``name``)
+      are non-candidates even when prose documents the ``Skill: `x`` syntax.
+      Arbitrary backticked English words are ignored, so widening detection
+      to no-hyphen names does not flood false positives (issue #2679).
 
     A token that resolves in ``sibling_names`` names a real non-skill
     artifact (agent, slash command, review axis, Serena memory) and is not
@@ -230,6 +240,8 @@ def _check_skill_refs(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     for lineno, ref in extract_single_word_skill_refs(text):
+        if _is_metasyntactic_placeholder(ref):
+            continue
         is_typed = (lineno, ref) in typed
         if ref in known_skills or (ref in siblings and not is_typed):
             refs_checked += 1
