@@ -88,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"   Output: {output_path}")
 
     try:
+        sys.stdout.flush()
         result = subprocess.run(
             ["npx", "tsx", str(plugin_script), args.query, str(output_path)],
             capture_output=False,
