@@ -14,6 +14,16 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Measured conflict-marker false-positive exposure on the real corpus first: 2 tracked files carry labelled markers, both inside fenced code blocks. Chose a fence-aware rule that never keys on a bare row of equals signs.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -135,6 +145,18 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 440b70387",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": []
     }
   ],
@@ -143,7 +165,7 @@
     "tool_calls": 0,
     "errors": 43,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 5
   },
   "lessons": []
