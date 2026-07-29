@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3777,
+    "date": "2026-07-29",
+    "branch": "fix/3742-3777-output-diagnosability",
+    "startingCommit": "6f233741d5",
+    "objective": "Issue #3777: six github skill scripts pass an inline --body straight to gh, so a body whose line breaks are written as the two characters backslash and n reaches GitHub verbatim and renders as one unbroken paragraph. Two shipped issues (#3598, #3646) already carry that corruption. Add a shared predicate, wire it at all six sites, and pin it with an isolating control per site."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No serena/ or mcp__serena__ tools are exposed in this Copilot CLI session, so activation was not possible. Fell back to reading .claude/rules/ and the repository directly, per the AGENTS.md fallback."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not reachable for the same reason as serenaActivated. No initial_instructions tool is exposed in this session."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit on the branch."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/3742-3777-output-diagnosability, cut from origin/main at 6f233741d5. Verified before staging."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/3742-3777-output-diagnosability."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this continuing session. The dashboard has not changed since."
+      },
+      "memorySearched": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Searched tests/ and scripts/ for an existing repo-local temp convention before inventing one. Found tests/test_pytest_repo_local_temp_roots.py, build/scripts/validate_plugin_manifests.py:326 and scripts/validation/check_placeholder_identity.py:36, all of which encode .pytest_tmp. That search changed the fix and corrected the rule text."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No QA skip claimed. Guards were verified non-vacuous by reinstating each defect and observing the expected failures."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown-check ran green in the pre-commit group on the staged markdown."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity re-verified at 0.6.539 after main advanced to 0.6.427; the earlier 0.6.215 reading was taken before two later re-bumps and no longer described the tree."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Durable knowledge went into .claude/rules/testing.md MUST NOT 4 instead, because it must bind every harness and contributor rather than be MCP-gated. See .claude/rules/knowledge-persistence.md."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items above recorded with evidence."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Single commit on fix/3742-3777-output-diagnosability."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md not touched."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Found the first leak from git status after an unrelated push: untracked issue-body.md and comment-body.md in the repository root. Traced to relative Path() writes in scripts/eval/software_engineering_library_activation_ci.py, which resolve against the process working directory. Reproduced in isolation: the gate test module alone left both files."
+    },
+    {
+      "step": "Took a find snapshot of the whole tree before and after a full run rather than trusting git status. That surfaced two more paths git status omits, and checking each against git check-ignore separated the gitignored from the untracked."
+    },
+    {
+      "step": "Adversarial review round 1 on gemini-3.1-pro. Accepted the finding that fixing only the test treats the symptom, and moved the fix to the production write target. Overruled the proposed remedy of swapping --body-file for --body, because the repo already uses a body file for the same purpose in .github/workflows/ai-metrics-analysis.yml."
+    },
+    {
+      "step": "Adversarial review round 2 on gpt-5.6-sol returned five findings. Verified every factual claim before acting. Two of its corrections were right (the workflow uploads four artifact paths, not one; the two body files are visible to git status and my message said otherwise). One was wrong: it counted three sibling modules using .pytest_tmp where the grep shows the count depends on whether a module that only patches a helper of that name is included."
+    },
+    {
+      "step": "Measured rather than deferred on the TMPDIR finding. The reviewer broke a test by pointing TMPDIR inside the checkout and proposed validating the scratch parent in production. tests/test_pytest_repo_local_temp_roots.py deliberately runs pytest with TMPDIR inside the checkout, so that rule would contradict a committed guard. Deleted the over-specified test instead of adding production complexity."
+    },
+    {
+      "step": "That same search showed the rule text I had written was wrong. It required scratch to land outside the checkout, which the repo does not hold. Rewrote MUST NOT 4 to name .pytest_tmp as the sanctioned root and cite the two validators that skip it."
+    },
+    {
+      "step": "Fixed the remaining three leaks: renamed the hyphenated scratch root, added .gitkeep files matching the worktrees/.gitkeep already committed beside them, and mocked save_failed_comment_artifact at its boundary in the 403 test whose git rev-parse returns rc=1 and falls back to os.getcwd()."
+    },
+    {
+      "step": "Added a spelling guard in tests/test_pytest_repo_local_temp_roots.py and proved it non-vacuous by reinstating the hyphenated name. It initially failed on its own docstring, so the docstring was reworded rather than the file excluded, which would have blinded the guard to a real offense in it."
+    },
+    {
+      "step": "Re-ran the main negative control after the first attempt silently failed to patch. The first run reported four passes because the replacement string never matched; the corrected control fails three of four guards, with the fourth being the feature's own negative control."
+    }
+  ],
+  "nextSteps": [
+    "The spelling guard covers one near miss. It does not generalize to other unrecognized scratch names, which is what #3772 tracks.",
+    "The allowlist is the real cost of a repo-wide leak gate. It has to separate legitimate caches from leaks without becoming a second copy of .gitignore that drifts.",
+    "Two touched test files are now past 340 lines against a 500 line advisory ceiling. Extraction should be planned before the next addition to either.",
+    "#3746 is the same family but a different root cause: external_tmp_path resolving inside the repo from a nested worktree. Not fixed here."
+  ],
+  "endingCommit": "d5e894636cb25ca82f3d37f1e5bb046e8fc97581"
+}
