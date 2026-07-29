@@ -92,3 +92,64 @@ def test_route_patterns_reject_a_non_route_mention() -> None:
         "route detection matched plain prose, so the routing assertions above "
         "would pass on a file that contains no route at all"
     )
+
+
+# The router's phases are ordered work. Verification has to happen while the
+# finding is being triaged, not after the fix is written, or the skill's whole
+# premise ("verify before you fix") is lost while the route still exists.
+PHASE_HEADING_RE = re.compile(r"^### Phase (-?\d+)[^\n]*$", re.MULTILINE)
+TRIAGE_PHASE = "2"
+VERIFY_PHASE = "3"
+
+
+def _phase_section(text: str, phase: str) -> str:
+    """Return the body of one ``### Phase N`` section, excluding later phases."""
+    starts = [(m.group(1), m.start(), m.end()) for m in PHASE_HEADING_RE.finditer(text)]
+    for index, (number, _, body_start) in enumerate(starts):
+        if number != phase:
+            continue
+        body_end = starts[index + 1][1] if index + 1 < len(starts) else len(text)
+        return text[body_start:body_end]
+    pytest.fail(f"no '### Phase {phase}' heading found; phases present: "
+                f"{[n for n, _, _ in starts] or 'none'}")
+
+
+class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
+    def test_the_route_sits_in_the_triage_phase(self) -> None:
+        """Positive: the route is inside the phase that decides what to do."""
+        router = _read(ROUTER_SKILL)
+        assert SKILL_NAME in _routed_skills(_phase_section(router, TRIAGE_PHASE)), (
+            f"{ROUTER_SKILL} no longer routes to {SKILL_NAME} from Phase "
+            f"{TRIAGE_PHASE}. A route that survives only in a later phase "
+            f"verifies the finding after the fix is written, which inverts "
+            f"the order this skill exists to enforce"
+        )
+
+    def test_the_route_precedes_the_verify_phase(self) -> None:
+        """Edge: ordering, not just membership, is what carries the meaning."""
+        router = _read(ROUTER_SKILL)
+        route = re.search(rf'Skill\(skill="{SKILL_NAME}"\)|skill:\s*"{SKILL_NAME}"', router)
+        assert route is not None, f"{ROUTER_SKILL} contains no route to {SKILL_NAME}"
+        verify = next(
+            (m.start() for m in PHASE_HEADING_RE.finditer(router) if m.group(1) == VERIFY_PHASE),
+            None,
+        )
+        assert verify is not None, f"{ROUTER_SKILL} has no Phase {VERIFY_PHASE} heading"
+        assert route.start() < verify, (
+            f"the {SKILL_NAME} route appears after Phase {VERIFY_PHASE} begins, "
+            f"so the workflow reaches verification before it has verified the "
+            f"finding it acted on"
+        )
+
+    def test_the_phase_slice_excludes_other_phases(self) -> None:
+        """Negative control: prove the slice is a slice, not the whole file."""
+        synthetic = (
+            "### Phase 2: Triage and Delegate\n"
+            "Nothing routes here.\n"
+            "### Phase 3: Verify\n"
+            'Run `Skill(skill="some-later-skill")` now.\n'
+        )
+        assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
+            "the phase slice leaked a later phase's route, so the positive "
+            "assertion above would pass for a route in any phase at all"
+        )

@@ -130,4 +130,19 @@ Each is a finding worth engaging and a fix not worth applying as written. That
 combination is the whole reason this skill exists: the reviewer earns your
 attention, not your compliance.
 
-Refs #3716, #3741.
+## Anti-Patterns
+
+- **Applying the prescribed fix because the verdict was right.** The three
+  claims are independent. A finding can name a real defect and still prescribe
+  a fix that is wrong, partial, or already superseded by a better idiom in the
+  tree.
+- **Rejecting the whole finding because one claim failed.** A wrong diagnosis
+  does not clear the defect. Re-derive the cause and fix the thing that is
+  actually broken.
+- **Verifying against the diff instead of the tree.** A finding written against
+  an earlier push may describe code that no longer exists, or miss code that
+  now does. Check the current tree.
+- **Treating agreement between reviewers as verification.** Two reviewers
+  reading the same wrong assumption produce two findings, not two proofs.
+- **Resolving a thread with prose.** A verdict without a command, a file and
+  line, or a measurement is an opinion. Close the thread with the evidence.
