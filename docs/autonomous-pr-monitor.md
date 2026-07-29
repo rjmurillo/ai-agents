@@ -755,8 +755,23 @@ If a force-push is approved:
 ```bash
 SHA="<known-good-sha>"
 BRANCH="<branch-name>"
-git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
+# The head.sha you already read from get_pr_context.py before starting work.
+EXPECTED_REMOTE_SHA="<observed-head-sha>"
+git push origin "${SHA}:refs/heads/${BRANCH}" \
+  --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}" --no-verify
 ```
+
+Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
+Bare `--force-with-lease` takes its expected value from
+`refs/remotes/origin/$BRANCH`, and any concurrent `git fetch`, including one run
+by a sibling agent in the same checkout, silently advances that ref to the other
+agent's commit. The lease then passes and the push destroys their work. Measured
+on a two-clone repro: with a fetch between the two pushes the bare form
+overwrote a sibling's commit, while
+`--force-with-lease=refs/heads/$BRANCH:<observed-sha>` rejected the identical
+push with `stale info` (issues #3653, #3413). The `rev-parse` check above is a
+separate read and cannot close the window between check and push; only the
+pinned lease is atomic.
 
 Quote every variable expansion. The shell does not treat `:` specially in a refspec, so `$SHA:refs/heads/$BRANCH` is already passed to `git` as a single argument; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and any of those in `$BRANCH` will cause word-splitting or globbing on an unquoted expansion. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
 
