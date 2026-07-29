@@ -19,6 +19,8 @@ def _run_gh(args: list[str], *, input_text: str | None = None) -> subprocess.Com
         input=input_text,
         stdout=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 

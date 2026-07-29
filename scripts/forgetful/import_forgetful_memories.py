@@ -53,6 +53,8 @@ def run_sqlite3(db_path: str, query: str) -> subprocess.CompletedProcess[str]:
         ["sqlite3", db_path, query],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
 

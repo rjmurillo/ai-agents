@@ -448,7 +448,13 @@ def _run_gh(cmd: list[str]) -> str:
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, check=True,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=True,
         )
     except subprocess.CalledProcessError as err:
         stderr = (err.stderr or "").strip() or (err.stdout or "").strip()

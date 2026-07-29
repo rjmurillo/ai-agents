@@ -35,6 +35,8 @@ def _changed_files(repository: str, pr_number: str) -> list[str]:
         check=False,
         stdout=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
