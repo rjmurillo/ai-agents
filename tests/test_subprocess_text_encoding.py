@@ -40,9 +40,13 @@ single pass, and why a ``partial`` that selects text mode counts even with no
 capture keyword beside it.
 
 What this cannot see, stated plainly: a subprocess reference that crosses a
-module boundary, one stored in a container or an attribute, and one produced
-by a call this module does not model. The scan is a ratchet against the shapes
-people actually write, not a proof.
+module boundary, one stored in an attribute, and one produced by a call this
+module does not model. The scan is a ratchet against the shapes people
+actually write, not a proof.
+
+Where it deliberately says too much rather than too little, see
+``test_detector_over_approximates_deliberately``. Every rule here is tuned to
+fail towards a redundant keyword, never towards a missed decode.
 """
 
 from __future__ import annotations
@@ -69,6 +73,11 @@ _OS_POPEN = "os.popen"
 # scan can name. Because it may be getoutput, which decodes with no flag to
 # read, invoking one counts as decoding text whatever keywords are present.
 _DYNAMIC = "subprocess.<dynamic>"
+
+# Marks a name that reaches functools.partial. Held in the same map as the
+# subprocess names for want of a second one to thread, and filtered out of
+# every path that answers "is this a subprocess entry point".
+_PARTIAL = "functools.partial"
 
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
@@ -105,6 +114,18 @@ def _call_label(call: ast.Call) -> str:
     return func.id if isinstance(func, ast.Name) else ""
 
 
+def _is_partial(label: str, functions: dict[str, str]) -> bool:
+    """Report whether *label* names functools.partial under any spelling.
+
+    The bare name is accepted on sight rather than anchored to a functools
+    import, because ``partial`` from any library applies arguments the same
+    way, and anchoring would drop every re-export. An aliased import needs the
+    name map, since ``from functools import partial as p`` leaves no ``partial``
+    anywhere at the call site.
+    """
+    return label == "partial" or functions.get(label) == _PARTIAL
+
+
 def _resolve_indirect(
     call: ast.Call, modules: set[str], functions: dict[str, str]
 ) -> str | None:
@@ -115,7 +136,7 @@ def _resolve_indirect(
     disguise: the name is right there in the source.
     """
     label = _call_label(call)
-    if label == "partial" and call.args:
+    if _is_partial(label, functions) and call.args:
         return _resolve_callable(call.args[0], modules, functions)
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
@@ -158,7 +179,8 @@ def _resolve_callable(
 ) -> str | None:
     """Return the subprocess entry point *node* evaluates to, or ``None``."""
     if isinstance(node, ast.Name):
-        return functions.get(node.id)
+        resolved = functions.get(node.id)
+        return None if resolved == _PARTIAL else resolved
     if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
         owner, attr = node.value.id, node.attr
         if owner in modules and attr in _SUBPROCESS_ATTRS:
@@ -225,6 +247,10 @@ def _subprocess_names(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
             for alias in node.names:
                 if alias.name in _SUBPROCESS_ATTRS:
                     functions[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module == "functools":
+            for alias in node.names:
+                if alias.name == "partial":
+                    functions[alias.asname or alias.name] = _PARTIAL
 
     # Assignments resolve against names discovered so far, so a chain needs
     # more than one sweep: ``ast.walk`` is breadth first, so ``b = a`` at the
@@ -265,7 +291,7 @@ def _target(call: ast.Call, modules: set[str], functions: dict[str, str]) -> str
     return fallback
 
 
-def _captures_text(call: ast.Call) -> bool:
+def _captures_text(call: ast.Call, functions: dict[str, str]) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
     Deliberately conservative. Anything other than a literal ``False`` counts,
@@ -288,7 +314,7 @@ def _captures_text(call: ast.Call) -> bool:
         legacy is None or _is_literal_false(legacy)
     ):
         return False
-    if _call_label(call) == "partial":
+    if _is_partial(_call_label(call), functions):
         # A partial can select text mode here and be handed capture_output at
         # the eventual call site, which this scan has no way to reach.
         return True
@@ -327,7 +353,7 @@ def unpinned_lines(source: str) -> list[int]:
             # move is to not use it.
             offenders.append(node.lineno)
             continue
-        if target not in _DECODES_UNCONDITIONALLY and not _captures_text(node):
+        if target not in _DECODES_UNCONDITIONALLY and not _captures_text(node, functions):
             continue
         if not _pins_utf8(node):
             offenders.append(node.lineno)
@@ -434,6 +460,22 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
         (
             'import json\n_loads = json.loads\n_loads("{}")',
             "binding an unrelated callable is ordinary Python",
+        ),
+        (
+            'from functools import partial as p\n'
+            'x = p(open, "f")\nx()',
+            "a partial over an unrelated callable is not a subprocess call",
+        ),
+        (
+            'from functools import partial as p\n'
+            'q = p\nq(open, "f")()',
+            "the alias itself is functools.partial, not a subprocess entry point",
+        ),
+        (
+            'from functools import partial as p\n'
+            'def fetch(cmd, text=False):\n    return cmd\n'
+            'go = p(fetch, text=True)\ngo(["x"])',
+            "a partial over a local function that takes text is not subprocess",
         ),
         (
             'import shutil\n_run = shutil.run\n'
@@ -634,8 +676,55 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'R[1]("ls")',
             "a mixed container may yield the member that decodes regardless",
         ),
+        (
+            'import subprocess\nfrom functools import partial as p\n'
+            'f = p(subprocess.run, text=True)\nf(["x"], capture_output=True)',
+            "an aliased partial import is not spelled partial at the call",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
     """Holes found by adversarial review. Each one decodes under the locale codec."""
     assert unpinned_lines(source) != [], f"missed {why}"
+
+
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        (
+            'import subprocess, sys\n'
+            'subprocess.run(["x"], stdout=sys.stdout, text=True)',
+            "a redirect that is not a pipe leaves the parent nothing to decode",
+        ),
+        (
+            'import subprocess\na = subprocess.run\n'
+            'a = lambda *args, **kwargs: None\n'
+            'a(["x"], capture_output=True, text=True)',
+            "the later binding wins at runtime, but not in a flow-blind scan",
+        ),
+        (
+            'import subprocess\nkwargs = {}\n'
+            'subprocess.run(["x"], **kwargs)',
+            "an empty splat carries no text keyword and returns bytes",
+        ),
+    ],
+)
+def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
+    """Known false positives, kept on purpose and recorded here as decisions.
+
+    Each costs a redundant ``encoding="utf-8"`` on a call that decodes nothing.
+    Each precise alternative costs a missed decode, which is the failure this
+    file exists to prevent:
+
+    Reading the redirect would mean resolving the keyword's value, and an alias
+    or a computed mode defeats that, so ``stdout=PIPE`` would slip through.
+    Letting the last binding win would mean ordering the bindings, which
+    ``ast.walk`` does not give, so a rebinding nested in a branch would decide
+    the answer for code that never runs it. Reading an absent keyword inside a
+    splat as proof of bytes mode is the exact hole an adversarial review walked
+    through.
+
+    No file in this repository trips any of these, which is what makes the
+    trade cheap: the repo-wide scan above is green.
+    """
+    assert unpinned_lines(source) != [], f"expected over-approximation: {why}"
