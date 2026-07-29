@@ -13,6 +13,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any, NoReturn, Self
+from unittest import mock
 
 import pytest
 import yaml
@@ -7281,6 +7282,42 @@ def test_expression_path_requires_a_parseable_body() -> None:
 def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
     """A Python step is legitimately unparseable as Bash and stays tolerated."""
     assert policy._step_defeats_bash_subparse("python3 {0}", "print(os.getcwd())\n") is True
+
+
+def test_process_output_flushes_stdout_before_writing_stderr(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """The reason must reach the operator above the error that needs it.
+
+    lefthook pipes stdout, so Python block-buffers it while stderr stays
+    unbuffered. Without the flush the error overtakes its own explanation and
+    the reason lands under the next hook's group header. Refs #3627.
+    """
+    flushed: list[str] = []
+    real_flush = sys.stdout.flush
+
+    def _record() -> None:
+        flushed.append("stdout")
+        real_flush()
+
+    result = subprocess.CompletedProcess(
+        args=["check"], returncode=1, stdout="no open PR for feat/x\n", stderr=""
+    )
+    with mock.patch.object(sys.stdout, "flush", _record):
+        policy._print_process_output(result)
+    assert flushed == ["stdout"]
+    assert capfd.readouterr().out == "no open PR for feat/x\n"
+
+
+def test_process_output_does_not_flush_when_there_is_no_stdout() -> None:
+    """Negative control: an empty stdout stays a no-op rather than a flush."""
+    flushed: list[str] = []
+    result = subprocess.CompletedProcess(
+        args=["check"], returncode=1, stdout="", stderr="ERROR: blocked\n"
+    )
+    with mock.patch.object(sys.stdout, "flush", lambda: flushed.append("stdout")):
+        policy._print_process_output(result)
+    assert flushed == []
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 # Exit codes per ADR-035
 EXIT_SUCCESS = 0
 EXIT_GAPS_DETECTED = 1
@@ -34,6 +36,7 @@ RFC2119_PATTERN = re.compile(
 
 # ADR number extraction from filename
 ADR_NUMBER_PATTERN = re.compile(r"ADR-(\d+)")
+INLINE_STATUS_PATTERN = re.compile(r"^\*\*Status\*\*\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
 @dataclass
@@ -100,17 +103,84 @@ def parse_adr_title(content: str) -> str:
     return "Unknown"
 
 
-def parse_adr_status(content: str) -> str:
-    """Extract status from ADR markdown content."""
+def _status_from_heading(content: str) -> str | None:
+    """Read the prose under a ``## Status`` section, joining wrapped lines.
+
+    ADR-004 wraps its status across two lines, so reading only the first
+    would report the truncated "Superseded by".
+    """
     in_status = False
+    collected: list[str] = []
     for line in content.splitlines():
-        if line.strip() == "## Status":
+        stripped = line.strip()
+        if stripped == "## Status":
             in_status = True
             continue
-        if in_status and line.strip():
-            return line.strip()
-        if in_status and line.startswith("## ") and line.strip() != "## Status":
-            break
+        if in_status:
+            if stripped.startswith("## "):
+                break
+            if not stripped:
+                if collected:
+                    break
+                continue
+            collected.append(stripped)
+    return " ".join(collected) or None
+
+
+def _status_from_inline(content: str) -> str | None:
+    """Read a bold ``**Status**:`` line from the preamble.
+
+    Bounded to the text before the first ``##`` heading so a body mention
+    cannot be mistaken for lifecycle state.
+    """
+    preamble = re.split(r"^## ", content, maxsplit=1, flags=re.MULTILINE)[0]
+    match = INLINE_STATUS_PATTERN.search(preamble)
+    return match.group(1).strip() if match else None
+
+
+def _status_from_frontmatter(content: str) -> str | None:
+    """Read ``status:`` from the YAML frontmatter block (ADR-073).
+
+    Parsed as YAML so quoting and comments resolve to the scalar value
+    rather than to raw text.
+    """
+    if not content.startswith("---\n"):
+        return None
+    match = re.search(r"^---[ \t]*$", content[4:], re.MULTILINE)
+    if match is None:
+        return None
+    try:
+        data = yaml.safe_load(content[4 : 4 + match.start()])
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    status = data.get("status")
+    if isinstance(status, str) and status.strip():
+        return status.strip()
+    return None
+
+
+def parse_adr_status(content: str) -> str:
+    """Extract status from ADR markdown content.
+
+    The corpus spells status three ways: a ``## Status`` section, a bold
+    ``**Status**:`` preamble line, and YAML frontmatter (ADR-073).
+
+    Frontmatter wins because it is the controlled enum. The prose sections
+    are unbounded: ADR-071 runs a full debate summary under ``## Status``,
+    which is not a lifecycle value. Prose remains the fallback for the 60
+    ADRs that carry no frontmatter yet, pending the ADR-073 Phase 2
+    backfill.
+    """
+    for extract in (
+        _status_from_frontmatter,
+        _status_from_heading,
+        _status_from_inline,
+    ):
+        status = extract(content)
+        if status:
+            return status
     return "Unknown"
 
 
