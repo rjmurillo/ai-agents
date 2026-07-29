@@ -90,7 +90,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Bug, error, "why is this broken" | Skill: analyze, then /build for the fix |
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
-| Merge conflicts | `agent_type: "project-toolkit:merge-resolver"` |
+| Merge conflicts | Agent: merge-resolver |
 | Session-protocol CI failure | Skill: session-log-fixer |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
