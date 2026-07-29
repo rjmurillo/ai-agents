@@ -69,6 +69,13 @@ _ALWAYS_TEXT_ATTRS = frozenset({"getoutput", "getstatusoutput"})
 
 _SUBPROCESS_ATTRS = _CAPTURING_ATTRS | _ALWAYS_TEXT_ATTRS
 
+# check_output passes stdout=PIPE itself, so it captures whatever the call
+# site says. Nothing in the source has to ask for capture, which means text
+# mode on its own is enough to decode. run and Popen are not like this: with
+# no capture keyword their output goes to the inherited handles and never
+# becomes a str.
+_ALWAYS_CAPTURING_ATTRS = frozenset({"check_output"})
+
 _PINNED_CODEC = "utf-8"
 _OS_POPEN = "os.popen"
 # Stands for a subprocess entry point selected at runtime, which no static
@@ -526,7 +533,7 @@ def _target(
     return fallback
 
 
-def _captures_text(call: ast.Call, functions: dict[str, str]) -> bool:
+def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
     Deliberately conservative. Anything other than a literal ``False`` counts,
@@ -535,6 +542,9 @@ def _captures_text(call: ast.Call, functions: dict[str, str]) -> bool:
 
     A ``functools.partial`` that selects text mode counts even with no capture
     keyword, because the capture can be supplied where the partial is called.
+    So does an entry point in :data:`_ALWAYS_CAPTURING_ATTRS`, which captures
+    without being asked, so *target* has to be known here rather than inferred
+    from the spelling at the call site.
 
     A ``**kwargs`` splat is treated as text mode outright. The keywords it
     carries are not visible here, so ``text`` may be among them, and reading
@@ -552,6 +562,10 @@ def _captures_text(call: ast.Call, functions: dict[str, str]) -> bool:
     if _is_partial(_call_label(call), functions):
         # A partial can select text mode here and be handed capture_output at
         # the eventual call site, which this scan has no way to reach.
+        return True
+    if target in _ALWAYS_CAPTURING_ATTRS:
+        # The callee captures on its own behalf, so there is no capture
+        # keyword for this scan to find and none is needed.
         return True
     capture = _keyword(call, "capture_output")
     if capture is not None and not _is_literal_false(capture):
@@ -588,7 +602,9 @@ def unpinned_lines(source: str) -> list[int]:
             # move is to not use it.
             offenders.append(node.lineno)
             continue
-        if target not in _DECODES_UNCONDITIONALLY and not _captures_text(node, functions):
+        if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
+            node, functions, target
+        ):
             continue
         if not _pins_utf8(node):
             offenders.append(node.lineno)
@@ -638,6 +654,18 @@ def test_the_scan_actually_reaches_files() -> None:
             "check_output",
         ),
         (
+            "import subprocess\nsubprocess.check_output(['x'], text=True)",
+            "check_output captures stdout with no capture keyword to read",
+        ),
+        (
+            "import subprocess\nsubprocess.check_output(['x'], universal_newlines=True)",
+            "check_output under the legacy text spelling",
+        ),
+        (
+            "from subprocess import check_output as co\nco(['x'], text=True)",
+            "an alias of check_output captures just the same",
+        ),
+        (
             "import subprocess\n"
             "subprocess.run(['x'], capture_output=True, universal_newlines=True)",
             "the legacy universal_newlines spelling",
@@ -664,6 +692,18 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
         (
             'import subprocess\nsubprocess.run(["x"], text=True)',
             "nothing captured means nothing to decode",
+        ),
+        (
+            'import subprocess\nsubprocess.check_output(["x"])',
+            "check_output without text mode hands back bytes",
+        ),
+        (
+            'import subprocess\nsubprocess.check_output(["x"], text=True, encoding="utf-8")',
+            "check_output that pins its codec is compliant",
+        ),
+        (
+            'import subprocess\nsubprocess.Popen(["x"], text=True)',
+            "Popen captures nothing unless the call site asks it to",
         ),
         (
             'import subprocess\nsubprocess.run(["x"], capture_output=True, text=False)',
