@@ -131,5 +131,5 @@
     "File a follow-up issue for the roughly thirty phantom cmdlets remaining outside the memory skills: .claude/skills/github/references/api-reference.md carries seventeen on its own, with smaller counts in github-url-intercept, context-optimizer, session, ai-agents-config-catalog and security-scan. The resolver test shipped here is scoped to the memory skills and can be widened once those documents are corrected.",
     "Measure-Learn in the business-strategy skill and Read-Only in memory-search/references/skill-reference.md are English prose that matches the verb-noun shape. Any widened scan needs the same allowlist treatment or it will produce false positives."
   ],
-  "endingCommit": ""
+  "endingCommit": "f4942ed914cbb7c126b4fe70cbb3ab6a1c15863f"
 }
