@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3644,
+    "date": "2026-07-28",
+    "branch": "fix/causal-graph-false-conflict",
+    "startingCommit": "87b1176674",
+    "objective": "Record why local git and the GitHub API disagree on whether causal-graph.json merges cleanly, and what the safe resolution is. Ordering in workLog is sequential; the timestamps mark order only, not measured wall-clock times."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project and initial_instructions were not exposed in this Copilot CLI session. Read .serena/memories/ directly per the documented fallback."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work ran on fix/causal-graph-false-conflict, branched from origin/main at 87b1176674."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/causal-graph-false-conflict after checkout."
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: no Serena MCP tools were available in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Context carried from PR #3636 in the same session, where the false conflict was first observed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every claim in the rewritten memory was re-verified after the rebase: .gitattributes lines 408 and 483, git config --show-origin --get exiting 1 for both merge.ours.driver and merge.handoff-aggregate.driver, the built-in list read from man gitattributes and from ll_merge_drv[] in merge-ll.c at tag v2.43.0, PR #3497 removed as unrelated, issue #3644 confirmed closed, issue #3625 confirmed open, and the two scratch-repo experiments rerun."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The two changed markdown paths are both excluded in .markdownlint-cli2.yaml (.serena/** at line 119, docs/autonomous-pr-monitor.md at line 143), so an in-tree run proves nothing. Copied both out of tree and ran markdownlint-cli2 with exclusions stripped. First run: 3 issues in 2 files. Fixed MD026 in the memory heading; the two MD032 hits in the runbook are pre-existing at lines 738 and 853, outside this diff. Re-run on the memory reported Linting: 1 file, Summary: 0 issues in 0 files."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py re-run after the rebase and rewrite on the staged diff: RESULT All validations passed, including Em/en-dash Prohibition, Canonical Citation Check, Agent Catalog Drift, Plugin Version Bump, and Instruction Budget."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three artifacts: the renamed and rewritten Serena memory, the docs/autonomous-pr-monitor.md corrections, and this log."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The deliverable is two Serena memories: .serena/memories/git/git-merge-driver-declared-versus-running.md and .serena/memories/git/git-merge-driver-github-disagreement.md. The single file measured 11211 characters against the memory-size hook maximum of 10000, so it was split on the seam between the two findings it carried."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-28T00:00:00Z",
+      "action": "Observed PR #3636 reporting mergeable CONFLICTING/DIRTY while a local merge of the same commits was clean. Polled gh pr view four times at 30 second intervals on the reported head SHA.",
+      "outcome": "Status did not change across the polls. Wrote a first draft memory attributing the disagreement to the custom merge driver registered at .gitattributes:541."
+    },
+    {
+      "timestamp": "2026-07-28T00:01:00Z",
+      "action": "Ran an adversarial review of that draft on a different model family (gpt-5.6-sol) with a prompt that specifically attacked the causal claim and asked which confounds were not ruled out.",
+      "outcome": "Returned eight blocking findings. The central one: a clean local merge plus a configured driver does not establish the driver as the cause, and GitHub's own reported base SHA had not been checked."
+    },
+    {
+      "timestamp": "2026-07-28T00:02:00Z",
+      "action": "Checked GitHub's reported base against the head for PR #3636: git merge-base --is-ancestor 87b1176674 cadd47a5b1.",
+      "outcome": "Refuted the draft. The base was already an ancestor of the head, so no merge was being computed and no driver could have been involved. That CONFLICTING was the stale merge-state cache already documented in docs/autonomous-pr-monitor.md for PR #2334 and issue #2368."
+    },
+    {
+      "timestamp": "2026-07-28T00:03:00Z",
+      "action": "Ran a controlled experiment against the advanced main (304355e98f), which is not an ancestor: merge-tree with the driver active, with the driver forced to false, with the driver replaced by a plain text merge, and a raw git merge-file of the three blobs.",
+      "outcome": "Driver active exits 0 with no conflict. Driver forced to false exits 1 with CONFLICT in causal-graph.json. Driver replaced by a text merge exits 1. Raw merge-file yields 239 conflict hunks. The driver is established as the cause for that SHA pair, with a working negative control."
+    },
+    {
+      "timestamp": "2026-07-28T00:04:00Z",
+      "action": "Verified the review's remaining technical claims against the source rather than accepting them.",
+      "outcome": "All confirmed. _survives at merge_causal_graph.py:246 honors deliberate deletions, so the driver is not a pure union and node counts prove nothing. update_causal_graph.py defaults to the whole episode directory and takes --reset-graph, so the standalone generator can rebuild; only the lefthook wrapper is staged-scoped and it skips on merge (lefthook.yml:284-289). The graph changed in 49 of the last 200 first-parent commits on main, not on nearly every commit."
+    },
+    {
+      "timestamp": "2026-07-28T00:05:00Z",
+      "action": "Replaced the whole-record comparison with an identity-key comparison using the driver's own _COLLECTIONS keys, then re-checked PR #3636's merge.",
+      "outcome": "The whole-record check reported one pattern lost; by key nothing was lost, and the record differed only in fields the driver merges on purpose. The merge was sound and the first check was the thing that was wrong."
+    },
+    {
+      "timestamp": "2026-07-28T00:06:00Z",
+      "action": "Rewrote the memory around the finding the existing runbook does not cover: for a driver-managed path, a local trial merge is not authoritative for GitHub in either direction, because GitHub runs no custom merge driver.",
+      "outcome": "Memory now defers the stale-cache case to docs/autonomous-pr-monitor.md, carries the controlled experiment, states that the fix expires when the base advances again, and gives a verification that does not rely on counts."
+    },
+    {
+      "timestamp": "2026-07-29T00:00:00Z",
+      "action": "Rebased the branch onto main after PR #3643 removed the Tier 3 causal memory graph, then reworked the deliverable. PR #3643 deleted .agents/memory/causality/causal-graph.json, scripts/validation/merge_causal_graph.py, .claude/skills/memory/scripts/update_causal_graph.py, scripts/maintenance/install_merge_drivers.py, and the causal-graph entry in .gitattributes, so every worked example in the draft named a file that no longer exists on main.",
+      "outcome": "Renamed the memory and rewrote it around the two driver-managed paths that survive on main. That rewrite was then found to be wrong and was corrected in the next step."
+    },
+    {
+      "timestamp": "2026-07-29T00:30:00Z",
+      "action": "Walked the claim instead of asserting it. Built a scratch repository carrying this repository's .gitattributes and merged divergent edits to .agents/HANDOFF.md and .agents/handoffs/b.md against a plain text-attributed control, then ran a second scratch repository contrasting merge=union against merge=ours on git 2.43.0.",
+      "outcome": "Both declared drivers are inert. .agents/HANDOFF.md and .agents/handoffs/b.md conflicted identically to the plain control file, status UU. In the second repository merge=union auto-merged with status M and both sides retained while merge=ours conflicted with markers. git check-attr merge reports a driver name in every case, so it proves only that .gitattributes declares a driver and not that one runs. ours is a merge strategy, not a gitattributes built-in. Confirms ADR-089 line 346 and issue #3502, which record both drivers as latent defects. Renamed the deliverable to .serena/memories/git/git-merge-driver-declared-versus-running.md and rewrote it around the verified finding: a declared driver is not a running driver, and the GitHub-disagreement mechanism is dormant here because no driver is installed. The docs/autonomous-pr-monitor.md bullet now requires the second check and records that its outcome is currently unreachable in this repository."
+    },
+    {
+      "timestamp": "2026-07-28T16:30:00Z",
+      "action": "Ran an adversarial review of the rewritten memory and runbook bullet on a different model family (gpt-5.6-sol) with instructions to falsify each claim independently and reproduce every experiment in its own scratch repositories.",
+      "outcome": "Seven blocking defects and ten non-blocking, all reproduced locally before acting. The two that mattered: the negative control was invalid, because git -c merge.NAME.driver=false on a name that was never configured prints the same on-0 off-1 signature that is normally read as proof a driver ran, verified against merge=neverconfigured; and the memory conflated two failure modes, since a configured driver whose command is missing is invoked and fails loudly with the command error on stderr rather than falling back silently, so only a missing definition is silent. Also corrected: check-attr reports effective attributes from .gitattributes, .git/info/attributes, and global files and can return set or unset, and reads the working tree unless given --source; -X ours is a strategy option and not a strategy; the triage snippet died under set -e because grep -v exits 1 when nothing matches and it read attributes from the checkout rather than the PR head; ancestry stays authoritative regardless of drivers, so a confirmed ancestor is terminal; the push fix covers only the local-clean server-conflicting direction; the GitHub limit applies to custom driver commands and not to compiled-in built-ins; a driver is invoked only when a file-level merge is needed; the date was 2026-07-28 not 2026-07-29; PR #3497 was unrelated and was removed; issue #3644 is closed and issue #3625 is the open defect; and the stale causal-graph config is not harmless on historical branches, so the cleanup is now local and idempotent. Two pre-existing defects outside this diff were filed rather than fixed here."
+    },
+    {
+      "timestamp": "2026-07-28T17:10:00Z",
+      "action": "The memory-size pre-commit hook rejected the single memory at 11211 characters against a 10000 maximum, and reported six categories against a maximum of five. Split the file on the seam between the two findings it carried rather than trimming evidence.",
+      "outcome": "Two memories: git-merge-driver-declared-versus-running.md at 6150 characters covering the three conditions, the silent-versus-loud failure table and the two inert declarations in this repository, and git-merge-driver-github-disagreement.md at 5866 characters covering the server-side mechanism, the triage order, the invalid negative control and resolution. Each links the other and states the ordering, because the disagreement memory only applies once a driver is proven to run. Both now report one category and pass. The reported six categories were a validator defect and not a property of the file: _count_categories in .claude/skills/memory/scripts/test_memory_size.py matches the regex ^# (.+)$ against raw content without stripping fenced code blocks, so every column-zero bash comment in the triage snippet counted as an H1 category. Worked around by moving the numbered commentary out of the fence, which reads better anyway. Not fixed here: the script is mirrored into src/copilot-cli/skills/memory/scripts/ and a fix carries plugin manifest bumps, so it belongs in its own change."
+    },
+    {
+      "timestamp": "2026-07-28T18:05:00Z",
+      "action": "Ran a second adversarial review of the split memories on gpt-5.6-sol, then reproduced each finding locally with a merge driver that succeeds and writes a sentinel, because a failing driver cannot discriminate between running and absent.",
+      "outcome": "Nine blocking findings, all confirmed. Four were load bearing. First, merge.default assigns a custom driver to paths that check-attr reports as unspecified: in a repository with no .gitattributes the driver was invoked and the merge exited 0, and removing merge.default made the identical merge exit 1 with the driver never called, so the old triage filtered away exactly the paths a repository-wide driver serves. Second, a configured driver that fails quietly produces byte-identical merge output to a driver name with no definition, so the previous claim that silence proves the driver never ran was false; GIT_TRACE=1 shows a run_command line naming the driver and is the actual proof of invocation. Third, git merge-tree resolves attributes from the checkout rather than from the commits passed as arguments, verified by moving HEAD to a commit without the attribute and watching the same two arguments stop invoking the driver, so the merge-tree control measures the local checkout. Fourth, this clone still defines merge.causal-graph.driver in .git/config, which contradicted the unqualified claim that no custom driver is defined. Five mechanical defects also confirmed: git fetch origin main does not bring in an open PR head, verified against PR #3707; xargs without -0 drops a path named single-quote.md and exits 1 under set -e; the negative control could not print its second status under set -e; step 3 checked one hardcoded driver name while claiming to check each; and the handoff-aggregate grep returns nine paths including .gitattributes and archived sessions, not only ADR prose. Both memories rewritten against all nine and the new snippets executed rather than reasoned about."
+    },
+    {
+      "timestamp": "2026-07-28T19:20:00Z",
+      "action": "Published the rebased branch without a force push, then found a second staleness mode on the PR itself.",
+      "outcome": "The push was rejected as non-fast-forward because the remote head predated a local rebase. Force pushing is prohibited, so I checked what the four remote-only commits actually touched: five paths, three of which local already carried in corrected form, and two of which local lacked on purpose, namely the causal graph that main deleted under ADR-089 and the single memory these two replace. Local was therefore a strict content superset, so I recorded the merge with the ours strategy and verified the tree hash was byte identical before and after. The push then fast forwarded. That cleared the stale CONFLICTING to MERGEABLE, confirming the ancestry diagnosis. It did not clear everything: the API still pinned base.sha to a main commit 30 commits old and reported 316 changed files against a real diff of 5, with every extra file being main's own work attributed to this branch. Merging current main in and pushing that moved base.sha to the base tip and the count to 5, and the PR description gate went from six warnings about files I never touched to a clean pass. The two staleness modes clear on different triggers: mergeability clears on any push that refreshes the ref, while the comparison base only moves when the head advances past the base tip. Documented both in the runbook with the measured numbers, and added a note to the disagreement memory because an inflated file count is exactly the kind of alarming signal that derails this triage while meaning nothing about drivers. Also fixed two pre-existing MD032 errors and one banned word in the runbook, which never surface in CI because the file is excluded from the in-tree markdownlint config."
+    }
+  ],
+  "endingCommit": "6e906b4e42",
+  "nextSteps": []
+}

@@ -51,6 +51,155 @@ class TestParseAdrStatus:
         content = "# ADR-001\n\n## Date\n\n2026-01-01\n"
         assert parse_adr_status(content) == "Unknown"
 
+    def test_extracts_bold_inline_status(self) -> None:
+        """ADR-005 and ADR-055 spell status as a bold header line."""
+        content = (
+            "# ADR-005: PowerShell-Only\n\n"
+            "**Status**: Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)\n"
+            "**Date**: 2025-12-18\n"
+        )
+        assert parse_adr_status(content) == (
+            "Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)"
+        )
+
+    def test_extracts_frontmatter_status(self) -> None:
+        """ADR-073 introduced machine-readable lifecycle frontmatter."""
+        content = "---\nid: ADR-073\nstatus: accepted\n---\n\n# ADR-073\n\n## Context\n"
+        assert parse_adr_status(content) == "accepted"
+
+    def test_frontmatter_wins_over_prose(self) -> None:
+        """The enum is the lifecycle value; prose sections are unbounded."""
+        content = (
+            "---\nstatus: superseded\n---\n\n"
+            "# ADR-004\n\n## Status\n\nAccepted (2026-01-01). Long debate summary.\n"
+        )
+        assert parse_adr_status(content) == "superseded"
+
+    def test_frontmatter_status_is_unquoted(self) -> None:
+        """A quoted YAML scalar must not carry its quotes into the report."""
+        content = '---\nstatus: "accepted"\n---\n\n# ADR-066\n'
+        assert parse_adr_status(content) == "accepted"
+
+    def test_frontmatter_without_closing_delimiter_is_ignored(self) -> None:
+        content = "---\nstatus: accepted\n\n# ADR-001\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
+    def test_crlf_frontmatter_is_read(self) -> None:
+        """A CRLF working copy must not fall through to the prose readers."""
+        content = (
+            "---\r\nstatus: superseded\r\n---\r\n\r\n"
+            "# ADR-004\r\n\r\n## Status\r\n\r\nAccepted (2026-01-01). Debate summary.\r\n"
+        )
+        assert parse_adr_status(content) == "superseded"
+
+    def test_trailing_whitespace_on_fence_is_read(self) -> None:
+        """An invisible space after the fence must not change the answer.
+
+        Two spaces is the case markdownlint permits by default (MD009
+        ``br_spaces``), and ``.agents/**`` is excluded from linting entirely,
+        so nothing upstream rejects this input.
+        """
+        for fence in ("--- ", "---\t", "---  "):
+            content = (
+                f"{fence}\nstatus: superseded\n---\n\n"
+                "# ADR-004\n\n## Status\n\nAccepted (2026-01-01). Debate summary.\n"
+            )
+            assert parse_adr_status(content) == "superseded", fence
+
+    def test_trailing_whitespace_on_closing_fence_is_read(self) -> None:
+        content = "---\nstatus: accepted\n---  \n\n# ADR-073\n"
+        assert parse_adr_status(content) == "accepted"
+
+    def test_longer_dash_run_is_not_a_fence(self) -> None:
+        """Widening the fence match must not accept a horizontal rule."""
+        content = "----\nstatus: accepted\n---\n\n# ADR-001\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
+    def test_text_after_fence_is_not_a_fence(self) -> None:
+        content = "--- x\nstatus: accepted\n---\n\n# ADR-001\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
+    def test_leading_whitespace_is_not_a_fence(self) -> None:
+        """A leading space is a horizontal rule and a tab is a code block.
+
+        Neither is frontmatter, so widening the fence must not admit them.
+        Non-Markdown whitespace is rejected for the same reason: ``str.strip``
+        would consume a non-breaking space or a form feed, which no Markdown
+        parser treats as indentation.
+        """
+        for fence in (" ---", "\t---", "\u00a0---", "\x0c---", "\x0b---"):
+            content = (
+                f"{fence}\nstatus: accepted\n---\n\n"
+                "# ADR-001\n\n## Status\n\nProposed\n"
+            )
+            assert parse_adr_status(content) == "Proposed", repr(fence)
+
+    def test_repeated_carriage_returns_are_not_a_fence(self) -> None:
+        """One CR is a line ending. Three is a malformed line, not a fence."""
+        content = "---\nstatus: accepted\n---\r\r\r\n\n# ADR-001\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
+    def test_ignores_status_mention_in_body(self) -> None:
+        """A bold Status line below the first heading is prose, not state."""
+        content = "# ADR-001\n\n## Context\n\n**Status**: COMPLETE\n"
+        assert parse_adr_status(content) == "Unknown"
+
+    def test_ignores_status_key_outside_frontmatter(self) -> None:
+        """A body line reading 'status: ...' is prose, not lifecycle state."""
+        content = "# ADR-001\n\n## Context\n\nThe report prints status: Unknown for these.\n"
+        assert parse_adr_status(content) == "Unknown"
+
+    def test_joins_a_status_wrapped_across_lines(self) -> None:
+        """ADR-004 wraps its status; reading one line truncates it."""
+        content = "# ADR-004\n\n## Status\n\nSuperseded by\n[ADR-086](ADR-086.md) on 2026-07-20.\n"
+        assert parse_adr_status(content) == (
+            "Superseded by [ADR-086](ADR-086.md) on 2026-07-20."
+        )
+
+    def test_empty_status_section_falls_through(self) -> None:
+        """An empty '## Status' must not report the next heading as the status."""
+        content = "# ADR-001\n\n## Status\n\n## Date\n\n2026-01-01\n"
+        assert parse_adr_status(content) == "Unknown"
+
+
+class TestStatusParsingCoversTheRealCorpus:
+    """Guards the spelling drift that made 17 of 90 ADRs unreadable.
+
+    ADR-073 flagged this exact risk against ``sync_adr_protocol.py``
+    ("Confirm no prose-status assumption breaks") and the confirmation was
+    never run. These tests are that confirmation, pinned to the corpus.
+    """
+
+    def test_no_committed_adr_reports_unknown_status(self) -> None:
+        adr_dir = Path(__file__).resolve().parents[1] / ".agents" / "architecture"
+        unreadable = [
+            path.name
+            for path in sorted(adr_dir.glob("ADR-*.md"))
+            if path.name != "ADR-TEMPLATE.md"
+            and parse_adr_status(path.read_text(encoding="utf-8")) == "Unknown"
+        ]
+        assert not unreadable, f"ADRs with unreadable status: {unreadable}"
+
+    def test_superseded_status_is_preserved_verbatim(self) -> None:
+        """A superseded ADR must not read as active state to a consumer."""
+        adr_dir = Path(__file__).resolve().parents[1] / ".agents" / "architecture"
+        adr_005 = adr_dir / "ADR-005-powershell-only-scripting.md"
+        status = parse_adr_status(adr_005.read_text(encoding="utf-8"))
+        assert status.lower().startswith("superseded"), status
+
+    def test_no_status_is_truncated_mid_sentence(self) -> None:
+        """ADR-004 wraps its status; a line-at-a-time read ends on 'Superseded by'."""
+        adr_dir = Path(__file__).resolve().parents[1] / ".agents" / "architecture"
+        dangling = ("by", "and", "on", "the", "a", "to", "of", "in", "for", "with")
+        truncated = [
+            f"{path.name}: {status}"
+            for path in sorted(adr_dir.glob("ADR-*.md"))
+            if path.name != "ADR-TEMPLATE.md"
+            and (status := parse_adr_status(path.read_text(encoding="utf-8")))
+            and status.rstrip().split()[-1].lower() in dangling
+        ]
+        assert not truncated, f"statuses ending on a dangling word: {truncated}"
+
 
 class TestCountRequirements:
     """Tests for count_requirements function."""

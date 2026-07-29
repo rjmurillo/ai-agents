@@ -108,6 +108,8 @@ def get_repo_root(start_dir: Path) -> Path:
             ["git", "-C", str(start_dir), "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=10,
         )
@@ -145,6 +147,8 @@ def get_staged_files(repo_root: Path) -> list[str]:
             ["git", "-C", str(repo_root), "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )

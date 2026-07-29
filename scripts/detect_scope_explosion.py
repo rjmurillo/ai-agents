@@ -58,6 +58,8 @@ def get_current_branch() -> str | None:
         ["git", "branch", "--show-current"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -75,6 +77,8 @@ def _ref_exists(ref: str) -> bool:
         ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -87,6 +91,8 @@ def get_ref_commit(ref: str) -> str | None:
         ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -146,6 +152,8 @@ def get_merge_base(base_branch: str) -> str | None:
         ["git", "merge-base", "HEAD", base_ref],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -159,6 +167,8 @@ def get_index_files_against_ref(base_ref: str) -> list[str]:
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", base_ref],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
