@@ -124,15 +124,15 @@
     ],
     "memory": [
       {
-        "prompt": "Explain the four memory tiers per ADR-007 and which tool serves each.",
-        "expected": "Tier 1 Semantic (Serena+Forgetful search). Tier 2 Episodic (session replay). Memory-first architecture: search before reasoning."
+        "prompt": "Explain the memory tiers per ADR-038 and which tool serves each.",
+        "expected": "Tier 0 Working (context window, host-managed). Tier 1 Semantic (Serena plus Forgetful search). Tier 2 Episodic (session replay). Tier 3 Causal was removed by ADR-089. Memory-first architecture: search before reasoning."
       },
       {
         "prompt": "I need to find prior decisions about ARM runner cost. Which tier?",
         "expected": "Tier 1 Semantic. Search Serena memories with cost runner ARM keywords. Read matched memory file. Forgetful is fallback."
       },
       {
-        "prompt": "Difference between Serena and Forgetful in this 4-tier system?",
+        "prompt": "Difference between Serena and Forgetful in this tiered system?",
         "expected": "Serena: project-scoped, LSP-aware, file-based memories under .serena/memories/. Forgetful: cross-project, semantic search via MCP. Both Tier 1."
       },
       {
