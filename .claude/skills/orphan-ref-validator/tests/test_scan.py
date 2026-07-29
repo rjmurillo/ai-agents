@@ -2065,25 +2065,72 @@ class TestKebabTokensNeedEvidence:
             "description"
         }
 
+    @pytest.mark.parametrize(
+        "head_noun", ["name", "names", "file", "files", "directory", "directories"]
+    )
+    def test_every_head_noun_issue_3727_names_is_guarded(self, fake_repo, head_noun):
+        """Issue #3727 lists these head nouns; each must defeat the type claim.
+
+        Parametrized rather than merged into one fixture so a regression names
+        the single noun that broke instead of failing on the whole set.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            f"Check the skill `description` {head_noun} before shipping.\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
     # -- a skill owned by another catalog is a correct reference --
 
-    def test_a_known_foreign_skill_is_not_an_orphan(self, fake_repo):
+    def test_a_catalog_qualified_foreign_skill_is_not_an_orphan(self, fake_repo):
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstack `claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+
+    def test_an_unqualified_foreign_skill_is_still_an_orphan(self, fake_repo):
+        """Issue #3728 exempts the qualified form only; the bare token stays a finding.
+
+        Without this the two-entry allowlist would swallow every future mention
+        of those tokens, including one that names a local skill gone missing.
+        """
+        write(
+            fake_repo / "notes" / "s.md",
+            "`claim-verification-before-ingest` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "claim-verification-before-ingest"
+        }
+
+    def test_a_wrongly_qualified_foreign_skill_is_still_an_orphan(self, fake_repo):
+        """A qualifier that is not the owning catalog is not a qualifier."""
         write(
             fake_repo / "notes" / "s.md",
             "gizmo `claim-verification-before-ingest` skill\n",
         )
-        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
+            "claim-verification-before-ingest"
+        }
 
     def test_an_unknown_foreign_looking_skill_is_still_an_orphan(
         self, fake_repo
     ):
         write(
             fake_repo / "notes" / "s.md",
-            "gizmo `not-a-foreign-skill` skill\n",
+            "gstack `not-a-foreign-skill` skill\n",
         )
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
             "not-a-foreign-skill"
         }
+
+    def test_the_owning_catalog_qualifies_only_its_own_token(self, fake_repo):
+        """Both tokens are gstack's, so each must accept the same qualifier."""
+        write(
+            fake_repo / "notes" / "s.md",
+            "gstack `front-gate-before-pipeline` skill\n",
+        )
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
     # -- sibling resolution is unchanged --
 
