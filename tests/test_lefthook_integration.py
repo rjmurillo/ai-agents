@@ -704,6 +704,13 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_commit["jobs"][0]["name"] == "repair-packed-refs"
     assert pre_push["jobs"][0]["name"] == "repair-packed-refs"
     assert pre_commit_jobs["markdown-autofix"]["stage_fixed"] is True
+    markdown_autofix_run = pre_commit_jobs["markdown-autofix"]["run"]
+    markdown_check_run = pre_commit_jobs["markdown-check"]["run"]
+    assert isinstance(markdown_autofix_run, str)
+    assert isinstance(markdown_check_run, str)
+    assert "scripts/validation/pre_pr.py --markdown-lint-only" in markdown_autofix_run
+    assert "scripts/validation/pre_pr.py --markdown-lint-only" in markdown_check_run
+    assert pre_commit_jobs["markdown-check"]["env"] == {"SKIP_AUTOFIX": "1"}
     assert pre_commit_jobs["python-autofix"]["stage_fixed"] is True
     merge_exempt_jobs = {
         "session-policy",
