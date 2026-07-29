@@ -62,10 +62,6 @@ _SCANNED_DIRS = (
 
 _SPAWN_ATTRS = frozenset({"run", "call", "check_call", "check_output", "Popen"})
 
-# Keywords that redirect a stream away from the inherited descriptor. Any one
-# of them means the child cannot interleave with the parent's buffer.
-_REDIRECTING_KWARGS = frozenset({"stdout", "stderr", "capture_output"})
-
 # Deliberately vulnerable fixtures for the security benchmarks. They exist to
 # be scanned by the CWE detectors, and editing them changes what those
 # detectors are measured against.
@@ -105,15 +101,32 @@ def _is_spawn(call: ast.Call, modules: set[str], functions: set[str]) -> bool:
     return isinstance(func, ast.Name) and func.id in functions
 
 
-def _inherits_stdout(call: ast.Call) -> bool:
-    """Report whether the child writes to the parent's own descriptor 1.
+def _redirects_stdout(kw: ast.keyword) -> bool:
+    """Report whether one keyword proves the child's stdout is redirected.
 
-    Conservative on purpose: a non-literal redirect such as
-    ``stdout=target`` may resolve to ``None`` at runtime, which inherits. Any
-    redirecting keyword at all is treated as a redirect so that this guard
-    reports only spawns it can prove inherit.
+    Only two keywords can redirect descriptor 1, and each has a spelling that
+    is written explicitly yet still inherits:
+
+    * ``capture_output=False`` is the documented default, not a redirect.
+    * ``stdout=None`` is likewise the inheriting default.
+
+    ``stderr`` never redirects stdout. ``stderr=subprocess.STDOUT`` points the
+    child's stderr AT the inherited descriptor, so it strengthens the case for
+    a flush rather than removing it.
+
+    Anything non-literal (``stdout=target``) counts as a redirect. That keeps
+    the guard reporting only spawns it can prove inherit.
     """
-    return not any(kw.arg in _REDIRECTING_KWARGS for kw in call.keywords)
+    if kw.arg == "capture_output":
+        return not (isinstance(kw.value, ast.Constant) and kw.value.value is False)
+    if kw.arg == "stdout":
+        return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
+    return False
+
+
+def _inherits_stdout(call: ast.Call) -> bool:
+    """Report whether the child writes to the parent's own descriptor 1."""
+    return not any(_redirects_stdout(kw) for kw in call.keywords)
 
 
 def _flushes_stdout(node: ast.stmt) -> bool:
@@ -262,6 +275,36 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
             "import subprocess\nsubprocess.run(['x'], capture_output=True)\n",
             [],
             id="capture-output-redirects",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], capture_output=False)\n",
+            [2],
+            id="capture-output-false-still-inherits",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], stdout=None)\n",
+            [2],
+            id="stdout-none-still-inherits",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], stderr=subprocess.PIPE)\n",
+            [2],
+            id="stderr-redirect-leaves-stdout-inherited",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], stderr=subprocess.STDOUT)\n",
+            [2],
+            id="stderr-into-stdout-still-inherits",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], capture_output=flag)\n",
+            [],
+            id="non-literal-capture-output-is-conservative",
+        ),
+        pytest.param(
+            "import subprocess\nsubprocess.run(['x'], stdout=target)\n",
+            [],
+            id="non-literal-stdout-is-conservative",
         ),
         pytest.param(
             "import subprocess\nsubprocess.run(['x'], stdout=subprocess.PIPE)\n",
