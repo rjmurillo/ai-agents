@@ -106,6 +106,11 @@ class TestIsGitHubNameValid:
     def test_valid_repo(self):
         assert is_github_name_valid("ai-agents", "Repo") is True
 
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_name_type_is_case_insensitive(self, name_type: str):
+        assert is_github_name_valid("ai-agents", name_type) is True
+        assert is_github_name_valid("..", name_type) is False
+
     def test_repo_allows_dots(self):
         assert is_github_name_valid("my.repo.name", "Repo") is True
 
