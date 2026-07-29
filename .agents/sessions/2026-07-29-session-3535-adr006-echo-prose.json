@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3535,
+    "date": "2026-07-29",
+    "branch": "fix/3535-3549-adr006-echo-prose",
+    "startingCommit": "1eb5bea17a",
+    "objective": "Fix a false-positive class in the ADR-006 run-block scanner. The logic detector matched English words inside echo message text, so blocks containing no shell logic at all were counted as ADR-006 violations. Six of the 71 reported violations were pure-output blocks flagged only because remediation prose contains the words 'if' or 'for'."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3535-3549-adr006-echo-prose after checkout -b from origin/main at 1eb5bea17a"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3535-3549-adr006-echo-prose, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md at campaign start; read the discourse on issues #3535, #3545, #3546, #3549 and the parent ADR-006 extraction family before measuring"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit so branch-context-policy resolves the branch"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was not reachable in this harness. Fell back to reading .serena/memories/ directly per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not available; see serenaActivated"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read ADR-006 (no logic in workflow YAML) and the scanner's own docstring, which already documents stripping '#' comments to avoid keyword false positives from comment text. This change applies the identical idea to quoted operands of output-only commands."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Scanner fix landed with 12 new tests; three separate guards each proven load-bearing by mutation; ratchet lowered from 71 to 66 with zero slack"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files changed in this commit; scoped lint is a no-op"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Single commit on fix/3535-3549-adr006-echo-prose covering the scanner, its tests, and both ratchet literals"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "63/63 tests pass across tests/ci/test_adr006_run_block_scanner.py and tests/ci/test_pr_validation_workflow.py; uv run ruff check passes; scripts/validate_workflows.py exits 0; scanner exits 0 at --max 66 and 1 at --max 65, proving the new ceiling carries no slack"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Campaign is still in flight; the retrospective belongs at the end of it"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Re-measured the premise of the ADR-006 extraction family before writing any extraction. The scanner flags a run block when it exceeds 10 code lines AND matches a logic pattern. The logic pattern includes word-boundary \\bif\\b and \\bfor\\b, which match English prose inside echo message text. Example from validate-paths.yml: echo \"  3. Use forward slashes (/) for cross-platform compatibility\" matches \\bfor\\b. Six of 71 reported violations are pure-output blocks containing zero shell logic."
+    },
+    {
+      "step": "Found decisive corroboration inside the scanner's own test suite. test_large_pure_output_block_is_not_flagged already asserts that a large pure-output block is not a violation. It passes only because its synthetic fixture uses echo \"line 0\", which contains no English keyword. The intended behavior was already specified; the implementation did not deliver it against real prose."
+    },
+    {
+      "step": "Established this is a bug fix, not a policy loosening. scan_text already strips '#' comments with the stated reason of avoiding keyword false positives from comment text. Blanking the quoted operands of echo and printf is the same idea applied to the other place static text lives in a run block."
+    },
+    {
+      "step": "Designed _strip_static_output conservatively so it can only shrink false positives, never hide real logic. It touches a line only when the command is echo or printf. Within such a line it blanks only fully quoted operands that contain no expansion. An operand carrying $( or ${ or $VAR or an unescaped backtick is left intact. Everything outside the quotes survives, so a redirect to $GITHUB_STEP_SUMMARY, a pipe into jq, and a trailing if all still match."
+    },
+    {
+      "step": "Measured the effect: 71 violations drop to 66. Exactly five blocks clear and zero blocks are newly flagged. Cleared: validate-paths.yml:95, validate-planning-artifacts.yml:78, validate-spec-id-uniqueness.yml:71, validate-vendor-portability.yml:102, agent-drift-detection.yml:296. Correctly not cleared: copilot-context-synthesis.yml:130, which redirects to $GITHUB_STEP_SUMMARY and interpolates ${ISSUE_NUMBER}."
+    },
+    {
+      "step": "Added 12 tests covering the positive prose case, five negative controls (adjacent real if, command substitution, brace expansion, step-summary redirect, pipe into jq), and edge cases (escaped quote, escaped backtick, live backtick, non-output command, printf, and the four live workflows now scanning clean)."
+    },
+    {
+      "step": "Mutation-tested all three guards independently. Disabling the strip entirely fails 2 tests. Removing the expansion guard fails 3. Removing the echo/printf command restriction fails 1. Each guard is individually load-bearing; none is decorative."
+    },
+    {
+      "step": "Lowered the CI ratchet from --max 71 to --max 66 in .github/workflows/pr-validation.yml and its assertion in tests/ci/test_pr_validation_workflow.py. Verified the new ceiling is tight: the scanner exits 0 at 66 and exits 1 at 65, so the gate cannot silently absorb a regression."
+    },
+    {
+      "step": "Scope note for reviewers: issues #3549, #3545, #3546 and #3535 each named a file whose only reported violation was one of these false positives, so the scanner fix closes them without any workflow edit. Issue #3521 (agent-drift-detection.yml) has a second, genuine violation at line 149 and stays open."
+    }
+  ],
+  "endingCommit": "21f03d73b",
+  "nextSteps": [
+    "Open the PR covering #3535, #3545, #3546, #3549",
+    "Continue the remaining genuine ADR-006 extractions against the 66 real violations"
+  ]
+}
