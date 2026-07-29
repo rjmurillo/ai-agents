@@ -8,6 +8,7 @@ GITHUB_OUTPUT emission and CLI exit codes, per TESTING-RIGOR.
 
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 import sys
@@ -428,9 +429,119 @@ def test_a_linear_branch_of_twenty_five_is_still_blocked(
     assert f"commit_limit={mod.BLOCK_THRESHOLD}" in written
 
 
+_CEILING_NAMES = ("BLOCK_THRESHOLD", "MAIN_MERGE_BLOCK_THRESHOLD")
+
+
+def _ceilings_restated_in(source: str) -> set[str]:
+    """Return the ceiling names this source assigns instead of importing.
+
+    An identity assertion cannot answer the drift question: CPython interns
+    small integers, so ``a.BLOCK_THRESHOLD is b.BLOCK_THRESHOLD`` holds even
+    when both modules restate ``20`` independently. The property that actually
+    fails on drift is structural, so read it off the syntax tree.
+    """
+    tree = ast.parse(source)
+    restated: set[str] = set()
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id in _CEILING_NAMES:
+                restated.add(target.id)
+    return restated
+
+
+def _ceilings_imported_in(source: str) -> set[str]:
+    """Return the ceiling names this source pulls in through an import."""
+    imported: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in _CEILING_NAMES:
+                    imported.add(alias.name)
+    return imported
+
+
 def test_the_hook_and_ci_read_the_same_two_ceilings() -> None:
     """Issue #3596: one number in one place. A second literal would drift."""
-    from scripts.validation import git_hook_policy
+    source = (
+        _PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py"
+    ).read_text(encoding="utf-8")
 
-    assert git_hook_policy.BLOCK_THRESHOLD is mod.BLOCK_THRESHOLD
-    assert git_hook_policy.MAIN_MERGE_BLOCK_THRESHOLD is mod.MAIN_MERGE_BLOCK_THRESHOLD
+    assert _ceilings_restated_in(source) == set()
+    assert _ceilings_imported_in(source) == set(_CEILING_NAMES)
+
+
+def test_the_drift_detector_flags_a_restated_ceiling() -> None:
+    """The detector must be able to fail, or the check above proves nothing.
+
+    This is the control the interned-integer assertion could never have: a
+    source that genuinely restates the literal is flagged, so a green run of
+    the test above is evidence rather than a tautology.
+    """
+    drifted = "BLOCK_THRESHOLD = 20\nMAIN_MERGE_BLOCK_THRESHOLD: int = 40\n"
+
+    assert _ceilings_restated_in(drifted) == set(_CEILING_NAMES)
+    assert _ceilings_imported_in(drifted) == set()
+
+
+def test_the_drift_detector_ignores_unrelated_assignments() -> None:
+    """Names that merely look similar must not be read as a restated ceiling."""
+    unrelated = "OTHER_BLOCK_THRESHOLD = 20\nthreshold = 40\n"
+
+    assert _ceilings_restated_in(unrelated) == set()
+
+
+# ---------------------------------------------------------------------------
+# contains_base_merge: malformed parents must not grant the relaxed ceiling
+# ---------------------------------------------------------------------------
+
+
+def _merge(*parent_entries: object) -> list[dict[str, object]]:
+    """Build a one-commit payload whose merge parents are the given entries."""
+    return [{"sha": "own", "parents": [{"sha": "own"}, *parent_entries]}]
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        ("parent dict without a sha key", _merge({"url": "https://example"})),
+        ("parent sha is null", _merge({"sha": None})),
+        ("parent sha is empty", _merge({"sha": ""})),
+        ("parent sha is not a string", _merge({"sha": 17})),
+        ("every parent is malformed", _merge({"sha": None}, {"nope": 1})),
+    ],
+)
+def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
+    label: str, payload: list[dict[str, object]]
+) -> None:
+    """Malformed payloads fail closed, keeping the stricter 20-commit ceiling.
+
+    ``contains_base_merge`` gates an *exemption*: True raises the ceiling from
+    BLOCK_THRESHOLD to MAIN_MERGE_BLOCK_THRESHOLD. A parent entry we cannot
+    read is not evidence of a base merge, so it must not buy the relief.
+    """
+    assert mod.contains_base_merge(payload) is False, label
+
+
+@pytest.mark.parametrize(
+    ("label", "payload", "expected"),
+    [
+        ("parent outside the branch is a real base merge", _merge({"sha": "external"}), True),
+        ("all parents authored by the branch", _merge({"sha": "own"}), False),
+        ("parent entry is not a mapping", _merge("external"), False),
+        ("malformed beside a genuine external parent", _merge({"sha": None}, {"sha": "ext"}), True),
+        ("no merge commit at all", [{"sha": "own", "parents": [{"sha": "own"}]}], False),
+        ("parents key missing", [{"sha": "own"}], False),
+        ("commit is not a mapping", ["own"], False),
+        ("empty payload", [], False),
+    ],
+)
+def test_contains_base_merge_controls(
+    label: str, payload: list[object], expected: bool
+) -> None:
+    """Behaviour that must survive the malformed-parent narrowing unchanged."""
+    assert mod.contains_base_merge(payload) is expected, label

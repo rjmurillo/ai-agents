@@ -128,6 +128,22 @@ def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
     return "OK"
 
 
+def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
+    """Return True only when this parent is a readable sha the branch does not own.
+
+    ``contains_base_merge`` gates an exemption, so an unreadable parent must not
+    buy it. A parent that is not a mapping, carries no ``sha``, or carries a
+    non-string ``sha`` is unreadable and fails closed to False rather than
+    reading as evidence of an external merge.
+    """
+    if not isinstance(parent, dict):
+        return False
+    sha = parent.get("sha")
+    if not isinstance(sha, str) or not sha:
+        return False
+    return sha not in own_shas
+
+
 def contains_base_merge(commits: list[Any]) -> bool:
     """Return True when the PR carries a merge commit from outside the branch.
 
@@ -137,21 +153,20 @@ def contains_base_merge(commits: list[Any]) -> bool:
     server-side equivalent of the hook's `merge-base --is-ancestor` check
     against origin/main.
     """
-    own_shas = {
-        commit.get("sha")
-        for commit in commits
-        if isinstance(commit, dict) and commit.get("sha")
-    }
+    own_shas: set[str] = set()
+    for commit in commits:
+        if not isinstance(commit, dict):
+            continue
+        own_sha = commit.get("sha")
+        if isinstance(own_sha, str) and own_sha:
+            own_shas.add(own_sha)
     for commit in commits:
         if not isinstance(commit, dict):
             continue
         parents = commit.get("parents")
         if not isinstance(parents, list) or len(parents) < 2:
             continue
-        if any(
-            isinstance(parent, dict) and parent.get("sha") not in own_shas
-            for parent in parents[1:]
-        ):
+        if any(_is_external_parent(parent, own_shas) for parent in parents[1:]):
             return True
     return False
 
