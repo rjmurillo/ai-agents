@@ -36,6 +36,7 @@ from _optimizer_core import (  # noqa: E402
     Patch,
     PatchShapeError,
     ProtectedSectionError,
+    ScoreEvidence,
     SplitTooSmallError,
     apply_patches,
     buffer_contains,
@@ -63,6 +64,19 @@ def _ids(n: int, prefix: str = "F") -> list[str]:
 def _half_up_fraction(total: int, ratio: str) -> int:
     value = Fraction(total) * Fraction(ratio)
     return (value + Fraction(1, 2)).numerator // (value + Fraction(1, 2)).denominator
+
+
+def _evidence(value: float, label: str) -> ScoreEvidence:
+    return ScoreEvidence(value, {"schema": "test-provenance", "source": label})
+
+
+_core_gate = gate
+
+
+def gate_(candidate: float, incumbent: float, **kwargs):
+    return _core_gate(
+        _evidence(candidate, "candidate"), _evidence(incumbent, "incumbent"), **kwargs
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +241,7 @@ class TestSplitTasks:
 
     # -- edge ---------------------------------------------------------------
 
-    def test_min_sel_zero_allows_a_degenerate_gate(self):
+    def test_min_sel_zero_allows_a_degenerate_gate_(self):
         """Explicitly opting out of the floor is allowed; it is not the default."""
         split = split_tasks(_ids(4), seed="s", sel_ratio=0.25, min_sel=0)
         assert len(split.sel) == 1
@@ -829,28 +843,28 @@ class TestGateRegressionGuard:
     """
 
     def test_rejects_a_net_win_that_breaks_a_passing_task(self):
-        result = gate(0.8, 0.6, discordant_loss=1)
+        result = gate_(0.8, 0.6, discordant_loss=1)
         assert result.decision == "REJECT"
         assert "regress" in result.reason
 
     def test_names_how_many_tasks_broke(self):
-        result = gate(0.8, 0.6, discordant_loss=2)
+        result = gate_(0.8, 0.6, discordant_loss=2)
         assert "2" in result.reason
 
     def test_accepts_a_win_with_no_regression(self):
-        assert gate(0.8, 0.6, discordant_loss=0).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, discordant_loss=0).decision == "ACCEPT"
 
     def test_defaults_to_no_regression_when_counts_are_unknown(self):
         """Per-task detail is optional, so the aggregate path must still work."""
-        assert gate(0.8, 0.6).decision == "ACCEPT"
+        assert gate_(0.8, 0.6).decision == "ACCEPT"
 
     def test_rejects_a_negative_discordant_loss(self):
         with pytest.raises(ValueError, match="discordant_loss"):
-            gate(0.8, 0.6, discordant_loss=-1)
+            gate_(0.8, 0.6, discordant_loss=-1)
 
     def test_a_regression_still_counts_as_compared(self):
         """The scores were weighed, so the consultation was spent."""
-        assert gate(0.8, 0.6, discordant_loss=1).compared is True
+        assert gate_(0.8, 0.6, discordant_loss=1).compared is True
 
     def test_there_is_no_override_for_a_broken_task(self):
         """This test used to assert an `allow_regressions` bypass existed.
@@ -861,11 +875,11 @@ class TestGateRegressionGuard:
         the broken task. The parameter is gone; a net gain never buys one.
         """
         with pytest.raises(TypeError):
-            gate(0.8, 0.6, discordant_loss=1, allow_regressions=True)
-        assert gate(0.8, 0.6, discordant_loss=1).decision == "REJECT"
+            gate_(0.8, 0.6, discordant_loss=1, allow_regressions=True)
+        assert gate_(0.8, 0.6, discordant_loss=1).decision == "REJECT"
 
     def test_the_fingerprint_guard_still_wins_over_the_regression_guard(self):
-        result = gate(
+        result = gate_(
             0.8,
             0.6,
             discordant_loss=1,
@@ -877,89 +891,97 @@ class TestGateRegressionGuard:
 
 
 class TestGate:
+    def test_rejects_bare_scores_without_provenance(self):
+        with pytest.raises(ValueError, match="requires extraction provenance"):
+            _core_gate(0.8, 0.6)
+
+    def test_rejects_empty_score_provenance(self):
+        with pytest.raises(ValueError, match="non-empty extraction provenance"):
+            _core_gate(ScoreEvidence(0.8, {}), _evidence(0.6, "incumbent"))
+
     def test_a_strict_win_is_accepted(self):
-        assert gate(0.8, 0.6).decision == "ACCEPT"
+        assert gate_(0.8, 0.6).decision == "ACCEPT"
 
     def test_a_tie_is_rejected(self):
-        result = gate(0.6, 0.6)
+        result = gate_(0.6, 0.6)
         assert result.decision == "REJECT"
         assert "tie" in result.reason
 
     def test_a_regression_is_rejected(self):
-        result = gate(0.4, 0.6)
+        result = gate_(0.4, 0.6)
         assert result.decision == "REJECT"
         assert "regress" in result.reason
 
     def test_carries_both_scores(self):
-        result = gate(0.8, 0.6)
+        result = gate_(0.8, 0.6)
         assert result.candidate == 0.8
         assert result.incumbent == 0.6
 
     def test_a_hair_above_the_incumbent_still_wins(self):
-        assert gate(0.6000001, 0.6).decision == "ACCEPT"
+        assert gate_(0.6000001, 0.6).decision == "ACCEPT"
 
     def test_reports_how_many_times_the_split_was_consulted(self):
-        assert gate(0.8, 0.6, sel_consultations=4).sel_consultations == 4
+        assert gate_(0.8, 0.6, sel_consultations=4).sel_consultations == 4
 
     def test_a_scored_comparison_reports_compared(self):
-        assert gate(0.8, 0.6).compared is True
+        assert gate_(0.8, 0.6).compared is True
 
     def test_a_tie_still_counts_as_a_comparison(self):
-        assert gate(0.6, 0.6).compared is True
+        assert gate_(0.6, 0.6).compared is True
 
     def test_a_regression_still_counts_as_a_comparison(self):
-        assert gate(0.4, 0.6).compared is True
+        assert gate_(0.4, 0.6).compared is True
 
     def test_a_fingerprint_refusal_did_not_compare(self):
         """No comparison happened, so the caller must not burn a consultation."""
-        result = gate(0.9, 0.1, split_fingerprint="a", incumbent_fingerprint="b")
+        result = gate_(0.9, 0.1, split_fingerprint="a", incumbent_fingerprint="b")
         assert result.decision == "REJECT"
         assert result.compared is False
 
     def test_an_exhausted_refusal_did_not_compare(self):
-        result = gate(0.9, 0.1, sel_consultations=3, max_consultations=3)
+        result = gate_(0.9, 0.1, sel_consultations=3, max_consultations=3)
         assert result.decision == "REJECT"
         assert result.compared is False
 
     def test_refuses_once_the_split_is_exhausted(self):
         """Gating N times on one split selects on it N times."""
-        result = gate(0.9, 0.1, sel_consultations=10, max_consultations=10)
+        result = gate_(0.9, 0.1, sel_consultations=10, max_consultations=10)
         assert result.decision == "REJECT"
         assert "exhausted" in result.reason
 
     def test_allows_the_last_consultation_before_the_limit(self):
-        assert gate(0.9, 0.1, sel_consultations=9, max_consultations=10).decision == "ACCEPT"
+        assert gate_(0.9, 0.1, sel_consultations=9, max_consultations=10).decision == "ACCEPT"
 
     def test_unlimited_consultations_by_default(self):
-        assert gate(0.9, 0.1, sel_consultations=999).decision == "ACCEPT"
+        assert gate_(0.9, 0.1, sel_consultations=999).decision == "ACCEPT"
 
     def test_refuses_a_changed_split_fingerprint(self):
         """Adding fixtures after a loss must not resurrect the incumbent."""
-        result = gate(0.9, 0.1, split_fingerprint="abc", incumbent_fingerprint="xyz")
+        result = gate_(0.9, 0.1, split_fingerprint="abc", incumbent_fingerprint="xyz")
         assert result.decision == "REJECT"
         assert "fingerprint" in result.reason
 
     def test_matching_fingerprints_pass_through(self):
-        result = gate(0.9, 0.1, split_fingerprint="abc", incumbent_fingerprint="abc")
+        result = gate_(0.9, 0.1, split_fingerprint="abc", incumbent_fingerprint="abc")
         assert result.decision == "ACCEPT"
 
     @pytest.mark.parametrize("value", [-0.1, 1.1])
     def test_rejects_an_out_of_range_candidate(self, value):
         with pytest.raises(ValueError, match="candidate"):
-            gate(value, 0.5)
+            gate_(value, 0.5)
 
     @pytest.mark.parametrize("value", [-0.1, 1.1])
     def test_rejects_an_out_of_range_incumbent(self, value):
         with pytest.raises(ValueError, match="incumbent"):
-            gate(0.5, value)
+            gate_(0.5, value)
 
     def test_rejects_negative_consultations(self):
         with pytest.raises(ValueError, match="sel_consultations"):
-            gate(0.8, 0.6, sel_consultations=-1)
+            gate_(0.8, 0.6, sel_consultations=-1)
 
     def test_rejects_a_non_positive_consultation_limit(self):
         with pytest.raises(ValueError, match="max_consultations"):
-            gate(0.8, 0.6, max_consultations=0)
+            gate_(0.8, 0.6, max_consultations=0)
 
 
 # ---------------------------------------------------------------------------
@@ -1176,7 +1198,7 @@ class TestSplitFingerprint:
 class TestGuardRefusalValidatesItsOwnCap:
     """A nonsense cap must be refused, not silently mean "always exhausted".
 
-    `gate()` rejects a cap below one, but callers reach `guard_refusal` first
+    `gate_()` rejects a cap below one, but callers reach `guard_refusal` first
     so they can ask before scoring anything. Without the same check there, a
     typo like `--max-consultations -1` reads as a permanently exhausted budget
     and looks exactly like legitimate discipline.
@@ -1223,67 +1245,67 @@ class TestSignificanceCanBeEnforcedNotJustReported:
     """
 
     def test_a_gain_whose_tail_exceeds_the_bar_is_refused(self):
-        result = gate(0.8, 0.6, p_value=0.25, max_p=0.05, max_consultations=1)
+        result = gate_(0.8, 0.6, p_value=0.25, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "0.25" in result.reason and "0.05" in result.reason
 
     def test_the_same_gain_is_accepted_when_no_bar_is_set(self):
-        assert gate(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
 
     def test_a_gain_whose_tail_clears_the_bar_is_accepted(self):
         assert (
-            gate(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
+            gate_(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
         )
 
     def test_p_equal_to_the_corrected_bar_passes(self):
         """The bar is a maximum, so equality is inside it, not outside."""
-        assert gate(0.8, 0.6, p_value=0.01, max_p=0.05, max_consultations=5).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, p_value=0.01, max_p=0.05, max_consultations=5).decision == "ACCEPT"
 
     def test_a_bar_with_no_p_value_refuses_to_run(self):
         """Fail closed. An unknown tail is not evidence that it clears the bar."""
         with pytest.raises(ValueError, match="p_value"):
-            gate(0.8, 0.6, max_p=0.05, max_consultations=5)
+            gate_(0.8, 0.6, max_p=0.05, max_consultations=5)
 
     def test_a_regression_still_outranks_the_significance_bar(self):
         """Both refuse; the broken task is the one worth naming first."""
-        result = gate(
+        result = gate_(
             0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05, max_consultations=1
         )
         assert result.decision == "REJECT"
         assert "regressed" in result.reason
 
     def test_a_tie_is_still_a_tie_under_a_bar(self):
-        result = gate(0.6, 0.6, p_value=0.001, max_p=0.05, max_consultations=1)
+        result = gate_(0.6, 0.6, p_value=0.001, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "tie" in result.reason
 
     @pytest.mark.parametrize("bad", [-0.1, 1.1, 2.0])
     def test_a_bar_outside_the_unit_interval_is_refused(self, bad):
         with pytest.raises(ValueError, match="max_p must be in"):
-            gate(0.8, 0.6, p_value=0.25, max_p=bad, max_consultations=1)
+            gate_(0.8, 0.6, p_value=0.25, max_p=bad, max_consultations=1)
 
     @pytest.mark.parametrize("bad", [-0.1, 1.1])
     def test_a_p_value_outside_the_unit_interval_is_refused(self, bad):
         with pytest.raises(ValueError, match="p_value must be in"):
-            gate(0.8, 0.6, p_value=bad, max_p=0.05, max_consultations=1)
+            gate_(0.8, 0.6, p_value=bad, max_p=0.05, max_consultations=1)
 
     @pytest.mark.parametrize("edge", [0.0, 1.0])
     def test_the_unit_interval_endpoints_are_legal(self, edge):
-        gate(0.8, 0.6, p_value=edge, max_p=1.0, max_consultations=1)
-        gate(0.8, 0.6, p_value=0.0, max_p=edge, max_consultations=1)
+        gate_(0.8, 0.6, p_value=edge, max_p=1.0, max_consultations=1)
+        gate_(0.8, 0.6, p_value=0.0, max_p=edge, max_consultations=1)
 
     def test_a_bar_of_zero_refuses_every_nonzero_tail(self):
         """0.0 is a legal bar and means only a certain result passes."""
         assert (
-            gate(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
+            gate_(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
         )
         assert (
-            gate(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
+            gate_(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
         )
 
     def test_the_bar_never_rescues_a_guard_refusal(self):
         """A moved fingerprint is not comparable, significant or not."""
-        result = gate(
+        result = gate_(
             0.8,
             0.6,
             split_fingerprint="a",
@@ -1317,34 +1339,34 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
     def test_the_bar_is_divided_across_the_declared_budget(self):
         """0.05 over five consultations is 0.01 per comparison."""
         assert (
-            gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
+            gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
         )
-        assert gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=2).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=2).decision == "ACCEPT"
 
     def test_the_refusal_names_both_the_family_bar_and_the_corrected_one(self):
-        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        result = gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
         assert "0.05" in result.reason
         assert "0.01" in result.reason
 
     def test_a_single_consultation_budget_leaves_the_bar_alone(self):
         """With a family of one there is nothing to correct."""
-        assert gate(0.8, 0.6, p_value=0.05, max_p=0.05, max_consultations=1).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, p_value=0.05, max_p=0.05, max_consultations=1).decision == "ACCEPT"
         assert (
-            gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
+            gate_(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
         )
 
     def test_a_bar_without_a_declared_budget_refuses_to_run(self):
         """An undeclared family size cannot be corrected for, so fail closed."""
         with pytest.raises(ValueError, match="max_consultations"):
-            gate(0.8, 0.6, p_value=0.01, max_p=0.05)
+            gate_(0.8, 0.6, p_value=0.01, max_p=0.05)
 
     def test_no_bar_still_needs_no_budget(self):
         """The correction is only owed when a bar was asked for."""
-        assert gate(0.8, 0.6, p_value=0.9).decision == "ACCEPT"
+        assert gate_(0.8, 0.6, p_value=0.9).decision == "ACCEPT"
 
     def test_the_correction_cannot_be_escaped_by_raising_the_budget(self):
         """A larger budget buys more looks, each held to a stricter bar."""
-        strict = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=100)
+        strict = gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=100)
         assert strict.decision == "REJECT"
 
 
@@ -1360,19 +1382,19 @@ class TestBothBarsAreLabeledInTheRefusal:
     """
 
     def test_each_number_carries_the_label_that_says_which_bar_it_is(self):
-        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        result = gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
         assert result.decision == "REJECT"
         assert "per-comparison bar of 0.01" in result.reason
         assert "0.05 family bar" in result.reason
 
     def test_the_refusal_shows_the_arithmetic_that_produced_the_corrected_bar(self):
         """Naming both bars is not enough; the reader must be able to check them."""
-        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        result = gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
         assert "divided across 5 consultation(s)" in result.reason
 
     def test_the_ambiguous_fragment_is_gone(self):
         """Negative control: the exact phrasing the reviewer could not parse."""
-        result = gate(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
+        result = gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5)
         assert "this comparison is allowed" not in result.reason
 
     def test_a_family_of_one_still_labels_both_bars_and_states_the_division(self):
@@ -1382,7 +1404,7 @@ class TestBothBarsAreLabeledInTheRefusal:
         changes nothing, rather than dropping the arithmetic and leaving the
         reader unable to tell a corrected bar from an uncorrected one.
         """
-        result = gate(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1)
+        result = gate_(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "per-comparison bar of 0.05" in result.reason
         assert "0.05 family bar" in result.reason
