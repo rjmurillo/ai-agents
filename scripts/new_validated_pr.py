@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         gh_args = ["gh", "pr", "create", "--web"]
         if args.base:
             gh_args.extend(["--base", args.base])
+        sys.stdout.flush()
         result = subprocess.run(gh_args)
         return result.returncode
 
@@ -85,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.audit_reason:
             skill_args.extend(["-AuditReason", args.audit_reason])
 
+    sys.stdout.flush()
     result = subprocess.run(skill_args)
     return result.returncode
 

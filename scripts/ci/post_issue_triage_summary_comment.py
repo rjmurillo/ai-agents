@@ -16,6 +16,7 @@ DEFAULT_OUTPUT = Path(os.environ.get("RUNNER_TEMP", ".")) / "triage-comment.md"
 
 
 def post_comment(*, issue_number: str, body_file: Path) -> int:
+    sys.stdout.flush()
     result = subprocess.run(
         [
             "python3",
