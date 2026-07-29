@@ -128,5 +128,5 @@
     "The Windows-only class cannot prove durability without power-cut injection. If that ever becomes available, the three tests in TestOnRealWindows are where the real proof belongs.",
     "_write_atomic has four callers and only the ledger needs crash persistence. Making all four durable was simpler than special-casing one and costs a flag bit per write, so no caller-specific path was added."
   ],
-  "endingCommit": ""
+  "endingCommit": "2c4100a351831dd656b92b7674de01e30e91e4a9"
 }
