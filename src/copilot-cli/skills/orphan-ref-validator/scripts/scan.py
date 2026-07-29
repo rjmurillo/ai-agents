@@ -89,6 +89,7 @@ if __package__ in (None, ""):
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
+        is_qualified_foreign_skill,
     )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
@@ -125,6 +126,7 @@ else:
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
+        is_qualified_foreign_skill,
     )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
@@ -162,6 +164,7 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
 
 _is_known_kebab_word = is_known_kebab_word
 _foreign_skill_catalog = foreign_skill_catalog
+_is_qualified_foreign_skill = is_qualified_foreign_skill
 _is_known_retired_kebab_skill = is_known_retired_kebab_skill
 _is_known_single_word_skill = is_known_single_word_skill
 
@@ -384,8 +387,10 @@ def _check_skill_refs(
     siblings = sibling_names if sibling_names is not None else frozenset()
     typed = extract_typed_skill_refs(text)
     typed_only = _requires_typed_skill_refs(rel)
+    lines = text.splitlines()
     for lineno, ref in extract_skill_refs(text):
-        if _is_known_kebab_word(ref) or _foreign_skill_catalog(ref):
+        line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
+        if _is_known_kebab_word(ref) or _is_qualified_foreign_skill(ref, line):
             continue
         is_typed = (lineno, ref) in typed
         in_retired = _is_known_retired_kebab_skill(ref)
