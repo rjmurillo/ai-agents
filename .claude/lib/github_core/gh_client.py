@@ -12,6 +12,29 @@ logger = logging.getLogger(__name__)
 _TIMEOUT = 30
 
 
+def _run(args: list[str], *, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+    """Run a ``gh`` command and capture its output as UTF-8 text.
+
+    ``gh`` writes raw UTF-8, including in JSON string values, which are not
+    escaped. Without an explicit ``encoding`` Python decodes with the locale's
+    preferred codec, so a cp1252 or cp932 runner decodes the same bytes into
+    different characters and ``json.loads`` accepts the result. That is silent
+    corruption, and a caller that writes the value back to GitHub persists it.
+    ``errors="replace"`` keeps a truncated multi-byte read from raising in the
+    middle of an otherwise usable response.
+    """
+
+    return subprocess.run(
+        args,
+        input=stdin,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_TIMEOUT,
+    )
+
+
 class GhCliClient:
     """GitHubClient implementation that delegates to ``gh`` CLI subprocess calls.
 
@@ -21,12 +44,7 @@ class GhCliClient:
 
     def rest_get(self, endpoint: str) -> dict[str, Any]:
         """GET a single GitHub REST endpoint and return parsed JSON."""
-        result = subprocess.run(
-            ["gh", "api", endpoint],
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
+        result = _run(["gh", "api", endpoint])
         if result.returncode != 0:
             raise RuntimeError(
                 f"gh api GET {endpoint} failed: {result.stderr.strip()}"
@@ -36,12 +54,9 @@ class GhCliClient:
 
     def rest_post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         """POST to a GitHub REST endpoint and return parsed JSON."""
-        result = subprocess.run(
+        result = _run(
             ["gh", "api", endpoint, "-X", "POST", "--input", "-"],
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
+            stdin=json.dumps(payload),
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -52,12 +67,9 @@ class GhCliClient:
 
     def rest_patch(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         """PATCH a GitHub REST endpoint and return parsed JSON."""
-        result = subprocess.run(
+        result = _run(
             ["gh", "api", endpoint, "-X", "PATCH", "--input", "-"],
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
+            stdin=json.dumps(payload),
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -80,12 +92,7 @@ class GhCliClient:
             else:
                 gh_args.extend(["-f", f"{key}={value}"])
 
-        result = subprocess.run(
-            gh_args,
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
+        result = _run(gh_args)
         if result.returncode != 0:
             raise RuntimeError(
                 f"GraphQL request failed: {result.stderr.strip()}"
@@ -102,12 +109,7 @@ class GhCliClient:
     def is_authenticated(self) -> bool:
         """Return True if ``gh auth status`` exits 0."""
         try:
-            result = subprocess.run(
-                ["gh", "auth", "status"],
-                capture_output=True,
-                text=True,
-                timeout=_TIMEOUT,
-            )
+            result = _run(["gh", "auth", "status"])
             return result.returncode == 0
         except FileNotFoundError:
             logger.debug("GitHub CLI (gh) not found on PATH")
