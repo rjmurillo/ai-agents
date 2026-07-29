@@ -1643,6 +1643,19 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'C.runner(["x"], capture_output=True, text=True)',
             "a case body binds in the class namespace too",
         ),
+        (
+            'import subprocess, contextlib\n'
+            'class C:\n'
+            '    with contextlib.suppress(Exception):\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a with body binds in the class namespace too",
+        ),
+        (
+            'import subprocess\n'
+            'for runner, unused in [(subprocess.run, 1), (subprocess.run, 1)]:\n    pass\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "skipping a repeated item must not drop the binding it already read",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
