@@ -132,7 +132,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e012",
@@ -140,6 +142,28 @@
       "type": "commit",
       "content": "Commit: f7963ef89",
       "caused_by": [],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Turned the throwaway reproduction into a real two-sided concurrency regression, satisfying #3413's last acceptance criterion. A first draft pushed to a filesystem path rather than the remote name, which has no tracking ref, so bare --force-with-lease failed for an unrelated reason and the hazard control passed vacuously in the wrong direction. Corrected to push to origin.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e674b19ea",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": []
     }
   ],
@@ -148,7 +172,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []
