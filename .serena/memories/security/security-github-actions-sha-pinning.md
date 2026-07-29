@@ -31,20 +31,22 @@ uses: dorny/paths-filter@v3
 
 ## Enforcement Layers
 
-1. **Pre-commit hook** (`.githooks/pre-commit`):
-   - Scans staged workflow files for version tag patterns
-   - Blocks commits with violations
-   - Lines 706-777
+1. **Pre-commit hook** (`lefthook.yml:76-81`, job `action-pin-policy`):
+   - Runs `uv run --frozen python scripts/validation/git_hook_policy.py staged-action-pins {staged_files}`
+   - Globbed to `.github/workflows/*.{yml,yaml}` and `.github/actions/**/*.{yml,yaml}`
+   - Blocks the commit on violations
+   - (Corrected 2026-07-28: this cited `.githooks/pre-commit` lines 706-777. That file no longer exists; lefthook replaced the `.githooks/` layout.)
 
-2. **CI validation** (`.github/workflows/validate-generated-agents.yml`):
-   - Runs `scripts/Validate-ActionSHAPinning.ps1 -CI`
+2. **CI validation** (`.github/workflows/validate-generated-agents.yml:217`):
+   - Runs `python3 scripts/validation/sha_pinning.py --ci`
    - Fails CI if violations found
    - Validates all workflows on every PR
+   - Locally, prefer `uv run python scripts/validation/sha_pinning.py --ci` so the project venv resolves
 
-3. **Validation script** (`scripts/Validate-ActionSHAPinning.ps1`):
+3. **Validation script** (`scripts/validation/sha_pinning.py`):
    - Supports console, markdown, and JSON output formats
    - Can be run locally or in CI
-   - Returns non-zero exit code with `-CI` flag if violations exist
+   - Returns non-zero exit code with the `--ci` flag if violations exist
 
 ## Finding SHA for Version Tag
 
@@ -59,7 +61,7 @@ gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq '.object.sha'
 
 - **Constraint**: .agents/governance/PROJECT-CONSTRAINTS.md#security-constraints
 - **Guidance**: .agents/steering/security-practices.md#action-sha-pinning-blocking
-- **Enforcement**: .githooks/pre-commit, .github/workflows/validate-generated-agents.yml
+- **Enforcement**: lefthook.yml:76-81 (action-pin-policy), .github/workflows/validate-generated-agents.yml:217
 - **AGENTS.md**: "Always Do" section includes "Pin GitHub Actions to SHA"
 - **CLAUDE.md**: Constraints table includes "SHA-pinned actions in workflows"
 
@@ -74,4 +76,4 @@ gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq '.object.sha'
 
 - Supply chain security best practices
 - GitHub Security Hardening for Actions: https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
-- OWASP Top 10: A06:2021 – Vulnerable and Outdated Components
+- OWASP Top 10: A06:2021, Vulnerable and Outdated Components

@@ -63,6 +63,12 @@ jobs:
               - '.github/actions/setup-code-env/action.yml'
               - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
+              # Episode JSON is a test input, not source: the store-clean pin in
+              # tests/skills/memory/test_extract_session_episode.py reads it. The
+              # population issue #3633 names is a hand edit or merge-conflict
+              # resolution touching only these files, which no '**/*.py' pattern
+              # catches.
+              - '.agents/memory/episodes/**'
 
       - name: Report path check result
         env:
@@ -183,9 +189,9 @@ jobs:
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
-        run: |
-          mkdir -p artifacts
-          pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
+        run: uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
       # Issue #1963: test_ai_review.py was split by tested module into
       # test_verdict.py (get_verdict, merge_verdicts, extract_verdict, verdict
@@ -205,7 +211,7 @@ jobs:
       # module-name form resolves correctly via conftest.py sys.path setup and
       # reports the actual 100%. Do not switch forms without re-verifying both
       # locally and in CI.
-      - name: Pin REQ-009 module coverage at 100% (PR #1989 user requirement)
+      - name: "Pin REQ-009 module coverage at 100% (PR #1989 user requirement)"
         if: steps.should-run.outputs.skip != 'true'
         run: |
           pytest \

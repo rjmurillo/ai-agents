@@ -374,9 +374,9 @@ class TestPinsInstallIntoTheSelectedInterpreter:
         """Vacuity control: a glob that matches nothing passes for free."""
         assert len(self._INSTALL_FILES) > 5
 
-    def test_the_detector_recognizes_a_bare_call(self, tmp_path: Path):
+    def test_the_detector_recognizes_a_bare_call(self, external_tmp_path: Path):
         """Negative control on the detector, not on the tree."""
-        bad = tmp_path / "action.yml"
+        bad = external_tmp_path / "action.yml"
         bad.write_text("runs:\n  steps:\n    - run: pip install 'x==1'\n", encoding="utf-8")
         assert self._bare_pip_lines(bad) == [f"{bad}:3"]
 

@@ -125,7 +125,7 @@
     "memory": [
       {
         "prompt": "Explain the four memory tiers per ADR-007 and which tool serves each.",
-        "expected": "Tier 1 Semantic (Serena+Forgetful search). Tier 2 Episodic (session replay). Tier 3 Causal (decision patterns). Memory-first architecture: search before reasoning."
+        "expected": "Tier 1 Semantic (Serena+Forgetful search). Tier 2 Episodic (session replay). Memory-first architecture: search before reasoning."
       },
       {
         "prompt": "I need to find prior decisions about ARM runner cost. Which tier?",
@@ -140,8 +140,8 @@
         "expected": "Replaying prior sessions to understand what was tried, what worked, what failed. Read .agents/sessions/ JSON logs in date order. Useful for retrospectives."
       },
       {
-        "prompt": "Tier 3 Causal memory captures what?",
-        "expected": "Decision patterns: why a choice was made, what alternatives considered, what trade-offs accepted. Lives in ADRs and retrospective files. Used to avoid repeating past mistakes."
+        "prompt": "Tier 2 Episodic memory captures what?",
+        "expected": "One record per completed session: the task, the decisions taken with their alternatives, the events in lifecycle order, and the lessons. Lives in .agents/memory/episodes/. No code reads it today; the query API has no caller outside its own module, its tests, and documentation examples."
       },
       {
         "prompt": "What is the memory-first rule from ADR-007?",
@@ -155,7 +155,7 @@
       },
       {
         "prompt": "What do we know about git hook timeout failures from prior sessions?",
-        "expected": "Route to memory-search. This is a what do we know about X lookup over stored facts and patterns, not episode extraction or causal-graph update."
+        "expected": "Route to memory-search. This is a what do we know about X lookup over stored facts, not episode extraction."
       },
       {
         "prompt": "Recall prior context before changing the session protocol validator.",
@@ -170,34 +170,34 @@
         "expected": "Use memory-search. It is the focused Tier 1 semantic memory lookup sub-skill for facts, patterns, and constraints."
       },
       {
-        "prompt": "Should memory-search update the causal graph after it finds relevant memories?",
-        "expected": "No. memory-search is lookup only. Use memory-reflexion for episode extraction and causal-graph updates, and memory-enhancement for citations or confidence metadata."
+        "prompt": "Should memory-search write an episode after it finds relevant memories?",
+        "expected": "No. memory-search is lookup only. Use memory-reflexion for episode extraction, and memory-enhancement for citations or confidence metadata."
       }
     ],
     "memory-reflexion": [
       {
         "prompt": "Extract an episode from .agents/sessions/2026-07-08-session-2613.json and fold it into memory.",
-        "expected": "Use memory-reflexion. First run extract_session_episode.py against the completed session log, then update_causal_graph.py so Tier 2 episode data feeds Tier 3 causal patterns."
+        "expected": "Use memory-reflexion. Run extract_session_episode.py against the completed session log. The episode file it writes under .agents/memory/episodes/ is the whole write path; there is no downstream aggregation step."
       },
       {
-        "prompt": "Update the causal graph after a batch of completed session episodes.",
-        "expected": "Route to memory-reflexion. It owns the Tier 3 causal-graph update path via update_causal_graph.py, with dry-run available before writing."
+        "prompt": "Re-extract episodes after a batch of completed sessions.",
+        "expected": "Route to memory-reflexion. Run extract_session_episode.py once per session log. Use --preserve to merge over an existing episode without dropping richer data, or --force to overwrite it."
       },
       {
         "prompt": "Record what happened this session so future decisions can learn from it.",
-        "expected": "Use memory-reflexion for the full write path. Extract from the completed session log, then fold the episode into the causal graph; do not use memory-search for this write operation."
+        "expected": "Use memory-reflexion. Extract from the completed session log; do not use memory-search for this write operation."
       },
       {
         "prompt": "Can I extract a memory episode from an in-progress session log?",
-        "expected": "No. memory-reflexion only extracts from COMPLETED sessions. A partial session creates incomplete episode data and pollutes the causal graph."
+        "expected": "No. memory-reflexion only extracts from COMPLETED sessions. A partial session writes an incomplete episode that later readers treat as final."
       },
       {
-        "prompt": "Preview causal-graph changes before applying a reflexion update.",
-        "expected": "Use memory-reflexion and run update_causal_graph.py with --dry-run. The dry run prints graph changes and writes nothing."
+        "prompt": "How do I re-extract without losing hand-corrected fields in an existing episode?",
+        "expected": "Use memory-reflexion and run extract_session_episode.py with --preserve. It read-modify-writes the existing episode, merging fresh extraction over it. --force overwrites instead and is mutually exclusive with --preserve."
       },
       {
         "prompt": "I only need to search whether we have prior ADR-038 notes. Should I use memory-reflexion?",
-        "expected": "No. Use memory-search for Tier 1 lookup. memory-reflexion is for episode extraction and causal-graph writes after sessions complete."
+        "expected": "No. Use memory-search for Tier 1 lookup. memory-reflexion is for episode extraction after sessions complete."
       }
     ],
     "memory-documentary": [

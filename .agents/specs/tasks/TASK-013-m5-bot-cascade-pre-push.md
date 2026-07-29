@@ -38,7 +38,7 @@ Warn-only. Never invokes `record_fail`. Mirrors the existing Phase 5b drift chec
 In scope:
 
 - Add Phase 5c to `.githooks/pre-push`.
-- Add structural verification tests in `tests/hooks/test_bot_cascade_warning.py` covering REQ-013-01..05.
+- Add structural verification tests in `tests/test_lefthook_integration.py` covering REQ-013-01..05.
 - Spec artifacts: REQ-011, DESIGN-013, TASK-011.
 - Self-apply gate against the milestone PR (REQ-013-06).
 
@@ -69,19 +69,19 @@ Implement REQ-011 via TDD-first sequence per `.claude/commands/build.md`. Add Ph
 ### TASK-013-01: Capture structural test foundation
 
 **Files**:
-- `tests/hooks/test_bot_cascade_warning.py` (new test file)
+- `tests/test_lefthook_integration.py` (existing)
 - `tests/hooks/__init__.py` if absent
 
 **AC**: REQ-013-05.
 
-**Done definition**: Test file uses the same structural verification pattern as `tests/hooks/test_drift_check.py` (Phase 5b). Each test scopes assertions to the Phase 5c block via a regex with a lookahead to the next phase header. Original draft specified PATH-stubbed fixtures; replaced with structural verification per DESIGN-013 revised test strategy.
+**Done definition**: Test file uses the same structural verification pattern as `tests/build_scripts/test_generate_pr_quality_prompts.py` (Phase 5b). Each test scopes assertions to the Phase 5c block via a regex with a lookahead to the next phase header. Original draft specified PATH-stubbed fixtures; replaced with structural verification per DESIGN-013 revised test strategy.
 
 **Hours**: 30 minutes.
 
 ### TASK-013-02: TDD red phase
 
 **Files**:
-- `tests/hooks/test_bot_cascade_warning.py`
+- `tests/test_lefthook_integration.py`
 
 **AC**: REQ-013-05 (test file exists), REQ-013-01..04 (one test per AC).
 
@@ -130,7 +130,7 @@ Implement REQ-011 via TDD-first sequence per `.claude/commands/build.md`. Add Ph
 
 | File | Action | Description |
 |---|---|---|
-| `tests/hooks/test_bot_cascade_warning.py` | Create | One test per AC; structural verification on Phase 5c block |
+| `tests/test_lefthook_integration.py` | Create | One test per AC; structural verification on Phase 5c block |
 | `.githooks/pre-push` | Modify | Add Phase 5c block after Phase 5b |
 | `.agents/specs/requirements/REQ-013-m5-bot-cascade-pre-push.md` | Create | Acceptance criteria |
 | `.agents/specs/design/DESIGN-013-m5-bot-cascade-pre-push.md` | Create | Architecture, test strategy |

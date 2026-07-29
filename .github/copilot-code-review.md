@@ -144,7 +144,6 @@ All agents now have 1:1 parity across all three platforms:
 | `high-level-advisor.agent.md` | `high-level-advisor.agent.md` | `high-level-advisor.md` |
 | `implementer.agent.md` | `implementer.agent.md` | `implementer.md` |
 | `independent-thinker.agent.md` | `independent-thinker.agent.md` | `independent-thinker.md` |
-| `memory.agent.md` | `memory.agent.md` | `memory.md` |
 | `orchestrator.agent.md` | `orchestrator.agent.md` | `orchestrator.md` |
 | `milestone-planner.agent.md` | `milestone-planner.agent.md` | `milestone-planner.md` |
 | `pr-comment-responder.agent.md` | `pr-comment-responder.agent.md` | `pr-comment-responder.md` |
