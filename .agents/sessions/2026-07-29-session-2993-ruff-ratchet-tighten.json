@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2993,
+    "date": "2026-07-29",
+    "branch": "fix/2993-ruff-ratchet-tighten",
+    "startingCommit": "e5c1bac0f7",
+    "objective": "Make the whole-repo ruff regression guard for issue #2993 actually bite. The guard was already wired as the count ratchet at scripts/ci/ruff_count_baseline.txt, but its frozen value had drifted 27 units above the real tracked count, so the gate was obliged to tolerate 27 units of brand-new lint debt and would report such a regression as an improvement."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/2993-ruff-ratchet-tighten origin/main; git branch --show-current returned fix/2993-ruff-ratchet-tighten."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/2993-ruff-ratchet-tighten, created fresh from origin/main so it does not sit on any of the four open PR branches from this campaign."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign; this issue was triaged into the P1 queue from it and the dashboard has not changed since."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the code commit after branch-context-policy rejected a commit attempt that had no matching log."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP has been unavailable for the whole campaign; no serena/ or mcp__serena__ tools were exposed. Context came from direct reads of scripts/ci/ruff_count_ratchet.py, pyproject.toml, and the issue discourse."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not loaded, for the same reason serenaActivated is false."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. 52 ruff-gate tests pass across tests/ci/test_ruff_count_ratchet.py, tests/ci/test_ruff_local_ratchet_wiring.py, tests/ci/test_ruff_ratchet.py, tests/validation/test_ruff_format_floor_compat.py, and tests/workflows/test_pytest_ruff_step.py. A two-sided negative control proves the new baseline value is load-bearing."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown changed. The only code change is a one-line text file holding an integer."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "python3 scripts/ci/ruff_count_ratchet.py returns 'OK (count == baseline 334)', exit 0, on the committed tree."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items recorded with evidence."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable all session, so no memory could be written. The finding that a stale ratchet baseline converts a regression into a reported improvement is recorded in the workLog below, in the commit message, and in the PR description."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified (ADR-014)."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Baseline change and this log committed on fix/2993-ruff-ratchet-tighten. The SHA is recorded in a follow-up commit rather than by amending, per the pattern established in issue #3618."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read the issue body and the full discourse before measuring. The ask is broader than a baseline nudge: it wants a bulk safe autofix pass, a manual pass over higher-signal rules, a decision on residual E501, and a regression guard chosen from option A (whole-repo gate), option B (nightly job), or option C (ratchet baseline). The issue recommends A and does not acknowledge that C already exists in the tree."
+    },
+    {
+      "step": "Caught the wrong instrument before trusting it. The first measurement used 'uv run ruff check .', which walks untracked scratch, nested worktrees, and vendored caches. The ratchet deliberately scopes itself to git-tracked files instead, and its own docstring records an incident where the directory walk read 767 against a tracked count of 361. Re-measured with the gate itself. Both happened to agree at 334 in this working tree, but the agreement is a property of a clean tree, not of the two methods, so the gate's number is the one used."
+    },
+    {
+      "step": "Measured the real breakdown: 334 tracked-file violations across 66 files. E501 line-too-long is 191 of them, then UP006 at 35, I001 at 27, ANN201 at 13, N802 at 12, and UP045 at 11. 90 are auto-fixable. The issue's own figure of 627 across 180 files is stale by roughly half."
+    },
+    {
+      "step": "Found the guard already wired and already stale. scripts/ci/ruff_count_baseline.txt held 361 against a real count of 334. Every run of the gate printed 'improved 361 -> 334 (-27). Run with --update to lower the baseline', so the tool had been asking for this change on every invocation and nothing had performed it."
+    },
+    {
+      "step": "Proved the slack was harmful rather than merely untidy, with a two-sided control. Staged a scratch module carrying six unused imports, taking the tracked count to 340. Against the new baseline of 334 the gate returned 'REGRESSION. 340 violations > baseline 334 (+6)' and exit 1. Against the old baseline of 361 the same tree returned 'improved 361 -> 340 (-21)' and exit 0. The stale gate did not merely permit six fresh violations, it classified them as progress and passed, across its whole 27-unit margin."
+    },
+    {
+      "step": "Performed the change through the script's own --update path rather than by editing the file, so the recorded value is whatever the scanner measured rather than whatever a human typed. Restored the probe tree afterwards and confirmed the gate returns 'OK (count == baseline 334)'."
+    },
+    {
+      "step": "Checked for a hardcoded dependency on the old value before committing. No test or workflow asserts 361 as a baseline; the three matches in the tree are historical narrative in a docstring and a test module header describing the original incident, both accurate as history. The 52 ruff-gate tests pass unchanged."
+    },
+    {
+      "step": "Investigated the single F821 undefined-name, the only violation in the set with runtime meaning, and declined to bundle it. It sits at .claude/skills/pr-comment-responder/scripts/cluster_threads.py:544, where the return annotation names Path while the import is function-local. It is not a live crash, because the module carries 'from __future__ import annotations' and the annotation is therefore never evaluated; it would only bite a caller using typing.get_type_hints. Fixing it requires editing the canonical skill file, regenerating its byte-identical mirror under src/copilot-cli/skills/, and bumping two plugin manifests, which is a different change with a different blast radius."
+    },
+    {
+      "step": "Established why the mirror trees do not contribute to the count, rather than assuming. The mirror file is byte-identical to the canonical file yet ruff reports 'All checks passed' on it, because pyproject.toml exempts the entire selected rule set for src/copilot-cli/hooks/**/*.py and src/copilot-cli/skills/**/*.py on the grounds that they are generated wholesale and the generator induces roughly 1200 violations that do not apply to generated code. The 334 therefore describes hand-authored code only."
+    },
+    {
+      "step": "Scoped the remaining cleanup out with a reason rather than silently. Clearing 334 violations across 66 files means 191 line rewraps that can alter string literals, 12 N802 function renames that are API-breaking for callers, and 21 ANN additions, against a main branch that is currently moving under four open PRs from this campaign. That is a multi-PR mechanical effort, not a lake finishable in this session, so the issue stays open and now carries measured numbers in place of its stale estimate."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Phase the remaining 334 into separate PRs, smallest blast radius first: the 90 auto-fixable violations via 'ruff check --fix' split by top-level directory to respect the five-file atomic commit limit, then the 21 ANN additions, then the 12 N802 renames which need caller analysis, and finally the 191 E501 rewraps. Lower the baseline after each merge, which the gate already prompts for.",
+    "Decide option A versus option C on evidence now that both are visible. The issue recommends A, a whole-repo gate demanding zero errors, but C is already wired, already biting after this change, and drains monotonically without a flag day. A is reachable only after the phased cleanup lands, at which point it is a one-line change from the ratchet, so the two are sequential rather than alternative.",
+    "Fix the F821 at .claude/skills/pr-comment-responder/scripts/cluster_threads.py:544 by hoisting 'from pathlib import Path' to module scope and dropping the two function-local imports, then regenerate the mirror and bump both plugin manifests. Separable from this change and deliberately out of scope."
+  ]
+}

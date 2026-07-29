@@ -1,0 +1,156 @@
+{
+  "id": "episode-2026-07-29-session-2993-ruff-ratchet-tighten",
+  "session": "2026-07-29-session-2993-ruff-ratchet-tighten",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make the whole-repo ruff regression guard for issue #2993 actually bite. The guard was already wired as the count ratchet at scripts/ci/ruff_count_baseline.txt, but its frozen value had drifted 27 units above the real tracked count, so the gate was obliged to tolerate 27 units of brand-new lint debt and would report such a regression as an improvement.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Read the issue body and the full discourse before measuring. The ask is broader than a baseline nudge: it wants a bulk safe autofix pass, a manual pass over higher-signal rules, a decision on residual E501, and a regression guard chosen from option A (whole-repo gate), option B (nightly job), or option C (ratchet baseline). The issue recommends A and does not acknowledge that C already exists in the tree.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Established why the mirror trees do not contribute to the count, rather than assuming. The mirror file is byte-identical to the canonical file yet ruff reports 'All checks passed' on it, because pyproject.toml exempts the entire selected rule set for src/copilot-cli/hooks/**/*.py and src/copilot-cli/skills/**/*.py on the grounds that they are generated wholesale and the generator induces roughly 1200 violations that do not apply to generated code. The 334 therefore describes hand-authored code only.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the issue body and the full discourse before measuring. The ask is broader than a baseline nudge: it wants a bulk safe autofix pass, a manual pass over higher-signal rules, a decision on residual E501, and a regression guard chosen from option A (whole-repo gate), option B (nightly job), or option C (ratchet baseline). The issue recommends A and does not acknowledge that C already exists in the tree.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught the wrong instrument before trusting it. The first measurement used 'uv run ruff check .', which walks untracked scratch, nested worktrees, and vendored caches. The ratchet deliberately scopes itself to git-tracked files instead, and its own docstring records an incident where the directory walk read 767 against a tracked count of 361. Re-measured with the gate itself. Both happened to agree at 334 in this working tree, but the agreement is a property of a clean tree, not of the two methods, so the gate's number is the one used.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the real breakdown: 334 tracked-file violations across 66 files. E501 line-too-long is 191 of them, then UP006 at 35, I001 at 27, ANN201 at 13, N802 at 12, and UP045 at 11. 90 are auto-fixable. The issue's own figure of 627 across 180 files is stale by roughly half.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the guard already wired and already stale. scripts/ci/ruff_count_baseline.txt held 361 against a real count of 334. Every run of the gate printed 'improved 361 -> 334 (-27). Run with --update to lower the baseline', so the tool had been asking for this change on every invocation and nothing had performed it.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the slack was harmful rather than merely untidy, with a two-sided control. Staged a scratch module carrying six unused imports, taking the tracked count to 340. Against the new baseline of 334 the gate returned 'REGRESSION. 340 violations > baseline 334 (+6)' and exit 1. Against the old baseline of 361 the same tree returned 'improved 361 -> 340 (-21)' and exit 0. The stale gate did not merely permit six fresh violations, it classified them as progress and passed, across its whole 27-unit margin.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Performed the change through the script's own --update path rather than by editing the file, so the recorded value is whatever the scanner measured rather than whatever a human typed. Restored the probe tree afterwards and confirmed the gate returns 'OK (count == baseline 334)'.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked for a hardcoded dependency on the old value before committing. No test or workflow asserts 361 as a baseline; the three matches in the tree are historical narrative in a docstring and a test module header describing the original incident, both accurate as history. The 52 ruff-gate tests pass unchanged.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the single F821 undefined-name, the only violation in the set with runtime meaning, and declined to bundle it. It sits at .claude/skills/pr-comment-responder/scripts/cluster_threads.py:544, where the return annotation names Path while the import is function-local. It is not a live crash, because the module carries 'from __future__ import annotations' and the annotation is therefore never evaluated; it would only bite a caller using typing.get_type_hints. Fixing it requires editing the canonical skill file, regenerating its byte-identical mirror under src/copilot-cli/skills/, and bumping two plugin manifests, which is a different change with a different blast radius.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established why the mirror trees do not contribute to the count, rather than assuming. The mirror file is byte-identical to the canonical file yet ruff reports 'All checks passed' on it, because pyproject.toml exempts the entire selected rule set for src/copilot-cli/hooks/**/*.py and src/copilot-cli/skills/**/*.py on the grounds that they are generated wholesale and the generator induces roughly 1200 violations that do not apply to generated code. The 334 therefore describes hand-authored code only.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the remaining cleanup out with a reason rather than silently. Clearing 334 violations across 66 files means 191 line rewraps that can alter string literals, 12 N802 function renames that are API-breaking for callers, and 21 ANN additions, against a main branch that is currently moving under four open PRs from this campaign. That is a multi-PR mechanical effort, not a lake finishable in this session, so the issue stays open and now carries measured numbers in place of its stale estimate.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
