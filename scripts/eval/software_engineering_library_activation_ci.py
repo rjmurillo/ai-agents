@@ -56,6 +56,7 @@ def run(command: Sequence[str], *, check: bool = False) -> subprocess.CompletedP
     # Every argv element is a literal or passed through _numeric_or, which
     # refuses anything but ASCII digits, and the call is list-form with no
     # shell, so no injection surface reaches the child process.
+    sys.stdout.flush()
     return subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
         command, check=check, text=True
     )
