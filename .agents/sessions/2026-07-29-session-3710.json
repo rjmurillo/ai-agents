@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3710,
+    "date": "2026-07-29",
+    "branch": "fix/3710-markdownlint-zero-file-green",
+    "startingCommit": "9cf7ff896",
+    "objective": "Fix #3710: markdown lint gate reports PASS when it selected zero files"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; fell back to .serena/memories/ on disk per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable this session; no serena/ or mcp__serena__ tools exposed by the harness."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; unmodified per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed scripts/validation/; validate_markdown_lint lives in checks_tooling.py and is re-exported by pre_pr.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md Skill-First table; no skill covers pre_pr validator repair, so worked inline."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/universal.md, code-quality.md, ci-scripts.instructions.md and AGENTS.md before editing scripts/validation/."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/ on disk; no entry covers markdownlint selection behavior."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3710-markdownlint-zero-file-green"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3710-markdownlint-zero-file-green"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "9cf7ff896"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items recorded with evidence below."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; findings recorded in this log and in issue #3808 instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 run on the changed markdown; this session's only markdown is this log, which is under the .agents/ exclusion."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/3710-markdownlint-zero-file-green."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py reports all validations passed; 102 tests pass in tests/test_validation_pre_pr.py; 12/12 mutants caught."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce #3710: markdown lint gate returns PASS on zero selected files",
+      "status": "completed",
+      "evidence": "Verified live with markdownlint-cli2 0.23.2: a file carrying MD041 and MD032 placed under .agents/ prints 'Linting: 0 files' and exits 0. .markdownlint-cli2.yaml excludes 3,529 of 3,935 tracked markdown files (89.7%) through 44 ignores patterns."
+    },
+    {
+      "task": "Find and fix a second defect in the same function",
+      "status": "completed",
+      "evidence": "validate_markdown_lint discarded both stdout and stderr, so a failing run printed canned advice about MD040 and MD033 while the real MD041 and MD032 were thrown away. cli2 writes violations to stderr and its progress banner to stdout; _run_subprocess already captured both."
+    },
+    {
+      "task": "Establish that Summary cannot substitute for the Linting banner",
+      "status": "completed",
+      "evidence": "The Summary trailing count is files *with issues*, so a clean file and a never-selected file both print '0 issues in 0 files'. Only the 'Linting: N files' banner separates them."
+    },
+    {
+      "task": "Ship the fix with tests and mutation coverage",
+      "status": "completed",
+      "evidence": "9 new tests plus 2 corrected fixtures; 102 pass in tests/test_validation_pre_pr.py. 12-mutant harness: 12 caught, 0 survived, re-run after ruff format rewrote the source. ruff check, ruff format and mypy clean."
+    },
+    {
+      "task": "File the second call site rather than expand the diff",
+      "status": "completed",
+      "evidence": "Verified --no-globs does not disable ignores, so the lefthook markdown-check and markdown-autofix jobs share the defect. Filed as issue #3808 with the measurement and the open question about whether lefthook surfaces the banner on a green job."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Confirm PR closes #3710; Fixes-N auto-close has been unreliable this session.",
+    "Decide #3808: whether lefthook shows the Linting banner on a green job.",
+    "Record endingCommit once the branch tip is final."
+  ]
+}

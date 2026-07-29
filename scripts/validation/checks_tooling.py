@@ -114,16 +114,82 @@ def validate_markdown_lint(repo_root: Path) -> bool:
         command.append("--fix")
     command.extend(target_args)
 
-    exit_code, _, _ = _run_subprocess(command, cwd=repo_root)
+    exit_code, stdout, stderr = _run_subprocess(command, cwd=repo_root)
     if exit_code == 0:
+        _report_selection(target_args, stdout)
         return True
 
     print("[FAIL] Markdown linting failed")
+    print()
+    # markdownlint-cli2 writes violations to stderr and a progress banner to
+    # stdout, and both were discarded here. A failing run printed the canned
+    # list below and nothing else, so an MD041 and an MD032 arrived as advice
+    # about MD040 and MD033. Print what the tool actually said.
+    #
+    # stderr only, when it has anything: stdout's "Finding:" line restates all
+    # 44 exclusion globs on one ~1,000-character line and would bury the two
+    # lines that name the file, the line and the rule. stdout is the fallback
+    # for the failure modes that never reach the violation reporter, such as an
+    # unparsable config.
+    detail = stderr if stderr.strip() else stdout
+    for line in detail.splitlines():
+        if line.strip():
+            print(f"  {line}")
     print()
     print("Common issues:")
     print("  - MD040: Add language identifier to code blocks")
     print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
     return False
+
+
+# markdownlint-cli2 prints "Linting: 3 files" (or "Linting: 1 file") before it
+# reads anything. The trailing count in its "Summary" line is files *with
+# issues*, so a clean file and a file that was never selected both summarise as
+# "0 issues in 0 files". This line is the only one that distinguishes them.
+_LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
+
+
+def _linted_file_count(stdout: str) -> int | None:
+    """Return how many files markdownlint-cli2 actually selected, or None.
+
+    None means the banner was absent, which happens if the tool changes its
+    output. Callers must not read that as zero or as "all of them"; it is
+    "unknown", and saying so beats guessing.
+    """
+    match = _LINTED_COUNT_PATTERN.search(stdout)
+    return int(match.group(1)) if match else None
+
+
+def _report_selection(target_args: list[str], stdout: str) -> None:
+    """Say whether a green run checked anything (issue #3710).
+
+    ``.markdownlint-cli2.yaml`` excludes 89.7% of tracked markdown, including
+    ``.claude/skills/**``, ``.agents/**`` and ``**/CLAUDE.md``, which is most of
+    what anyone edits here. Naming an excluded file on the command line selects
+    nothing and exits 0, so this check reported PASS on a branch where every
+    changed file went unread, and the session log recorded "markdownlint passed"
+    as evidence. The exclusions are deliberate, so this is not a failure. It is
+    a PASS that has to say which kind of PASS it is.
+    """
+    selected = _linted_file_count(stdout)
+    if selected is None:
+        print(
+            "[WARNING] Markdown linting: could not read the 'Linting: N files' "
+            "banner, so how many files were checked is unknown"
+        )
+        return
+    if selected == 0 and target_args:
+        print(
+            f"[WARNING] Markdown linting selected 0 of {len(target_args)} target(s): "
+            "every one is excluded by .markdownlint-cli2.yaml, so nothing was "
+            "checked. This PASS means 'not linted', not 'clean'."
+        )
+        return
+    if selected < len(target_args):
+        print(
+            f"[WARNING] Markdown linting checked {selected} of {len(target_args)} "
+            "target(s); the rest are excluded by .markdownlint-cli2.yaml"
+        )
 
 
 def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
