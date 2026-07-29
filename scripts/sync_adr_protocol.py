@@ -143,14 +143,20 @@ def _status_from_frontmatter(content: str) -> str | None:
 
     Parsed as YAML so quoting and comments resolve to the scalar value
     rather than to raw text.
+
+    Both fences are matched after stripping surrounding whitespace, so a
+    CRLF checkout or a trailing space survives. A rejected fence is not a
+    parse error here: it falls through to the unbounded prose readers
+    below, which return a debate summary in place of a lifecycle value.
     """
-    if not content.startswith("---\n"):
+    first_line, newline, body = content.partition("\n")
+    if not newline or first_line.strip() != "---":
         return None
-    match = re.search(r"^---[ \t]*$", content[4:], re.MULTILINE)
+    match = re.search(r"^---[ \t\r]*$", body, re.MULTILINE)
     if match is None:
         return None
     try:
-        data = yaml.safe_load(content[4 : 4 + match.start()])
+        data = yaml.safe_load(body[: match.start()])
     except yaml.YAMLError:
         return None
     if not isinstance(data, dict):
