@@ -93,6 +93,7 @@ _PARTIAL = "functools.partial"
 # The literal container shapes an index can be read out of. Named so the
 # non-mapping branch of _element is known to carry elts.
 _Container = ast.Dict | ast.List | ast.Tuple
+_Assign = ast.Assign | ast.AnnAssign | ast.NamedExpr | ast.AugAssign
 
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
@@ -323,6 +324,12 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
         # name alone carries the binding. The leading dot cannot appear in an
         # identifier, so these keys never collide with a plain name.
         return [(_ATTRIBUTE + target.attr, value)]
+    if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+        # ``H[0] = subprocess.run`` puts the value into H without rebinding
+        # the name, so the base takes the binding. Which slot it lands in
+        # does not matter: the write is what stops H being read from its
+        # literal, so the whole container has to answer for it.
+        return [(target.value.id, value)]
     if not isinstance(target, (ast.Tuple, ast.List)):
         return []
     if isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == len(target.elts):
@@ -351,6 +358,52 @@ def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
     return found
 
 
+def _receives(call: ast.Call) -> list[tuple[str, ast.expr]]:
+    """Pair the receiver of a method call with everything handed to it.
+
+    ``H.append(subprocess.run)`` puts a reference into H, and so does
+    ``H.update(k=subprocess.run)``. Telling a method that stores its argument
+    from one that only reads it needs the type of the receiver, which this
+    scan does not have, so every argument is treated as flowing in. The
+    direction is safe: a name that takes on a value it never really holds is
+    read too loudly, never too quietly.
+    """
+    if not isinstance(call.func, ast.Attribute):
+        return []
+    if not isinstance(call.func.value, ast.Name):
+        return []
+    name = call.func.value.id
+    handed = [*call.args, *(keyword.value for keyword in call.keywords)]
+    return [(name, value) for value in handed]
+
+
+def _written(tree: ast.AST) -> set[str]:
+    """Return every name whose object may change without receiving a value.
+
+    A literal answers for a name only while the object it built is untouched,
+    and most ways of touching one hand it something, so ``_bindings`` records
+    them and the count rule retires the name. Two shapes hand over nothing.
+    ``H.reverse()`` reorders in place, and no static scan can tell a method
+    that mutates from one that reads without knowing the type, so every
+    method call on a name counts. ``del H[0]`` drops an element and shifts
+    the rest. Both leave the literal stale with no value to record, which is
+    why they need a rule of their own.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name):
+                found.add(node.func.value.id)
+        elif isinstance(node, ast.Delete):
+            found.update(
+                target.value.id
+                for target in node.targets
+                if isinstance(target, ast.Subscript)
+                and isinstance(target.value, ast.Name)
+            )
+    return found
+
+
 def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     """Pair every attribute a class body binds with the value it receives.
 
@@ -369,6 +422,26 @@ def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     return found
 
 
+def _assigned(node: _Assign) -> list[tuple[str, ast.expr]]:
+    """Pair the names an assignment statement writes with the value it writes.
+
+    The four shapes differ only in where the target sits. An annotated
+    assignment with no value declares a type and binds nothing, so it is the
+    one shape that can come back empty.
+    """
+    if isinstance(node, ast.Assign):
+        return [pair for target in node.targets for pair in _unpack(target, node.value)]
+    if isinstance(node, ast.AnnAssign):
+        if node.value is None:
+            return []
+        return _unpack(node.target, node.value)
+    if isinstance(node, ast.NamedExpr):
+        return [(node.target.id, node.value)]
+    # ``H += [subprocess.run]`` rebinds H to something the first literal
+    # never showed, with no assignment statement to find.
+    return _unpack(node.target, node.value)
+
+
 def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     """Collect every ``name = value`` binding at any depth.
 
@@ -380,14 +453,10 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     """
     found: list[tuple[str, ast.expr]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                found.extend(_unpack(target, node.value))
-        elif isinstance(node, ast.AnnAssign):
-            if isinstance(node.target, ast.Name) and node.value is not None:
-                found.append((node.target.id, node.value))
-        elif isinstance(node, ast.NamedExpr):
-            found.append((node.target.id, node.value))
+        if isinstance(node, _Assign):
+            found.extend(_assigned(node))
+        elif isinstance(node, ast.Call):
+            found.extend(_receives(node))
         elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             # ``for runner in (subprocess.run,)`` binds a name with no
             # assignment statement anywhere in sight.
@@ -402,15 +471,19 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
 def _containers(
     tree: ast.AST, bindings: list[tuple[str, ast.expr]]
 ) -> dict[str, _Container]:
-    """Map each name bound exactly once to a literal container, to that literal.
+    """Map each name bound once to an untouched literal container, to that literal.
 
-    Bound exactly once is the whole guarantee. A second binding anywhere,
-    including a loop target or a parameter default, means the name may hold
-    something the literal does not show, and indexing the literal would then
-    answer for the wrong object. Such names are left out, so the caller falls
-    back to tainting the container whole.
+    Two guarantees, and the literal is only worth reading when both hold.
+    Bound exactly once: a second binding anywhere, including a loop target or
+    a parameter default, means the name may hold something the literal does
+    not show. Never written to: a subscript write, a delete, or any method
+    call can change the object the literal built while the name stays put.
+    Indexing a stale literal answers for the wrong object either way, so such
+    names are left out and the caller falls back to tainting the container
+    whole.
     """
     counts = Counter(name for name, _ in bindings)
+    written = _written(tree)
     found: dict[str, _Container] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -422,7 +495,9 @@ def _containers(
         if not isinstance(value, (ast.Dict, ast.List, ast.Tuple)):
             continue
         for target in targets:
-            if isinstance(target, ast.Name) and counts.get(target.id) == 1:
+            if not isinstance(target, ast.Name) or target.id in written:
+                continue
+            if counts.get(target.id) == 1:
                 found[target.id] = value
     return found
 
@@ -698,6 +773,17 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "check_output without text mode hands back bytes",
         ),
         (
+            'import subprocess\nH = [subprocess.check_call, subprocess.run]\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "a table nobody writes to still reads one element",
+        ),
+        (
+            'import subprocess\nH = [subprocess.check_call, subprocess.run]\n'
+            'G = [subprocess.run]\nG[0] = subprocess.run\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "writing to one table does not cost another its precision",
+        ),
+        (
             'import subprocess\nsubprocess.check_output(["x"], text=True, encoding="utf-8")',
             "check_output that pins its codec is compliant",
         ),
@@ -829,6 +915,17 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import subprocess\nH = {"a": local, "b": subprocess.run}\n'
             '(f := H["a"])(["x"], capture_output=True, text=True)',
             "a walrus over an indexed table still selects the one element",
+        ),
+        (
+            'import subprocess\nH: object = [subprocess.check_call, subprocess.run]\n'
+            'H: object\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "a bare annotation declares a type and binds nothing",
+        ),
+        (
+            "import subprocess\nH = [[subprocess.check_call]]\ndel H[0][1]\n"
+            'H[0](["x"], capture_output=True, text=True)',
+            "a delete may reach through a subscript the scan cannot name",
         ),
     ],
 )
@@ -1127,6 +1224,46 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess, os\nrunners = [subprocess.check_output, os.popen]\n'
             'runners[1]("ls")',
             "a container holding os.popen may yield the one that cannot pin",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H[0] = subprocess.run\nH[0](['x'], capture_output=True, text=True)",
+            "a list written through a subscript no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H.append(subprocess.run)\nH[0](['x'], capture_output=True, text=True)",
+            "a list appended to no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H += [subprocess.run]\nH[0](['x'], capture_output=True, text=True)",
+            "augmented assignment rebinds a name with no assignment in sight",
+        ),
+        (
+            "import subprocess\nH = {'a': subprocess.check_call}\n"
+            "H['b'] = subprocess.run\nH['a'](['x'], capture_output=True, text=True)",
+            "a mapping written through a key no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = {'a': subprocess.check_call}\n"
+            "H.update(b=subprocess.run)\nH['a'](['x'], capture_output=True, text=True)",
+            "a mapping updated by keyword no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call, subprocess.run]\n"
+            "del H[0]\nH[0](['x'], capture_output=True, text=True)",
+            "deleting an element shifts every index after it",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call, subprocess.run]\n"
+            "H.reverse()\nH[0](['x'], capture_output=True, text=True)",
+            "a method that takes no arguments can still reorder the container",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H[0], y = subprocess.run, 1\nH[0](['x'], capture_output=True, text=True)",
+            "a subscript inside a tuple target writes just the same",
         ),
     ],
 )
