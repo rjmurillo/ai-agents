@@ -7,6 +7,7 @@ import argparse
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -137,10 +138,7 @@ def write_body(path: Path, body: str) -> None:
 
 
 def create_issue() -> int:
-    issue_body = Path("issue-body.md")
-    write_body(
-        issue_body,
-        f"""
+    body = f"""
         ## Software Engineering Library Activation Threshold
 
         The weekly ADR-088 activation gate failed. Review the uploaded
@@ -154,39 +152,40 @@ def create_issue() -> int:
         - The PR must pass this workflow before merge.
 
         Workflow run: {workflow_url()}
-        """,
-    )
-    return run(
-        [
-            "gh",
-            "issue",
-            "create",
-            "--title",
-            "software-engineering-library activation rollback threshold",
-            "--body-file",
-            str(issue_body),
-            "--label",
-            f"{LABEL},{OWNER_LABEL},{AUTOMATED_LABEL}",
-        ]
-    ).returncode
+        """
+    with tempfile.TemporaryDirectory() as scratch:
+        issue_body = Path(scratch) / "issue-body.md"
+        write_body(issue_body, body)
+        return run(
+            [
+                "gh",
+                "issue",
+                "create",
+                "--title",
+                "software-engineering-library activation rollback threshold",
+                "--body-file",
+                str(issue_body),
+                "--label",
+                f"{LABEL},{OWNER_LABEL},{AUTOMATED_LABEL}",
+            ]
+        ).returncode
 
 
 def comment_issue(issue_number: str) -> int:
-    comment_body = Path("comment-body.md")
-    write_body(
-        comment_body,
-        f"""
+    body = f"""
         The weekly ADR-088 activation gate failed again.
 
         Review the latest uploaded activation artifacts and keep or open the
         restoration PR until this workflow passes.
 
         Workflow run: {workflow_url()}
-        """,
-    )
-    return run(
-        ["gh", "issue", "comment", issue_number, "--body-file", str(comment_body)]
-    ).returncode
+        """
+    with tempfile.TemporaryDirectory() as scratch:
+        comment_body = Path(scratch) / "comment-body.md"
+        write_body(comment_body, body)
+        return run(
+            ["gh", "issue", "comment", issue_number, "--body-file", str(comment_body)]
+        ).returncode
 
 
 def alert_issue() -> int:
