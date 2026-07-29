@@ -56,6 +56,17 @@ def _git(repo: Path, *args: str, message_stdin: str | None = None) -> str:
     return result.stdout.strip()
 
 
+def _git_bytes(repo: Path, *args: str, stdin: bytes | None = None) -> bytes:
+    """Run a git command in ``repo`` with byte-level I/O."""
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        input=stdin,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
 @pytest.fixture()
 def git_repo(tmp_path: Path) -> Path:
     """Initialize a real git repo with two code commits and isolated identity.
@@ -324,7 +335,9 @@ def test_resolve_sha_rejects_option_like_ref(git_repo: Path) -> None:
 
 def test_read_marker_values_rejects_option_like_ref(git_repo: Path) -> None:
     """read_marker_values rejects values git would parse as command options."""
-    assert vrm.read_marker_values("--format=%H", git_repo) is None
+    values, error = vrm.read_marker_values("--format=%H", git_repo)
+    assert values is None
+    assert "must not start with '-'" in error
 
 
 def test_validate_ref_reports_git_missing(monkeypatch: pytest.MonkeyPatch, git_repo: Path) -> None:
@@ -349,6 +362,81 @@ def test_validate_ref_reports_initial_git_failure(
     assert outcome.ok is False
     assert outcome.exit_code == 2
     assert "git command timed out after 15s" in outcome.message
+
+
+def test_read_marker_values_distinguishes_missing_git(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path
+) -> None:
+    """Direct trailer reads preserve the missing-git diagnostic."""
+    monkeypatch.setattr(vrm.shutil, "which", lambda _: None)
+    values, error = vrm.read_marker_values("HEAD", git_repo)
+    assert values is None
+    assert error == "git not found on PATH"
+
+
+def test_read_marker_values_distinguishes_nonzero_git_exit(git_repo: Path) -> None:
+    """A real git lookup miss reports git's non-zero exit separately from I/O failures."""
+    values, error = vrm.read_marker_values("no-such-ref", git_repo)
+    assert values is None
+    assert error is not None
+    assert error.startswith("git log exited with ")
+    assert "git output was not valid UTF-8" not in error
+    assert "git command timed out" not in error
+
+
+def test_validate_ref_reports_parent_read_timeout(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path
+) -> None:
+    """Parent SHA reads preserve timeout diagnostics in the validation outcome."""
+    head_sha = _git(git_repo, "rev-parse", "HEAD")
+
+    def fail_parent_read(args: list[str], repo_root: Path) -> tuple[int, str, str]:
+        if args[:3] == ["rev-parse", "--verify", "--quiet"]:
+            return 0, f"{head_sha}\n", ""
+        if args == ["show", "-s", "--format=%P", head_sha]:
+            return -1, "", "git command timed out after 15s"
+        return 1, "", "unexpected command"
+
+    monkeypatch.setattr(vrm, "_run_git", fail_parent_read)
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 2
+    assert "git could not read parent commits" in outcome.message
+    assert "git command timed out after 15s" in outcome.message
+
+
+def test_validate_ref_reports_non_utf8_trailer_output(git_repo: Path) -> None:
+    """A commit with non-UTF-8 trailer bytes reports the decode failure."""
+    parent_sha = _git(git_repo, "rev-parse", "HEAD")
+    tree_sha = _git(git_repo, "show", "-s", "--format=%T", "HEAD")
+    commit_bytes = b"".join(
+        [
+            f"tree {tree_sha}\n".encode(),
+            f"parent {parent_sha}\n".encode(),
+            b"author Test User <test@example.com> 0 +0000\n",
+            b"committer Test User <test@example.com> 0 +0000\n",
+            b"\n",
+            b"review: marker with latin-1 trailer\n\n",
+            b"Reviewed-By: ",
+            b"\xff",
+            f"/review@analyst on {parent_sha}\n".encode(),
+        ]
+    )
+    marker_sha = _git_bytes(
+        git_repo,
+        "hash-object",
+        "-t",
+        "commit",
+        "-w",
+        "--stdin",
+        stdin=commit_bytes,
+    )
+    _git(git_repo, "update-ref", "HEAD", marker_sha.decode())
+
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 2
+    assert "git output was not valid UTF-8" in outcome.message
 
 
 def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Path) -> None:
