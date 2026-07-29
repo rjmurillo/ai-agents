@@ -71,3 +71,12 @@ class TestTheGeneratedReportStaysOutOfCommits:
             "the ignore probe reports a tracked file as ignored, so a passing "
             "result in the positive test would prove nothing"
         )
+
+    def test_the_rule_is_anchored_to_the_repo_root(self) -> None:
+        """Negative control: an unanchored rule would hide same-named files anywhere."""
+        report = _report_path()
+        nested = (Path("docs") / report.name).as_posix()
+        assert not _is_ignored(nested), (
+            f"{nested} is ignored, so the rule lost its leading slash and now "
+            "hides every same-named file in the tree, not just the generated one"
+        )
