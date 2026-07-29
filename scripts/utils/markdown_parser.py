@@ -10,6 +10,7 @@ Exit codes follow ADR-035 when used as a standalone script.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from markdown_it import MarkdownIt
@@ -38,6 +39,34 @@ class ParsedTable:
     rows: list[TableRow] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class CellSegment:
+    """One inline run inside a table cell.
+
+    ``code`` marks a span written between backticks. A caller that treats a
+    code span as documentation rather than as content has to tell the two
+    apart, and only the token stream knows which is which. Keeping that
+    distinction here, instead of a policy decision about which spans matter,
+    leaves the policy with the caller that owns it.
+    """
+
+    content: str
+    code: bool
+
+
+@dataclass(frozen=True)
+class TableCell:
+    """A table cell's inline segments and its 1-based source line."""
+
+    segments: tuple[CellSegment, ...]
+    line: int
+
+    @property
+    def text(self) -> str:
+        """The cell's rendered text, code spans included."""
+        return "".join(segment.content for segment in self.segments)
+
+
 @dataclass
 class Section:
     """A Markdown section with heading level, title, and body content."""
@@ -50,9 +79,117 @@ class Section:
 _FOOTNOTE_REFERENCE_RE = re.compile(r"\[\^[^\]\n]+\]")
 
 
-def _create_parser() -> MarkdownIt:
-    """Create a configured markdown-it parser with table support."""
-    return MarkdownIt("commonmark").enable("table")
+class MarkdownNestingError(ValueError):
+    """Raised when input nests past the parser's ``maxNesting`` limit.
+
+    markdown-it stops emitting block tokens once container nesting reaches
+    ``maxNesting`` and silently discards the rest of the input (see
+    ``ParserBlock.tokenize``: it sets ``state.line = endLine`` and breaks). A
+    code-stripping pass over a truncated token stream leaves the dropped,
+    deeply-nested fenced code unblanked, so a ``vendor-portability`` marker or
+    an example path hidden that deep would leak into the prose the caller
+    scans. Refusing the file keeps the gate fail-closed: input the parser
+    cannot fully represent is an incomplete scan, not clean prose.
+    """
+
+
+def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
+    """Create a configured markdown-it parser with table support.
+
+    ``max_nesting`` overrides the CommonMark default only for the bounded
+    second parse in :func:`_raise_if_nesting_truncated`. The primary parse keeps
+    the default so its recursion stays bounded; the limit exists to stop a
+    pathologically nested document from exhausting the stack, and raising it for
+    the primary parse would reintroduce that denial-of-service vector.
+    """
+    md = MarkdownIt("commonmark").enable("table")
+    if max_nesting is not None:
+        md.options["maxNesting"] = max_nesting
+    return md
+
+
+# Block token types whose source lines are code, not prose. ``fence`` covers
+# ```` ``` ```` and ``~~~`` blocks; ``code_block`` covers indented code. Both
+# are resolved by the CommonMark parser, which tracks fence termination,
+# blockquote depth, and list-relative indentation that a line-based scanner
+# gets wrong.
+_CODE_BLOCK_TOKEN_TYPES = frozenset({"fence", "code_block"})
+
+
+def _block_token_shape(tokens: list) -> list:
+    """Structural fingerprint of the block token stream.
+
+    Inline nesting lives inside an ``inline`` token's ``children`` and is
+    excluded here, so deeply-nested emphasis or links (which cannot hide a code
+    block) do not trigger a refusal. Only block-level truncation, which changes
+    which lines a code-stripping pass blanks, changes this fingerprint.
+    """
+    return [
+        (token.type, token.tag, token.level, tuple(token.map) if token.map else None)
+        for token in tokens
+    ]
+
+
+def _raise_if_nesting_truncated(
+    markdown: str, tokens: list, md: MarkdownIt
+) -> None:
+    """Fail closed when the primary parse dropped content at ``maxNesting``.
+
+    The primary token stream cannot reveal truncation on its own: markdown-it
+    caps reported nesting at ``maxNesting - 1`` whether the input stopped one
+    level below the limit (complete) or ran past it (truncated). A bounded
+    second parse at a higher limit disambiguates. If raising the limit changes
+    the block structure, the primary parse was truncated and the file is
+    refused. Content nesting past the second limit diverges further still, so
+    the check never passes by merely moving the cliff, and the second parse
+    stays bounded so no denial-of-service vector reopens.
+
+    The second parse runs only when the primary reached ``maxNesting - 1``. The
+    committed corpus peaks at level 9, far below the limit, so this path never
+    fires on real files and adds no cost to a normal scan.
+    """
+    if not tokens:
+        return
+    max_nesting = md.options["maxNesting"]
+    if max(token.level for token in tokens) < max_nesting - 1:
+        return
+    deep = _create_parser(max_nesting * 2)
+    if _block_token_shape(tokens) != _block_token_shape(deep.parse(markdown)):
+        raise MarkdownNestingError(
+            f"Markdown nests past the parser limit (maxNesting={max_nesting}); "
+            "the document cannot be fully scanned and is refused (issue #3499)."
+        )
+
+
+def blank_code_block_lines(markdown: str) -> str:
+    """Return ``markdown`` with fenced and indented code block lines blanked.
+
+    Every source line that CommonMark attributes to a fenced or indented code
+    block, including the fence marker lines, is replaced by an empty string.
+    Line count and every non-code line are preserved, so a caller that matches
+    against the result keeps stable line numbers.
+
+    Inline code spans are left intact; strip those separately when needed.
+
+    Any exception the parser raises propagates to the caller, which must not
+    treat a parse failure as clean prose. Failing closed here is deliberate: a
+    silent empty return would let an unparseable file bypass the portability
+    gate. For the same reason, input that nests past the parser's ``maxNesting``
+    limit raises :class:`MarkdownNestingError` rather than being scanned from a
+    silently truncated token stream.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+    lines = markdown.split("\n")
+    line_count = len(lines)
+    for token in tokens:
+        if token.type not in _CODE_BLOCK_TOKEN_TYPES or token.map is None:
+            continue
+        start, end = token.map
+        for index in range(max(start, 0), min(end, line_count)):
+            lines[index] = ""
+    return "\n".join(lines)
 
 
 def _cell_text(content: str) -> str:
@@ -85,6 +222,52 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
         i += 1
 
     return tables
+
+
+def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
+    """Yield the rendered text of every table cell with its source line.
+
+    Only cells of tables the CommonMark parser actually recognises are
+    emitted, which is the point. A line-based scanner that calls any
+    pipe-shaped line a table row is wrong in both directions: it misses
+    tables written without outer pipes, inside a blockquote, or indented
+    under a list item, and it matches pipe-shaped prose that renders as a
+    paragraph because it has no delimiter row.
+
+    Each cell is yielded as its inline segments rather than as one string, so
+    a caller can decide what a code span means to it. Emphasis contributes its
+    text because the emphasis markers are not part of the rendered content.
+    Fenced and indented code blocks and HTML comments never parse as tables,
+    so they are excluded by construction rather than by a second stripping
+    pass.
+
+    Fails closed on input the parser cannot fully represent, for the reason
+    given in :class:`MarkdownNestingError`.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    line = 0
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token.type == "tr_open" and token.map:
+            line = token.map[0] + 1
+        elif (
+            token.type in ("th_open", "td_open")
+            and index + 1 < len(tokens)
+            and tokens[index + 1].type == "inline"
+        ):
+            children = tokens[index + 1].children or []
+            segments = tuple(
+                CellSegment(content=child.content, code=child.type == "code_inline")
+                for child in children
+                if child.type in ("text", "code_inline")
+            )
+            yield TableCell(segments=segments, line=line)
+            index += 1
+        index += 1
 
 
 def _extract_table(tokens: list, start: int) -> ParsedTable | None:
@@ -198,10 +381,11 @@ def parse_sections(markdown: str) -> list[Section]:
                 j += 1
             j += 1  # skip heading_close
 
-            if j < len(tokens) and tokens[j].map is not None:
-                body_start_line = tokens[j].map[0]
-            else:
-                body_start_line = None
+            body_start_line = None
+            if j < len(tokens):
+                start_map = tokens[j].map
+                if start_map is not None:
+                    body_start_line = start_map[0]
 
             # Find end of section (next heading of same or higher level, or EOF)
             body_end_line = None
@@ -209,8 +393,9 @@ def parse_sections(markdown: str) -> list[Section]:
             while k < len(tokens):
                 if tokens[k].type == "heading_open":
                     next_level = int(tokens[k].tag[1])
-                    if next_level <= level and tokens[k].map is not None:
-                        body_end_line = tokens[k].map[0]
+                    end_map = tokens[k].map
+                    if next_level <= level and end_map is not None:
+                        body_end_line = end_map[0]
                         break
                 k += 1
 

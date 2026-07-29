@@ -157,11 +157,13 @@ RUNTIME_PATH = ".claude/skills/runtime"
 
 
 class TestRepoRoot:
-    def test_fallback_is_parent_directory_when_start_is_file(self, tmp_path: Path) -> None:
-        script = tmp_path / "script.py"
+    def test_fallback_is_parent_directory_when_start_is_file(
+        self, external_tmp_path: Path
+    ) -> None:
+        script = external_tmp_path / "script.py"
         script.write_text("print('ok')\n", encoding="utf-8")
 
-        assert csp._repo_root(script) == tmp_path
+        assert csp._repo_root(script) == external_tmp_path
 
 
 class TestDiffAgainstBaseline:

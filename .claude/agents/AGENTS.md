@@ -173,7 +173,6 @@ flowchart TD
 
 | Agent | File | Role |
 |-------|------|------|
-| memory | `memory.md` | Cross-session persistence |
 | skillbook | `skillbook.md` | Skill management |
 | retrospective | `retrospective.md` | Learning extraction |
 | explainer | `explainer.md` | PRDs and documentation |

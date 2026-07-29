@@ -282,7 +282,6 @@ The gate emits a Markdown block embedded into the PRD as its first section, name
 
 - ADR-NNN ("[title]"): [one-line summary]. Relevance: [one-line]. Decision: honor | adapt | propose-amend with rationale.
 - Episode YYYY-MM-DD ("[title]"): [one-line]. Relevance: [one-line]. Decision: [as above].
-- Causal pattern: [name]. Relevance: [one-line]. Decision: [as above].
 - (chestertons-fence recommendation: PRESERVE | MODIFY | REPLACE | REMOVE; rationale.)
 
 ### Connected context from exploring-knowledge-graph
