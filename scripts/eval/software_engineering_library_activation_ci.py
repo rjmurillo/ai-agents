@@ -52,7 +52,12 @@ def run_id() -> str:
 
 
 def run(command: Sequence[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=check, text=True)
+    # Every argv element is a literal or passed through _numeric_or, which
+    # refuses anything but ASCII digits, and the call is list-form with no
+    # shell, so no injection surface reaches the child process.
+    return subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        command, check=check, text=True
+    )
 
 
 def live_eval() -> int:
