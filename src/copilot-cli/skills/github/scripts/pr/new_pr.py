@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_pr_description import (  # noqa: E402
+from validate_pr_description import (
     _CONVENTIONAL_COMMIT_PATTERN,
     validate_no_escaped_newlines,
 )

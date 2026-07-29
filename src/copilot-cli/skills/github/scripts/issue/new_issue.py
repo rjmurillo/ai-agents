@@ -52,7 +52,7 @@ from github_core.output import (  # noqa: E402
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import escaped_newline_body_error  # noqa: E402
+from github_core.validation import escaped_newline_body_error
 
 # Markers that confirm a real authentication failure in gh stderr. A transient
 # REST 5xx (the 503 "Unicorn" page in issue #3139) contains none of these, so
