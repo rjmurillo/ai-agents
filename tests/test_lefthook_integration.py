@@ -13,13 +13,7 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-<<<<<<< HEAD
-from typing import NoReturn, Self, cast
-||||||| e5c1bac0
-from typing import NoReturn, Self
-=======
-from typing import Any, NoReturn, Self
->>>>>>> origin/main
+from typing import Any, NoReturn, Self, cast
 
 import pytest
 import yaml
@@ -7457,7 +7451,6 @@ def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Adversarial review of the Semgrep gate (PR #3688). Four bypasses, each with a
 # negative control proving the fix does not over-tighten. Refs #3673.
 # ---------------------------------------------------------------------------
@@ -8128,8 +8121,6 @@ def test_sink_alias_resolution_terminates_on_a_cycle() -> None:
 def test_variable_word_recognises_only_a_bare_expansion(word: str, expected: str | None) -> None:
     """A word that merely contains a variable is not a reference to one."""
     assert policy._shell_variable_name(word) == expected
-||||||| e5c1bac0
-=======
 # Issue #3671: nothing stopped a git conflict marker reaching a commit. The
 # detector keys only on the labelled forms git writes and skips fenced code
 # blocks so documentation can quote a conflict.
@@ -8341,4 +8332,3 @@ def test_the_commit_ceilings_come_from_the_shared_module() -> None:
         == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD
         == 40
     )
->>>>>>> origin/main
