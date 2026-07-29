@@ -569,6 +569,13 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
             "record the final commit SHA or mark the item incomplete"
         )
 
+    if "nextSteps" not in data:
+        result.warnings.append(
+            "nextSteps is missing; SESSION-PROTOCOL.md lists it as a required "
+            "top-level field. Record the follow-ups, or write [] to state there "
+            "are none"
+        )
+
 
 def validate_must_item(
     check_data: object,

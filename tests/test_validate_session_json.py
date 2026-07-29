@@ -2179,6 +2179,29 @@ class TestEvidenceAgreesWithSession:
         log["endingCommit"] = "1ffee3834e910608ed6c03c374fb71ff7c39bdc3"
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
+    def test_a_log_with_no_next_steps_field_warns(self) -> None:
+        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_next_steps_array_is_an_answer_and_does_not_warn(self) -> None:
+        """`[]` says there is nothing to follow up. Absence says nothing at all."""
+        log = _make_valid_log()
+        log["nextSteps"] = []
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_a_populated_next_steps_array_does_not_warn(self) -> None:
+        log = _make_valid_log()
+        log["nextSteps"] = ["Land the follow-up PR"]
+        assert not any("nextSteps" in w for w in validate_session_log(log).warnings)
+
+    def test_the_next_steps_warning_does_not_block_the_log(self) -> None:
+        """Negative control: 71 committed logs predate the field, so this warns."""
+        log = _make_valid_log()
+        log.pop("nextSteps", None)
+        assert validate_session_log(log).errors == []
+
     def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
         """Four committed logs contradict themselves and git cannot adjudicate which
         side is true. On the record side they would be a permanent block that no
