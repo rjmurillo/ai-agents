@@ -44,7 +44,10 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
-from github_core.validation import assert_valid_body_file  # noqa: E402
+from github_core.validation import (
+    assert_valid_body_file,
+    escaped_newline_body_error,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(
             "--body and --body-file must not be empty strings", 1
         )
+
+    body_error = escaped_newline_body_error(args.body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
