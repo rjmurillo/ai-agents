@@ -68,6 +68,7 @@ context.
 
 
 def post_comment(*, issue_number: str, body_file: Path) -> int:
+    sys.stdout.flush()
     result = subprocess.run(
         [
             "python3",
