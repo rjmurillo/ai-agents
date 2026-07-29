@@ -252,16 +252,27 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
    uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --output human
    ```
 
-2. For each finding, choose one of three resolutions named in the recommendation string:
+2. Confirm the finding is real before repairing it. This scanner has produced
+   large numbers of false positives: PR #3735 measured 1790 repo-wide findings
+   of which 68 were true, and on `.serena/memories` 183 findings of which zero
+   were true. A finding claims a name was once an entity; it is not proof.
+   Open the cited line and decide whether the reference was meant to resolve.
+
+3. For each real finding, choose one of three resolutions named in the
+   recommendation string:
 
    | Finding kind | Three options |
    |---|---|
    | `skill_name` | restore the skill, update the reference, or remove the mention |
    | `script_path` | restore the script, update the reference, or remove the mention |
 
-3. If the reference is intentional historical or proposed-entity documentation, add a line-scope `<!-- orphan-ref-ignore -->` (single line) or a file-scope `<!-- orphan-ref-ignore-file -->` (whole file). See "Ignore directives" above for placement rules.
+   "Restore" means recover an entity that existed, from git history. It never
+   means author a new one so the reference resolves. If the target never
+   existed, the reference is wrong: update it or delete it.
 
-4. Re-run the skill and confirm `VERDICT: PASS`.
+4. If the reference is intentional historical or proposed-entity documentation, add a line-scope `<!-- orphan-ref-ignore -->` (single line) or a file-scope `<!-- orphan-ref-ignore-file -->` (whole file). See "Ignore directives" above for placement rules.
+
+5. Re-run the skill and confirm `VERDICT: PASS`.
 
 ## Investigation workflow
 
