@@ -20,6 +20,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "build" / "scripts" / "check_plugin_manifest_parity.py"
 
+# The CLI contract tests shell out. Without a cap, a wedged validator or a
+# stalled `git` hangs the job until the CI-level timeout kills the whole run,
+# which reports as a suite-wide failure and hides which test was stuck. Thirty
+# seconds is the repo's prevailing choice and is ~100x the observed runtime.
+_SUBPROCESS_TIMEOUT = 30
+
 def _load_module() -> Any:
     """Import the validator by path, fresh per test."""
     spec = importlib.util.spec_from_file_location("parity_under_test", SCRIPT)
@@ -217,7 +223,7 @@ def test_uncounted_descriptions_pass(parity: Any, tmp_path: Path, description: s
 
 
 def test_a_singular_category_is_still_a_count(parity: Any, tmp_path: Path) -> None:
-    """"1 agent" goes stale the moment a second lands, so grammar is not the test."""
+    '''A count like "1 agent" goes stale the moment a second lands.'''
     assert parity.check_description_counts((_manifest(tmp_path, "2 agent"),)) == 1
 
 
@@ -245,7 +251,7 @@ def test_four_intervening_words_do_not_match(parity: Any, tmp_path: Path) -> Non
 
 
 def test_a_hyphenated_count_is_a_count(parity: Any, tmp_path: Path) -> None:
-    """"25-agent" is the same claim as "25 agents" and goes stale identically."""
+    '''"25-agent" is the same claim as "25 agents" and goes stale identically.'''
     assert parity.check_description_counts((_manifest(tmp_path, "A 25-agent kit"),)) == 1
 
 
@@ -389,14 +395,22 @@ def test_failure_names_the_offending_substring(
 
 def test_cli_passes_on_the_checked_in_repository() -> None:
     result = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True, cwd=REPO_ROOT
+        [sys.executable, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert result.returncode == 0, result.stderr
 
 
 def test_cli_reports_both_checks() -> None:
     result = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True, cwd=REPO_ROOT
+        [sys.executable, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert "versions match" in result.stdout
     assert "No component counts" in result.stdout
@@ -411,7 +425,11 @@ def test_cli_scans_every_configured_description() -> None:
     )
     assert expected >= 5, "configuration lost files; the gate would be near-empty"
     result = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True, cwd=REPO_ROOT
+        [sys.executable, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert f"{expected} checked" in result.stdout
 
@@ -431,6 +449,7 @@ def test_configuration_covers_every_manifest_in_the_repository() -> None:
         text=True,
         cwd=REPO_ROOT,
         check=True,
+        timeout=_SUBPROCESS_TIMEOUT,
     ).stdout
     found = {
         (REPO_ROOT / rel).resolve()
@@ -441,3 +460,57 @@ def test_configuration_covers_every_manifest_in_the_repository() -> None:
     configured = {path.resolve() for path in module._DESCRIBED_FILES}
     missing = sorted(str(p.relative_to(REPO_ROOT)) for p in found - configured)
     assert not missing, f"manifests not scanned for counts: {missing}"
+
+
+# Review raised the concern that `_COUNT` lists `twenty` and `five` but not
+# `twenty-five`, leaving hyphenated spelled-out numbers as a hole a drifting
+# count could slip through. Measurement says the phrase matches. The reason is
+# the optional intervening-word group: its separator is `[-\s]+`, so a hyphen
+# is read the same way a space is and the tail of the compound is absorbed as an
+# intervening word.
+#
+# The reviewer's own examples do not prove that, which is worth stating plainly
+# rather than banking a green test. In "twenty-five agents" the second half is
+# itself a count token, so the phrase still matches on the "five agents" tail
+# even with the hyphen support removed. Same for "ninety-nine skills". They are
+# kept because they are the cases that were asked about, and marked for what
+# they are.
+@pytest.mark.parametrize("text", ["twenty-five agents", "ninety-nine skills"])
+def test_the_reviewed_hyphenated_examples_are_counts(
+    parity: Any, tmp_path: Path, text: str
+) -> None:
+    """Answers the review directly. Does not isolate the hyphen; see below."""
+    assert parity.check_description_counts((_manifest(tmp_path, text),)) == 1
+
+
+# These do isolate it. In each one the token after the hyphen is not a count, so
+# the only way the phrase can match is if `[-\s]+` let the hyphen act as a word
+# separator. Narrowing that to `\s+` fails every case here and neither case
+# above, which is the whole reason this second set exists.
+@pytest.mark.parametrize(
+    "text",
+    [
+        "twenty-odd agents",
+        "hundred-plus commands",
+        "five-star agents",
+        "three-legged skills",
+        "twenty-first agents",
+    ],
+)
+def test_a_hyphen_separates_a_count_from_a_non_count_word(
+    parity: Any, tmp_path: Path, text: str
+) -> None:
+    assert parity.check_description_counts((_manifest(tmp_path, text),)) == 1
+
+
+def test_a_count_word_outside_the_token_set_is_not_a_count(
+    parity: Any, tmp_path: Path
+) -> None:
+    """Pins the real edge of the pattern, which is the token list, not hyphens.
+
+    "half-dozen hooks" is an inventory claim in English and this gate does not
+    see it, because `dozen` is not in `_COUNT`. Recorded rather than fixed:
+    widening the token set trades a miss for false positives on ordinary prose,
+    and that trade needs a decision, not a quiet edit inside a review reply.
+    """
+    assert parity.check_description_counts((_manifest(tmp_path, "half-dozen hooks"),)) == 0
