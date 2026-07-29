@@ -1663,6 +1663,60 @@ def test_sibling_resolution_does_not_mask_a_real_orphan(sibling_repo, capsys):
     assert "agent-one" not in out
 
 
+def test_memory_corpus_bare_kebab_tokens_are_not_skill_candidates(fake_repo, capsys):
+    """Issue #3637: .serena memories use kebab-case for many non-skill terms.
+
+    A memory-corpus gate must not flag bare GitHub Actions, model, config,
+    hook, HTTP header, or label tokens as missing skills. The same corpus still
+    needs typed skill references so real deleted skills are not buried.
+    """
+    text = "\n".join(
+        [
+            "CI uses `ubuntu-latest`, `self-hosted`, and `retention-days`.",
+            "Models include `gpt-4o-mini` and `claude-fable-5`.",
+            "Config keys include `quality-gates`, `bot-pat`, and `write-all`.",
+            "Hooks include `post-create`, `post-switch`, and `pre-merge`.",
+            "Headers include `x-ratelimit-remaining` and `retry-after`.",
+            "Labels include `area-workflows` and `area-infrastructure`.",
+        ]
+    )
+    write(fake_repo / ".serena" / "memories" / "ops.md", text + "\n")
+
+    rc = main(["--targets", ".serena/memories", "--repo-root", str(fake_repo)])
+
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_memory_corpus_typed_nonhistorical_kebab_token_is_not_flagged(
+    fake_repo, capsys
+):
+    """A typed-looking memory mention is not enough without retired-skill evidence."""
+    write(
+        fake_repo / ".serena" / "memories" / "ops.md",
+        "This memory captures learnings from using the `land-and-deploy` skill.\n",
+    )
+
+    rc = main(["--targets", ".serena/memories", "--repo-root", str(fake_repo)])
+
+    assert rc == 0
+    assert "VERDICT: PASS" in capsys.readouterr().out
+
+
+def test_memory_corpus_typed_orphan_skill_still_flags(fake_repo, capsys):
+    """Negative control: memory-corpus narrowing must not make detector inert."""
+    write(
+        fake_repo / ".serena" / "memories" / "ops.md",
+        "See the `doc-coverage` skill.\n",
+    )
+
+    rc = main(["--targets", ".serena/memories", "--repo-root", str(fake_repo)])
+    out = capsys.readouterr().out
+
+    assert rc == 1
+    assert "doc-coverage" in out
+
+
 def test_check_skill_refs_defaults_to_previous_behavior():
     """Omitting sibling_names keeps the pre-change contract for other callers."""
     findings, checked = _scan._check_skill_refs(
@@ -2000,11 +2054,11 @@ class TestRetiredKebabSkillsStayHonest:
 
     def test_no_curated_name_is_currently_live(self):
         """A live name in the set is stale: the catalog already resolves it."""
-        assert _filters_module().KNOWN_KEBAB_SKILLS & _live_skills() == set()
+        assert _filters_module().KNOWN_RETIRED_KEBAB_SKILLS & _live_skills() == set()
 
     def test_every_curated_name_is_hyphenated(self):
         """A single-word name belongs in KNOWN_SINGLE_WORD_SKILLS instead."""
-        assert all("-" in n for n in _filters_module().KNOWN_KEBAB_SKILLS)
+        assert all("-" in n for n in _filters_module().KNOWN_RETIRED_KEBAB_SKILLS)
 
     def test_every_deleted_hyphenated_skill_is_curated_or_restored(self):
         """Drift guard: a deleted skill must be listed or it goes silent.
@@ -2039,7 +2093,7 @@ class TestRetiredKebabSkillsStayHonest:
             if line.startswith(f"{rel}/") and line.endswith("/SKILL.md")
         }
         gone = {n for n in deleted if n not in _live_skills() and "-" in n}
-        assert gone <= _filters_module().KNOWN_KEBAB_SKILLS
+        assert gone <= _filters_module().KNOWN_RETIRED_KEBAB_SKILLS
 
 
 class TestTheMemoryCorpusIsGateable:
@@ -2053,16 +2107,19 @@ class TestTheMemoryCorpusIsGateable:
         return target
 
     def test_the_memory_corpus_reports_no_unowned_skill_orphans(self):
-        """183 findings before the change; the residue must stay named.
+        """183 skill_name findings before the change, zero after.
 
-        `land-and-deploy` is a typed reference to a skill this repository has
-        never shipped, documented in that memory as belonging to gstack. It is
-        the detector working, not noise, so it is pinned by name rather than
-        suppressed.
+        The one remaining candidate was `land-and-deploy`, a typed mention that
+        the memory itself documents as belonging to gstack. Memories are prose
+        about other repositories as often as this one, so a type claim alone is
+        not evidence there and PR #3698 requires the retired-skill allowlist as
+        well. This test pins that decision: an accurate sentence about an
+        external tool must not fail the gate. The planted-reference test below
+        is the negative control proving the detector is still live here.
         """
         target = self._memories()
         result = scan([target], _repo_root())
-        assert _skill_names(result) == {"land-and-deploy"}
+        assert _skill_names(result) == set()
 
     def test_a_planted_reference_to_a_deleted_skill_is_still_caught(self, tmp_path):
         """The other half of the acceptance bar."""
