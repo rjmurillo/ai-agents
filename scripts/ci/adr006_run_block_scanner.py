@@ -66,6 +66,17 @@ _QUOTED_OPERAND = re.compile(r"""(?P<q>["'])(?P<text>(?:\\.|(?!(?P=q)).)*)(?P=q)
 _EXPANSION = re.compile(r"\$\(|\$\{|\$[A-Za-z_]|(?<!\\)`")
 
 
+def _blank_static_operands(line: str) -> str:
+    """Blank every quoted operand on ``line`` that cannot evaluate."""
+
+    def _blank(match: re.Match[str]) -> str:
+        if _EXPANSION.search(match.group("text")):
+            return match.group(0)
+        return match.group("q") * 2
+
+    return _QUOTED_OPERAND.sub(_blank, line)
+
+
 def _strip_static_output(line: str) -> str:
     """Blank the message text of an ``echo``/``printf`` operand.
 
@@ -87,12 +98,29 @@ def _strip_static_output(line: str) -> str:
     if not _STATIC_OUTPUT_CMD.match(line):
         return line
 
-    def _blank(match: re.Match[str]) -> str:
-        if _EXPANSION.search(match.group("text")):
-            return match.group(0)
-        return match.group("q") * 2
+    return _blank_static_operands(line)
 
-    return _QUOTED_OPERAND.sub(_blank, line)
+
+def _strip_static_output_body(lines: Sequence[str]) -> list[str]:
+    """Apply :func:`_strip_static_output` across a body, following continuations.
+
+    A message list can span lines: ``printf '%s\\n' \\`` followed by bare
+    quoted operands. Those continuation lines carry no command of their own, so
+    a per-line check on the leading command never strips them and prose there
+    still trips ``_LOGIC``. ``validate-adr-number-uniqueness.yml`` is flagged
+    on exactly that shape.
+
+    Continuation state is carried only from an ``echo``/``printf`` command, so
+    an operand of any other command is left alone, and it ends at the first
+    line without a trailing backslash.
+    """
+    stripped: list[str] = []
+    continuing = False
+    for line in lines:
+        starts = bool(_STATIC_OUTPUT_CMD.match(line))
+        stripped.append(_blank_static_operands(line) if starts or continuing else line)
+        continuing = (starts or continuing) and line.rstrip().endswith("\\")
+    return stripped
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,9 +185,9 @@ def scan_text(text: str) -> list[RunBlock]:
         # blank the message text of pure output commands for the same reason
         # (prose in a remediation `echo` is not shell logic).
         code_only_text = "\n".join(
-            _strip_static_output(line)
-            for line in body
-            if line.strip() and not line.strip().startswith("#")
+            _strip_static_output_body(
+                [line for line in body if line.strip() and not line.strip().startswith("#")]
+            )
         )
         blocks.append(
             RunBlock(

@@ -298,6 +298,78 @@ class TestProseInOutputCommandsIsNotLogic:
             assert violations == [], name
 
 
+# A trailing shell line continuation: one space and one backslash.
+_CONT = " \\"
+# ``printf`` with a literal backslash-n in its format, not a real newline.
+_PRINTF = "printf '%s\\n'"
+
+
+class TestContinuedMessageLists:
+    """A message list spanning lines is still a message list.
+
+    ``_STATIC_OUTPUT_CMD`` keys on the leading command, so operands that
+    continue on following lines never reached the stripper.
+    ``validate-adr-number-uniqueness.yml`` is flagged on exactly that shape:
+    bare quoted prose lines under a ``printf`` continuation.
+    """
+
+    def test_prose_on_a_continuation_line_is_not_logic(self) -> None:
+        """Positive: operands of a continued printf are message text."""
+        block = _run_block(
+            _PRINTF + _CONT,
+            *(
+                f'  "Renumber {i} if a collision is found for it."' + _CONT
+                for i in range(11)
+            ),
+            '  "Numbers are assigned for each ADR."',
+        )
+        assert block.code_lines > scanner._DEFAULT_THRESHOLD
+        assert block.has_logic is False
+
+    def test_a_non_output_command_does_not_carry_continuation(self) -> None:
+        """Negative: only echo and printf start a message list."""
+        block = _run_block(
+            "jq -r '.x'" + _CONT,
+            '  --arg mode "run for each item"' + _CONT,
+            "  input.json",
+        )
+        assert block.has_logic is True
+
+    def test_continuation_ends_at_the_first_unbroken_line(self) -> None:
+        """Negative: a line after the list ends is scanned normally.
+
+        The following ``grep`` is not a message carrier, so its operand keeps
+        its keyword (the contract pinned by
+        ``test_non_output_commands_are_untouched``). If continuation state
+        never ended, that operand would be blanked and the block would read
+        as pure output.
+        """
+        block = _run_block(
+            _PRINTF + _CONT,
+            '  "a message"',
+            'grep "search for this" file.txt',
+        )
+        assert block.has_logic is True
+
+    def test_a_substitution_on_a_continuation_line_still_evaluates(self) -> None:
+        """Edge: continuation does not blank an operand that can evaluate."""
+        block = _run_block(
+            _PRINTF + _CONT,
+            '  "$(gh pr list --json number)"',
+        )
+        assert block.has_logic is True
+
+    def test_the_continued_message_workflow_is_clean(self) -> None:
+        """Edge: the live block this fix clears reports no violation."""
+        path = REPO_ROOT / ".github" / "workflows" / "validate-adr-number-uniqueness.yml"
+        violations = [
+            block
+            for block in scanner.scan_text(path.read_text(encoding="utf-8"))
+            if scanner.is_violation(block, scanner._DEFAULT_THRESHOLD)
+        ]
+        assert violations == []
+
+
 if __name__ == "__main__":
     import pytest
 
