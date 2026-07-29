@@ -932,6 +932,7 @@ class TestCapturedOutputPinsItsCodec:
                 set_true(kwargs, "text")
                 or set_true(kwargs, "universal_newlines")
                 or "encoding" in kwargs
+                or "errors" in kwargs
             )
             if captures and decodes:
                 found.append((node.lineno, set(kwargs)))
@@ -974,6 +975,22 @@ class TestCapturedOutputPinsItsCodec:
             "import subprocess\nsubprocess.run(['x'], capture_output=True, text=True)\n"
         )
         assert offenders == [(2, {"capture_output", "text"})]
+
+    def test_errors_alone_run_is_reported(self):
+        """errors= alone enables text mode through the locale codec."""
+        offenders = self._capturing_runs(
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, errors='ignore')\n"
+        )
+        assert offenders == [(2, {"capture_output", "errors"})]
+
+    def test_errors_with_encoding_is_not_an_encoding_offender(self):
+        """errors= with encoding= pins the codec and stays quiet."""
+        runs = self._capturing_runs(
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, encoding='utf-8', errors='ignore')\n"
+        )
+        offenders = [lineno for lineno, kwargs in runs if "encoding" not in kwargs]
+        assert offenders == []
 
     def test_a_non_capturing_run_is_out_of_scope(self):
         """text= without capture never decodes, so it is not this rule's business."""
