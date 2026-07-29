@@ -4,8 +4,10 @@
 
 The pre-commit hook `.githooks/pre-commit:1406-1441` runs
 `.claude/skills/memory/scripts/extract_session_episode.py` on every commit. It
-extracts the current session's episode to `.agents/memory/episodes/episode-<session>.json`
-and updates `.agents/memory/causality/causal-graph.json`, then stages both.
+extracts the current session's episode to `.agents/memory/episodes/episode-<session>.json`,
+then stages it. Until ADR-089 it also wrote and staged
+`.agents/memory/causality/causal-graph.json`; that graph and its writer job are
+deleted, so the hook now stages one file per commit, not two.
 
 ## Consequence
 
@@ -14,7 +16,7 @@ structurally violates `.claude/rules/claude-agents.md` MUST NOT #2 ("MUST NOT
 bundle skill code changes with memory changes in the same PR"). Bot reviewers
 (copilot-pull-request-reviewer) flag it on PRs. On PR #3284 the flagged files
 (`episode-2026-07-20-session-3256-*.json`, `causal-graph.json`) were hook
-output, not manual authoring.
+output, not manual authoring. The graph half of that output no longer exists.
 
 ## Why it matters
 

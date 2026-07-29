@@ -490,7 +490,7 @@ Measure-Command { Search-Memory -Query "test" }
 
 ## Related Documentation
 
-- [Reflexion Memory](reflexion-memory.md) - Episodic and causal memory (Tiers 2 & 3)
+- [Reflexion Memory](reflexion-memory.md) - Episodic memory (Tier 2)
 - [Benchmarking](../../memory-maintenance/references/benchmarking.md) - Performance measurement
 - [API Reference](api-reference.md) - Complete function signatures
 - ADR-037 - Memory Router Architecture

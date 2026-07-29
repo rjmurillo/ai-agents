@@ -35,7 +35,7 @@ Before any work, rjmurillo-bot MUST:
 
 ## Implementation
 
-See `Get-BotAuthorInfo` in `scripts/Invoke-PRMaintenance.ps1`.
+See `get_bot_author_info` in `scripts/invoke_pr_maintenance.py`.
 
 ## Copilot Synthesis
 
@@ -48,7 +48,12 @@ When rjmurillo-bot is reviewer on a copilot-swe-agent PR:
 
 **Authority Boundary**: Bot reviewer cannot modify mention-triggered PRs directly - must delegate via @copilot.
 
-**Function**: `Invoke-CopilotSynthesis` in `scripts/Invoke-PRMaintenance.ps1`
+**Function**: originally `Invoke-CopilotSynthesis` in
+`scripts/Invoke-PRMaintenance.ps1`. The ADR-042 migration did not port the full
+workflow: no Python function collects the comments, generates the prompt, and
+posts it. The classifier survives, setting `requiresSynthesis` at
+`scripts/invoke_pr_maintenance.py:329` and `.github/scripts/invoke_pr_maintenance.py:389`,
+so steps 1 to 3 above are specification only.
 
 ## Derivative PRs
 
@@ -59,7 +64,11 @@ Derivative PRs are created by mention-triggered bots (e.g., copilot-swe-agent) t
 | `baseRefName != main/master` + mention-triggered author | Add to `DerivativePRs` collection |
 | Parent PR found (matching `headRefName`) | Add parent to `ActionRequired` with `PENDING_DERIVATIVES` |
 
-**Functions**: `Get-DerivativePRs`, `Get-PRsWithPendingDerivatives` in `scripts/Invoke-PRMaintenance.ps1`
+**Functions**: `get_derivative_prs` and `get_parents_with_derivatives` in
+`.github/scripts/invoke_pr_maintenance.py` (lines 255 and 272). Originally
+`Get-DerivativePRs` and `Get-PRsWithPendingDerivatives` in
+`scripts/Invoke-PRMaintenance.ps1`. `scripts/invoke_pr_maintenance.py` carries the
+same `PENDING_DERIVATIVES` classification at line 267.
 
 **Risk**: Parent PR may merge before derivative is reviewed, orphaning the derivative.
 
