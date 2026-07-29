@@ -232,6 +232,29 @@ jobs:
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
 
+      # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
+      # index. Every route that skips local hooks reached the remote unchecked:
+      # a server-side merge from the "Update branch" button, `--no-verify`, a
+      # clone where `lefthook install` was never run, a bot push.
+      #
+      # It already happened. Commit b71580c23 landed two unresolved hunks in
+      # tests/test_lefthook_integration.py while neither parent carried any,
+      # then survived four further merges. What caught it was the Python syntax
+      # check in pytest.yml, which is incidental coverage: it exists to enforce
+      # the 3.10 syntax floor, it only reads Python, and a marker in Markdown or
+      # YAML has no equivalent backstop anywhere in the repository.
+      #
+      # This job is the right host for the same reason the two gates above are
+      # here: it is a required check that reports on every PR regardless of
+      # which paths changed, and a marker can arrive in any file type.
+      #
+      # The scan walks the whole tracked tree rather than the PR diff so that a
+      # marker is caught by the PR carrying it no matter which route introduced
+      # it. That costs about one second across 7,530 tracked files, and the tree
+      # is clean today, so this is a ratchet at zero with no allowlist.
+      - name: Check for conflict markers
+        run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
+
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin
       # that lacks a model-rationale field, and `checks_spec.validate_model_pins`

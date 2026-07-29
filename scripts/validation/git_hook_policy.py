@@ -235,6 +235,11 @@ SKIPPED_DASH_PREFIXES = (
 # not a signal: reStructuredText section underlines and markdown setext headings
 # produce it legitimately, and every real conflict carries a labelled marker too.
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|\|{7}|>{7}) \S")
+# A NUL in the first 8 KiB is the usual "this is binary" heuristic, and git uses
+# the same idea to decide whether to show a diff. Without it the tracked-tree
+# scan decodes every PNG and every compiled artifact in the repository to look
+# for a marker that cannot be there.
+_BINARY_SNIFF_BYTES = 8192
 MARKDOWN_FENCE_RE = re.compile(r"^\s*(?:`{3,}|~{3,})")
 GIT_ENV_KEYS = (
     "GIT_DIR",
@@ -1594,6 +1599,62 @@ def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
     print(
         "Resolve the conflict and restage. To quote a marker in documentation, "
         "put it inside a fenced code block.",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def check_tracked_conflict_markers(repo_root: Path) -> int:
+    """Fail when any tracked file carries a conflict marker (issue #3770).
+
+    ``staged-conflict-markers`` runs at pre-commit over the index, which is the
+    right place to catch a marker as it is written but the wrong place to be the
+    only check. Every route that skips local hooks reaches the remote unchecked:
+    a server-side merge from the "Update branch" button, ``--no-verify``, a
+    clone where ``lefthook install`` was never run, a bot push.
+
+    One instance is already in the history. Commit ``b71580c23`` landed two
+    unresolved hunks in ``tests/test_lefthook_integration.py`` while neither
+    parent carried any, then survived four further merges. The thing that caught
+    it was CI's Python syntax check, which is incidental coverage: it exists to
+    enforce the 3.10 syntax floor, it only reads Python, and a marker in
+    Markdown or YAML has no equivalent anywhere.
+
+    This walks the whole tracked tree rather than a diff so that a marker
+    introduced by any route is caught by the PR that carries it, not by whatever
+    unrelated parser happens to choke first. The tree is clean today (0 hits
+    across 7,530 tracked files), so this is a ratchet at zero and needs no
+    allowlist.
+    """
+    result = _run_git(repo_root, ["ls-files", "-z"])
+    if result.returncode != 0:
+        print("ERROR: could not list tracked files", file=sys.stderr)
+        return 2
+    violations: list[str] = []
+    # ``-z`` NUL-terminates every entry, so a plain split leaves a trailing
+    # empty element. Strip it here rather than guarding inside the loop.
+    tracked = result.stdout.rstrip("\0").split("\0") if result.stdout else []
+    for path in tracked:
+        if path.startswith(SKIPPED_DASH_PREFIXES):
+            continue
+        full_path = repo_root / path
+        try:
+            content = full_path.read_bytes()
+        except OSError:
+            # A tracked path missing from the worktree is a checkout concern,
+            # not a conflict. Sparse checkouts and submodules both hit this.
+            continue
+        if b"\0" in content[:_BINARY_SNIFF_BYTES]:
+            continue
+        violations.extend(_conflict_marker_violations(path, content))
+    if not violations:
+        return 0
+    print("ERROR: tracked files contain git conflict markers:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    print(
+        "Resolve the conflict and push the fix. To quote a marker in "
+        "documentation, put it inside a fenced code block.",
         file=sys.stderr,
     )
     return 1
@@ -4041,6 +4102,10 @@ def _handle_staged_conflict_markers(args: argparse.Namespace) -> int:
     return check_staged_conflict_markers(args.paths, _repo_root(args))
 
 
+def _handle_tracked_conflict_markers(args: argparse.Namespace) -> int:
+    return check_tracked_conflict_markers(_repo_root(args))
+
+
 def _handle_github_bash(args: argparse.Namespace) -> int:
     return check_github_bash_scripts(args.paths, _repo_root(args))
 
@@ -4204,6 +4269,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
         ("pre-push", _handle_pre_push),
+        ("tracked-conflict-markers", _handle_tracked_conflict_markers),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)

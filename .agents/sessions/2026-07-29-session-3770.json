@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3770,
+    "date": "2026-07-29",
+    "branch": "fix/3770-conflict-marker-backstop",
+    "startingCommit": "89bbf7048501b13de3f4a0502604c06632f1622e",
+    "objective": "Add a server-side conflict-marker backstop (issue #3770): scan the whole tracked tree in CI so a marker that skips local hooks cannot reach main."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3770-conflict-marker-backstop"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3770-conflict-marker-backstop"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "89bbf7048501b13de3f4a0502604c06632f1622e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR body and tests/test_lefthook_integration.py (10 new tests, 7/7 mutants caught)."
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}

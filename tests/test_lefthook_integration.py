@@ -7532,3 +7532,138 @@ def test_the_commit_ceilings_come_from_the_shared_module() -> None:
         == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD
         == 40
     )
+
+
+# ---------------------------------------------------------------------------
+# Issue #3770: the conflict-marker gate needs a backstop that survives every
+# route which skips local hooks
+# ---------------------------------------------------------------------------
+
+
+def test_the_tracked_scan_passes_a_clean_tree(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_catches_a_marker_the_staged_scan_cannot(
+    tmp_path: Path,
+) -> None:
+    """The isolating control for this whole change.
+
+    The pre-commit gate is invoked with `{staged_files}`. Once a commit is made
+    nothing is staged, so every later hook run passes it an empty list and it
+    returns 0 without reading anything. The marker is now in the history and no
+    local hook will ever be handed its path again.
+
+    That is the gap b71580c23 fell through, and it is why a backstop has to
+    choose its own scope rather than inherit one from the staging area.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    # What lefthook actually invokes after the commit: nothing is staged.
+    assert _git(repo, "diff", "--name-only", "--cached").stdout.strip() == ""
+    assert policy.check_staged_conflict_markers([], repo) == 0
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_reads_the_worktree_not_the_index(
+    tmp_path: Path,
+) -> None:
+    """CI checks out the head commit, so the worktree is the thing under test."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_ignores_untracked_files(tmp_path: Path) -> None:
+    """A scratch file in someone's worktree is not what a PR is shipping."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "scratch.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_allows_a_marker_inside_a_fence(tmp_path: Path) -> None:
+    """merge-resolver documentation quotes markers on purpose."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(
+        repo,
+        "guide.md",
+        "How to resolve:\n\n```\n<<<<<<< HEAD\nx\n>>>>>>> main\n```\n",
+    )
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_skips_binary_files(tmp_path: Path) -> None:
+    """Without the NUL sniff every tracked PNG gets decoded to look for text."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "blob.bin").write_bytes(b"\x00\x01<<<<<<< HEAD\nx\n>>>>>>> main\n")
+    _git(repo, "add", "blob.bin")
+    _git(repo, "commit", "-m", "add blob")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_honours_the_skipped_prefixes(tmp_path: Path) -> None:
+    """tests/hooks/fixtures carries prohibited bytes on purpose."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    fixture = "tests/hooks/fixtures/conflict.md"
+    (repo / "tests" / "hooks" / "fixtures").mkdir(parents=True)
+    (repo / fixture).write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    _git(repo, "add", fixture)
+    _git(repo, "commit", "-m", "add fixture")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_survives_a_tracked_path_missing_from_disk(
+    tmp_path: Path,
+) -> None:
+    """Sparse checkouts and submodules leave tracked paths absent."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "doc.md").unlink()
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_reports_every_offending_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "a.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+    _commit_file(repo, "b.md", "y\n<<<<<<< HEAD\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+    err = capsys.readouterr().err
+    assert "a.md:1" in err
+    assert "a.md:3" in err
+    assert "b.md:2" in err
+
+
+def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
+    tmp_path: Path,
+) -> None:
+    """Exit 2 is the repo-is-unusable code; 1 means markers were found."""
+    not_a_repo = tmp_path / "plain"
+    not_a_repo.mkdir()
+
+    assert policy.check_tracked_conflict_markers(not_a_repo) == 2

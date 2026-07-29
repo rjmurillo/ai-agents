@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-07-29-session-3770",
+  "session": "2026-07-29-session-3770",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Add a server-side conflict-marker backstop (issue #3770): scan the whole tracked tree in CI so a marker that skips local hooks cannot reach main.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
