@@ -103,10 +103,14 @@ def test_qa_report_detects_code_changes_and_existing_report(
         check: bool,
         stdout: int,
         text: bool,
+        encoding: str,
+        errors: str,
     ) -> subprocess.CompletedProcess[str]:
         assert check is False
         assert stdout is subprocess.PIPE
         assert text is True
+        assert encoding == "utf-8"
+        assert errors == "replace"
         return subprocess.CompletedProcess(args, 0, "src/app.py\n.agents/note.md\n")
 
     monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)

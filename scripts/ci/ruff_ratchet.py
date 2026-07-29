@@ -41,6 +41,7 @@ def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedPr
         check=False,
         capture_output=True,
         text=True,
+        errors="replace",
         encoding="utf-8",
     )
 
@@ -72,6 +73,7 @@ def run_ruff(files: Sequence[str], repo_root: Path) -> int:
         capture_output=True,
         cwd=repo_root,
         text=True,
+        errors="replace",
         encoding="utf-8",
     )
     if result.stdout:
