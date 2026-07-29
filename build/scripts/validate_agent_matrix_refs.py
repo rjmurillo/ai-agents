@@ -43,7 +43,10 @@ name absent from a root is unreachable for everyone who installs that root.
 Agent names are derived by stripping each tree's own filename suffix, because
 the trees do not agree on one: ``orchestrator.shared.md`` in the templates,
 ``orchestrator.md`` under ``.claude/agents``, ``orchestrator.agent.md`` under
-``.github/agents``.
+``.github/agents``. When an agent file also carries a frontmatter ``name`` key,
+that value must match the filename-derived name. Dispatch hosts read the
+frontmatter name, while this validator resolves matrix rows against filenames;
+letting those drift makes the validator and host disagree about the same file.
 
 Suffix stripping alone is NOT enough to decide what is an agent. In the trees
 whose suffix is a bare ``.md`` it admits any sibling markdown file, and a second
@@ -205,6 +208,16 @@ class Citation:
     tree: Path
 
 
+@dataclass(frozen=True)
+class NameMismatch:
+    """An agent file whose frontmatter name disagrees with its filename."""
+
+    path: Path
+    tree: Path
+    filename_name: str
+    frontmatter_name: str
+
+
 @dataclass
 class ScanResult:
     """Outcome of a full repository scan."""
@@ -213,6 +226,7 @@ class ScanResult:
     files_with_matrix: list[Path] = field(default_factory=list)
     parse_gaps: list[Path] = field(default_factory=list)
     unparsed_rows: list[tuple[Path, int, str]] = field(default_factory=list)
+    name_mismatches: list[NameMismatch] = field(default_factory=list)
     config_errors: list[str] = field(default_factory=list)
     trees_scanned: list[Path] = field(default_factory=list)
     empty_trees: list[Path] = field(default_factory=list)
@@ -285,6 +299,31 @@ class FrontmatterLoader(yaml.SafeLoader):
         return super().compose_node(parent, index)
 
 
+def agent_frontmatter(path: Path) -> dict[str, object] | None:
+    """Return parsed agent frontmatter for ``path``, or ``None`` when absent.
+
+    The caller decides what to do with optional keys. This helper only answers
+    whether the file is an agent definition by requiring a loadable mapping with
+    the standard ``description`` key.
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not (opened := FRONTMATTER_OPEN.match(text)):
+        return None
+    close = FRONTMATTER_CLOSE.search(text, opened.end())
+    if close is None:
+        return None
+    try:
+        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
+    except yaml.YAMLError:
+        return None
+    if isinstance(block, dict) and FRONTMATTER_KEY in block:
+        return block
+    return None
+
+
 def is_agent_definition(path: Path) -> bool:
     """Report whether ``path`` is an agent definition rather than a sibling doc.
 
@@ -309,20 +348,7 @@ def is_agent_definition(path: Path) -> bool:
     A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
     no separate ``is_file`` guard is needed.
     """
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeDecodeError):
-        return False
-    if not (opened := FRONTMATTER_OPEN.match(text)):
-        return False
-    close = FRONTMATTER_CLOSE.search(text, opened.end())
-    if close is None:
-        return False
-    try:
-        block = yaml.load(text[opened.end() : close.start()], Loader=FrontmatterLoader)
-    except yaml.YAMLError:
-        return False
-    return isinstance(block, dict) and FRONTMATTER_KEY in block
+    return agent_frontmatter(path) is not None
 
 
 def known_agents(tree_root: Path, suffix: str) -> set[str]:
@@ -339,6 +365,31 @@ def known_agents(tree_root: Path, suffix: str) -> set[str]:
         if name and is_agent_definition(path):
             names.add(name)
     return names
+
+
+def frontmatter_name_mismatches(repo_root: Path, tree: Path, suffix: str) -> list[NameMismatch]:
+    """Return agent files whose optional frontmatter name disagrees with filename."""
+    mismatches: list[NameMismatch] = []
+    directory = repo_root / tree
+    for path in sorted(directory.glob(f"*{suffix}")):
+        filename_name = path.name[: -len(suffix)]
+        if not filename_name:
+            continue
+        frontmatter = agent_frontmatter(path)
+        if frontmatter is None or "name" not in frontmatter:
+            continue
+        raw_name = frontmatter["name"]
+        frontmatter_name = raw_name.strip() if isinstance(raw_name, str) else repr(raw_name)
+        if frontmatter_name != filename_name:
+            mismatches.append(
+                NameMismatch(
+                    path=path.relative_to(repo_root),
+                    tree=tree,
+                    filename_name=filename_name,
+                    frontmatter_name=frontmatter_name,
+                )
+            )
+    return mismatches
 
 
 def _cell_text(inline: Token) -> str:
@@ -482,6 +533,7 @@ def scan(repo_root: Path) -> ScanResult:
         result.trees_scanned.append(tree)
         agents = known_agents(directory, suffix)
         result.agents_by_tree[tree] = agents
+        result.name_mismatches.extend(frontmatter_name_mismatches(repo_root, tree, suffix))
         if not agents:
             result.empty_trees.append(tree)
         for path in sorted(directory.glob("*.md")):
@@ -541,9 +593,25 @@ def report(result: ScanResult, bad: list[Citation]) -> None:
         )
         print()
 
-    if not bad and not degeneracy:
+    if not bad and not result.name_mismatches and not degeneracy:
         print("OK: every agent named in a capability matrix ships in the tree that cites it.")
         return
+
+    if result.name_mismatches:
+        print(
+            "FRONTMATTER NAME MISMATCHES: "
+            f"{len(result.name_mismatches)} agent file(s) have a name that differs "
+            "from the filename"
+        )
+        print()
+        for mismatch in result.name_mismatches:
+            print(
+                f"  {mismatch.path}: frontmatter name {mismatch.frontmatter_name!r} "
+                f"does not match filename-derived name {mismatch.filename_name!r} "
+                f"in {mismatch.tree}"
+            )
+        print()
+
     if not bad:
         return
 
@@ -607,7 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     bad = violations(result)
     report(result, bad)
 
-    if bad or result.degeneracy():
+    if bad or result.name_mismatches or result.degeneracy():
         return 1
     return 0
 
