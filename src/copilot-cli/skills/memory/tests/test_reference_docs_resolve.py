@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+
 def _anchor() -> tuple[Path, Path]:
     """Locate the repo root and this file's own skills tree.
 

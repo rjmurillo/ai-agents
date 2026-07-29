@@ -53,10 +53,10 @@ positional argument; there is no `--query` flag.
 
 ```bash
 # Basic search
-uv run python .claude/skills/memory/scripts/search_memory.py "git hooks"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
 
 # With options
-uv run python .claude/skills/memory/scripts/search_memory.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "shell array handling" \
     --max-results 5 \
     --format json
@@ -263,7 +263,7 @@ The retrospective agent captures learnings:
 
 ```bash
 # Extract session episode
-result=$(uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]")
+result=$(uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]")
 
 ```
 
@@ -290,7 +290,7 @@ Per SESSION-PROTOCOL.md, agents MUST:
 
 ```bash
 # 1. Extract episode from session log
-uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
 
 # 2. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
@@ -339,7 +339,7 @@ except RuntimeError:
 
 ```bash
 # Check if episode exists, extract if not
-uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
 ```
 
 

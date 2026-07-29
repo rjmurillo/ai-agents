@@ -17,7 +17,7 @@ Deep guidance for selecting the correct memory tier.
 Factual questions about concepts, patterns, or rules.
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "shell array handling"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "shell array handling"
 ```
 
 ### "What happened when...?" → Tier 2
