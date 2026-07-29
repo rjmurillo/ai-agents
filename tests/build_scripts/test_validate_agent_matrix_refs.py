@@ -177,13 +177,22 @@ def _has_agent_frontmatter(path: Path) -> bool:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
-    if (block := _frontmatter_text(text)) and _ALIAS_IN_FRONTMATTER.search(block):
+    block = _frontmatter_text(text)
+    if block and _ALIAS_IN_FRONTMATTER.search(block):
         return False
+    if block:
+        description_lines = [
+            line for line, text_line in enumerate(block.splitlines(), start=1)
+            if re.match(r"^description\s*:", text_line)
+        ]
+        if len(description_lines) > 1:
+            return False
     try:
         parsed = frontmatter.loads(text)
     except Exception:
         return False
-    return "description" in parsed.keys()
+    description = parsed.get("description")
+    return isinstance(description, str) and bool(description.strip())
 
 
 class TestKnownAgents:
@@ -251,6 +260,25 @@ class TestKnownAgents:
         self._agent(tmp_path, "analyst.md")
         (tmp_path / "notes.md").write_text("---\napplyTo: '**'\n---\n\n# Notes\n", encoding="utf-8")
         assert vamr.known_agents(tmp_path, ".md") == {"analyst"}
+
+    def test_null_description_is_excluded(self, tmp_path):
+        """Hosts reject an agent with no dispatch description."""
+        (tmp_path / "ghost.md").write_text("---\ndescription:\n---\n\n# Ghost\n", encoding="utf-8")
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_blank_description_is_excluded(self, tmp_path):
+        """Whitespace is not usable dispatch text."""
+        (tmp_path / "ghost.md").write_text(
+            "---\ndescription: '   '\n---\n\n# Ghost\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set()
+
+    def test_duplicate_description_is_excluded(self, tmp_path):
+        """PyYAML keeps the last key, but stricter hosts reject duplicates."""
+        (tmp_path / "ghost.md").write_text(
+            "---\ndescription: first\ndescription: second\n---\n\n# Ghost\n", encoding="utf-8"
+        )
+        assert vamr.known_agents(tmp_path, ".md") == set()
 
     def test_unterminated_frontmatter_is_excluded(self, tmp_path):
         """An opening fence with no closing fence is not a frontmatter block."""
@@ -951,6 +979,55 @@ class TestMainCli:
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
         assert "'claude-instructions.template' is not shipped" in capsys.readouterr().out
+
+    def test_null_description_exits_two_and_names_the_file(self, tmp_path, capsys):
+        """A description a host would reject is a config error, not a violation.
+
+        Superseded ``test_null_description_exits_one_and_names_the_file``, which
+        predated ``TestDescriptionMustBeUsable`` (issue #3602) and routed this
+        case through the degeneracy channel instead of ``config_errors``, the
+        channel an unreadable markdown file already uses for the same class of
+        problem: a file that claims to be an agent and cannot load.
+        """
+        matrix = "| Agent | Role |\n|-------|------|\n| **ghost** | Phantom |\n"
+        repo = _repo(
+            tmp_path,
+            {
+                _canonical_file("orchestrator"): matrix,
+                _canonical_file("ghost"): "---\ndescription:\n---\n\n# Ghost\n",
+            },
+            {CANONICAL: []},
+            complete=True,
+        )
+        assert vamr.main(["--repo-root", str(repo)]) == 2
+        err = capsys.readouterr().err
+        assert "ghost.shared.md" in err
+        assert "description" in err
+        assert "non-empty string" in err
+
+    def test_duplicate_description_exits_two_with_both_line_numbers(self, tmp_path, capsys):
+        """Same supersession as above, for the duplicate-key case."""
+        matrix = "| Agent | Role |\n|-------|------|\n| **ghost** | Phantom |\n"
+        repo = _repo(
+            tmp_path,
+            {
+                _canonical_file("orchestrator"): matrix,
+                _canonical_file("ghost"): (
+                    "---\n"
+                    "description: first\n"
+                    "description: second\n"
+                    "---\n\n"
+                    "# Ghost\n"
+                ),
+            },
+            {CANONICAL: []},
+            complete=True,
+        )
+        assert vamr.main(["--repo-root", str(repo)]) == 2
+        err = capsys.readouterr().err
+        assert "ghost.shared.md" in err
+        assert "repeats the 'description' key" in err
+        assert "lines 2 and 3" in err
 
     def test_no_agents_anywhere_exits_two(self, tmp_path, capsys):
         """No roster at all is a configuration error, not a flood of violations.

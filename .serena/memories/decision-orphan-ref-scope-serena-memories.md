@@ -116,3 +116,69 @@ SHA-pinning memory, `enable-pester` in the Pester memory). Writing accurate pros
 costs findings under this detector, which is the point. The 20 are left as-is
 rather than worked around; a memory that had to disguise its own examples to keep a
 scanner quiet would be the wrong artifact.
+
+## What happened next: this decision was narrowed by production evidence
+
+On 2026-07-29 the recommendation above was implemented and then partly
+overruled. Recording both, because the reversal is the useful part.
+
+PR #3735 did what this memory asked. It stopped treating every backticked kebab
+token as a reference, required evidence before a token becomes a candidate, and
+only then gated the corpus. Four and a half minutes earlier PR #3741 had merged
+a memory describing how the parser separates a documented route from a live one.
+To describe the live form, the prose wrote the live form. The gate read it as a
+reference to a skill that does not exist and `main` went red.
+
+Both pull requests were green. Each ran against a tree that did not contain the
+other, so the collision first existed in the merge result. Two agent sessions
+then opened duplicate fixes 25 seconds apart, #3751 and #3752.
+
+### The reversal, stated plainly
+
+This memory says above that suppressing `skill_name` findings "would be the
+dishonest fix", and that its own examples were left in place "rather than worked
+around". Fix #3752 added a line-scoped ignore directive. That is a suppression,
+and it contradicts the earlier position rather than fulfilling it.
+
+The position still holds at the scale it was written for: bulk-suppressing 161
+findings across dozens of files to buy a green verdict would record a detector
+limitation as if it were intent. One reviewed exception on one line is a
+different trade. The prose there is not a mislabelled example; it is a sentence
+whose subject is route syntax, so it must contain route syntax. No rewording
+preserves it.
+
+Two costs to keep visible. The directive is line-scoped, not token-scoped: it
+hides every reference candidate on that line, so a later edit to the same line
+is unguarded. And while suppressed references are retained with file and line
+rather than dropped, no gate reviews that list or bounds its growth, so the
+audit trail exists only when a human reads the scanner output.
+
+### What would and would not have prevented this
+
+Not a path filter. `main` uses branch protection without strict status checks,
+so each pull request was validated against the base it branched from rather
+than the tip it would land on. Nothing in either check set could observe the
+other change. Serializing the merge, by strict status checks or a merge queue,
+is the control that matches this failure. That is a repository governance
+decision, not a per-change one.
+
+A separate and genuinely open gap sits next to it: the corpus gate is not
+triggered by the corpus. `.github/workflows/pytest.yml` selects the Python
+suite by changed path and `.serena/memories/**` is not among those paths, so a
+memory-only change does not run the gate that reads memories. Local pre-push
+hooks run the full suite, which is the only reason such an edit is caught at
+all. Closing it is not free: that filter also gates the Windows job and the
+security scans, so adding the corpus there makes a one-word memory fix pay for
+the whole matrix. A job scoped to the single test is the cheaper shape. Left
+open deliberately rather than fixed in passing.
+
+### Standing exposure
+
+The one-line fix landed without the regression tests written for it, so the
+suppression directive is currently protected by nothing. Deleting that comment
+turns `main` red again with no test failing first, and the next reader has no
+signal that the line is load-bearing. Treat the directive as unguarded until a
+test asserts it.
+
+Filed as issue #3749. A separate clone-dependency defect found in the same
+investigation is issue #3753.

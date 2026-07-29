@@ -712,6 +712,56 @@ class TestAdrReviewPolicyMergeScope:
         assert result == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
 
+    def test_blob_readers_preserve_raw_git_bytes(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        # Neutralize text normalization the same way the CRLF fixtures below
+        # do. A host with core.autocrlf set (or an inherited gitattributes)
+        # otherwise folds the raw CRLF and lone-CR bytes this test asserts on
+        # during `git add`, so the assertion fails on the environment rather
+        # than on the reader under test.
+        (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+        relative = ".agents/architecture/ADR-006-raw-bytes.md"
+        adr = repo / relative
+        adr.parent.mkdir(parents=True)
+        raw = b"# ADR 006\r\n\xffraw byte and lone carriage\rreturn\n"
+        adr.write_bytes(raw)
+        _git(repo, "add", relative)
+
+        assert policy._read_index_blob(repo, relative) == raw
+        commit = _commit(repo, "raw ADR bytes")
+        assert policy._read_head_blob(repo, relative) == raw
+        assert policy._read_commit_blob_bytes(repo, commit, relative) == raw
+
+    def test_head_copy_is_checked_across_origin_main_renames(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        old_relative = ".agents/architecture/ADR-007-old-name.md"
+        new_relative = ".agents/architecture/ADR-007-new-name.md"
+        old_adr = repo / old_relative
+        new_adr = repo / new_relative
+        old_body = "# ADR 007\n\nold reviewed position.\nstable line.\n"
+        new_body = "# ADR 007\n\nnew reviewed position.\nstable line.\n"
+        old_adr.write_text(old_body, encoding="utf-8")
+        _commit(repo, "old reviewed ADR")
+        _git(repo, "mv", old_relative, new_relative)
+        new_adr.write_text(new_body, encoding="utf-8")
+        main_tip = _commit(repo, "rename and revise ADR")
+        _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+        _git(repo, "checkout", "-b", "feature")
+        new_adr.write_text(old_body, encoding="utf-8")
+        _commit(repo, "branch keeps older reviewed ADR content at the new path")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, new_relative) is True
+
     def test_merge_of_a_shared_branch_tip_allows_content_already_on_main(
         self,
         tmp_path,
