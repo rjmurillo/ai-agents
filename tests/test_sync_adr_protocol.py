@@ -119,6 +119,26 @@ class TestParseAdrStatus:
         content = "--- x\nstatus: accepted\n---\n\n# ADR-001\n\n## Status\n\nProposed\n"
         assert parse_adr_status(content) == "Proposed"
 
+    def test_leading_whitespace_is_not_a_fence(self) -> None:
+        """A leading space is a horizontal rule and a tab is a code block.
+
+        Neither is frontmatter, so widening the fence must not admit them.
+        Non-Markdown whitespace is rejected for the same reason: ``str.strip``
+        would consume a non-breaking space or a form feed, which no Markdown
+        parser treats as indentation.
+        """
+        for fence in (" ---", "\t---", "\u00a0---", "\x0c---", "\x0b---"):
+            content = (
+                f"{fence}\nstatus: accepted\n---\n\n"
+                "# ADR-001\n\n## Status\n\nProposed\n"
+            )
+            assert parse_adr_status(content) == "Proposed", repr(fence)
+
+    def test_repeated_carriage_returns_are_not_a_fence(self) -> None:
+        """One CR is a line ending. Three is a malformed line, not a fence."""
+        content = "---\nstatus: accepted\n---\r\r\r\n\n# ADR-001\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
     def test_ignores_status_mention_in_body(self) -> None:
         """A bold Status line below the first heading is prose, not state."""
         content = "# ADR-001\n\n## Context\n\n**Status**: COMPLETE\n"
