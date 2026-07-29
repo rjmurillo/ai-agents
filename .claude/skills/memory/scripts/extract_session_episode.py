@@ -194,54 +194,41 @@ def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict
 
 def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
     """Extract events from session log."""
-    events = []
+    events: list[dict] = []
     event_index = 0
     ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
-    for line in lines:
-        evt = None
+    def add(evt_type: str, content: str) -> None:
+        nonlocal event_index
+        event_index += 1
+        events.append(
+            {
+                "id": f"e{event_index:03d}",
+                "timestamp": ts,
+                "type": evt_type,
+                "content": content,
+                "caused_by": [],
+                "leads_to": [],
+            }
+        )
 
+    for line in lines:
         # Commit events
         m = re.search(r"commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})", line)
         if not m:
             m = re.search(r"([a-f0-9]{7,40})\s+\w+\(.+\):", line)
         if m:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "commit",
-                "content": f"Commit: {m.group(1)}",
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("commit", f"Commit: {m.group(1)}")
 
         # Error events
         if re.search(r"error|fail|exception", line, re.IGNORECASE) and not line.startswith("#"):
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "error",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("error", line.strip())
 
         # Milestone events
         if re.search(r"completed?|done|finished|success", line, re.IGNORECASE) and re.match(
             r"^[-*]\s+(?!\*)", line
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Bold status markers (archive convention): the milestone rule above
         # excludes list markers followed by `**`, so an archived status bullet
@@ -255,31 +242,11 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
             line,
             re.IGNORECASE,
         ):
-            event_index += 1
-            content = re.sub(r"^[-*]\s*", "", line.strip())
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "milestone",
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
+            add("milestone", re.sub(r"^[-*]\s*", "", line.strip()))
 
         # Test events
         if re.search(r"test[s]?\s+(pass|fail|run)", line, re.IGNORECASE) or "Pester" in line:
-            event_index += 1
-            evt = {
-                "id": f"e{event_index:03d}",
-                "timestamp": ts,
-                "type": "test",
-                "content": line.strip(),
-                "caused_by": [],
-                "leads_to": [],
-            }
-
-        if evt:
-            events.append(evt)
+            add("test", line.strip())
 
     return events
 
@@ -850,25 +817,35 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_decisions(data: dict, now_iso: str) -> list[dict]:
-    """Surface work-log entries that describe a choice as decisions."""
+    """Surface work-log entries that describe a choice as decisions.
+
+    ``context`` and ``chosen`` are only both populated when the entry records
+    two distinct things: a label and a separate selection. A work-log title
+    like "Selected issue #1798" is the choice itself, not the situation
+    prompting it, so it goes to ``chosen`` and ``context`` stays empty. Writing
+    it to both was the majority shape: 19 of 28 decisions in the shipped corpus
+    had ``context`` byte-identical to ``chosen``, which reads as corroboration
+    while carrying no independent signal (issue #3628).
+    """
     decisions: list[dict] = []
     idx = 0
     for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
         if not _DECISION_RE.search(_decision_signal_text(entry)):
             continue
-        title = _entry_title(entry)
+        title = str(_entry_title(entry) or "").strip()
         outcome = _entry_field(entry, "outcome").strip()
-        # Prefer the decision label; fall back to the outcome only when it is
-        # not a bare status word ("success", "ok", ...).
-        chosen = title or (outcome if outcome.lower() not in _STATUS_WORDS else "")
+        # A bare status word ("success", "ok", ...) is not a selection.
+        selection = outcome if outcome.lower() not in _STATUS_WORDS else ""
+        chosen = selection or title
+        context = title if selection and title != selection else ""
         idx += 1
         decisions.append(
             {
                 "id": f"d{idx:03d}",
                 "timestamp": now_iso,
                 "type": get_decision_type(text),
-                "context": title,
+                "context": context,
                 "chosen": chosen,
                 "rationale": _entry_field(entry, "evidence").strip(),
                 "outcome": "success",
@@ -1405,6 +1382,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--validate",
+        action="store_true",
+        help=(
+            "Validate an existing episode JSON file, or every *.json under a "
+            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "or non-contiguous event id"
+        ),
+    )
+    parser.add_argument(
         "--pending-stage",
         action="store_true",
         help=(
@@ -1442,6 +1428,52 @@ def _has_causal_order_evidence(previous: dict[str, Any], current: dict[str, Any]
         return True
     return _causal_rank(previous) == _causal_rank(current)
 
+
+def _stamp_decision_outcomes(decisions: list, outcome: str) -> None:
+    """Replace the placeholder decision outcome with the session's measured one.
+
+    Both producers wrote the literal `"success"`, so the field never
+    discriminated: all 24 decisions in the shipped corpus that carried an
+    outcome carried `"success"`, while 8 of 302 episodes were `partial` or
+    `failure` at the session level. A constant that reads as a measurement is
+    worse than no measurement, because a reader cannot tell the two apart
+    (issue #3628).
+
+    The session outcome is the strongest signal the extractor actually has:
+    `json_outcome` derives it from the sessionEnd MUST gates plus counted
+    work-log failures, and it uses the same three values the decision schema
+    allows. Every decision in an episode belongs to that one session, so the
+    session verdict applies to each of them.
+    """
+    for dec in decisions:
+        if isinstance(dec, dict):
+            dec["outcome"] = outcome
+
+
+def _renumber_events(events: list) -> None:
+    """Reassign contiguous, unique ids to the final event list, in place.
+
+    Ids are positional labels, not stable identifiers: `_link_sequential_events`
+    rebuilds every edge from the list that follows this call, so no reference
+    can dangle. Only the `--preserve` path renumbered before (via
+    `_dedupe_events`), which left two ways for a shipped episode to carry ids
+    that tooling cannot index (issue #3633).
+
+    A duplicate id makes every edge touching it ambiguous. A gap comes from
+    filtering after ids are assigned: `_filter_markdown_events` drops error
+    events that fail the counted-failure guard, which is how
+    `episode-2026-05-31-session-1857.json` shipped a list starting at `e002`.
+    Numbering last makes both unrepresentable rather than merely detected.
+    """
+    # The counter advances per assigned id, not per list slot. Numbering by
+    # position gave the event after a malformed entry a number one higher than
+    # the count of events before it, so the ids this function promises to make
+    # contiguous were not. Ids label events, not slots.
+    index = 0
+    for evt in events:
+        if isinstance(evt, dict):
+            index += 1
+            evt["id"] = f"e{index:03d}"
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
@@ -1497,6 +1529,86 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
         current["caused_by"] = [previous["id"]]
 
 
+def validate_event_ids(events: Any) -> list[str]:
+    """Return one message per event-id violation, empty when the list is sound.
+
+    ``_renumber_events`` makes duplicates unrepresentable on the write path, so
+    this never fires for a file the extractor produced. It exists for the case
+    issue #3633 names as the actual origin of the one duplicate found live: a
+    hand edit or a merge-conflict resolution, which lands a file without ever
+    passing through the extractor again. Prevention at write time and detection
+    at rest cover different populations; neither subsumes the other.
+
+    ``caused_by`` and ``leads_to`` reference events by id, so a duplicate makes
+    every edge touching it ambiguous and a gap means an edge can dangle.
+    """
+    problems: list[str] = []
+    if not isinstance(events, list):
+        return [f"events must be a list, got {type(events).__name__}"]
+
+    seen: dict[str, int] = {}
+    for position, event in enumerate(events, 1):
+        if not isinstance(event, dict):
+            problems.append(f"event {position} is not an object")
+            continue
+        identifier = event.get("id")
+        if not isinstance(identifier, str) or not identifier:
+            problems.append(f"event {position} has no id")
+            continue
+        if identifier in seen:
+            problems.append(
+                f"duplicate event id {identifier} at positions "
+                f"{seen[identifier]} and {position}"
+            )
+            continue
+        seen[identifier] = position
+        expected = f"e{position:03d}"
+        if identifier != expected:
+            problems.append(
+                f"event {position} has id {identifier}, expected {expected}"
+            )
+    return problems
+
+
+def validate_episode_file(path: Path) -> list[str]:
+    """Return one message per violation found in the episode JSON at ``path``."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"{path}: unreadable: {exc}"]
+    if not isinstance(data, dict):
+        return [f"{path}: top level must be an object"]
+    return [f"{path}: {problem}" for problem in validate_event_ids(data.get("events"))]
+
+
+def _episode_paths(target: Path) -> list[Path]:
+    """Expand ``target`` to the episode files it names."""
+    if target.is_dir():
+        return sorted(target.glob("*.json"))
+    return [target]
+
+
+def run_validate(target: Path) -> int:
+    """Validate an episode file or a directory of them. Exit 2 on violation."""
+    paths = _episode_paths(target)
+    if not paths:
+        print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
+        return 2
+    problems = [problem for path in paths for problem in validate_episode_file(path)]
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    if problems:
+        print(
+            json.dumps(
+                {"Validated": len(paths), "Violations": len(problems)},
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(json.dumps({"Validated": len(paths), "Violations": 0}), file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if ".." in args.session_log_path.parts:
@@ -1504,6 +1616,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"Error": msg}), file=sys.stderr)
         return 2
     session_log_path = args.session_log_path.resolve()
+
+    if args.validate:
+        if not session_log_path.exists():
+            print(
+                json.dumps({"Error": f"Path not found: {session_log_path}"}),
+                file=sys.stderr,
+            )
+            return 1
+        return run_validate(session_log_path)
 
     if not session_log_path.is_file():
         print(
@@ -1566,8 +1687,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
         task = metadata["objectives"][0] if metadata["objectives"] else metadata["title"]
 
-    # Best-effort backfill: when neither the JSON workLog nor the legacy
-    # markdown recorded a files-changed count, derive it from the staged commit.
+    # The staged commit is the primary source for files-changed; work-log prose
+    # is only a fallback. `_FILES_RE` matches any "N files" phrase, so a line
+    # like "markdownlint reported Linting: 2 files, 0 issues" would otherwise
+    # set the count to 2 and, because the backfill was guarded on a falsy value,
+    # suppress the correct staged-diff figure entirely (issue #3617). This is
+    # the same primary/fallback split `_collect_shas` already applies to SHAs.
     # The extractor runs in pre-commit, so the in-flight commit is staged even
     # though no SHA exists yet (issue #2537 item 3).
     # When --pending-stage is set, add 1 to account for the episode file that
@@ -1575,21 +1700,20 @@ def main(argv: list[str] | None = None) -> int:
     # returns, so numstat cannot see it yet). However, skip the +1 if the
     # episode file is already in the staged diff (e.g., via `git add -A`)
     # to avoid double-counting.
-    if not metrics.get("files_changed"):
-        staged = _staged_files_changed(session_log_path.parent)
-        if staged:
-            if args.pending_stage:
-                episode_path = output_path / f"episode-{session_id}.json"
-                repo_root = _repo_root()
-                try:
-                    episode_rel = episode_path.resolve().relative_to(repo_root)
-                    episode_rel_path = str(episode_rel).replace("\\", "/")
-                except ValueError:
-                    episode_rel_path = None
-                staged_paths = _staged_file_paths(session_log_path.parent)
-                if episode_rel_path is not None and episode_rel_path not in staged_paths:
-                    staged += 1
-            metrics["files_changed"] = staged
+    staged = _staged_files_changed(session_log_path.parent)
+    if staged:
+        if args.pending_stage:
+            episode_path = output_path / f"episode-{session_id}.json"
+            repo_root = _repo_root()
+            try:
+                episode_rel = episode_path.resolve().relative_to(repo_root)
+                episode_rel_path = str(episode_rel).replace("\\", "/")
+            except ValueError:
+                episode_rel_path = None
+            staged_paths = _staged_file_paths(session_log_path.parent)
+            if episode_rel_path is not None and episode_rel_path not in staged_paths:
+                staged += 1
+        metrics["files_changed"] = staged
 
     episode = {
         "id": f"episode-{session_id}",
@@ -1655,6 +1779,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
+    _renumber_events(episode["events"])
+    _stamp_decision_outcomes(episode["decisions"], episode["outcome"])
     _link_sequential_events(episode["events"])
 
     try:
