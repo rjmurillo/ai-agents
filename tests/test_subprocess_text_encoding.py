@@ -93,6 +93,9 @@ _DYNAMIC = "subprocess.<dynamic>"
 # subprocess names for want of a second one to thread, and filtered out of
 # every path that answers "is this a subprocess entry point".
 _ATTRIBUTE = "."
+
+#: The subprocess sentinel that sends a stream to the null device.
+_DEVNULL = "DEVNULL"
 _VIA_PARTIAL = "*"
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
@@ -135,13 +138,14 @@ _CALLABLE_ALIASES = frozenset({"__call__", "__func__", "__wrapped__"})
 #: owner is resolved and its element answers for the call. Unlike
 #: :data:`_CALLABLE_ALIASES` these do not name the same callable, they return
 #: one, but both reach a runner from an expression that never spells its name.
-_ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem"})
+_ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem", "get"})
 
 #: Builtins that pass an element of their argument straight back out.
 #: ``next(iter([subprocess.run]))`` reaches the runner with no comprehension
 #: and no attribute, so resolving the first argument is what closes it.
 _ELEMENT_BUILTINS = frozenset(
-    {"next", "iter", "list", "tuple", "set", "frozenset", "sorted", "reversed"}
+    {"next", "iter", "list", "tuple", "set", "frozenset", "sorted",
+     "reversed", "min", "max"}
 )
 
 
@@ -243,16 +247,32 @@ def _is_literal_none(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value is None
 
 
-def _is_capturing_stream(node: ast.expr | None) -> bool:
+def _is_capturing_stream(node: ast.expr | None, modules: dict[str, str]) -> bool:
     """Report whether a ``stdout`` or ``stderr`` value opens a pipe to read.
 
     Each stream is read on its own, so a call that quiets one and pipes the
-    other still decodes. Only an explicit literal ``None`` is treated as no
-    capture: ``DEVNULL`` and a file object also leave the attribute empty, but
-    both are named indirectly and resolving them would trade a measured
-    over-approximation for a guess.
+    other still decodes. A literal ``None`` and ``subprocess.DEVNULL`` are the
+    two spellings that read as no capture. ``DEVNULL`` resolves the same way
+    an entry point does, through the tracked module alias, so it is not the
+    guess a file object would be: ``open(path)`` names something whose mode
+    this scan cannot see, and it still counts.
     """
-    return node is not None and not _is_literal_none(node)
+    if node is None or _is_literal_none(node):
+        return False
+    return not _is_discarded_stream(node, modules)
+
+
+def _is_discarded_stream(node: ast.expr, modules: dict[str, str]) -> bool:
+    """Report whether *node* names the sentinel that throws the stream away.
+
+    Read through the module map rather than on the bare attribute name, so a
+    ``DEVNULL`` attribute on some unrelated object is not mistaken for this
+    one. ``subprocess.DEVNULL`` leaves the attribute at ``None``, which is the
+    same observable state as never capturing at all.
+    """
+    if not isinstance(node, ast.Attribute) or node.attr != _DEVNULL:
+        return False
+    return isinstance(node.value, ast.Name) and modules.get(node.value.id) == "subprocess"
 
 
 def _selects_text(node: ast.expr | None) -> bool:
@@ -830,7 +850,11 @@ def _imports(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
         elif isinstance(node, ast.ImportFrom):
             wanted = _IMPORTED_NAMES.get(node.module or "", {})
             for alias in node.names:
-                if alias.name in wanted:
+                if alias.name == "*":
+                    # ``from subprocess import *`` binds every public name
+                    # under its own spelling, and no alias is possible.
+                    functions.update(wanted)
+                elif alias.name in wanted:
                     functions[alias.asname or alias.name] = wanted[alias.name]
     return modules, functions
 
@@ -844,6 +868,34 @@ def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list
         }:
             found.setdefault(free, []).append(key)
     return found
+
+
+def _module_aliases(
+    bindings: list[tuple[str, ast.expr]], modules: dict[str, str]
+) -> None:
+    """Extend *modules* with the names bound to a module already in it.
+
+    ``import subprocess`` and ``sp = subprocess`` reach the same entry points,
+    and only the first is an import statement, so the binding pass has to carry
+    the second. A chain is resolved by repeating until nothing new is learned,
+    which terminates because every pass that changes anything adds a name and
+    the supply of names is finite.
+
+    The first binding of a name wins, matching how callables are recorded. A
+    name rebound away from a module keeps reading as that module, which costs
+    a redundant ``encoding="utf-8"`` rather than a missed decode.
+    """
+    learned = True
+    while learned:
+        learned = False
+        for name, value in bindings:
+            if name in modules or not isinstance(value, ast.Name):
+                continue
+            module = modules.get(value.id)
+            if module is None:
+                continue
+            modules[name] = module
+            learned = True
 
 
 def _subprocess_names(
@@ -874,6 +926,7 @@ def _subprocess_names(
     # per name is quadratic: 4000 names took 17.76 seconds that way. Every
     # name in a group reads the same node, so one read answers for all of them.
     bindings = _bindings(tree)
+    _module_aliases(bindings, modules)
     containers = _containers(tree, bindings)
     groups: dict[int, tuple[ast.expr, list[str]]] = {}
     for name, value in bindings:
@@ -933,7 +986,7 @@ def _target(
     return fallback
 
 
-def _supplies_capture(call: ast.Call) -> bool:
+def _supplies_capture(call: ast.Call, modules: dict[str, str]) -> bool:
     """Report whether *call* asks for output to be captured.
 
     ``capture_output`` is read for truth, so any value the scan cannot rule
@@ -943,10 +996,15 @@ def _supplies_capture(call: ast.Call) -> bool:
     capture = _keyword(call, "capture_output")
     if capture is not None and not _is_literal_falsy(capture):
         return True
-    return any(_is_capturing_stream(_keyword(call, name)) for name in ("stdout", "stderr"))
+    return any(
+        _is_capturing_stream(_keyword(call, name), modules)
+        for name in ("stdout", "stderr")
+    )
 
 
-def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bool:
+def _captures_text(
+    call: ast.Call, functions: dict[str, str], target: str, modules: dict[str, str]
+) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
     Deliberately conservative. Anything other than a literal falsy value
@@ -985,7 +1043,7 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
         return False
     if partial or target in _ALWAYS_CAPTURING_ATTRS:
         return True
-    return _supplies_capture(call)
+    return _supplies_capture(call, modules)
 
 
 def _literal_string(node: ast.expr | None) -> str | None:
@@ -999,6 +1057,11 @@ def _literal_string(node: ast.expr | None) -> str | None:
     """
     if isinstance(node, ast.Constant):
         return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        # ``"utf" + "-8"`` is one constant folded by hand. Both sides have to
+        # be readable, so a name on either side refuses the whole value.
+        left, right = _literal_string(node.left), _literal_string(node.right)
+        return None if left is None or right is None else left + right
     if not isinstance(node, ast.JoinedStr):
         return None
     parts: list[str] = []
@@ -1049,7 +1112,7 @@ def unpinned_lines(source: str) -> list[int]:
             offenders.append(node.lineno)
             continue
         if target not in _DECODES_UNCONDITIONALLY and not _captures_text(
-            node, functions, target
+            node, functions, target, modules
         ):
             continue
         if not _pins_utf8(node):
@@ -1477,6 +1540,29 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
         (
             'import subprocess\nsubprocess.run(["x"], capture_output=0, text=True)',
             "capture_output=0 is falsy, so subprocess opens no pipes to decode",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], stdout=subprocess.DEVNULL, text=True)',
+            "DEVNULL discards the stream, so the attribute is None and nothing decodes",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="utf" + "-8")',
+            "a codec name built from two literals is still a literal",
+        ),
+        (
+            'import subprocess\n'
+            'def local(*args, **kwargs):\n    return None\n'
+            'H = (local, subprocess.run)\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "a literal index into a tuple names one element, not the whole tuple",
+        ),
+        (
+            'from subprocess import run\n'
+            'def check_output(*args, **kwargs):\n    return None\n'
+            'check_output(["x"], capture_output=True, text=True)',
+            "importing one name binds that name only, so a local definition wins",
         ),
     ],
 )
@@ -2174,6 +2260,54 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'subprocess.run([1], capture_output=True, text=True, encoding=f"utf-{suffix}")',
             "a placeholder makes the codec unknowable, so the pin is not proven",
         ),
+        (
+            'import subprocess, sys\n'
+            'sp = subprocess\n'
+            'sp.run([1], capture_output=True, text=True)',
+            "a module bound to another name is the same module",
+        ),
+        (
+            'from subprocess import *\n'
+            'run([1], capture_output=True, text=True)',
+            "a star import binds every public name the module exports",
+        ),
+        (
+            'import subprocess\n'
+            'runner = {"run": subprocess.run}.get("run")\n'
+            'runner([1], capture_output=True, text=True)',
+            "get reads an element out of a mapping exactly as pop does",
+        ),
+        (
+            'import subprocess\n'
+            'runner = min([subprocess.run])\n'
+            'runner([1], capture_output=True, text=True)',
+            "min hands back one of the elements it was given",
+        ),
+        (
+            'import subprocess\n'
+            'def bind():\n    global sp\n    sp = subprocess\n'
+            'sp2 = sp\n'
+            'sp2.run([1], capture_output=True, text=True)',
+            "a module alias bound through a second alias is still the module",
+        ),
+        (
+            'import subprocess\n'
+            'runner = max([subprocess.run])\n'
+            'runner([1], capture_output=True, text=True)',
+            "max hands back one of the elements it was given, exactly as min does",
+        ),
+        (
+            'import subprocess\n'
+            'sorted([subprocess.run])[0]([1], capture_output=True, text=True)',
+            "sorted hands back the same elements in another order",
+        ),
+        (
+            'import collections, subprocess\n'
+            'q = collections.deque()\n'
+            'q.append(subprocess.run)\n'
+            'q.popleft()([1], capture_output=True, text=True)',
+            "popleft takes an element off the other end and is still an element",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -2265,6 +2399,32 @@ def test_detector_survives_malformed_source(source: str, why: str) -> None:
             'class C:\n    class D:\n        assert (runner := subprocess.run)\n'
             'C.runner(["x"], capture_output=True, text=True)',
             "an attribute is keyed by its name alone, so the owning class is not read",
+        ),
+        (
+            'import subprocess\n'
+            'import vendored\n'
+            'subprocess.run(["x"], stdout=vendored.DEVNULL, text=True)',
+            "a DEVNULL attribute on an untracked module may be anything, so it counts",
+        ),
+        (
+            'import subprocess, os\n'
+            'subprocess.run(["x"], stdout=os.DEVNULL, text=True)',
+            "os.DEVNULL is a path string, not the subprocess sentinel, so it counts",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="utf" % "-8")',
+            "only concatenation folds two string literals, so any other operator counts",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding=PREFIX + "utf-8")',
+            "a name on the left of a concatenation hides the whole codec name",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding="utf-8" + SUFFIX)',
+            "a name on the right of a concatenation hides the whole codec name",
         ),
     ],
 )
