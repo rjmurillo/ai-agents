@@ -296,10 +296,18 @@ class TestMainPostErrors:
         with patch("subprocess.run", side_effect=_side_effect), patch(
             f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
-        ):
+        ), patch(
+            f"{_MODULE_NAME}.save_failed_comment_artifact", return_value=None
+        ) as save_artifact:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
             assert exc.value.code == 4
+        # Mocked at the boundary: the real writer resolves its directory from
+        # `git rev-parse`, which returns rc=1 under this test's side effect and
+        # falls back to the working directory, dropping a JSON artifact in the
+        # repository. Its write behavior is covered by
+        # TestSaveFailedCommentArtifact, which runs it under `tmp_path`.
+        save_artifact.assert_called_once()
 
     def test_api_error_exits_3(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
