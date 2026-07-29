@@ -673,15 +673,27 @@ Outcomes:
 
   Establishing that this case applies takes three checks, not one. First, `git check-attr --source=<head-sha> merge -- <path>` reporting a non-`unspecified` value proves only that an effective merge attribute exists, from `.gitattributes`, `.git/info/attributes`, or a global attributes file. An `unspecified` value is not a clean bill of health either: `git config --get merge.default`, if set, names a driver for every otherwise-unspecified path. Second, the value has to resolve: a built-in, or a `git config --get merge.<name>.driver` that exists. With no definition anywhere, git falls back to a text merge and says nothing. Third, a definition alone does not prove the command ran, and a conflict does not either, because a driver that fails quietly produces output identical to no driver at all. Merge locally under `GIT_TRACE=1` and look for a `run_command:` line naming the driver. Verified 2026-07-28: `origin/main` ships no merge-driver definition. `.agents/HANDOFF.md` declares `merge=ours`, and `ours` is not a gitattributes built-in (`-s ours` and `-X ours` are a merge strategy and a strategy option, a different mechanism). `.agents/handoffs/*.md` declares `merge=handoff-aggregate`, never implemented. Open issue #3625 tracks both. Both paths conflict like any other file, so this outcome is unreachable in a clean clone, though a clone carrying a stale local definition is a different case. See `.serena/memories/git/git-merge-driver-declared-versus-running.md` for the checks and `.serena/memories/git/git-merge-driver-github-disagreement.md` for the disagreement mechanism itself.
 
-Safe base-ref refresh (no force; runs the same merge as the Branch Update path, which is a no-op when already an ancestor and harmless otherwise):
+Safe base-ref refresh has two paths. Use the local merge path when it creates or advances a ref. When the merge and push are both no-ops, use the GitHub update-branch API so GitHub recalculates PR state for the unchanged head.
 
 ```bash
-git -C "$WT" merge origin/"$BASE" --no-edit   # no-op when already an ancestor
-git -C "$WT" push origin "$BRANCH"            # fast-forward-friendly; no --force
+git -C "$WT" merge origin/"$BASE" --no-edit
+remote_before="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+git -C "$WT" push origin "$BRANCH"
+remote_after="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+
+if [ "$remote_before" = "$remote_after" ]; then
+  echo "Already up to date."
+  echo "Everything up-to-date"
+  echo "remote ref is unchanged; requesting GitHub recalculation"
+  HEAD_SHA="$(git -C "$WT" rev-parse HEAD)"
+  gh api -X PUT "repos/{owner}/{repo}/pulls/$PR/update-branch" \
+    -f "expected_head_sha=$HEAD_SHA"
+fi
+
 git worktree remove --force "$WT"
 ```
 
-Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push, then re-run the completion gate. After the push, GitHub recomputes mergeability from the fresh ref and clears the stale cache.
+Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push. If `remote_before` equals `remote_after`, do not claim the push refreshed the ref. The API call is the recalculation request. Re-run the completion gate after either the push advances the remote ref or the update-branch API returns success.
 
 Mergeability is not the only thing that goes stale, and the two do not clear
 together. GitHub also pins the comparison base used for the file list, and a
@@ -775,9 +787,9 @@ When any of these signal a force-reset, restore by force-pushing the last-known-
 
 **Note**: Replace placeholders with actual values:
 
-- `{owner}` → Repository owner (e.g., `rjmurillo`)
-- `{repo}` → Repository name (e.g., `ai-agents`)
-- `{number}` → PR number (e.g., `255`)
+- `{owner}` -> Repository owner (e.g., `rjmurillo`)
+- `{repo}` -> Repository name (e.g., `ai-agents`)
+- `{number}` -> PR number (e.g., `255`)
 
 Use the Python skill scripts instead of raw `gh` commands. The project hook blocks raw `gh` usage.
 

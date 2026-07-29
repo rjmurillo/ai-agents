@@ -35,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     overall_status = os.environ.get("OVERALL_STATUS", "")
     commit_status = os.environ.get("COMMIT_STATUS", "")
     commit_count = os.environ.get("COMMIT_COUNT", "")
+    commit_limit = os.environ.get("COMMIT_LIMIT", "").strip()
     pr_number = os.environ.get("PR_NUMBER", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     if overall_status in {"FAIL", "ERROR"}:
@@ -51,8 +52,12 @@ def main(argv: list[str] | None = None) -> int:
         if BYPASS_LABEL in labels:
             print(f"::warning::Commit limit bypassed via '{BYPASS_LABEL}' label")
         else:
+            # ADR-008 widens the ceiling to 40 for a main-merge branch, so the
+            # applied limit is only knowable from the producer's output. With
+            # no value to report, naming none beats naming a wrong one.
+            ceiling = f" (limit: {commit_limit})" if commit_limit else ""
             print(
-                f"::error::PR has {commit_count} commits (limit: 20). "
+                f"::error::PR has {commit_count} commits{ceiling}. "
                 f"Add '{BYPASS_LABEL}' label to override or split this PR.",
                 file=sys.stderr,
             )
