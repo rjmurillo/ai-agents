@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts" / "ci"
@@ -671,3 +672,82 @@ class TestBlockedMessageNamesTheLimitThatWasApplied:
     def test_the_workflow_still_supplies_the_variable(self) -> None:
         """Edge: the fix is inert unless the workflow binds COMMIT_LIMIT."""
         assert "COMMIT_LIMIT:" in WORKFLOW.read_text(encoding="utf-8")
+
+
+class TestModelPinEnforcementIsWiredIntoCI:
+    """The ADR-080 model-pin gate has to be able to fail a PR (Issue #2840).
+
+    ``check_model_pins.py`` shipped a correct ``--mode enforce`` that exits 1 on
+    a new or changed ``model:`` pin lacking a model-rationale field, and
+    ``checks_spec.validate_model_pins`` documents that "enforcement stays in
+    CI". Nothing under ``.github/`` invoked it. The only caller was the pre-PR
+    runner in ``--mode warn``, which prints ``VIOLATION`` and exits 0 by
+    design. A new unjustified pin was therefore detected, printed, and merged.
+    These tests pin the wiring, not the script; the script's own exit codes are
+    covered in ``tests/validation/test_check_model_pins.py``.
+    """
+
+    HOST_JOB = "validate-pr"
+
+    @staticmethod
+    def _jobs() -> dict:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+    @classmethod
+    def _host_steps(cls) -> list:
+        return cls._jobs()[cls.HOST_JOB]["steps"]
+
+    @classmethod
+    def _pin_steps(cls) -> list:
+        return [
+            step
+            for step in cls._host_steps()
+            if "check_model_pins.py" in str(step.get("run", ""))
+        ]
+
+    def test_ci_invokes_the_gate_in_enforce_mode(self) -> None:
+        """Positive: the gate that can fail is the one CI actually runs."""
+        steps = self._pin_steps()
+        assert len(steps) == 1, "expected exactly one model-pin step"
+        assert "--mode enforce" in steps[0]["run"]
+
+    def test_ci_never_invokes_the_gate_in_warn_mode(self) -> None:
+        """Negative: warn mode exits 0 on violations, so it cannot gate.
+
+        Wiring warn mode here would look like enforcement in the checks list
+        while blocking nothing, which is the exact defect this test guards.
+        Parsed ``run`` blocks only: a comment may name warn mode to explain why
+        it is the wrong choice, and that prose must not fail this test.
+        """
+        runs = [str(step.get("run", "")) for step in self._host_steps()]
+        assert not [run for run in runs if "--mode warn" in run]
+
+    def test_the_hosting_job_cannot_be_skipped(self) -> None:
+        """Edge: a ``model:`` pin can land in any file, so no path filter.
+
+        The gate is inert if its host job is conditional, because a PR that
+        touches no filtered path would skip it. This job carries no job-level
+        ``if`` on purpose; it is the required check that always reports status.
+        """
+        assert "if" not in self._jobs()[self.HOST_JOB]
+
+    def test_enforce_mode_passes_against_the_current_tree(self) -> None:
+        """Edge: wiring the gate must not red main on arrival.
+
+        Enforce mode grandfathers the existing backlog through
+        ``model_pin_baseline.json`` and fails only on new or changed pins. If
+        this ever fails, the baseline and the tree have diverged and the gate
+        would block every PR, including the one that tries to fix it.
+        """
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "validation" / "check_model_pins.py"),
+                "--mode",
+                "enforce",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
