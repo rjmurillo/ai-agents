@@ -3147,13 +3147,18 @@ def _shell_code_flags(word: str) -> set[str]:
     """
     if word in SHELL_CODE_FLAGS:
         return {word}
+    # Any non-empty glued suffix counts as the flag's payload. Alphanumeric
+    # payloads are still code (perl -eprint runs print), so filtering them
+    # out reopened the glued path this function exists to close. The caller
+    # intersects the result with each command's own flag set, so a clustered
+    # option on a non-interpreter command never reaches a sink through this.
     return {
         flag
         for flag in SHELL_CODE_FLAGS
         if len(flag) == 2
         and flag.startswith("-")
         and word.startswith(flag)
-        and not word[len(flag) :].lstrip("-").isalnum()
+        and word[len(flag) :]
     }
 
 
