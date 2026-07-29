@@ -121,7 +121,7 @@
       "step": "Caught an eighth probe defect while validating. A pytest invocation naming one real path and one path that does not exist reported success having collected zero items. Re-ran against real paths: 572 pass. Same family as the markdownlint exclusion trap, where a green result means nothing was selected rather than nothing was wrong."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "309f8e141568b88cdb4bf46140f8a3887240caa2",
   "nextSteps": [
     "complete_session_log.py line 368 guards on 'if ending_commit and not session.get(\"endingCommit\")', so it fills the field only when empty and never refreshes a stale value. That file is mirrored under src/copilot-cli/skills/session-end/scripts/, so fixing it costs a mirror sync plus a plugin manifest bump. Separable from this change and deliberately out of scope.",
     "The consumer side is untouched. extract_session_episode.py seeds a causal-graph node from endingCommit without checking it, so the 427 historical bad values still pollute the graph. Skipping unreachable SHAs at the consumer would fix the pollution durably, independent of log hygiene.",
