@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-07-28-session-01-fix-3580-ruff-ratchet-local-gate",
+  "session": "2026-07-28-session-01-fix-3580-ruff-ratchet-local-gate",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3580 by running the ruff ratchets before push so developers catch new ruff debt locally.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b67e7947",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": [
+    "CI-only ratchets should have a matching fast local gate. Run both ruff ratchets in pre-push because measured added latency stayed below one second."
+  ]
+}

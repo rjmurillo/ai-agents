@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Measure and gate the always-on instruction budget per file language.
 
 Issue #3419: editing a single ``.py`` file loads ~218 KB of always-on
@@ -37,6 +38,11 @@ import json
 import os
 import sys
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.instruction_budget_constants import (
     DEFAULT_CEILINGS_BYTES,

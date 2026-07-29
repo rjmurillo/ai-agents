@@ -17,6 +17,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
+CLAUDE_AGENTS_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
 
 CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
 COPILOT_PLUGIN_NAMES = {"project-toolkit"}
@@ -88,6 +89,19 @@ class TestMarketplaceShape:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
         names = {p["name"] for p in data["plugins"]}
         assert names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
+
+
+class TestMarketplaceSourceManifestParity:
+    """Marketplace entries must match the plugin manifests they publish."""
+
+    def test_claude_agents_description_matches_source_manifest(self) -> None:
+        marketplace = _load_marketplace(CLAUDE_MARKETPLACE)
+        plugin_manifest = _load_marketplace(CLAUDE_AGENTS_PLUGIN)
+        claude_agents_entry = next(
+            plugin for plugin in marketplace["plugins"] if plugin["name"] == "claude-agents"
+        )
+
+        assert claude_agents_entry["description"] == plugin_manifest["description"]
 
 
 class TestSourceDirsExist:

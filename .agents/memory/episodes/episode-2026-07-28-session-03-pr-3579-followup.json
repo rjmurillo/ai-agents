@@ -1,0 +1,77 @@
+{
+  "id": "episode-2026-07-28-session-03-pr-3579-followup",
+  "session": "2026-07-28-session-03-pr-3579-followup",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Follow up after PR #3579 merged before both High review findings were fully fixed.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refuse degraded optimizer measurements",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reject symlink-backed state",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative controls",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Scratch worktree with test-only patch collected 44 tests: 21 failed and 23 passed. The failing tests cover the new refusal behavior.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "error",
+      "content": "Negative controls     Changed tests fail against current main when production changes are absent. Scratch worktree with test-only patch collected 44 tests: 21 failed and 23 passed. The failing tests cover the new refusal behavior.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 84b75eb3a",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 21,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": [
+    "A measurement not taken is not a measurement of zero. Refuse degraded reports with exit 2 rather than emitting false values."
+  ]
+}
