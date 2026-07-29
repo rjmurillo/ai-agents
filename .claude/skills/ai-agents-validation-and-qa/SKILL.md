@@ -54,7 +54,7 @@ Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans cove
 
 ### Phase 2: Know where tests live and how they are collected
 
-pytest collects only `testpaths = ["tests"]` (pyproject.toml:41). Everything else runs explicitly.
+pytest collects only `testpaths = ["tests"]` (pyproject.toml:61). Everything else runs explicitly.
 
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
@@ -62,7 +62,7 @@ pytest collects only `testpaths = ["tests"]` (pyproject.toml:41). Everything els
 | `tests/skills/NAME/` | Yes | Tests for a skill's Python scripts (importable via conftest sys.path) | `uv run pytest tests/skills/github/ -x` |
 | `.claude/skills/NAME/tests/` | NO | Per-skill structure tests, colocated with the skill (claude-agents.md MUST 3) | `uv run pytest .claude/skills/NAME/tests/ -q` |
 
-Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI coverage pins reference both (`.github/workflows/pytest.yml:159-164` runs `tests/skills/github/test_wait_for_unresolved_zero.py`). When you add a skill, you usually need both (Phase 6).
+Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI coverage pins reference both (`.github/workflows/pytest.yml:214-222` runs `tests/skills/github/test_wait_for_unresolved_zero.py`). When you add a skill, you usually need both (Phase 6).
 
 Useful invocations, all verified (as of 2026-07-03):
 
@@ -82,9 +82,9 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 
 Beyond pos+neg+edge, this repo demands three specific disciplines:
 
-**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:19-48), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:51-63). Consumer-repo simulation tests override that env var to `"0"`.
+**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:30, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:63-70` requires: execute the shipped artifact under the host's real contract (foreign cwd, host-set env vars), assert the intended effect, and include a negative control proving the test CAN fail (a bare relative path must fail the same harness). The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires: execute the shipped artifact under the host's real contract (foreign cwd, host-set env vars), assert the intended effect, and include a negative control proving the test CAN fail (a bare relative path must fail the same harness). The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 
 **3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first #2205 fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
 
@@ -104,8 +104,8 @@ Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
 
 | Trap | Rule | Evidence |
 |------|------|----------|
-| File-set sensitivity | A `--cov-fail-under=100` pin must run EVERY test file that exercises the module. After a test-file split, running one file alone reported 63% and tripped the gate | Issue #1963; pytest.yml:138-147 |
-| Coverage target form | Use the module-name form (`--cov=wait_for_unresolved_zero`), never the file-path form. File paths produce "Module never imported" + 0% with pytest-cov 7.x on Python 3.14 | Issue #2063, tested in PR #2078; pytest.yml:149-164 |
+| File-set sensitivity | A `--cov-fail-under=100` pin must run EVERY test file that exercises the module. After a test-file split, running one file alone reported 63% and tripped the gate | Issue #1963; pytest.yml:196-205 |
+| Coverage target form | Use the module-name form (`--cov=wait_for_unresolved_zero`), never the file-path form. File paths produce "Module never imported" + 0% with pytest-cov 7.x on Python 3.14 | Issue #2063, tested in PR #2078; pytest.yml:207-222 |
 
 Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). A verdict parser that defaults a missing verdict to PASS took 3 fix rounds in PR #1965. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
@@ -141,14 +141,14 @@ Each row cost real time. Do not re-earn these lessons.
 
 | Anti-pattern | Incident | Binding rule |
 |--------------|----------|--------------|
-| Self-referential test (asserts generator output against itself) | First #2205 fix shipped one; it passed while the artifact was broken (retro :49, :83) | Runtime-contract test + negative control (generated-artifacts.md:63-70) |
+| Self-referential test (asserts generator output against itself) | First #2205 fix shipped one; it passed while the artifact was broken (retro :49, :83) | Runtime-contract test + negative control (generated-artifacts.md:67-73) |
 | Happy-path-only test suite | PR #1756: 20 tests, 24% coverage, bots caught the rest | TESTING-RIGOR.md pos+neg+edge, BLOCKING |
 | Threshold detector never calibrated | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last ~5 real PRs before commit |
 | Guard not run on its own branch | #1989 M5: bot-cascade hook shipped but never applied to its own PR | Guard output on the shipping branch in the PR description |
 | Test mutates the real repo | Repo-root conftest.py:315-386 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
 | Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
 | Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
-| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:41 |
+| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:61 |
 | Skipping QA on a mixed session | ADR-034 allowlist exists precisely to fence this | Split the session; skip evidence only with allowlisted paths staged |
 
 ## Verification
@@ -165,13 +165,13 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree; the `pyproject.toml` and repo-root `conftest.py` citations were re-verified 2026-07-29 (issue #3828). Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-63`, `.github/workflows/pytest.yml:138-164`, `.claude/rules/generated-artifacts.md:63-70`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
 ```bash
 grep -n testpaths pyproject.toml                                  # collection roots
-sed -n '44,58p' conftest.py                                       # #2316 HEAD guard still present
+sed -n '315,386p' conftest.py                                     # #2316 HEAD guard still present
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
 grep -n "SKIPPED" .agents/SESSION-PROTOCOL.md | head -5           # QA skip evidence strings
 ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
