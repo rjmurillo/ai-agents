@@ -7,7 +7,6 @@ and output aggregation strategies per ADR-009.
 from __future__ import annotations
 
 import threading
-import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -151,31 +150,42 @@ class TestParallelStepExecutor:
         runner.assert_called_once()
 
     def test_parallel_execution_runs_concurrently(self) -> None:
-        """Multiple steps execute in parallel."""
-        execution_times: dict[str, float] = {}
-        lock = threading.Lock()
+        """Concurrency proven by rendezvous, not by a wall-clock ceiling.
 
-        def slow_runner(step: WorkflowStep, inp: str, iteration: int) -> str:
-            with lock:
-                execution_times[step.name] = time.time()
-            time.sleep(0.1)
+        The previous form slept 0.1s in each of three steps and asserted the
+        whole call finished in under 0.25s. That conflates two different
+        claims: that the steps overlapped, which is a property of the executor,
+        and that the host was fast enough, which is a property of whatever
+        machine happens to run the suite. Only the first is under test. On
+        loaded CI runners the identical code measured 0.62s and 0.77s in two
+        independent runs and blocked merges on unrelated pull requests.
+
+        A barrier tests the first claim alone. Three workers can only arrive at
+        a three-party rendezvous if they are running at the same time, so a
+        serialised pool cannot release it at any speed and fails through the
+        timeout. A concurrent pool releases it immediately no matter how slow
+        the host is, which removes the environment from the assertion entirely.
+        """
+        # Generous by design: thread start-up jitter is milliseconds, so this
+        # only ever elapses when execution is genuinely serial.
+        barrier = threading.Barrier(3, timeout=10)
+
+        def rendezvous_runner(step: WorkflowStep, inp: str, iteration: int) -> str:
+            barrier.wait()
             return f"done-{step.name}"
 
-        executor = ParallelStepExecutor(runner=slow_runner, max_workers=3)
+        executor = ParallelStepExecutor(runner=rendezvous_runner, max_workers=3)
         steps = [
             WorkflowStep(name="a", agent="analyst"),
             WorkflowStep(name="b", agent="security"),
             WorkflowStep(name="c", agent="devops"),
         ]
 
-        start = time.time()
         result = executor.execute_parallel(steps, {})
-        elapsed = time.time() - start
 
         assert result.succeeded
         assert len(result.step_results) == 3
-        # Parallel execution should take ~0.1s, not ~0.3s
-        assert elapsed < 0.25
+        assert {r.output for r in result.step_results} == {"done-a", "done-b", "done-c"}
 
     def test_failed_step_marks_result_failed(self) -> None:
         """A failing step sets succeeded=False."""
