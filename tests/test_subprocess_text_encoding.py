@@ -502,20 +502,6 @@ def _subprocess_names(
             functions[name] = resolved
             queue.extend(dependents.get(name, ()))
     return modules, functions, containers
-    while queue:
-        value, names = groups[queue.pop()]
-        resolved = _resolve_callable(value, modules, functions, containers)
-        if resolved is None:
-            continue
-        for name in names:
-            # The first binding of a name wins. That is what bounds the queue,
-            # and it is why a name rebound to an unrelated callable keeps
-            # reading as a subprocess entry point.
-            if name in functions:
-                continue
-            functions[name] = resolved
-            queue.extend(dependents.get(name, ()))
-    return modules, functions, containers
 
 
 def _target(
