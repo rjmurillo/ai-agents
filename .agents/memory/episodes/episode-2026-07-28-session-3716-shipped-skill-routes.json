@@ -521,7 +521,9 @@
       "caused_by": [
         "e027"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e077"
+      ]
     },
     {
       "id": "e043",
@@ -651,7 +653,9 @@
       "caused_by": [
         "e052"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e055"
+      ]
     },
     {
       "id": "e054",
@@ -661,6 +665,278 @@
       "caused_by": [
         "e041"
       ],
+      "leads_to": [
+        "e073"
+      ]
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a fifth adversarial review on two model families. They contradicted each other: Gemini returned SHIP and approved every point, Sol returned DO NOT SHIP with four findings, each carrying an executed fixture.",
+      "caused_by": [
+        "e053"
+      ],
+      "leads_to": [
+        "e056"
+      ]
+    },
+    {
+      "id": "e056",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified all four Sol findings by execution rather than by reading. Three were real defects introduced by the round-four fixes. Gemini had approved all three without running a fixture against any of them.",
+      "caused_by": [
+        "e055"
+      ],
+      "leads_to": [
+        "e057"
+      ]
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol #1 confirmed: the round-four change that stopped blanking a code span unless it carried a name made a bare `Skill:` span report as an empty malformed route, which blocks a push over documentation.",
+      "caused_by": [
+        "e056"
+      ],
+      "leads_to": [
+        "e058"
+      ]
+    },
+    {
+      "id": "e058",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol #2 confirmed: the round-four exemption for the skills namespace was scoped by location, so a real .venv created directly under skills/ was walked and its interpreter symlinks tripped the symlink refusal at exit 2, blocking every push in the repository.",
+      "caused_by": [
+        "e057"
+      ],
+      "leads_to": [
+        "e059"
+      ]
+    },
+    {
+      "id": "e059",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol #3 confirmed: the round-four leading-punctuation strip was unbalanced, so 'Skill: ((autoplan' resolved to an installed skill and reported a pass. Fail-open.",
+      "caused_by": [
+        "e058"
+      ],
+      "leads_to": [
+        "e060"
+      ]
+    },
+    {
+      "id": "e060",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol #4 declined on measured evidence. A symlinked platform parent still scanned correctly and still found drift, and a symlinked manifest still passed, so neither is a coverage hole. Stricter lstat checks would add false-positive surface against a plausible monorepo layout.",
+      "caused_by": [
+        "e059"
+      ],
+      "leads_to": [
+        "e061"
+      ]
+    },
+    {
+      "id": "e061",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Sol #1 by deciding a bare-keyword span from cell context rather than from the span alone: what follows it in the cell separates documentation from a route whose name sits outside the span.",
+      "caused_by": [
+        "e060"
+      ],
+      "leads_to": [
+        "e062"
+      ]
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the Sol #1 fix closes an escape hatch rather than opening one: the plain and backticked forms of the same cell now return the same exit code for a resolving name, a drifting name, and trailing prose. Backticks on the keyword cannot silence a drift report.",
+      "caused_by": [
+        "e061"
+      ],
+      "leads_to": [
+        "e063"
+      ]
+    },
+    {
+      "id": "e063",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Sol #2 by requiring a SKILL.md for the exemption, which is the same question skill_names asks, so a directory cannot count as a skill in one place and as tooling in the other. Introduced SKILL_FILE so both sites share one definition.",
+      "caused_by": [
+        "e062"
+      ],
+      "leads_to": [
+        "e064"
+      ]
+    },
+    {
+      "id": "e064",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Sol #3 with balanced unwrapping: an opener is stripped only when its own closer is at the other end, alternated with a trailing strip so '(autoplan).' still reduces fully. Closers are still stripped alone because a link puts only the closing half inside the capture.",
+      "caused_by": [
+        "e063"
+      ],
+      "leads_to": [
+        "e065"
+      ]
+    },
+    {
+      "id": "e065",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a 24-probe battery across all three fixes plus controls. One reported failure was the probe's own fault: with the only route blanked the tree had zero routes and tripped the separate vacuity guard, so the probe was rebuilt with a companion route.",
+      "caused_by": [
+        "e064"
+      ],
+      "leads_to": [
+        "e066"
+      ]
+    },
+    {
+      "id": "e066",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A second probe expectation was also wrong rather than the code. Prose after a bare keyword is indistinguishable from a misspelled target and both the plain and backticked forms report it, which is the fail-closed default.",
+      "caused_by": [
+        "e065"
+      ],
+      "leads_to": [
+        "e067"
+      ]
+    },
+    {
+      "id": "e067",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 15 regression tests, taking the two gate suites from 70 to 85. Each covers a defect or an adjacent behaviour that must not change.",
+      "caused_by": [
+        "e066"
+      ],
+      "leads_to": [
+        "e068"
+      ]
+    },
+    {
+      "id": "e068",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retargeted the mutation battery from 25 to 30 and made a missing anchor count as a failure. An anchor that no longer matches is a mutation that never ran, and a battery reporting all-caught while silently skipping is the vacuous verification it exists to prevent.",
+      "caused_by": [
+        "e067"
+      ],
+      "leads_to": [
+        "e069"
+      ]
+    },
+    {
+      "id": "e069",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "One mutation survived. It was a badly-built mutation, not a coverage gap: stripping both ends of an unbalanced name mangles it so it fails to resolve for the wrong reason. Rebuilt to strip the opener only, which is what the original defect did, and it was caught.",
+      "caused_by": [
+        "e068"
+      ],
+      "leads_to": [
+        "e070"
+      ]
+    },
+    {
+      "id": "e070",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Final battery: 30 mutations, 30 caught, 0 survived, 0 missing anchors.",
+      "caused_by": [
+        "e069"
+      ],
+      "leads_to": [
+        "e071"
+      ]
+    },
+    {
+      "id": "e071",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified scan-neutrality again after narrowing the pruning exemption: 906 files, the same total as the round-four rule. Measured zero pruned-name collisions directly under skills/ in the live tree, so the narrowing is purely defensive.",
+      "caused_by": [
+        "e070"
+      ],
+      "leads_to": [
+        "e072"
+      ]
+    },
+    {
+      "id": "e072",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the whole suite: 85 gate tests, 1352 passed and 1 skipped across the shared markdown parser and the full validation suite, live gate PASS on 34 routes across 3 roots in 2.84s, ruff clean, 0 dash bytes, pre_pr.py all validations passed.",
+      "caused_by": [
+        "e071"
+      ],
+      "leads_to": [
+        "e074"
+      ]
+    },
+    {
+      "id": "e073",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the whole suite: 85 gate tests, 1352 passed and 1 skipped across the shared markdown parser and the full validation suite, live gate PASS on 34 routes across 3 roots in 2.84s, ruff clean, 0 dash bytes, pre_pr.py all validations passed.",
+      "caused_by": [
+        "e054"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e074",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The source file crossed the 500-line taste lint at 541. Measured the split before acting: 304 lines of code and 237 of prose. Merged two duplicate limitation sections, then suppressed with an inline rationale after finding that a sibling check_ validator in the same directory suppresses the same rule for the same reason and that twelve tracked scripts already exceed the limit, one at 3757 lines.",
+      "caused_by": [
+        "e072"
+      ],
+      "leads_to": [
+        "e075"
+      ]
+    },
+    {
+      "id": "e075",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The markdown test file crossed the same limit at 602. Suppressed on the same evidence: 49 tracked test files exceed it, the largest by a factor of eighteen, and the file is already the product of one split.",
+      "caused_by": [
+        "e074"
+      ],
+      "leads_to": [
+        "e076"
+      ]
+    },
+    {
+      "id": "e076",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed in three atomic slices with all hooks green: the validator fix, the docstring merge and size trade, and the tests.",
+      "caused_by": [
+        "e075"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e077",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ad56cbca80",
+      "caused_by": [
+        "e042"
+      ],
       "leads_to": []
     }
   ],
@@ -669,8 +945,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 4
+    "commits": 4,
+    "files_changed": 906
   },
   "lessons": []
 }

@@ -323,3 +323,73 @@ path, to a markdown parser several gates share.
 The decision is recorded in the module docstring and pinned by a test that
 states the reasoning, so it is a documented trade rather than an oversight. A
 finding declined without evidence is indistinguishable from a finding missed.
+
+## A reviewer that approves without a fixture is worth less than one that probes
+
+Round five ran on two model families and they returned opposite verdicts. One
+said ship and approved every point. The other said do not ship and attached an
+executed fixture to each of four findings. Three of the four were real, and
+they were defects the round-four fixes had introduced.
+
+The approving reviewer did not merely miss them. It reached each one and
+reasoned past it. It called the bare `Skill:` span "correctly reported as an
+empty malformed route", which is the false positive. It placed a `.venv` under
+`skills/` "exactly at skills_dir" when the directory is a child of it, which is
+the whole bug. It observed that `Skill: ((ghost)` "parses safely to ghost",
+which is the fail-open stated as a feature.
+
+Every one of those claims is checkable in about a minute with the fixture
+helpers this suite already ships. None was checked. The lesson is not that one
+model family is better; it is that a review verdict carries weight in
+proportion to the fixtures behind it, and a review that runs nothing is a
+second opinion on the reading, not on the code. Round-six prompts now ask for
+the fixture, not the conclusion.
+
+## One round's fix is the next round's defect until a probe says otherwise
+
+Three of the five round-four fixes were confirmed correct. Two introduced new
+defects and a third was fail-open. Each was a narrow, well-reasoned change to
+close a real finding, and each was verified by a battery that passed.
+
+The batteries were not wrong, they were incomplete in the specific direction
+the new code opened. Blanking a code span only when it carried a name was
+tested against a span that carried a name and a span that did not carry the
+keyword, never against a span carrying the keyword alone. Exempting the skills
+namespace was tested with a real skill in it, never with real tooling. The
+tests covered the defect being closed, not the shape being introduced.
+
+A fix is a new hypothesis. It earns its own adversarial round, and the probe
+has to target what the fix made newly possible rather than what it repaired.
+
+## A surviving mutation can be a bad mutation
+
+Thirty mutations, one survivor, and the survivor was the battery's fault. The
+mutation meant to reproduce the unbalanced-strip fail-open stripped both ends
+of the name instead of the leading one, which mangled `((autoplan` into
+`autopl`. That still fails to resolve, so the tests still reported drift and
+the mutation looked survived.
+
+Rebuilt to strip the opener only, the way the original defect did, it was
+caught immediately. A surviving mutation is a hypothesis about coverage; the
+first thing to check is whether the mutation reproduces the defect it names.
+
+The same review pass found the battery would print `SKIP anchor` and continue
+when a fix had moved the line it targeted. A skipped anchor is a mutation that
+never ran, so a battery could report every mutation caught while running fewer
+of them each round. Missing anchors now fail the run.
+
+## Measure before splitting a file the lint calls too long
+
+The source file crossed a 500-line lint at 541 lines. The remediation text
+asked for a split into helpers, types and constants. Measured first: 304 lines
+of code and 237 of prose, where each paragraph of prose records which defect
+made a rule exist. A split driven by that count would have moved the fail-open
+story that justifies balanced unwrapping into a different file from the balance
+test.
+
+Repository precedent settled it. A sibling `check_` validator in the same
+directory suppresses the same rule for the same reason, twelve tracked scripts
+already exceed the limit and one is 3757 lines, and 49 test files exceed it.
+Both files are suppressed with an inline rationale and a revisit condition tied
+to the code rather than the prose. A lint that fires on prose is measuring the
+wrong thing, but saying so requires the measurement first.

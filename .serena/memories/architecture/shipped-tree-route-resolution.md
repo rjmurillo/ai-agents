@@ -222,3 +222,62 @@ with an optional group must test the group, not the match.
 
 Strip wrapping punctuation from both ends. `_TRAILING` alone left
 `Skill: (autoplan)` reported malformed, a false positive that blocks the push.
+
+## The bare keyword needs cell context, not span context
+
+Blanking a code span only when it captured a name fixed the vanishing route
+and created a false positive: `` `Skill:` `` alone became an empty malformed
+name and blocked the push over documentation. The span alone cannot decide.
+What follows it in the cell can: `` `Skill:` x `` styles the label of a real
+route whose name sits outside the span, `` `Skill:` `` alone documents the
+keyword.
+
+Scan the following segments including code ones. Reading only plain text there
+would let `` `Skill:` `ghost` `` pass. The invariant to hold is that the plain
+and backticked forms of the same cell always return the same verdict; if they
+diverge, backticks become a way to silence a drift report.
+
+## Unwrapping a name must be balanced
+
+Stripping leading punctuation blindly turned `Skill: ((autoplan` into an
+installed skill and reported a pass. Strip an opener only when its own closer
+is at the other end, alternated with a trailing strip so `(autoplan).` reduces
+fully. Closers are still stripped unconditionally because `[Skill: autoplan]`
+puts only the closing half inside the capture.
+
+## Prune by marker, not by location
+
+Exempting `<root>/skills` from pruning so a skill named `venv` stays scanned
+also exempts a real `.venv` created there, and its interpreter symlinks trip
+the symlink refusal at exit 2, which blocks every push in the repository. The
+exemption needs the `SKILL.md` marker, which is the same question `skill_names`
+asks. Both sites read `SKILL_FILE` so a directory cannot count as a skill in
+one place and as tooling in the other.
+
+## Reviewer verdicts weigh what they executed
+
+Five adversarial rounds, five do-not-ship verdicts, and round five ran two
+model families that returned opposite conclusions. The approving reviewer
+reached all three real defects and reasoned past each one, describing the false
+positive as correct behaviour, placing a child of `skills/` "exactly at"
+`skills_dir`, and calling the fail-open parse "safe". The refusing reviewer
+attached an executed fixture to each finding. Every one of the three was
+confirmed by running it.
+
+Ask a reviewer for the fixture, not the conclusion. This suite ships
+`tests/validation/shipped_skill_routes_helpers.py` precisely so a claim about
+this gate costs about a minute to check.
+
+## A fix earns its own adversarial round
+
+Two of the five round-four fixes introduced new defects and a third was
+fail-open, and each had passed a battery. The batteries tested the defect being
+closed, never the shape being opened. Probe what a fix made newly possible, not
+only what it repaired.
+
+Corollary for mutation batteries: a surviving mutation may be a bad mutation.
+The unbalanced-strip mutation stripped both ends and mangled the name so it
+failed for the wrong reason, which read as a coverage gap. Check that the
+mutation reproduces the defect it names before believing the survival. A
+missing anchor must fail the run: a mutation that never ran otherwise reports
+as caught.
