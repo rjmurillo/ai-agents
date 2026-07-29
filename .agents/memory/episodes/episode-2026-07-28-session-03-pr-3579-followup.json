@@ -72,6 +72,6 @@
     "files_changed": 2
   },
   "lessons": [
-    "A measurement not taken is not a measurement of zero.. Refuse degraded reports with exit 2 rather than emitting false values."
+    "A measurement not taken is not a measurement of zero. Refuse degraded reports with exit 2 rather than emitting false values."
   ]
 }
