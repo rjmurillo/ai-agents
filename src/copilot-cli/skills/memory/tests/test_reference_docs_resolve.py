@@ -75,8 +75,13 @@ CMDLET_RE = re.compile(
 
 MEMORY_CORE_RE = re.compile(r"\bmemory_core\.([a-z_]+)\.([a-z_][a-z0-9_]*)\b")
 
+# Matched on the path tail, not on a leading ``.claude``. The docs name these
+# scripts in two shapes: the literal ``.claude/skills/...`` path and the
+# portable ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...``
+# expansion. Anchoring on ``.claude`` checked only the first, which left 28 of
+# the 68 references in these docs unverified.
 SKILL_SCRIPT_RE = re.compile(
-    r"\.claude/skills/memory/(?:scripts|memory_core)/[a-z_]+\.py\b"
+    r"\bskills/memory/(?:scripts|memory_core)/[a-z_]+\.py\b"
 )
 
 
@@ -152,11 +157,57 @@ def test_named_memory_core_symbols_resolve(doc: Path) -> None:
     assert not missing, f"{_doc_id(doc)} names symbols that do not exist: {missing}"
 
 
+def test_skill_script_re_matches_both_documented_path_shapes() -> None:
+    """The guard must see the portable plugin-root form, not just `.claude/`.
+
+    Review of the Issue #3623 fix: `SKILL_SCRIPT_RE` was anchored on a literal
+    leading `.claude`, but these docs name scripts in two shapes. Anchoring on
+    the tail covers both, which took the checked reference count in this tree
+    from 40 to 68.
+    """
+    tail = "skills/memory/scripts/search_memory.py"
+    portable = (
+        "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/" + tail
+    )
+    assert SKILL_SCRIPT_RE.findall(portable) == [tail]
+    assert SKILL_SCRIPT_RE.findall(".claude/" + tail) == [tail]
+    assert SKILL_SCRIPT_RE.findall("src/copilot-cli/" + tail) == [tail]
+
+
+def test_skill_script_guard_rejects_a_phantom_portable_path() -> None:
+    """Negative control: a nonexistent script in the portable form must not resolve."""
+    phantom = "${COPILOT_PLUGIN_ROOT:-.claude}/skills/memory/scripts/no_such_script.py"
+    found = SKILL_SCRIPT_RE.findall(phantom)
+    assert found == ["skills/memory/scripts/no_such_script.py"]
+    assert not (SKILLS_ROOT.parent / found[0]).is_file()
+
+
+def test_docs_do_not_hard_code_a_tree_specific_sys_path() -> None:
+    """No doc may teach `sys.path.insert(0, ".claude/skills/memory")`.
+
+    That path does not exist in the `src/copilot-cli` tree or in an installed
+    plugin, so the recipe fails for every reader outside one tree.
+    """
+    offenders = [
+        _doc_id(doc)
+        for doc in DOCS
+        if any(
+            "sys.path" in line and ".claude/skills" in line
+            for line in doc.read_text(encoding="utf-8").splitlines()
+        )
+    ]
+    assert not offenders, f"docs hard-code a tree-specific path: {offenders}"
+
+
 @pytest.mark.parametrize("doc", DOCS, ids=_doc_id)
 def test_named_skill_scripts_exist(doc: Path) -> None:
     text = doc.read_text(encoding="utf-8")
+    # Resolve against the tree that owns the doc, not the repo root. Both trees
+    # ship the same scripts, and a doc in ``src/copilot-cli`` naming a path is
+    # making a claim about its own tree.
+    tree_root = SKILLS_ROOT.parent
     missing = [
         rel for rel in sorted(set(SKILL_SCRIPT_RE.findall(text)))
-        if not (REPO_ROOT / rel).is_file()
+        if not (tree_root / rel).is_file()
     ]
     assert not missing, f"{_doc_id(doc)} names scripts that do not exist: {missing}"
