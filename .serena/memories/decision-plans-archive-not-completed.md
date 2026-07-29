@@ -33,6 +33,22 @@ retired plans for its whole history. The user confirmed it directly:
   also needed its named deliverable present in the working tree. Two plans
   passed the issue check but revealed drift on the disk check.
 
+## The 2026-07-27 round trip
+
+A pass on 2026-07-27 moved all 13 out of the archive and into
+`.agents/plans/completed/` and `.agents/plans/abandoned/`, leaving the archive
+holding only its own README while this memory still asserted it held the plans.
+The user reverted it on 2026-07-29: "send to .agents/archive/plans/".
+
+The cause is not a bad move, it is two disagreeing sources of truth. The
+`execution-plans` skill still writes `complete plan` and `abandon plan` output
+to the staging directories, so any agent that follows the skill puts a retired
+plan there, while this memory and the archive README name the archive. Until
+the skill retargets (tracked in #3426), expect the drift to keep pulling plans
+back into staging. `.agents/plans/README.md` now labels those two directories
+as staging that should be empty at rest, which is the cheap guard against a
+third round trip.
+
 ## Decision
 
 Retire plans to `.agents/archive/plans/`. Preserve the file; never delete it.
