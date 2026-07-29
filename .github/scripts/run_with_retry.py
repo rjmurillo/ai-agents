@@ -87,6 +87,7 @@ def run_with_retry(
     Returns the exit code for this process.
     """
     for attempt in range(max_retries + 1):
+        sys.stdout.flush()
         result = subprocess.run(command)
         code = result.returncode
 

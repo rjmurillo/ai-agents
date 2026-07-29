@@ -136,6 +136,7 @@ def _add_label(pr_number: str, repository: str, timeout: float) -> None:
     """Add the infrastructure-failure label, best-effort (never raises)."""
 
     try:
+        sys.stdout.flush()
         result = subprocess.run(
             ["gh", "pr", "edit", pr_number, "--repo", repository, "--add-label", _LABEL],
             timeout=timeout,
