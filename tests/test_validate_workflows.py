@@ -856,12 +856,18 @@ class TestLiveWorkflowTreeHasNoInjection:
 
     def test_the_scan_actually_visited_the_repaired_workflows(self):
         """Guard against the pin passing because nothing was read."""
+        import re
+
         repo_root = Path(__file__).resolve().parents[1]
         for name in ("agent-metrics.yml", "copilot-context-synthesis.yml"):
             path = repo_root / ".github" / "workflows" / name
             assert path.is_file(), name
             body = path.read_text(encoding="utf-8")
-            assert "${{ inputs." in body, f"{name} no longer references a dispatch input"
+            # The reference may sit anywhere inside the expression, including
+            # behind a parenthesised `&&`/`||` source-selection guard.
+            assert re.search(r"\$\{\{[^}]*inputs\.", body), (
+                f"{name} no longer references a dispatch input"
+            )
             assert "echo \"days=${{ inputs.days }}\"" not in body
 
 
