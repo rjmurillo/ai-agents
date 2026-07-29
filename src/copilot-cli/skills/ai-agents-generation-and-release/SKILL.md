@@ -81,7 +81,7 @@ Facts that prevent confusion:
 
 Always commit the canonical edit and the regenerated output TOGETHER, in the same commit set, or the drift gates go red.
 
-Interpreter note: `python3 build/generate_agents.py` runs on bare python3 (no third-party imports). `build_all.py` and anything importing PyYAML needs the project venv; `uv run python build/scripts/build_all.py` always works. CI installs PyYAML and uses `python3`.
+Interpreter note: both `build/generate_agents.py` and `build/scripts/build_all.py` import PyYAML through `build/scripts/yaml_loader.py`, so neither runs on an interpreter that lacks it. `uv run python <script>` resolves the project venv and is the form that always works. The bare `python3` invocations in this document and in CI succeed only where the interpreter already provides PyYAML; no workflow that runs them installs it, so they depend on the runner image carrying the package (same exposure as issue #3806).
 
 | You edited | Run | Then |
 |------------|-----|------|
