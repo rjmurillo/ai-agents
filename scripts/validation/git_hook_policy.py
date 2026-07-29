@@ -3985,6 +3985,14 @@ def _print_process_output(
     target_stdout = stdout_stream or sys.stdout
     if result.stdout:
         print(result.stdout, end="", file=target_stdout)
+        # lefthook pipes stdout, so Python block-buffers it while stderr stays
+        # unbuffered. Without this flush a later stderr write overtakes the
+        # stdout it explains, and the reason surfaces under the next hook's
+        # group header where it reads as that hook's output. Flushing
+        # target_stdout rather than sys.stdout keeps this correct when a
+        # caller redirects the explanation to stderr, which is already
+        # unbuffered and needs no flush. Refs #3627.
+        target_stdout.flush()
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
 
