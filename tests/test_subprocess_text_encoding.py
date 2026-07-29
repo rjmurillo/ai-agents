@@ -425,21 +425,51 @@ def _written(tree: ast.AST) -> set[str]:
     return found
 
 
+def _class_scope(body: list[ast.stmt]) -> list[ast.stmt]:
+    """Return every statement of *body* that runs in the same class namespace.
+
+    A class body is executed like any other block, so a binding inside an
+    ``if`` or a ``try`` lands in the class namespace exactly as one at the top
+    level does. A nested function or class opens its own namespace, and both
+    already have their own handling, so the walk stops at them rather than
+    reading a method local as a class attribute.
+    """
+    found: list[ast.stmt] = []
+    for statement in body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        found.append(statement)
+        for field in ("body", "orelse", "finalbody"):
+            found.extend(_class_scope(getattr(statement, field, [])))
+        for block in list(getattr(statement, "handlers", ())) + list(
+            getattr(statement, "cases", ())
+        ):
+            found.extend(_class_scope(block.body))
+    return found
+
+
 def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     """Pair every attribute a class body binds with the value it receives.
 
     A class body binds attributes without ever naming ``self``, so the names
-    are recorded under the attribute prefix and read back the same way.
+    are recorded under the attribute prefix and read back the same way. Every
+    binding shape counts, not just the plain assignment: an annotation, a
+    walrus, an in-place extension, a loop variable and a match capture all
+    outlive their statement and leave a class attribute behind.
     """
     found: list[tuple[str, ast.expr]] = []
-    for statement in node.body:
-        if not isinstance(statement, ast.Assign):
+    for statement in _class_scope(node.body):
+        if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.NamedExpr):
+            pairs = _assigned(statement.value)
+        elif isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            pairs = _assigned(statement)
+        elif isinstance(statement, (ast.For, ast.AsyncFor)):
+            pairs = _iterated(statement.target, statement.iter)
+        elif isinstance(statement, ast.Match):
+            pairs = _captured(statement)
+        else:
             continue
-        for target in statement.targets:
-            found.extend(
-                (_ATTRIBUTE + name, bound)
-                for name, bound in _unpack(target, statement.value)
-            )
+        found.extend((_ATTRIBUTE + name, bound) for name, bound in pairs)
     return found
 
 
@@ -1021,6 +1051,13 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "the first binding of a name wins over a later group it shares",
         ),
+        (
+            'import subprocess\n'
+            'class C:\n'
+            '    def m(self):\n        runner = subprocess.run\n'
+            'def go(c):\n    c.runner(["x"], capture_output=True, text=True)',
+            "a method local is not a class attribute",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -1432,6 +1469,83 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'def go(runner=subprocess.run, /):\n'
             '    runner(["x"], capture_output=True, text=True)',
             "a positional-only parameter takes a default like any other",
+        ),
+        (
+            'import subprocess\nfrom typing import Any\n'
+            'class C:\n    runner: Any = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "an annotated class attribute binds like a plain one",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus in a class body binds a class attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    held = [print]\n    held += [subprocess.run]\n'
+            'C.held[0](["x"], capture_output=True, text=True)',
+            "a class attribute extended in place holds what was added",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    if True:\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class body binds inside a branch as well as outside one",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    try:\n        runner = subprocess.run\n'
+            '    except ImportError:\n        runner = None\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a guarded import shape still binds the name it guards",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    for runner in [subprocess.run]:\n        pass\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a loop variable in a class body outlives the loop as an attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    match subprocess.run:\n        case runner:\n            pass\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a match capture in a class body outlives the match as an attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    try:\n        import fast\n'
+            '    except ImportError:\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a fallback bound in an except body is still a class attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    if False:\n        pass\n'
+            '    else:\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a class body binds in an else branch as well as an if",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    try:\n        pass\n    except ImportError:\n        pass\n'
+            '    else:\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a try else block binds in the class namespace too",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    try:\n        pass\n'
+            '    finally:\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a finally block binds in the class namespace too",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    match 1:\n        case 1:\n            runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a case body binds in the class namespace too",
         ),
     ],
 )
