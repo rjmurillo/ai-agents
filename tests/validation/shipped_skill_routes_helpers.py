@@ -7,6 +7,12 @@ dataclass-at-collection-time failure that importlib loading produces.
 Kept out of ``conftest.py`` because the ``repo`` fixture is specific to this
 gate; a generic name in the package-wide conftest would be visible to every
 validation suite.
+
+``run_gate`` pins the decode explicitly. Bare ``text=True`` decodes with the
+OS locale codec, which is cp1252 on Windows, and the gate echoes the offending
+cell text back to the caller. A fixture holding a character that codec cannot
+represent would surface as a decode error in the harness rather than as the
+verdict under test.
 """
 
 from __future__ import annotations
@@ -32,6 +38,8 @@ def run_gate(root: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(SCRIPT), "--root", str(root)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

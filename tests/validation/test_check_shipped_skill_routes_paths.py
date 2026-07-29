@@ -47,6 +47,19 @@ from tests.validation.shipped_skill_routes_helpers import (
 
 __all__ = ["repo"]
 
+# Four tests below build their precondition out of file permissions. Root
+# ignores the mode bits and Windows does not carry them, so on either the
+# barrier is absent and the gate succeeds where the test expects a refusal,
+# which reads as a defect in the gate rather than a missing precondition.
+# ``os.geteuid`` itself is absent on Windows, and a bare call in a skipif
+# argument is evaluated at import, so an unguarded call fails collection for
+# the whole module rather than skipping one test. Mirrors the idiom in
+# tests/eval/test_optimize_artifact_cli.py.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+_NEEDS_PERMISSION_BARRIER = pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
+)
+
 
 def test_nested_working_copies_are_not_walked(repo: Path) -> None:
     """A worktree carries a full copy of the repo; drift there is not ours."""
@@ -76,7 +89,7 @@ def test_manifestless_directory_is_not_a_root(tmp_path: Path) -> None:
     assert "no plugin roots" in result.stderr
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+@_NEEDS_PERMISSION_BARRIER
 def test_unreadable_file_is_config_error_not_a_silent_pass(repo: Path) -> None:
     """Swallowing OSError would let an unreadable file hide a live route."""
     blocked = write_doc(
@@ -204,7 +217,7 @@ def test_undecodable_bytes_are_a_config_error(repo: Path) -> None:
     assert "cannot decode" in result.stderr
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+@_NEEDS_PERMISSION_BARRIER
 def test_unreadable_directory_is_config_error_not_a_silent_skip(repo: Path) -> None:
     """os.walk swallows directory errors by default, shrinking the scan."""
     blocked = repo / "src/copilot-cli/skills/autoplan/locked"
@@ -222,7 +235,7 @@ def test_unreadable_directory_is_config_error_not_a_silent_skip(repo: Path) -> N
 # --- regression ---
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
+@_NEEDS_PERMISSION_BARRIER
 def test_unlistable_platform_parent_is_a_config_error(repo: Path) -> None:
     """A root the process cannot enumerate must fail closed, not vanish.
 
@@ -238,7 +251,7 @@ def test_unlistable_platform_parent_is_a_config_error(repo: Path) -> None:
     assert "cannot list" in result.stderr
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses directory permissions")
+@_NEEDS_PERMISSION_BARRIER
 def test_unstattable_manifest_is_a_config_error(repo: Path) -> None:
     """``Path.is_file`` answers False for a manifest it cannot stat.
 
