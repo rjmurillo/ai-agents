@@ -683,6 +683,15 @@ def assert_no_claude_writes(
     a generator that writes under .claude/ during the run (issue #2613).
 
     Returns the sorted list of offending paths (empty when compliant).
+
+    Candidates are re-checked against git before they are reported. The
+    ignore set :func:`_snapshot_owned_prefixes` applies is computed before
+    the tree walk, so a gitignored file created in between (CPython writing
+    bytecode, a hook appending to ``audit.log``) is walked but not excluded
+    and reads as a generator write. That window is reliably reachable: the
+    pre-push ``build-all-check`` job shares a ``parallel: true`` lefthook
+    group with a multi-minute ``python-tests`` job that byte-compiles under
+    ``.claude/lib/`` throughout (issue #3773).
     """
     current = _snapshot_owned_prefixes(
         repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
@@ -693,7 +702,40 @@ def assert_no_claude_writes(
             offending.add(path)  # created or modified by a generator
     for path in baseline.keys() - current.keys():
         offending.add(path)  # deleted by a generator
+    offending -= _confirm_ignored(repo_root, offending)
     return sorted(str(p.relative_to(repo_root)) for p in offending)
+
+
+def _confirm_ignored(repo_root: Path, candidates: set[Path]) -> set[Path]:
+    """Return the subset of ``candidates`` git currently reports as ignored.
+
+    Closes the report-time half of the race described in
+    :func:`assert_no_claude_writes`. Generators never emit gitignored files,
+    which is the same premise :func:`_ignored_paths` rests on, so a candidate
+    git calls ignored is a runtime artifact and not a violation.
+
+    ``git check-ignore`` exits 1 when nothing matches, which is the ordinary
+    clean case, so the return code is not an error signal here. A failure to
+    run git at all returns the empty set, leaving every candidate reported:
+    the guard stays fail-closed when it cannot confirm.
+
+    ``--stdin`` echoes back the matching input paths verbatim, so the result
+    is a subset of ``candidates`` by construction and needs no re-filtering.
+    """
+    if not candidates:
+        return set()
+    payload = "\0".join(str(p) for p in sorted(candidates))
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), "check-ignore", "--stdin", "-z"],
+            input=payload.encode(),
+            capture_output=True,
+            check=False,
+            env=_git_scrubbed_env(),
+        )
+    except OSError:
+        return set()
+    return {Path(raw) for raw in completed.stdout.decode().split("\0") if raw}
 
 
 # --- Clean ----------------------------------------------------------------
