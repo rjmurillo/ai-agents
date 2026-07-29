@@ -47,6 +47,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -204,14 +205,19 @@ def _absent(path: Path) -> bool:
     Only `FileNotFoundError` means absent. Everything else is a config error,
     which is what `_read_json` already does one call further in, so the pair
     now reports one failure one way.
+
+    Existence and entry kind are both read off the one `lstat` result. Asking
+    twice leaves a window between the calls in which the entry can change, so
+    the kind reported would belong to a different entry than the one whose
+    existence was decided.
     """
     try:
-        path.lstat()
+        entry = path.lstat()
     except FileNotFoundError:
         return True
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
-    if path.is_symlink():
+    if stat.S_ISLNK(entry.st_mode):
         target = "an unreadable target"
         # readlink can fail if the entry changes underneath this handler, and
         # an OSError raised inside it would escape `main`, which does not catch

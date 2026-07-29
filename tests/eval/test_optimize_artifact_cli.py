@@ -9341,6 +9341,61 @@ class TestAbsenceAsksAboutTheEntryNotTheTarget:
         assert oa._absent(tmp_path) is False
 
 
+class TestOneStatDecidesBothExistenceAndEntryKind:
+    """`_absent` asks the filesystem once and answers both questions from it.
+
+    Asking twice (`lstat` for existence, then `is_symlink` for kind) leaves a
+    window between the two calls. An entry swapped inside that window is
+    reported with one call's answer and the other call's assumption, so a
+    symlink can be admitted by a check whose whole purpose is to refuse one.
+    Reading `S_ISLNK` off the `stat_result` that already decided existence
+    closes the window: there is no second observation to disagree with.
+    """
+
+    @staticmethod
+    def _count_stats(monkeypatch):
+        seen: list[str] = []
+        real = os.lstat
+
+        def spy(path, *args, **kwargs):
+            seen.append(str(path))
+            return real(path, *args, **kwargs)
+
+        monkeypatch.setattr(os, "lstat", spy)
+        return seen
+
+    def test_a_swap_after_the_existence_check_cannot_admit_a_symlink(
+        self, tmp_path, monkeypatch
+    ):
+        """The entry turns into a regular file between the two observations."""
+        target = tmp_path / "t"
+        target.write_text("{}", encoding="utf-8")
+        link = tmp_path / "l"
+        link.symlink_to(target)
+        monkeypatch.setattr(Path, "is_symlink", lambda self: False)
+        with pytest.raises(oa.ConfigError, match="symlink"):
+            oa._absent(link)
+
+    def test_the_entry_is_observed_exactly_once(self, tmp_path, monkeypatch):
+        path = tmp_path / "f"
+        path.write_text("{}", encoding="utf-8")
+        seen = self._count_stats(monkeypatch)
+        assert oa._absent(path) is False
+        assert [entry for entry in seen if entry.endswith("f")] == [str(path)]
+
+    def test_a_regular_file_is_still_present(self, tmp_path, monkeypatch):
+        """Negative control: holds whether the kind comes from one stat or two."""
+        path = tmp_path / "f"
+        path.write_text("{}", encoding="utf-8")
+        self._count_stats(monkeypatch)
+        assert oa._absent(path) is False
+
+    def test_a_missing_entry_is_still_absent(self, tmp_path, monkeypatch):
+        """Negative control: absence never reaches the kind question."""
+        self._count_stats(monkeypatch)
+        assert oa._absent(tmp_path / "nothing") is True
+
+
 class TestAtomicWriteReplacesALinkRatherThanWritingThroughIt:
     """Characterization, not a contract: `os.replace` swaps the entry.
 
