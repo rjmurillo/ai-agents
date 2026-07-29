@@ -62,7 +62,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gol
 ```
 
 - Exit codes: 0 clean, 1 script error, 10 violations. 10 is a finding, not a crash.
-- Current baseline (as of 2026-07-29): 7909 files scanned, 109 errors, 92 warnings, exit 10. Errors break down as GP-003 `skill-frontmatter` 89, GP-001 `script-language` 16, GP-004 `agent-definition` 4. The GP-001 set is still the shell scripts under `src/copilot-cli/skills/github/scripts/gh-native/`. All 92 warnings are GP-005 `yaml-logic`.
+- Current baseline (as of 2026-07-29): 7912 files scanned, 109 errors, 92 warnings, exit 10. Errors break down as GP-003 `skill-frontmatter` 89, GP-001 `script-language` 16, GP-004 `agent-definition` 4. The GP-001 set is still the shell scripts under `src/copilot-cli/skills/github/scripts/gh-native/`. All 92 warnings are GP-005 `yaml-logic`. The file count tracks repo size and moves with every merge, so trend the error and warning counts; treat a changed file count alone as noise.
 - Healthy: `--diff-scope main` clean for your branch.
 - Unhealthy: new errors on your changed files; each comes with an `AGENT_REMEDIATION` block telling you the fix.
 - Trap: findings in generated trees (`src/copilot-cli/`, `.github/instructions/`) must be fixed at the canonical source under `.claude/` and regenerated, never edited in place. Suppress a true false positive with `# golden-principle: ignore <rule>` on the flagged line.
@@ -137,7 +137,7 @@ Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `
 | Description budget | 98 skills, 40940 chars, ~10235 est. tokens | Red in gate mode: over the 8000 budget, exit 1 |
 | Skill size | 98 skills, 44 warnings, 0 failures, exit 0 | Green |
 | Orphan refs (default targets) | 190 files, 535 refs, 0 findings, `VERDICT: PASS`, exit 0 | Green, but 187 refs are directive-suppressed |
-| Golden principles | 7909 files, 109 errors, 92 warnings, exit 10 | Red on main |
+| Golden principles | 7912 files, 109 errors, 92 warnings, exit 10 | Red on main |
 | Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
 | Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
