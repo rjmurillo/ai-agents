@@ -126,6 +126,34 @@ class TestIsGitHubNameValid:
     def test_invalid_type_returns_false(self):
         assert is_github_name_valid("foo", "Invalid") is False
 
+    def test_repo_rejects_the_two_directory_aliases(self):
+        """`.` and `..` are the only names GitHub refuses outright.
+
+        They are also the two that carry traversal meaning once a caller
+        interpolates them into a URL path, which several callers do.
+        """
+        assert is_github_name_valid(".", "Repo") is False
+        assert is_github_name_valid("..", "Repo") is False
+
+    def test_owner_rejects_the_two_directory_aliases(self):
+        assert is_github_name_valid(".", "Owner") is False
+        assert is_github_name_valid("..", "Owner") is False
+
+    def test_longer_dot_runs_stay_valid(self):
+        """Only the two aliases are reserved. `...` is a legal repository name.
+
+        Rejecting every all-dot name would be a wider rule than GitHub's and
+        would fail a name a user can really create.
+        """
+        assert is_github_name_valid("...", "Repo") is True
+        assert is_github_name_valid("....", "Repo") is True
+
+    def test_dots_elsewhere_in_a_name_stay_valid(self):
+        """The guard matches whole names, not substrings."""
+        assert is_github_name_valid("..leading", "Repo") is True
+        assert is_github_name_valid("trailing..", "Repo") is True
+        assert is_github_name_valid("mid..dle", "Repo") is True
+
 
 # ---------------------------------------------------------------------------
 # Validation: is_safe_file_path
