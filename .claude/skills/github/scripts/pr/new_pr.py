@@ -274,7 +274,7 @@ def run_validations(
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/5] Checking Session End protocol...")
+    print("[1/6] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -343,7 +343,7 @@ def run_validations(
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/5] Checking for skill violations...")
+    print("[2/6] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
     if os.path.exists(skill_script) and scannable_files:
@@ -364,7 +364,7 @@ def run_validations(
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/5] Checking test coverage...")
+    print("[3/6] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         failed = _run_warning_validator(
@@ -375,7 +375,7 @@ def run_validations(
 
     # Validation 4: PR Description validation (WARNING)
     print()
-    print("[4/5] Validating PR description...")
+    print("[4/6] Validating PR description...")
     validate_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "validate_pr_description.py",
@@ -409,7 +409,7 @@ def run_validations(
     # in the description despite local dash checks.
     # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
     print()
-    print("[5/5] Em/en-dash check on title and body...")
+    print("[5/6] Em/en-dash check on title and body...")
     body_content = body or ""
     if not body_content and body_file and os.path.exists(body_file):
         try:
@@ -451,6 +451,38 @@ def run_validations(
         )
         raise SystemExit(1)
     print("  No prohibited characters in title or body.")
+
+    # Validation 6: literal backslash-n in an inline --body.
+    #
+    # Canonical implementation:
+    # scripts/github_core/validation.py::escaped_newline_body_error, whose
+    # docstring records the two issues (#3598, #3646) that motivated it.
+    # That module is quoted here rather than imported for the same reason
+    # _DASH_RE is inlined above: new_pr.py runs on the push path and resolves
+    # only its own directory on sys.path, so importing github_core would mean
+    # adding a lib bootstrap that hard-exits 2 whenever .claude/lib is absent.
+    # The canonical predicate is:
+    #     count = body.count("\\n")
+    #     if count == 0 or "\n" in body.strip(): return None
+    # Keep the two copies in step; tests/test_github_core.py pins the shared
+    # behaviour and tests/skills/test_new_pr_escaped_newline.py pins this copy.
+    print()
+    print("[6/6] Escaped-newline check on body...")
+    escaped_count = body_content.count("\\n")
+    if escaped_count and "\n" not in body_content.strip():
+        print(
+            f"ERROR: Body carries {escaped_count} literal backslash-n"
+            " sequence(s) and no line break, so GitHub would render it as one"
+            " unbroken paragraph and drop every heading, list and table.",
+            file=sys.stderr,
+        )
+        print(
+            "  Write the body to a file and pass --body-file, which cannot"
+            " express this error.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print("  Body line breaks are real newlines.")
 
     print()
     if unrun_validators:

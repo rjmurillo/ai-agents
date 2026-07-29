@@ -51,7 +51,7 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
-from github_core.validation import escaped_newline_body_error  # noqa: E402
+from github_core.validation import inline_body_error  # noqa: E402
 
 _SCRIPT_NAME = "post_issue_comment.py"
 
@@ -184,10 +184,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             error_and_exit(f"Body file not found: {args.body_file}", 2)
         body = body_path.read_text(encoding="utf-8")
 
-    if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 2)
-
-    body_error = escaped_newline_body_error(body)
+    body_error = inline_body_error(body)
     if body_error:
         error_and_exit(body_error, 2)
 
