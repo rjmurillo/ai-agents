@@ -24,6 +24,16 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "context": "Recorded both declined findings as limitations in the validator docstring and pinned them with tests, including one that pins the cost of the rejected fix so a future reader cannot adopt it without seeing what it breaks.",
+      "chosen": "Recorded both declined findings as limitations in the validator docstring and pinned them with tests, including one that pins the cost of the rejected fix so a future reader cannot adopt it without seeing what it breaks.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -893,7 +903,9 @@
       "caused_by": [
         "e054"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e093"
+      ]
     },
     {
       "id": "e074",
@@ -927,7 +939,9 @@
       "caused_by": [
         "e075"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e078"
+      ]
     },
     {
       "id": "e077",
@@ -937,6 +951,206 @@
       "caused_by": [
         "e042"
       ],
+      "leads_to": [
+        "e094"
+      ]
+    },
+    {
+      "id": "e078",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a sixth adversarial round on two model families with a convergence gate: last round, and a finding changes code only if it arrives with a fixture showing a wrong exit code. The gate is the first concrete use of the audited wiki concept 'Self-Improvement Needs a Stop Condition'.",
+      "caused_by": [
+        "e076"
+      ],
+      "leads_to": [
+        "e079"
+      ]
+    },
+    {
+      "id": "e079",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol returned four findings, each with an executed fixture. Re-ran all four rather than trusting the report. Three reproduced on the first attempt; the fourth needed Sol's exact shape, a skill directory whose name is also a pruned tooling name, before it reproduced.",
+      "caused_by": [
+        "e078"
+      ],
+      "leads_to": [
+        "e080"
+      ]
+    },
+    {
+      "id": "e080",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "F1: a forward read counted a code span that a later pass was about to blank, so two documentation spans in one cell reported drift. Fixed by scanning a survives list that empties any later span which itself documents a whole route.",
+      "caused_by": [
+        "e079"
+      ],
+      "leads_to": [
+        "e081"
+      ]
+    },
+    {
+      "id": "e081",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "F2: a broken SKILL.md symlink counted as an installed skill. The inventory globbed the dangling link while the pruner read it as absent, so a directory the inventory had already credited was never entered. This is the exact divergence round five claimed was impossible. Fixed by filtering the glob through the same presence call the pruner uses.",
+      "caused_by": [
+        "e080"
+      ],
+      "leads_to": [
+        "e082"
+      ]
+    },
+    {
+      "id": "e082",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "F3: mismatched wrappers still reduced to a real name. Balanced unwrapping removed the outer pair, then a blind trailing strip removed the leftover closer. Fixed by removing closers from the trailing set and spending a closer only when a bracket before the route in the rendered cell owes it.",
+      "caused_by": [
+        "e081"
+      ],
+      "leads_to": [
+        "e083"
+      ]
+    },
+    {
+      "id": "e083",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "F4: a broken manifest symlink hid an entire plugin root and the run still reported PASS. The stat helper mapped the dangling link's FileNotFoundError to genuine absence. Fixed by raising when the path is a link that does not resolve.",
+      "caused_by": [
+        "e082"
+      ],
+      "leads_to": [
+        "e084"
+      ]
+    },
+    {
+      "id": "e084",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probing the fixes caught a false positive the tests missed: a route wrapped in nested brackets reported malformed. The owed-closer stack was spent innermost first, but a captured name is stripped right to left and meets the outermost closer first. Third round running that a fix opened a new hole, and the second caught by probing rather than by a test.",
+      "caused_by": [
+        "e083"
+      ],
+      "leads_to": [
+        "e085"
+      ]
+    },
+    {
+      "id": "e085",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a twenty-eight case probe battery. Twenty-seven matched. The one mismatch was a wrong expectation of mine: a dangling non-markdown symlink cannot hide a route, so ignoring it is correct, while a dangling markdown symlink does exit 2.",
+      "caused_by": [
+        "e084"
+      ],
+      "leads_to": [
+        "e086"
+      ]
+    },
+    {
+      "id": "e086",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Gemini returned two findings with fixtures after 198 tool calls. Declined both on measurement. Its first root cause is wrong: anchoring the forward search yields the identical capture, and the plain-text form of the same cell returns the identical exit code, so it is the fail-closed default on ambiguous input rather than a code-span defect. Its second needs a skill directory literally named 'my.skill.', and its proposed name pattern rejects every one-character skill name.",
+      "caused_by": [
+        "e085"
+      ],
+      "leads_to": [
+        "e087"
+      ]
+    },
+    {
+      "id": "e087",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded both declined findings as limitations in the validator docstring and pinned them with tests, including one that pins the cost of the rejected fix so a future reader cannot adopt it without seeing what it breaks.",
+      "caused_by": [
+        "e086"
+      ],
+      "leads_to": [
+        "e088"
+      ]
+    },
+    {
+      "id": "e088",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the mutation battery: 38 mutations, every round-six defence given its own, including the innermost-first ordering bug the probe had caught. 38 caught, 0 survived, 0 missing anchors.",
+      "caused_by": [
+        "e087"
+      ],
+      "leads_to": [
+        "e089"
+      ]
+    },
+    {
+      "id": "e089",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The filesystem suite crossed the 500-line limit. Split it rather than suppressing it, because a real seam existed: routing verdicts answer 'was this route resolved correctly' while path discipline answers 'was this route read at all'. Both round-six fail-opens were in the second category and neither was visible from a routing assertion. 189 and 407 lines, no suppression needed.",
+      "caused_by": [
+        "e088"
+      ],
+      "leads_to": [
+        "e090"
+      ]
+    },
+    {
+      "id": "e090",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the mutation battery after the split to prove the refactor preserved detection power: 38 caught, 0 survived.",
+      "caused_by": [
+        "e089"
+      ],
+      "leads_to": [
+        "e091"
+      ]
+    },
+    {
+      "id": "e091",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved scan neutrality against the committed version rather than against memory. Both read the identical 906 files and return the identical verdict, so the fixes change behaviour only on the adversarial shapes.",
+      "caused_by": [
+        "e090"
+      ],
+      "leads_to": [
+        "e092"
+      ]
+    },
+    {
+      "id": "e092",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified: 111 gate tests, 1378 passed and 1 skipped across tests/validation plus the parser suite, live gate PASS in 2.85s, ruff clean, zero dash bytes, pre_pr.py all validations passed.",
+      "caused_by": [
+        "e091"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e093",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified: 111 gate tests, 1378 passed and 1 skipped across tests/validation plus the parser suite, live gate PASS in 2.85s, ruff clean, zero dash bytes, pre_pr.py all validations passed.",
+      "caused_by": [
+        "e073"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e094",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 320b38c45f",
+      "caused_by": [
+        "e077"
+      ],
       "leads_to": []
     }
   ],
@@ -945,8 +1159,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 906
+    "commits": 5,
+    "files_changed": 1812
   },
   "lessons": []
 }

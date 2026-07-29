@@ -290,11 +290,57 @@
     },
     {
       "step": "Committed in three atomic slices with all hooks green: the validator fix, the docstring merge and size trade, and the tests."
+    },
+    {
+      "step": "Ran a sixth adversarial round on two model families with a convergence gate: last round, and a finding changes code only if it arrives with a fixture showing a wrong exit code. The gate is the first concrete use of the audited wiki concept 'Self-Improvement Needs a Stop Condition'."
+    },
+    {
+      "step": "Sol returned four findings, each with an executed fixture. Re-ran all four rather than trusting the report. Three reproduced on the first attempt; the fourth needed Sol's exact shape, a skill directory whose name is also a pruned tooling name, before it reproduced."
+    },
+    {
+      "step": "F1: a forward read counted a code span that a later pass was about to blank, so two documentation spans in one cell reported drift. Fixed by scanning a survives list that empties any later span which itself documents a whole route."
+    },
+    {
+      "step": "F2: a broken SKILL.md symlink counted as an installed skill. The inventory globbed the dangling link while the pruner read it as absent, so a directory the inventory had already credited was never entered. This is the exact divergence round five claimed was impossible. Fixed by filtering the glob through the same presence call the pruner uses."
+    },
+    {
+      "step": "F3: mismatched wrappers still reduced to a real name. Balanced unwrapping removed the outer pair, then a blind trailing strip removed the leftover closer. Fixed by removing closers from the trailing set and spending a closer only when a bracket before the route in the rendered cell owes it."
+    },
+    {
+      "step": "F4: a broken manifest symlink hid an entire plugin root and the run still reported PASS. The stat helper mapped the dangling link's FileNotFoundError to genuine absence. Fixed by raising when the path is a link that does not resolve."
+    },
+    {
+      "step": "Probing the fixes caught a false positive the tests missed: a route wrapped in nested brackets reported malformed. The owed-closer stack was spent innermost first, but a captured name is stripped right to left and meets the outermost closer first. Third round running that a fix opened a new hole, and the second caught by probing rather than by a test."
+    },
+    {
+      "step": "Ran a twenty-eight case probe battery. Twenty-seven matched. The one mismatch was a wrong expectation of mine: a dangling non-markdown symlink cannot hide a route, so ignoring it is correct, while a dangling markdown symlink does exit 2."
+    },
+    {
+      "step": "Gemini returned two findings with fixtures after 198 tool calls. Declined both on measurement. Its first root cause is wrong: anchoring the forward search yields the identical capture, and the plain-text form of the same cell returns the identical exit code, so it is the fail-closed default on ambiguous input rather than a code-span defect. Its second needs a skill directory literally named 'my.skill.', and its proposed name pattern rejects every one-character skill name."
+    },
+    {
+      "step": "Recorded both declined findings as limitations in the validator docstring and pinned them with tests, including one that pins the cost of the rejected fix so a future reader cannot adopt it without seeing what it breaks."
+    },
+    {
+      "step": "Rebuilt the mutation battery: 38 mutations, every round-six defence given its own, including the innermost-first ordering bug the probe had caught. 38 caught, 0 survived, 0 missing anchors."
+    },
+    {
+      "step": "The filesystem suite crossed the 500-line limit. Split it rather than suppressing it, because a real seam existed: routing verdicts answer 'was this route resolved correctly' while path discipline answers 'was this route read at all'. Both round-six fail-opens were in the second category and neither was visible from a routing assertion. 189 and 407 lines, no suppression needed."
+    },
+    {
+      "step": "Re-ran the mutation battery after the split to prove the refactor preserved detection power: 38 caught, 0 survived."
+    },
+    {
+      "step": "Proved scan neutrality against the committed version rather than against memory. Both read the identical 906 files and return the identical verdict, so the fixes change behaviour only on the adversarial shapes."
+    },
+    {
+      "step": "Verified: 111 gate tests, 1378 passed and 1 skipped across tests/validation plus the parser suite, live gate PASS in 2.85s, ruff clean, zero dash bytes, pre_pr.py all validations passed."
     }
   ],
-  "endingCommit": "ad56cbca80",
+  "endingCommit": "320b38c45f",
   "nextSteps": [
     "Open the PR with Fixes #3716. The description must state plainly that this fixes the route, not merge resolution on Copilot: project-toolkit:merge-resolver still returns BLOCKED in Phase 0 because it has no shell tool (issue #3719). Bundling the toolset grant is security-relevant and stays separate.",
+    "File the reviewer-evidence rule as its own atomic PR: a finding changes code only when it ships an executed fixture. Two rounds running, the reviewer that attached fixtures was right every time, and the reviewer that reasoned without them approved the exact symlink handling where two fail-opens were later confirmed. Needs the rule file, both generated mirrors, and three plugin manifest bumps.",
     "Resume the knowledge audit at the wiki concept 'Self-Improvement Needs a Stop Condition'. The repository prunes individual guards through guard-maturity and has a held-out eval surface, but has no loop-level convergence gate and nothing that stops repeated rediscovery of known findings.",
     "Consider a duplicate-test-name guard. Appending a test whose name already existed in the same module silently replaced the original definition, and only a collected-count check surfaced it."
   ]

@@ -281,3 +281,64 @@ failed for the wrong reason, which read as a coverage gap. Check that the
 mutation reproduces the defect it names before believing the survival. A
 missing anchor must fail the run: a mutation that never ran otherwise reports
 as caught.
+
+## Two suites became three, on a real seam
+
+The filesystem suite crossed the same 500-line lint the source file crossed
+earlier, and the decision went the other way. The source file was suppressed
+because it holds many cases of one concern. The test file was split because it
+held two: `test_check_shipped_skill_routes.py` now answers "was this route
+resolved correctly" and `test_check_shipped_skill_routes_paths.py` answers "was
+this route read at all", with
+`test_check_shipped_skill_routes_markdown.py` still answering "is this text a
+route". Every round-six fail-open was in the second category and none was
+visible from a routing assertion.
+
+Split when a file holds two concerns. Suppress when it holds many cases of one.
+The line count starts the conversation and does not settle it.
+
+## A broken symlink is not an absent file
+
+Two round-six fail-opens shared one root cause: a dangling symlink read as
+genuine absence.
+
+- `_stat_mode` mapped the `FileNotFoundError` from a dangling manifest link to
+  "no manifest here", which silently removed an entire plugin root from the
+  scan while the run still printed PASS. It now raises when the path is a link
+  that does not resolve.
+- `skill_names()` globbed a dangling `SKILL.md` link, because `scandir` lists
+  it, while the pruner read the same path as absent. The inventory credited a
+  skill whose directory the walk then refused to enter. Both call sites now go
+  through the same `_present` call, so they cannot diverge.
+
+Scope the strictness to paths the gate would read. A dangling `.md` link exits
+2; a dangling `note.lnk` is ignored. Refusing every broken link anywhere under
+a root would block pushes over litter.
+
+## Strip a captured name outermost first
+
+A captured route name is stripped right to left, so the first closer it meets
+is the outermost one. Spending the owed-closer stack from the back
+(innermost first) reports a correctly nested route as malformed. Spend from the
+front. One character, caught by probing rather than by any test.
+
+## Prove neutrality against the artifact
+
+To claim a fix changes nothing in the live repository, instrument both the
+committed version and the fixed version to record every file they open, then
+diff the sets. Both read the identical 906 files here. A matching route count
+is weaker evidence: it cannot distinguish "read the same files" from "read
+different files and got lucky".
+
+## A reviewer that probes can still misdiagnose
+
+Round six's second reviewer spent 198 tool calls and attached fixtures to both
+findings, and both root causes were wrong or pathological. A fixture proves the
+behaviour, not the explanation. Verify the named cause independently: here,
+anchoring the search it blamed produced the identical capture, and the
+plain-text form of the same cell produced the identical exit code, which moved
+the finding from "code-span defect" to "fail-closed on ambiguous input".
+
+And check what a proposed fix costs before adopting it. The name pattern that
+reviewer suggested rejects every one-character skill name. Run the proposed
+change against the inputs that currently pass.

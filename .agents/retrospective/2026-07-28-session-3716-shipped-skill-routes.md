@@ -393,3 +393,78 @@ already exceed the limit and one is 3757 lines, and 49 test files exceed it.
 Both files are suppressed with an inline rationale and a revisit condition tied
 to the code rather than the prose. A lint that fires on prose is measuring the
 wrong thing, but saying so requires the measurement first.
+
+## Round six: the fixture is the finding
+
+Six rounds of adversarial review on a single validator. Round six opened with a
+convergence gate written into both prompts: this is the last round, and a
+finding changes code only if it arrives with a fixture showing a wrong exit
+code. That gate is the first concrete use of the wiki concept
+"Self-Improvement Needs a Stop Condition" audited earlier in this session.
+
+The two reviewers diverged again, in the same direction as round five.
+
+One returned four findings, each with an executed fixture and an observed exit
+code. All four reproduced and all four were real. Two were fail-open: a broken
+manifest symlink removed an entire plugin root from the scan while the run
+still printed PASS, and a broken skill marker counted as an installed skill to
+the inventory while reading as absent to the pruner, so a directory the
+inventory had already credited was never entered.
+
+The other returned two findings, also with fixtures, after 198 tool calls. Both
+were declined on measurement rather than on argument. The first named a
+code-span defect; anchoring the search it blamed yields the identical capture,
+and the plain-text form of the same cell returns the identical exit code, so
+the behaviour is the fail-closed default on ambiguous input and is shared by
+both forms. The second is real but needs a skill directory literally named
+`my.skill.`, and the name pattern it proposed rejects every one-character skill
+name. Both are now docstring limitations pinned by tests, including one that
+pins the cost of the rejected fix so a future reader cannot adopt it without
+seeing what it breaks.
+
+That reviewer had also written, in round five, that the symlink handling "holds
+up robustly against adversarial inputs (symlinks...)". That is the exact area
+where the other reviewer found two confirmed fail-opens. Two rounds running,
+the reviewer that attached executed fixtures was right every time and the
+reviewer that reasoned without them certified working code as broken and broken
+code as robust. The verdict carries no information. The fixture does.
+
+## A fix earns its own round, again
+
+Probing the round-six fixes caught a false positive that none of the new tests
+caught: a route wrapped in nested brackets reported malformed. The owed-closer
+stack was spent innermost first, but a captured name is stripped right to left,
+so it meets the outermost closer first. One character of ordering.
+
+Third round running that a fix opened a new hole, and the second time probing
+found it before the tests did. Tests encode the shapes already thought of.
+Probing asks what the fix newly made possible. They are not substitutes.
+
+## Split when a seam exists, suppress when it does not
+
+The filesystem suite crossed the same 500-line lint that the source file
+crossed two rounds earlier. The earlier decision was to suppress, on a
+measurement showing the file was mostly prose. This time the decision went the
+other way, and the difference is the reason.
+
+A real seam existed. Routing verdicts answer "was this route resolved
+correctly". Path discipline answers "was this route read at all". Different
+failure modes: the first is a wrong answer, the second is a silent absence.
+Both round-six fail-opens were in the second category and neither was visible
+from a routing assertion. Splitting put that story in one file, 189 and 407
+lines, and no suppression was needed.
+
+The rule that reconciles the two decisions: split when the file holds two
+concerns, suppress when it holds many cases of one. The line count is what
+starts the conversation, not what settles it.
+
+## Prove neutrality against the artifact, not against memory
+
+The claim that the fixes change nothing in the live repository was worth more
+than a matching route count. Both the committed version and the fixed version
+were instrumented to record every file they open. Both read the identical 906
+files and return the identical verdict.
+
+That is a different class of evidence from "the output looks the same". It
+holds the fixes to changing behaviour only on the adversarial shapes, which is
+what a fix to a fail-open is supposed to do.
