@@ -1,0 +1,191 @@
+{
+  "id": "episode-2026-07-29-session-3623-memory-docs-powershell",
+  "session": "2026-07-29-session-3623-memory-docs-powershell",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #3623: the memory skill reference documentation instructs agents to call PowerShell cmdlets (Search-Memory, Get-Episode, Test-MemoryHealth and about twenty more) that do not exist anywhere in the repository. Rewrite the eight affected documents against the real Python API and ship a resolver test that fails if a phantom cmdlet is ever reintroduced.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the issue's premise before acting on it. The issue names Search-Memory and Get-Episode. A repository-wide scan for PowerShell-verb-shaped tokens in .claude/skills/**/*.md found the real scope: about twenty distinct phantom cmdlets across eight memory-skill documents, plus a further ~30 in the github, context-optimizer, session, github-url-intercept and ai-agents-config-catalog skills that are outside this issue's scope.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established that no PowerShell ships at all. git ls-files '*.ps1' '*.psm1' returns zero tracked files. A working-tree rglob does find .venv/bin/activate.ps1 and .PSScriptAnalyzerSettings.psd1, so the precise claim is 'no tracked .ps1 or .psm1'; a PSScriptAnalyzer settings file does ship. ADR-005 (PowerShell-only) is marked Superseded by ADR-042 on line 3 of the ADR itself.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built the cmdlet-to-Python mapping by importing the real modules, not by reading the docs. memory_core.memory_router supplies search_memory, invoke_serena_search, invoke_forgetful_search, get_content_hash, merge_memory_results, test_forgetful_available, get_memory_router_status, reset_caches. memory_core.reflexion_memory supplies get_episode, get_episodes, new_episode, get_decision_sequence, get_reflexion_memory_status. Test-MemoryHealth and Measure-MemoryPerformance map to the shipped scripts/test_memory_health.py and scripts/measure_memory_performance.py command line tools. Get-Patterns has no equivalent that ships and was deleted rather than translated.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Executed every example before writing it down, which overturned several documented facts. search_memory.py takes the query as a positional argument; the documented --query flag errors with 'unrecognized arguments'. search_memory(lexical_only=True) sets skip_content, so results come back with content and hash both None. Serena score is a percentage, not a 0-to-1 fraction. forgetful_timeout is 0.5 seconds passed to socket.settimeout, not milliseconds as api-reference.md claimed. The router keeps two caches (health TTL 30s, file list TTL 10s); only the first was documented.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote .claude/skills/memory-search/references/api-reference.md against the executed API, repaired three broken relative links, and corrected the ForgetfulTimeout units error.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote .claude/skills/memory-reflexion/references/reflexion-memory.md (505 lines). Repointed the overview at memory_core/reflexion_memory.py, repaired three links, and removed the Where-Object pipelines: get_episodes has native outcome=, task=, since= and max_results= filters. Corrected get_decision_sequence, which takes an episode id such as episode-2026-01-01-126 and not a session id; it strips the episode- prefix internally.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote .claude/skills/memory-search/references/memory-router.md end to end: three-tier architecture, the positional-query CLI table, the measured return shapes, the lexical_only caveat, snake_case configuration keys and the corrected timeout units. Recorded that the script searches three tiers while the module searches two, because search_episodes lives in scripts/search_memory.py rather than in memory_core.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Converted nine code blocks in .claude/skills/memory-gate/references/agent-integration.md to Python, corrected the script paths to .claude/skills/memory/scripts/, switched python3 to uv run python (python is not on PATH), re-aligned the ASCII diagram and fixed the session log extension from .md to .json.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed the script inventory in .claude/skills/memory/spec/skill-specification.xml at the six real Python paths, verified each exists, noted that ADR-042 supersedes the ADR-005 reference, and re-validated the file as well-formed XML.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made seven substitutions in .claude/skills/memory/references/tier-selection-guide.md and rewrote .claude/skills/memory/scripts/README-count-tokens.md, whose pip install tiktoken instruction was wrong because tiktoken>=0.13.0 is already a project dependency in pyproject.toml.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote .claude/skills/memory-maintenance/references/troubleshooting.md, the largest offender at roughly sixty references. Its entire Quick Diagnostics section was fictional: search_memory.py --status and extract_session_episode.py --status are not real flags, scripts/forgetful/check_memory_health.py does not exist, and the 'Expected Healthy Output' JSON named keys (SerenaAvailable, SerenaMemoryCount, ForgetfulUrl) that no tool emits. Deleted a sixty-line hand-rolled PowerShell diagnostic and a hand-rolled benchmark and pointed both at the shipped test_memory_health.py and measure_memory_performance.py instead. Measured the real tools to document them: health reports overall healthy|degraded|unhealthy and returns degraded, not unhealthy, when Forgetful is down; the benchmark offers --format console|markdown|json with no table option; in-process Serena search averages 0.55ms against 95 memories, which shows the ~500ms figure in the old document was CLI startup cost and not search cost.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Shipped .claude/skills/memory/tests/test_reference_docs_resolve.py, the regression gate the issue asks for. Five checks: a corpus-not-empty guard so an empty scan cannot pass silently, a tracked-PowerShell premise guard, a no-phantom-cmdlets scan over every memory-skill document, a check that every memory_core symbol named in prose actually resolves by import, and a check that every script path named in prose exists on disk. Read-Only in memory-search/references/skill-reference.md line 325 is English prose and is allowlisted; Build-Measure-Learn in the business-strategy skill is the same class of false positive and is out of scope here.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation tested the new test four ways rather than trusting a green run. Reintroducing Search-Memory into a document fails it. Naming memory_core.memory_router.get_patterns, a symbol that does not exist, fails it. Naming a nonexistent script path fails it. Breaking SKILLS_ROOT so the scan finds nothing fails the corpus guard rather than passing vacuously. Restoring each mutation returned 71 passed.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Mutation tested the new test four ways rather than trusting a green run. Reintroducing Search-Memory into a document fails it. Naming memory_core.memory_router.get_patterns, a symbol that does not exist, fails it. Naming a nonexistent script path fails it. Breaking SKILLS_ROOT so the scan finds nothing fails the corpus guard rather than passing vacuously. Restoring each mutation returned 71 passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded a tooling trap found while mutation testing: two sed edits inside the same filesystem mtime tick can leave a stale __pycache__ entry, so pytest re-imports the pre-mutation module and reports a confident false result. The mutation loop now purges __pycache__ between edits. A direct import that disagrees with a pytest run is the tell.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
