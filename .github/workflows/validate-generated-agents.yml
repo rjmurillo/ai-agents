@@ -177,7 +177,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: uv run python build/scripts/validate_templates_schema.py
 
-      - name: Validate plugin frontmatter self-containment (issue #3565)
+      - name: "Validate plugin frontmatter self-containment (issue #3565)"
         if: steps.should-run.outputs.skip != 'true'
         # A shipped `description` loads into every consumer session, so a path
         # into an upstream-only directory never resolves for them. The prose
