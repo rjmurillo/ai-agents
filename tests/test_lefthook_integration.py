@@ -7332,9 +7332,9 @@ def test_conflict_marker_policy_reads_the_index_blob(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "doc.md").write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    _write_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
     _git(repo, "add", "doc.md")
-    (repo / "doc.md").write_text("working tree clean\n", encoding="utf-8")
+    _write_file(repo, "doc.md", "working tree clean\n")
 
     assert policy.check_staged_conflict_markers(["doc.md"], repo) == 1
     assert policy.check_staged_conflict_markers([], repo) == 0
@@ -7345,7 +7345,7 @@ def test_conflict_marker_policy_passes_a_clean_staged_file(tmp_path: Path) -> No
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "doc.md").write_text("Title\n=======\nstill clean\n", encoding="utf-8")
+    _write_file(repo, "doc.md", "Title\n=======\nstill clean\n")
     _git(repo, "add", "doc.md")
 
     assert policy.check_staged_conflict_markers(["doc.md"], repo) == 0
