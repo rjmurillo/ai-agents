@@ -140,3 +140,70 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
             return
 
     error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
+
+
+def escaped_newline_body_error(body: str | None) -> str | None:
+    """Detect a body whose line breaks arrived as literal backslash-n text.
+
+    A caller that builds a Markdown body in a shell without escape
+    interpretation, or in a language that passes the string through
+    verbatim, sends the two characters backslash and n where a newline was
+    meant. ``gh`` writes them literally and GitHub renders the whole body as
+    one unbroken paragraph, losing every heading, list and table. Nothing
+    errors, so the corruption is only visible to a human reading the
+    rendered result later.
+
+    The signal is the conjunction, not either half alone. A body may
+    legitimately mention a backslash-n sequence inside a code fence while
+    still carrying real line breaks, and that case must keep working. Only a
+    body that has the sequence *and* no line break at all was, with near
+    certainty, meant to have newlines.
+
+    ``strip()`` guards the common single-line-plus-trailing-newline shape,
+    which is what the two issues that prompted this check actually looked
+    like.
+
+    ``None`` is a live input, not just a test shape: edit_issue_body.py
+    declares ``--body`` with ``default=None``, so the annotation has to
+    admit it. mypy caught the narrower version on the diff-line ratchet.
+
+    Args:
+        body: The inline body text as received from the caller.
+
+    Returns:
+        An operator-facing message naming the remedy, or None when the body
+        is fine.
+    """
+    if not body:
+        return None
+    count = body.count("\\n")
+    if count == 0 or "\n" in body.strip():
+        return None
+    return (
+        f"Body carries {count} literal backslash-n sequence(s) and no line "
+        "break, so GitHub would render it as one unbroken paragraph and drop "
+        "every heading, list and table. Write the body to a file and pass "
+        "--body-file, which cannot express this error."
+    )
+
+
+def inline_body_error(body: str | None) -> str | None:
+    """Return the first problem with an inline ``--body``, or None.
+
+    Every skill script that accepts ``--body`` has to reject the same two
+    shapes: a body that is empty or whitespace-only, and a body whose line
+    breaks are literal backslash-n (see
+    :func:`escaped_newline_body_error`). Keeping both checks here means a
+    caller spends one branch instead of two, which matters because the
+    ``main`` functions that host them are already past the complexity
+    ceiling and carry a ``noqa: C901``.
+
+    Args:
+        body: The inline body text as received from the caller.
+
+    Returns:
+        An operator-facing message, or None when the body is usable.
+    """
+    if not body or not body.strip():
+        return "Body cannot be empty."
+    return escaped_newline_body_error(body)
