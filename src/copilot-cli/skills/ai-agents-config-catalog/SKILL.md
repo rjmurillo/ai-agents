@@ -89,7 +89,7 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 | Verdict | When legitimate | Enforcement |
 |---|---|---|
 | `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via the `session` skill (Test-InvestigationEligibility); CI backstop `.github/scripts/validate_investigation_claims.py` (advisory) |
-| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | `SESSION-PROTOCOL.md:754`; `CONTRIBUTING.md:694` |
+| `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | `SESSION-PROTOCOL.md:754`; `CONTRIBUTING.md:697` |
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.
 
