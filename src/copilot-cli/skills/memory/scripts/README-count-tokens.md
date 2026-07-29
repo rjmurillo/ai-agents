@@ -39,11 +39,13 @@ Token counts are cached in `.serena/.token-cache.json` for performance:
 Import the counter directly rather than parsing CLI output:
 
 ```python
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, ".claude/skills/memory")
-sys.path.insert(0, ".claude/skills/memory/scripts")
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
+sys.path.insert(0, f"{_root}/skills/memory/scripts")
 
 from count_memory_tokens import get_memory_token_count
 from memory_core.memory_router import search_memory

@@ -87,10 +87,12 @@ Primary tier unavailable?
 When answering "How should I handle authentication errors?":
 
 ```python
+import os
 import sys
 from datetime import datetime, timedelta, UTC
 
-sys.path.insert(0, ".claude/skills/memory")
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
 from memory_core.memory_router import search_memory
 from memory_core.reflexion_memory import get_episode, get_episodes
 
