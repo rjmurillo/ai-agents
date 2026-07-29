@@ -80,6 +80,8 @@ def _rollup_response(
     oid="abc123",
     page_info=None,
     total_count=None,
+    mergeable="MERGEABLE",
+    merge_state_status="CLEAN",
 ):
     contexts = {
         "nodes": nodes,
@@ -92,6 +94,8 @@ def _rollup_response(
         "repository": {
             "pullRequest": {
                 "number": number,
+                "mergeable": mergeable,
+                "mergeStateStatus": merge_state_status,
                 "commits": {
                     "nodes": [
                         {"commit": {"statusCheckRollup": {
@@ -359,6 +363,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -404,6 +410,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -451,6 +459,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -496,6 +506,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -543,6 +555,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -604,6 +618,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": []},
                 },
@@ -629,6 +645,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [{"commit": {"statusCheckRollup": None}}],
@@ -672,6 +690,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -718,6 +738,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -773,6 +795,8 @@ class TestMain:
         gql_data = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -829,6 +853,8 @@ class TestMain:
         empty_gql = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -866,6 +892,8 @@ class TestMain:
         no_checks_gql = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
                 },
@@ -893,6 +921,8 @@ class TestMain:
         empty_gql = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -912,6 +942,8 @@ class TestMain:
         passing_gql = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {
                         "nodes": [
@@ -963,6 +995,8 @@ class TestMain:
         empty_gql = {
             "repository": {
                 "pullRequest": {
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "number": 42,
                     "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
                 },
@@ -1110,12 +1144,23 @@ class TestFetchChecks:
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "NotFound"
 
+
+    def test_fetch_checks_includes_merge_state(self):
+        nodes = [_check_run_node("test", "COMPLETED", "SUCCESS")]
+        with patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes, mergeable="CONFLICTING"),
+        ):
+            result = fetch_checks("o", "r", 42)
+        assert result["MergeState"] == "CONFLICTING"
+
     def test_empty_commits(self):
         with patch(
             "get_pr_checks.gh_graphql",
             return_value={
                 "repository": {
                     "pullRequest": {
+                        "mergeable": "MERGEABLE",
                         "number": 1,
                         "commits": {"nodes": []},
                     },
@@ -1132,6 +1177,7 @@ class TestFetchChecks:
             return_value={
                 "repository": {
                     "pullRequest": {
+                        "mergeable": "MERGEABLE",
                         "number": 1,
                         "commits": {
                             "nodes": [
@@ -1152,6 +1198,100 @@ class TestFetchChecks:
 
 
 class TestBuildOutputAdditional:
+
+    def test_conflicting_merge_ref_blocks_all_passing(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "CONFLICTING",
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["AllPassing"] is False
+        assert output["MergeRefUsable"] is False
+        assert output["MergeState"] == "CONFLICTING"
+        assert "merge ref cannot be built" in output["MergeStateWarning"]
+
+    def test_unknown_merge_ref_blocks_all_passing(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "UNKNOWN",
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["AllPassing"] is False
+        assert output["MergeRefUsable"] is False
+        assert "unknown" in output["MergeStateWarning"].lower()
+
+
+    def test_dirty_merge_state_status_blocks_all_passing(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "MERGEABLE",
+            "MergeStateStatus": "DIRTY",
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["AllPassing"] is False
+        assert output["MergeRefUsable"] is False
+        assert "dirty merge state" in output["MergeStateWarning"]
+
+    def test_null_merge_state_status_blocks_all_passing(self):
+        """An explicit null mergeStateStatus is unknown, so it must fail closed."""
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "MERGEABLE",
+            "MergeStateStatus": None,
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["MergeStateStatus"] == "UNKNOWN"
+        assert output["MergeRefUsable"] is False
+        assert output["AllPassing"] is False
+        assert "merge state status is unknown" in output["MergeStateWarning"]
+
+    def test_absent_merge_state_status_defaults_to_clean(self):
+        """A legacy payload that never queried the field keeps the CLEAN default."""
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "MergeState": "MERGEABLE",
+            "Checks": [
+                _check("test", passing=True, required=True, conclusion="SUCCESS"),
+            ],
+        }
+
+        output = build_output(check_data, "o", "r")
+
+        assert output["MergeStateStatus"] == "CLEAN"
+        assert output["MergeRefUsable"] is True
+        assert output["AllPassing"] is True
+        assert output["MergeStateWarning"] == ""
+
     def test_no_checks_not_all_passing(self):
         """No checks means AllPassing is False."""
         check_data = {
@@ -1411,6 +1551,43 @@ class TestSupersededCheckRuns:
             result = fetch_checks("o", "r", 2201)
         assert len(result["Checks"]) == 1
         assert result["Checks"][0]["IsPassing"] is True
+
+
+    def test_main_conflicting_merge_ref_returns_1(self, capsys):
+        nodes = [_check_run_node("Validate PR", "COMPLETED", "SUCCESS")]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes, mergeable="CONFLICTING"),
+        ):
+            rc = main(["--pull-request", "3478"])
+        assert rc == 1
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["AllPassing"] is False
+        assert data["MergeRefUsable"] is False
+        assert data["MergeState"] == "CONFLICTING"
+
+    def test_main_unknown_merge_ref_returns_1(self, capsys):
+        nodes = [_check_run_node("Validate PR", "COMPLETED", "SUCCESS")]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes, mergeable="UNKNOWN"),
+        ):
+            rc = main(["--pull-request", "3478"])
+        assert rc == 1
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["AllPassing"] is False
+        assert data["MergeRefUsable"] is False
+        assert data["MergeState"] == "UNKNOWN"
 
     def test_main_superseded_failure_returns_0(self, capsys):
         """End-to-end: PR #2201 shape (stale FAILURE + fresh SUCCESS) is ready.

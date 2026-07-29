@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3490,
+    "date": "2026-07-27",
+    "branch": "fix/3413-active-agent-lease",
+    "startingCommit": "a65181a264",
+    "objective": "Create the ADR-only PR for issue #3413, after fixing PR #3566 conflicts and filing the separate file-overlap issue."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3413-active-agent-lease."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and .agents/AGENTS.md constraints were loaded before editing .agents artifacts."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git fetch origin main, git fetch origin fix/3413-active-agent-lease, and merge-base ancestry check passed before ADR edits."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read and left unmodified per ADR-014."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3413-active-agent-lease."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP was available for initial_instructions and tool discovery in this Copilot session; no separate activate_project tool was exposed."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions returned successfully."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was read-only and untouched."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No durable implementation convention was added; the ADR is the canonical persistent record."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 scoped run reported 0 files because .agents/** is excluded by config; dash byte checks returned 0 for ADR and debate log."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This ADR-only change is committed before the branch is pushed."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run python scripts/validation/check_adr_uniqueness.py passed; validate_session_json passed after the adr-review skill evidence and debate log were recorded; dash byte checks returned 0."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3572 filed for same-file overlap and duplicate-branch hazards outside #3413 scope."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted for an ADR-only PR."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Fixed PR #3566 conflicts first by merging origin/main into fix/3464-memory-causal-order, validating targeted memory tests, and pushing head faa300d216c8b4d9d8e313b275663e4e2d57659f."
+    },
+    {
+      "step": "Counted 60 legacy inverted episode edges in existing generated memory episodes. No marker distinguishes fixed edges from legacy edges, which remains a known review gap for PR #3566."
+    },
+    {
+      "step": "Filed issue #3572 for the measured 27-file overlap hazard and duplicate-branch hazard so #3413 stays scoped to one active holder per PR branch."
+    },
+    {
+      "step": "Created ADR-090 with a fail-closed PR comment holder lease, stable holder identity, measured 30 minute TTL, 5 minute renewal, v1 to v2 rollout, override authorization, and at-least-once consistency model."
+    },
+    {
+      "step": "Ran the adr-review skill with architect, independent-thinker, security, analyst, critic, and high-level-advisor reviewers. Revised ADR-090 to close P0 findings and recorded the debate in .agents/analysis/ADR-090-debate-log.md."
+    },
+    {
+      "step": "Ran a focused critic recheck after revision. It found no remaining P0 blockers and three P1 clarity gaps, then the ADR was updated for base_sha semantics, v1 expiry parsing, and kill-criteria observability."
+    }
+  ],
+  "endingCommit": "ab300c5fe4",
+  "nextSteps": [
+    "Open an ADR-only PR for ADR-090 and wait for it to land before starting the implementation PR for issue #3413.",
+    "Implementation PR must add mocked tests for second holder blocked, stale claim reclaimed, crashed claim expiry, authorized override audit, missing holder fail-closed, and duplicate acquire no-op success."
+  ]
+}

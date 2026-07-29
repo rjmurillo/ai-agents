@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Vendor-portability ratchet for skill scripts (issue #2050).
 
 Skill scripts that hard-code upstream-only paths (``.agents/``, ``.claude/lib/``,
@@ -45,6 +46,11 @@ import re
 import sys
 import tokenize
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.portability_common import (
     build_portability_parser,

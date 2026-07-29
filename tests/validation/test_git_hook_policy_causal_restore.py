@@ -1,28 +1,43 @@
-"""Snapshot restoration must fail closed, not traceback (Issue #3389).
+"""The push gate's suppression parser and ADR-review merge scope must hold.
 
-``update_causal_graph`` snapshots the generated causal graph, runs the updater,
-and restores the snapshot when the updater fails. The restore itself was
-unguarded: an ``OSError`` from ``Path.write_bytes`` or ``Path.unlink`` escaped
-the function, so the operator got a traceback naming neither failure, and the
-graph could be left partially written.
+``check_pushed_suppressions`` reads the diff a push would send and blocks
+unjustified lint suppressions. Its bypasses are all parser-shaped: a bare
+ruff-honored comment, a notebook cell the textual diff renders differently, a
+new branch with no merge base, a shallow clone. Each one is a way to land a
+suppression the gate was built to catch, so each gets a test.
 
-Two failures are in play whenever this path runs, and the operator needs both:
-the updater failed, and the attempt to undo it also failed. A message naming
-only one of them sends the reader to the wrong repair.
+``check_adr_review_policy`` blocks an ADR change carrying no adr-review
+evidence. The exception is a merge in progress: an ADR reviewed on main arrives
+in the merge commit with no evidence of its own, and blocking there would wedge
+every merge that touches architecture.
 
-The success-shaped line matters as much as the exit code. ``original graph
-restored`` printed after a failed restore is worse than silence, because it
-tells the reader the thing they most need to doubt.
+The filename is stale and this file no longer tests causal restore. Three
+classes covering the causal graph's snapshot-and-restore path were removed with
+the graph itself (ADR-089). The two suites left never touched causality; they
+shared this file only because both exercise ``git_hook_policy``.
+
+Do not run ``ruff format`` on this file. The fixtures below split their
+suppression tokens across adjacent string literals on purpose, so the push
+gate's own scanner does not flag this file as introducing what it tests for.
+Joining them, which the formatter does, re-arms the trap. Nothing in CI or the
+hooks runs ``ruff format``, so the split form survives.
+
+The honest fix for the name is a rename, and it is blocked. The gate diffs with
+``--no-renames`` on purpose, so a rename reads as a wholesale add and the one
+real suppression here, the ``E402`` on the import below, trips it. Renaming
+requires teaching the gate to skip pure renames first. Filed as issue 3635.
 """
 
 from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -31,153 +46,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from scripts.validation import git_hook_policy as policy  # noqa: E402
-
-_GRAPH = ".agents/memory/causality/causal-graph.json"
-
-
-@pytest.fixture
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A repo whose staged set is nonempty and whose updater always fails."""
-    monkeypatch.setattr(
-        policy, "_staged_episode_paths", lambda root, flt: ["ep.md"] if flt == "ACMR" else []
-    )
-    monkeypatch.setattr(policy, "_apply_causal_graph_updates", lambda *a, **k: 1)
-    return tmp_path
-
-
-def _write_graph(repo_root: Path, text: str = '{"nodes": []}') -> Path:
-    path = repo_root / _GRAPH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-class TestARestoreFailureBlocks:
-    def test_a_write_failure_returns_two(self, repo, monkeypatch, capsys):
-        """The graph existed, so restoration writes the snapshot back."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("disk full"))
-        )
-        assert policy.update_causal_graph(repo) == 2
-        assert "disk full" in capsys.readouterr().err
-
-    def test_an_unlink_failure_returns_two(self, repo, monkeypatch, capsys):
-        """The graph did not exist, so restoration removes what the updater made.
-
-        The snapshot is None on this path, which is the branch that reaches
-        Path.unlink rather than Path.write_bytes.
-        """
-        monkeypatch.setattr(
-            Path, "unlink", lambda self, missing_ok=False: (_ for _ in ()).throw(OSError("EPERM"))
-        )
-        assert policy.update_causal_graph(repo) == 2
-        assert "EPERM" in capsys.readouterr().err
-
-    def test_it_never_claims_the_graph_was_restored(self, repo, monkeypatch, capsys):
-        """The line that must not print. It is the one the reader trusts."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        assert "original graph restored" not in capsys.readouterr().err
-
-    def test_it_names_both_failures(self, repo, monkeypatch, capsys):
-        """One failure caused the other; a message naming one misdirects."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        err = capsys.readouterr().err
-        assert "causal graph update failed" in err
-        assert "restoring the original causal graph also failed" in err
-
-    def test_it_names_the_graph_and_the_repair(self, repo, monkeypatch, capsys):
-        """A blocked commit with no next step is a blocked commit twice."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-        err = capsys.readouterr().err.replace("\\", "/")
-        assert _GRAPH in err
-        # The word "rebuild" is not the repair. An operator staring at a blocked
-        # commit needs the command, and a command missing any of these flags
-        # rebuilds the wrong file or from the wrong source (issue #3370).
-        assert "python3" in err, f"no runnable command in stderr: {err!r}"
-        repair = err[err.index("python3") :]
-        for flag in ("--reset-graph", "--episode-path", "--graph-path"):
-            assert flag in repair, f"repair command omits {flag}: {repair!r}"
-        assert _GRAPH in repair, f"repair command does not name the graph: {repair!r}"
-
-    def test_it_does_not_raise(self, repo, monkeypatch):
-        """The point of the change: an exit code, not a traceback."""
-        _write_graph(repo)
-        monkeypatch.setattr(
-            Path, "write_bytes", lambda self, data: (_ for _ in ()).throw(OSError("nope"))
-        )
-        policy.update_causal_graph(repo)
-
-
-class TestTheOrdinaryPathsAreUnchanged:
-    """Negative controls. A guard that swallows the success path is not a guard."""
-
-    def test_a_successful_restore_still_warns_and_passes(self, repo, capsys):
-        _write_graph(repo, '{"nodes": ["original"]}')
-        assert policy.update_causal_graph(repo) == 0
-        err = capsys.readouterr().err
-        assert "original graph restored" in err
-
-    def test_a_successful_restore_puts_the_bytes_back(self, repo, monkeypatch):
-        """The mutation has to happen after the snapshot, or the test is vacuous.
-
-        ``update_causal_graph`` snapshots at entry. Mutating the file before the
-        call puts the mutation *into* the snapshot, so the end state matches
-        whether restore ran or not. Writing it from inside the failing updater
-        is the only ordering that makes the assertion discriminate.
-        """
-        graph = _write_graph(repo, '{"nodes": ["original"]}')
-
-        def _mutate_then_fail(*_a, **_k) -> int:
-            graph.write_text('{"nodes": ["mutated"]}', encoding="utf-8")
-            return 1
-
-        monkeypatch.setattr(policy, "_apply_causal_graph_updates", _mutate_then_fail)
-        assert policy.update_causal_graph(repo) == 0
-        assert json.loads(graph.read_text(encoding="utf-8"))["nodes"] == ["original"]
-
-    def test_no_staged_episodes_is_a_no_op(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(policy, "_staged_episode_paths", lambda root, flt: [])
-        assert policy.update_causal_graph(tmp_path) == 0
-
-    def test_a_successful_update_never_reaches_the_restore(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            policy, "_staged_episode_paths", lambda root, flt: ["ep.md"] if flt == "ACMR" else []
-        )
-        monkeypatch.setattr(policy, "_apply_causal_graph_updates", lambda *a, **k: 0)
-        monkeypatch.setattr(policy, "_stage_causal_graph", lambda *a, **k: 0)
-
-        def _boom(*_a, **_k):
-            raise AssertionError("restore ran on the success path")
-
-        monkeypatch.setattr(policy, "_restore_file", _boom)
-        assert policy.update_causal_graph(tmp_path) == 0
-
-
-class TestTheHarnessActuallyExercisesRestore:
-    """Vacuity control: these tests are worthless if restore never runs."""
-
-    def test_the_failing_updater_reaches_restore(self, repo, monkeypatch):
-        seen: list[bytes | None] = []
-
-        def _record(path: Path, snapshot: bytes | None) -> None:
-            seen.append(snapshot)
-
-        monkeypatch.setattr(policy, "_restore_file", _record)
-        policy.update_causal_graph(repo)
-        assert len(seen) == 1
 
 
 def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
@@ -192,7 +60,7 @@ def _run_suppression_push(
     *,
     base: str | None = "c" * 40,
     remote_sha: str = "b" * 40,
-    diff_without_no_renames: str | None = None,
+    rename_status_output: str = "",
     refs_present: bool = False,
     shallow: bool = False,
 ) -> int:
@@ -220,13 +88,18 @@ def _run_suppression_push(
             assert expected_range is not None
             assert expected_range in args
             return _completed("\0".join(changed_paths) + "\0")
+        if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
+            assert expected_range is not None
+            assert expected_range in args
+            assert "--find-renames=100%" in args
+            assert "--no-renames" not in args
+            return _completed(rename_status_output)
         if "diff" in args and "--unified=0" in args:
             assert expected_range is not None
             assert expected_range in args
             for flag in policy.TEXTUAL_DIFF_FLAGS:
                 assert flag in args
-            if "--no-renames" not in args and diff_without_no_renames is not None:
-                return _completed(diff_without_no_renames)
+            assert "--no-renames" in args
             separator = args.index("--")
             assert tuple(args[separator + 1 :]) == changed_paths
             return _completed(diff_text)
@@ -279,6 +152,13 @@ def _commit(repo: Path, message: str) -> str:
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", message)
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def _point_origin_main_at_head(repo: Path) -> str:
+    """Make the local `origin/main` cache agree with what this repo has at HEAD."""
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    return head
 
 
 def _run_real_suppression_push(repo: Path, head: str) -> int:
@@ -430,6 +310,38 @@ new file mode 100644
         assert _run_suppression_push(monkeypatch, tmp_path, diff) == 1
         assert "pkg/module.py:3" in capsys.readouterr().err
 
+    def test_pure_rename_with_existing_suppression_is_allowed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        suppression = "# no" "qa"
+        no_rename_diff = f"""diff --git a/pkg/source.py b/pkg/target.py
+deleted file mode 100644
+--- a/pkg/source.py
++++ /dev/null
+@@ -1 +0,0 @@
+-import os  {suppression}
+diff --git a/pkg/target.py b/pkg/target.py
+new file mode 100644
+--- /dev/null
++++ b/pkg/target.py
+@@ -0,0 +1 @@
++import os  {suppression}
+"""
+        rename_status = "\0".join(("R100", "pkg/source.py", "pkg/target.py", ""))
+
+        assert (
+            _run_suppression_push(
+                monkeypatch,
+                tmp_path,
+                no_rename_diff,
+                ("pkg/target.py",),
+                rename_status_output=rename_status,
+            )
+            == 0
+        )
+
     def test_rename_into_scanned_suffix_with_existing_suppression_is_blocked(
         self,
         tmp_path,
@@ -437,11 +349,6 @@ new file mode 100644
         capsys,
     ):
         suppression = "# no" "sec"
-        rename_only_diff = """diff --git a/pkg/payload.txt b/pkg/payload.py
-similarity index 100%
-rename from pkg/payload.txt
-rename to pkg/payload.py
-"""
         no_rename_diff = f"""diff --git a/pkg/payload.txt b/pkg/payload.py
 deleted file mode 100644
 --- a/pkg/payload.txt
@@ -455,6 +362,7 @@ new file mode 100644
 @@ -0,0 +1 @@
 +value = call()  {suppression}
 """
+        rename_status = "\0".join(("R100", "pkg/payload.txt", "pkg/payload.py", ""))
 
         assert (
             _run_suppression_push(
@@ -462,7 +370,7 @@ new file mode 100644
                 tmp_path,
                 no_rename_diff,
                 ("pkg/payload.py",),
-                diff_without_no_renames=rename_only_diff,
+                rename_status_output=rename_status,
             )
             == 1
         )
@@ -803,6 +711,1660 @@ class TestAdrReviewPolicyMergeScope:
 
         assert result == 1
         assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_merge_of_a_shared_branch_tip_allows_content_already_on_main(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """The exemption has to follow the content, not the merge parent.
+
+        `_approved_merge_head_commits` keeps only parents that are ancestors of
+        `origin/main`, so it covers merging main in directly. It does not cover
+        the other way a branch takes main's work: someone else merges main into
+        the shared branch and pushes, and the next author merges that remote
+        tip. The parent is then the branch, not main, so every ADR main
+        contributed reads as branch-authored and the gate demands review
+        evidence for a file the author never opened.
+
+        Comparing the staged blob against `origin/main` closes that without
+        widening the gate, because content that already sits on main already
+        cleared this policy on the pull request that put it there.
+        """
+        path = ".agents/architecture/ADR-089-arrived-through-the-branch.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"main adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: [],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_merge_head_commits",
+            lambda root: ["the-shared-branch-tip"],
+            raising=False,
+        )
+        blobs = {"the-shared-branch-tip": b"main adr", "origin/main": b"main adr"}
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: blobs.get(commit),
+            raising=False,
+        )
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 0
+
+    def test_an_adr_reverted_to_a_stale_origin_main_during_a_merge_is_still_gated(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Content sitting on main is not a licence to put it back.
+
+        A local `origin/main` ref goes stale the moment someone else pushes.
+        Matching content against it alone would let an author revert an ADR to
+        the stale state mid-merge and walk past the gate, and the revert would
+        then overwrite the newer copy on the next push. Reverting is a fresh
+        decision no matter how old the bytes are, so the content has to arrive
+        through the merge as well as match main.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-001-superseded.md"
+        adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
+        _commit(repo, "old position")
+        # The local ref stops here. Someone else already pushed the revision.
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", head)
+        adr.write_text("# ADR 001\n\nthe revised position.\n", encoding="utf-8")
+        _commit(repo, "revised position")
+
+        _git(repo, "checkout", "-b", "feature")
+        (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        _commit(repo, "feature work")
+        _git(repo, "branch", "sibling")
+        _git(repo, "checkout", "sibling")
+        (repo / "sibling.txt").write_text("sibling\n", encoding="utf-8")
+        _commit(repo, "sibling work")
+        _git(repo, "checkout", "feature")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "sibling"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-001-superseded.md"
+        adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_an_adr_a_collaborator_wrote_on_the_shared_branch_is_still_gated(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Arriving through the merge is not enough on its own.
+
+        A collaborator can write an ADR on the shared branch and push it. The
+        content then sits on a merge parent without ever having been reviewed
+        on main. Exempting it because the merge carried it would let any pair
+        of branches walk an ADR onto main with no review evidence at all, so
+        the content has to match main as well as arrive through the merge.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-003-collaborator.md"
+        adr.write_text("# ADR 003\n\nthe reviewed position.\n", encoding="utf-8")
+        _commit(repo, "reviewed position")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", head)
+
+        _git(repo, "checkout", "-b", "shared")
+        adr.write_text("# ADR 003\n\nthe collaborator position.\n", encoding="utf-8")
+        _commit(repo, "collaborator writes the adr on the branch")
+
+        _git(repo, "checkout", "main")
+        _git(repo, "checkout", "-b", "feature")
+        (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+        _commit(repo, "feature work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-003-collaborator.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_an_approved_merge_parent_exempts_content_origin_main_does_not_carry(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """The approved-parent rule has to keep working on its own.
+
+        Merging an older main commit brings content that the local `origin/main`
+        tip no longer carries, so the blob comparison against main cannot
+        exempt it and the ancestry rule is the only thing that can. Without
+        this the ancestry rule could be deleted outright and every other test
+        here would stay green.
+        """
+        path = ".agents/architecture/ADR-002-an-earlier-main.md"
+        blobs = {"an-approved-parent": b"earlier main", "origin/main": b"later main"}
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"earlier main")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: ["an-approved-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_merge_head_commits",
+            lambda root: ["an-approved-parent"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: blobs.get(commit),
+            raising=False,
+        )
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 0
+
+    def test_a_carrier_branch_cannot_launder_a_reversion_past_a_stale_origin_main(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Matching a stale `origin/main` is not evidence of review.
+
+        Requiring the blob to sit on a merge parent stops an author typing a
+        reversion during someone else's merge, but it does not stop an author
+        who builds the merge. Branch off the newer commit, commit the older
+        ADR text there, merge that branch back, and both halves of the rule
+        are satisfied: the blob is on a merge parent because the author put it
+        there, and it matches `origin/main` because `origin/main` is stale.
+
+        The gate cannot tell a stale ref from a current one offline, so it
+        asks a different question instead: is the copy this branch already has
+        one that main has ever carried. Here it is not, because the newer text
+        was written locally and never pushed, which makes the merge a
+        regression of local work rather than main's content arriving.
+
+        Found by adversarial security review, Finding 3. It reproduces with no
+        write to `.git` and no ref surgery, which is what separates it from
+        the other two findings that round returned.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-004-carrier.md"
+        adr.write_text("# ADR 004\n\nold reviewed position.\n", encoding="utf-8")
+        old = _commit(repo, "the old position")
+        _git(repo, "update-ref", "refs/remotes/origin/main", old)
+
+        adr.write_text("# ADR 004\n\nnewer reviewed position.\n", encoding="utf-8")
+        newer = _commit(repo, "the newer position, not yet pushed")
+
+        _git(repo, "update-ref", "refs/heads/carrier", newer)
+        _git(repo, "checkout", "carrier")
+        adr.write_text("# ADR 004\n\nold reviewed position.\n", encoding="utf-8")
+        _commit(repo, "carrier quietly restores the old text")
+
+        _git(repo, "checkout", "main")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "carrier"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-004-carrier.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_synthetic_merge_head_that_head_already_contains_is_not_a_merge(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """A hand-written `MERGE_HEAD` naming an ancestor is never a real merge.
+
+        `git merge <ancestor>` reports "Already up to date" and writes no
+        `MERGE_HEAD` at all, so any `MERGE_HEAD` that HEAD already contains
+        was placed there by something other than git. Reading it as a merge
+        in progress hands the whole merge exemption to anyone who can write a
+        file, and the older commit it names is an approved parent by
+        construction, so the reversion it authorises is the exact thing the
+        gate exists to catch.
+
+        Found by adversarial security review, Finding 2. Unlike the carrier
+        case this one needs a write inside `.git`, and an author who has that
+        can also skip the hook outright. It is fixed anyway because the check
+        costs one ancestry query and removes a way to get the same result
+        while the hook still reports success.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-005-synthetic.md"
+        adr.write_text("# ADR 005\n\nold reviewed position.\n", encoding="utf-8")
+        old = _commit(repo, "the old position")
+
+        adr.write_text("# ADR 005\n\nnewer reviewed position.\n", encoding="utf-8")
+        newer = _commit(repo, "the newer position")
+        _git(repo, "update-ref", "refs/remotes/origin/main", newer)
+
+        adr.write_text("# ADR 005\n\nold reviewed position.\n", encoding="utf-8")
+        _git(repo, "add", ".")
+        (repo / ".git" / "MERGE_HEAD").write_text(f"{old}\n", encoding="utf-8")
+
+        relative = ".agents/architecture/ADR-005-synthetic.md"
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_real_merge_of_a_shared_branch_tip_exempts_the_adr_main_contributed(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """End-to-end proof against a real repository, no git calls stubbed.
+
+        The monkeypatched checks above describe the shape of the bug. This one
+        reproduces it: main gains an ADR, a collaborator merges main into the
+        shared branch and the next author merges that branch tip, so MERGE_HEAD
+        names the branch and not main. The staged ADR is byte-identical to
+        main's copy, so the gate must let it through.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        # `local` is cut here rather than by start-point later: the suite's
+        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
+        # commit as a branch point while that trace is on.
+        _git(repo, "branch", "local")
+
+        _git(repo, "checkout", "-b", "shared")
+        (repo / "branch.txt").write_text("branch work\n", encoding="utf-8")
+        _commit(repo, "branch work")
+
+        _git(repo, "checkout", "main")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-089-from-main.md"
+        adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
+        _commit(repo, "adr on main")
+        main_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+
+        # A collaborator merges main into the shared branch and pushes.
+        _git(repo, "checkout", "shared")
+        _git(repo, "merge", "--no-edit", "main")
+
+        # The author, still on the old branch point, merges that shared tip.
+        _git(repo, "checkout", "local")
+        (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-089-from-main.md"
+        assert policy._merge_in_progress(repo) is True
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 0
+
+    def test_a_real_merge_still_gates_an_adr_the_author_wrote_on_the_branch(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Negative control for the real-repository check above.
+
+        Same repository shape, but the staged ADR differs from main's copy
+        because the author edited it during the merge. Nothing on main carries
+        that content, so no exemption applies and the gate blocks.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        # `local` is cut here rather than by start-point later: the suite's
+        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
+        # commit as a branch point while that trace is on.
+        _git(repo, "branch", "local")
+
+        _git(repo, "checkout", "-b", "shared")
+        (repo / "branch.txt").write_text("branch work\n", encoding="utf-8")
+        _commit(repo, "branch work")
+
+        _git(repo, "checkout", "main")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-089-from-main.md"
+        adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
+        _commit(repo, "adr on main")
+        main_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", main_tip)
+
+        _git(repo, "checkout", "shared")
+        _git(repo, "merge", "--no-edit", "main")
+
+        _git(repo, "checkout", "local")
+        (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-089-from-main.md"
+        (repo / relative).write_text("# ADR 089\n\nthe author rewrote this.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_merge_of_a_shared_branch_tip_still_gates_content_main_does_not_have(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Negative control for the check above.
+
+        An ADR written on the branch during the same merge differs from main's
+        copy, or main has no copy at all, so the blob comparison must not
+        exempt it. Without this the previous test would pass just as well
+        against a check that exempted every path once a merge was underway.
+        """
+        path = ".agents/architecture/ADR-999-written-during-the-merge.md"
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
+        monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
+        monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
+        monkeypatch.setattr(
+            policy,
+            "_approved_merge_head_commits",
+            lambda root: [],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            policy,
+            "_merge_head_commits",
+            lambda root: ["the-shared-branch-tip"],
+            raising=False,
+        )
+        blobs = {"the-shared-branch-tip": b"main adr", "origin/main": b"main adr"}
+        monkeypatch.setattr(
+            policy,
+            "_read_commit_blob_bytes",
+            lambda root, commit, relative_path: blobs.get(commit),
+            raising=False,
+        )
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+
+        assert policy.check_adr_review_policy([path], tmp_path) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_line_endings_alone_do_not_make_a_staged_adr_mains_content(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """The exemption is byte identity, so it has to be read in bytes.
+
+        The blob readers ran `git show` through a text-mode pipe, which
+        translates every `\\r\\n` and every lone `\\r` to `\\n` before the bytes are
+        handed back. Two blobs that differ only in how they end their lines
+        arrived identical, so a staged ADR the merge never carried satisfied
+        both blob halves of the rule and left through main's exemption.
+
+        Found by adversarial review round 51.
+        """
+        repo = _merge_carrying_main_adr(
+            tmp_path, b"# ADR 090\n\nmain wrote this.\n", "ADR-090-endings.md"
+        )
+        relative = ".agents/architecture/ADR-090-endings.md"
+        (repo / relative).write_bytes(b"# ADR 090\r\n\r\nmain wrote this.\r\n")
+        _git(repo, "add", relative)
+
+        assert policy._read_index_blob(repo, relative) != policy._read_head_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_two_different_undecodable_blobs_are_not_one_blob(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """Decoding with `errors="replace"` collapses distinct bytes to one.
+
+        Every byte the decoder cannot read becomes U+FFFD, so any two blobs
+        that differ only inside undecodable runs compared equal. This is the
+        same defect as the line-ending case and the wider half of it: the
+        collision needs no agreement about what the differing bytes mean.
+
+        Found by adversarial review round 51.
+        """
+        repo = _merge_carrying_main_adr(
+            tmp_path, b"# ADR 091\n\nmain \xff\xfe wrote this.\n", "ADR-091-endings.md"
+        )
+        relative = ".agents/architecture/ADR-091-endings.md"
+        (repo / relative).write_bytes(b"# ADR 091\n\nmain \x80\x81 wrote this.\n")
+        _git(repo, "add", relative)
+
+        assert policy._read_index_blob(repo, relative) != policy._read_head_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_merge_that_carries_crlf_content_keeps_mains_exemption(
+        self,
+        tmp_path,
+    ):
+        """Reading the merge parent as text costs the exemption it should grant.
+
+        This is the same normalization seen from the other side. When main's
+        own ADR ends its lines with `\r\n`, a text-mode read of the parent
+        hands back `\n` while the staged blob still holds what git stored, so
+        the two stop matching and an ADR the author never opened is reported
+        as branch-authored. Nothing is let through, but review evidence is
+        demanded for someone else's file, which is how a gate loses its
+        audience.
+
+        Found by adversarial review round 51.
+        """
+        relative = ".agents/architecture/ADR-094-carried.md"
+        carried = b"# ADR 094\r\n\r\nmain wrote this.\r\n"
+        repo = _merge_carrying_main_adr(tmp_path, carried, "ADR-094-carried.md")
+
+        assert policy._read_index_blob(repo, relative) == carried
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+    def test_crlf_content_the_merge_left_alone_is_still_unchanged_from_head(
+        self,
+        tmp_path,
+    ):
+        """A path the merge did not touch is recognized by HEAD's bytes.
+
+        The branch wrote this ADR itself and the merge brought something
+        else, so the staged copy is what HEAD already had and no merge
+        exemption is involved. A text-mode read of HEAD folds the `\r\n`
+        endings the branch committed, the staged copy no longer matches, and
+        an untouched file is pushed down the merge-exemption path to be
+        reported as authored by a merge that never saw it.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _commit(repo, "base")
+        _git(repo, "branch", "local")
+
+        (repo / "README.md").write_text("main moved on\n", encoding="utf-8")
+        _commit(repo, "main work")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "local")
+        relative = ".agents/architecture/ADR-095-branch.md"
+        (repo / relative).parent.mkdir(parents=True)
+        (repo / relative).write_bytes(b"# ADR 095\r\n\r\nthe branch wrote this.\r\n")
+        _commit(repo, "branch adr")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        assert policy._read_head_blob(repo, relative) == policy._read_index_blob(repo, relative)
+        assert policy._merge_authored_adr_paths([relative], repo) == []
+
+    def test_typing_mains_text_during_an_unrelated_merge_is_not_the_merge_carrying_it(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """The merge-parent clause had no test that failed when it was removed.
+
+        Round 50 claimed every clause of this rule was mutation-proved. It was
+        not. The stale-`origin/main` test fails the head-copy clause as well,
+        so deleting the merge-parent clause left the whole class green. This
+        is the discriminator that separates them: the staged blob matches
+        `origin/main`, the copy it replaces is one `origin/main` has carried,
+        and the merge carried nothing of the kind.
+
+        The exemption is for what a merge brought in. An author who types the
+        text during someone else's merge has not been reviewed by that merge,
+        and whether the text is current or a reversion depends on how stale
+        `origin/main` is, which this gate cannot see.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        adr = adr_dir / "ADR-092-typed.md"
+        adr.write_text("# ADR 092\n\nfirst position.\n", encoding="utf-8")
+        _commit(repo, "first position")
+        _git(repo, "branch", "local")
+        _git(repo, "branch", "side")
+
+        adr.write_text("# ADR 092\n\nsecond position.\n", encoding="utf-8")
+        _commit(repo, "second position")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "side")
+        (repo / "side.txt").write_text("side work\n", encoding="utf-8")
+        _commit(repo, "side work")
+
+        _git(repo, "checkout", "local")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "side"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        relative = ".agents/architecture/ADR-092-typed.md"
+        adr.write_text("# ADR 092\n\nsecond position.\n", encoding="utf-8")
+        _git(repo, "add", relative)
+
+        staged = policy._read_index_blob(repo, relative)
+        merge_parents = policy._merge_head_commits(repo)
+        assert policy._blob_is_at_any(repo, merge_parents, relative, staged) is False
+        assert policy._read_commit_blob_bytes(repo, "origin/main", relative) == staged
+        assert policy._head_copy_is_one_main_has_carried(repo, relative) is True
+
+        assert policy._merge_authored_adr_paths([relative], repo) == [relative]
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([relative], repo) == 1
+        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+
+    def test_a_rename_does_not_hide_the_history_the_head_copy_came_from(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Renaming an ADR must not turn main's own revision into gated work.
+
+        The head-copy clause asked `rev-list` for the commits touching one
+        pathname, which stops at the rename. An ADR renamed on both branches
+        and revised on main then failed the clause on the branch's own copy,
+        because that copy lived under the former name, and a merge that only
+        brought main's revision in demanded review evidence for it.
+
+        Found by adversarial review round 51.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "test@example.invalid")
+        _git(repo, "config", "user.name", "Test User")
+        adr_dir = repo / ".agents" / "architecture"
+        adr_dir.mkdir(parents=True)
+        old_name = ".agents/architecture/ADR-093-old.md"
+        new_name = ".agents/architecture/ADR-093-new.md"
+        # Long enough that a one-line revision still scores as a rename. Git
+        # pairs paths at 50% similarity by default, and a three-line fixture
+        # would need the threshold lowered to pass, which would be tuning the
+        # gate to the test rather than to the documents it guards.
+        body = "\n".join(f"Context paragraph {index}." for index in range(20))
+        first = f"# ADR 093\n\n{body}\n\nDecision: first position.\n"
+        second = f"# ADR 093\n\n{body}\n\nDecision: second position.\n"
+        (repo / old_name).write_text(first, encoding="utf-8")
+        _commit(repo, "first position")
+        _git(repo, "branch", "local")
+
+        _git(repo, "mv", old_name, new_name)
+        (repo / new_name).write_text(second, encoding="utf-8")
+        _commit(repo, "rename and revise on main")
+        _point_origin_main_at_head(repo)
+
+        _git(repo, "checkout", "local")
+        _git(repo, "mv", old_name, new_name)
+        _commit(repo, "the branch renamed it too")
+
+        # Both sides moved the file, so the merge pairs the renames and takes
+        # main's revision on its own. Nothing here is authored by the branch.
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+        assert merge.returncode == 0, merge.stderr
+        assert policy._read_index_blob(repo, new_name) == second.encode("utf-8")
+
+        assert policy._head_copy_is_one_main_has_carried(repo, new_name) is True
+        assert policy._merge_authored_adr_paths([new_name], repo) == []
+
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_today_session_log", lambda sessions_dir: None)
+        assert policy.check_adr_review_policy([new_name], repo) == 0
+
+    def test_a_conflict_main_resolved_in_a_merge_is_a_state_main_has_carried(
+        self,
+        tmp_path,
+    ):
+        """`git log --raw` says nothing about a merge unless it is asked to.
+
+        Without `-m`, git prints no diff for a merge commit, so an ADR whose
+        only appearance in that state was a conflict resolution left no blob id
+        behind. A branch sitting on that resolution held content main really
+        had carried and still failed the head-copy clause, which demands review
+        evidence for a file the branch never opened.
+
+        The revision after the merge is what makes this observable: without it
+        the resolution is `origin/main`'s tip and the tip lookup covers it.
+
+        Found by adversarial review round 52.
+        """
+        repo, name, resolved = _repo_where_main_resolved_an_adr_in_a_merge(tmp_path)
+
+        assert policy._read_head_blob(repo, name) == resolved
+
+        assert policy._head_copy_is_one_main_has_carried(repo, name) is True
+
+    def test_a_users_diff_merges_setting_does_not_hide_the_resolution(
+        self,
+        tmp_path,
+    ):
+        """`-m` takes its output format from the user's `log.diffMerges`.
+
+        `-m` means `--diff-merges=on`, and `on` defers to whatever
+        `log.diffMerges` says. Set to `combined` or `dense-combined`, the merge
+        prints one `::` record instead of one `:` record per parent, and that
+        record is laid out differently: the fourth field is the first parent's
+        pre-image rather than the post-image. So the resolution blob went
+        missing again, and a blob nobody asked about took its place in the set.
+
+        Asking for `separate` by name pins the format the parser was written
+        for. The setting is a normal user preference, not an attack, and the
+        gate runs on whatever machine the developer configured.
+
+        Found by a bot reviewer on PR #3680.
+        """
+        repo, name, resolved = _repo_where_main_resolved_an_adr_in_a_merge(
+            tmp_path,
+            diff_merges="combined",
+        )
+
+        assert policy._read_head_blob(repo, name) == resolved
+
+        assert policy._head_copy_is_one_main_has_carried(repo, name) is True
+
+    def test_the_blob_set_is_the_same_under_every_diff_merges_setting(
+        self,
+        tmp_path,
+    ):
+        """No user preference may change what this gate accepts.
+
+        `log.diffMerges` has seven values in git 2.43 and `-m` honours all of
+        them, so the set the gate reasons about moved with a setting the
+        developer chose for readability. Naming the format instead makes the
+        answer the same on every machine, which is the property worth
+        asserting: not that one value works, but that the setting is not an
+        input.
+
+        `remerge` is included so the enumeration is the whole set rather than
+        the values that happened to come to mind. It reconstructs the merge
+        rather than reporting it, so it is the value least like the others.
+        """
+        answers = {}
+        for setting in (
+            "combined",
+            "dense-combined",
+            "separate",
+            "on",
+            "first-parent",
+            "off",
+            "remerge",
+        ):
+            repo, name, _ = _repo_where_main_resolved_an_adr_in_a_merge(
+                tmp_path / setting,
+                diff_merges=setting,
+            )
+            answers[setting] = policy._origin_main_blob_ids(repo, name)
+
+        assert len(set(map(frozenset, answers.values()))) == 1, answers
+
+    def test_a_state_only_the_plain_traversal_reaches_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """Asking for merge diffs must not cost a state main already had.
+
+        `--follow` rewrites the path it is following each time it detects a
+        rename, so which rename it sees decides which lineage it walks. Asking
+        for merge diffs makes the merge-versus-first-parent rename visible, and
+        following that one walks main's side of the history and reports the
+        side branch's file as a deletion rather than crossing into it.
+
+        The side branch's revision is a state of this file on `origin/main`,
+        and the implementation before merge diffs were asked for returned it.
+        Trading it away for the resolution blob swaps one silent gap for
+        another: a branch sitting on that revision holds content main really
+        carried, and demanding review evidence for it is the false positive
+        this whole lookup exists to prevent.
+        """
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+
+        assert side_blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_an_adr_whose_name_needs_quoting_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """A path git quotes has to reach the scope test as git spells it.
+
+        `core.quotePath` is on by default, so a name outside ASCII prints
+        octal-escaped inside double quotes. The trailing quote alone defeats
+        the end anchor the scope pattern ends on, and the escapes defeat the
+        word characters before it, so every record for the file drops and its
+        history reads as empty. The gate governs the file either way, so the
+        answer would be review evidence demanded for an ADR whose only
+        peculiarity is its name.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        # On by default. Named so the test states what it exercises rather
+        # than inheriting it from whoever runs it.
+        _git(repo, "config", "core.quotePath", "true")
+        name = ".agents/architecture/ADR-100-caf\u00e9.md"
+        (repo / ".agents" / "architecture").mkdir(parents=True)
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_an_adr_under_a_quoted_directory_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """Turning quoting off is not the same as never being quoted.
+
+        git quotes a path carrying a double quote, a backslash or a control
+        character whatever `core.quotePath` says, so suppressing the setting
+        answers only the accented-name half. Reading the records in a format
+        that separates paths by NUL answers both.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory = repo / '.agents' / 'arch"itecture'
+        directory.mkdir(parents=True)
+        name = '.agents/arch"itecture/ADR-101-quoted.md'
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_path_that_only_a_newline_rewrite_makes_governed_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """A carriage return in a path must not turn it into a governed one.
+
+        `-z` is passed so paths arrive raw, but reading the stream in text mode
+        applies universal newline translation, so a trailing carriage return
+        becomes a newline, and `$` matches before a trailing newline. A path
+        this gate does not govern then reads as one, and content that never sat
+        at a governed path joins the set of blobs main is treated as having
+        carried. A branch holding that content is then exempted from review
+        (issue #3722).
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory = repo / ".agents" / "architecture"
+        directory.mkdir(parents=True)
+        governed = ".agents/architecture/ADR-101-real.md"
+        ungoverned = governed + "\r"
+        (repo / ungoverned).write_text("never reviewed\n" + "a\n" * 40, encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add under a carriage return name")
+        unreviewed = _git(repo, "rev-parse", "main:" + ungoverned).stdout.strip()
+        _git(repo, "mv", ungoverned, governed)
+        (repo / governed).write_text("the reviewed decision\n" + "a\n" * 40, encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "rename onto the governed name and revise")
+        reviewed = _git(repo, "rev-parse", "main:" + governed).stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+
+        carried = policy._origin_main_blob_ids(repo, governed)
+
+        assert unreviewed not in carried
+        assert reviewed in carried
+
+    def test_a_path_carrying_invalid_utf8_survives_the_read(
+        self,
+        tmp_path,
+    ):
+        """Reading bytes must not drop a governed record on undecodable bytes.
+
+        This pins the read path rather than the error handler. Identity here is
+        the record's number, so a byte spent elsewhere in the path reaches no
+        decision, and a `replace` handler passes this too. What would fail it is
+        a read that errors or drops the record outright.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True)
+        _git(repo, "init", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        directory_name = os.fsdecode(b"arch\xffitecture")
+        directory = repo / ".agents" / directory_name
+        directory.mkdir(parents=True)
+        name = f".agents/{directory_name}/ADR-102-undecodable.md"
+        (repo / name).write_text("decision\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "add")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "main")
+        blob = _git(repo, "rev-parse", "main:" + name).stdout.strip()
+
+        assert blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_the_resolution_and_the_side_state_are_both_carried(
+        self,
+        tmp_path,
+    ):
+        """Neither traversal alone answers the question, so both must run."""
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+        resolution = _git(repo, "rev-parse", "HEAD~1:" + name).stdout.strip()
+
+        carried = policy._origin_main_blob_ids(repo, name)
+
+        assert {side_blob, resolution} <= carried
+
+    def test_a_combined_diff_record_is_never_read_as_a_post_image(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Refuse a record shape the field positions do not describe.
+
+        A `::` record carries one pre-image per parent before the post-image,
+        so its fourth field is a pre-image and its width grows with the parent
+        count. Reading it as a post-image puts a blob in the carried set that
+        answers a question nobody asked.
+
+        Naming the format should mean these never arrive. Skipping them is what
+        keeps that true when a later git, or a flag someone adds here, produces
+        one anyway, and the field positions are not self-describing enough to
+        notice on their own.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        adr = ".agents/architecture/ADR-095-synthetic.md"
+        combined = (
+            "::100644 100644 100644 "
+            "1111111111111111111111111111111111111111 "
+            "2222222222222222222222222222222222222222 "
+            "3333333333333333333333333333333333333333 MM\0" + adr + "\0"
+            ":100644 100644 "
+            "4444444444444444444444444444444444444444 "
+            "5555555555555555555555555555555555555555 M\0" + adr + "\0"
+            # Contains "ADR" and is not a path this gate governs. The
+            # membership test the records are filtered by is the gate's own,
+            # not a substring the name happens to carry.
+            ":100644 100644 "
+            "6666666666666666666666666666666666666666 "
+            "7777777777777777777777777777777777777777 M\0docs/ADR-overview.md\0"
+            # A file moved in to become an ADR. The post-image is at the ADR
+            # path from this commit on, so the destination is what decides it,
+            # and reading the source instead would drop a state main holds.
+            ":100644 100644 "
+            "9999999999999999999999999999999999999999 "
+            "8888888888888888888888888888888888888888 R100\0notes.md\0" + adr + "\0"
+        )
+        monkeypatch.setattr(
+            policy,
+            "_run_git_bytes",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0, stdout=combined.encode("utf-8", "surrogateescape")
+            ),
+        )
+
+        assert policy._origin_main_blob_ids(repo, adr) == {"5" * 40, "8" * 40}
+
+    def test_a_deletions_empty_post_image_is_never_carried(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """A record that removes a file names no blob afterwards.
+
+        Its post-image field is all zeros, which is not a state main carried
+        and not an object at all. The width of that field follows the
+        repository's hash, so dropping only the shorter one leaves the longer
+        one in the set.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        adr = ".agents/architecture/ADR-098-deleted.md"
+        records = (
+            ":100644 000000 "
+            "1111111111111111111111111111111111111111 "
+            + "0" * 40
+            + " D\0"
+            + adr
+            + "\0"
+            ":100644 000000 " + "2" * 64 + " " + "0" * 64 + " D\0" + adr + "\0"
+            ":100644 100644 "
+            "3333333333333333333333333333333333333333 "
+            "4444444444444444444444444444444444444444 M\0" + adr + "\0"
+        )
+        monkeypatch.setattr(
+            policy,
+            "_run_git_bytes",
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0, stdout=records.encode("utf-8", "surrogateescape")
+            ),
+        )
+
+        assert policy._origin_main_blob_ids(repo, adr) == {"4" * 40}
+
+    def test_a_lineage_the_gate_does_not_govern_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """`--follow` will cross into a file that was never an ADR.
+
+        Rename detection is similarity, not provenance. A commit that drops one
+        file and adds another is indistinguishable from a move, so `--follow`
+        rewrites the path it is tracking onto the dropped file and keeps
+        walking. Every state that file ever held then reads as a state of this
+        ADR.
+
+        When the file it crossed into is not one this gate governs, those
+        states never faced ADR review at all: an ordinary file changes under
+        ordinary review, and its contents were never a decision record. A
+        branch placing one of them at an ADR path would be exempted from the
+        review it exists to require, on content main never carried there.
+
+        Found independently by two reviewers on PR #3680.
+        """
+        repo, adr_path, foreign = _repo_where_a_merge_linked_a_non_adr_file(tmp_path)
+        moved_in = _git(repo, "rev-parse", "side:" + adr_path).stdout.strip()
+
+        carried = policy._origin_main_blob_ids(repo, adr_path)
+
+        assert foreign not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
+        # The state the file held once it was an ADR is main's to carry: the
+        # record that moved it in has the ADR as its destination. Qualifying on
+        # the source path instead would drop it and demand review evidence for
+        # a state main really held at this path.
+        assert moved_in in carried
+
+    def test_a_file_merely_ending_in_the_protocol_name_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """A suffix match is not a path this gate governs.
+
+        The ADR half of the path test is anchored to a path segment, so
+        `docs/not-ADR-096-x.md` is correctly foreign. The protocol half was
+        not, so any name ending in the protocol's filename matched it:
+        `docs/fake-SESSION-PROTOCOL.md` read as governed, and a lineage
+        `--follow` crossed into it was admitted as one main had carried.
+
+        Found by review on PR #3680.
+        """
+        repo, adr_path, foreign = _repo_where_a_merge_linked_a_non_adr_file(
+            tmp_path,
+            ordinary="docs/fake-SESSION-PROTOCOL.md",
+        )
+
+        carried = policy._origin_main_blob_ids(repo, adr_path)
+
+        assert foreign not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
+
+    def test_the_protocol_itself_is_still_a_path_this_gate_governs(
+        self,
+        tmp_path,
+    ):
+        """The negative control for the test above.
+
+        Anchoring the protocol half must not narrow it past the real file,
+        which lives one directory down and is the reason the alternative
+        exists. Checked at both the segment boundary and the repository root.
+        """
+        assert policy.ADR_REVIEW_PATH_RE.search(".agents/SESSION-PROTOCOL.md")
+        assert policy.ADR_REVIEW_PATH_RE.search("SESSION-PROTOCOL.md")
+
+    def test_a_lineage_into_a_different_decision_record_is_not_carried(
+        self,
+        tmp_path,
+    ):
+        """Two ADRs are two decisions, however alike their text.
+
+        Records written from one template share most of their lines, so git
+        scores a commit that drops one and adds another as a rename of it.
+        `--follow` then walks from the new record into the old one and every
+        state the old one held reads as a state of the new.
+
+        Both are paths this gate governs, so scoping the walk to governed
+        paths does not refuse it. The content did face ADR review, but it
+        faced it as a different decision. Placing it under this record's
+        number is a decision nobody reviewed.
+
+        Found by review on PR #3680.
+        """
+        repo, target, only_ever_elsewhere = _repo_where_a_merge_linked_two_adrs(
+            tmp_path
+        )
+
+        carried = policy._origin_main_blob_ids(repo, target)
+
+        assert only_ever_elsewhere not in carried
+        assert policy._head_copy_is_one_main_has_carried(repo, target) is False
+
+    def test_a_rename_within_one_adr_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """Refusing foreign lineages must not refuse the one this gate wants.
+
+        The negative control for the two tests above. One decision record
+        that main moved and revised keeps its number across the rename, so
+        the states under its former name are still states of this record and
+        stay carried.
+        """
+        repo, name, side_blob = _repo_where_a_rename_crossed_a_merge(tmp_path)
+
+        assert side_blob in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_rename_that_only_repads_the_number_is_still_carried(
+        self,
+        tmp_path,
+    ):
+        """One record padded differently is still the same record.
+
+        The identity is read as the literal text of the number, so `ADR-0003`
+        and `ADR-003` compare unequal and the walk stops at the rename between
+        them. This repo really made that rename, so a branch restoring a state
+        the record held under its wider name is refused for no reason.
+        """
+        repo, name, before = _repo_where_a_rename_repadded_the_number(tmp_path, "ADR-003")
+
+        assert before in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_rename_that_changes_the_number_is_still_refused(
+        self,
+        tmp_path,
+    ):
+        """The negative control. Repadding is not licence to cross records.
+
+        Reading `ADR-0003` and `ADR-003` as one record must not also read
+        `ADR-0003` and `ADR-004` as one: those are two decisions, and a state
+        of the first is not a reviewed state of the second.
+        """
+        repo, name, before = _repo_where_a_rename_repadded_the_number(tmp_path, "ADR-004")
+
+        assert before not in policy._origin_main_blob_ids(repo, name)
+
+    def test_a_number_written_in_other_digits_stays_its_own_record(
+        self,
+        tmp_path,
+    ):
+        """Normalizing the padding must not normalize away the digits.
+
+        `\\d` matches every decimal digit, not only ASCII, so a name written
+        in Arabic-Indic digits is governed too. Reading its number as an
+        integer would give it the identity of the ASCII record holding the
+        same value, and a brand new file would inherit that record's reviewed
+        history. Padding is normalized by text, so this stays distinct.
+        """
+        arabic = policy._governed_document_identity("ADR-\u0660\u0660\u0663.md")
+
+        assert arabic is not None
+        assert arabic != policy._governed_document_identity("ADR-3.md")
+
+    def test_a_zero_inside_the_number_is_not_stripped(
+        self,
+        tmp_path,
+    ):
+        """Dropping the padding must not drop the value.
+
+        Only the zeros in front are padding. Removing every zero would read
+        `ADR-100` as `ADR-1`, and a hundredth record would inherit the first
+        record's reviewed history.
+        """
+        hundredth = policy._governed_document_identity("ADR-100.md")
+
+        assert hundredth != policy._governed_document_identity("ADR-1.md")
+        assert hundredth == "ADR-100"
+
+    def test_a_record_numbered_zero_keeps_a_number(
+        self,
+        tmp_path,
+    ):
+        """Stripping the padding off `ADR-000` must leave a number behind.
+
+        The edge case of the strip: every digit is padding. The identity has
+        to stay a number rather than become the bare prefix, or `ADR-000` and
+        a name carrying no digits at all would read alike.
+        """
+        assert policy._governed_document_identity("ADR-000.md") == "ADR-0"
+
+    def test_a_signed_history_is_still_read(
+        self,
+        tmp_path,
+    ):
+        """`log.showSignature` decorates the stream this gate parses.
+
+        Set in the developer's own git config, it prefixes each commit's raw
+        records with the verification result. The first field of the stream
+        then begins with that text rather than with the colon every record
+        starts with, so every record is skipped and the walk reports that
+        main has carried nothing here. That refuses a record main plainly
+        did carry, and it refuses it only for developers holding that
+        setting.
+        """
+        repo, adr, carried = _repo_where_the_history_is_signed(tmp_path)
+
+        assert carried in policy._origin_main_blob_ids(repo, adr)
+
+    def test_an_unsigned_history_is_read_the_same_way(
+        self,
+        tmp_path,
+    ):
+        """The negative control for the test above.
+
+        Naming the signature behaviour must not change what an ordinary
+        repository reports, which is the whole point of naming it.
+        """
+        repo, adr, carried = _repo_where_the_history_is_signed(
+            tmp_path,
+            sign=False,
+        )
+
+        assert carried in policy._origin_main_blob_ids(repo, adr)
+
+
+def _repo_where_a_merge_linked_a_non_adr_file(
+    tmp_path: Path,
+    ordinary: str = "notes.md",
+) -> tuple[Path, str, str]:
+    """Build a repo where `--follow` crosses from an ADR into an ordinary file.
+
+    One branch edits `notes.md`; another drops it and adds an ADR holding that
+    same text, which git scores as a rename. Merging the two puts the link on
+    `origin/main`, so following the ADR walks into the file's history.
+
+    Returns the repo, the ADR path, and a blob `notes.md` held before the link
+    that was never at the ADR path in any commit.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+
+    adr = ".agents/architecture/ADR-096-linked.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ordinary).parent.mkdir(parents=True, exist_ok=True)
+    (repo / ordinary).write_bytes(b"the state that was never an adr\n")
+    _git(repo, "add", "--", ordinary)
+    _git(repo, "commit", "-qm", "an ordinary file")
+    foreign = _git(repo, "rev-parse", "HEAD:" + ordinary).stdout.strip()
+
+    _git(repo, "checkout", "-qb", "side", "HEAD")
+    _git(repo, "rm", "-q", "--", ordinary)
+    (repo / adr).write_bytes(b"carried text\n")
+    _git(repo, "add", "--", adr)
+    _git(repo, "commit", "-qm", "side drops the file and adds an adr")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / ordinary).write_bytes(b"carried text\n")
+    _git(repo, "commit", "-qam", "main edits the ordinary file")
+
+    _run(["git", "merge", "--no-edit", "side"], repo)
+    (repo / ordinary).unlink(missing_ok=True)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "merge keeps the adr and drops the file")
+
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    _git(repo, "checkout", "-qb", "feature")
+    (repo / adr).write_bytes(b"the state that was never an adr\n")
+    _git(repo, "commit", "-qam", "place the file's old text at the adr path")
+    return repo, adr, foreign
+
+
+class TestGovernedDocumentIdentity:
+    """The record a path holds, which is what scopes a followed history."""
+
+    def test_one_record_keeps_its_identity_when_it_is_renamed(self):
+        """The name after the number is free to change; the number is not."""
+        assert policy._governed_document_identity(
+            ".agents/architecture/ADR-201-old-name.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-201-new-name.md"
+        )
+
+    def test_a_number_written_in_either_case_is_one_record(self):
+        """The path test ignores case, so the identity read out of it must too.
+
+        Read case-sensitively, a record renamed from a lowercased name to an
+        uppercased one would look like two records and its earlier states
+        would be refused, which is the false refusal following renames exists
+        to remove.
+        """
+        assert policy._governed_document_identity(
+            ".agents/architecture/adr-201-old-name.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-201-new-name.md"
+        )
+
+    def test_two_numbers_are_two_records(self):
+        assert policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        ) != policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+
+    def test_the_protocol_stands_for_itself(self):
+        """It carries no number, and it is not any record's."""
+        protocol = policy._governed_document_identity(".agents/SESSION-PROTOCOL.md")
+
+        assert protocol is not None
+        assert protocol != policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        )
+
+    def test_a_directory_named_for_a_record_does_not_shadow_the_file(self):
+        """The number is read where the path test anchors: the last segment.
+
+        Read across the whole path, the first number wins, so a file under a
+        directory carrying another record's number reports that record. Two
+        different decisions would then share one identity and a walk would
+        cross between them, which is the hole scoping the walk closed.
+        """
+        nested = ".agents/ADR-201-old/ADR-202-new.md"
+
+        assert policy._governed_document_identity(
+            nested
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+        assert policy._governed_document_identity(
+            nested
+        ) != policy._governed_document_identity(
+            ".agents/architecture/ADR-201-first.md"
+        )
+
+    def test_a_windows_separator_still_names_the_last_segment(self):
+        """The path test accepts a backslash, so reading the number must too."""
+        assert policy._governed_document_identity(
+            r".agents\ADR-201-old\ADR-202-new.md"
+        ) == policy._governed_document_identity(
+            ".agents/architecture/ADR-202-second.md"
+        )
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "docs/ADR-overview.md",
+            "docs/fake-SESSION-PROTOCOL.md",
+            "notes.md",
+            "",
+        ],
+    )
+    def test_a_path_this_gate_does_not_govern_holds_no_record(self, path):
+        assert policy._governed_document_identity(path) is None
+
+
+def _repo_where_a_merge_linked_two_adrs(tmp_path: Path) -> tuple[Path, str, str]:
+    """Build a repo where `--follow` crosses from one ADR into another.
+
+    Both records carry the same template body and differ only in their title
+    and their decision, which is enough alike that git reads a commit
+    dropping the first and adding the second as a rename. Merging that branch
+    puts the link on `origin/main`.
+
+    Returns the repo, the second record's path, and a blob the first record
+    held that the second one's path never held in any commit on main.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+    shared = "".join(f"a line every record from the template carries {i}\n" for i in range(60))
+
+    first = ".agents/architecture/ADR-201-first.md"
+    second = ".agents/architecture/ADR-202-second.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / first).write_text("# ADR-201\n" + shared + "decision alpha\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the first record")
+    only_ever_elsewhere = _git(repo, "rev-parse", "HEAD:" + first).stdout.strip()
+
+    (repo / first).write_text("# ADR-201\n" + shared + "decision alpha revised\n", encoding="utf-8")
+    _git(repo, "commit", "-qam", "revise the first record")
+
+    _git(repo, "checkout", "-qb", "side", "HEAD~1")
+    _git(repo, "rm", "-q", "--", first)
+    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    (repo / second).write_text("# ADR-202\n" + shared + "decision beta\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "side replaces it with a second record")
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    _run(["git", "merge", "--no-edit", "side"], repo)
+    (repo / first).unlink(missing_ok=True)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the merge keeps only the second record")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    _git(repo, "checkout", "-qb", "feature")
+    (repo / second).write_text("# ADR-201\n" + shared + "decision alpha\n", encoding="utf-8")
+    _git(repo, "commit", "-qam", "place the first record's old text under the second number")
+    return repo, second, only_ever_elsewhere
+
+
+def _repo_where_a_rename_crossed_a_merge(tmp_path: Path) -> tuple[Path, str, str]:
+    """Build a repo where the rename is detectable on both sides of a merge.
+
+    The side branch renames and edits, main edits the old name, and the merge
+    resolves at the new name. The bodies are long enough that both the side
+    rename and the merge-versus-first-parent rename clear git's similarity
+    threshold, which is what makes the two traversals disagree about which
+    lineage to follow. Short fixtures do not reproduce it.
+
+    Returns the repo, the followed path, and the blob the side branch left.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "diff.renames", "true")
+    body = "header\n" + "same line\n" * 30
+
+    old_name = ".agents/architecture/ADR-097-moved.md"
+    new_name = ".agents/architecture/ADR-097-renamed.md"
+    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / old_name).write_bytes((body + "base\n").encode("utf-8"))
+    _git(repo, "add", "--", old_name)
+    _git(repo, "commit", "-qm", "base")
+
+    _git(repo, "checkout", "-qb", "side")
+    _git(repo, "mv", old_name, new_name)
+    (repo / new_name).write_bytes((body + "side renamed\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "side renames and edits")
+    side_blob = _git(repo, "rev-parse", "HEAD:" + new_name).stdout.strip()
+
+    _git(repo, "checkout", "-q", "main")
+    (repo / old_name).write_bytes((body + "main edit\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "main edits the old name")
+
+    merge = _run(["git", "merge", "--no-edit", "side"], repo)
+    assert merge.returncode != 0, "the fixture needs the merge to conflict"
+    (repo / old_name).unlink(missing_ok=True)
+    (repo / new_name).write_bytes((body + "resolved renamed\n").encode("utf-8"))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "merge resolves at the new name")
+
+    (repo / new_name).write_bytes((body + "later\n").encode("utf-8"))
+    _git(repo, "commit", "-qam", "later edit")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo, new_name, side_blob
+
+
+def _repo_where_main_resolved_an_adr_in_a_merge(
+    tmp_path: Path,
+    diff_merges: str | None = None,
+) -> tuple[Path, str, bytes]:
+    """Build a repo whose ADR reached its current text inside a merge.
+
+    Main and a side branch each revise the ADR, the merge conflicts, and main
+    resolves it by hand. Main then revises the file again, which is what makes
+    the resolution observable: without that last commit the resolution is
+    `origin/main`'s tip and the separate tip lookup accounts for it.
+
+    `local` sits on the resolution, so it holds content main really carried
+    and any answer other than True demands review evidence for a file the
+    branch never opened.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    if diff_merges is not None:
+        _git(repo, "config", "log.diffMerges", diff_merges)
+    adr_dir = repo / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    name = ".agents/architecture/ADR-096-contested.md"
+    (repo / name).write_text("# ADR 096\n\nbase.\n", encoding="utf-8")
+    _commit(repo, "base")
+
+    _git(repo, "checkout", "-b", "sideways")
+    (repo / name).write_text("# ADR 096\n\nsideways.\n", encoding="utf-8")
+    _commit(repo, "sideways position")
+
+    _git(repo, "checkout", "main")
+    (repo / name).write_text("# ADR 096\n\nmainline.\n", encoding="utf-8")
+    _commit(repo, "mainline position")
+
+    conflicted = _run(["git", "merge", "--no-edit", "sideways"], repo)
+    assert conflicted.returncode != 0, "the fixture needs a real conflict"
+    resolved = "# ADR 096\n\nresolved in the merge.\n"
+    (repo / name).write_text(resolved, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "--no-edit", "-m", "resolve the ADR while merging")
+    _git(repo, "branch", "local")
+
+    (repo / name).write_text("# ADR 096\n\nlater still.\n", encoding="utf-8")
+    _commit(repo, "revise after the merge")
+    _point_origin_main_at_head(repo)
+
+    _git(repo, "checkout", "local")
+    return repo, name, resolved.encode("utf-8")
+
+
+def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Path:
+    """Build a repo mid-merge whose staged ADR is the one main contributed.
+
+    The exemption holds here, which is the point: each caller then restages
+    bytes that differ from main's only in ways a text-mode pipe erases, so a
+    test that still sees an exemption is reporting the normalization and not
+    the rule.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(repo, "base")
+    _git(repo, "branch", "local")
+
+    adr_dir = repo / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / name).write_bytes(adr_bytes)
+    _commit(repo, "adr on main")
+    _point_origin_main_at_head(repo)
+
+    _git(repo, "checkout", "local")
+    (repo / "local.txt").write_text("local work\n", encoding="utf-8")
+    _commit(repo, "local work")
+    merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "main"], repo)
+    assert merge.returncode == 0, merge.stderr
+    return repo
+
+
+def _repo_where_the_history_is_signed(
+    tmp_path: Path,
+    sign: bool = True,
+) -> tuple[Path, str, str]:
+    """Build a repo whose commits carry signatures the developer asks to see.
+
+    Signing uses the ssh backend so the fixture needs only `ssh-keygen`, and
+    verification is left to fail: an unknown signer still makes git print a
+    verification line, which is the decoration under test. `sign=False`
+    builds the same history without signatures for the negative control.
+    """
+    repo = tmp_path / "signed"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test User")
+    if sign:
+        key = repo / "signing-key"
+        _run(
+            [_tool("ssh-keygen"), "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
+            repo,
+        )
+        assert key.with_suffix(".pub").exists(), "ssh-keygen produced no public key"
+        _git(repo, "config", "gpg.format", "ssh")
+        _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
+        _git(repo, "config", "commit.gpgsign", "true")
+    # The setting under test lives in the developer's own config, so the
+    # fixture puts it there rather than passing it on the command line.
+    _git(repo, "config", "log.showSignature", "true")
+
+    # A session fixture in tests/conftest.py injects `commit.gpgsign=false`
+    # through GIT_CONFIG_COUNT, which outranks the repo config written above.
+    # Passing the setting on the command line outranks the injection in turn.
+    signing = ("-c", "commit.gpgsign=true") if sign else ()
+
+    adr = ".agents/architecture/ADR-099-signed.md"
+    document = repo / adr
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("first\n", encoding="utf-8")
+    _git(repo, "add", adr)
+    _git(repo, *signing, "commit", "-m", "add a decision")
+    document.write_text("second\n", encoding="utf-8")
+    _git(repo, *signing, "commit", "-am", "revise it")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    if sign:
+        signed = _git(repo, "cat-file", "commit", "HEAD").stdout
+        assert "gpgsig" in signed, "the fixture did not actually sign the commit"
+
+    carried = _git(repo, "rev-parse", "HEAD:" + adr).stdout.strip()
+    return repo, adr, carried
+
+
+def _repo_where_a_rename_repadded_the_number(
+    tmp_path: Path,
+    renamed_to: str,
+) -> tuple[Path, str, str]:
+    """Build a history where main renamed one record and kept its value.
+
+    Modelled on this repo's own `ADR-0003-...` to `ADR-003-...` rename. The
+    caller chooses the new number so the same fixture serves the negative
+    control, where the rename really does cross into another record.
+    """
+    repo = tmp_path / ("repad-" + renamed_to)
+    repo.mkdir()
+    _init_push_repo(repo)
+
+    before_name = ".agents/architecture/ADR-0003-tool-selection.md"
+    after_name = f".agents/architecture/{renamed_to}-tool-selection.md"
+    # Git reads a rename by similarity, so the revision has to leave most of
+    # the body alone or there is no rename for the walk to cross.
+    body = ["# Tool selection", "", "## Context", "", "One line per criterion.", ""]
+    body += [f"criterion {n}" for n in range(20)]
+    document = repo / before_name
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("\n".join(body) + "\n", encoding="utf-8")
+    _git(repo, "add", before_name)
+    _git(repo, "commit", "-m", "record the decision")
+    before = _git(repo, "rev-parse", "HEAD:" + before_name).stdout.strip()
+
+    _git(repo, "mv", before_name, after_name)
+    body[4] = "One line per criterion, revised."
+    (repo / after_name).write_text("\n".join(body) + "\n", encoding="utf-8")
+    _git(repo, "add", after_name)
+    _git(repo, "commit", "-m", "drop the extra zero")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+
+    return repo, after_name, before
 
 
 if __name__ == "__main__":

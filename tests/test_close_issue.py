@@ -263,10 +263,10 @@ class TestMain:
 
         assert _mod._comment_base_dir() == Path(__file__).resolve().parents[1]
 
-    def test_comment_base_falls_back_to_script_parent(self, tmp_path, monkeypatch):
-        script_dir = tmp_path / "installed" / "scripts"
+    def test_comment_base_falls_back_to_script_parent(self, external_tmp_path, monkeypatch):
+        script_dir = external_tmp_path / "installed" / "scripts"
         script_dir.mkdir(parents=True)
-        nested = tmp_path / "cwd"
+        nested = external_tmp_path / "cwd"
         nested.mkdir()
         monkeypatch.chdir(nested)
         monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
@@ -275,13 +275,13 @@ class TestMain:
         assert _mod._comment_base_dir() == script_dir.resolve()
 
     def test_comment_base_ignores_unrelated_parent_claude_dir(
-        self, tmp_path, monkeypatch
+        self, external_tmp_path, monkeypatch
     ):
-        parent = tmp_path / "parent"
+        parent = external_tmp_path / "parent"
         script_dir = parent / "installed" / "scripts"
         script_dir.mkdir(parents=True)
         (parent / ".claude").mkdir()
-        nested = tmp_path / "cwd"
+        nested = external_tmp_path / "cwd"
         nested.mkdir()
         monkeypatch.chdir(nested)
         monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)

@@ -171,8 +171,8 @@ def test_main_missing_log_file_is_tolerated(capsys, tmp_path):
     assert exit_code == 0
 
 
-def test_main_ignores_log_file_outside_repo(capsys, tmp_path):
-    outside_log = tmp_path / "outside.log"
+def test_main_ignores_log_file_outside_repo(capsys, external_tmp_path):
+    outside_log = external_tmp_path / "outside.log"
     outside_log.write_text(UNICORN_LOG, encoding="utf-8")
 
     exit_code = main(

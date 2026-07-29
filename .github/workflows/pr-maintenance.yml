@@ -146,7 +146,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Auto-resolve conflicts for PR #${{ matrix.number }}
+      - name: "Auto-resolve conflicts for PR #${{ matrix.number }}"
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
@@ -400,7 +400,7 @@ jobs:
       # Detect human CHANGES_REQUESTED reviews: informational only, no longer gates bot.
       # Human-out-of-the-loop is the goal; the bot processes review comments unconditionally
       # when conflicts are clear (or were auto-resolved). See removal of triage:approved gate.
-      - name: Detect human CHANGES_REQUESTED for PR #${{ matrix.number }}
+      - name: "Detect human CHANGES_REQUESTED for PR #${{ matrix.number }}"
         id: approval-gate
         if: |
           matrix.hasConflicts != true ||
@@ -429,7 +429,7 @@ jobs:
             "human_changes_requested=false" | Out-File $env:GITHUB_OUTPUT -Append
           }
 
-      - name: Process PR comments for PR #${{ matrix.number }}
+      - name: "Process PR comments for PR #${{ matrix.number }}"
         id: process-comments
         # Process review comments whenever conflicts are clear (or were auto-resolved).
         # The triage:approved human-approval gate has been removed; see PR #1841.
