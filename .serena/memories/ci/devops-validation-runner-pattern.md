@@ -56,7 +56,7 @@ The runner is wired into lefthook pre-push, not a `.githooks/` script (`.githook
 Pytest is a **separate** pre-push job, not part of the runner:
 
 ```yaml
-# lefthook.yml:343-345
+# lefthook.yml:351-353
 - name: python-tests
   timeout: 30m
   run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
