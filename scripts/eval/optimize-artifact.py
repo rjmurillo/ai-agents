@@ -2817,7 +2817,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     extract = sub.add_parser("extract", help="convert a scorer's output to task pass or fail")
-    extract.add_argument("--kind", choices=("agent", "rule", "hook"), required=True)
+    extract.add_argument(
+        "--kind",
+        choices=("agent", "rule", "hook"),
+        required=True,
+        help="which scorer produced the input, selecting how it is parsed",
+    )
     extract.add_argument(
         "--input",
         type=Path,
@@ -2827,12 +2832,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     extract.add_argument("--variant", default="agent", help="agent eval variant column")
     extract.add_argument(
-        "--reduce", default=_DEFAULT_REDUCER, choices=tuple(_REDUCERS)
+        "--reduce",
+        default=_DEFAULT_REDUCER,
+        choices=tuple(_REDUCERS),
+        help=(
+            f"reducer across the runs given to --kind rule --input (default: {_DEFAULT_REDUCER})"
+        ),
     )
-    extract.add_argument("--pass-threshold", type=float, default=1.0)
+    extract.add_argument(
+        "--pass-threshold",
+        type=float,
+        default=1.0,
+        help="score at or above which a task counts as passing (default: 1.0)",
+    )
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
     extract.add_argument(
-        "--min-score", type=float, default=DEFAULT_MIN_ACTIVATION_SCORE
+        "--min-score",
+        type=float,
+        default=DEFAULT_MIN_ACTIVATION_SCORE,
+        help=(
+            "rule-eval activation score at or above which a task passes "
+            f"(default: {DEFAULT_MIN_ACTIVATION_SCORE})"
+        ),
     )
     extract.add_argument(
         "--rule-reduce",
@@ -2841,7 +2862,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="reducer for repeated judge samples inside one run",
     )
     extract.add_argument(
-        "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES
+        "--on-skip",
+        default=_DEFAULT_SKIP_POLICY,
+        choices=_SKIP_POLICIES,
+        help=(
+            "how a skipped task is counted: fail treats it as a failure, "
+            f"exclude drops it from the denominator (default: {_DEFAULT_SKIP_POLICY})"
+        ),
     )
     extract.add_argument("--split", type=Path, help="split used to filter a group")
     extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
@@ -2857,7 +2884,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="deprecated: rejected because results are not the task inventory",
     )
     source.add_argument("--tasks", type=Path, help="newline-delimited task ids")
-    split.add_argument("--seed", required=True)
+    split.add_argument(
+        "--seed",
+        required=True,
+        help="shuffle seed; the same seed reproduces the same partition",
+    )
     split.add_argument("--corpus", help="sha256 digest naming the authoritative task inventory")
     split.add_argument(
         "--out",
@@ -2865,39 +2896,102 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="file the gate reads; holds the full split including held-out ids",
     )
-    split.add_argument("--sel-ratio", default="0.4")
-    split.add_argument("--test-ratio", default="0.0")
-    split.add_argument("--min-sel", type=int, default=3)
+    split.add_argument(
+        "--sel-ratio",
+        default="0.4",
+        help="fraction of tasks held out for selection (default: 0.4)",
+    )
+    split.add_argument(
+        "--test-ratio",
+        default="0.0",
+        help="fraction held out for a final untouched test group (default: 0.0)",
+    )
+    split.add_argument(
+        "--min-sel",
+        type=int,
+        default=3,
+        help="floor on selection-group size, overriding --sel-ratio (default: 3)",
+    )
     split.set_defaults(func=cmd_split)
 
     budget = sub.add_parser("budget", help="edits allowed at this step")
-    budget.add_argument("--step", type=_arith_int, required=True)
-    budget.add_argument("--total", type=_arith_int, required=True)
-    budget.add_argument("--max-edits", type=_arith_int, default=5)
-    budget.add_argument("--min-edits", type=_arith_int, default=1)
+    budget.add_argument(
+        "--step",
+        type=_arith_int,
+        required=True,
+        help="1-based index of the current optimization step",
+    )
+    budget.add_argument(
+        "--total",
+        type=_arith_int,
+        required=True,
+        help="total number of steps in the run; sets the decay curve",
+    )
+    budget.add_argument(
+        "--max-edits",
+        type=_arith_int,
+        default=5,
+        help="edits allowed at the first step (default: 5)",
+    )
+    budget.add_argument(
+        "--min-edits",
+        type=_arith_int,
+        default=1,
+        help="edits allowed at the last step (default: 1)",
+    )
     budget.set_defaults(func=cmd_budget)
 
     score_cmd = sub.add_parser("score", help="fraction of one split group passing")
-    score_cmd.add_argument("--results", type=Path, required=True)
-    score_cmd.add_argument("--split", type=Path, required=True)
+    score_cmd.add_argument(
+        "--results",
+        type=Path,
+        required=True,
+        help="extract output holding per-task pass or fail",
+    )
+    score_cmd.add_argument(
+        "--split", type=Path, required=True, help="split output naming each group's tasks"
+    )
     # Only the optimize group. The gate scores the selection group itself,
     # inside a decision that consumes a consultation. A free-standing score on
     # a held-out group is exactly the unmetered read the budget exists to
     # count, so the flag does not offer one.
-    score_cmd.add_argument("--group", default="opt", choices=("opt",))
+    score_cmd.add_argument(
+        "--group",
+        default="opt",
+        choices=("opt",),
+        help="which split group to score (default: opt)",
+    )
     score_cmd.set_defaults(func=cmd_score)
 
     apply_cmd = sub.add_parser("apply", help="apply bounded patches to an artifact")
-    apply_cmd.add_argument("--file", type=Path, required=True)
-    apply_cmd.add_argument("--patches", type=Path, required=True)
-    apply_cmd.add_argument("--budget", type=int, required=True)
-    apply_cmd.add_argument("--dry-run", action="store_true")
+    apply_cmd.add_argument("--file", type=Path, required=True, help="artifact to rewrite in place")
+    apply_cmd.add_argument(
+        "--patches", type=Path, required=True, help="JSON list of edits to apply"
+    )
+    apply_cmd.add_argument(
+        "--budget",
+        type=int,
+        required=True,
+        help="maximum edits to apply; a longer patch list is refused",
+    )
+    apply_cmd.add_argument(
+        "--dry-run", action="store_true", help="report what would change without writing"
+    )
     apply_cmd.set_defaults(func=cmd_apply)
 
     gate_cmd = sub.add_parser("gate", help="decide whether a candidate replaces the incumbent")
-    gate_cmd.add_argument("--incumbent", type=Path, required=True)
-    gate_cmd.add_argument("--candidate", type=Path, required=True)
-    gate_cmd.add_argument("--split", type=Path, required=True)
+    gate_cmd.add_argument(
+        "--incumbent", type=Path, required=True, help="extract output for the current artifact"
+    )
+    gate_cmd.add_argument(
+        "--candidate", type=Path, required=True, help="extract output for the proposed artifact"
+    )
+    gate_cmd.add_argument(
+        "--split",
+        type=Path,
+        required=True,
+        help="split output; the gate compares on the selection group",
+    )
     # No --group. A gate reads the held-out group by definition, and offering
     # the choice let a caller gate on the group it had already optimized against.
     # No --ledger either: see _ledger_path for why the caller does not choose it.
@@ -2925,16 +3019,25 @@ def build_parser() -> argparse.ArgumentParser:
     gate_cmd.set_defaults(func=cmd_gate)
 
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")
-    check.add_argument("--buffer", type=Path, required=True)
-    check.add_argument("--patches", type=Path, required=True)
-    check.add_argument("--artifact", type=Path, required=True)
+    check.add_argument("--buffer", type=Path, required=True, help="rejected-edit buffer to consult")
+    check.add_argument("--patches", type=Path, required=True, help="candidate edits to look up")
+    check.add_argument("--artifact", type=Path, required=True, help="artifact the edits target")
     check.set_defaults(func=cmd_buffer_check)
 
     add = sub.add_parser("buffer-add", help="record a rejected edit")
-    add.add_argument("--buffer", type=Path, required=True)
-    add.add_argument("--patches", type=Path, required=True)
-    add.add_argument("--artifact", type=Path, required=True)
-    add.add_argument("--reason", required=True)
+    add.add_argument("--buffer", type=Path, required=True, help="rejected-edit buffer to append to")
+    add.add_argument("--patches", type=Path, required=True, help="edits that were rejected")
+    add.add_argument(
+        "--artifact", type=Path, required=True, help="artifact the rejected edits target"
+    )
+    add.add_argument(
+        "--reason",
+        required=True,
+        help=(
+            "why the edit was rejected, recorded so a later step does not retry it; "
+            "free text, for example 'gate: sel score dropped 0.62 -> 0.55'"
+        ),
+    )
     add.set_defaults(func=cmd_buffer_add)
 
     return parser

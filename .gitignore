@@ -172,3 +172,11 @@ bun.lockb
 # truth and must not land in git. Only the .gitkeep seed is tracked so the
 # directory exists on a fresh clone.
 .agents/metrics/drift-events.jsonl
+
+# Model-sweep output (#3597). eval-model-sweep.py roots its artifacts at
+# REPO_ROOT, so every run drops directories and an aggregate report inside the
+# tracked evals/ tree where `git add evals` would commit them. Runtime evidence
+# is regenerable and is not source of truth. Scoped to the `sweep-` run-id
+# prefix that make_run_id guarantees, so tracked fixtures stay visible.
+evals/*/reports/sweep-*
+evals/*/runs/sweep-*

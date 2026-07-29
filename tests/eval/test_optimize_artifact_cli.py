@@ -13,6 +13,7 @@ which is precisely the overfitting the gate exists to stop.
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import importlib.util
@@ -11056,3 +11057,67 @@ class TestAReportedErrorCannotBeLongerThanTheValueThatCausedIt:
         assert out["type"] == "AdapterError"
         assert len(out["error"]) <= oa._MAX_ERROR_CHARS
         assert out["error"].endswith("must be numeric, got 'not-a-number'")
+
+
+class TestEveryFlagDocumentsItself:
+    """A flag with no help text is undiscoverable from the CLI. Refs #3616.
+
+    `buffer-add --reason` was the sharp case: required, so the command could
+    not run without it, and `--help` said only that it was required. This is
+    the fence that keeps the next flag from shipping the same way.
+    """
+
+    @staticmethod
+    def _subcommand_options() -> list[tuple[str, str, str | None]]:
+        parser = oa.build_parser()
+        found: list[tuple[str, str, str | None]] = []
+        for action in parser._actions:
+            if not isinstance(action, argparse._SubParsersAction):
+                continue
+            for command, sub in action.choices.items():
+                for option in sub._actions:
+                    if option.option_strings and option.dest != "help":
+                        found.append((command, option.option_strings[0], option.help))
+        return found
+
+    @staticmethod
+    def _subcommand_names() -> list[str]:
+        parser = oa.build_parser()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                return list(action.choices)
+        raise AssertionError("the parser exposes no subparsers")
+
+    def test_the_parser_exposes_the_flags_this_fence_guards(self):
+        """Negative control: an empty or truncated walk would pass vacuously.
+
+        This used to assert a flag count of at least 40 against an actual 45,
+        which failed for a legitimate consolidation of six flags and did not
+        distinguish a walk that stopped after one subcommand from one that
+        finished. Covering every subcommand is the property the fence needs:
+        the tests below check help text across the whole surface, so a walk
+        that reaches only part of it makes them quietly weaker rather than
+        red.
+        """
+        found = self._subcommand_options()
+        assert {command for command, _, _ in found} == set(self._subcommand_names())
+        assert any(command == "buffer-add" and flag == "--reason" for command, flag, _ in found)
+
+    def test_every_subcommand_flag_carries_help_text(self):
+        bare = [
+            f"{command} {flag}"
+            for command, flag, help_text in self._subcommand_options()
+            if not help_text
+        ]
+        assert bare == []
+
+    def test_the_required_buffer_reason_explains_what_belongs_there(self):
+        help_text = next(
+            help_text
+            for command, flag, help_text in self._subcommand_options()
+            if command == "buffer-add" and flag == "--reason"
+        )
+        assert help_text is not None
+        # Naming the flag is not describing it; the text has to say what to write.
+        assert "rejected" in help_text
+        assert "example" in help_text
