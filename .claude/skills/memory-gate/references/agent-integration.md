@@ -48,15 +48,16 @@ This guide explains how AI agents integrate with the memory system. The memory s
 
 ### Method 1: Skill Script (Recommended for Agents)
 
-The primary interface for agents is the Search-Memory skill:
+The primary interface for agents is `search_memory.py`. The query is a
+positional argument; there is no `--query` flag.
 
 ```bash
 # Basic search
-python3 .claude/skills/memory/scripts/search_memory.py --query "git hooks"
+uv run python .claude/skills/memory/scripts/search_memory.py "git hooks"
 
 # With options
-python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "PowerShell arrays" \
+uv run python .claude/skills/memory/scripts/search_memory.py \
+    "shell array handling" \
     --max-results 5 \
     --format json
 ```
@@ -70,17 +71,19 @@ python3 .claude/skills/memory/scripts/search_memory.py \
 
 ### Method 2: Python Module Import
 
-For complex workflows requiring multiple operations:
+For complex workflows requiring multiple operations. `memory_core` is a package
+under the skill, not an installed distribution, so put the skill directory on
+`sys.path` first.
 
-```bash
-# Search across tiers
-python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "authentication" --max-results 10
+```python
+import sys
+sys.path.insert(0, ".claude/skills/memory")
 
-# Extract episodes
-python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    ".agents/sessions/2026-01-01-session-130.json"
+from memory_core.memory_router import search_memory
+from memory_core.reflexion_memory import get_episodes
 
+facts = search_memory("authentication", max_results=10)
+past = get_episodes(task="authentication", max_results=5)
 ```
 
 **Advantages**:
@@ -127,7 +130,7 @@ Per ADR-007, agents retrieve memory before reasoning:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 1: Search Semantic Memory (Tier 1)                     │
 │                                                              │
-│  Search-Memory -Query "[task topic]" -MaxResults 10          │
+│  search_memory("[task topic]", max_results=10)               │
 │                                                              │
 │  → Retrieves relevant facts, patterns, rules                 │
 └───────────────────────────┬─────────────────────────────────┘
@@ -136,7 +139,7 @@ Per ADR-007, agents retrieve memory before reasoning:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 2: Review Episodic Memory (Tier 2)                     │
 │                                                              │
-│  Get-Episodes | Where-Object { $_.task -match "[topic]" }    │
+│  get_episodes(task="[topic]")                                │
 │                                                              │
 │  → Past decisions and their outcomes                         │
 └───────────────────────────┬─────────────────────────────────┘
@@ -162,8 +165,9 @@ At session end, extract and persist learnings:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 1: Extract Episode                                     │
 │                                                              │
-│  python3 scripts/extract_session_episode.py \                │
-│      ".agents/sessions/[session].md"      │
+│  uv run python \                                             │
+│    .claude/skills/memory/scripts/extract_session_episode.py \│
+│    ".agents/sessions/[session].json"                         │
 │                                                              │
 │  → Structured episode from session transcript                │
 └───────────────────────────┬─────────────────────────────────┘
@@ -183,26 +187,25 @@ At session end, extract and persist learnings:
 
 When investigating past failures:
 
-```powershell
+```python
+from datetime import datetime, timedelta, UTC
+
 # 1. Find failed sessions
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-30)
+failures = get_episodes(
+    outcome="failure",
+    since=datetime.now(UTC) - timedelta(days=30),
+)
 
 # 2. Analyze each failure
-foreach ($failure in $failures) {
-    # Get decision sequence
-    $decisions = Get-DecisionSequence -SessionId $failure.session
+for failure in failures:
+    # Decisions in timestamp order. Takes the episode id, not the session id.
+    decisions = get_decision_sequence(failure["id"])
 
-    # Find error events
-    $errors = $failure.events | Where-Object { $_.type -eq "error" }
+    errors = [e for e in failure["events"] if e.get("type") == "error"]
+    recoveries = [d for d in decisions if d.get("type") == "recovery"]
 
-    # Check if recovery was attempted
-    $recoveries = $decisions | Where-Object { $_.type -eq "recovery" }
-
-    # Extract lessons for this failure
-    Write-Host "Session: $($failure.session)"
-    Write-Host "Lessons: $($failure.lessons -join '; ')"
-}
-
+    print(f"Session: {failure['session']}")
+    print(f"Lessons: {'; '.join(failure['lessons'])}")
 ```
 
 ## Agent-Specific Integration
@@ -211,14 +214,12 @@ foreach ($failure in $failures) {
 
 The orchestrator uses memory to route tasks effectively:
 
-```powershell
+```python
 # Check for relevant past context
-$context = Search-Memory -Query "[task description]" -MaxResults 5
+context = search_memory("[task description]", max_results=5)
 
 # Review past similar task outcomes
-$pastTasks = Get-Episodes | Where-Object {
-    $_.task -match "[task keywords]"
-}
+past_tasks = get_episodes(task="[task keywords]")
 
 # Route to appropriate agent with context
 ```
@@ -227,14 +228,17 @@ $pastTasks = Get-Episodes | Where-Object {
 
 The analyst uses episodic memory for investigation:
 
-```powershell
-# Research phase - gather all relevant memories
-$knowledge = Search-Memory -Query "[investigation topic]" -MaxResults 20
+```python
+# Research phase: gather all relevant memories
+knowledge = search_memory("[investigation topic]", max_results=20)
 
-# Look for past investigations
-$investigations = Get-Episodes | Where-Object {
-    $_.task -match "investigate|research|analyze"
-}
+# Look for past investigations. The task filter is a case-insensitive
+# substring match, so run one query per term.
+investigations = [
+    episode
+    for term in ("investigate", "research", "analyze")
+    for episode in get_episodes(task=term)
+]
 
 # Build analysis from historical context
 ```
@@ -243,11 +247,14 @@ $investigations = Get-Episodes | Where-Object {
 
 The implementer reviews past implementation decisions:
 
-```powershell
+```python
 # Review past implementation decisions
-$decisions = Get-Episodes | ForEach-Object {
-    $_.decisions | Where-Object { $_.type -eq "implementation" }
-}
+decisions = [
+    decision
+    for episode in get_episodes()
+    for decision in episode["decisions"]
+    if decision.get("type") == "implementation"
+]
 ```
 
 ### Retrospective Agent
@@ -256,7 +263,7 @@ The retrospective agent captures learnings:
 
 ```bash
 # Extract session episode
-result=$(python3 scripts/extract_session_episode.py "[log]")
+result=$(uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]")
 
 ```
 
@@ -266,15 +273,15 @@ result=$(python3 scripts/extract_session_episode.py "[log]")
 
 Per SESSION-PROTOCOL.md, agents MUST:
 
-```powershell
+```python
 # 1. Read mandatory memory (BLOCKING)
 mcp__serena__read_memory(memory_file_name="usage-mandatory")
 
 # 2. Search for relevant project context
-Search-Memory -Query "[session objectives]" -MaxResults 10
+search_memory("[session objectives]", max_results=10)
 
 # 3. Review recent episodes
-Get-Episodes -Since (Get-Date).AddDays(-7) -MaxResults 5
+get_episodes(since=datetime.now(UTC) - timedelta(days=7), max_results=5)
 ```
 
 ### Session End
@@ -283,7 +290,7 @@ Per SESSION-PROTOCOL.md, agents MUST:
 
 ```bash
 # 1. Extract episode from session log
-python3 scripts/extract_session_episode.py "[log]"
+uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]"
 
 # 2. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
@@ -305,7 +312,7 @@ git commit -m "session: Extract episode and update memory"
 
 ### For Memory Queries
 
-1. **Be Specific**: "PowerShell array handling" not "arrays"
+1. **Be Specific**: "shell array handling" not "arrays"
 2. **Use Filters**: Limit results to avoid information overload
 3. **Check Availability**: Handle Forgetful unavailability gracefully
 4. **Cache Results**: Reuse within a session to reduce latency
@@ -320,21 +327,19 @@ git commit -m "session: Extract episode and update memory"
 
 ### Forgetful Unavailable
 
-```powershell
-try {
-    $results = Search-Memory -Query "[topic]" -SemanticOnly
-}
-catch {
-    Write-Warning "Forgetful unavailable, using lexical search"
-    $results = Search-Memory -Query "[topic]" -LexicalOnly
-}
+```python
+try:
+    results = search_memory("[topic]", semantic_only=True)
+except RuntimeError:
+    logger.warning("Forgetful unavailable, using lexical search")
+    results = search_memory("[topic]", lexical_only=True)
 ```
 
 ### Episode Not Found
 
 ```bash
 # Check if episode exists, extract if not
-python3 scripts/extract_session_episode.py "[log]"
+uv run python .claude/skills/memory/scripts/extract_session_episode.py "[log]"
 ```
 
 
@@ -342,18 +347,18 @@ python3 scripts/extract_session_episode.py "[log]"
 
 | Operation | Typical Latency | Notes |
 |-----------|----------------|-------|
-| Skill script invocation | 50-100ms | PowerShell startup |
-| Search-Memory (lexical) | 300-500ms | File-based search |
-| Search-Memory (semantic) | 500-1000ms | Depends on Forgetful |
-| Get-Episodes | 100-200ms | File enumeration |
+| Skill script invocation | 50-100ms | Python interpreter startup |
+| `search_memory` (lexical) | 300-500ms | File-based search |
+| `search_memory` (semantic) | 500-1000ms | Depends on Forgetful |
+| `get_episodes` | 100-200ms | File enumeration |
 | Episode extraction | 2-5s | Parsing and analysis |
 
 ### Optimization Tips
 
-1. **Cache module imports**: Import once per session
-2. **Use LexicalOnly for known terms**: Faster, no network
-3. **Limit MaxResults**: Reduce processing overhead
-4. **Batch episode queries**: Use Get-Episodes instead of multiple Get-Episode
+1. **Cache module imports**: import once per session
+2. **Use `lexical_only=True` for known terms**: faster, no network
+3. **Limit `max_results`**: reduce processing overhead
+4. **Batch episode queries**: one `get_episodes` call beats a loop of `get_episode`
 
 ## Related Documentation
 

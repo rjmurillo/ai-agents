@@ -4,7 +4,11 @@
 
 ## Overview
 
-The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`) provides episodic replay. This implements Tier 2 of the memory architecture.
+The Reflexion Memory module (`.claude/skills/memory/memory_core/reflexion_memory.py`) provides episodic replay. This implements Tier 2 of the memory architecture.
+
+The query API is Python. The repository ships no PowerShell: `git ls-files '*.ps1' '*.psm1'` returns zero files, and ADR-042 makes Python the only scripting language for new work.
+
+`.claude/skills/memory/scripts/extract_session_episode.py` is the writer that turns a session log into an episode.
 
 ADR-089 removed the Tier 3 derived causal graph this module once maintained: nothing read it, and its aggregated output was noise. Episodes are unaffected and remain the system of record.
 
@@ -95,208 +99,233 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 
 ## Usage
 
+`memory_core` is a package under the memory skill, not an installed distribution. Put the skill root on `sys.path` first:
+
+```python
+import sys
+sys.path.insert(0, ".claude/skills/memory")
+
+from memory_core.reflexion_memory import (
+    get_episode,
+    get_episodes,
+    new_episode,
+    get_decision_sequence,
+    get_reflexion_memory_status,
+)
+```
+
 ### Episode Queries
 
-```powershell
-# Import reflexion_memory module functions
-# (Python equivalent: python3 .claude/skills/memory/scripts/extract_session_episode.py)
+```python
+from datetime import datetime, timedelta, timezone
 
-# Get specific episode
-$episode = Get-Episode -SessionId "2026-01-01-session-126"
+episode = get_episode("2026-01-01-session-126")
 
-# Get recent failures
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
+failures = get_episodes(
+    outcome="failure",
+    since=datetime.now(timezone.utc) - timedelta(days=7),
+)
 
-# Get all successes
-$successes = Get-Episodes -Outcome "success" -MaxResults 50
+successes = get_episodes(outcome="success", max_results=50)
 
-# Get decision sequence from episode
-$decisions = Get-DecisionSequence -EpisodeId "episode-2026-01-01-126"
+decisions = get_decision_sequence("episode-2026-01-01-session-126")
 ```
 
 ### System Status
 
-```powershell
-# Get reflexion memory status
-$status = Get-ReflexionMemoryStatus
-
-Write-Host "Episodes: $($status.Episodes.Count) in $($status.Episodes.Path)"
+```python
+status = get_reflexion_memory_status()
+print(f"Episodes: {status['Episodes']['Count']} in {status['Episodes']['Path']}")
 ```
 
 ## Functions
 
 ### Episode Functions
 
-#### Get-Episode
+#### get_episode
 
-Retrieves an episode by session ID.
+Retrieves an episode by session id.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Get-Episode -SessionId <String>
+```python
+def get_episode(session_id: str) -> dict[str, Any] | None
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| SessionId | String | Yes | Session identifier (e.g., "2026-01-01-session-126") |
+| `session_id` | `str` | Yes | Session identifier, for example `"2026-01-01-session-126"` |
 
-**Returns**: `PSCustomObject` with episode data, or `$null` if not found.
+**Returns**: the episode dict, or `None` when no episode file exists.
+
+**Raises**: `ValueError` when the resolved path escapes the episodes directory.
 
 **Example**:
 
-```powershell
-$episode = Get-Episode -SessionId "2026-01-01-session-126"
-if ($episode) {
-    Write-Host "Task: $($episode.task)"
-    Write-Host "Outcome: $($episode.outcome)"
-    Write-Host "Decisions: $($episode.decisions.Count)"
-}
+```python
+episode = get_episode("2026-01-01-session-126")
+if episode:
+    print(f"Task: {episode['task']}")
+    print(f"Outcome: {episode['outcome']}")
+    print(f"Decisions: {len(episode['decisions'])}")
 ```
 
-#### Get-Episodes
+#### get_episodes
 
 Retrieves episodes matching criteria.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Get-Episodes
-    [-Outcome <String>]
-    [-Since <DateTime>]
-    [-MaxResults <Int32>]
+```python
+def get_episodes(
+    outcome: str | None = None,
+    task: str | None = None,
+    since: datetime | None = None,
+    max_results: int = 20,
+) -> list[dict[str, Any]]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| Outcome | String | No | - | Filter by outcome: success, partial, failure |
-| Since | DateTime | No | - | Filter episodes since this date |
-| MaxResults | Int32 | No | 20 | Maximum number of episodes to return (1-100) |
+| `outcome` | `str \| None` | No | `None` | Filter by outcome: `success`, `partial`, `failure` |
+| `task` | `str \| None` | No | `None` | Substring match on the task field, case-insensitive |
+| `since` | `datetime \| None` | No | `None` | Only episodes at or after this time |
+| `max_results` | `int` | No | 20 | Maximum episodes to return, 1-100 |
 
-**Returns**: Array of `PSCustomObject` sorted by timestamp descending.
+**Returns**: episode dicts sorted by timestamp, newest first.
+
+**Raises**: `ValueError` on an unknown `outcome` or an out-of-range `max_results`.
 
 **Example**:
 
-```powershell
-# Get last week's failures
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
+```python
+from datetime import datetime, timedelta, timezone
 
-foreach ($ep in $failures) {
-    Write-Host "$($ep.session): $($ep.task) - $($ep.lessons.Count) lessons learned"
-}
+failures = get_episodes(
+    outcome="failure",
+    since=datetime.now(timezone.utc) - timedelta(days=7),
+)
+
+for ep in failures:
+    print(f"{ep['session']}: {ep['task']} - {len(ep['lessons'])} lessons learned")
 ```
 
-#### New-Episode
+#### new_episode
 
 Creates a new episode from structured data.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-New-Episode
-    -SessionId <String>
-    -Task <String>
-    -Outcome <String>
-    [-Decisions <Array>]
-    [-Events <Array>]
-    [-Lessons <Array>]
-    [-Metrics <Hashtable>]
+```python
+def new_episode(
+    session_id: str,
+    task: str,
+    outcome: str,
+    decisions: list[dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
+    lessons: list[str] | None = None,
+    metrics: dict[str, Any] | None = None,
+    skip_validation: bool = False,
+) -> dict[str, Any]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| SessionId | String | Yes | - | Source session identifier |
-| Task | String | Yes | - | High-level task description |
-| Outcome | String | Yes | - | Episode outcome: success, partial, failure |
-| Decisions | Array | No | @() | Array of decision objects |
-| Events | Array | No | @() | Array of event objects |
-| Lessons | Array | No | @() | Array of lesson strings |
-| Metrics | Hashtable | No | @{} | Metrics hashtable |
+| `session_id` | `str` | Yes | - | Source session identifier |
+| `task` | `str` | Yes | - | High-level task description |
+| `outcome` | `str` | Yes | - | `success`, `partial`, or `failure` |
+| `decisions` | `list[dict] \| None` | No | `None` | Decision objects |
+| `events` | `list[dict] \| None` | No | `None` | Event objects |
+| `lessons` | `list[str] \| None` | No | `None` | Lesson strings |
+| `metrics` | `dict \| None` | No | `None` | Metrics dict |
+| `skip_validation` | `bool` | No | `False` | Skip schema validation. Tests only. |
 
-**Returns**: Hashtable with episode data. Also writes JSON file to `.agents/memory/episodes/`.
+**Returns**: the episode dict. Also writes `.agents/memory/episodes/episode-{session_id}.json`.
+
+**Raises**: `ValueError` on an invalid outcome or a schema validation failure, `OSError` on a write failure.
 
 **Example**:
 
-```powershell
-$episode = New-Episode `
-    -SessionId "2026-01-01-session-130" `
-    -Task "Implement feature X" `
-    -Outcome "success" `
-    -Decisions @(
-        @{
-            id = "d001"
-            timestamp = (Get-Date).ToString("o")
-            type = "design"
-            context = "Choosing architecture"
-            chosen = "Event-driven design"
-            rationale = "Better scalability"
-            outcome = "success"
-            effects = @()
+```python
+from datetime import datetime, timezone
+
+episode = new_episode(
+    session_id="2026-01-01-session-130",
+    task="Implement feature X",
+    outcome="success",
+    decisions=[
+        {
+            "id": "d001",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": "design",
+            "context": "Choosing architecture",
+            "chosen": "Event-driven design",
+            "rationale": "Better scalability",
+            "outcome": "success",
+            "effects": [],
         }
-    ) `
-    -Lessons @("Event-driven design reduced coupling")
+    ],
+    lessons=["Event-driven design reduced coupling"],
+)
 ```
 
-#### Get-DecisionSequence
+#### get_decision_sequence
 
 Retrieves the decision sequence from an episode.
 
-**Syntax**:
+**Signature**:
 
-```powershell
-Get-DecisionSequence -EpisodeId <String>
+```python
+def get_decision_sequence(episode_id: str) -> list[dict[str, Any]]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| EpisodeId | String | Yes | Episode identifier (e.g., "episode-2026-01-01-126") |
+| `episode_id` | `str` | Yes | Episode identifier, for example `"episode-2026-01-01-session-126"`. The `episode-` prefix is stripped before lookup, so the session id also works. |
 
-**Returns**: Array of decision objects sorted by timestamp.
+**Returns**: decision dicts sorted by timestamp. Empty list when the episode does not exist.
 
 **Example**:
 
-```powershell
-$decisions = Get-DecisionSequence -EpisodeId "episode-2026-01-01-126"
-
-foreach ($d in $decisions) {
-    Write-Host "$($d.timestamp): $($d.type) - $($d.chosen)"
-}
+```python
+for d in get_decision_sequence("episode-2026-01-01-session-126"):
+    print(f"{d['timestamp']}: {d['type']} - {d['chosen']}")
 ```
 
 ### Status Functions
 
-#### Get-ReflexionMemoryStatus
+#### get_reflexion_memory_status
 
-Gets the status of the reflexion memory system.
+**Signature**:
 
-**Syntax**:
-
-```powershell
-Get-ReflexionMemoryStatus
+```python
+def get_reflexion_memory_status() -> dict[str, Any]
 ```
 
-**Returns**: `PSCustomObject` with:
+**Returns**:
 
-- `Episodes`: Path and count of episode files
-- `Configuration`: EpisodesPath setting
+```python
+{
+    "Episodes": {"Path": "/abs/path/.agents/memory/episodes", "Count": 322},
+    "Configuration": {"EpisodesPath": "/abs/path/.agents/memory/episodes"},
+}
+```
 
 **Example**:
 
-```powershell
-$status = Get-ReflexionMemoryStatus
-
-Write-Host "=== Reflexion Memory Status ==="
-Write-Host "Episodes:"
-Write-Host "  Path: $($status.Episodes.Path)"
-Write-Host "  Count: $($status.Episodes.Count)"
+```python
+status = get_reflexion_memory_status()
+print("=== Reflexion Memory Status ===")
+print(f"  Path:  {status['Episodes']['Path']}")
+print(f"  Count: {status['Episodes']['Count']}")
 ```
 
 ## Scripts
@@ -308,21 +337,19 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-python3 scripts/extract_session_episode.py <session-log-path>
-    [--output-path <String>]
-    [--force | --preserve]
-    [--pending-stage]
+uv run python .claude/skills/memory/scripts/extract_session_episode.py <session-log-path> \
+    [--output-path DIR] [--force | --preserve] [--pending-stage]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| session_log_path | String | Yes | - | Positional. Path to the session log file |
-| --output-path | String | No | .agents/memory/episodes/ | Output directory for episode JSON |
-| --force | Switch | No | - | Overwrite an existing episode file |
-| --preserve | Switch | No | - | Merge fresh extraction over an existing episode. Mutually exclusive with --force |
-| --pending-stage | Switch | No | - | Count the not-yet-staged episode file in the staged-file total |
+| `session_log_path` | path | Yes | - | Positional. Path to the session log file |
+| `--output-path` | path | No | `.agents/memory/episodes/` | Output directory for episode JSON |
+| `--force` | flag | No | - | Overwrite an existing episode file |
+| `--preserve` | flag | No | - | Merge fresh extraction over an existing episode. Mutually exclusive with `--force` |
+| `--pending-stage` | flag | No | - | Count the not-yet-staged episode file in the staged-file total |
 
 **Extraction Targets**:
 
@@ -335,8 +362,8 @@ python3 scripts/extract_session_episode.py <session-log-path>
 **Example**:
 
 ```bash
-python3 scripts/extract_session_episode.py \
-    ".agents/sessions/2026-01-01-session-126.json"
+uv run python .claude/skills/memory/scripts/extract_session_episode.py \
+    .agents/sessions/2026-01-01-session-126.json
 
 # Output:
 # Episode extracted:
@@ -356,128 +383,123 @@ python3 scripts/extract_session_episode.py \
 The retrospective agent auto-extracts episodes at session end:
 
 ```bash
-# In retrospective agent workflow
-SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
+SESSION_LOG=".agents/sessions/${SESSION_ID}.json"
 
-# Extract episode
-python3 scripts/extract_session_episode.py "$SESSION_LOG"
-
-# Store in Serena/Forgetful
-EPISODE_SUMMARY="Episode ${SESSION_ID}: ${TASK} outcome=${OUTCOME}"
-# ... save to memory systems
+uv run python .claude/skills/memory/scripts/extract_session_episode.py "$SESSION_LOG"
 ```
 
 ### With Session Protocol
 
-Episode extraction is part of session end checklist:
+Episode extraction is part of the session end checklist:
 
 ```markdown
 ## Session End (BLOCKING)
 
 - [ ] Complete session log
-- [ ] Extract episode: `scripts/extract_session_episode.py`
+- [ ] Extract episode: `.claude/skills/memory/scripts/extract_session_episode.py`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .agents/memory/episodes/)
 ```
 
 ### With Memory Router
 
-Future enhancement to search episodes via Memory Router:
+`memory_router.search_memory` covers Serena and Forgetful only. The episode store is searched by the CLI wrapper:
 
-```powershell
-# Not yet implemented - placeholder
-Search-Memory -Query "routing decision" -IncludeEpisodes
+```bash
+uv run python .claude/skills/memory/scripts/search_memory.py "routing decision"
 ```
 
 ## Use Cases
 
 ### Review Past Failures
 
-```powershell
-# Get last month's failures
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddMonths(-1)
+```python
+from datetime import datetime, timedelta, timezone
 
-foreach ($failure in $failures) {
-    Write-Host "`n=== $($failure.session) ==="
-    Write-Host "Task: $($failure.task)"
-    Write-Host "`nLessons Learned:"
-    foreach ($lesson in $failure.lessons) {
-        Write-Host "  - $lesson"
-    }
+failures = get_episodes(
+    outcome="failure",
+    since=datetime.now(timezone.utc) - timedelta(days=30),
+)
 
-    # Find what caused the failure
-    $errorEvents = $failure.events | Where-Object { $_.type -eq "error" }
-    if ($errorEvents) {
-        Write-Host "`nErrors:"
-        foreach ($err in $errorEvents) {
-            Write-Host "  - $($err.content)"
-        }
-    }
-}
+for failure in failures:
+    print(f"\n=== {failure['session']} ===")
+    print(f"Task: {failure['task']}")
+    print("\nLessons Learned:")
+    for lesson in failure["lessons"]:
+        print(f"  - {lesson}")
+
+    errors = [e for e in failure["events"] if e["type"] == "error"]
+    if errors:
+        print("\nErrors:")
+        for err in errors:
+            print(f"  - {err['content']}")
 ```
 
 ### Compare Decision Outcomes
 
-```powershell
-# Get all episodes with routing decisions
-$routingEpisodes = Get-Episodes -MaxResults 100 | Where-Object {
-    $_.decisions | Where-Object { $_.context -match "routing" }
-}
+```python
+from collections import Counter
 
-# Group by outcome
-$outcomes = $routingEpisodes | Group-Object -Property outcome
+routing = [
+    ep
+    for ep in get_episodes(max_results=100)
+    if any("routing" in d.get("context", "") for d in ep["decisions"])
+]
 
-foreach ($group in $outcomes) {
-    Write-Host "$($group.Name): $($group.Count) episodes"
+by_outcome: dict[str, list[dict]] = {}
+for ep in routing:
+    by_outcome.setdefault(ep["outcome"], []).append(ep)
 
-    # Show common patterns
-    $decisions = $group.Group.decisions | Where-Object { $_.context -match "routing" }
-    $chosen = $decisions | Group-Object -Property chosen | Sort-Object Count -Descending
-
-    foreach ($choice in $chosen) {
-        Write-Host "  - $($choice.Name): $($choice.Count) times"
-    }
-}
+for outcome, episodes in by_outcome.items():
+    print(f"{outcome}: {len(episodes)} episodes")
+    chosen = Counter(
+        d["chosen"]
+        for ep in episodes
+        for d in ep["decisions"]
+        if "routing" in d.get("context", "")
+    )
+    for choice, count in chosen.most_common():
+        print(f"  - {choice}: {count} times")
 ```
 
 ## Performance Characteristics
 
 | Operation | Latency | Notes |
 |-----------|---------|-------|
-| Get-Episode | <50ms | Single JSON file read |
-| Get-Episodes | ~200ms | O(n) scan of episode directory |
-| Get-DecisionSequence | <10ms | In-memory array sort |
-| Extract-SessionEpisode | ~500ms | Parse markdown, extract structured data |
+| `get_episode` | <50ms | Single JSON file read |
+| `get_episodes` | ~200ms | O(n) scan of the episode directory |
+| `get_decision_sequence` | <10ms | Single read plus an in-memory sort |
+| `extract_session_episode.py` | ~500ms | Parse the session log, extract structured data |
 
 ## Best Practices
 
 ### For Agents
 
-1. **Learn from failures**: Query `Get-Episodes -Outcome "failure"` for similar scenarios
-
+1. **Learn from failures**: query `get_episodes(outcome="failure")` for similar scenarios.
 
 ### For Episode Extraction
 
-1. **Run at session end**: Extract episodes while session is fresh
-2. **Validate extraction**: Check episode JSON for completeness
-3. **Commit with session**: Include episodes in session commit
+1. **Run at session end**: extract episodes while the session is fresh.
+2. **Validate extraction**: check the episode JSON for completeness.
+3. **Commit with the session**: include episodes in the session commit.
 
 ## Troubleshooting
 
 ### Episode Not Found
 
-**Symptoms**: `Get-Episode` returns `$null`
+**Symptoms**: `get_episode` returns `None`.
 
 **Solutions**:
 
-1. Verify episode file exists: `Test-Path ".agents/memory/episodes/episode-$sessionId.json"`
-2. Check session ID format: Must match file naming convention
-3. Re-extract from session log: `scripts/extract_session_episode.py`
+1. Verify the episode file exists: `ls .agents/memory/episodes/episode-<session-id>.json`
+2. Check the session id format. It must match the file naming convention.
+3. Re-extract from the session log with `extract_session_episode.py`.
 
 ## Related Documentation
 
-- [Memory Router](memory-router.md) - Tier 1 semantic memory (Serena + Forgetful)
-- [Benchmarking](benchmarking.md) - Performance measurement
-- [API Reference](api-reference.md) - Complete function signatures
-- ADR-038 - Reflexion Memory Schema
-- ADR-007 - Memory-First Architecture
+- [Memory Router](../../memory-search/references/memory-router.md). Tier 1 semantic memory (Serena + Forgetful).
+- [Benchmarking](../../memory-maintenance/references/benchmarking.md). Performance measurement.
+- [API Reference](../../memory-search/references/api-reference.md). Complete function signatures.
+- ADR-038. Reflexion Memory schema.
+- ADR-007. Memory-first architecture.
+- ADR-042. Python-first scripting.
