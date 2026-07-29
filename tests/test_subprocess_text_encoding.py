@@ -341,6 +341,24 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
     return [pair for sub in target.elts for pair in _unpack(sub, value)]
 
 
+def _iterated(target: ast.expr, iterable: ast.expr) -> list[tuple[str, ast.expr]]:
+    """Pair the names a loop target binds with the values it may take.
+
+    A loop target does not line up with the iterable, it lines up with one
+    item of it at a time, so unpacking it against the iterable reads the
+    wrong column: ``for label, runner in [(check_call, run)]`` would give
+    ``label`` the whole first item and ``runner`` the whole second, when the
+    source has only one item and two columns.
+
+    A literal iterable makes its items visible, so each name is paired with
+    every item it can take, one binding per item. Anything else is opaque and
+    keeps the old reading, where every name may hold any part of it.
+    """
+    if not isinstance(iterable, (ast.List, ast.Tuple, ast.Set)):
+        return _unpack(target, iterable)
+    return [pair for item in iterable.elts for pair in _unpack(target, item)]
+
+
 def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
     """Pair each parameter of *spec* with its default, where it has one.
 
@@ -491,7 +509,7 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
         elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             # ``for runner in (subprocess.run,)`` binds a name with no
             # assignment statement anywhere in sight.
-            found.extend(_unpack(node.target, node.iter))
+            found.extend(_iterated(node.target, node.iter))
         elif isinstance(node, ast.ClassDef):
             found.extend(_class_bindings(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -975,6 +993,31 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '        runner(["x"], capture_output=True, text=True)',
             "a capture is only as loud as the subject it reads",
         ),
+        (
+            'import subprocess\n'
+            'for label, runner in [(subprocess.check_call, subprocess.run)]:\n'
+            '    label(["x"], capture_output=True, text=True)',
+            "a loop target takes one column of the pairs, not both",
+        ),
+        (
+            'import subprocess\n'
+            'for label, runner in ((subprocess.check_call, 1), (subprocess.run, 2)):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "the second column of every pair is what the second name reads",
+        ),
+        (
+            'import subprocess\n'
+            'for label, runner in {(subprocess.check_call, subprocess.run)}:\n'
+            '    label(["x"], capture_output=True, text=True)',
+            "a set literal of pairs still has columns",
+        ),
+        (
+            'import subprocess\n'
+            'runner = other = subprocess.check_output\n'
+            'runner = subprocess.run\n'
+            'runner(["x"], text=True)',
+            "the first binding of a name wins over a later group it shares",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -1368,6 +1411,18 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '        pass\n    case runner:\n'
             '        runner(["x"], capture_output=True, text=True)',
             "a later case captures just as much as the first",
+        ),
+        (
+            'import subprocess\nheld = [subprocess.run]\n'
+            'for runner in held:\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "an opaque iterable still resolves through its own binding",
+        ),
+        (
+            'import subprocess\n'
+            'for runner in [subprocess.check_call, subprocess.run]:\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "every item of the iterable is a value the name can take",
         ),
     ],
 )
