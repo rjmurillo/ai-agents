@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3632,
+    "date": "2026-07-28",
+    "branch": "fix/3632-spec-size-exception-rationale",
+    "startingCommit": "0bc52e309",
+    "objective": "PR #3507 merged with two review threads unanswered. Both asked why the /spec command and its Copilot mirror declare size-exception. Answer them on main, and close the class defect the threads exposed: skill_size.py tells authors to add the key 'if justified' but never checks that a justification was written, so the escape hatch has no evidence requirement."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3632-spec-size-exception-rationale in the linked worktree /tmp/wt-3632"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md boundaries, .claude/rules/universal.md, .claude/rules/code-quality.md Suppressions Are a Last Resort, and .agents/governance/TESTING-RIGOR.md read this session"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree created from origin/main at 7dd4d506a; main advanced twice during the work and was merged forward each time, the second merge landing at 0bc52e309"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/3632-spec-size-exception-rationale"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-list_memories returned the project memory index this session, which proves the project is active"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called and read this session"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Used the test-driven-development and code-review-and-quality skills for the mutation table, and the github skill for the PR"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Recorded the escape-hatch-without-evidence shape: a gate that says 'add this key if justified' and never reads a justification cannot tell a reviewed exception from an unreviewed one. skill_size.py was the tenth instance of the wider family this burndown has found, where a check returns a permissive result on input it never actually evaluated."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The two changed Markdown files gained only an HTML comment block, which no enabled markdownlint rule covers; the scoped run reported no violations."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "One commit carrying the gate, its tests, the two rationales, the manifest bump, and this log."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "62 passed in tests/test_validation_skill_size.py; ruff check and ruff format clean on both changed Python files; mypy clean on skill_size.py; plugin manifest parity reported matching versions; a byte scan of both spec forms counted 0 occurrences of U+2014 and U+2013."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3632 carries the /spec split with the measured section weights and is referenced by both rationales as the removal condition."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Covered by .agents/retrospective/2026-07-28-autopilot-issue-burndown.md, which spans this burndown."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Discovered PR #3507 had already merged as 87b117667 and closed issue #3419 while a stale worktree still held the branch. Verified against origin rather than trusting the local checkout, and abandoned the branch instead of pushing work into a merged PR."
+    },
+    {
+      "step": "Checked what actually reached main. The progressive-disclosure split landed complete, 8 references in each of the two harness trees plus both SKILL.md bodies. The duplicate episode event id is absent on main, 16 events with no repeats, so that thread needed no follow-up."
+    },
+    {
+      "step": "Found the one thing that did not land: both spec forms carry size-exception: true at line 5 with no stated reason. The two review threads asking about it merged unanswered."
+    },
+    {
+      "step": "Wrote the rationale into both forms. Each states what the check wants, that the overage was inherited rather than introduced because both files were already past 500 lines, why splitting a 625-line command inside a one-line reference reroute would hide a behavior change inside a refactor, and that issue #3632 retires the key."
+    },
+    {
+      "step": "Treated the missing justification as a gate defect rather than a paperwork miss. skill_size.py emits 'Add size-exception: true to frontmatter if overage is justified' in three places and then never reads a justification, so a declared exception and a reviewed one are indistinguishable to the gate."
+    },
+    {
+      "step": "Added has_exception_rationale and made an oversized file with a declared exception fail unless a rationale comment opens in the first 40 lines, mentions size-exception, and carries at least 200 characters. Bounded the opening position only, not the close, so a long reason is not penalized for extending past the window; anchoring on the close would push authors to compress the explanation, which is the opposite of the goal."
+    },
+    {
+      "step": "Measured the blast radius before committing to the design. Scanned every Markdown file in the repository: exactly 2 carry the key, both are the spec forms, and both pass once documented. The gate goes green on main immediately and blocks only the next undocumented exception."
+    },
+    {
+      "step": "Kept the gate narrow deliberately. It fires only when the exception is load-bearing, that is when the file is actually over the line or byte ceiling. A key declared on an under-limit file is dead config, not a blocking defect, so it stays passing."
+    },
+    {
+      "step": "Found that 5 pre-existing tests failed against the new gate because their fixtures declared the key with no reason. That is the gate working: the fixtures encoded the exact shape the repository now forbids. Gave each fixture a rationale rather than weakening the check."
+    },
+    {
+      "step": "Proved every new test is load-bearing with a five-way mutation table run from a scratch copy outside the repository. Disabling the enforcement block fails 2 tests. Forcing the detector to always return True fails 6. Forcing it to always return False fails 6. Dropping the over-a-limit guard fails the under-limit negative control. Dropping the exception-declared guard fails the no-exception negative control. Every one of the 16 new tests fails under at least one mutation, so none is tautological."
+    }
+  ],
+  "endingCommit": "e61b6955f",
+  "nextSteps": [
+    "#3632 still owns the real remedy: defer the Prior Art block out of /spec so both forms drop under the ceiling and the key can be deleted.",
+    "Both rationales name #3632 as their removal condition, so closing #3632 without deleting the comments would leave a stale justification behind.",
+    "The same escape-hatch-without-evidence shape is worth auditing elsewhere. Any gate whose message says 'if justified' should be checked for whether it reads the justification."
+  ]
+}
