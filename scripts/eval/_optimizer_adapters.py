@@ -9,12 +9,12 @@ reports in its own shape.
     rule           eval-rule-activation.py scenarios  scenario id -> bool
     hook / script  pytest --junitxml                  node id     -> bool
 
-Each adapter fails closed. A fixture the variant never ran, a scenario whose
-judge errored, a test that was skipped: all score as failures rather than
-being dropped. Dropping a task shrinks the denominator, and a shrinking
-denominator raises the score, so silent omission reads as improvement. That
-is the exact failure the held-out gate exists to prevent, so the adapters
-must not reintroduce it.
+Each adapter refuses degraded scorer output. A fixture the variant never ran,
+a scenario whose judge errored, and a test that was skipped are not measured
+failures. Dropping them shrinks the denominator, and a shrinking denominator
+raises the score, so silent omission reads as improvement. That is the exact
+failure the held-out gate exists to prevent, so the adapters must not
+reintroduce it.
 
 Reduction and threshold policy is explicit rather than hidden. `agent_results`
 defaults to `mean` at a `1.0` threshold, meaning every run satisfied every
@@ -128,6 +128,7 @@ def agent_results(
     *,
     reduce: str = _DEFAULT_REDUCER,
     pass_threshold: float = 1.0,
+    expected_task_ids: Sequence[str] | None = None,
 ) -> dict[str, bool]:
     """Map an agent eval report to per-fixture pass or fail.
 
@@ -140,14 +141,18 @@ def agent_results(
         reduce: How to collapse a fixture's runs into one number. One of
             `mean`, `min`, `max`, `median`.
         pass_threshold: Reduced value at or above which the fixture passes.
+        expected_task_ids: Authoritative fixture ids that must each carry a
+            completed run for the selected variant.
 
     Returns:
         Mapping from fixture id to pass or fail.
 
     Raises:
-        AdapterError: The report lacks `per_fixture_pass_rates`, an entry is
-            not a mapping, a run value is not numeric or falls outside the
-            [0, 1] a fraction can occupy, or `reduce` is unknown.
+        AdapterError: The report lacks `per_fixture_pass_rates`, omits an
+            expected fixture, includes a fixture outside the inventory, lacks a
+            run for the selected variant, has an entry that is not a mapping,
+            has a run value that is not numeric or falls outside the [0, 1] a
+            fraction can occupy, or `reduce` is unknown.
     """
     if reduce not in _REDUCERS:
         raise AdapterError(
@@ -161,31 +166,52 @@ def agent_results(
         raise AdapterError("per_fixture_pass_rates must be a mapping")
 
     reducer = _REDUCERS[reduce]
-    out: dict[str, bool] = {}
+    rates_by_fixture: dict[str, object] = {}
     for fixture_id, per_variant in rates.items():
+        key = str(fixture_id)
+        if key in rates_by_fixture:
+            raise AdapterError(f"duplicate fixture id after string conversion: {key}")
+        rates_by_fixture[key] = per_variant
+
+    expected = list(rates_by_fixture) if expected_task_ids is None else list(expected_task_ids)
+    expected_set = set(expected)
+    if len(expected_set) != len(expected):
+        raise AdapterError("expected task inventory contains duplicate fixture ids")
+    missing = sorted(expected_set - set(rates_by_fixture))
+    extra = sorted(set(rates_by_fixture) - expected_set)
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"missing fixture(s): {', '.join(missing[:20])}")
+        if extra:
+            parts.append(f"unexpected fixture(s): {', '.join(extra[:20])}")
+        raise AdapterError(
+            "agent report task inventory mismatch: "
+            + "; ".join(parts)
+        )
+
+    out: dict[str, bool] = {}
+    for fixture_id in expected:
+        per_variant = rates_by_fixture[fixture_id]
         if not isinstance(per_variant, Mapping):
             raise AdapterError(
                 f"fixture {fixture_id!r} must be a mapping of variant to runs, "
                 f"got a {type(per_variant).__name__}"
             )
-        runs = per_variant.get(variant)
-        if runs is None:
-            # Variant never ran this fixture. Fail closed rather than
-            # dropping the id.
-            out[str(fixture_id)] = False
-            continue
+        if variant not in per_variant:
+            raise AdapterError(
+                f"fixture {fixture_id!r} variant {variant!r} has no completed runs"
+            )
+        runs = per_variant[variant]
         if not isinstance(runs, Sequence) or isinstance(runs, str):
             raise AdapterError(
                 f"fixture {fixture_id!r} variant {variant!r} must be a list "
                 f"of scores, got {type(runs).__name__}"
             )
         if not runs:
-            # Ran the fixture zero times. Same fail-closed path as never
-            # having run it, but reached only after the value proved to be a
-            # list, so `{}`, `""`, `0` and `False` are refused above rather
-            # than scored as a measured loss.
-            out[str(fixture_id)] = False
-            continue
+            raise AdapterError(
+                f"fixture {fixture_id!r} variant {variant!r} has no completed runs"
+            )
         values = [
             _as_float(
                 v,
@@ -195,7 +221,7 @@ def agent_results(
             )
             for v in runs
         ]
-        out[str(fixture_id)] = reducer(values) >= pass_threshold
+        out[fixture_id] = reducer(values) >= pass_threshold
     return out
 
 
@@ -527,25 +553,15 @@ def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> di
         junit_xml: Contents of a pytest `--junitxml` file. Accepts either a
             `<testsuites>` root or a bare `<testsuite>` root; pytest emits the
             former, other runners emit the latter.
-        on_skip: `fail` scores a skipped test as a failure, `exclude` drops it
-            from the mapping. `fail` is the default because a skipped test
-            demonstrated nothing. Prefer `exclude` only when skips are static,
-            because dropping a task is not free. A conditionally skipped test
-            changes the task-id set between runs while the split was drawn once
-            from the full set, so a dropped id in the held-out group makes the
-            gate charge a consultation and report `REJECT` at exit 1 with
-            `compared: false`, and a dropped id outside it leaves the drift
-            invisible.
-            `exclude` drops only a testcase whose skip stands alone: one that
-            also carries a failure or an error did demonstrate something and
-            is scored as a failure under either policy.
+        on_skip: Retained for command-line compatibility. Skipped tests are
+            always refused because no measurement was taken.
 
     Returns:
         Mapping from `classname::name` node id to pass or fail.
 
     Raises:
         AdapterError: The XML will not parse, a case has no name, node ids
-            repeat, or `on_skip` is unknown.
+            repeat, a test was skipped or errored, or `on_skip` is unknown.
     """
     if on_skip not in _SKIP_POLICIES:
         raise AdapterError(
@@ -564,18 +580,17 @@ def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> di
         classname = case.get("classname")
         node_id = f"{classname}::{name}" if classname else name
 
-        skipped = case.find("skipped") is not None
-        broken = (
-            case.find("failure") is not None or case.find("error") is not None
-        )
-        # Both conditions, because `exclude` rests on a skipped test having
-        # demonstrated nothing, and one that also carries a failure or an
-        # error demonstrated exactly that. Stock pytest emits the pair when a
-        # fixture teardown raises behind a skipped test, so dropping on the
-        # skip alone let a broken teardown leave the denominator.
-        if skipped and not broken and on_skip == "exclude":
-            continue
         if node_id in out:
             raise AdapterError(f"duplicate test node id: {node_id}")
-        out[node_id] = not (skipped or broken)
+        if case.find("skipped") is not None:
+            raise AdapterError(
+                f"testcase {node_id} was skipped; a measurement not taken is "
+                "not a measurement of zero"
+            )
+        if case.find("error") is not None:
+            raise AdapterError(
+                f"testcase {node_id} errored; a measurement not taken is "
+                "not a measurement of zero"
+            )
+        out[node_id] = case.find("failure") is None
     return out

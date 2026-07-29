@@ -76,3 +76,24 @@ def test_build_output_directories_remain_ignored():
 def test_dist_root_remains_ignored():
     """/dist/ must remain ignored."""
     assert _check_ignore(REPO_ROOT, "dist/anything.whl")
+
+
+def test_model_sweep_artifact_directories_are_ignored():
+    """Model sweep artifacts under evals/ must not stage by accident."""
+    for artifact in (
+        "evals/architect-spike/reports/sweep-claude-opus-4-6-50a27ed1/report.json",
+        "evals/critic-spike/runs/sweep-claude-sonnet-4-6-563e53a2/result.json",
+    ):
+        assert _check_ignore(REPO_ROOT, artifact), (
+            f"{artifact} should be gitignored; model sweep outputs are runtime "
+            "evidence, not source of truth. See issue #3597."
+        )
+
+
+def test_non_sweep_eval_reports_remain_trackable():
+    """Only sweep-* eval artifacts are ignored, not every eval report/run."""
+    for tracked_candidate in (
+        "evals/architect-spike/reports/manual-report/report.json",
+        "evals/critic-spike/runs/manual-run/result.json",
+    ):
+        assert not _check_ignore(REPO_ROOT, tracked_candidate)
