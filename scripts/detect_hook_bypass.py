@@ -67,6 +67,8 @@ def get_current_branch() -> str:
         ["git", "branch", "--show-current"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -94,6 +96,8 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
@@ -116,6 +120,8 @@ def get_commit_files(sha: str) -> list[str]:
         ["git", "diff-tree", "--no-commit-id", "-r", "-m", "--name-only", sha],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -134,6 +140,8 @@ def is_merge_commit(sha: str) -> bool:
         ["git", "rev-parse", f"{sha}^2"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )

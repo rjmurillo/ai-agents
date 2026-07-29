@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -54,6 +55,7 @@ __all__ = [
     "AnchorNotFoundError",
     "BudgetExceededError",
     "GateResult",
+    "ScoreEvidence",
     "MissingResultError",
     "Patch",
     "PatchShapeError",
@@ -140,6 +142,14 @@ class TaskSplit:
     sel: tuple[str, ...]
     test: tuple[str, ...]
     fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScoreEvidence:
+    """A score plus the extraction provenance that produced it."""
+
+    value: float
+    provenance: Mapping[str, object]
 
 
 @dataclass(frozen=True)
@@ -243,7 +253,8 @@ def split_tasks(
     if not Fraction(0) <= test_fraction < Fraction(1):
         raise ValueError(f"test_ratio must be in [0, 1), got {test_display}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        min_sel_display = _ratio_display(str(min_sel))
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_fraction + test_fraction >= Fraction(1):
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -262,7 +273,11 @@ def split_tasks(
         cleaned.append(raw)
 
     if len(set(cleaned)) != len(cleaned):
-        duplicates = sorted({tid for tid in cleaned if cleaned.count(tid) > 1})
+        # One pass, not `cleaned.count(tid)` per element. The old form was
+        # quadratic (18.5s at 40k ids) and this is a refusal path, so the
+        # operator is already waiting to be told which id they repeated.
+        counts = Counter(cleaned)
+        duplicates = sorted(tid for tid, seen in counts.items() if seen > 1)
         raise ValueError(f"split_tasks received duplicate task ids: {', '.join(duplicates)}")
 
     total = len(cleaned)
@@ -280,8 +295,9 @@ def split_tasks(
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
+        min_sel_display = _ratio_display(str(min_sel))
         raise SplitTooSmallError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 
@@ -545,6 +561,10 @@ def mcnemar_exact(
     a three-task held-out group cannot clear a conventional 0.05 floor no
     matter how the edit performs.
 
+    The returned ``p`` is never exactly zero. No finite number of paired
+    observations drives the exact probability to zero, so a caller comparing
+    against a bar of zero gets a refusal rather than a pass.
+
     Raises:
         MissingResultError: when a requested task is absent from either side.
     """
@@ -561,7 +581,18 @@ def mcnemar_exact(
         return 0, 0, 1.0
 
     tail = sum(math.comb(n, k) for k in range(b, n + 1))
-    return b, c, tail / (2**n)
+    p = tail / (2**n)
+    if p == 0.0:
+        # The tail always contains the k=b term, so `tail` is at least 1 and
+        # the exact probability is strictly positive for every input that
+        # reaches here. Past n=1074 the ratio falls below the smallest
+        # subnormal and the float conversion reports 0.0 instead. Publishing
+        # that zero would make `--max-p 0`, the strictest bar the flag can
+        # express, read as satisfied, so the strictest possible bar would be
+        # the one that accepts. Report the smallest positive float instead:
+        # still far below any usable bar, but honest about being nonzero.
+        p = math.nextafter(0.0, 1.0)
+    return b, c, p
 
 
 def score(results: Mapping[str, bool], task_ids: Sequence[str]) -> float:
@@ -637,9 +668,17 @@ def guard_refusal(
     return None
 
 
+def _score_from_evidence(name: str, evidence: ScoreEvidence) -> float:
+    if not isinstance(evidence, ScoreEvidence):
+        raise ValueError(f"{name} score requires extraction provenance")
+    if not evidence.provenance:
+        raise ValueError(f"{name} score requires non-empty extraction provenance")
+    return evidence.value
+
+
 def gate(
-    candidate: float,
-    incumbent: float,
+    candidate: ScoreEvidence,
+    incumbent: ScoreEvidence,
     *,
     sel_consultations: int = 0,
     max_consultations: int | None = None,
@@ -719,10 +758,12 @@ def gate(
             ``p_value`` or ``max_p`` outside ``[0, 1]``, or ``max_p`` given
             without both ``p_value`` and ``max_consultations``.
     """
-    if not 0.0 <= candidate <= 1.0:
-        raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
-    if not 0.0 <= incumbent <= 1.0:
-        raise ValueError(f"incumbent score must be in [0, 1], got {incumbent}")
+    candidate_score = _score_from_evidence("candidate", candidate)
+    incumbent_score = _score_from_evidence("incumbent", incumbent)
+    if not 0.0 <= candidate_score <= 1.0:
+        raise ValueError(f"candidate score must be in [0, 1], got {candidate_score}")
+    if not 0.0 <= incumbent_score <= 1.0:
+        raise ValueError(f"incumbent score must be in [0, 1], got {incumbent_score}")
     if sel_consultations < 0:
         raise ValueError(f"sel_consultations must be non-negative, got {sel_consultations}")
     if max_consultations is not None and max_consultations < 1:
@@ -748,8 +789,8 @@ def gate(
         return GateResult(
             decision=decision,
             reason=reason,
-            candidate=candidate,
-            incumbent=incumbent,
+            candidate=candidate_score,
+            incumbent=incumbent_score,
             sel_consultations=sel_consultations,
             compared=compared,
         )
@@ -763,11 +804,11 @@ def gate(
     if refusal is not None:
         return _result("REJECT", refusal, compared=False)
 
-    if candidate > incumbent:
+    if candidate_score > incumbent_score:
         if discordant_loss:
             return _result(
                 "REJECT",
-                f"candidate {candidate:.4f} beats {incumbent:.4f} overall but "
+                f"candidate {candidate_score:.4f} beats {incumbent_score:.4f} overall but "
                 f"regressed {discordant_loss} held-out task(s) from pass to fail; "
                 f"a net gain does not buy back a broken task",
             )
@@ -779,17 +820,22 @@ def gate(
             if p_value > corrected:
                 return _result(
                     "REJECT",
-                    f"candidate {candidate:.4f} beats {incumbent:.4f} but the "
+                    f"candidate {candidate_score:.4f} beats {incumbent_score:.4f} but the "
                     f"one-sided exact McNemar tail is {p_value:g}, above the "
                     f"per-comparison bar of {corrected:g}, which is the "
                     f"{max_p:g} family bar divided across {max_consultations} "
                     f"consultation(s). The gain is not distinguishable from "
                     f"scorer variance at this held-out size",
                 )
-        return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
-    if candidate == incumbent:
-        return _result("REJECT", f"tie at {candidate:.4f}; a tie does not earn an edit")
-    return _result("REJECT", f"candidate {candidate:.4f} regressed from {incumbent:.4f}")
+        return _result(
+            "ACCEPT",
+            f"candidate {candidate_score:.4f} strictly beats {incumbent_score:.4f}",
+        )
+    if candidate_score == incumbent_score:
+        return _result("REJECT", f"tie at {candidate_score:.4f}; a tie does not earn an edit")
+    return _result(
+        "REJECT", f"candidate {candidate_score:.4f} regressed from {incumbent_score:.4f}"
+    )
 
 
 def patch_fingerprint(patches: Sequence[Patch]) -> str:
@@ -808,10 +854,20 @@ def patch_fingerprint(patches: Sequence[Patch]) -> str:
     again.
 
     Raises:
-        ValueError: when ``patches`` is empty.
+        ValueError: when ``patches`` is empty, or when a patch field is not
+            the type the fingerprint assumes.
     """
     if not patches:
         raise ValueError("patch_fingerprint requires at least one patch")
+    for patch in patches:
+        # The same guard `apply_patches` runs, for the same reason. Both are
+        # public entry points fed agent-authored JSON, and both reach
+        # `_normalize_newlines`, so a number where a string belongs raised an
+        # AttributeError out of one and a named refusal out of the other. The
+        # check sits here rather than in the two buffer commands because every
+        # path that can crash routes through this function, including
+        # `buffer_contains`, and a caller added later would need it too.
+        _check_patch_fields(patch)
 
     canonical = [
         [

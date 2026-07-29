@@ -355,6 +355,8 @@ def _get_current_branch() -> str | None:
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode == 0:

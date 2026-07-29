@@ -106,6 +106,11 @@ class TestIsGitHubNameValid:
     def test_valid_repo(self):
         assert is_github_name_valid("ai-agents", "Repo") is True
 
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_name_type_is_case_insensitive(self, name_type: str):
+        assert is_github_name_valid("ai-agents", name_type) is True
+        assert is_github_name_valid("..", name_type) is False
+
     def test_repo_allows_dots(self):
         assert is_github_name_valid("my.repo.name", "Repo") is True
 
@@ -125,6 +130,40 @@ class TestIsGitHubNameValid:
 
     def test_invalid_type_returns_false(self):
         assert is_github_name_valid("foo", "Invalid") is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        """`.` and `..` are the only names GitHub refuses outright.
+
+        They are also the two that carry traversal meaning once a caller
+        interpolates them into a URL path, which several callers do.
+
+        `name_type` is documented case-insensitive, so the rejection has to
+        hold for every spelling a caller may pass. Testing one spelling would
+        let a guard that keys off a single literal survive.
+        """
+        assert is_github_name_valid(name, name_type) is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["owner", "Owner", "OWNER"])
+    def test_owner_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        assert is_github_name_valid(name, name_type) is False
+
+    def test_longer_dot_runs_stay_valid(self):
+        """Only the two aliases are reserved. `...` is a legal repository name.
+
+        Rejecting every all-dot name would be a wider rule than GitHub's and
+        would fail a name a user can really create.
+        """
+        assert is_github_name_valid("...", "Repo") is True
+        assert is_github_name_valid("....", "Repo") is True
+
+    def test_dots_elsewhere_in_a_name_stay_valid(self):
+        """The guard matches whole names, not substrings."""
+        assert is_github_name_valid("..leading", "Repo") is True
+        assert is_github_name_valid("trailing..", "Repo") is True
+        assert is_github_name_valid("mid..dle", "Repo") is True
 
 
 # ---------------------------------------------------------------------------
@@ -1756,3 +1795,59 @@ class TestMirrorParity:
             "src/copilot-cli/lib/github_core/bot_config.py",
         ):
             assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror
+
+
+# ---------------------------------------------------------------------------
+# Captured-text decoding across github_core
+# ---------------------------------------------------------------------------
+
+
+class TestCapturedTextDecoding:
+    """Every captured-text reader in this package pins its codec.
+
+    Without an explicit ``encoding`` Python decodes with the locale's
+    preferred codec, so a cp1252 or cp932 runner turns the same bytes into
+    different characters without raising. `gh` emits raw UTF-8 and `git`
+    emits raw filesystem bytes, so both readers are exposed.
+    """
+
+    def test_rate_limit_pins_utf8(self):
+        from scripts.github_core import rate_limit
+
+        with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)) as run:
+            rate_limit._fetch_rate_limit()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert "errors" not in run.call_args.kwargs
+
+    def test_repo_root_pins_utf8(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch(
+            "subprocess.run", return_value=_completed(stdout=str(tmp_path))
+        ) as run:
+            repo.get_repo_root()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert "errors" not in run.call_args.kwargs
+
+    def test_repo_root_returns_none_when_git_output_will_not_decode(self):
+        """Strict decoding must not crash a helper documented to return None.
+
+        Filesystem paths on POSIX are bytes, so a checkout under a name that is
+        not valid UTF-8 makes ``subprocess.run`` raise while decoding. The
+        function promises ``None`` on failure, and every caller anchors paths on
+        the result, so an escaping decode error would take out unrelated tools.
+        """
+        from scripts.github_core import repo
+
+        boom = UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
+        with patch("subprocess.run", side_effect=boom):
+            assert repo.get_repo_root() is None
+
+    def test_repo_root_survives_a_non_ascii_path(self, tmp_path: Path):
+        """The repo root seeds every derived path, so a mojibake read is load-bearing."""
+        from scripts.github_core import repo
+
+        root = tmp_path / "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8"
+        root.mkdir()
+        with patch("subprocess.run", return_value=_completed(stdout=f"{root}\n")):
+            assert repo.get_repo_root() == root

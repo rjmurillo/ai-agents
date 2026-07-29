@@ -1,0 +1,114 @@
+name: Software Engineering Library Activation
+
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".claude/skills/software-engineering-library/**"
+      - "src/copilot-cli/skills/software-engineering-library/**"
+      - "tests/evals/rule-scenarios/*.json"
+      - "scripts/eval/eval-rule-activation.py"
+      - "scripts/eval/software_engineering_library_activation_gate.py"
+      - "scripts/eval/software_engineering_library_activation_ci.py"
+      - "scripts/eval/README.md"
+      - ".github/workflows/software-engineering-library-activation.yml"
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: software-engineering-library-activation
+  cancel-in-progress: false
+
+jobs:
+  activation-gate:
+    name: Evaluate software-engineering-library activation
+    # Owner: agent-qa. Cadence: weekly Monday 06:30 UTC plus PR dry-run wiring.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Restore activation streak state
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .eval-state/software-engineering-library-activation-state.json
+          key: software-engineering-library-activation-state-${{ github.run_id }}
+          restore-keys: |
+            software-engineering-library-activation-state-
+
+      - name: Validate scenario wiring
+        if: github.event_name == 'pull_request'
+        run: >-
+          uv run python scripts/eval/eval-rule-activation.py
+          --dry-run
+          --scenarios
+          tests/evals/rule-scenarios/clean-architecture.json
+          tests/evals/rule-scenarios/domain-driven-design.json
+          tests/evals/rule-scenarios/enterprise-patterns.json
+          tests/evals/rule-scenarios/refactoring.json
+          tests/evals/rule-scenarios/release-it.json
+          tests/evals/rule-scenarios/philosophy-of-software-design.json
+          tests/evals/rule-scenarios/data-intensive-applications.json
+          tests/evals/rule-scenarios/working-with-legacy-code.json
+
+      - name: Run live activation eval
+        id: live-eval
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python scripts/eval/software_engineering_library_activation_ci.py live-eval
+
+      - name: Save activation streak state
+        if: always() && github.event_name != 'pull_request' && hashFiles('.eval-state/software-engineering-library-activation-state.json') != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .eval-state/software-engineering-library-activation-state.json
+          key: software-engineering-library-activation-state-${{ github.run_id }}
+
+      - name: Upload activation reports
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: software-engineering-library-activation-${{ github.run_id }}
+          path: |
+            activation-results.json
+            activation-gate-report.md
+            activation-threshold-report.json
+            .eval-state/software-engineering-library-activation-state.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Create or update rollback alert issue
+        if: github.event_name != 'pull_request' && steps.live-eval.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: uv run python scripts/eval/software_engineering_library_activation_ci.py alert-issue
+
+      - name: Fail when live activation gate failed
+        if: github.event_name != 'pull_request' && steps.live-eval.outcome == 'failure'
+        run: |
+          echo "::error::software-engineering-library activation gate failed"
+          exit 1

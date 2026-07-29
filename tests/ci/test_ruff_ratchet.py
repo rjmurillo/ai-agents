@@ -22,11 +22,13 @@ class RunRecorder:
         text: bool,
         cwd: Path | None = None,
         encoding: str | None = None,
+        errors: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         assert check is False
         assert capture_output is True
         assert text is True
         assert encoding == "utf-8"
+        assert errors == "replace"
         self.commands.append(command)
         return self.results.pop(0)
 
