@@ -236,7 +236,10 @@ def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr
         return None
     if isinstance(literal, ast.Dict):
         # A ``**splat`` key reads as ``None`` and can carry any name, so the
-        # keys on show are not the whole mapping.
+        # keys on show are not the whole mapping. No test can pin the
+        # conditional, because ``_literal`` answers ``_UNKNOWN`` for ``None``
+        # anyway. It is the type checker that requires it: ``keys`` holds
+        # ``expr | None`` and ``_literal`` takes an ``expr``.
         stored = [_literal(k) if k is not None else _UNKNOWN for k in literal.keys]
         if _UNKNOWN in stored:
             return None
@@ -1424,6 +1427,12 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '    runner(["x"], capture_output=True, text=True)',
             "every item of the iterable is a value the name can take",
         ),
+        (
+            'import subprocess\n'
+            'def go(runner=subprocess.run, /):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a positional-only parameter takes a default like any other",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -1456,6 +1465,12 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
             'def go(parser):\n'
             '    parser.run(["x"], capture_output=True, text=True)',
             "an unrelated object with a same-named method reads as the one bound",
+        ),
+        (
+            'import subprocess\n'
+            'held = [subprocess.run, subprocess.check_call]\n'
+            'held[True](["x"], capture_output=True, text=True)',
+            "a bool index is a valid int index, and reading it as one is a guess",
         ),
     ],
 )
