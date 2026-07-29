@@ -6,7 +6,7 @@ Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
 
 from __future__ import annotations
 
-from .api import (  # noqa: F401
+from .api import (
     DEFAULT_RATE_THRESHOLDS,
     FetchStatus,
     RateLimitResult,
@@ -30,22 +30,22 @@ from .api import (  # noqa: F401
     transform_review_thread,
     update_issue_comment,
 )
-from .bot_config import (  # noqa: F401
+from .bot_config import (
     get_bot_authors,
     get_bot_authors_config,
     is_bot,
 )
-from .formatting import (  # noqa: F401
+from .formatting import (
     get_priority_emoji,
     get_reaction_emoji,
 )
-from .gh_client import GhCliClient  # noqa: F401
-from .output import (  # noqa: F401
+from .gh_client import GhCliClient
+from .output import (
     get_output_format,
     write_skill_error,
     write_skill_output,
 )
-from .protocol import GitHubClient  # noqa: F401
+from .protocol import GitHubClient
 from .repo import (
     REPO_ROOT_GIT_FAILED,
     REPO_ROOT_NOT_A_REPO,
@@ -53,7 +53,7 @@ from .repo import (
     get_repo_root,
     resolve_repo_root,
 )
-from .validation import (  # noqa: F401
+from .validation import (
     assert_valid_body_file,
     is_github_name_valid,
     is_safe_file_path,
