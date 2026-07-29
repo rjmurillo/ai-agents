@@ -118,5 +118,6 @@
   "nextSteps": [
     "The same wall-clock shape may exist elsewhere in the suite. A scan for time.time() deltas compared against a literal would find them, but it is a separate change and is deliberately out of scope here.",
     "PR #3740 should go green once this lands; its only two failures were this test."
-  ]
+  ],
+  "endingCommit": "2a14478b53576856c0fb2ccf758473e896c07a06"
 }
