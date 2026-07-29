@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from check_copilot_routing_exclusions import validate_copilot_routing_exclusions as _validate_module  # noqa: E402
+from check_copilot_routing_exclusions import validate_copilot_routing_exclusions as _validate_module
 
 
 def validate_copilot_routing_exclusions(repo_root: Path) -> bool:

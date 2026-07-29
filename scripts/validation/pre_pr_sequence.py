@@ -234,7 +234,7 @@ def run_all_validations(
     # 3.765.5 Copilot Routing Exclusions: ensure Copilot shipped skills do not
     # route to an excluded skill name (templates/platforms/copilot-cli.yaml)
     try:
-        from checks_copilot import validate_copilot_routing_exclusions  # noqa: E402
+        from checks_copilot import validate_copilot_routing_exclusions
 
         run_validation(
             "Copilot Routing Exclusions",
