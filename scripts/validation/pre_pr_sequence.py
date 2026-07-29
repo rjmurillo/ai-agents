@@ -260,6 +260,24 @@ def run_all_validations(
         lambda: validate_rule_activation_coverage(repo_root),
     )
 
+    # 3.769 Copilot Routing Exclusions: ensure Copilot shipped skills do not
+    # route to an excluded skill name (templates/platforms/copilot-cli.yaml)
+    try:
+        from checks_copilot import validate_copilot_routing_exclusions
+
+        run_validation(
+            "Copilot Routing Exclusions",
+            state,
+            lambda: validate_copilot_routing_exclusions(repo_root),
+        )
+    except Exception:
+        # Import errors should not break the runner; surface as a failure
+        run_validation(
+            "Copilot Routing Exclusions",
+            state,
+            lambda: (_ for _ in ()).throw(Exception("Failed to import copilot checks")),
+        )
+
     # 3.77 Sync Registry Provenance (Issue #1909)
     run_validation(
         "Sync Registry Provenance",
