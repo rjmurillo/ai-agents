@@ -54,11 +54,17 @@ an earlier revision matched only lowercase names and was blind to the live
 ``Skill: SkillForge`` route.
 
 A cell may list several skills, as ``Skill: analyze, Skill: context-gather``
-does today, so a captured name is stripped of trailing sentence, quotation and
-bracket punctuation before it is resolved. A name that is still not a legal
-skill identifier after that, ``Skill: known/ghost`` for instance, is reported as
-malformed rather than silently truncated to its leading segment and resolved
-against a real skill.
+does today, so a captured name is unwrapped before it is resolved: balanced
+wrapper pairs are stripped, and so is trailing sentence punctuation, the two
+alternating so ``Skill: (autoplan).`` reduces fully. Balance is the load-bearing
+part. Blindly stripping any leading bracket turns a malformed name into a legal
+one, so ``Skill: ((autoplan`` would resolve to an installed skill and report a
+pass over text nobody wrote deliberately. Closing punctuation is stripped
+unconditionally because a cell can carry only the closing half, as in
+``[Skill: autoplan]`` where the capture starts at the name. A name that is
+still not a legal skill identifier after unwrapping, ``Skill: known/ghost`` for
+instance, is reported as malformed rather than silently truncated to its
+leading segment and resolved against a real skill.
 
 The keyword must stand alone. ``Meta-Skill:`` and ``Task/Skill:`` are prose,
 and the live tree carries 148 of them.
@@ -75,9 +81,13 @@ passed silently. There is no source-text prefilter.
 The same rule decides what a code span means. ``markdown_parser`` yields each
 cell as segments tagged code or text; a span carrying a whole route, as in
 `` `Skill: x` ``, is documentation showing the syntax, while a span carrying
-only a name, as in ``Skill: `x` ``, is part of the route. That policy lives
-here rather than in the shared parser, which reports structure and decides
-nothing.
+only a name, as in ``Skill: `x` ``, is part of the route. A span carrying the
+bare keyword is decided by what follows it in the cell: `` `Skill:` `` alone
+documents the keyword, while `` `Skill:` x `` styles the label of a real route
+whose name sits outside the span. Backticks around the keyword never change
+the verdict for what follows, which is the point: if they did, an author could
+silence a drift report with two punctuation marks. That policy lives here
+rather than in the shared parser, which reports structure and decides nothing.
 
 Known limitation: a route written outside a table, say as a bullet reading
 ``- Skill: foo``, is not checked. That is a deliberate trade. Every one of the
@@ -98,13 +108,17 @@ glob matches dozens of throwaway roots and reports findings in trees nobody is
 shipping. For the same reason the per-root walk prunes those directory names,
 which keeps the whole check near 2.8s instead of ~11s.
 
-Pruning is by name at every depth, exempting directories that sit directly
-under ``<root>/skills``. Pruning only at the walk root left ``node_modules``
-and ``.venv`` inside a skill in the scan, which reads third-party prose as
-drift and trips the symlink refusal on the interpreter links every virtualenv
-carries, blocking every push in the repository. Pruning at every depth without
-the exemption hides a real skill whose name collides with a tooling name. The
-exemption is what lets both hold: measured on the live repository the rule
+Pruning is by name at every depth, exempting a directory directly under
+``<root>/skills`` that carries a ``SKILL.md``. Pruning only at the walk root
+left ``node_modules`` and ``.venv`` inside a skill in the scan, which reads
+third-party prose as drift and trips the symlink refusal on the interpreter
+links every virtualenv carries, blocking every push in the repository. Pruning
+at every depth without an exemption hides a real skill whose name collides with
+a tooling name. Exempting the whole skills namespace by location was too broad,
+because a ``.venv`` created there is a direct child too and brings the same
+interpreter links back. The marker is what separates the two: it is the same
+question ``skill_names`` asks, so a directory cannot count as a skill in one
+place and as tooling in the other. Measured on the live repository the rule
 yields the same 906 files as the root-only rule at the same speed.
 
 Vacuity is checked per root, not on the repository-wide route total. A root
@@ -152,6 +166,11 @@ from scripts.utils.markdown_parser import CellSegment, TableCell, iter_table_cel
 CANONICAL_ROOT_NAME = ".claude"
 PLATFORM_PARENT = Path("src")
 PLUGIN_MANIFEST = Path(".claude-plugin") / "plugin.json"
+# What makes a directory a skill. Both the skill inventory and the walk's
+# pruning exemption ask that question, and they have to answer it the same
+# way or a directory counts as a skill in one place and as tooling in the
+# other.
+SKILL_FILE = "SKILL.md"
 
 # Full working copies of this repository live under these directory names.
 # Descending into them multiplies the walk and reports drift in throwaway trees.
@@ -171,14 +190,36 @@ _ROUTE_RE = re.compile(r"(?<![\w./\\-])Skill:\s*(\S+)?")
 # A legal skill directory name.
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-# Sentence, list and quotation punctuation that can wrap a name in a prose
-# cell. None of these is legal inside a name, so stripping them cannot mask a
-# real drift; leaving them on turns a resolvable route into a false malformed
-# report that blocks the push. Both ends are stripped: ``Skill: (foo)`` loses
-# its closing paren to _TRAILING and would otherwise be reported malformed for
-# the opening one.
-_LEADING = "([{\"'“‘"
+# Wrapper pairs that can enclose a name in a prose cell. Unwrapping is
+# balanced: an opener is stripped only when its own closer is at the other
+# end. Stripping an unmatched opener turns a malformed name into a legal one,
+# so ``Skill: ((merge-resolver`` would resolve to an installed skill and mask
+# real drift.
+_PAIRS = {"(": ")", "[": "]", "{": "}", '"': '"', "'": "'", "“": "”", "‘": "’"}
+
+# Sentence and list punctuation that can trail a name. None of it is legal
+# inside a name, so stripping it cannot mask a real drift; leaving it on turns
+# a resolvable route into a false malformed report that blocks the push. The
+# closers appear here as well because a cell can carry only the closing half,
+# as in ``[Skill: merge-resolver]`` where the capture starts at the name.
 _TRAILING = ",;.:!?)]}\"'”’…"
+
+
+def _unwrap(raw: str) -> str:
+    """Strip balanced wrappers and trailing punctuation from a captured name.
+
+    Alternates the two so a wrapper closed by a sentence, ``(autoplan).``,
+    reduces fully, while an unmatched opener survives to be reported.
+    """
+    while raw:
+        if len(raw) > 1 and _PAIRS.get(raw[0]) == raw[-1]:
+            raw = raw[1:-1]
+        elif raw[-1] in _TRAILING:
+            raw = raw[:-1]
+        else:
+            break
+    return raw
+
 
 EXIT_OK = 0
 EXIT_DRIFT = 1
@@ -215,7 +256,7 @@ def skill_names(root: Path) -> set[str]:
     skills_dir = root / "skills"
     if not _present(skills_dir, directory=True):
         return set()
-    return {p.parent.name for p in skills_dir.glob("*/SKILL.md")}
+    return {p.parent.name for p in skills_dir.glob(f"*/{SKILL_FILE}")}
 
 
 def _stat_mode(path: Path) -> int | None:
@@ -286,15 +327,15 @@ def discover_roots(repo_root: Path) -> list[Path]:
 def iter_markdown(root: Path) -> Iterator[Path]:
     """Yield markdown files under ``root``, pruning nested working copies.
 
-    Pruning is by name at every depth, with one exception: a directory sitting
-    directly under ``<root>/skills`` is a skill and is never pruned. Both
-    halves are load-bearing. Root-only pruning walks a ``node_modules`` or
-    ``.venv`` that a skill's own tooling created, which scans thousands of
-    third-party files, reports their prose as drift, and trips the symlink
-    refusal below on the interpreter links inside a virtualenv. Unconditional
-    all-depth pruning hides a real skill named ``worktrees`` or ``venv``, and
-    the routes inside it are then never checked. The exception is what lets
-    both hold.
+    Pruning is by name at every depth, exempting a directory directly under
+    ``<root>/skills`` that has a ``SKILL.md``. That is the same definition of
+    a skill ``skill_names`` uses, so a real skill whose name collides with a
+    tooling name is scanned while a real virtualenv sitting in the skills
+    namespace is not. Exempting the whole namespace by location was too broad:
+    a ``.venv`` created there is a direct child too, and its interpreter
+    symlinks trip the refusal below. Pruning only at the walk root was too
+    narrow: a ``node_modules`` inside a skill was scanned, which reads
+    third-party prose as drift and trips the same refusal.
 
     A directory the walk cannot read raises rather than being skipped:
     ``os.walk`` swallows those by default, which would silently shrink the
@@ -316,8 +357,13 @@ def iter_markdown(root: Path) -> Iterator[Path]:
     skills_dir = root / "skills"
     for dirpath, dirnames, filenames in os.walk(root, onerror=fail):
         current = Path(dirpath)
-        if current != skills_dir:
-            dirnames[:] = [d for d in dirnames if d not in PRUNED_DIRS]
+
+        def keep(name: str, here: Path = current) -> bool:
+            if name not in PRUNED_DIRS:
+                return True
+            return here == skills_dir and _present(here / name / SKILL_FILE, directory=False)
+
+        dirnames[:] = [d for d in dirnames if keep(d)]
         for name in dirnames:
             if (current / name).is_symlink():
                 # os.walk does not descend into a symlinked directory, so its
@@ -339,28 +385,36 @@ def iter_markdown(root: Path) -> Iterator[Path]:
 def _cell_text(cell: TableCell) -> str:
     """Return a cell's text with syntax-illustrating code spans blanked.
 
-    A code span that itself carries a whole route, as in `` `Skill: x` ``, is
+    A code span that carries a whole route, as in `` `Skill: x` ``, is
     documentation showing the syntax and must not be read as a route. A code
     span that only styles the name, as in ``Skill: `x` ``, is a route and its
     content belongs in the text. Testing the span against the route pattern
     keeps one definition of what a route looks like. Blanking preserves the
     surrounding offsets so no two spans are accidentally joined.
 
-    A whole route means the keyword *and* a name. A span carrying the bare
-    keyword, as in `` `Skill:` ghost ``, styles the label of a real route
-    whose name sits outside the span; blanking it there would delete the
-    keyword and hide the route entirely.
+    A span carrying the bare keyword is decided by what follows it in the
+    cell, because the name group is optional and the pattern therefore matches
+    either shape. In `` `Skill:` x `` the span styles the label of a real
+    route whose name sits outside it, and blanking would delete the keyword
+    and hide the route. A `` `Skill:` `` with nothing after it is documenting
+    the keyword and is blanked like any other syntax example.
     """
+    contents = [segment.content for segment in cell.segments]
 
-    def blanked(segment: CellSegment) -> str:
+    def blanked(index: int, segment: CellSegment) -> str:
         if not segment.code:
             return segment.content
         match = _ROUTE_RE.search(segment.content)
-        if match is not None and match.group(1):
-            return " " * len(segment.content)
-        return segment.content
+        if match is None:
+            return segment.content
+        if not match.group(1):
+            trailing = "".join(contents[index + 1 :])
+            carried = _ROUTE_RE.search(segment.content + trailing)
+            if carried is not None and carried.group(1):
+                return segment.content
+        return " " * len(segment.content)
 
-    return "".join(blanked(segment) for segment in cell.segments)
+    return "".join(blanked(index, s) for index, s in enumerate(cell.segments))
 
 
 def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
@@ -372,7 +426,7 @@ def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
     """
     for cell in iter_table_cell_text(text):
         for match in _ROUTE_RE.finditer(_cell_text(cell)):
-            raw = (match.group(1) or "").rstrip(_TRAILING).lstrip(_LEADING)
+            raw = _unwrap(match.group(1) or "")
             yield cell.line, raw, bool(raw) and bool(_NAME_RE.match(raw))
 
 
