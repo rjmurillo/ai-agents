@@ -128,5 +128,5 @@
     "The non-strict merge policy is the general cause and is a repository-settings decision for the owner, not a code change. Recorded on issue #3749 with the ruleset id and the exact parameter so the owner can weigh it.",
     "Any future memory that documents reference grammar will hit the same trap. The directive is the standing answer; no scanner change is warranted."
   ],
-  "endingCommit": ""
+  "endingCommit": "1b557d0bfc02701ad32bb743585bbb9ce49ab475"
 }
