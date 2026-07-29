@@ -168,10 +168,11 @@ class TestAgentResults:
         with pytest.raises(AdapterError, match="must be a list of scores"):
             agent_results(report, "agent")
 
-    def test_an_empty_run_list_is_a_fixture_that_did_not_run(self):
-        """Empty is not malformed: the variant never ran it, so fail closed."""
+    def test_an_empty_run_list_is_refused(self):
+        """Empty means no completed measurement was taken."""
         report = _report({"C001": {"agent": []}})
-        assert agent_results(report, "agent") == {"C001": False}
+        with pytest.raises(AdapterError, match="no completed runs"):
+            agent_results(report, "agent")
 
     @pytest.mark.parametrize("runs", [{}, "", 0, 0.0, False])
     def test_a_falsy_run_list_that_is_not_a_list_is_still_refused(self, runs):
@@ -183,8 +184,7 @@ class TestAgentResults:
         Scoring them `False` reads as a measured loss, so a corrupt incumbent
         becomes candidate improvement the gate then certifies.
 
-        `None` and `[]` keep the deliberate fail-closed path and are covered
-        by the two tests either side of this one.
+        `None` and `[]` are covered by the two tests either side of this one.
         """
         report = _report({"C001": {"agent": runs}})
         with pytest.raises(AdapterError, match="must be a list of scores"):
@@ -214,14 +214,16 @@ class TestAgentResults:
             "C001": True
         }
 
-    def test_missing_variant_for_a_fixture_scores_as_failure(self):
+    def test_missing_variant_for_a_fixture_is_refused(self):
         """A fixture the variant never ran on must not vanish from the split."""
         report = _report({"C001": {"baseline": [1.0]}})
-        assert agent_results(report, "agent") == {"C001": False}
+        with pytest.raises(AdapterError, match="no completed runs"):
+            agent_results(report, "agent")
 
-    def test_empty_run_list_scores_as_failure(self):
+    def test_empty_run_list_is_not_a_measurement(self):
         report = _report({"C001": {"agent": []}})
-        assert agent_results(report, "agent") == {"C001": False}
+        with pytest.raises(AdapterError, match="no completed runs"):
+            agent_results(report, "agent")
 
     def test_empty_report_yields_empty_mapping(self):
         assert agent_results(_report({}), "agent") == {}
@@ -413,28 +415,31 @@ class TestPytestResults:
         )
         assert pytest_results(xml) == {"tests.test_a::test_x": False}
 
-    def test_errored_case_maps_to_false(self):
+    def test_errored_case_is_refused(self):
         xml = _junit(
             '<testcase classname="tests.test_a" name="test_x">'
             '<error message="fixture blew up"/></testcase>'
         )
-        assert pytest_results(xml) == {"tests.test_a::test_x": False}
+        with pytest.raises(AdapterError, match="errored"):
+            pytest_results(xml)
 
-    def test_skipped_case_fails_by_default(self):
+    def test_skipped_case_is_refused(self):
         """A skipped test demonstrated nothing, so it cannot count as a pass."""
         xml = _junit(
             '<testcase classname="tests.test_a" name="test_x">'
             '<skipped message="needs network"/></testcase>'
         )
-        assert pytest_results(xml) == {"tests.test_a::test_x": False}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(xml)
 
-    def test_skipped_case_can_be_excluded(self):
+    def test_skipped_case_is_refused_under_exclude(self):
         xml = _junit(
             '<testcase classname="tests.test_a" name="test_x">'
             '<skipped message="needs network"/></testcase>'
             '<testcase classname="tests.test_a" name="test_y"/>'
         )
-        assert pytest_results(xml, on_skip="exclude") == {"tests.test_a::test_y": True}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(xml, on_skip="exclude")
 
     def test_parameterized_ids_stay_distinct(self):
         xml = _junit(
@@ -563,42 +568,45 @@ class TestASkipThatCarriesAFailureIsStillAFailure:
     def _one(self, children):
         return _junit(f'<testcase classname="t" name="x">{children}</testcase>')
 
-    def test_a_skip_carrying_an_error_is_not_dropped(self):
+    def test_a_skip_carrying_an_error_is_refused(self):
         xml = self._one("<skipped/><error message='teardown'/>")
-        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(xml, on_skip="exclude")
 
-    def test_a_skip_carrying_a_failure_is_not_dropped(self):
+    def test_a_skip_carrying_a_failure_is_refused(self):
         xml = self._one("<skipped/><failure message='assert'/>")
-        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(xml, on_skip="exclude")
 
-    def test_a_plain_skip_is_still_dropped(self):
-        assert pytest_results(self._one("<skipped/>"), on_skip="exclude") == {}
+    def test_a_plain_skip_is_refused_under_exclude(self):
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(self._one("<skipped/>"), on_skip="exclude")
 
-    def test_a_plain_skip_still_fails_under_the_default_policy(self):
-        assert pytest_results(self._one("<skipped/>"), on_skip="fail") == {"t::x": False}
+    def test_a_plain_skip_is_refused_under_the_default_policy(self):
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(self._one("<skipped/>"), on_skip="fail")
 
-    def test_a_skip_carrying_an_error_still_fails_under_the_default_policy(self):
+    def test_a_skip_carrying_an_error_is_refused_under_the_default_policy(self):
         xml = self._one("<skipped/><error message='teardown'/>")
-        assert pytest_results(xml, on_skip="fail") == {"t::x": False}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(xml, on_skip="fail")
 
     def test_a_passing_test_is_still_kept_under_exclude(self):
         assert pytest_results(self._one(""), on_skip="exclude") == {"t::x": True}
 
-    def test_an_error_without_a_skip_is_still_kept_under_exclude(self):
+    def test_an_error_without_a_skip_is_refused_under_exclude(self):
         xml = self._one("<error message='teardown'/>")
-        assert pytest_results(xml, on_skip="exclude") == {"t::x": False}
+        with pytest.raises(AdapterError, match="errored"):
+            pytest_results(xml, on_skip="exclude")
 
-    def test_the_report_stock_pytest_actually_emits_keeps_the_teardown_error(self):
+    def test_the_report_stock_pytest_actually_emits_is_refused(self):
         """The exact shape observed from a real `--junitxml` run."""
-        got = pytest_results(self.REAL, on_skip="exclude")
-        assert got == {"test_probe::test_skips_then_teardown_errors": False}
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(self.REAL, on_skip="exclude")
 
-    def test_that_same_report_scores_both_under_the_default_policy(self):
-        got = pytest_results(self.REAL, on_skip="fail")
-        assert got == {
-            "test_probe::test_skips_then_teardown_errors": False,
-            "test_probe::test_plain_skip": False,
-        }
+    def test_that_same_report_is_refused_under_the_default_policy(self):
+        with pytest.raises(AdapterError, match="skipped"):
+            pytest_results(self.REAL, on_skip="fail")
 
 
 class TestAScoreOutsideItsDomainCannotCoverForAMissingOne:

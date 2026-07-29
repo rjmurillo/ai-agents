@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3653,
+    "date": "2026-07-29",
+    "branch": "fix/eval-degraded-symlink-followup",
+    "startingCommit": "862915123",
+    "objective": "PR #3675 review threads: decide entry kind from the stat that decided existence, name the report header count for the roster it counts, and fix a stray period in the 3579 follow-up episode."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git worktree add /tmp/th-3675 fix/eval-degraded-symlink-followup"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/eval-degraded-symlink-followup"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, via .claude/skills/session-init/scripts/new_session_log.py"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "PR #3675 unresolved review threads fetched in one GraphQL call with path, line, and body"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "AGENTS.md and .claude/rules loaded through the harness instruction bundle"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Skill-first routing followed: gh for PR state, repo scripts for validation"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "scripts/validate_session_json.py and session-init scripts located before use"
+      },
+      "memoriesLoaded": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole session"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole session"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable for the whole session"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Both fixes landed with failing-test-first, mutation testing, and negative controls"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "9fba93f80 and 862915123 on fix/eval-degraded-symlink-followup"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "990 passed across tests/eval/test_optimize_artifact_cli.py and tests/evals/; ruff and mypy clean"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown files changed in this session"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Probed the TOCTOU claim before accepting it. A spy on os.lstat proved Path.lstat() plus Path.is_symlink() issues two syscalls, and stat.S_ISLNK on the held st_mode returns the same verdict. The bot's claim held."
+    },
+    {
+      "step": 2,
+      "action": "Wrote the discriminating test first. Patching Path.is_symlink to return False simulates the entry changing between the two observations; the unfixed _absent admitted the symlink. Two negative controls (regular file present, missing entry absent) passed in both states. Red at 2 failed, 2 passed."
+    },
+    {
+      "step": 3,
+      "action": "Replaced Path.is_symlink() with stat.S_ISLNK(entry.st_mode) so existence and entry kind come from one observation, and added the stat import."
+    },
+    {
+      "step": 4,
+      "action": "Traced fixture_ids to its source before judging the header label. eval-agent-vs-baseline.py:927 fills it from plan.fixtures before any dispatch, and the degraded write at :1008 runs inside the except (EmptyRunError, ValueError) arm. A header reading 'Fixtures measured' on that report states a measurement never taken."
+    },
+    {
+      "step": 5,
+      "action": "Renamed the row to 'Fixture inventory', matching the vocabulary optimize-artifact.py already uses, and added four tests. Mutation back to the old label killed three and left the negative control passing in both states."
+    },
+    {
+      "step": 6,
+      "action": "Ran both full suites: 990 passed. ruff and mypy clean on the two changed source files. Byte-checked the commit messages for em and en dashes."
+    }
+  ],
+  "endingCommit": "86291512313389c97c6f4cc3078753ba0bd8fd61",
+  "nextSteps": [
+    "Fix the stray double period in .agents/memory/episodes/episode-2026-07-28-session-03-pr-3579-followup.json, which needs this log to clear the staged-.agents gate.",
+    "Resolve the three PR #3675 review threads with the measurement evidence and re-poll mergeability.",
+    "pr-validation-report.md is written to the repo root and is still not in .gitignore; a real local run drops it where git add -A would catch it."
+  ]
+}

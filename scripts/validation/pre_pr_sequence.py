@@ -34,6 +34,7 @@ from checks_plugin import (  # noqa: E402
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402
@@ -271,6 +272,14 @@ def run_all_validations(
         "Agent Catalog Drift",
         state,
         lambda: validate_agent_catalog(repo_root),
+    )
+
+    # 3.79 Shipped Skill Routes (Issue #2026 coordination drift). Fails when a
+    # routing table in a shipped tree points at a skill that tree does not ship.
+    run_validation(
+        "Shipped Skill Routes",
+        state,
+        lambda: validate_shipped_skill_routes(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
