@@ -313,6 +313,55 @@ def test_report_missing_output_is_config_error(monkeypatch: pytest.MonkeyPatch):
     assert report_mod.main() == 2
 
 
+def test_a_config_error_writes_no_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Required config is validated before the report file is created.
+
+    ``main`` used to write ``REPORT_PATH`` and only then check
+    ``GITHUB_OUTPUT``, so the config-error path still left a report on disk.
+    In this repo that landed as an untracked ``pr-validation-report.md`` at
+    the root every time the suite ran, which a careless ``git add -A`` would
+    have committed. On a runner it leaves an artifact for a step that is
+    about to fail.
+    """
+    report = tmp_path / "report.md"
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    assert report_mod.main() == 2
+    assert not report.exists()
+
+
+def test_a_valid_config_still_writes_the_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Negative control: moving the check must not stop the success path."""
+    report = tmp_path / "report.md"
+    output = tmp_path / "out.txt"
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+
+    assert report_mod.main() == 0
+    assert "PR Validation Report" in report.read_text(encoding="utf-8")
+
+
+def test_argv_rejection_still_precedes_every_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Negative control: the argv guard already ran first and still does."""
+    report = tmp_path / "report.md"
+    output = tmp_path / "out.txt"
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+
+    assert report_mod.main(["unexpected"]) == 2
+    assert not report.exists()
+    assert output.read_text(encoding="utf-8") == ""
+
+
 def test_workflow_delegates_first_pr_validation_blocks():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
