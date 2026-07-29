@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-27-session-3360-validation-modules-resolution",
+  "session": "2026-07-27-session-3360-validation-modules-resolution",
+  "timestamp": "2026-07-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve issue #3360 by deleting the retired consistency validator, wiring traceability, and documenting that hook contracts are already wired.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Phase 1 measured the three validators independently.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "error",
+      "content": "Phase 1 measured the three validators independently.    consistency exited 0 over 0 features, traceability exited 1 with 3 errors, and hook_contracts exited 0 over 12 entries.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the retired consistency validator and its tests.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified traceability failures before fixing.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Documented that hook_contracts.py was already wired and that the retired consistency protocol now delegates to the live planning validator.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c4e160ab39",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 3,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

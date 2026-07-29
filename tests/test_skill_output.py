@@ -245,9 +245,9 @@ class TestValidateSkillOutputScript:
         assert "Path traversal attempt detected" in result.stdout
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
-    def test_rejects_symlink_traversal(self, tmp_path: Path) -> None:
+    def test_rejects_symlink_traversal(self, external_tmp_path: Path) -> None:
         # Create external file outside repo
-        external_file = tmp_path / "external.json"
+        external_file = external_tmp_path / "external.json"
         external_file.write_text('{"Success": true}')
 
         # Create symlink inside repo pointing outside

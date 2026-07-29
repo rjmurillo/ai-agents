@@ -583,15 +583,29 @@ first for that reason.
    cooperation. Two narrower changes were identified and deferred to their own
    issues rather than built here, since each changes behavior and this change
    is already large: making `extract` group-aware alongside a whole-universe
-   coverage check in the gate (#3452), and minimizing the gate payload so
-   diagnostics travel on a controller-only channel (#3453). The second carries a real tension:
+   coverage check in the gate (#3452, since closed: `extract --split --group`
+   emits one group, and the gate refuses any results file that does not cover
+   the full `opt + sel + test` universe before charging a consultation,
+   naming no group membership in the refusal), and minimizing the gate
+   payload so diagnostics travel on a controller-only channel (#3453). The
+   #3452 closure narrows the surface but does not discharge this requirement:
+   the optimizer still runs `extract` itself under the documented workflow,
+   task definitions still resolve to readable grading criteria, and `split`
+   still publishes `opt`. A trusted controller owning those surfaces remains
+   the prerequisite for the Decision statement's stronger form. The second carries a real tension:
    reporting `p` always and never enforcing it is load-bearing elsewhere in
    this ADR, and a `--diagnostics` flag the loop passes itself would be the
    same caller-supplied-restriction defect this document catalogs five times
    over. Under the current architecture that can only be a default.
 2. **Provenance binding between the compared artifacts and the results files**
-   (#3436). Nothing currently proves `candidate.json` was produced by the edit
-   under test rather than by a previous run.
+   (#3436, since closed). `extract` now stamps each results file with an
+   extraction-provenance envelope (schema, extractor version, input digest,
+   results digest, upstream scorer identity, group, split fingerprint), and
+   the gate refuses a comparison whose two files disagree on any provenance
+   field or whose results do not match their own digest. This proves the two
+   files came from the same extraction contract; it does not prove the
+   upstream scorer ran the edit under test, which stays with the trusted
+   controller in requirement 1.
 3. **A decision on the boolean seam** (#3437). Both code reviewers and both ADR
    reviewers argued for `{task_id: float}`. The boolean is what makes three
    unlike scorers commensurable, so this is a redesign, and it is the user's
@@ -616,6 +630,39 @@ first for that reason.
    supply the missing samples. These are magnitudes from one paired re-run, not
    an estimated rate; a rate needs repeated replication, which is the work this
    requirement names.
+
+   **Still open. A mechanism now exists** (`bc50a87e2`, `dd1e62b2b`).
+   `rule_results_multi` reduces each scenario across runs and applies the bar
+   once, matching what `agent_results` already does, and `extract --kind rule`
+   accepts several `--input` reports. Reducing before thresholding is the part
+   that matters: voting on per-run verdicts would discard the distance from the
+   bar, which is the only thing that says whether a disagreement was close.
+   Runs must agree on which scenarios they scored, and a scenario evidenced in
+   some runs but not others is refused rather than reduced over what is left,
+   because scoring it false would let a judge error on the incumbent's run read
+   as a fail-to-pass improvement. `scripts/eval/README.md` holds the reducers
+   and the flag surface.
+
+   That mechanism does not discharge this requirement, for two reasons.
+
+   **Nothing enforces a run count.** One run remains legal, deliberately, so
+   the flag can be adopted without rescoring every incumbent first. A caller
+   who passes one report gets a single judge's opinion, and the sentence above
+   about a single-run rule accept still stands for them.
+
+   **The rate is still unmeasured.** Closing the gap needs either a floor on
+   runs for `--kind rule` or a replication estimate saying how many runs buy
+   how much. The second is the measurement this requirement asked for: the
+   magnitudes above come from one paired re-run, and one re-run cannot estimate
+   a rate no matter how it is reduced.
+
+   One correction to the record. Single-run rule extraction is not unchanged by
+   this work: `_rule_degraded_scenario_ids` now refuses a scenario whose score
+   mapping is present but short of a dimension the reduction reads, where
+   before it refused only a missing or empty one. A partial mapping used to be
+   filled with a zero that the present scores then averaged away. That refusal
+   applies at one run as much as at ten, so single-run callers are held to a
+   stricter standard than before, not the same one.
 7. **A one-time reveal path for the test group.** Decision Requirement 1 says
    the group is read once at the end, but no command reads it: `score` accepts
    `--group opt` only, and `gate` always reads `sel`. Either implement the

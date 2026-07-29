@@ -110,14 +110,11 @@ runs:
     - name: Install Python dependencies
       if: inputs.enable-python == 'true'
       shell: bash
-      run: |
-        echo "Installing Python dependencies..."
-        if [ -f "pyproject.toml" ]; then
-          uv pip install --system -e ".[dev]"
-          echo "✓ Python dependencies installed from pyproject.toml"
-        else
-          echo "⚠ No pyproject.toml found, skipping dependency installation"
-        fi
+      # Installs the resolution `uv.lock` pins, not a fresh one (issue #3603).
+      # The measurement behind this, and why `uv sync` and `--require-hashes`
+      # are both unusable here, are recorded in the script's module docstring.
+      # ADR-006: the branching lives in Python, not in this YAML.
+      run: python3 scripts/ci/install_locked_deps.py
 
     - name: Enable git hooks
       if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'

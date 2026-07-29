@@ -19,20 +19,39 @@ Exit codes:
     0 - PASS or WARN (no critical findings)
     1 - CRITICAL_FAIL (one or more critical findings)
     2 - Configuration error (bad CLI args, missing repo root)
+    3 - External error
+    4 - Authentication/authorization error, including permission denied
 """
 
 from __future__ import annotations
 
 import argparse
+import codecs
 import json
 import logging
+import subprocess
 import sys
-from dataclasses import replace
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, replace
 from pathlib import Path
 
+DOT_AGENTS = "." + "agents"
+
 DEFAULT_TARGETS = (
-    ".agents/specs",
-    "tests/evals",
+    f"{DOT_AGENTS}/specs",
+    "tests",
+    ".claude/.claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    ".github/plugin/marketplace.json",
+)
+DEFAULT_TRACKED_PREFIXES = (
+    f"{DOT_AGENTS}/specs/",
+    ".claude/rules/",
+    ".github/instructions/",
+    "src/copilot-cli/instructions/",
+    "tests/",
+)
+DEFAULT_EXACT_TARGETS = (
     ".claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
@@ -55,21 +74,34 @@ if __package__ in (None, ""):
     )
     from envelope import (
         Finding,
+        IncompleteScan,
+        Kind,
         ScanResult,
         Severity,
+        SuppressedReference,
         render_envelope,
         render_error_envelope,
+        render_scan_error_envelope,
+        scan_error_exit_code,
     )
-    from filters import is_known_kebab_word, is_known_single_word_skill
+    from filters import (
+        is_known_kebab_word,
+        is_known_retired_kebab_skill,
+        is_known_single_word_skill,
+    )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_all_reference_candidates,
+        extract_directive_suppressed_refs,
+        extract_instruction_refs,
+        extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
     )
-    from walking import walk_targets
+    from walking import collect_walk_targets
 else:
     from .counts import (
         enumerate_sibling_artifacts,
@@ -77,21 +109,34 @@ else:
     )
     from .envelope import (
         Finding,
+        IncompleteScan,
+        Kind,
         ScanResult,
         Severity,
+        SuppressedReference,
         render_envelope,
         render_error_envelope,
+        render_scan_error_envelope,
+        scan_error_exit_code,
     )
-    from .filters import is_known_kebab_word, is_known_single_word_skill
+    from .filters import (
+        is_known_kebab_word,
+        is_known_retired_kebab_skill,
+        is_known_single_word_skill,
+    )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
+        extract_all_reference_candidates,
+        extract_directive_suppressed_refs,
+        extract_instruction_refs,
+        extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
     )
-    from .walking import walk_targets
+    from .walking import collect_walk_targets
 
 LOGGER = logging.getLogger("orphan_ref_validator")
 
@@ -99,7 +144,7 @@ LOGGER = logging.getLogger("orphan_ref_validator")
 def _path_under(repo_root: Path, path: Path) -> str:
     try:
         return str(path.resolve().relative_to(repo_root.resolve()))
-    except ValueError:
+    except (ValueError, OSError, RuntimeError):
         return str(path)
 
 
@@ -108,13 +153,35 @@ def _exists_under_repo(repo_root: Path, path: Path) -> bool:
     resolved_path = path.expanduser().resolve()
     try:
         resolved_path.relative_to(resolved_root)
-    except ValueError:
+    except (ValueError, OSError, RuntimeError):
         return False
     return resolved_path.exists()
 
 
 _is_known_kebab_word = is_known_kebab_word
+_is_known_retired_kebab_skill = is_known_retired_kebab_skill
 _is_known_single_word_skill = is_known_single_word_skill
+
+
+def _requires_typed_skill_refs(rel: str) -> bool:
+    """Return True for prose-heavy targets where bare kebab tokens are data.
+
+    Serena memories are long-form prose and operational notes. Backticked
+    kebab-case there usually names workflow values, labels, models, headers,
+    hooks, or config keys, not skills. Only explicit type claims should be
+    checked as skill references on that surface.
+    """
+    return Path(rel).parts[:2] == (".serena", "memories")
+
+
+@dataclass(frozen=True)
+class FileScanOutcome:
+    findings: list[Finding]
+    refs_checked: int
+    scan_error: str | None = None
+    scan_error_type: str = "config"
+    directive_suppressed: list[SuppressedReference] | None = None
+    skipped: bool = False
 
 
 def scan_file(
@@ -123,7 +190,7 @@ def scan_file(
     known_skills: set[str],
     skill_catalog_present: bool = True,
     sibling_names: frozenset[str] | None = None,
-) -> tuple[list[Finding], int]:
+) -> FileScanOutcome:
     """Scan one file. Returns findings and count of refs checked.
 
     Thin orchestrator: read text, check for the file-scope ignore directive,
@@ -143,15 +210,29 @@ def scan_file(
     rel = _path_under(repo_root, target_path)
 
     try:
-        text = target_path.read_text(encoding="utf-8", errors="replace")
+        text = _read_supported_text(target_path)
+    except UnicodeError as exc:
+        LOGGER.warning("could not decode %s: %s", target_path, exc)
+        return FileScanOutcome(
+            findings, refs_checked, f"could not decode file: {exc}", "config"
+        )
     except OSError as exc:
         LOGGER.warning("could not read %s: %s", target_path, exc)
-        return findings, refs_checked
+        return FileScanOutcome(
+            findings, refs_checked, f"could not read file: {exc}", _io_error_type(exc)
+        )
 
     head = "\n".join(text.splitlines()[:50])
     if FILE_IGNORE_DIRECTIVE_RE.search(head):
         LOGGER.info("file-scope ignore directive in %s; skipping", rel)
-        return findings, refs_checked
+        return FileScanOutcome(
+            findings=[],
+            refs_checked=0,
+            directive_suppressed=_suppressed_refs_for_text(
+                text, rel, "file ignore directive"
+            ),
+            skipped=True,
+        )
 
     skill_findings, skill_refs = _check_skill_refs(
         text, rel, known_skills, skill_catalog_present, sibling_names
@@ -169,7 +250,79 @@ def scan_file(
     findings.extend(skill_script_findings)
     refs_checked += skill_script_refs
 
-    return findings, refs_checked
+    rule_findings, rule_refs = _check_repo_path_refs(
+        text,
+        rel,
+        repo_root,
+        extract_rule_refs,
+        "rule_path",
+        "Rule",
+    )
+    findings.extend(rule_findings)
+    refs_checked += rule_refs
+
+    instruction_findings, instruction_refs = _check_repo_path_refs(
+        text,
+        rel,
+        repo_root,
+        extract_instruction_refs,
+        "instruction_path",
+        "Instruction mirror",
+    )
+    findings.extend(instruction_findings)
+    refs_checked += instruction_refs
+
+    return FileScanOutcome(findings, refs_checked)
+
+
+def _read_supported_text(target_path: Path) -> str:
+    data = target_path.read_bytes()
+    bom_encodings = (
+        (codecs.BOM_UTF32_LE, "utf-32"),
+        (codecs.BOM_UTF32_BE, "utf-32"),
+        (codecs.BOM_UTF16_LE, "utf-16"),
+        (codecs.BOM_UTF16_BE, "utf-16"),
+        (codecs.BOM_UTF8, "utf-8-sig"),
+    )
+    for bom, encoding in bom_encodings:
+        if data.startswith(bom):
+            return data.decode(encoding)
+    return data.decode("utf-8")
+
+
+def directive_suppressed_refs(target_path: Path, repo_root: Path) -> list[SuppressedReference]:
+    """Return references suppressed by line-scope ignore directives."""
+    rel = _path_under(repo_root, target_path)
+    try:
+        text = _read_supported_text(target_path)
+    except (OSError, UnicodeError):
+        return []
+    return _suppressed_refs_for_text(text, rel, "line ignore directive")
+
+
+def _suppressed_refs_for_text(
+    text: str, rel: str, reason: str
+) -> list[SuppressedReference]:
+    extractor = (
+        extract_all_reference_candidates
+        if reason == "file ignore directive"
+        else extract_directive_suppressed_refs
+    )
+    return [
+        SuppressedReference(
+            target_file=rel,
+            line=lineno,
+            referenced_entity=ref,
+            reason=reason,
+        )
+        for lineno, ref in extractor(text)
+    ]
+
+
+def _io_error_type(exc: OSError) -> str:
+    if isinstance(exc, PermissionError):
+        return "auth"
+    return "config"
 
 
 def _check_skill_refs(
@@ -181,10 +334,19 @@ def _check_skill_refs(
 ) -> tuple[list[Finding], int]:
     """Emit skill_name findings for orphaned skill references.
 
-    Two reference shapes are checked:
+    Two reference shapes are checked, both under the same candidate rule: a
+    backticked token is a skill reference candidate only when the document
+    gives evidence it means a skill. Evidence is either a type claim in the
+    prose ("the ``ship`` skill", ``skill="ship"``) or membership in the
+    curated set of names this repository has actually used for a skill.
 
-    - Hyphenated tokens (``alpha-skill``): every backticked kebab token is a
-      candidate, flagged when absent from ``.claude/skills/``.
+    - Hyphenated tokens (``alpha-skill``): candidate when the line carries an
+      explicit type claim or when the token is listed in
+      ``KNOWN_RETIRED_KEBAB_SKILLS``, flagged when absent from
+      ``.claude/skills/``. Prose-heavy memory files under ``.serena/memories``
+      are stricter still and require both, because those notes use backticked
+      kebab-case for workflow values, labels, models, headers, hooks, and
+      config keys (issue #3637, PR #3698).
     - Single-word tokens (``incoherence``): a backticked single word is a
       candidate only when it resolves to a live catalog entry (valid, no
       finding) or is a curated known single-word skill name (flagged when
@@ -218,19 +380,32 @@ def _check_skill_refs(
     refs_checked = 0
     siblings = sibling_names if sibling_names is not None else frozenset()
     typed = extract_typed_skill_refs(text)
+    typed_only = _requires_typed_skill_refs(rel)
     for lineno, ref in extract_skill_refs(text):
         if _is_known_kebab_word(ref):
             continue
+        is_typed = (lineno, ref) in typed
+        in_retired = _is_known_retired_kebab_skill(ref)
+        if ref in known_skills or (ref in siblings and not is_typed):
+            refs_checked += 1
+            continue
+        # Two strictness levels, both bounded by the same allowlist. Serena
+        # memories are prose that legitimately discusses other repositories'
+        # skills, so a type claim alone is not evidence there and both signals
+        # are required (PR #3698). Everywhere else either signal suffices: a
+        # type claim is evidence on its own, and the allowlist rescues bare
+        # tokens naming skills this repository has retired (issue #3637).
+        candidate = (is_typed and in_retired) if typed_only else (is_typed or in_retired)
+        if not candidate:
+            continue
         refs_checked += 1
-        if ref in known_skills:
-            continue
-        if ref in siblings and (lineno, ref) not in typed:
-            continue
         findings.append(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     for lineno, ref in extract_single_word_skill_refs(text):
         is_typed = (lineno, ref) in typed
+        if typed_only and not is_typed:
+            continue
         if ref in known_skills or (ref in siblings and not is_typed):
             refs_checked += 1
             continue
@@ -351,6 +526,37 @@ def _check_skill_script_refs(
     return findings, refs_checked
 
 
+def _check_repo_path_refs(
+    text: str,
+    rel: str,
+    repo_root: Path,
+    extractor: Callable[[str], Iterable[tuple[int, str]]],
+    kind: Kind,
+    label: str,
+) -> tuple[list[Finding], int]:
+    """Emit findings for scanned repo-relative path references."""
+    findings: list[Finding] = []
+    refs_checked = 0
+    for lineno, path_ref in extractor(text):
+        refs_checked += 1
+        if _exists_under_repo(repo_root, repo_root / path_ref):
+            continue
+        findings.append(
+            Finding(
+                kind=kind,
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=path_ref,
+                recommendation=(
+                    f"{label} `{path_ref}` not present on disk. "
+                    "Update reference or restore the file."
+                ),
+            )
+        )
+    return findings, refs_checked
+
+
 def _expand_target(target: Path, repo_root: Path) -> list[Path]:
     """Expand a target into concrete paths.
 
@@ -365,6 +571,42 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
         return sorted(repo_root.glob(rel))
     abs_target = target if target.is_absolute() else (repo_root / target)
     return [abs_target] if abs_target.exists() else []
+
+
+def _default_tracked_text_targets(repo_root: Path) -> list[str]:
+    """Return tracked markdown, JSON, and YAML files under policy roots."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        LOGGER.warning("git ls-files unavailable for default targets: %s", exc)
+        return list(DEFAULT_TARGETS)
+    targets: list[str] = []
+    for line in completed.stdout.splitlines():
+        path = Path(line)
+        if path.suffix not in {".md", ".json", ".yaml", ".yml"}:
+            continue
+        if line not in DEFAULT_EXACT_TARGETS and not any(
+            line.startswith(prefix) for prefix in DEFAULT_TRACKED_PREFIXES
+        ):
+            continue
+        if any(part in {"references", "templates"} for part in path.parts):
+            continue
+        targets.append(line)
+    return sorted(targets) if targets else list(DEFAULT_TARGETS)
+
+
+def _missing_target_issue(target: Path, repo_root: Path) -> IncompleteScan:
+    display = str(target)
+    if not target.is_absolute():
+        display = str(target)
+    else:
+        display = _path_under(repo_root, target)
+    return IncompleteScan(display, "target does not exist or glob matched no files")
 
 
 MAX_FINDINGS = 500
@@ -465,6 +707,7 @@ def scan(
     repo_root: Path,
     max_findings: int = MAX_FINDINGS,
     baseline: set[str] | None = None,
+    allow_missing_targets: bool = False,
 ) -> ScanResult:
     """Scan all targets relative to repo_root.
 
@@ -489,61 +732,116 @@ def scan(
     for target in targets:
         expanded = _expand_target(target, repo_root)
         if not expanded:
-            LOGGER.info("skipping %s: not present", target)
+            if allow_missing_targets:
+                LOGGER.info("skipping optional %s: not present", target)
+                continue
+            LOGGER.warning("incomplete scan for %s: not present", target)
+            result.incomplete_scans.append(_missing_target_issue(target, repo_root))
             continue
         for resolved in expanded:
             try:
                 resolved.resolve().relative_to(repo_root)
-            except ValueError:
-                LOGGER.warning("skipping %s: outside repo root", resolved)
+            except (OSError, ValueError) as exc:
+                LOGGER.warning("incomplete scan for %s: outside repo root", resolved)
+                result.incomplete_scans.append(
+                    IncompleteScan(_path_under(repo_root, resolved), f"outside repo root: {exc}")
+                )
                 continue
-            for path in walk_targets(resolved, repo_root):
+            paths, walk_problems = collect_walk_targets(resolved, repo_root)
+            result.incomplete_scans.extend(
+                IncompleteScan(
+                    _path_under(repo_root, problem.target),
+                    problem.reason,
+                    problem.error_type,
+                )
+                for problem in walk_problems
+            )
+            for path in paths:
                 # Re-check containment after symlink resolution. A symlink
                 # inside an allowed directory can point outside the repo.
                 try:
                     path.resolve().relative_to(repo_root)
-                except ValueError:
+                except (OSError, ValueError) as exc:
                     LOGGER.warning(
-                        "skipping %s: resolves outside repo root", path
+                        "incomplete scan for %s: resolves outside repo root", path
+                    )
+                    result.incomplete_scans.append(
+                        IncompleteScan(
+                            _path_under(repo_root, path),
+                            f"resolves outside repo root: {exc}",
+                        )
                     )
                     continue
-                findings, refs_checked = scan_file(
+                outcome = scan_file(
                     path,
                     repo_root,
                     known_skills,
                     skill_catalog_present=skill_catalog_present,
                     sibling_names=sibling_names,
                 )
-                if baseline:
-                    findings = _suppress_baselined(findings, baseline)
-                    findings.sort(key=lambda f: f.suppressed)
-                # Reserve one slot for the synthetic truncation finding so
-                # the returned list never exceeds ``max_findings``.
-                budget = max_findings - 1
-                if len(findings) > 0 and len(result.findings) + len(findings) > budget:
-                    keep = max(0, budget - len(result.findings))
-                    result.findings.extend(findings[:keep])
-                    result.refs_checked += refs_checked
-                    result.files_scanned += 1
-                    result.findings.append(
-                        Finding(
-                            kind="scan_truncated",
-                            severity="warn",
-                            target_file="<scanner>",
-                            line=0,
-                            referenced_entity=f"{max_findings} findings",
-                            recommendation=(
-                                f"Scan halted at {max_findings} findings to bound "
-                                "memory; re-scan with narrower --targets to see "
-                                "the remaining findings."
-                            ),
+                if outcome.directive_suppressed is not None:
+                    result.directive_suppressed.extend(outcome.directive_suppressed)
+                else:
+                    result.directive_suppressed.extend(
+                        directive_suppressed_refs(path, repo_root)
+                    )
+                if outcome.scan_error is not None:
+                    result.incomplete_scans.append(
+                        IncompleteScan(
+                            _path_under(repo_root, path),
+                            outcome.scan_error,
+                            outcome.scan_error_type,
                         )
                     )
-                    return result
+                    continue
+                if outcome.skipped:
+                    result.files_skipped += 1
+                    continue
+                findings = outcome.findings
+                refs_checked = outcome.refs_checked
+                if baseline:
+                    findings = _suppress_baselined(findings, baseline)
                 result.findings.extend(findings)
                 result.refs_checked += refs_checked
                 result.files_scanned += 1
+    _prioritize_findings(result.findings)
+    if len(result.findings) > max_findings:
+        keep = max(0, max_findings - 1)
+        result.findings[:] = result.findings[:keep]
+        result.findings.append(
+            Finding(
+                kind="scan_truncated",
+                severity="warn",
+                target_file="<scanner>",
+                line=0,
+                referenced_entity=f"{max_findings} findings",
+                recommendation=(
+                    f"Scan reached {max_findings} findings before all findings could "
+                    "be returned. Treat this scan as incomplete and re-scan with "
+                    "narrower --targets to inspect the hidden findings."
+                ),
+            )
+        )
+        result.incomplete_scans.append(
+            IncompleteScan(
+                "<scanner>",
+                f"scan truncated at {max_findings} findings",
+                "logic",
+            )
+        )
     return result
+
+
+def _prioritize_findings(findings: list[Finding]) -> None:
+    findings.sort(
+        key=lambda f: (
+            f.suppressed,
+            f.target_file,
+            f.line,
+            f.kind,
+            f.referenced_entity,
+        )
+    )
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -587,6 +885,21 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
             "the baseline still exit 1. Accepts a JSON list of keys, a scan "
             "envelope (Data.findings), or one key per line (# comments allowed)."
         ),
+    )
+    parser.add_argument(
+        "--allow-missing-targets",
+        action="store_true",
+        default=False,
+        help=(
+            "Treat missing scan targets as optional vendored-install paths. "
+            "Explicit targets are strict by default."
+        ),
+    )
+    parser.add_argument(
+        "--allow-empty-scan",
+        action="store_true",
+        default=False,
+        help="Permit a completed scan to pass after scanning zero files.",
     )
     parser.add_argument(
         "--output",
@@ -666,7 +979,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
     else:
-        target_strs = list(DEFAULT_TARGETS)
+        target_strs = _default_tracked_text_targets(repo_root)
         if args.include_adrs:
             target_strs.extend(OPT_IN_ADR_TARGETS)
         if args.include_skill_descriptions:
@@ -697,7 +1010,23 @@ def main(argv: list[str] | None = None) -> int:
             targets,
             repo_root,
             baseline=baseline,
+            allow_missing_targets=args.allow_missing_targets,
         )
+        if result.incomplete_scans:
+            message = (
+                "scan incomplete: one or more requested targets could not be scanned"
+            )
+            print(render_scan_error_envelope(result, message, args.output))
+            return int(scan_error_exit_code(result))
+        if result.files_scanned == 0 and result.files_skipped == 0 and not args.allow_empty_scan:
+            result.incomplete_scans.append(
+                IncompleteScan(
+                    "<scanner>",
+                    "zero files scanned; pass --allow-empty-scan for explicit empty scope",
+                )
+            )
+            print(render_scan_error_envelope(result, "scan completed zero files", args.output))
+            return 2
         print(render_envelope(result, args.output))
     except Exception as exc:
         # Catch-all so an unexpected runtime crash (filesystem races, encoding

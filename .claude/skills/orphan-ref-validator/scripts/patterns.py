@@ -26,8 +26,10 @@ SINGLE_WORD_SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*)`")
 # PR2 (issue #1994) broadens the suffix from ``.py`` only to ``.py`` or
 # ``.ps1``: PowerShell helpers under these prefixes are referenced in specs
 # (e.g. backticked `scripts/Validate-SessionEnd.ps1`) and went undetected.
+# Issue #3456 adds ``tests/`` so deleted test helpers referenced from specs
+# fail the same script_path check instead of passing invisibly.
 SCRIPT_REF_RE = re.compile(
-    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
+    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts|tests)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
     re.IGNORECASE,
 )
 # Skill-script references under .claude/skills/ or the copilot mirror, in
@@ -39,9 +41,24 @@ SCRIPT_REF_RE = re.compile(
 # class. Existence is checked against the working tree; valid refs never flag.
 SKILL_SCRIPT_REF_RE = re.compile(
     r"(?<![\w/])(?:\.claude|src/copilot-cli)/skills/[a-zA-Z0-9_-]+"
-    r"/scripts/[a-zA-Z0-9_/-]+\.py(?!\w)",
+    r"/(?:scripts|tests)/[a-zA-Z0-9_/-]+\.py(?!\w)",
     re.IGNORECASE,
 )
+# Repo-local rule and instruction mirror paths can appear as Markdown links,
+# backticked refs, JSON/YAML/frontmatter values, bare fenced-code paths, or
+# Python string literals. Split into two Kinds (rule_path, instruction_path)
+# so a finding names which canonical generated-rule surface is stale
+# (issue #3556).
+RULE_REF_RE = re.compile(
+    r"(?<![\w/])(\.claude/rules/[a-zA-Z0-9_.-]+\.md)(?!\w)",
+    re.IGNORECASE,
+)
+INSTRUCTION_REF_RE = re.compile(
+    r"(?<![\w/])((?:\.github|src/copilot-cli)/instructions/"
+    r"[a-zA-Z0-9_.-]+\.instructions\.md)(?!\w)",
+    re.IGNORECASE,
+)
+MARKDOWN_LINK_TARGET_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 # Prose that explicitly types a token as a skill ("the `foo` skill", "skill
@@ -126,6 +143,75 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
                 continue
             seen.add(path)
             yield lineno, path
+
+
+def _iter_line_path_matches(
+    line: str, pattern: re.Pattern[str]
+) -> Iterable[str]:
+    for match in pattern.finditer(line):
+        yield match.group(1) if match.lastindex else match.group(0)
+    for match in MARKDOWN_LINK_TARGET_RE.finditer(line):
+        target = match.group(1).split("#", 1)[0]
+        if target and pattern.fullmatch(target):
+            yield target
+
+
+def extract_rule_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for rule file references."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        seen: set[str] = set()
+        for path in _iter_line_path_matches(line, RULE_REF_RE):
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
+def extract_instruction_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for generated instruction mirror references."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        seen: set[str] = set()
+        for path in _iter_line_path_matches(line, INSTRUCTION_REF_RE):
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
+def extract_directive_suppressed_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield references hidden by a line-scope ignore directive."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line_has_ignore_directive(line):
+            continue
+        yield from extract_line_reference_candidates(lineno, line)
+
+
+def extract_all_reference_candidates(text: str) -> Iterable[tuple[int, str]]:
+    """Yield every syntactic reference candidate the scanner knows how to read."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_example_placeholder(line):
+            continue
+        yield from extract_line_reference_candidates(lineno, line)
+
+
+def extract_line_reference_candidates(
+    lineno: int, line: str
+) -> Iterable[tuple[int, str]]:
+    """Yield reference candidates from one line without de-duplicating repeats."""
+    for pattern in (
+        SCRIPT_REF_RE,
+        SKILL_SCRIPT_REF_RE,
+        RULE_REF_RE,
+        INSTRUCTION_REF_RE,
+        SKILL_REF_RE,
+        SINGLE_WORD_SKILL_REF_RE,
+    ):
+        for ref in _iter_line_path_matches(line, pattern):
+            yield lineno, ref
 
 
 def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:
