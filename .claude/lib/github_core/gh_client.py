@@ -20,8 +20,9 @@ def _run(args: list[str], *, stdin: str | None = None) -> subprocess.CompletedPr
     preferred codec, so a cp1252 or cp932 runner decodes the same bytes into
     different characters and ``json.loads`` accepts the result. That is silent
     corruption, and a caller that writes the value back to GitHub persists it.
-    ``errors="replace"`` keeps a truncated multi-byte read from raising in the
-    middle of an otherwise usable response.
+    Decoding stays strict: a byte sequence that is not valid UTF-8 raises
+    instead of being silently replaced, because a mangled identifier written
+    back to GitHub is worse than a visible failure.
     """
 
     return subprocess.run(

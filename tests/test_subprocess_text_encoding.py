@@ -56,11 +56,6 @@ def _keyword(call: ast.Call, name: str) -> ast.expr | None:
     return None
 
 
-def _has_splat(call: ast.Call) -> bool:
-    """Report whether *call* forwards ``**kwargs``."""
-    return any(keyword.arg is None for keyword in call.keywords)
-
-
 def _is_literal_false(node: ast.expr | None) -> bool:
     """Report whether *node* is the literal ``False``."""
     return isinstance(node, ast.Constant) and node.value is False
