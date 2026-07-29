@@ -1472,6 +1472,16 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
             'held[True](["x"], capture_output=True, text=True)',
             "a bool index is a valid int index, and reading it as one is a guess",
         ),
+        (
+            'import subprocess\n'
+            'def read():\n'
+            '    held = [subprocess.check_call]\n'
+            '    held[0](["x"], capture_output=True, text=True)\n'
+            'def write():\n'
+            '    held = [subprocess.run]\n'
+            '    held[0](["x"], capture_output=True, text=True)',
+            "one name bound in two scopes reads as one name bound twice",
+        ),
     ],
 )
 def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
@@ -1490,7 +1500,12 @@ def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
     through. Deciding which object an attribute hangs off would mean tracking
     types, and a wrapper that stores an entry point on ``self`` is the very
     shape a review executed against this scan, so the attribute name alone has
-    to carry the binding.
+    to carry the binding. Reading ``held[True]`` as ``held[1]`` would mean
+    trusting that a bool index was meant as the int it equals, and a dispatch
+    table keyed on flags would then answer for the wrong branch. Telling two
+    ``held`` bindings apart would mean tracking scopes, and a name that a
+    nested function closes over belongs to neither scope alone, so one binding
+    per name across the file is what the scan can honestly claim.
 
     No file in this repository trips any of these, which is what makes the
     trade cheap: the repo-wide scan above is green.
