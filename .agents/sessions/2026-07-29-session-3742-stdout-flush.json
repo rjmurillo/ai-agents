@@ -64,7 +64,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity at 0.6.215."
+        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity at 0.6.546."
       },
       "serenaMemoryUpdated": {
         "complete": false,
