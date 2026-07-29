@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-29-session-2840-model-pin-ci-gate",
+  "session": "2026-07-29-session-2840-model-pin-ci-gate",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Wire the ADR-080 model-pin gate into CI. check_model_pins.py has shipped a working --mode enforce since ADR-080 was accepted, but nothing under .github/ ever invoked it, so a new unjustified model: pin was detected in warn mode and merged anyway.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured every premise in #2840 before acting. The issue claims 71 skills carry model: pins across 5 distinct values with format drift (4-6 vs 4.6) and one bare alias. Measured today: 7 skills, all a single bare haiku value, no version drift. Four of the issue's five acceptance criteria are already met by work that landed after it was filed: ADR-080 accepted 2026-07-11 via PR #3028, scripts/eval/eval-model-panel.py sweep() for the model sweep, the 71-to-7 migration, and scripts/validation/model_pin_baseline.json as the single registry.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolated the one criterion still missing: the CI check. grep -rn check_model_pins .github/ returns nothing. The sole caller is checks_spec.validate_model_pins, which runs --mode warn; its docstring states enforcement stays in CI, and that was not true. Proved the gap by planting a pinned skill: warn mode printed VIOLATION: [new pin] bare alias 'opus' lacks a model-rationale field and exited 0. Enforce mode exited 1 on the identical tree.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved wiring is safe before wiring it. Enforce mode exits 0 against clean main today because model_pin_baseline.json grandfathers the 46-pin backlog and fails only on new or changed pins, so the new gate does not red main on arrival.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hosted the step in the validate-pr job, following the precedent the #3330 comment block records for the workflow-YAML check: a model: pin can land in any skill, agent, or command file, so the gate must fire on every PR regardless of touched paths, and validate-pr is the only required check carrying no job-level if.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added four wiring tests and mutation-tested each one. Deleting the step, switching it to warn mode, adding a job-level if to the host job, and planting a new unjustified pin each fail a distinct test; the warn-mode mutation fails two, which is correct because both the enforce assertion and the warn assertion are load-bearing. The first draft of the warn-mode test read the raw file text and was tripped by the explanatory comment naming warn mode; it was tightened to read parsed run blocks.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
