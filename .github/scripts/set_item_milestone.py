@@ -232,6 +232,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Specific milestone to assign (auto-detects if omitted)",
     )
+    parser.add_argument(
+        "--missing-milestone-ok",
+        action="store_true",
+        help=(
+            "Treat a repository with no semantic version milestone as success. "
+            "Emits a warning annotation and exits 0 instead of the ADR-035 "
+            "configuration-error code."
+        ),
+    )
     return parser
 
 
@@ -275,6 +284,14 @@ def main(argv: list[str] | None = None) -> int:
                 "No semantic version milestone found. "
                 "Create one (e.g., 0.3.0) or pass --milestone-title."
             )
+            if args.missing_milestone_ok:
+                # The absence of a milestone is a repository state, not a
+                # failure of this run. Reporting it as ADR-035 exit 2 makes
+                # run_with_retry.py print a configuration-error annotation
+                # that the caller then has to suppress in shell.
+                print(f"::warning::{msg}", flush=True)
+                _write_result(True, item_type, item_number, "", "skipped", msg)
+                return 0
             print(msg, file=sys.stderr)
             _write_result(
                 False,
