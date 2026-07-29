@@ -94,9 +94,18 @@ _DYNAMIC = "subprocess.<dynamic>"
 # every path that answers "is this a subprocess entry point".
 _ATTRIBUTE = "."
 
-#: The subprocess sentinel that sends a stream to the null device.
+#: The subprocess sentinels that leave a stream with nothing to read. The
+#: null device throws the bytes away, and ``STDOUT`` merges one stream into
+#: the other rather than opening a pipe of its own: with no pipe on the
+#: receiving side both attributes stay ``None`` and no decoder runs.
 _DEVNULL = "DEVNULL"
+_STDOUT = "STDOUT"
+_DISCARDING_SENTINELS = frozenset({_DEVNULL, _STDOUT})
 _VIA_PARTIAL = "*"
+#: Marks a partial that fixed the codec where it was built. Kept apart from
+#: :data:`_VIA_PARTIAL` because the two answer different questions: one says a
+#: call site cannot see the capture keywords, the other says it need not.
+_PINNED_PARTIAL = "*utf8*"
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 
@@ -138,7 +147,19 @@ _CALLABLE_ALIASES = frozenset({"__call__", "__func__", "__wrapped__"})
 #: owner is resolved and its element answers for the call. Unlike
 #: :data:`_CALLABLE_ALIASES` these do not name the same callable, they return
 #: one, but both reach a runner from an expression that never spells its name.
-_ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem", "get"})
+_ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem", "get", "setdefault"})
+
+#: Element methods whose second argument is handed straight back when the key
+#: is missing. ``{}.get("run", subprocess.run)`` never touches the mapping, so
+#: resolving the owner alone reaches nothing and the default is the runner.
+_DEFAULTING_METHODS = frozenset({"get", "setdefault"})
+
+#: Binary operators whose result is a container built out of its operands, so
+#: an element of either side may be the value a later lookup hands back. Add
+#: and multiply cover sequences, the bitwise three cover mappings and sets.
+#: Every other operator builds something that is not a container of the
+#: operands: ``"%s" % (subprocess.run,)`` yields a string of characters.
+_CONTAINER_OPERATORS = (ast.Add, ast.Mult, ast.Sub, ast.BitOr, ast.BitAnd, ast.BitXor)
 
 #: Builtins that pass an element of their argument straight back out.
 #: ``next(iter([subprocess.run]))`` reaches the runner with no comprehension
@@ -204,6 +225,19 @@ def _element_expressions(node: ast.expr) -> list[ast.expr] | None:
     if isinstance(node, ast.BoolOp):
         # ``runner or subprocess.run`` is the same choice spelled shorter.
         return list(node.values)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, _CONTAINER_OPERATORS):
+        # ``[] + [subprocess.run]`` builds one container out of two, ``[run] * 2``
+        # builds one out of a container and a count, ``{"r": run} | {}`` merges
+        # two mappings, and set algebra keeps some subset of both operands. Each
+        # spelling yields the elements of whichever side has any, so both sides
+        # are read and a non-container side contributes nothing. Operators that
+        # build something other than a container are excluded: ``"%s" % (run,)``
+        # produces a string, whose members are characters rather than the runner.
+        # Verified at runtime: an element read back out of any included form
+        # decodes under the locale codec, and the excluded form does not.
+        left = _element_expressions(node.left) or []
+        right = _element_expressions(node.right) or []
+        return (left + right) or None
     element = _comprehension_element(node)
     return None if element is None else [element]
 
@@ -263,14 +297,19 @@ def _is_capturing_stream(node: ast.expr | None, modules: dict[str, str]) -> bool
 
 
 def _is_discarded_stream(node: ast.expr, modules: dict[str, str]) -> bool:
-    """Report whether *node* names the sentinel that throws the stream away.
+    """Report whether *node* names a sentinel that leaves the stream unread.
 
     Read through the module map rather than on the bare attribute name, so a
     ``DEVNULL`` attribute on some unrelated object is not mistaken for this
     one. ``subprocess.DEVNULL`` leaves the attribute at ``None``, which is the
-    same observable state as never capturing at all.
+    same observable state as never capturing at all. ``subprocess.STDOUT``
+    opens no pipe either: it points one stream at wherever the other already
+    goes, so it only decodes when that other stream is itself piped, and that
+    pipe is read on its own keyword. Verified at runtime:
+    ``run(cmd, stderr=STDOUT, text=True)`` returns ``None`` for both
+    attributes, while adding ``stdout=PIPE`` decodes under the locale codec.
     """
-    if not isinstance(node, ast.Attribute) or node.attr != _DEVNULL:
+    if not isinstance(node, ast.Attribute) or node.attr not in _DISCARDING_SENTINELS:
         return False
     return isinstance(node.value, ast.Name) and modules.get(node.value.id) == "subprocess"
 
@@ -327,6 +366,33 @@ def _reaches_partial(label: str, functions: dict[str, str]) -> bool:
     return _is_partial(label, functions) or _VIA_PARTIAL + label in functions
 
 
+def _carry_partial(
+    name: str, value: ast.expr, functions: dict[str, str], resolved: str
+) -> None:
+    """Record what a call site cannot see about the partial behind *name*.
+
+    Two facts travel with a partial and neither is legible where it is called.
+    The keywords it pre-bound may be the ones that open the capture, and the
+    codec it pre-bound may be the one that makes the capture safe. Both are
+    kept beside the target rather than folded into it, because a later binding
+    that is not a partial must not inherit either.
+
+    An alias copies both. ``alias = runner`` is the same object under a second
+    name, so reading the markers off the source name is what keeps the alias
+    from looking like a bare callable with no keywords at all.
+    """
+    if isinstance(value, ast.Name):
+        for marker in (_VIA_PARTIAL, _PINNED_PARTIAL):
+            if marker + value.id in functions:
+                functions[marker + name] = functions[marker + value.id]
+        return
+    if not isinstance(value, ast.Call) or not _is_partial(_call_label(value), functions):
+        return
+    functions[_VIA_PARTIAL + name] = resolved
+    if _pins_utf8(value):
+        functions[_PINNED_PARTIAL + name] = resolved
+
+
 def _resolve_indirect(
     call: ast.Call, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
@@ -347,7 +413,14 @@ def _resolve_indirect(
         # ``holder.pop()`` yields an element of the holder. The method itself
         # is not the runner, which is why this is read here on the call and
         # not in :func:`_attribute` where the attribute alone is resolved.
-        return _resolve_callable(call.func.value, modules, functions)
+        owned = _resolve_callable(call.func.value, modules, functions)
+        if owned is not None:
+            return owned
+        if call.func.attr in _DEFAULTING_METHODS and len(call.args) >= 2:
+            # A missing key hands the default straight back, so the second
+            # argument is the other place the runner can be hiding.
+            return _resolve_callable(call.args[1], modules, functions)
+        return None
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
         if isinstance(attr, ast.Constant) and attr.value in _CALLABLE_ALIASES:
@@ -953,12 +1026,7 @@ def _subprocess_names(
             if name in functions:
                 continue
             functions[name] = resolved
-            if isinstance(value, ast.Call) and _is_partial(_call_label(value), functions):
-                # Keep the partial-ness alongside the target it wraps. The
-                # target is what a call to this name reaches, but the keywords
-                # it pre-bound are invisible from the call site, and that is
-                # exactly what the mode has to account for there.
-                functions[_VIA_PARTIAL + name] = resolved
+            _carry_partial(name, value, functions, resolved)
             queue.extend(dependents.get(name, ()))
     return modules, functions, containers
 
@@ -1095,6 +1163,23 @@ def _pins_utf8(call: ast.Call) -> bool:
         return False
 
 
+def _codec_is_pinned(call: ast.Call, functions: dict[str, str]) -> bool:
+    """Report whether *call* decodes as UTF-8, counting a pin it inherited.
+
+    A partial fixes the codec where it is built, and the site that calls it
+    carries no ``encoding`` keyword to read. The inherited pin only survives
+    while the call site stays silent, because a keyword there overrides the
+    pre-bound one: ``partial(run, encoding="utf-8")`` called with
+    ``encoding="latin-1"`` decodes as latin-1. Verified at runtime, where the
+    inherited form returned ``str`` under an ASCII parent locale.
+    """
+    if _pins_utf8(call):
+        return True
+    if _keyword(call, "encoding") is not None or _has_splat(call):
+        return False
+    return _PINNED_PARTIAL + _call_label(call) in functions
+
+
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
@@ -1115,7 +1200,7 @@ def unpinned_lines(source: str) -> list[int]:
             node, functions, target, modules
         ):
             continue
-        if not _pins_utf8(node):
+        if not _codec_is_pinned(node, functions):
             offenders.append(node.lineno)
     return sorted(offenders)
 
@@ -1563,6 +1648,31 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'def check_output(*args, **kwargs):\n    return None\n'
             'check_output(["x"], capture_output=True, text=True)',
             "importing one name binds that name only, so a local definition wins",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(subprocess.run, capture_output=True, '
+            'encoding="utf-8")\n'
+            'runner(["x"], text=True)',
+            "a partial that pins the codec keeps it at every site that calls it",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(subprocess.run, capture_output=True, '
+            'encoding="utf-8")\n'
+            'alias = runner\n'
+            'alias(["x"], text=True)',
+            "an alias of a pinned partial keeps the codec the partial pinned",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], stderr=subprocess.STDOUT, text=True)',
+            "merging stderr into an inherited stdout captures neither stream",
+        ),
+        (
+            'import subprocess\n'
+            '("%s" % (subprocess.run,))[0](["x"], capture_output=True, text=True)',
+            "formatting builds a string, so its characters are not the runner",
         ),
     ],
 )
@@ -2308,6 +2418,104 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'q.popleft()([1], capture_output=True, text=True)',
             "popleft takes an element off the other end and is still an element",
         ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(subprocess.run, capture_output=True)\n'
+            'alias = runner\n'
+            'alias([1], text=True)',
+            "an alias of a partial carries the keywords the partial pre-bound",
+        ),
+        (
+            'import subprocess\n'
+            'runner = {}.setdefault("run", subprocess.run)\n'
+            'runner([1], capture_output=True, text=True)',
+            "setdefault hands back its second argument when the key is absent",
+        ),
+        (
+            'import subprocess\n'
+            'runner = {}.get("run", subprocess.run)\n'
+            'runner([1], capture_output=True, text=True)',
+            "get hands back its second argument when the key is absent",
+        ),
+        (
+            'import subprocess\n'
+            'runners = [] + [subprocess.run]\n'
+            'runners[0]([1], capture_output=True, text=True)',
+            "adding two lists makes a list holding the elements of both",
+        ),
+        (
+            'import subprocess\n'
+            'runners = (subprocess.run,) + ()\n'
+            'runners[0]([1], capture_output=True, text=True)',
+            "tuple concatenation hides a runner the same way list addition does",
+        ),
+        (
+            'import subprocess\n'
+            'runners = [subprocess.run] * 2\n'
+            'runners[0]([1], capture_output=True, text=True)',
+            "repeating a container repeats the runner it holds",
+        ),
+        (
+            'import subprocess\n'
+            'runners = 2 * [subprocess.run]\n'
+            'runners[0]([1], capture_output=True, text=True)',
+            "the count may be written on either side of the repetition",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run.__wrapped__([1], capture_output=True, text=True)',
+            "__wrapped__ hands back the callable it was read from",
+        ),
+        (
+            'import subprocess\n'
+            'next(iter(frozenset([subprocess.run])))([1], capture_output=True, text=True)',
+            "frozenset holds the elements it was built from",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run([1], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)',
+            "merging stderr into a piped stdout still decodes the pipe",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.check_output([1], stderr=subprocess.STDOUT, text=True)',
+            "check_output captures on its own, so merging stderr into it still decodes",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(subprocess.run, capture_output=True, '
+            'encoding="utf-8")\n'
+            'runner([1], text=True, encoding="latin-1")',
+            "a keyword at the call site overrides the one the partial pre-bound",
+        ),
+        (
+            'import functools, subprocess\n'
+            'runner = functools.partial(subprocess.run, capture_output=True, '
+            'encoding="utf-8")\n'
+            'runner([1], text=True, **overrides)',
+            "a splat at the call site may carry an encoding that overrides the pin",
+        ),
+        (
+            'import subprocess\n'
+            '({"r": subprocess.run} | {})["r"]([1], capture_output=True, text=True)',
+            "merging two dicts keeps the values of both",
+        ),
+        (
+            'import subprocess\n'
+            'list({subprocess.run} - set())[0]([1], capture_output=True, text=True)',
+            "a set difference keeps whichever members survive",
+        ),
+        (
+            'import subprocess\n'
+            'list({subprocess.run} & {subprocess.run})[0]([1], capture_output=True, '
+            'text=True)',
+            "a set intersection keeps whichever members are in both",
+        ),
+        (
+            'import subprocess\n'
+            'list({subprocess.run} ^ set())[0]([1], capture_output=True, text=True)',
+            "a symmetric difference keeps whichever members appear once",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -2425,6 +2633,12 @@ def test_detector_survives_malformed_source(source: str, why: str) -> None:
             'import subprocess\n'
             'subprocess.run(["x"], capture_output=True, text=True, encoding="utf-8" + SUFFIX)',
             "a name on the right of a concatenation hides the whole codec name",
+        ),
+        (
+            'import subprocess\n'
+            'H = {"run": subprocess.run}\n'
+            'H.popitem()([1], capture_output=True, text=True)',
+            "popitem hands back a key and value pair, which raises before it decodes",
         ),
     ],
 )
