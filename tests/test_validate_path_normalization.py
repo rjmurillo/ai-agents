@@ -523,7 +523,7 @@ class TestGitCheckIgnoreCannotHangThePush:
         seen: dict[str, object] = {}
         real_run = subprocess.run
 
-        def capture(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def capture(*args, **kwargs):
             if "check-ignore" in args[0]:
                 seen.update(kwargs)
             return real_run(*args, **kwargs)
@@ -539,7 +539,7 @@ class TestGitCheckIgnoreCannotHangThePush:
         kept = tmp_path / "doc.md"
         kept.write_text("ok\n", encoding="utf-8")
 
-        def hang(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def hang(*args, **kwargs):
             raise subprocess.TimeoutExpired(cmd="git", timeout=1)
 
         monkeypatch.setattr(vpn.subprocess, "run", hang)
@@ -550,7 +550,7 @@ class TestGitCheckIgnoreCannotHangThePush:
         kept = tmp_path / "doc.md"
         kept.write_text("ok\n", encoding="utf-8")
 
-        def explode(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def explode(*args, **kwargs):
             raise subprocess.SubprocessError("git died")
 
         monkeypatch.setattr(vpn.subprocess, "run", explode)
@@ -563,7 +563,7 @@ class TestGitCheckIgnoreCannotHangThePush:
         kept = tmp_path / "doc.md"
         kept.write_text("ok\n", encoding="utf-8")
 
-        def missing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def missing(*args, **kwargs):
             raise FileNotFoundError("git")
 
         monkeypatch.setattr(vpn.subprocess, "run", missing)
