@@ -558,6 +558,10 @@ def test_the_script_imports_when_run_by_path_from_an_unrelated_cwd(
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        # Windows CI defaults to cp1252 here, which can crash the reader thread
+        # on UTF-8 output. Pin the codec the way the rest of the suite does.
+        encoding="utf-8",
+        errors="replace",
         env={"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)},
     )
     combined = result.stdout + result.stderr
