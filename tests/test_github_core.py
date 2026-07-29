@@ -106,6 +106,11 @@ class TestIsGitHubNameValid:
     def test_valid_repo(self):
         assert is_github_name_valid("ai-agents", "Repo") is True
 
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_name_type_is_case_insensitive(self, name_type: str):
+        assert is_github_name_valid("ai-agents", name_type) is True
+        assert is_github_name_valid("..", name_type) is False
+
     def test_repo_allows_dots(self):
         assert is_github_name_valid("my.repo.name", "Repo") is True
 
@@ -125,6 +130,40 @@ class TestIsGitHubNameValid:
 
     def test_invalid_type_returns_false(self):
         assert is_github_name_valid("foo", "Invalid") is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        """`.` and `..` are the only names GitHub refuses outright.
+
+        They are also the two that carry traversal meaning once a caller
+        interpolates them into a URL path, which several callers do.
+
+        `name_type` is documented case-insensitive, so the rejection has to
+        hold for every spelling a caller may pass. Testing one spelling would
+        let a guard that keys off a single literal survive.
+        """
+        assert is_github_name_valid(name, name_type) is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["owner", "Owner", "OWNER"])
+    def test_owner_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        assert is_github_name_valid(name, name_type) is False
+
+    def test_longer_dot_runs_stay_valid(self):
+        """Only the two aliases are reserved. `...` is a legal repository name.
+
+        Rejecting every all-dot name would be a wider rule than GitHub's and
+        would fail a name a user can really create.
+        """
+        assert is_github_name_valid("...", "Repo") is True
+        assert is_github_name_valid("....", "Repo") is True
+
+    def test_dots_elsewhere_in_a_name_stay_valid(self):
+        """The guard matches whole names, not substrings."""
+        assert is_github_name_valid("..leading", "Repo") is True
+        assert is_github_name_valid("trailing..", "Repo") is True
+        assert is_github_name_valid("mid..dle", "Repo") is True
 
 
 # ---------------------------------------------------------------------------
