@@ -5,13 +5,22 @@
   "outcome": "success",
   "task": "Add a server-side conflict-marker backstop (issue #3770): scan the whole tracked tree in CI so a marker that skips local hooks cannot reach main.",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 105f8954ef9d8febecc9c3fca336e187bf6626e5",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
