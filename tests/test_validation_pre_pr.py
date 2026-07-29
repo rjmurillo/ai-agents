@@ -496,7 +496,14 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "README.md", "docs/guide.md"],
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--fix",
+                "--",
+                "README.md",
+                "docs/guide.md",
+            ],
             cwd=tmp_path,
         )
 
@@ -519,7 +526,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "README.md"],
+            ["npx", "markdownlint-cli2@0.23.1", "--", "README.md"],
             cwd=tmp_path,
         )
 
@@ -538,9 +545,94 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is False
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "**/*.md"],
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "**/*.md"],
             cwd=tmp_path,
         )
+
+    def test_reports_explicit_targets_ignored_by_markdownlint(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        target = tmp_path / ".agents" / "analysis" / "p2" / "x.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("not a heading\n- missing blank before list\n", encoding="utf-8")
+
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
+                mock_run.return_value = (
+                    0,
+                    "Linting: 0 files\nSummary: 0 issues in 0 files\n",
+                    "",
+                )
+                assert validate_markdown_lint(
+                    tmp_path,
+                    explicit_targets=[".agents/analysis/p2/x.md"],
+                ) is True
+
+        mock_run.assert_called_once_with(
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--fix",
+                "--",
+                ".agents/analysis/p2/x.md",
+            ],
+            cwd=tmp_path,
+        )
+        out = capsys.readouterr().out
+        assert "0 of 1 target" in out
+        assert "not linted" in out
+
+    def test_reports_explicit_targets_linted_cleanly(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        target = tmp_path / "README.md"
+        target.write_text("# Title\n", encoding="utf-8")
+
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
+                mock_run.return_value = (
+                    0,
+                    "Linting: 1 files\nSummary: 0 issues in 0 files\n",
+                    "",
+                )
+                assert validate_markdown_lint(
+                    tmp_path,
+                    explicit_targets=["README.md"],
+                ) is True
+
+        assert "WARNING" not in capsys.readouterr().out
+
+    def test_explicit_targets_are_passed_after_option_delimiter(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
+                mock_run.return_value = (
+                    0,
+                    "Linting: 1 files\nSummary: 0 issues in 0 files\n",
+                    "",
+                )
+                assert validate_markdown_lint(
+                    tmp_path,
+                    explicit_targets=["-leading.md"],
+                ) is True
+
+        command = mock_run.call_args.args[0]
+        assert command[-2:] == ["--", "-leading.md"]
+
+    def test_markdown_lint_only_cli_uses_positional_targets(self) -> None:
+        with patch("scripts.validation.pre_pr.validate_markdown_lint") as mock_lint:
+            mock_lint.return_value = True
+            assert main(["--markdown-lint-only", "--", "README.md"]) == 0
+
+        mock_lint.assert_called_once()
+        assert mock_lint.call_args.args[1] == ["README.md"]
 
 
 # ---------------------------------------------------------------------------
