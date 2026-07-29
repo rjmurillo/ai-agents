@@ -80,9 +80,39 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
 
 
 # Hyphenated skill names that are genuinely absent from the live catalog but
-# existed as skills in repository history. Prose-heavy targets such as Serena
-# memories only report typed missing-skill claims for this bounded historical
-# set, avoiding an unbounded denylist of non-skill kebab tokens.
+# existed as skills in repository history. This is the kebab counterpart of
+# KNOWN_SINGLE_WORD_SKILLS below and is governed by the same contract: the set
+# widens detection, the live catalog still decides validity.
+#
+# Two surfaces consume it, with different strictness.
+#
+# Prose-heavy targets such as Serena memories report a missing-skill claim only
+# when the line is typed AND the token is in this set, because those notes use
+# backticked kebab-case for workflow values, labels, models, headers, hooks,
+# and config keys (issue #3637, PR #3698).
+#
+# Everywhere else a bare backticked kebab token is a candidate only when this
+# set names it; a type claim alone is also enough. The old premise, that every
+# backticked kebab token is a skill candidate, holds inside skill and agent
+# definition files but fails in prose for exactly the reasons above. Measured
+# across `.serena/memories`, `.agents`, `.claude`, and `docs` after PR #3698
+# landed: 1485 skill_name findings, of which the overwhelming majority named
+# something that has never been a skill in this repository. Closing the
+# candidate set brings that to 135 and leaves script_path (687), rule_path
+# (73), and instruction_path (17) untouched.
+#
+# The alternative was appending each offending token to KEBAB_DENYLIST, which
+# enumerates the non-skill universe and therefore never terminates. Bounding
+# the candidate set by the skill universe instead is small and known. This is
+# the same trade #2679 made for single-word tokens.
+#
+# Cost of the trade: a bare backticked misspelling of a name that was never a
+# skill (`` `shipp` ``) no longer produces a finding. Writing the same
+# reference with a type claim (`` the `shipp` skill ``) still does, and a type
+# claim is what distinguishes a catalog reference from ordinary prose.
+#
+# Add a name here when a hyphenated skill is retired or renamed, so lingering
+# references keep surfacing instead of going silent.
 KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "doc-coverage",
     "doc-sync",
@@ -116,11 +146,12 @@ KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
 
 
 def is_known_retired_kebab_skill(token: str) -> bool:
-    """Return True if a hyphenated token names a retired skill.
+    """Return True if a hyphenated token names a retired or renamed skill.
 
-    Used by prose-heavy memory scans after a line explicitly claims a token is
-    a skill. The historical allowlist catches real deleted skill references
-    without making every typed-looking kebab phrase a CI blocker.
+    Membership makes the token a reference *candidate*; it does not make it a
+    finding. A name listed here that still resolves in the live catalog is a
+    valid reference and produces nothing, exactly as with
+    ``is_known_single_word_skill``.
     """
     return token in KNOWN_RETIRED_KEBAB_SKILLS
 

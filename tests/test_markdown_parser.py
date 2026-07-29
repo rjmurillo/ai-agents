@@ -71,6 +71,18 @@ Some text between tables.
         assert len(tables) == 1
         assert "Bold step" in tables[0].rows[0].cells[0]
 
+    def test_table_cell_strips_footnote_reference(self):
+        md = """\
+| Agent | Use For |
+|-------|---------|
+| orchestrator[^agent-note] | Route and synthesize |
+
+[^agent-note]: Additional GitHub-rendered note.
+"""
+        tables = parse_tables(md)
+        assert len(tables) == 1
+        assert tables[0].rows[0].cells[0] == "orchestrator"
+
 
 class TestParseTablesEdgeCases:
     """Test edge cases that trip up regex-based parsing."""
