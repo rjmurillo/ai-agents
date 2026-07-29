@@ -264,6 +264,7 @@ def _run_validation(session_log_path: str, repo_root: str) -> bool:
         return False
 
     print("Running validation...", file=sys.stderr)
+    sys.stdout.flush()
     result = subprocess.run(
         [sys.executable, validation_script, session_log_path],
         capture_output=False,

@@ -100,6 +100,7 @@ def create_notification_issue(flagged: list[dict]) -> None:
     body = "\n".join(lines)
 
     try:
+        sys.stdout.flush()
         subprocess.run(
             [
                 "gh",
