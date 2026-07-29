@@ -525,3 +525,5 @@ time uv run python .claude/skills/memory/scripts/search_memory.py "test"
 - [API Reference](api-reference.md) - Complete function signatures
 - ADR-037 - Memory Router Architecture
 - ADR-007 - Memory-First Architecture
+
+<!-- vendor-portability: declared. The CLI defaults table names `.agents/memory/episodes` as the episode store's default location. That path is the consumer's own data dir, created on demand when absent, and `--episodes-path` overrides it. A vendored install without the dir loses the Tier 2 episode results, not the search. Issue #2050. -->
