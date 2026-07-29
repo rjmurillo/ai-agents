@@ -51,7 +51,7 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
-from github_core.validation import inline_body_error  # noqa: E402
+from github_core.validation import inline_body_error
 
 _SCRIPT_NAME = "post_issue_comment.py"
 

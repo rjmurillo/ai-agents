@@ -44,7 +44,7 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
-from github_core.validation import (  # noqa: E402
+from github_core.validation import (
     assert_valid_body_file,
     escaped_newline_body_error,
 )

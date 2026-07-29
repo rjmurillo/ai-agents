@@ -42,7 +42,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
-from github_core.validation import inline_body_error  # noqa: E402
+from github_core.validation import inline_body_error
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -44,7 +44,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     gh_graphql,
 )
-from github_core.validation import inline_body_error  # noqa: E402
+from github_core.validation import inline_body_error
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
