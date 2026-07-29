@@ -18,6 +18,8 @@ def _run_gh(args: list[str], *, discard_stderr: bool = False) -> subprocess.Comp
         stdout=subprocess.PIPE,
         stderr=stderr,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 

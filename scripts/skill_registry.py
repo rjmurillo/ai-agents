@@ -103,6 +103,8 @@ def get_last_modified_date(path: Path, project_root: Path) -> str:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=project_root,
             timeout=10,
         )
