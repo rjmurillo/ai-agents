@@ -25,7 +25,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
+# ---------------------------------------------------------------------------
+# Ensure repo root is on sys.path so scripts.github_core is importable
+# whether this script is invoked as a module or by file path (issue #3657).
+# ---------------------------------------------------------------------------
+_repo_root_candidate = Path(__file__).resolve().parent.parent.parent
+if str(_repo_root_candidate) not in sys.path:
+    sys.path.insert(0, str(_repo_root_candidate))
 
 _SPEC_ID_RE = r"[A-Z]+-[A-Za-z0-9]+"
 _RELATED_ID_RE = re.compile(rf"\b{_SPEC_ID_RE}\b")
@@ -471,6 +477,10 @@ def validate_specs_path(specs_path_str: str) -> Path:
 
     if not is_absolute:
         # Relative path: enforce traversal protection
+        # Imported here, not at module scope, because the sys.path bootstrap
+        # above must run first when this script is invoked by file path.
+        from scripts.github_core.repo import get_repo_root
+
         repo_root = get_repo_root()
 
         if repo_root:
