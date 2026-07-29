@@ -17,7 +17,7 @@ uv run python ./scripts/skill_description_budget.py --max-total-tokens 8000   # 
 ```
 
 - Current baseline (as of 2026-07-03): 92 skills, 35892 chars, ~8973 estimated tokens; top offenders `analyze` and `pr-comment-responder` at 558 chars each.
-- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024`, `.claude/skills/SkillForge/scripts/validate-skill.py:171`).
+- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024`, `.claude/skills/SkillForge/scripts/validate-skill.py:185`).
 - Unhealthy: total climbing PR over PR with no budget flag set; any single description near 1024.
 - Trap: the token figure is a chars/4 heuristic, deliberately not tiktoken. Trend it; never quote it as an exact cost.
 
@@ -48,7 +48,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orp
 - Current baseline (as of 2026-07-02): 99 files scanned, 216 refs checked, 49 findings, all severity critical, `VERDICT: CRITICAL_FAIL`, exit 1. The findings sit in historical specs (for example `.agents/specs/requirements/REQ-009-orphan-ref-validator.md:32` referencing skills that no longer exist).
 - Healthy delta: your PR adds zero findings. Backticked kebab names in anything you write must resolve to real `.claude/skills/<name>/` directories.
 - Unhealthy: new findings pointing at YOUR files; CI runs this on PR-relevant targets and a new critical blocks.
-- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:157`, `patterns.py:95`).
+- Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:225-226`, `patterns.py:82`).
 - Trap: do not "fix" the red baseline by mass-adding ignore directives to historical specs; that destroys the instrument. Measure your delta instead.
 
 ### Golden principles
@@ -103,8 +103,8 @@ uv run pytest <exact test files> --cov=<module_name> --cov-branch --cov-fail-und
 
 Two traps, both already paid for:
 
-- File-set sensitivity (#1963): a `--cov-fail-under=100` pin is only valid with the exact test-file set it was calibrated with. CI's own comment records that a drifted set "alone now reports 63% and trips --cov-fail-under=100" (`.github/workflows/pytest.yml:144`).
-- Module-name form (#2063): use `--cov=scripts.ai_review_common.verdict` style (dotted module), never a file path. The file-path form yields "Module never imported" and 0% coverage on pytest-cov 7.x / Python 3.14 (`pytest.yml:150-152`; live example at `pytest.yml:147`).
+- File-set sensitivity (#1963): a `--cov-fail-under=100` pin is only valid with the exact test-file set it was calibrated with. CI's own comment records that a drifted set "alone now reports 63% and trips --cov-fail-under=100" (`.github/workflows/pytest.yml:202`).
+- Module-name form (#2063): use `--cov=scripts.ai_review_common.verdict` style (dotted module), never a file path. The file-path form yields "Module never imported" and 0% coverage on pytest-cov 7.x / Python 3.14 (`pytest.yml:209`; live example at `pytest.yml:205`).
 
 The evidence bar (100% block coverage on changed files, pos+neg+edge) belongs to `ai-agents-validation-and-qa`; this section only covers how to get a trustworthy number. Targets: 100% security, 80% business, 60% docs (AGENTS.md Standards).
 

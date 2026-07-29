@@ -55,7 +55,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and `Written: 49` even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -103,7 +103,7 @@ Before citing any number from this toolkit in a PR, session log, or decision:
 
 Written 2026-07-02. All baselines measured by running the instruments on this checkout on that date. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); do not use `git log` to re-derive any of this.
 
-Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:157` and `patterns.py:95-96` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,893` (#2440 read-only check), `build/scripts/classify_guard_maturity.py` (tier table), `build/scripts/aggregate_guard_intercepts.py:185-189` (telemetry default source), `.github/workflows/pytest.yml:144-164` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:19` (commit cap), `.claude/skills/SkillForge/scripts/validate-skill.py:171` (1024 cap).
+Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `.claude/skills/orphan-ref-validator/scripts/scan.py:225-226` and `patterns.py:63,82` (directives), `.claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10), `build/scripts/build_all.py:19,893` (#2440 read-only check), `build/scripts/classify_guard_maturity.py` (tier table), `build/scripts/aggregate_guard_intercepts.py:185-189` (telemetry default source), `.github/workflows/pytest.yml:202-222` (coverage pins), `scripts/eval/eval-prompt-change.py --help` and `scripts/eval/_anthropic_api.py` (harness), `AGENTS.md:17` (commit cap), `.claude/skills/SkillForge/scripts/validate-skill.py:185` (1024 cap).
 
 Re-verify one-liners for every volatile fact:
 
