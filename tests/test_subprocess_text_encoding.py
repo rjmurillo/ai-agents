@@ -66,8 +66,12 @@ _SUBPROCESS_ATTRS = _CAPTURING_ATTRS | _ALWAYS_TEXT_ATTRS
 _PINNED_CODEC = "utf-8"
 _OS_POPEN = "os.popen"
 # Stands for a subprocess entry point selected at runtime, which no static
-# scan can name. Treated as a real target so the codec check still runs.
+# scan can name. Because it may be getoutput, which decodes with no flag to
+# read, invoking one counts as decoding text whatever keywords are present.
 _DYNAMIC = "subprocess.<dynamic>"
+
+# Entry points that hand back str no matter what keywords a call passes.
+_DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
@@ -210,7 +214,13 @@ def _target(call: ast.Call, modules: set[str], functions: dict[str, str]) -> str
     # ``functools.partial(subprocess.run, text=True)`` decides the codec where
     # the partial is built, not where the result is finally called, so the
     # partial itself has to be treated as the subprocess call.
-    return _resolve_indirect(call, modules, functions)
+    fallback = _resolve_indirect(call, modules, functions)
+    if fallback == _DYNAMIC:
+        # A bare ``getattr(subprocess, name)`` only fetches. It decodes
+        # nothing until something calls the result, and that call is the node
+        # this scan flags instead.
+        return None
+    return fallback
 
 
 def _captures_text(call: ast.Call) -> bool:
@@ -275,7 +285,7 @@ def unpinned_lines(source: str) -> list[int]:
             # move is to not use it.
             offenders.append(node.lineno)
             continue
-        if target not in _ALWAYS_TEXT_ATTRS and not _captures_text(node):
+        if target not in _DECODES_UNCONDITIONALLY and not _captures_text(node):
             continue
         if not _pins_utf8(node):
             offenders.append(node.lineno)
@@ -398,6 +408,10 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import subprocess\nname = "run"\n'
             'getattr(subprocess, name)(["x"], capture_output=True, encoding="utf-8")',
             "a dynamic lookup that still pins the codec decodes correctly",
+        ),
+        (
+            'import subprocess\nname = "run"\nf = getattr(subprocess, name)',
+            "fetching an attribute decodes nothing until something calls it",
         ),
     ],
 )
@@ -532,6 +546,16 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess\nname = "run"\n'
             'getattr(subprocess, name)(["x"], capture_output=True, text=True)',
             "a computed attribute name still reaches a subprocess entry point",
+        ),
+        (
+            'import subprocess\nname = "getoutput"\n'
+            'getattr(subprocess, name)("ls")',
+            "a computed name can land on getoutput, which decodes with no flag",
+        ),
+        (
+            'import subprocess\nname = "getoutput"\n'
+            'f = getattr(subprocess, name)\nf("ls")',
+            "binding a computed lookup defers the decode, it does not avoid it",
         ),
         (
             'import subprocess\nif True:\n    a = subprocess.run\n'
