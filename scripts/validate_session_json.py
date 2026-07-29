@@ -563,11 +563,30 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
     claims_commit = isinstance(committed, dict) and (
         get_case_insensitive(committed, "complete") is True
     )
-    if claims_commit and not str(data.get("endingCommit") or "").strip():
+    ending = str(data.get("endingCommit") or "").strip()
+    if claims_commit and not ending:
         result.warnings.append(
             "changesCommitted is complete but endingCommit is empty; "
             "record the final commit SHA or mark the item incomplete"
         )
+    elif ending and COMMIT_SHA_PATTERN.match(ending):
+        # A malformed value is the schema's to report; restating it here would
+        # print the same fact under two spellings.
+        #
+        # Imported here rather than at module scope: every module-level import
+        # in this file sits below a sys.path insert and so needs an E402
+        # suppression, and a new suppression is exactly what the push gate
+        # refuses. Function scope needs none, and the module is already loaded.
+        from scripts.validation.session_scope import commit_reachability_problem
+
+        problem = commit_reachability_problem(ending, _PROJECT_ROOT)
+        if problem is not None:
+            result.warnings.append(
+                f"endingCommit {ending!r} {problem}; the SHA was most likely "
+                "orphaned by amending or rebasing the commit that carried it. "
+                "Record the SHA in a follow-up commit instead of amending "
+                "afterwards (issue #3618)"
+            )
 
     if "nextSteps" not in data:
         result.warnings.append(
