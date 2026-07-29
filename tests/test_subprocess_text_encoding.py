@@ -109,6 +109,37 @@ _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 # otherwise, so they are not on this list.
 _ALWAYS_CAPTURES = frozenset({"check_output"})
 
+# Keywords that select text mode. Popen computes text mode as
+# ``encoding or errors or text or universal_newlines``, so every one of these
+# decides the codec and all four have to be read.
+_TEXT_MODE_KEYWORDS = ("text", "universal_newlines", "encoding", "errors")
+
+# Builtins whose result carries the elements they were handed. Each one is a
+# view or a copy, so a container holding an entry point still holds it after
+# the round trip and the chain has to follow.
+_PASS_THROUGH = frozenset(
+    {"list", "tuple", "set", "frozenset", "sorted", "reversed", "iter", "zip",
+     "enumerate"}
+)
+
+# Dict methods that yield a view, mapped to the halves of the literal the view
+# reads. ``items`` yields both, so both taint what the loop target binds.
+_DICT_VIEWS = {
+    "items": ("keys", "values"),
+    "keys": ("keys",),
+    "values": ("values",),
+}
+
+# Suffix marking the pseudo-name that carries what a function returns. No
+# identifier can spell it, so it cannot collide with a real binding.
+_CALL_SUFFIX = "()"
+
+# Popen's positional order, minus ``self``. run, call, check_call and
+# check_output all forward ``*popenargs`` into Popen unchanged, so this order
+# answers for every entry point. Only the slots this scan reads are listed;
+# encoding, errors and text are keyword-only on Popen and have no slot.
+_POSITIONAL_ORDER = {"stdout": 4, "stderr": 5, "universal_newlines": 11}
+
 # Methods that write through a name to the container it holds. A container
 # mutated after construction no longer matches the literal it was built from,
 # so indexing that literal answers for the wrong object.
@@ -133,11 +164,30 @@ _IMPORTED_NAMES: dict[str, dict[str, str]] = {
 
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
-    """Return the value node for keyword *name*, or ``None`` when absent."""
+    """Return the value node for keyword *name*, or ``None`` when absent.
+
+    Falls back to the positional slot the name occupies. ``Popen`` takes most
+    of its parameters positionally, and ``run``, ``call``, ``check_call`` and
+    ``check_output`` all forward ``*popenargs`` into it unchanged, so one order
+    answers for every entry point. A twelfth positional argument selects text
+    mode exactly as ``universal_newlines=True`` does, and reading only
+    ``call.keywords`` lets it through.
+
+    ``encoding``, ``errors`` and ``text`` are keyword-only on ``Popen``, so
+    they have no slot here and cannot be passed this way at all.
+    """
     for keyword in call.keywords:
         if keyword.arg == name:
             return keyword.value
-    return None
+    index = _POSITIONAL_ORDER.get(name)
+    if index is None or index >= len(call.args):
+        return None
+    argument = call.args[index]
+    # A starred argument shifts every slot after it by an unknown amount, so
+    # the name this slot holds is no longer knowable.
+    if any(isinstance(node, ast.Starred) for node in call.args[: index + 1]):
+        return None
+    return argument
 
 
 def _has_splat(call: ast.Call) -> bool:
@@ -153,6 +203,21 @@ def _has_splat(call: ast.Call) -> bool:
 def _is_literal_false(node: ast.expr | None) -> bool:
     """Report whether *node* is the literal ``False``."""
     return isinstance(node, ast.Constant) and node.value is False
+
+
+def _selects_text_mode(node: ast.expr | None) -> bool:
+    """Report whether a text-mode keyword value turns decoding on.
+
+    Mirrors ``Popen``'s own ``encoding or errors or text or universal_newlines``:
+    a missing keyword and a falsy literal leave bytes mode alone, and anything
+    else selects text mode. A name or an attribute cannot be resolved here, so
+    it counts as text mode and is then held to the UTF-8 pin.
+    """
+    if node is None:
+        return False
+    if isinstance(node, ast.Constant):
+        return bool(node.value)
+    return True
 
 
 def _call_label(call: ast.Call) -> str:
@@ -175,6 +240,45 @@ def _is_partial(label: str, functions: dict[str, str]) -> bool:
     return label == "partial" or functions.get(label) == _PARTIAL
 
 
+def _dict_view(call: ast.Call) -> list[ast.expr] | None:
+    """Return the halves of a dict literal a view call reads, or ``None``.
+
+    ``{"a": subprocess.run}.values()`` yields the entry point without ever
+    binding a name to it, and ``.items()`` yields it inside a tuple that a
+    loop target then unpacks.
+    """
+    func = call.func
+    if not isinstance(func, ast.Attribute):
+        return None
+    parts = _DICT_VIEWS.get(func.attr)
+    if parts is None or not isinstance(func.value, ast.Dict):
+        return None
+    return [
+        node
+        for part in parts
+        for node in getattr(func.value, part)
+        if node is not None
+    ]
+
+
+def _return_bindings(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[tuple[str, ast.expr]]:
+    """Bind what a function returns to the pseudo-name for its call result.
+
+    ``def get(): return subprocess.run`` puts an entry point behind ``get()``
+    while binding no name to one, so ``get()(...)`` reads as opaque without
+    this. A return inside a nested function is attributed to the outer one,
+    which over-approximates in the direction the rest of this scan already
+    takes: it can only add a finding, never hide one.
+    """
+    return [
+        (f"{node.name}{_CALL_SUFFIX}", child.value)
+        for child in ast.walk(node)
+        if isinstance(child, ast.Return) and child.value is not None
+    ]
+
+
 def _resolve_indirect(
     call: ast.Call, modules: set[str], functions: dict[str, str]
 ) -> str | None:
@@ -183,10 +287,24 @@ def _resolve_indirect(
     Covers ``functools.partial(subprocess.run, ...)`` and
     ``getattr(subprocess, "run")``. Both are static references wearing a
     disguise: the name is right there in the source.
+
+    Also covers a call that hands back what it was given: a pass-through
+    builtin, a view on a dict literal, and a function whose ``return`` reaches
+    an entry point. The scan resolves values, so without these a literal
+    handed to ``list`` or ``zip`` becomes an opaque node and the chain stops
+    one step short of the call it was meant to reach.
     """
     label = _call_label(call)
     if _is_partial(label, functions) and call.args:
         return _resolve_callable(call.args[0], modules, functions)
+    if label in _PASS_THROUGH:
+        return _resolve_elements(list(call.args), modules, functions)
+    view = _dict_view(call)
+    if view is not None:
+        return _resolve_elements(view, modules, functions)
+    returned = functions.get(f"{label}{_CALL_SUFFIX}")
+    if returned is not None:
+        return returned
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
         if not (isinstance(owner, ast.Name) and owner.id in modules):
@@ -765,6 +883,7 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             found.extend(_class_bindings(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             found.extend(_defaults(node.args))
+            found.extend(_return_bindings(node))
     return found
 
 
@@ -971,6 +1090,10 @@ def _subprocess_names(
                 continue
             functions[name] = resolved
             queue.extend(dependents.get(name, ()))
+            if name.endswith(_CALL_SUFFIX):
+                # A group reading ``get()`` registers a dependency on the bare
+                # name ``get``, because that is the only Name node in it.
+                queue.extend(dependents.get(name[: -len(_CALL_SUFFIX)], ()))
     return modules, functions, containers
 
 
@@ -1022,14 +1145,16 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
     carries are not visible here, so ``text`` may be among them, and reading
     the absence of a literal keyword as proof of bytes mode is the hole an
     adversarial review walked through.
+
+    Text mode is selected by ``encoding`` and ``errors`` as well as by ``text``
+    and ``universal_newlines``. ``Popen`` computes it as
+    ``encoding or errors or text or universal_newlines``, so reading only the
+    latter two lets ``errors="ignore"`` decode under the locale codec, and lets
+    ``encoding="latin-1"`` decode under a codec that is pinned but wrong.
     """
     if _has_splat(call):
         return True
-    text = _keyword(call, "text")
-    legacy = _keyword(call, "universal_newlines")
-    if (text is None or _is_literal_false(text)) and (
-        legacy is None or _is_literal_false(legacy)
-    ):
+    if not any(_selects_text_mode(_keyword(call, name)) for name in _TEXT_MODE_KEYWORDS):
         return False
     if _is_partial(_call_label(call), functions):
         # A partial can select text mode here and be handed capture_output at
@@ -1385,6 +1510,56 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'runner(["x"], text=True)',
             "the first binding of a name wins over a later group it shares",
 >>>>>>> origin/main
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "encoding=None)",
+            "encoding=None is the default and leaves the call in bytes mode",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "errors=None)",
+            "errors=None leaves the call in bytes mode too",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], errors='ignore')",
+            "errors= without a capture keyword still captures nothing",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "errors='ignore', encoding='utf-8')",
+            "errors= alongside a pinned codec decodes as UTF-8",
+        ),
+        (
+            "import subprocess\nfor fn in list([print]):\n"
+            "    fn(['x'], capture_output=True, text=True)",
+            "a pass-through of a container holding nothing relevant stays quiet",
+        ),
+        (
+            "import subprocess\nfor v in {'a': print}.values():\n"
+            "    v(['x'], capture_output=True, text=True)",
+            "a dict view over unrelated values stays quiet",
+        ),
+        (
+            "import subprocess\ndef get():\n    return print\n"
+            "get()(['x'], capture_output=True, text=True)",
+            "a function returning something else is not an entry point",
+        ),
+        (
+            "import subprocess\nsubprocess.Popen(['e'], -1, None, None, "
+            "subprocess.PIPE, subprocess.PIPE, None, True, False, None, None, False)",
+            "a positional universal_newlines of False leaves bytes mode alone",
+        ),
+        (
+            "import subprocess\nsubprocess.Popen(*a, -1, None, None, None, None, "
+            "None, True, False, None, None, True)",
+            "a starred argument shifts every slot after it by an unknown amount",
+        ),
+        (
+            "import subprocess\nsubprocess.Popen(['e'], -1, None, None, "
+            "subprocess.PIPE, subprocess.PIPE, None, True, False, None, None, "
+            "True, encoding='utf-8')",
+            "a positional universal_newlines alongside a pinned codec is compliant",
         ),
     ],
 )
@@ -1837,6 +2012,85 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "a positional-only parameter takes a default like any other",
 >>>>>>> origin/main
         ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "errors='ignore')",
+            "errors= alone selects text mode and decodes under the locale codec",
+        ),
+        (
+            "import subprocess\nsubprocess.check_output(['x'], errors='replace')",
+            "errors= selects text mode on an entry point that captures on its own",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "encoding='latin-1')",
+            "encoding= alone selects text mode, and this codec is pinned but wrong",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, "
+            "encoding=chosen)",
+            "a codec read from a name cannot be proven to be UTF-8",
+        ),
+        (
+            "import subprocess\nfor k, v in {'a': subprocess.run}.items():\n"
+            "    v(['x'], capture_output=True, text=True)",
+            "a dict view yields the entry point without binding a name to it",
+        ),
+        (
+            "import subprocess\nfor v in {'a': subprocess.run}.values():\n"
+            "    v(['x'], capture_output=True, text=True)",
+            "values() is the same view with one half of the literal",
+        ),
+        (
+            "import subprocess\nfor a, b in zip([1], [subprocess.run]):\n"
+            "    b(['x'], capture_output=True, text=True)",
+            "zip hands back the elements it was given",
+        ),
+        (
+            "import subprocess\nfor i, fn in enumerate([subprocess.run]):\n"
+            "    fn(['x'], capture_output=True, text=True)",
+            "enumerate hands back the elements it was given",
+        ),
+        (
+            "import subprocess\nfor fn in reversed([subprocess.run]):\n"
+            "    fn(['x'], capture_output=True, text=True)",
+            "reversed hands back the elements it was given",
+        ),
+        (
+            "import subprocess\nfor fn in sorted([subprocess.run]):\n"
+            "    fn(['x'], capture_output=True, text=True)",
+            "sorted hands back the elements it was given",
+        ),
+        (
+            "import subprocess\nfor fn in list([subprocess.run]):\n"
+            "    fn(['x'], capture_output=True, text=True)",
+            "a copy of a literal still holds what the literal held",
+        ),
+        (
+            "import subprocess\ndef get():\n    return subprocess.run\n"
+            "get()(['x'], capture_output=True, text=True)",
+            "a function return puts an entry point behind a call, not a name",
+        ),
+        (
+            "import subprocess\ndef get():\n    return subprocess.run\n"
+            "runner = get()\nrunner(['x'], capture_output=True, text=True)",
+            "a name bound to a returned entry point resolves through the call",
+        ),
+        (
+            "import subprocess\nsubprocess.Popen(['e'], -1, None, None, "
+            "subprocess.PIPE, subprocess.PIPE, None, True, False, None, None, True)",
+            "the twelfth positional is universal_newlines and selects text mode",
+        ),
+        (
+            "import subprocess\nsubprocess.run(['e'], -1, None, None, "
+            "subprocess.PIPE, subprocess.PIPE, None, True, False, None, None, True)",
+            "run forwards popenargs into Popen, so the same slot decides",
+        ),
+        (
+            "import subprocess\nsubprocess.Popen(['e'], -1, None, None, "
+            "subprocess.PIPE, text=True)",
+            "the fifth positional is stdout and supplies the capture",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -2030,6 +2284,29 @@ def test_a_value_reading_many_names_stays_linear() -> None:
     assert flagged == [], "no call is made, so nothing can decode"
     assert elapsed < 1.5, f"resolution took {elapsed:.1f}s for {width} names"
 >>>>>>> origin/main
+
+
+def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
+    """Collecting returns walks each function body once per enclosing function.
+
+    ``_return_bindings`` calls ``ast.walk`` on the whole function, so a body
+    nested ``depth`` deep is walked ``depth`` times. CPython refuses more than
+    100 indentation levels, which bounds that multiplier at a constant the
+    parser enforces rather than one this scan has to police, so the work stays
+    linear in file size. The nesting here sits just under that ceiling.
+    """
+    depth, width = 90, 2000
+    lines = [("  " * level) + f"def f{level}():" for level in range(depth)]
+    lines += [("  " * depth) + f"x{index} = {index}" for index in range(width)]
+    lines.append(("  " * depth) + "return 1")
+    source = "\n".join(lines)
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [], "nothing here reaches subprocess"
+    assert elapsed < 3.0, f"resolution took {elapsed:.1f}s at depth {depth}"
 
 
 @pytest.mark.parametrize(
