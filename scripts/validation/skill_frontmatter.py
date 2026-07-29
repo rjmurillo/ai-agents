@@ -376,6 +376,8 @@ def get_staged_skill_files() -> list[Path]:
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):

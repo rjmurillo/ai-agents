@@ -63,6 +63,8 @@ def get_staged_ps1_files(repo_root: Path) -> list[str]:
             ["git", "-C", str(repo_root), "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
     except (subprocess.TimeoutExpired, OSError):
