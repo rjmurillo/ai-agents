@@ -35,6 +35,7 @@ Tests under `tests/`, skill `tests/` directories, and `.agents/security/benchmar
 1. MUST NOT rename a test to silence a failure.
 2. MUST NOT add `Skip` or `@pytest.mark.skip` without a linked issue tracking re-enablement.
 3. MUST NOT suppress protocol validation in tests (investigation exemption is narrow; see ADR-034).
+4. MUST NOT leave files in the repository working tree. Durable fixtures go in `.pytest_tmp/`, which `.gitignore` covers and `validate_plugin_manifests.py` prunes; ephemeral scratch goes through `tempfile`. A test that deliberately exercises a repo-local `TMPDIR` may use `.pytest_cache/` (see `tests/test_pytest_repo_local_temp_roots.py`). Near-miss spellings such as `.pytest-tmp` are neither ignored nor pruned. Fix at the write target, not with `monkeypatch.chdir`.
 
 ## References
 
