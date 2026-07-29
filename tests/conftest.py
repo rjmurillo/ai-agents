@@ -94,7 +94,11 @@ def _isolate_tmp_path_from_parent_git_repo(
 @pytest.fixture
 def external_tmp_path() -> Iterator[Path]:
     """Create a temp directory outside the checkout for path-boundary tests."""
-    root = PROJECT_ROOT.parent / f".pytest-external-{PROJECT_ROOT.name}"
+    # Imported here rather than at module scope: the helper lives under `tests`,
+    # which only becomes importable after the sys.path insert above.
+    from tests.external_scratch import outside_every_repository
+
+    root = outside_every_repository(PROJECT_ROOT) / f".pytest-external-{PROJECT_ROOT.name}"
     path = root / uuid.uuid4().hex
     path.mkdir(parents=True)
     try:
