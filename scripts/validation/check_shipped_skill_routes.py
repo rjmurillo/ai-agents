@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this file is 304 lines of code carrying
+# roughly 230 lines of prose. Each paragraph records which defect made a rule
+# exist, and most of them were found by adversarial review rather than by
+# reasoning, so the rationale is not reconstructable from the code. The two
+# concerns here, deciding what text is a route and deciding which files to
+# read, would split cleanly, but the split is driven by a count measured
+# mostly on prose: it would put the fail-open story that justifies balanced
+# unwrapping in a different file from the balance test itself. The executable
+# core is well inside every threshold the same lint applies to functions.
+# Revisit if the code, not the prose, approaches the limit.
 """Routing gate: a plugin root must contain every skill its tables route to.
 
 Why this exists
@@ -97,6 +109,15 @@ all prose: five example headings in ``SkillForge/references/evolution-scoring
 names a real skill. If routing outside tables ever becomes a real authoring
 pattern, widen the scope here and expect to pay for it in false positives.
 
+A second limitation runs the other way. A route inside a raw HTML ``<code>``
+tag in a table cell is read as a route, because the parser marks
+``code_inline`` tokens and not ``html_inline`` ones. That is the fail-closed
+direction: a documentation example reads as drift rather than a real route
+going unchecked, and the author's workaround is one backtick. No table cell in
+the three plugin roots contains a ``<code>`` tag. Closing it would mean
+teaching a markdown parser several gates share to track HTML token depth,
+which adds a fail-open path to shared code to serve zero present occurrences.
+
 Walk discipline
 ---------------
 
@@ -133,19 +154,6 @@ fully represent all exit 2. ``Path.is_file`` and ``Path.is_dir`` are not used
 for discovery because they answer False for a path they cannot stat, which
 drops a whole plugin root and leaves its siblings to carry the pass. A gate
 that fails open is worse than no gate, because it also reports success.
-
-Known limitation
-----------------
-
-A route inside a raw HTML ``<code>`` tag in a table cell is read as a route,
-while the same route in a backtick span is treated as syntax documentation.
-The parser marks ``code_inline`` tokens, not ``html_inline`` ones. This is the
-fail-closed direction: a documentation example reads as drift rather than a
-real route going unchecked, and the author's workaround is one backtick.
-Measured across the three plugin roots, no table cell contains a ``<code>``
-tag. Closing it would mean teaching a markdown parser several gates share to
-track HTML token depth, which adds a fail-open path to shared code to serve
-zero present occurrences.
 """
 
 from __future__ import annotations
