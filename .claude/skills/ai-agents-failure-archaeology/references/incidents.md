@@ -181,8 +181,8 @@ gate into a suggestion
 **What changed**: `SKIP_PREPUSH` no longer exists (zero matches in `.githooks/`
 and `scripts/` as of 2026-07-02). Session-file merge rule made binding: files
 from main are immutable audit records; always `git checkout --theirs`, rename
-yours to the next available number (`:334`, `:634`; also in the
-`merge-resolver` skill). Escape hatches since then get teeth (logging,
+yours to the next available number (`:334`, `:634`; also covered by the
+merge-resolver agent). Escape hatches since then get teeth (logging,
 guards, approval markers) or do not ship; see `ai-agents-config-catalog`.
 
 **Status**: SETTLED. Treat any new frictionless bypass proposal as re-fighting

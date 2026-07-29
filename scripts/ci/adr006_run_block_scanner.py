@@ -53,6 +53,78 @@ _LOGIC = re.compile(
     """,
 )
 
+# A line whose command is a pure output builtin. Its quoted operands are
+# message text, not shell source.
+_STATIC_OUTPUT_CMD = re.compile(r"^\s*(?:echo|printf)\b")
+
+# One quoted operand, honouring backslash escapes so an escaped quote does not
+# end the match early.
+_QUOTED_OPERAND = re.compile(r"""(?P<q>["'])(?P<text>(?:\\.|(?!(?P=q)).)*)(?P=q)""")
+
+# Anything that makes a quoted operand evaluate rather than print: command
+# substitution, parameter expansion, a bare variable, a special parameter
+# (``$?``, ``$$``, ``$@``, ``$1``, and friends), or an unescaped backtick.
+# Special parameters matter because blanking an operand that evaluates at
+# runtime would undercount logic and make the metric less conservative.
+_EXPANSION = re.compile(r"\$[({A-Za-z_?$@*#!0-9-]|(?<!\\)`")
+
+
+def _blank_static_operands(line: str) -> str:
+    """Blank every quoted operand on ``line`` that cannot evaluate."""
+
+    def _blank(match: re.Match[str]) -> str:
+        if _EXPANSION.search(match.group("text")):
+            return match.group(0)
+        return match.group("q") * 2
+
+    return _QUOTED_OPERAND.sub(_blank, line)
+
+
+def _strip_static_output(line: str) -> str:
+    """Blank the message text of an ``echo``/``printf`` operand.
+
+    ``_LOGIC`` matches shell keywords by word boundary, so English prose in a
+    remediation message trips it: ``echo "Use forward slashes (/) for
+    cross-platform compatibility"`` matches ``\\bfor\\b`` and the whole block is
+    reported as business logic in YAML. Six live blocks were flagged this way
+    on the words "for" and "if" alone, and the scanner's own contract
+    (``test_large_pure_output_block_is_not_flagged``) says a pure output block
+    is not a violation. The existing comment-stripping in ``scan_text`` is the
+    same idea applied to ``#`` lines.
+
+    Only operands that cannot evaluate are blanked. An operand carrying
+    ``$(``, ``${``, ``$VAR``, or an unescaped backtick is left intact, so
+    ``echo "$(gh pr list)"`` still reads as logic. Everything outside the
+    quotes survives untouched, so a redirect to ``$GITHUB_STEP_SUMMARY``, a
+    pipe into ``jq``, and a trailing ``if`` all still match.
+    """
+    if not _STATIC_OUTPUT_CMD.match(line):
+        return line
+
+    return _blank_static_operands(line)
+
+
+def _strip_static_output_body(lines: Sequence[str]) -> list[str]:
+    """Apply :func:`_strip_static_output` across a body, following continuations.
+
+    A message list can span lines: ``printf '%s\\n' \\`` followed by bare
+    quoted operands. Those continuation lines carry no command of their own, so
+    a per-line check on the leading command never strips them and prose there
+    still trips ``_LOGIC``. ``validate-adr-number-uniqueness.yml`` is flagged
+    on exactly that shape.
+
+    Continuation state is carried only from an ``echo``/``printf`` command, so
+    an operand of any other command is left alone, and it ends at the first
+    line without a trailing backslash.
+    """
+    stripped: list[str] = []
+    continuing = False
+    for line in lines:
+        starts = bool(_STATIC_OUTPUT_CMD.match(line))
+        stripped.append(_blank_static_operands(line) if starts or continuing else line)
+        continuing = (starts or continuing) and line.rstrip().endswith("\\")
+    return stripped
+
 
 @dataclass(frozen=True, slots=True)
 class RunBlock:
@@ -112,9 +184,13 @@ def scan_text(text: str) -> list[RunBlock]:
         body, nxt = _body_lines(lines, i, key_indent)
         body_text = "\n".join(body)
         # Filter out comments and blank lines before logic detection to avoid
-        # false positives from keywords appearing only in comment text.
+        # false positives from keywords appearing only in comment text, and
+        # blank the message text of pure output commands for the same reason
+        # (prose in a remediation `echo` is not shell logic).
         code_only_text = "\n".join(
-            line for line in body if line.strip() and not line.strip().startswith("#")
+            _strip_static_output_body(
+                [line for line in body if line.strip() and not line.strip().startswith("#")]
+            )
         )
         blocks.append(
             RunBlock(
