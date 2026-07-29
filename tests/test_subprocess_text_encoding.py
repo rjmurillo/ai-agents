@@ -77,6 +77,11 @@ _SUBPROCESS_ATTRS = _CAPTURING_ATTRS | _ALWAYS_TEXT_ATTRS
 _ALWAYS_CAPTURING_ATTRS = frozenset({"check_output"})
 
 _PINNED_CODEC = "utf-8"
+# Popen selects the mode with ``encoding or errors or text or
+# universal_newlines``, so all four are equal doors into str. Reading only the
+# last two lets ``errors="ignore"`` through, which is exactly what an author
+# writes to silence a UnicodeDecodeError while keeping the locale codec.
+_TEXT_SELECTORS = ("text", "universal_newlines", "encoding", "errors")
 _OS_POPEN = "os.popen"
 # Stands for a subprocess entry point selected at runtime, which no static
 # scan can name. Because it may be getoutput, which decodes with no flag to
@@ -128,6 +133,25 @@ def _has_splat(call: ast.Call) -> bool:
 def _is_literal_false(node: ast.expr | None) -> bool:
     """Report whether *node* is the literal ``False``."""
     return isinstance(node, ast.Constant) and node.value is False
+
+
+def _selects_text(node: ast.expr | None) -> bool:
+    """Report whether *node* supplies a value that turns text mode on.
+
+    ``Popen`` decides the mode with ``encoding or errors or text or
+    universal_newlines``, so all four keywords are equal doors into ``str``
+    and a keyword only opens one when its value is truthy. An absent keyword
+    and a literal falsy one both leave the pipes in bytes mode.
+
+    Anything the scan cannot evaluate counts as text mode. ``text=flag``
+    decodes whenever ``flag`` is true at runtime, and reading an unresolved
+    value as bytes mode is the direction that hides the bug.
+    """
+    if node is None:
+        return False
+    if isinstance(node, ast.Constant):
+        return bool(node.value)
+    return True
 
 
 def _call_label(call: ast.Call) -> str:
@@ -717,11 +741,7 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
     """
     if _has_splat(call):
         return True
-    text = _keyword(call, "text")
-    legacy = _keyword(call, "universal_newlines")
-    if (text is None or _is_literal_false(text)) and (
-        legacy is None or _is_literal_false(legacy)
-    ):
+    if not any(_selects_text(_keyword(call, name)) for name in _TEXT_SELECTORS):
         return False
     if _is_partial(_call_label(call), functions):
         # A partial can select text mode here and be handed capture_output at
@@ -833,6 +853,26 @@ def test_the_scan_actually_reaches_files() -> None:
             "import subprocess\n"
             "subprocess.run(['x'], capture_output=True, universal_newlines=True)",
             "the legacy universal_newlines spelling",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, errors='ignore')",
+            "errors alone selects text mode and leaves the codec to the locale",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, encoding='latin-1')",
+            "encoding alone selects text mode and names a codec that is not UTF-8",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, text=flag)",
+            "a text value the scan cannot evaluate may well be true at runtime",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, encoding=CODEC)",
+            "a codec named indirectly is not proof that the codec is UTF-8",
         ),
     ],
 )
@@ -1057,6 +1097,41 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             '    def m(self):\n        runner = subprocess.run\n'
             'def go(c):\n    c.runner(["x"], capture_output=True, text=True)',
             "a method local is not a class attribute",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, errors=None)",
+            "errors=None asks for bytes, exactly as omitting it does",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, encoding=None)",
+            "encoding=None asks for bytes, exactly as omitting it does",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, errors='ignore', encoding='utf-8')",
+            "errors with a pinned codec decodes under UTF-8",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], errors='ignore')",
+            "text mode with nothing captured decodes nothing",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, text=None)",
+            "text=None is falsy and leaves the pipes in bytes mode",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, text=0)",
+            "text=0 is falsy and leaves the pipes in bytes mode",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], capture_output=True, universal_newlines=None)",
+            "the legacy spelling is falsy under None just as the new one is",
         ),
     ],
 )
