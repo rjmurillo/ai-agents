@@ -74,7 +74,7 @@ uv run pytest .claude/skills/prose-self-check/tests/ -q    # one skill's colocat
 uv run pytest .claude/skills/NAME/tests/ --collect-only -q # prove tests are discoverable without running
 ```
 
-Markers (pyproject.toml:46-51): `unit`, `integration`, `security`, `smoke`. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
+Markers (pyproject.toml:66-72): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`. `safe_push_transport` marks safe-push tests that touch a non-local transport and are excluded from pre-push. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
 
 Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (as of 2026-07-03; ADR-042 Python migration). Trust the table above and pyproject.toml, not that file.
 
@@ -165,7 +165,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:40-55`, repo-root `conftest.py:44-58`, `tests/conftest.py:19-63`, `.github/workflows/pytest.yml:138-164`, `.claude/rules/generated-artifacts.md:63-70`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-03 against the working tree. Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:44-58`, `tests/conftest.py:19-63`, `.github/workflows/pytest.yml:138-164`, `.claude/rules/generated-artifacts.md:63-70`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
