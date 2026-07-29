@@ -55,10 +55,10 @@ the roster as an agent named ``claude-instructions.template``, so a matrix row
 citing that name passed. An uppercase-stem filter did not help, because the
 filename is lowercase. Membership is therefore decided by content: a file counts
 as an agent only when it opens with a YAML frontmatter block carrying a
-``description:`` key. Both fences must be complete lines: a substring search for
-``\n---`` accepted ``---not-a-closing-fence`` and admitted a malformed document
-as an agent. Measured across all six trees that rule keeps all 175 agent
-files and excludes exactly four suffix-matching sibling documents:
+non-empty string ``description:`` key. Both fences must be complete lines: a
+substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
+a malformed document as an agent. Measured across all six trees that rule keeps
+all 175 agent files and excludes exactly four suffix-matching sibling documents:
 ``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
 ``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
 also fully subsumes the uppercase-stem filter it replaced.
@@ -180,9 +180,9 @@ MATRIX_HEADER_CELL = "agent"
 # instead. Link autodetection has no bearing on table structure.
 MARKDOWN = MarkdownIt("commonmark").enable("table")
 
-# A frontmatter key every agent definition carries, in every tree. Presence of a
-# frontmatter block whose YAML parses to a mapping containing this key is what
-# separates an agent from a sibling document sharing the tree's filename suffix.
+# A frontmatter key every agent definition carries as a non-empty string, in
+# every tree. Presence of a valid frontmatter block with this key separates an
+# agent from a sibling document sharing the tree's filename suffix.
 FRONTMATTER_KEY = "description"
 
 # The opening delimiter, anchored at the first byte. Anchoring is what stops a
@@ -365,8 +365,9 @@ def agent_frontmatter(path: Path, reasons: list[str] | None = None) -> dict[str,
     The block is parsed as YAML rather than pattern matched. A textual search for
     the key reported success on ``description: [``, which no host can load, so a
     document that cannot be an agent anywhere still supplied a citable name. The
-    parsed result must be a mapping: a block holding a bare scalar or a list has
-    no keys to carry.
+    parsed result must be a mapping with a non-empty string description: a null
+    or duplicate description disagrees with stricter hosts and therefore must
+    not enter the roster.
 
     A directory or a dangling symlink raises ``OSError`` from ``read_text``, so
     no separate ``is_file`` guard is needed.

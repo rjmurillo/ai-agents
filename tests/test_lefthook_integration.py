@@ -4542,7 +4542,7 @@ def test_blob_readers_report_missing_objects(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
+    monkeypatch.setattr(policy, "_run_git_bytes", lambda *_args: _completed(1))
 
     assert policy._read_index_blob(tmp_path, "missing") is None
     assert policy._read_head_blob(tmp_path, "missing") is None
@@ -4551,9 +4551,13 @@ def test_blob_readers_report_missing_objects(
 def test_head_blob_reader_returns_content(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    _commit_file(repo, "tracked", "content\n")
+    tracked = repo / "tracked"
+    raw = b"content\r\n"
+    tracked.write_bytes(raw)
+    _git(repo, "add", "tracked")
+    _git(repo, "commit", "-qm", "test: add tracked")
 
-    assert policy._read_head_blob(repo, "tracked") == b"content\n"
+    assert policy._read_head_blob(repo, "tracked") == raw
 
 
 def test_committed_crlf_survives_the_trip_through_the_test_helper(tmp_path: Path) -> None:
