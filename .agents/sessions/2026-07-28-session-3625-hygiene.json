@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3625,
+    "date": "2026-07-28",
+    "branch": "fix/3625-3651-3627-hygiene",
+    "startingCommit": "9b7e10df5",
+    "objective": "Close five independent hygiene issues found during the open-issue triage campaign: two dead merge drivers in .gitattributes (#3625), untracked model-sweep output landing in the tracked evals tree (#3597), a stale agent count in the claude plugin manifest (#3651), a gate reason printed out of order because stdout was block-buffered (#3627), and 30 optimize-artifact CLI flags with no help text (#3616)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3625-3651-3627-hygiene before every commit."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch cut from origin/main at 9b7e10df5; no commit was made on main."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read at campaign start and left unmodified per ADR-014; absent from git status."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP is not exposed in this Copilot CLI harness; per AGENTS.md 'If unavailable: Skip Serena', context came from .agents governance docs and the ADR set."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable, so initial_instructions could not be called. Fell back to AGENTS.md and .claude/rules."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Five atomic commits, one per issue, each at or below three files: 8ae2e4b38, f7c68aac7, 48e216116, 57a47e372, bc070c780."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full pre-push lefthook run green through python-tests (284.97s); the only gate that refused was branch-context-policy, which this log satisfies."
+      },
+      "testsRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Both new suites carry a proven negative control: the stdout-flush tests fail when sys.stdout.flush() is removed, and the parser-walking fence fails when any single help string is deleted."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/eval/README.md is the only Markdown in the diff; markdownlint-cli2 ran clean on it."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; absent from git status."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable in this harness; learnings recorded below instead."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "#3625: remove two merge drivers that never took effect.",
+      "result": "Git resolves a merge attribute through git config merge.<name>.driver, which is per clone and never committed. No script registered handoff-aggregate or ours, so both lookups failed and git fell back to the default text merge. The ours entry was doubly wrong: ours is a strategy and a strategy option, not a low-level driver name. Replaced 119 lines of documentation promising conflict resolution that did not exist with a 24-line accurate explanation. ADR-014 still enforces HANDOFF.md read-only via the pre-commit hook.",
+      "files": [".gitattributes"]
+    },
+    {
+      "action": "#3597: ignore model-sweep output that lands in the tracked evals tree.",
+      "result": "eval-model-sweep.py roots artifacts at REPO_ROOT, so every run writes into evals/, which holds 365 tracked files. Scoped the ignore to the sweep- run-id prefix that make_run_id guarantees, so tracked fixtures and non-sweep reports stay visible. Verified all three output shapes are ignored and that zero tracked files change status.",
+      "files": [".gitignore"]
+    },
+    {
+      "action": "#3651: drop the stale agent count PR #2187 left behind.",
+      "result": "The manifest still claimed '25 specialized agent definitions', contradicting the marketplace entry #2187 had already made count-free. Removed the number rather than correcting it, completing the earlier decision instead of reversing it.",
+      "files": ["src/claude/.claude-plugin/plugin.json"]
+    },
+    {
+      "action": "#3627: flush stdout so a gate reason reaches its own error.",
+      "result": "Under lefthook's pipe Python block-buffers stdout while stderr stays unbuffered, so a gate's error flushed before its reason and the reason landed under the next hook's group header, reading as that hook's output. An operator saw a commit count and limit with the explanatory line attributed elsewhere, which invites a squash that does not help. Fixed inside the shared _print_process_output helper so every gate gains the ordering rather than one call site.",
+      "files": ["scripts/validation/git_hook_policy.py", "tests/test_lefthook_integration.py"]
+    },
+    {
+      "action": "#3616: give every optimize-artifact flag help text.",
+      "result": "Introspecting the built parser found 30 of 40 subcommand flags with no help string, not the 5 the report estimated; 14 of those are required, so an operator could neither run the command nor learn what to pass. buffer-add --reason was the sharp case: required, and --help said only that it was required. Added a test that walks the parser and refuses any flag without help, so the next one cannot ship undiscoverable.",
+      "files": ["scripts/eval/optimize-artifact.py", "scripts/eval/README.md", "tests/eval/test_optimize_artifact_cli.py"]
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Introspect the artifact instead of trusting the report's count.",
+        "context": "Issue #3616 estimated 5 flags missing help text. Walking the built argparse parser found 30.",
+        "application": "When an issue quantifies a defect, re-derive the number from the artifact before scoping the fix; then leave the introspection behind as a regression fence."
+      },
+      {
+        "pattern": "Fix shared output helpers, not the reporting call site.",
+        "context": "#3627 surfaced on one gate, but the interleaving came from the helper every gate uses.",
+        "application": "When an ordering or formatting defect reproduces through a shared helper, fix the helper so sibling call sites inherit the fix instead of waiting for their own bug report."
+      },
+      {
+        "pattern": "Negative-control the scanner before believing a zero.",
+        "context": "A blast-radius scan reported zero pwsh workflow steps. _yaml_run_scripts returns (shell, body, node) tuples, so getattr(step, 'shell') silently returned None for all 403 steps.",
+        "application": "Before acting on a zero-hit scan, feed the scanner a synthetic input that must hit. A scan that cannot produce a positive proves nothing."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Documenting a git merge driver without registering it.",
+        "consequence": ".gitattributes advertised 'main always wins' on the file most likely to conflict while producing an ordinary conflict, the opposite of the stated intent.",
+        "correction": "A merge attribute needs a matching git config merge.<name>.driver in every clone. Without an installer that registers it, delete the attribute rather than document it."
+      },
+      {
+        "antipattern": "Batching several commits behind one shell helper function.",
+        "consequence": "A stale index from an earlier checkout leaked unrelated files into the first commit, and the final invocation silently printed status instead of committing.",
+        "correction": "Reset the index before each commit, pass explicit pathspecs to both git add and git commit, and verify with git show --stat per commit."
+      }
+    ]
+  },
+  "endingCommit": "bc070c780",
+  "nextSteps": [
+    "Open the PR covering #3625, #3597, #3651, #3627, and #3616.",
+    "Replace the F2 command-word heuristic in the semgrep gate with a quote-aware scanner; the adversarial review found 16 evasions of the separator-set regex."
+  ]
+}
