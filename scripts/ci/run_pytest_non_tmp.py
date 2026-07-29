@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         # The env-derived path is resolved and validated by _configured_temp_root
         # (outside the repo, outside /tmp) and passed as list-form argv with no
         # shell, so no injection surface remains.
+        sys.stdout.flush()
         return subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             cmd, cwd=PROJECT_ROOT, env=env, check=False
         ).returncode
