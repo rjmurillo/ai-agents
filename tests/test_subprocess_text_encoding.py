@@ -78,6 +78,7 @@ _DYNAMIC = "subprocess.<dynamic>"
 # Marks a name that reaches functools.partial. Held in the same map as the
 # subprocess names for want of a second one to thread, and filtered out of
 # every path that answers "is this a subprocess entry point".
+_ATTRIBUTE = "."
 _PARTIAL = "functools.partial"
 
 # Entry points that hand back str no matter what keywords a call passes.
@@ -196,12 +197,17 @@ def _resolve_callable(
     if isinstance(node, ast.Name):
         resolved = functions.get(node.id)
         return None if resolved == _PARTIAL else resolved
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-        owner, attr = node.value.id, node.attr
-        if owner in modules and attr in _SUBPROCESS_ATTRS:
-            return attr
-        if owner == "os" and attr == "popen":
-            return _OS_POPEN
+    if isinstance(node, ast.Attribute):
+        if isinstance(node.value, ast.Name):
+            owner, attr = node.value.id, node.attr
+            if owner in modules and attr in _SUBPROCESS_ATTRS:
+                return attr
+            if owner == "os" and attr == "popen":
+                return _OS_POPEN
+        # No partial filter here, unlike the bare-name branch above. The
+        # sentinel is only ever written for an imported name, and every
+        # attribute binding is resolved through that branch, which drops it.
+        return functions.get(_ATTRIBUTE + node.attr)
     if isinstance(node, ast.Call):
         return _resolve_indirect(node, modules, functions)
     if isinstance(node, ast.NamedExpr):
@@ -221,12 +227,18 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
 
     Shapes that line up are matched element by element. When they do not line
     up the right side is unknown, so every name on the left is paired with the
-    whole of it rather than dropped.
+    whole of it rather than dropped. An attribute target binds under its own
+    key, because the object holding it is out of reach of this scan.
     """
     if isinstance(target, ast.Name):
         return [(target.id, value)]
     if isinstance(target, ast.Starred):
         return _unpack(target.value, value)
+    if isinstance(target, ast.Attribute):
+        # Which object holds the attribute is not modelled, so the attribute
+        # name alone carries the binding. The leading dot cannot appear in an
+        # identifier, so these keys never collide with a plain name.
+        return [(_ATTRIBUTE + target.attr, value)]
     if not isinstance(target, (ast.Tuple, ast.List)):
         return []
     if isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == len(target.elts):
@@ -238,11 +250,29 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
     return [pair for sub in target.elts for pair in _unpack(sub, value)]
 
 
+def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
+    """Pair each parameter of *spec* with its default, where it has one.
+
+    ``def go(runner=subprocess.run)`` binds the name once, when the function is
+    defined, and every call that leaves the argument out reads that binding.
+    """
+    positional = spec.posonlyargs + spec.args
+    filled = positional[len(positional) - len(spec.defaults) :]
+    found = [(arg.arg, default) for arg, default in zip(filled, spec.defaults, strict=True)]
+    found.extend(
+        (arg.arg, default)
+        for arg, default in zip(spec.kwonlyargs, spec.kw_defaults, strict=True)
+        if default is not None
+    )
+    return found
+
+
 def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     """Collect every ``name = value`` binding at any depth.
 
-    Covers plain assignment, annotated assignment, and the walrus, which binds
-    a name in the middle of an expression and needs no statement of its own.
+    Covers plain assignment, annotated assignment, the walrus, loop and
+    comprehension targets, class bodies, and default arguments, every one of
+    which binds a name without an assignment statement to find.
     Assignment targets are unpacked, so a name bound by destructuring is as
     visible as one bound on its own.
     """
@@ -256,6 +286,21 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
                 found.append((node.target.id, node.value))
         elif isinstance(node, ast.NamedExpr):
             found.append((node.target.id, node.value))
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            # ``for runner in (subprocess.run,)`` binds a name with no
+            # assignment statement anywhere in sight.
+            found.extend(_unpack(node.target, node.iter))
+        elif isinstance(node, ast.ClassDef):
+            # A class body binds attributes without ever naming ``self``.
+            for statement in node.body:
+                if isinstance(statement, ast.Assign):
+                    for target in statement.targets:
+                        found.extend(
+                            (_ATTRIBUTE + name, bound)
+                            for name, bound in _unpack(target, statement.value)
+                        )
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            found.extend(_defaults(node.args))
     return found
 
 
@@ -511,6 +556,23 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "two entry points that both need keywords decode nothing without one",
         ),
         (
+            'import subprocess\nclass C:\n    def __init__(self):\n'
+            '        self.run = subprocess.run\n'
+            'C().run(["x"], capture_output=True, text=True, encoding="utf-8")',
+            "an attribute that pins the codec is as safe as a name that does",
+        ),
+        (
+            'import json\nclass C:\n    def __init__(self):\n'
+            '        self.load = json.loads\n'
+            'C().load("{}", capture_output=True, text=True)',
+            "an attribute holding an unrelated callable is ordinary Python",
+        ),
+        (
+            'import subprocess\ndef go(runner=subprocess.run):\n'
+            '    runner(["x"], capture_output=True, text=True, encoding="utf-8")',
+            "a default argument that pins the codec needs no second look",
+        ),
+        (
             'import subprocess\nfrom mylib import render\n'
             'runner, drawer = subprocess.run, render\n'
             'drawer("x", capture_output=True, text=True)',
@@ -762,6 +824,43 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "unpacking a name of unknown shape may hand it to either side",
         ),
         (
+            'import subprocess\nclass C:\n    def __init__(self):\n'
+            '        self.run = subprocess.run\n'
+            'C().run(["x"], capture_output=True, text=True)',
+            "an entry point parked on an attribute is reached through the object",
+        ),
+        (
+            'import subprocess\nclass C:\n    run = subprocess.run\n'
+            'C.run(["x"], capture_output=True, text=True)',
+            "a class body binds an attribute without ever naming self",
+        ),
+        (
+            'import subprocess\nfor runner in (subprocess.run,):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a loop target is a binding with no assignment statement",
+        ),
+        (
+            'import subprocess\ndef go(runner=subprocess.run):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a default argument binds the name once, at definition time",
+        ),
+        (
+            'import subprocess\ndef go(cmd, runner=subprocess.run):\n'
+            '    runner(cmd, capture_output=True, text=True)',
+            "defaults fill the tail of the parameter list, not the head",
+        ),
+        (
+            'import subprocess\ndef go(*, runner=subprocess.run):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a keyword-only parameter carries its default in a separate list",
+        ),
+        (
+            'import subprocess\ndef go():\n'
+            '    return [r(["x"], capture_output=True, text=True) '
+            'for r in (subprocess.run,)]',
+            "a comprehension target binds inside its own scope",
+        ),
+        (
             'import subprocess\nrunners = [subprocess.run, subprocess.Popen]\n'
             'runners[0](["x"], capture_output=True, text=True)',
             "members that share a keyword contract still honour that contract",
@@ -797,6 +896,13 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
             'subprocess.run(["x"], **kwargs)',
             "an empty splat carries no text keyword and returns bytes",
         ),
+        (
+            'import subprocess\nclass C:\n    def __init__(self):\n'
+            '        self.run = subprocess.run\n'
+            'def go(parser):\n'
+            '    parser.run(["x"], capture_output=True, text=True)',
+            "an unrelated object with a same-named method reads as the one bound",
+        ),
     ],
 )
 def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
@@ -812,7 +918,10 @@ def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
     ``ast.walk`` does not give, so a rebinding nested in a branch would decide
     the answer for code that never runs it. Reading an absent keyword inside a
     splat as proof of bytes mode is the exact hole an adversarial review walked
-    through.
+    through. Deciding which object an attribute hangs off would mean tracking
+    types, and a wrapper that stores an entry point on ``self`` is the very
+    shape a review executed against this scan, so the attribute name alone has
+    to carry the binding.
 
     No file in this repository trips any of these, which is what makes the
     trade cheap: the repo-wide scan above is green.
