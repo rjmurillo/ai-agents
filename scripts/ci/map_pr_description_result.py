@@ -35,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
         return CONFIG_ERROR
     pr_number = os.environ.get("PR_NUMBER", "")
     print("Validating PR description...")
+    sys.stdout.flush()
     result = subprocess.run(
         [
             "python3",
