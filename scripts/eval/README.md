@@ -163,6 +163,39 @@ Adding a new activation eval:
 4. Run live (without `--dry-run`) to score. Skill-reference targets add one route call per scenario before response scoring.
 5. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 
+### Software Engineering Library Rollback Gate
+
+ADR-088 moved these eight book-derived references behind `software-engineering-library`:
+`clean-architecture`, `domain-driven-design`, `enterprise-patterns`, `refactoring`,
+`release-it`, `philosophy-of-software-design`, `data-intensive-applications`, and
+`working-with-legacy-code`.
+
+Owner: `agent-qa`.
+
+Cadence: weekly Monday 06:30 UTC through
+`.github/workflows/software-engineering-library-activation.yml`, with a
+`pull_request` dry-run wiring gate for changes to the skill, fixtures, eval script,
+or workflow.
+
+Persistent state lives in the GitHub Actions cache at
+`.eval-state/software-engineering-library-activation-state.json`. The state records
+one entry per moved reference with `consecutive_activation_failures`,
+`last_verdict`, `last_run_id`, and `last_checked_at`. `FAIL_THRESHOLD`,
+`FAIL_NO_DELTA`, `NO_POSITIVE_CASES`, and `NO_RESULT` increment the rollback streak.
+`FAIL_JUDGE_ERRORS` is treated as an external eval failure and does not increment
+the activation rollback streak.
+
+The workflow runs all eight scenario files live on the weekly schedule and feeds
+`activation-results.json` into
+`scripts/eval/software_engineering_library_activation_gate.py`. A reference that
+reaches two consecutive activation failures trips the rollback threshold.
+
+When the threshold trips, the workflow uploads the eval report, opens or updates a
+rollback tracking issue, and fails the repository gate. The restoration PR must
+restore the failing book reference to the always-on rule surface or strengthen the
+skill trigger and scenario coverage. It must include the latest gate report and pass
+this workflow before merge.
+
 ## Skill Overlap Eval
 
 `eval-skill-overlap.py` answers a question `eval-knowledge-integration.py`
