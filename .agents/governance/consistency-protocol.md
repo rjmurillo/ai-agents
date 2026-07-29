@@ -197,30 +197,9 @@ related:
 
 ### Validation Script
 
-Location: `scripts/validation/consistency.py`
-
-Capabilities:
-
-```bash
-# Validate a specific feature's artifacts
-python3 scripts/validation/consistency.py --feature "user-authentication"
-
-# Validate all artifacts
-python3 scripts/validation/consistency.py --all
-
-# Output formats
-python3 scripts/validation/consistency.py --feature "auth" --format markdown
-python3 scripts/validation/consistency.py --feature "auth" --format json
-```
-
-### CI Integration
-
-Consistency validation can be integrated into CI:
-
-```yaml
-- name: Validate Consistency
-  run: python3 scripts/validation/consistency.py --all --ci
-```
+The retired cross-document validator was removed after `.agents/planning`
+stopped carrying feature PRD and task pairs. Current planning validation lives
+in `build/scripts/validate_planning_artifacts.py`.
 
 ---
 

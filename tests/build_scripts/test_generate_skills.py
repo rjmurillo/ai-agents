@@ -19,18 +19,22 @@ _GATED_SKILL_TREE_MIRRORS = (
     "autoplan",
     "review",
     "cva-analysis",
+    "observability",
     "orphan-ref-validator",
     "security-detection",
     "slashcommandcreator",
+    "taste-lints",
 )
 _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
     {
         "autoplan",
         "cva-analysis",
+        "observability",
         "orphan-ref-validator",
         "review",
         "security-detection",
         "slashcommandcreator",
+        "taste-lints",
     }
 )
 _SKILL_ROUTE_RE = re.compile(

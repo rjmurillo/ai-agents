@@ -45,12 +45,33 @@ def _commits_json(n: int) -> str:
         (14, "WARNING"),
         (15, "ALERT"),
         (19, "ALERT"),
-        (20, "BLOCKED"),
+        (20, "ALERT"),
+        (21, "BLOCKED"),
         (99, "BLOCKED"),
     ],
 )
 def test_classify_count_thresholds(count: int, expected: str) -> None:
     assert mod.classify_count(count) == expected
+
+
+@pytest.mark.parametrize(("count", "blocked"), [(19, False), (20, False), (21, True)])
+def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool) -> None:
+    """The two enforcement points must draw the line in the same place.
+
+    The local hook in ``scripts/validation/git_hook_policy.py`` allows a push
+    when ``commit_count <= limit``, and ``AGENTS.md`` states the rule as
+    ``<=20``. That ``limit`` is 20 by default, so at the default the two
+    points now agree: 20 passes both, 21 fails both. A count of 20 that
+    pushed cleanly and then failed the pull request check gave an author a red
+    pull request with no local signal (issue #3721).
+
+    The hook widens ``limit`` to 40 when the update contains a merge of main.
+    This check never sees the push shape, so it cannot mirror that widening,
+    and a main-merge push of 21 through 40 still needs the
+    commit-limit-bypass label. That gap is out of scope here and is not what
+    this test pins.
+    """
+    assert (mod.classify_count(count) == "BLOCKED") is blocked
 
 
 # ---------------------------------------------------------------------------
@@ -102,11 +123,19 @@ def test_fetch_healthy_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_fetch_healthy_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(20)))
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(21)))
     result = mod.fetch_commit_count(42, "o", "r")
     assert result.status == "BLOCKED"
-    assert result.count == 20
+    assert result.count == 21
     assert result.transient is False
+
+
+def test_fetch_at_the_limit_is_not_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A count the local hook accepts must survive the fetch path too (#3721)."""
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(20)))
+    result = mod.fetch_commit_count(42, "o", "r")
+    assert result.status == "ALERT"
+    assert result.count == 20
 
 
 def test_fetch_empty_list_is_ok_not_error(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -9,9 +9,11 @@ import pytest
 
 from scripts.utils.markdown_parser import (
     ChecklistMatch,
+    MarkdownNestingError,
     ParsedTable,
     Section,
     TableRow,
+    blank_code_block_lines,
     find_checklist_item,
     find_section,
     parse_sections,
@@ -310,3 +312,159 @@ class TestDataclasses:
         assert s.level == 2
         assert s.title == "Test"
         assert s.body == "Content"
+
+
+class TestBlankCodeBlockLinesInvariants:
+    """Invariants that hold for ANY correct code-stripper (issue #3499).
+
+    Every test here passes against both the pre-#3499 line scanner and the AST
+    walk, so it guards against regression but is NOT evidence the AST migration
+    landed. Presenting these as RED-before proof would overstate the migration;
+    the AST-specific evidence lives in :class:`TestBlankCodeBlockLinesAstBehavior`.
+    """
+
+    def test_blanks_fenced_block_keeps_prose(self):
+        text = "keep /a\n```\ndrop /b\n```\nkeep /c\n"
+        out = blank_code_block_lines(text).split("\n")
+        assert out[0] == "keep /a"
+        assert out[1] == ""
+        assert out[2] == ""
+        assert out[3] == ""
+        assert out[4] == "keep /c"
+
+    def test_blanks_tilde_fence(self):
+        text = "~~~\ndrop /b\n~~~\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_blanks_fence_inside_blockquote(self):
+        text = "> ```\n> drop /b\n> ```\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_keeps_inline_code_span(self):
+        # Inline spans are not block code; the caller strips those separately.
+        text = "see `keep /a` here\n"
+        assert "keep /a" in blank_code_block_lines(text)
+
+    def test_keeps_html_block(self):
+        # HTML blocks are not stripped, so an unquoted ``src=`` attribute path
+        # stays visible to the scanner.
+        text = "<img src=/keep/a>\n"
+        assert "/keep/a" in blank_code_block_lines(text)
+
+    def test_preserves_line_count(self):
+        text = "a\n```\nb\nc\n```\nd\n"
+        assert len(blank_code_block_lines(text).split("\n")) == len(text.split("\n"))
+
+    def test_unterminated_fence_blanks_to_end(self):
+        text = "```\ndrop /a\ndrop /b\n"
+        out = blank_code_block_lines(text)
+        assert "drop /a" not in out
+        assert "drop /b" not in out
+
+    def test_empty_string_returns_empty(self):
+        assert blank_code_block_lines("") == ""
+
+    def test_no_code_is_returned_unchanged(self):
+        text = "just prose /a and more\n"
+        assert blank_code_block_lines(text) == text
+
+
+class TestBlankCodeBlockLinesAstBehavior:
+    """Behaviors the pre-#3499 line scanner got wrong (issue #3499).
+
+    Each case fails against the old scanner and passes against the AST walk, so
+    these are the RED-before evidence that the AST migration changed behavior,
+    not merely preserved it. The equivalence run adjudicated every disagreement
+    in the AST's favor.
+    """
+
+    def test_blanks_indented_code_block(self):
+        # A 4-space indent after a blank line is an indented code block. The old
+        # line scanner never stripped these; the AST does (the #3499 fix).
+        text = "prose\n\n    indented /b\n"
+        out = blank_code_block_lines(text)
+        assert "indented /b" not in out
+        assert "prose" in out
+
+    def test_blanks_fence_indented_beyond_three_spaces_in_list(self):
+        # A fence aligned to a doubly-nested list lands at 4-space indent, which
+        # the old ``[ \t]{0,3}`` fence regex could not match. The AST resolves
+        # the list-relative indent and strips it.
+        text = "- outer:\n  - inner:\n    ```bash\n    drop /b\n    ```\n"
+        assert "drop /b" not in blank_code_block_lines(text)
+
+    def test_keeps_prose_after_nested_fence_example(self):
+        # A stray closing fence inside a nested example must not open a phantom
+        # block that swallows real prose past the list-item boundary.
+        text = (
+            "1. example:\n"
+            "   ```markdown\n"
+            "   ### H\n"
+            "   ```python\n"
+            "   code\n"
+            "   ```\n"
+            "   ```\n"
+            "\n"
+            "2. real prose /keep/a\n"
+        )
+        assert "/keep/a" in blank_code_block_lines(text)
+
+    def test_parser_error_propagates_not_swallowed(self, monkeypatch):
+        # Fail closed: a parser failure must raise, never return clean prose that
+        # would let an unparseable file slip past the gate.
+        import scripts.utils.markdown_parser as mp
+
+        class _Boom:
+            def parse(self, _text):
+                raise ValueError("boom")
+
+        monkeypatch.setattr(mp, "_create_parser", lambda *a, **k: _Boom())
+        with pytest.raises(ValueError, match="boom"):
+            mp.blank_code_block_lines("anything")
+
+
+class TestNestingExhaustion:
+    """The parser's ``maxNesting`` limit must fail closed, not open (issue #3499).
+
+    markdown-it stops emitting block tokens once container nesting reaches
+    ``maxNesting`` (20 for the commonmark preset) and silently drops the rest of
+    the input. A fenced ``vendor-portability`` marker or example path hidden
+    that deep would then survive code-stripping and read as prose, suppressing
+    genuine violations. ``blank_code_block_lines`` detects the truncation with a
+    bounded second parse and refuses the file instead.
+    """
+
+    @staticmethod
+    def _nested_fence(depth: int) -> str:
+        quote = ">" * depth + " "
+        return (
+            quote + "```\n"
+            + quote + "<!-- vendor-portability: example -->\n"
+            + quote + "```\n"
+            + "Ref .agents/analysis/foo.md.\n"
+        )
+
+    def test_depth_20_fenced_marker_is_refused(self):
+        # At depth 20 the fence token vanishes, so the marker would leak. Refuse.
+        with pytest.raises(MarkdownNestingError):
+            blank_code_block_lines(self._nested_fence(20))
+
+    def test_depth_19_control_is_scanned(self):
+        # Depth 19 is the last level the parser fully represents: the fence is
+        # tokenized and its marker line blanked, so the file is scanned normally.
+        out = blank_code_block_lines(self._nested_fence(19))
+        assert "vendor-portability" not in out
+        assert "Ref .agents/analysis/foo.md." in out
+
+    def test_marker_deeper_than_both_limits_is_refused(self):
+        # A marker nested past the second (detection) limit still diverges the
+        # block structure between the two parses, so the moved cliff cannot fail
+        # open.
+        with pytest.raises(MarkdownNestingError):
+            blank_code_block_lines(self._nested_fence(45))
+
+    def test_deep_inline_nesting_is_not_refused(self):
+        # Inline nesting (emphasis, links) lives in a token's children and cannot
+        # hide a code block, so it must NOT trigger a refusal even at depth 19.
+        text = "a " + "*" * 19 + "x" + "*" * 19 + " /keep/a\n"
+        assert "/keep/a" in blank_code_block_lines(text)

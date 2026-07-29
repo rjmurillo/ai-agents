@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Health check for all memory system tiers.
 
-Validates that all components of the four-tier memory system are operational.
+Validates that all components of the tiered memory system are operational.
 Returns structured status for each tier to enable agent decision-making.
 
 Tier 0: Working Memory (always available, Claude context)
 Tier 1: Semantic Memory (Serena + Forgetful)
 Tier 2: Episodic Memory (episodes directory)
-Tier 3: Causal Memory (causal graph and patterns)
 
 Exit codes follow ADR-035:
     0 - Success
@@ -112,55 +111,6 @@ def test_episodes_available(episodes_path: Path) -> dict:
         }
 
 
-def test_causal_graph_available(causality_path: Path) -> dict:
-    """Check if causal memory storage is accessible."""
-    graph_path = causality_path / "causal-graph.json"
-
-    if not causality_path.is_dir():
-        return {
-            "available": False,
-            "message": f"Causality directory not found: {causality_path}",
-            "nodes": 0,
-            "edges": 0,
-            "patterns": 0,
-        }
-
-    if not graph_path.is_file():
-        return {
-            "available": True,
-            "message": "Causality directory exists but graph not initialized",
-            "nodes": 0,
-            "edges": 0,
-            "patterns": 0,
-            "path": str(causality_path),
-        }
-
-    try:
-        graph = json.loads(graph_path.read_text(encoding="utf-8"))
-        node_count = len(graph.get("nodes", []))
-        edge_count = len(graph.get("edges", []))
-        pattern_count = len(graph.get("patterns", []))
-        return {
-            "available": True,
-            "message": (
-                f"Causal graph loaded: {node_count} nodes, "
-                f"{edge_count} edges, {pattern_count} patterns"
-            ),
-            "nodes": node_count,
-            "edges": edge_count,
-            "patterns": pattern_count,
-            "path": str(graph_path),
-        }
-    except (json.JSONDecodeError, OSError) as e:
-        return {
-            "available": False,
-            "message": f"Failed to parse causal graph: {e}",
-            "nodes": 0,
-            "edges": 0,
-            "patterns": 0,
-        }
-
-
 def test_modules_available(memory_root: Path) -> list[dict]:
     """Check if required module files exist."""
     core_dir = memory_root / "memory_core"
@@ -217,7 +167,6 @@ def main(argv: list[str] | None = None) -> int:
 
     serena_path = base_path / ".serena" / "memories"
     episodes_path = base_path / ".agents" / "memory" / "episodes"
-    causality_path = base_path / ".agents" / "memory" / "causality"
     scripts_dir = Path(__file__).resolve().parent
 
     health: dict = {
@@ -272,20 +221,6 @@ def main(argv: list[str] | None = None) -> int:
     if episodes["available"] and episodes.get("count", 0) == 0:
         health["recommendations"].append(
             "No episodes found - run extract_session_episode.py on completed sessions",
-        )
-
-    # Tier 3: Causal Memory
-    causal = test_causal_graph_available(causality_path)
-    health["tiers"]["tier3_causal"] = {
-        "name": "Causal Memory",
-        "available": causal["available"],
-        "graph": causal,
-        "message": causal["message"],
-    }
-
-    if causal["available"] and causal.get("nodes", 0) == 0:
-        health["recommendations"].append(
-            "Causal graph empty - run update_causal_graph.py after extracting episodes",
         )
 
     # Modules
