@@ -93,6 +93,7 @@ _DYNAMIC = "subprocess.<dynamic>"
 # subprocess names for want of a second one to thread, and filtered out of
 # every path that answers "is this a subprocess entry point".
 _ATTRIBUTE = "."
+_VIA_PARTIAL = "*"
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 
@@ -157,6 +158,25 @@ def _comprehension_element(node: ast.expr) -> ast.expr | None:
     return None
 
 
+def _unstarred(elements: list[ast.expr]) -> list[ast.expr]:
+    """Return *elements* with every star spread into the members it supplies.
+
+    ``[*RUNNERS]`` holds whatever ``RUNNERS`` holds, so a star has to be read
+    through rather than handed on. Nothing else resolves a star, and one left
+    in place makes the member unreadable, which is a runner slipping past.
+    A star over something with no readable members keeps that operand, so a
+    name bound to a container is still resolved by the caller.
+    """
+    found: list[ast.expr] = []
+    for element in elements:
+        if not isinstance(element, ast.Starred):
+            found.append(element)
+            continue
+        inner = _element_expressions(element.value)
+        found.extend([element.value] if inner is None else inner)
+    return found
+
+
 def _element_expressions(node: ast.expr) -> list[ast.expr] | None:
     """Return the expressions *node* may evaluate to, or ``None``.
 
@@ -170,7 +190,7 @@ def _element_expressions(node: ast.expr) -> list[ast.expr] | None:
     called, so a runner used as a key is not reachable through a lookup.
     """
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return list(node.elts)
+        return _unstarred(node.elts)
     if isinstance(node, ast.Dict):
         return [value for value in node.values if value is not None]
     if isinstance(node, ast.IfExp):
@@ -202,9 +222,15 @@ def _has_splat(call: ast.Call) -> bool:
     return any(keyword.arg is None for keyword in call.keywords)
 
 
-def _is_literal_false(node: ast.expr | None) -> bool:
-    """Report whether *node* is the literal ``False``."""
-    return isinstance(node, ast.Constant) and node.value is False
+def _is_literal_falsy(node: ast.expr | None) -> bool:
+    """Report whether *node* is a literal that subprocess reads as off.
+
+    ``capture_output`` is tested for truth, not compared to ``False``, so
+    ``0`` and ``""`` turn capture off exactly as ``False`` does and none of
+    them opens a pipe. A stream keyword is a different question and does not
+    use this: ``stdout=0`` names file descriptor zero, which is a redirect.
+    """
+    return isinstance(node, ast.Constant) and not node.value
 
 
 def _is_literal_none(node: ast.expr | None) -> bool:
@@ -266,6 +292,19 @@ def _is_partial(label: str, functions: dict[str, str]) -> bool:
     anywhere at the call site.
     """
     return label == "partial" or functions.get(label) == _PARTIAL
+
+
+def _reaches_partial(label: str, functions: dict[str, str]) -> bool:
+    """Report whether *label* names a partial, the maker or one it made.
+
+    Two different questions share a spelling at the call site.
+    ``partial(subprocess.run, text=True)`` names the maker, and
+    ``run_cmd(...)`` names the object it made. Only the first is a reference
+    to ``functools.partial`` itself, which is why resolving a callee asks
+    :func:`_is_partial` and reading the mode asks this. Both matter to the
+    mode, because either site can be the one holding the missing half.
+    """
+    return _is_partial(label, functions) or _VIA_PARTIAL + label in functions
 
 
 def _resolve_indirect(
@@ -731,7 +770,9 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             found.extend(_iterated(node.target, node.iter))
         elif isinstance(node, ast.ClassDef):
             found.extend(_class_bindings(node))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            # A lambda takes defaults exactly as a def does, and the parameter
+            # is in scope for the body that calls it.
             found.extend(_defaults(node.args))
     return found
 
@@ -859,6 +900,12 @@ def _subprocess_names(
             if name in functions:
                 continue
             functions[name] = resolved
+            if isinstance(value, ast.Call) and _is_partial(_call_label(value), functions):
+                # Keep the partial-ness alongside the target it wraps. The
+                # target is what a call to this name reaches, but the keywords
+                # it pre-bound are invisible from the call site, and that is
+                # exactly what the mode has to account for there.
+                functions[_VIA_PARTIAL + name] = resolved
             queue.extend(dependents.get(name, ()))
     return modules, functions, containers
 
@@ -886,18 +933,36 @@ def _target(
     return fallback
 
 
+def _supplies_capture(call: ast.Call) -> bool:
+    """Report whether *call* asks for output to be captured.
+
+    ``capture_output`` is read for truth, so any value the scan cannot rule
+    out counts. A stream keyword counts on its own, because ``stdout=PIPE``
+    captures with no ``capture_output`` anywhere in sight.
+    """
+    capture = _keyword(call, "capture_output")
+    if capture is not None and not _is_literal_falsy(capture):
+        return True
+    return any(_is_capturing_stream(_keyword(call, name)) for name in ("stdout", "stderr"))
+
+
 def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bool:
     """Report whether *call* may decode captured output into ``str``.
 
-    Deliberately conservative. Anything other than a literal ``False`` counts,
-    because ``text=1`` and ``capture_output=flag`` both decode at runtime while
-    reading as compliant to a check that only recognises ``True``.
+    Deliberately conservative. Anything other than a literal falsy value
+    counts, because ``text=1`` and ``capture_output=flag`` both decode at
+    runtime while reading as compliant to a check that only recognises
+    ``True``.
 
-    A ``functools.partial`` that selects text mode counts even with no capture
-    keyword, because the capture can be supplied where the partial is called.
-    So does an entry point in :data:`_ALWAYS_CAPTURING_ATTRS`, which captures
-    without being asked, so *target* has to be known here rather than inferred
-    from the spelling at the call site.
+    A ``functools.partial`` is read at both sites. Selecting text mode counts
+    with no capture keyword, because the capture can be supplied at either
+    end, and the same holds where the partial is called: the name bound to a
+    partial carries whatever the definition pre-bound, so a call site adding
+    ``text=True`` is reached even though the capture is nowhere in sight.
+    Neither site alone can see the other's half. An entry point
+    in :data:`_ALWAYS_CAPTURING_ATTRS` captures without being asked, so
+    *target* has to be known here rather than inferred from the spelling at
+    the call site.
 
     A ``**kwargs`` splat is treated as text mode outright. The keywords it
     carries are not visible here, so ``text`` may be among them, and reading
@@ -915,22 +980,33 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
         # Reading position by index instead would pin this scan to one
         # release's parameter order, which is the reason that was rejected.
         return True
+    partial = _reaches_partial(_call_label(call), functions)
     if not any(_selects_text(_keyword(call, name)) for name in _TEXT_SELECTORS):
         return False
-    if _is_partial(_call_label(call), functions):
-        # A partial can select text mode here and be handed capture_output at
-        # the eventual call site, which this scan has no way to reach.
+    if partial or target in _ALWAYS_CAPTURING_ATTRS:
         return True
-    if target in _ALWAYS_CAPTURING_ATTRS:
-        # The callee captures on its own behalf, so there is no capture
-        # keyword for this scan to find and none is needed.
-        return True
-    capture = _keyword(call, "capture_output")
-    if capture is not None and not _is_literal_false(capture) and not _is_literal_none(capture):
-        return True
-    return any(
-        _is_capturing_stream(_keyword(call, name)) for name in ("stdout", "stderr")
-    )
+    return _supplies_capture(call)
+
+
+def _literal_string(node: ast.expr | None) -> str | None:
+    """Return the string *node* is known to be, or ``None``.
+
+    An f-string with no placeholder is a string literal wearing a prefix, and
+    the parser keeps it as a joined string rather than folding it. Reading only
+    ``ast.Constant`` therefore rejects a codec name that is spelled correctly,
+    which costs a false alarm on a call that is already right. A placeholder
+    anywhere makes the value unknowable here, so the whole string is refused.
+    """
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if not isinstance(node, ast.JoinedStr):
+        return None
+    parts: list[str] = []
+    for piece in node.values:
+        if not isinstance(piece, ast.Constant) or not isinstance(piece.value, str):
+            return None
+        parts.append(piece.value)
+    return "".join(parts)
 
 
 def _pins_utf8(call: ast.Call) -> bool:
@@ -945,10 +1021,11 @@ def _pins_utf8(call: ast.Call) -> bool:
     name, so it stays out, and it quietly strips a byte order mark.
     """
     encoding = _keyword(call, "encoding")
-    if not isinstance(encoding, ast.Constant) or not isinstance(encoding.value, str):
+    name = _literal_string(encoding)
+    if name is None:
         return False
     try:
-        return codecs.lookup(encoding.value).name == _PINNED_CODEC
+        return codecs.lookup(name).name == _PINNED_CODEC
     except LookupError:
         # An unknown codec name raises at runtime before anything decodes, so
         # nothing is pinned and nothing is read.
@@ -1391,6 +1468,15 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'class C:\n    f = lambda: (runner := subprocess.run)\n'
             'C.runner(["x"], capture_output=True, text=True)',
             "a lambda opens a scope of its own, so a walrus in one stays inside it",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], capture_output=True, text=True, encoding=f"utf-8")',
+            "an f-string with no placeholder is a string literal and pins the codec",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=0, text=True)',
+            "capture_output=0 is falsy, so subprocess opens no pipes to decode",
         ),
     ],
 )
@@ -2047,10 +2133,84 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'C.runner(["x"], capture_output=True, text=True)',
             "one statement can hold several walruses and every one of them binds",
         ),
+        (
+            'import functools, subprocess\n'
+            'run_cmd = functools.partial(subprocess.run, capture_output=True)\n'
+            'run_cmd(["x"], text=True)',
+            "a partial can hold the capture and take the text mode at its call site",
+        ),
+        (
+            'import subprocess\n'
+            '(*[subprocess.run],)[0](["x"], capture_output=True, text=True)',
+            "a star unpacks a container into the one around it and the runner survives",
+        ),
+        (
+            'import subprocess\n'
+            '(lambda runner=subprocess.run: runner(["x"], capture_output=True, text=True))()',
+            "a lambda takes default arguments exactly as a def does",
+        ),
+        (
+            'import os, subprocess\n'
+            'flag = True\n'
+            '(subprocess.Popen if flag else os.popen)("ls")',
+            "os.popen always decodes, so an arm that reaches it answers for the call",
+        ),
+        (
+            'import subprocess\n'
+            'X = (*[subprocess.Popen, subprocess.run], subprocess.check_output)\n'
+            'X[2]([1], capture_output=True, text=True)',
+            "a star shifts every index after it, so reading one needs it spread first",
+        ),
+        (
+            'import subprocess\n'
+            'R = [subprocess.run]\n'
+            'X = [*R]\n'
+            'X[0]([1], capture_output=True, text=True)',
+            "a star over a name has no readable members, so the name itself is the member",
+        ),
+        (
+            'import subprocess\n'
+            'suffix = "8"\n'
+            'subprocess.run([1], capture_output=True, text=True, encoding=f"utf-{suffix}")',
+            "a placeholder makes the codec unknowable, so the pin is not proven",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
     """Holes found by adversarial review. Each one decodes under the locale codec."""
+    assert unpinned_lines(source) != [], f"missed {why}"
+
+
+@pytest.mark.parametrize(
+    ("source", "why"),
+    [
+        (
+            'import subprocess\n'
+            'a, b = [subprocess.run]\n'
+            'a([1], capture_output=True, text=True)',
+            "an unpack whose sides do not line up",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run([1], capture_output=True, text=True, encoding=8)',
+            "a codec keyword that is not a string",
+        ),
+        (
+            'import subprocess\n'
+            'def g():\n'
+            '    subprocess.run([1], capture_output=(yield), text=True)',
+            "a capture keyword whose value is not a literal at all",
+        ),
+    ],
+)
+def test_detector_survives_malformed_source(source: str, why: str) -> None:
+    """Shapes that are legal Python but nonsense. The scan reports, never raises.
+
+    A crash here takes the whole gate down and every call in the repository
+    goes unchecked, which is strictly worse than a false alarm. Both shapes
+    reach code that would raise if it trusted its input: a strict zip over
+    two lists of different lengths, and :func:`codecs.lookup` on an integer.
+    """
     assert unpinned_lines(source) != [], f"missed {why}"
 
 
