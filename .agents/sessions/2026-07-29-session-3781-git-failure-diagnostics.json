@@ -115,7 +115,7 @@
       "step": "Re-synced both plugin mirrors. scripts/github_core and scripts/validation/validate_review_marker.py are canonical; scripts/sync_plugin_lib.py propagates to .claude/ and build/scripts/build_all.py propagates on to src/copilot-cli/. Bumped both plugin manifests from 0.6.230 to 0.6.231 and confirmed parity."
     }
   ],
-  "endingCommit": "9a3e13fec",
+  "endingCommit": "7ee36da97",
   "nextSteps": [
     "Open the PR covering #3781 and #3782",
     "Continue the open-issue campaign"

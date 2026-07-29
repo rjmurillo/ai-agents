@@ -128,6 +128,18 @@
       "type": "commit",
       "content": "Commit: 9a3e13fec",
       "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7ee36da97",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": []
     }
   ],
@@ -136,7 +148,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []
