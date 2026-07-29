@@ -334,14 +334,19 @@ def _check_skill_refs(
 ) -> tuple[list[Finding], int]:
     """Emit skill_name findings for orphaned skill references.
 
-    Two reference shapes are checked:
+    Two reference shapes are checked, both under the same candidate rule: a
+    backticked token is a skill reference candidate only when the document
+    gives evidence it means a skill. Evidence is either a type claim in the
+    prose ("the ``ship`` skill", ``skill="ship"``) or membership in the
+    curated set of names this repository has actually used for a skill.
 
-    - Hyphenated tokens (``alpha-skill``): a backticked kebab token is a
-      candidate, flagged when absent from ``.claude/skills/``. Prose-heavy
-      memory files under ``.serena/memories`` require an explicit type claim
-      plus retired-skill evidence before an absent kebab token becomes a skill
-      finding, because those notes use backticked kebab-case for workflow
-      values, labels, models, headers, hooks, and config keys (issue #3637).
+    - Hyphenated tokens (``alpha-skill``): candidate when the line carries an
+      explicit type claim or when the token is listed in
+      ``KNOWN_RETIRED_KEBAB_SKILLS``, flagged when absent from
+      ``.claude/skills/``. Prose-heavy memory files under ``.serena/memories``
+      are stricter still and require both, because those notes use backticked
+      kebab-case for workflow values, labels, models, headers, hooks, and
+      config keys (issue #3637, PR #3698).
     - Single-word tokens (``incoherence``): a backticked single word is a
       candidate only when it resolves to a live catalog entry (valid, no
       finding) or is a curated known single-word skill name (flagged when
@@ -380,15 +385,20 @@ def _check_skill_refs(
         if _is_known_kebab_word(ref):
             continue
         is_typed = (lineno, ref) in typed
-        if typed_only and not is_typed:
+        in_retired = _is_known_retired_kebab_skill(ref)
+        if ref in known_skills or (ref in siblings and not is_typed):
+            refs_checked += 1
+            continue
+        # Two strictness levels, both bounded by the same allowlist. Serena
+        # memories are prose that legitimately discusses other repositories'
+        # skills, so a type claim alone is not evidence there and both signals
+        # are required (PR #3698). Everywhere else either signal suffices: a
+        # type claim is evidence on its own, and the allowlist rescues bare
+        # tokens naming skills this repository has retired (issue #3637).
+        candidate = (is_typed and in_retired) if typed_only else (is_typed or in_retired)
+        if not candidate:
             continue
         refs_checked += 1
-        if ref in known_skills:
-            continue
-        if typed_only and not _is_known_retired_kebab_skill(ref):
-            continue
-        if ref in siblings and not is_typed:
-            continue
         findings.append(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
