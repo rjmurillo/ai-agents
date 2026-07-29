@@ -62,8 +62,11 @@ _STATIC_OUTPUT_CMD = re.compile(r"^\s*(?:echo|printf)\b")
 _QUOTED_OPERAND = re.compile(r"""(?P<q>["'])(?P<text>(?:\\.|(?!(?P=q)).)*)(?P=q)""")
 
 # Anything that makes a quoted operand evaluate rather than print: command
-# substitution, parameter expansion, a bare variable, or an unescaped backtick.
-_EXPANSION = re.compile(r"\$\(|\$\{|\$[A-Za-z_]|(?<!\\)`")
+# substitution, parameter expansion, a bare variable, a special parameter
+# (``$?``, ``$$``, ``$@``, ``$1``, and friends), or an unescaped backtick.
+# Special parameters matter because blanking an operand that evaluates at
+# runtime would undercount logic and make the metric less conservative.
+_EXPANSION = re.compile(r"\$[({A-Za-z_?$@*#!0-9-]|(?<!\\)`")
 
 
 def _blank_static_operands(line: str) -> str:

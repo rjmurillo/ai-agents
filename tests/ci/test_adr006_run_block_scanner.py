@@ -6,6 +6,8 @@ import json
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from scripts.ci import adr006_run_block_scanner as scanner
 
 
@@ -221,14 +223,38 @@ class TestProseInOutputCommandsIsNotLogic:
         )
         assert block.has_logic is True
 
-    def test_parameter_expansion_inside_quotes_is_still_logic(self) -> None:
-        """Negative: ``${VAR}`` keeps the operand intact."""
-        block = _run_block(
-            *(f'echo "plain {i}"' for i in range(11)),
-            'echo "issue ${ISSUE_NUMBER} for triage" >> notes.txt',
-            'RESULT=1',
+    def test_parameter_expansion_inside_quotes_survives_blanking(self) -> None:
+        """``${VAR}`` evaluates at runtime, so the operand is kept.
+
+        Asserted on the blanking helper rather than on ``has_logic``.
+        Blanking is what ``_EXPANSION`` governs, and a ``has_logic``
+        assertion here would pass for the wrong reason: ``_LOGIC`` matches
+        shell keywords by word boundary, so ordinary English inside the
+        preserved text (``for``, ``if``, ``case``) trips it regardless of
+        the expansion.
+        """
+        line = 'echo "issue ${ISSUE_NUMBER} needs triage"'
+        assert scanner._blank_static_operands(line) == line
+
+    def test_plain_quoted_operand_is_blanked(self) -> None:
+        """Control: an operand with no expansion is blanked away."""
+        assert (
+            scanner._blank_static_operands('echo "issue 42 needs triage"')
+            == 'echo ""'
         )
-        assert block.has_logic is True
+
+    @pytest.mark.parametrize(
+        "operand",
+        ["$?", "$$", "$@", "$1", "$#", "$*", "$!", "$0"],
+    )
+    def test_special_parameters_survive_blanking(self, operand: str) -> None:
+        """Special parameters evaluate at runtime, so they are not prose.
+
+        Treating them as message text would discard a runtime evaluation and
+        make the ADR-006 metric less conservative than intended.
+        """
+        line = f'echo "saw {operand} here"'
+        assert scanner._blank_static_operands(line) == line
 
     def test_redirect_outside_the_quotes_is_still_logic(self) -> None:
         """Negative: only the quoted text is blanked, never the redirect.
