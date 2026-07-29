@@ -319,6 +319,11 @@ def _reference_graph() -> dict[str, frozenset[str]]:
         rel = path.relative_to(_REPO_ROOT).as_posix()
         try:
             source = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            # The file existed when `_python_sources` listed it, but another
+            # process deleted it before this read. A vanished file cannot make
+            # a guarded script reachable or unreachable, so skip the stale edge.
+            continue
         except (OSError, UnicodeError) as exc:
             raise RuntimeError(f"Cannot inspect Python source {rel}: {exc}") from exc
         try:
@@ -486,6 +491,65 @@ class TestTheReachabilityProbeWorks:
 
     def test_the_graph_covers_more_than_one_file(self) -> None:
         assert len(_reference_graph()) > 1, "the probe is not walking the tree"
+
+    def test_a_python_source_that_vanishes_mid_walk_is_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        real_source = next(p for p in _python_sources() if p.is_file())
+        vanished = _REPO_ROOT / "scripts" / "__vanished_probe__.py"
+        assert not vanished.exists()
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._python_sources",
+            lambda: (real_source, vanished),
+        )
+        _source_paths.cache_clear()
+        _source_index.cache_clear()
+        _source_paths_by_name.cache_clear()
+        _reference_graph.cache_clear()
+        try:
+            graph = _reference_graph()
+        finally:
+            _source_paths.cache_clear()
+            _source_index.cache_clear()
+            _source_paths_by_name.cache_clear()
+            _reference_graph.cache_clear()
+
+        real_rel = real_source.relative_to(_REPO_ROOT).as_posix()
+        vanished_rel = vanished.relative_to(_REPO_ROOT).as_posix()
+        assert real_rel in graph
+        assert vanished_rel not in graph
+        assert all(vanished_rel not in targets for targets in graph.values())
+
+    def test_an_unreadable_python_source_still_fails_hard(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        unreadable = _REPO_ROOT / "scripts" / "__unreadable_probe__.py"
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._python_sources",
+            lambda: (unreadable,),
+        )
+        real_read_text = Path.read_text
+
+        def raise_permission_error(self: Path, *args, **kwargs) -> str:
+            if self == unreadable:
+                raise PermissionError("permission denied")
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", raise_permission_error)
+        _source_paths.cache_clear()
+        _source_index.cache_clear()
+        _source_paths_by_name.cache_clear()
+        _reference_graph.cache_clear()
+        try:
+            with pytest.raises(RuntimeError, match=r"__unreadable_probe__\.py"):
+                _reference_graph()
+        finally:
+            _source_paths.cache_clear()
+            _source_index.cache_clear()
+            _source_paths_by_name.cache_clear()
+            _reference_graph.cache_clear()
 
     def test_reachability_is_transitive(self) -> None:
         """An aggregator's callees count, which is the whole point."""
