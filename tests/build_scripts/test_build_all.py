@@ -1619,3 +1619,115 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
     assert build_all.assert_no_claude_writes(repo, baseline) == [
         ".claude/agents/leak.md"
     ]
+
+
+# --- #3856: bytecode written inside the guard's snapshot window -----------
+#
+# The pre-push hook runs `python-tests` and `build-all-check` in the same
+# lefthook job group with `parallel: true`. Pytest imports .claude/lib, so
+# CPython writes __pycache__/*.pyc while the REQ-003-010 guard is walking
+# the same tree. _ignored_paths() queries git once per snapshot, so a .pyc
+# created after that query still lands in the walk and reads as a generator
+# write. _is_bytecode_artifact() filters on path shape, which no race can
+# invalidate.
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".claude/lib/github_core/__pycache__/__init__.cpython-314.pyc",
+        ".claude/lib/__pycache__/helper.cpython-313.pyc",
+        ".claude/lib/deep/nested/pkg/__pycache__/mod.cpython-314.pyc",
+        ".claude/lib/stray.pyc",
+        ".claude/lib/stray.pyo",
+        ".claude/lib/__pycache__/data.json",
+    ],
+)
+def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
+    """Bytecode caches are recognized wherever they appear in the tree."""
+    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is True
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".claude/agents/leak.md",
+        ".claude/lib/github_core/__init__.py",
+        ".claude/lib/pycache.py",
+        ".claude/lib/my__pycache__file.py",
+        ".claude/lib/notes.pyc.md",
+        ".claude/skills/x/SKILL.md",
+    ],
+)
+def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
+    """Source and data files are never treated as bytecode."""
+    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is False
+
+
+def _write_bytecode(pkg: Path) -> Path:
+    """Create a plausible CPython cache file under ``pkg`` and return it."""
+    cache = pkg / "__pycache__"
+    cache.mkdir(exist_ok=True)
+    pyc = cache / "__init__.cpython-314.pyc"
+    pyc.write_bytes(b"\x00bytecode")
+    return pyc
+
+
+def test_snapshot_excludes_bytecode_written_after_the_ignore_query(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#3856: a .pyc created between `git ls-files` and the tree walk must
+    not read as a generator write."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    pkg = repo / ".claude" / "lib" / "github_core"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    real_ignored_paths = build_all._ignored_paths
+
+    def _racing(root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+        # git ls-files runs, THEN the concurrent pytest import writes bytecode.
+        result = real_ignored_paths(root, prefixes)
+        _write_bytecode(pkg)
+        return result
+
+    monkeypatch.setattr(build_all, "_ignored_paths", _racing)
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == []
+
+
+def test_bytecode_filter_does_not_mask_a_concurrent_real_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control for #3856: a non-bytecode file appearing in the same
+    race window is still reported."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    pkg = repo / ".claude" / "lib" / "github_core"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    real_ignored_paths = build_all._ignored_paths
+
+    def _racing(root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+        result = real_ignored_paths(root, prefixes)
+        _write_bytecode(pkg)
+        (repo / ".claude" / "lib" / "leak.md").write_text(
+            "generated", encoding="utf-8"
+        )
+        return result
+
+    monkeypatch.setattr(build_all, "_ignored_paths", _racing)
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == [
+        ".claude/lib/leak.md"
+    ]

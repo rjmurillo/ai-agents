@@ -765,6 +765,24 @@ def _select_platform_configs(
 OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
 
 
+def _is_bytecode_artifact(path: Path) -> bool:
+    """Return True for CPython bytecode caches under an owned prefix.
+
+    :func:`_ignored_paths` already excludes gitignored files, but it queries
+    git once per snapshot: a ``.pyc`` written after that query and before the
+    ``rglob`` walk still lands in the snapshot. The pre-push hook runs the
+    test suite concurrently with the REQ-003-010 guard (``lefthook.yml`` marks
+    that job group ``parallel: true``), so pytest importing ``.claude/lib``
+    writes bytecode inside the guard's snapshot window and the guard
+    attributes it to a generator (issue #3856).
+
+    Matching on path shape is race-immune because it does not depend on a
+    point-in-time query. Excluding bytecode cannot mask a real violation:
+    generators emit source and data files, never compiled bytecode.
+    """
+    return "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo")
+
+
 def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     """Return absolute paths of gitignored files under ``prefixes``.
 
@@ -865,7 +883,7 @@ def _snapshot_owned_prefixes(
         for path in root.rglob("*"):
             if not path.is_file() or path.is_symlink():
                 continue
-            if path in ignored:
+            if path in ignored or _is_bytecode_artifact(path):
                 continue
             try:
                 snapshot[path] = path.read_bytes()
