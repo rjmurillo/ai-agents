@@ -120,7 +120,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e011",
@@ -141,6 +143,16 @@
         "e011"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-synced both plugin mirrors. scripts/github_core and scripts/validation/validate_review_marker.py are canonical; scripts/sync_plugin_lib.py propagates to .claude/ and build/scripts/build_all.py propagates on to src/copilot-cli/. Bumped both plugin manifests from 0.6.230 to 0.6.231 and confirmed parity. Main advanced past that during review, so both were re-bumped to 0.6.422; the gate requires strictly greater than main, not merely changed.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -149,7 +161,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 2
+    "files_changed": 4
   },
   "lessons": []
 }

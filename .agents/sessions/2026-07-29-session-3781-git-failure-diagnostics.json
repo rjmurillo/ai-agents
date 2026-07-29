@@ -74,7 +74,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "266 tests pass across tests/test_github_core.py and tests/validation/test_validate_review_marker.py; uv run ruff check passes on every touched file; check_plugin_manifest_parity.py reports matching versions at 0.6.231"
+        "evidence": "266 tests pass across tests/test_github_core.py and tests/validation/test_validate_review_marker.py; uv run ruff check passes on every touched file; check_plugin_manifest_parity.py reports matching versions (0.6.231 at the time of this step; re-bumped to 0.6.422 before push to stay strictly ahead of a moving main)"
       },
       "retrospectiveInvoked": {
         "complete": false,
@@ -112,7 +112,7 @@
       "step": "Mutation-tested five guards for #3782. Dropping the stderr in each of the three readers fails exactly one test each; making _with_reason never append fails 4; making it append unconditionally fails 1, which is the empty-stderr edge case that would otherwise produce a message ending in a dangling colon."
     },
     {
-      "step": "Re-synced both plugin mirrors. scripts/github_core and scripts/validation/validate_review_marker.py are canonical; scripts/sync_plugin_lib.py propagates to .claude/ and build/scripts/build_all.py propagates on to src/copilot-cli/. Bumped both plugin manifests from 0.6.230 to 0.6.231 and confirmed parity."
+      "step": "Re-synced both plugin mirrors. scripts/github_core and scripts/validation/validate_review_marker.py are canonical; scripts/sync_plugin_lib.py propagates to .claude/ and build/scripts/build_all.py propagates on to src/copilot-cli/. Bumped both plugin manifests from 0.6.230 to 0.6.231 and confirmed parity. Main advanced past that during review, so both were re-bumped to 0.6.422; the gate requires strictly greater than main, not merely changed."
     }
   ],
   "endingCommit": "7ee36da97",
