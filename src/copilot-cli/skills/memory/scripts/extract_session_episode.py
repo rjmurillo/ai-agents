@@ -27,6 +27,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -567,6 +568,79 @@ def _session_floor(session_date: str) -> datetime | None:
     return parsed.astimezone(UTC) - timedelta(days=1)
 
 
+@lru_cache(maxsize=256)
+def _commit_datetime(sha: str) -> datetime | None:
+    """The committer date of ``sha`` in UTC, or ``None`` when git cannot say.
+
+    ``None`` covers every way the question can go unanswered: no checkout, an
+    unresolvable or ambiguous abbreviation, an object that is not a commit, a
+    git binary that is missing or hangs, and a date git prints that cannot be
+    parsed. Callers must treat ``None`` as "unknown", never as "old" or "new".
+
+    Scrubs the ``GIT_*`` variables so the lookup resolves against the ambient
+    working directory rather than whatever repository invoked the hook, which
+    under the pre-commit hook is the repo owning the session log.
+
+    Cached because both callers ask about the same small SHA set repeatedly and
+    each miss is a subprocess. The cache lives for one process, so a commit
+    created after the first lookup within the same run is not observed; no
+    caller creates commits mid-extraction.
+    """
+    if not sha:
+        return None
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "show", "-s", "--format=%cI", f"{sha}^{{commit}}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return datetime.fromisoformat((result.stdout or "").strip()).astimezone(UTC)
+    except ValueError:
+        return None
+
+
+def _chronological(shas: list[str]) -> list[str]:
+    """``shas`` in committer-date order, or unchanged when git cannot order them.
+
+    ``_collect_shas`` returns commits in source-of-truth order: ``endingCommit``
+    first, then the ``changesCommitted`` evidence. That is a provenance ranking,
+    not a chronology, and ``endingCommit`` is by definition the *last* commit a
+    session made. Emitting commit events in that order made
+    ``_link_sequential_events`` chain the newest commit into the oldest, so a
+    five-commit episode claimed its final commit caused its first (issue #3619).
+
+    Reorders only when every SHA resolves. A partial answer cannot produce a
+    trustworthy total order: placing unresolved commits first or last asserts a
+    position git did not supply, and this artifact is read as a record of what
+    happened. When any lookup returns ``None`` the input order is preserved
+    unchanged, which is the pre-#3619 behavior and keeps episodes extractable
+    outside a checkout.
+
+    Ties keep their original relative order, so two commits sharing a committer
+    second stay as ``_collect_shas`` ranked them.
+    """
+    resolved: list[datetime] = []
+    for sha in shas:
+        moment = _commit_datetime(sha)
+        if moment is None:
+            return list(shas)
+        resolved.append(moment)
+    return [sha for _, _, sha in sorted(zip(resolved, range(len(shas)), shas, strict=True))]
+
+
 def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     """Whether git can prove ``sha`` was committed before the session could run.
 
@@ -618,29 +692,10 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     floor = _session_floor(session_date) if sha else None
     if floor is None:
         return False
-    env = os.environ.copy()
-    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
-        env.pop(var, None)
-    env["LC_ALL"] = "C"
-    try:
-        result = subprocess.run(
-            ["git", "show", "-s", "--format=%cI", f"{sha}^{{commit}}"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    committed = _commit_datetime(sha)
+    if committed is None:
         return False
-    if result.returncode != 0:
-        return False
-    try:
-        committed = datetime.fromisoformat((result.stdout or "").strip())
-    except ValueError:
-        return False
-    return committed.astimezone(UTC) < floor
+    return committed < floor
 
 
 def _changes_committed_evidence(data: dict) -> str:
@@ -809,8 +864,11 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
     # Emit one commit event per distinct session-produced commit SHA so the
     # event stream and metrics.commits share a single provenance rule
     # (issue #3123). Excludes the starting/base SHA, including work-log
-    # mentions of it, matching json_metrics.
-    for sha in _collect_shas(data):
+    # mentions of it, matching json_metrics. Ordered by committer date rather
+    # than by provenance rank, because _link_sequential_events chains commits
+    # in list order and _collect_shas puts endingCommit, the session's *last*
+    # commit, first (issue #3619).
+    for sha in _chronological(_collect_shas(data)):
         add("commit", f"Commit: {sha}")
 
     return events
