@@ -231,3 +231,22 @@ jobs:
 
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
+
+      # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
+      # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin
+      # that lacks a model-rationale field, and `checks_spec.validate_model_pins`
+      # documents that "enforcement stays in CI" -- but nothing under .github/
+      # ever invoked it. The pre-PR runner wraps only `--mode warn`, which
+      # prints `VIOLATION` and exits 0 by design, so until now a new unjustified
+      # pin was detected, reported, and merged anyway.
+      #
+      # Hosted in this job for the same reason as the workflow-YAML step above:
+      # a `model:` pin can land in any skill, agent, or command file, so the
+      # gate has to fire on every PR regardless of touched paths, and this is
+      # the only required check that always reports status.
+      #
+      # Enforce mode grandfathers the existing backlog through
+      # scripts/validation/model_pin_baseline.json and fails only on new or
+      # changed pins, so it passes clean on today's tree.
+      - name: Enforce model pin policy
+        run: uv run --frozen python3 scripts/validation/check_model_pins.py --mode enforce
