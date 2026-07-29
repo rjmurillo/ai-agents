@@ -1,0 +1,53 @@
+{
+  "skill_path": ".claude/skills/reviewer-findings/SKILL.md",
+  "skill_id": "reviewer-findings",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Reproduction succeeds, so the author treats the diagnosis and the prescribed fix as confirmed along with it",
+      "input": "A review bot commented on my PR: 'This test module fails to collect on Windows. I ran it and confirmed the collection error. The cause is the os.geteuid() call in the skipif decorator. Fix: wrap it in getattr(os, \"geteuid\", None).' I ran their reproduction myself and the collection failure is real, so the finding checks out. I have applied their fix as written. Write the comment I should post to close the thread. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "the reproduction confirms the behavior, not the stated cause",
+        "test the diagnosis separately from the verdict",
+        "the prescribed fix still needs its own verification",
+        "a confirmed verdict does not make the fix correct or complete"
+      ],
+      "expected_gate": "separate-verdict-from-diagnosis",
+      "rationale": "The prompt is biased toward closure: the author reports the repro succeeded and the fix already applied, and asks only for the closing comment. Nothing in the wording invites skepticism, so any verification behavior is attributable to the skill rather than to the prompt. Generic advice drafts the closing comment. The skill should split the finding into verdict, diagnosis, and prescription, note that the repro settles only the verdict, and hold the thread until the cause and the fix are each checked."
+    },
+    {
+      "id": "S2",
+      "desc": "Prescribed fix written against an older state of the tree, applied later without re-verification",
+      "input": "I am clearing out old review threads before I merge. One from two weeks ago says: 'load_config crashes when the config file is missing. Wrap the open() call at line 40 in a try/except FileNotFoundError.' I have made that exact edit. Write the reply I should post on the thread. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "re-verify the prescribed fix against the current tree",
+        "the fix was written against the tree the reviewer read",
+        "confirm the failure still reproduces before claiming a fix",
+        "prefer the idiom this codebase already uses"
+      ],
+      "expected_gate": "re-verify-prescription-at-apply-time",
+      "rationale": "The prompt asks only for the reply text and states the edit is already made, so it does not cue skepticism. A prescription decays: the cited line may have moved, the crash may already be handled upstream, and the repository may already carry its own idiom for a missing config. Generic advice drafts the reply. The skill should re-verify the prescription against the tree in front of the author rather than the tree the reviewer read, and prefer the existing idiom over the reviewer's invention."
+    },
+    {
+      "id": "S3",
+      "desc": "Reviewer supporting count is what sets the scope of the fix",
+      "input": "A reviewer flagged a subprocess call in my PR that passes a shell string instead of an argument list, and added: 'the same shell-string pattern exists at 11 other call sites in this repo, and this PR should not merge until all 12 are converted.' I converted the one they pointed at and it works. Write the reply I should post on the thread. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "count the call sites yourself before accepting the number",
+        "the supporting count is what sets the scope of the fix",
+        "if the count is wrong the prescribed scope is wrong too",
+        "check the supporting claims, not only the conclusion"
+      ],
+      "expected_gate": "check-supporting-claims",
+      "rationale": "The conclusion is correct and the one-line change works, so nothing prompts further checking, and the prompt asks only for the reply. Here the supporting count is genuinely load-bearing rather than rhetorical: it is the number that decides whether this PR is finished. If 11 is too high the author does unnecessary edits; if it is too low the author ships believing a repository-wide migration is complete when it is not. The skill should steer the model to count the sites itself and to treat a wrong supporting count as evidence that the prescribed scope is wrong, not merely that the reviewer was imprecise."
+    },
+    {
+      "id": "S4",
+      "desc": "Greenfield helper with no review finding in hand (negative case)",
+      "input": "Write me a small Python helper that formats a byte count as a human readable string like 1.2 MB. Answer with the function only. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No review finding, no reviewer, and nothing to verify. The skill is scoped to consuming findings, so it should not fire on ordinary greenfield authoring. Firing here would be a false positive."
+    }
+  ]
+}
