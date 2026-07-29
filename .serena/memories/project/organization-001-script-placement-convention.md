@@ -6,7 +6,8 @@
 
 **Context**: When creating new validation or utility scripts for the project
 
-**Evidence**: Validate-Consistency.ps1 (since migrated to `scripts/validation/consistency.py`)
+**Evidence**: Validate-Consistency.ps1 (migrated to Python per ADR-042, then retired
+in #3557 once `.agents/planning` stopped carrying feature PRD and task pairs)
 placed in scripts/ following the PowerShell conventions of the time; duplicate in
 .agents/utilities/ removed to maintain single source of truth. Corrected 2026-07-28: the
 statement previously said `scripts/` only, which was false. Six validators live under
@@ -19,7 +20,7 @@ generator output and run in the build pipeline, not at runtime.
 
 **Tags**: organization, conventions, file-structure, DRY
 
-**Note**: All agent references should use `scripts/validation/consistency.py` directly
+**Note**: All agent references should use the script's single home directly, never a duplicate
 
 **Directory Structure**:
 
