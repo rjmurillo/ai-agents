@@ -62,7 +62,7 @@ Patterns identified from Phase 3 consistency validation implementation.
 
 - Runtime: `scripts/` and `scripts/validation/` (Python, per ADR-042; originally PowerShell)
 - Build pipeline: `build/scripts/validate_*.py` (validates generator output, runs in the build)
-- Agents: Reference `scripts/validation/consistency.py` directly
+- Agents: Reference the script at its single home (for example `scripts/validation/pre_pr.py`), never a copy
 - NO duplication to `.agents/utilities/`
 
 **Benefits**:
