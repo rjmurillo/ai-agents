@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3742,
+    "date": "2026-07-29",
+    "branch": "fix/3742-stdout-flush-before-spawn",
+    "startingCommit": "82e38b50e8",
+    "objective": "Fix #3742: a subprocess spawn that inherits stdout reorders the child's output ahead of the parent's buffered text in any piped or redirected log. Overturned the issue's own diagnosis (it claimed bytes were destroyed; both runs emit 33 bytes, the gh error had merely moved above the reproduction's tail -4 window). Applied the fix unconditionally at all 24 fd-inheriting spawns in the authored trees and added a standing AST guard, because 'has anything reached stdout by now' is not decidable from a call site."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No serena/ or mcp__serena__ tools are exposed in this Copilot CLI session, so activation was not possible. Fell back to reading .claude/rules/ and the repository directly, per the AGENTS.md fallback."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not reachable for the same reason as serenaActivated. No initial_instructions tool is exposed in this session."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit on the branch."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Work is on fix/3742-stdout-flush-before-spawn in a worktree, cut from origin/main at 82e38b50e8."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current reports fix/3742-stdout-flush-before-spawn."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this continuing session. The dashboard has not changed since."
+      },
+      "memorySearched": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Searched tests/ for an existing subprocess AST guard and found tests/test_subprocess_text_encoding.py, whose evasion-resistant detector shape (module aliases, direct and aliased imports, conservative keyword handling) the new guard reuses."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No QA skip claimed. Guards were verified non-vacuous by reinstating each defect and observing the expected failures."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdown-check ran green in the pre-commit group on the staged markdown."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity at 0.6.215."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Durable knowledge went into .claude/rules/testing.md MUST NOT 4 instead, because it must bind every harness and contributor rather than be MCP-gated. See .claude/rules/knowledge-persistence.md."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items above recorded with evidence."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Single commit on fix/3742-stdout-flush-before-spawn."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md not touched."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce the defect and settle its mechanism",
+      "outcome": "A four-line parent that prints then spawns with inherited descriptors emits CHILD before PARENT-BEFORE when stdout is piped or redirected to a file, and the expected order once sys.stdout.flush() is added. Byte counts are identical at 33 in both runs, so nothing is destroyed. Issue #3742 diagnosed this as the parent overwriting the child's bytes; that is wrong. Its reproduction ended in tail -4 and reordering had carried the gh error above that window."
+    },
+    {
+      "task": "Scope the fix",
+      "outcome": "Two conditional scans disagreed. One walked print() calls and missed output emitted through helpers such as _color_print. The other scoped to the enclosing function and missed a caller that printed before invoking the callee that spawns. Whether anything has reached stdout is not decidable at a call site, and flushing an empty buffer is free, so the rule applied is unconditional: flush before every fd-inheriting spawn. 24 sites across 20 files. scripts/ci/install_locked_deps.py already used print(..., flush=True) and was left alone."
+    },
+    {
+      "task": "Prove every inserted flush is load-bearing",
+      "outcome": "Deleted each of the 24 inserted flushes one at a time and re-ran the detector. 24 caught, 0 missed. The guard's own negative control runs the piped parent both ways in-process and asserts the reordering, so the guard cannot outlive the defect."
+    },
+    {
+      "task": "Bound the guard's scope",
+      "outcome": "stderr needs no flush: sys.stderr.line_buffering is True even when piped while sys.stdout.line_buffering is False. A test asserts that pair so the scope decision is checked rather than remembered. The deliberately vulnerable CWE-77 benchmark sample is allowlisted; editing it changes what the security detectors are measured against."
+    }
+  ],
+  "nextSteps": [
+    "Watch PR CI for the new guard against the Windows runner, where buffering differs.",
+    "The issue's 'only this call site has the pattern' scope claim was also wrong: test_workflow_locally.py sits in the same skill and had it too."
+  ],
+  "endingCommit": ""
+}
