@@ -31,14 +31,14 @@ uses: dorny/paths-filter@v3
 
 ## Enforcement Layers
 
-1. **Pre-commit hook** (`lefthook.yml:76-81`, job `action-pin-policy`):
+1. **Pre-commit hook** (`lefthook.yml:72-77`, job `action-pin-policy`):
    - Runs `uv run --frozen python scripts/validation/git_hook_policy.py staged-action-pins {staged_files}`
    - Globbed to `.github/workflows/*.{yml,yaml}` and `.github/actions/**/*.{yml,yaml}`
    - Blocks the commit on violations
    - (Corrected 2026-07-28: this cited `.githooks/pre-commit` lines 706-777. That file no longer exists; lefthook replaced the `.githooks/` layout.)
 
-2. **CI validation** (`.github/workflows/validate-generated-agents.yml:217`):
-   - Runs `python3 scripts/validation/sha_pinning.py --ci`
+2. **CI validation** (`.github/workflows/validate-generated-agents.yml:241-246`):
+   - Runs `uv run python scripts/validation/sha_pinning.py --ci`
    - Fails CI if violations found
    - Validates all workflows on every PR
    - Locally, prefer `uv run python scripts/validation/sha_pinning.py --ci` so the project venv resolves
@@ -61,7 +61,7 @@ gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq '.object.sha'
 
 - **Constraint**: .agents/governance/PROJECT-CONSTRAINTS.md#security-constraints
 - **Guidance**: .agents/steering/security-practices.md#action-sha-pinning-blocking
-- **Enforcement**: lefthook.yml:76-81 (action-pin-policy), .github/workflows/validate-generated-agents.yml:217
+- **Enforcement**: lefthook.yml:72-77 (action-pin-policy), .github/workflows/validate-generated-agents.yml:241-246
 - **AGENTS.md**: "Always Do" section includes "Pin GitHub Actions to SHA"
 - **CLAUDE.md**: Constraints table includes "SHA-pinned actions in workflows"
 
