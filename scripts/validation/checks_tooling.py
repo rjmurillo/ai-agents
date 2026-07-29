@@ -181,14 +181,16 @@ def _report_selection(target_args: list[str], stdout: str) -> None:
     if selected == 0 and target_args:
         print(
             f"[WARNING] Markdown linting selected 0 of {len(target_args)} target(s): "
-            "every one is excluded by .markdownlint-cli2.yaml, so nothing was "
-            "checked. This PASS means 'not linted', not 'clean'."
+            "each is excluded by .markdownlint-cli2.yaml, matched no file, or no "
+            "longer exists, so nothing was checked. This PASS means 'not "
+            "linted', not 'clean'."
         )
         return
     if selected < len(target_args):
         print(
             f"[WARNING] Markdown linting checked {selected} of {len(target_args)} "
-            "target(s); the rest are excluded by .markdownlint-cli2.yaml"
+            "target(s); the rest were excluded by .markdownlint-cli2.yaml, "
+            "matched no file, or no longer exist"
         )
 
 
