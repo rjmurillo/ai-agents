@@ -114,8 +114,13 @@ class TestExpressionInjection:
         assert len(validator.errors) == 1
         assert "Expression injection" in validator.errors[0]
 
-    def test_allows_safe_env_expressions(self, tmp_path: Path):
-        """${{ env.FOO }} in run blocks is safe."""
+    def test_flags_env_expressions(self, tmp_path: Path):
+        """${{ env.FOO }} in run blocks is unsafe: any author can bind it.
+
+        Previously asserted safe. That let a workflow bind `inputs.*` into
+        `env:` and interpolate it back into `run:` to launder the taint. See
+        TestEnvIsNotALaunderingHop.
+        """
         validator = WorkflowValidator(tmp_path)
         content = {
             "jobs": {
@@ -129,7 +134,8 @@ class TestExpressionInjection:
             }
         }
         validator.validate_expression_injection(tmp_path / "t.yml", content)
-        assert len(validator.errors) == 0
+        assert len(validator.errors) == 1
+        assert "env.MY_VAR" in validator.errors[0]
 
     def test_allows_secrets(self, tmp_path: Path):
         """${{ secrets.TOKEN }} in run blocks is safe."""
@@ -636,8 +642,9 @@ class TestExpressionInjectionAllowlist:
             errors = self._check(tmp_path, [_run_step("${{ " + expr + " }}")])
             assert errors == [], expr
 
-    def test_env_and_matrix_references_are_not_flagged(self, tmp_path: Path):
-        for expr in ("env.FOO", "matrix.language", "runner.os", "needs.build.outputs.x"):
+    def test_matrix_references_are_not_flagged(self, tmp_path: Path):
+        """`env.` is not in this set: see TestEnvIsNotALaunderingHop."""
+        for expr in ("matrix.language", "runner.os", "needs.build.outputs.x"):
             errors = self._check(tmp_path, [_run_step("${{ " + expr + " }}")])
             assert errors == [], expr
 
@@ -911,10 +918,14 @@ class TestSafeHeadCommentMatchesBehavior:
         assert self._classify(expression) is None
 
     @pytest.mark.parametrize(
-        "expression", ["env.FOO", "vars.FOO", "needs.a.outputs.b", "matrix.x", "runner.os"]
+        "expression", ["vars.FOO", "needs.a.outputs.b", "matrix.x", "runner.os"]
     )
     def test_the_other_derived_prefixes_are_permitted_too(self, expression: str) -> None:
-        """Control: `secrets.` is permitted by the same arm as its siblings."""
+        """Control: `secrets.` is permitted by the same arm as its siblings.
+
+        `env.` was a sibling until it was found to launder taint. It is now
+        flagged; TestEnvIsNotALaunderingHop owns that case.
+        """
         assert self._classify(expression) is None
 
     @pytest.mark.parametrize(
@@ -933,3 +944,125 @@ class TestSafeHeadCommentMatchesBehavior:
         """
         assert "secrets.MY_TOKEN" not in WorkflowValidator._SAFE_EXPRESSION_HEADS
         assert "secrets." in WorkflowValidator._DERIVED_EXPRESSION_PREFIXES
+
+
+class TestEnvIsNotALaunderingHop:
+    """`${{ env.X }}` in a `run:` block is the same injection as the source.
+
+    `env.` sat in `_DERIVED_EXPRESSION_PREFIXES`, so the classifier called it
+    a GitHub-generated value. Nothing generates it: a workflow author binds it,
+    and the binding may read `inputs.*`. That made a two-line bypass of the
+    whole check. Bind the tainted text into `env:`, interpolate the env context
+    back into `run:`, and the direct form's error disappears while the shell
+    still receives attacker text verbatim.
+
+    `env.` differs from its former siblings in who writes it. `secrets.` and
+    `vars.` need repository admin, which already implies workflow write, so
+    this check does not treat them as attacker-supplied. Any workflow author
+    writes `env:`.
+    """
+
+    @staticmethod
+    def _check(tmp_path: Path, steps: Sequence[object], job_env: object = None) -> list[str]:
+        job: dict[str, object] = {"runs-on": "ubuntu-latest", "steps": steps}
+        if job_env is not None:
+            job["env"] = job_env
+        validator = WorkflowValidator(tmp_path)
+        validator.validate_expression_injection(tmp_path / "wf.yml", {"jobs": {"a": job}})
+        return validator.errors
+
+    def test_the_bypass_is_flagged(self, tmp_path: Path) -> None:
+        """Positive: the exact shape that laundered the taint now errors."""
+        errors = self._check(
+            tmp_path,
+            [_run_step("${{ env.TITLE }}")],
+            job_env={"TITLE": "${{ inputs.title }}"},
+        )
+        assert len(errors) == 1
+        assert "env.TITLE" in errors[0]
+        assert "not a GitHub-generated value" in errors[0]
+
+    def test_the_bypass_and_its_source_are_flagged_alike(self, tmp_path: Path) -> None:
+        """Positive: laundering through `env:` buys nothing over the direct form.
+
+        Both spellings reach the shell as substituted text before it runs, so
+        one error each is the only self-consistent answer.
+        """
+        direct = self._check(tmp_path, [_run_step("${{ inputs.title }}")])
+        laundered = self._check(
+            tmp_path,
+            [_run_step("${{ env.TITLE }}")],
+            job_env={"TITLE": "${{ inputs.title }}"},
+        )
+        assert len(direct) == len(laundered) == 1
+
+    def test_the_documented_remediation_still_passes(self, tmp_path: Path) -> None:
+        """Negative: the fix does not outlaw the cure it prescribes.
+
+        The error text tells the author to bind through `env:` and read the
+        quoted shell variable. `"$TITLE"` is a shell expansion, not a GitHub
+        expression, so no `${{ }}` remains for the check to see.
+        """
+        errors = self._check(
+            tmp_path,
+            [{"env": {"TITLE": "${{ inputs.title }}"}, "run": 'echo "$TITLE"'}],
+        )
+        assert errors == []
+
+    @pytest.mark.parametrize("expression", ["secrets.TOKEN", "vars.REGISTRY"])
+    def test_admin_written_contexts_are_untouched(
+        self, tmp_path: Path, expression: str
+    ) -> None:
+        """Negative control: this narrows one prefix, it does not tighten policy.
+
+        Writing either needs repository admin, so neither is attacker-supplied
+        text by the same argument that already exempts `secrets.`.
+        """
+        assert self._check(tmp_path, [_run_step("${{ " + expression + " }}")]) == []
+
+    @pytest.mark.parametrize("expression", ["needs.a.outputs.b", "matrix.x", "runner.os"])
+    def test_the_remaining_derived_prefixes_are_untouched(
+        self, tmp_path: Path, expression: str
+    ) -> None:
+        """Negative control: only `env.` moved."""
+        assert self._check(tmp_path, [_run_step("${{ " + expression + " }}")]) == []
+
+    def test_env_is_gone_from_the_derived_prefixes(self) -> None:
+        """Edge: name the mechanism so a list edit cannot silently reopen it.
+
+        Without this, restoring `env.` to the tuple would be caught only by
+        the behavioral tests above, and a reader of the tuple alone would see
+        no reason it is absent.
+        """
+        assert "env." not in WorkflowValidator._DERIVED_EXPRESSION_PREFIXES
+        assert "vars." in WorkflowValidator._DERIVED_EXPRESSION_PREFIXES
+
+    def test_an_env_value_reading_env_does_not_itself_error(self, tmp_path: Path) -> None:
+        """Edge: the `env:` scan feeds taint tracking, it does not report.
+
+        Three repository workflows write `PR_NUMBER: ${{ env.PR_NUMBER }}` at
+        step level. Narrowing the prefix marks those steps as reading an
+        unsafe value, which matters only if the step also publishes to
+        `$GITHUB_OUTPUT`. On its own it must stay silent.
+        """
+        errors = self._check(
+            tmp_path,
+            [{"env": {"PR_NUMBER": "${{ env.PR_NUMBER }}"}, "run": 'echo "$PR_NUMBER"'}],
+        )
+        assert errors == []
+
+    def test_an_env_value_reading_env_taints_a_publishing_step(self, tmp_path: Path) -> None:
+        """Edge: and when the step does publish, the taint propagates one hop."""
+        errors = self._check(
+            tmp_path,
+            [
+                {
+                    "id": "p",
+                    "env": {"T": "${{ env.TITLE }}"},
+                    "run": 'printf "t=%s\\n" "$T" >> "$GITHUB_OUTPUT"',
+                },
+                _run_step("${{ steps.p.outputs.t }}"),
+            ],
+        )
+        assert len(errors) == 1
+        assert "steps.p.outputs.t" in errors[0]

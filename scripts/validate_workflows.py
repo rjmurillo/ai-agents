@@ -313,10 +313,16 @@ class WorkflowValidator:
     # outsider who can already set a secret has write access and does not
     # need an injection. Leaking a secret into a log is a real but separate
     # concern with its own gate.
+    # `env.` is deliberately absent. Nothing generates it: a workflow author
+    # binds it, and the binding may read `inputs.*` or an event body. Treating
+    # it as derived made a two-line bypass of this whole check, because
+    # `${{ env.X }}` in a `run:` block is substituted before the shell starts
+    # exactly like the `${{ inputs.x }}` it was bound from. `secrets.` and
+    # `vars.` stay because writing either needs repository admin, which already
+    # implies workflow write. TestEnvIsNotALaunderingHop pins both halves.
     _DERIVED_EXPRESSION_PREFIXES: tuple[str, ...] = (
         "needs.",
         "matrix.",
-        "env.",
         "vars.",
         "secrets.",
         "runner.",
