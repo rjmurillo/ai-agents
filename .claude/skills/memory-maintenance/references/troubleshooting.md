@@ -14,10 +14,10 @@ One script covers every tier:
 
 ```bash
 # All tiers, JSON (default)
-uv run python .claude/skills/memory/scripts/test_memory_health.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py"
 
 # Human-readable
-uv run python .claude/skills/memory/scripts/test_memory_health.py --format table
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 ```
 
 ### Expected Healthy Output
@@ -101,7 +101,7 @@ inside a memory will not match.
 
 ```bash
 # Check every tier
-uv run python .claude/skills/memory/scripts/test_memory_health.py --format table
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 
 # Check the port
 ss -ltn 'sport = :8020'
@@ -180,14 +180,14 @@ print(bool(re.match(r"^[a-zA-Z0-9\s\-.,_()&:]+$", query)))  # want True
 **Diagnosis**:
 
 ```bash
-time uv run python .claude/skills/memory/scripts/search_memory.py "test" --lexical-only
-time uv run python .claude/skills/memory/scripts/search_memory.py "test" --semantic-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --lexical-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --semantic-only
 ```
 
 Or benchmark every tier at once:
 
 ```bash
-uv run python .claude/skills/memory/scripts/measure_memory_performance.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"
 ```
 
 **Solutions**:
@@ -242,7 +242,7 @@ ls ".agents/sessions/$SESSION_ID.json"
 **Extracting Episode**:
 
 ```bash
-uv run python .claude/skills/memory/scripts/extract_session_episode.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     ".agents/sessions/2026-01-01-session-130.json"
 ```
 
@@ -442,7 +442,7 @@ both module files, and emits remediation hints, so do not hand-roll a
 diagnostic script.
 
 ```bash
-uv run python .claude/skills/memory/scripts/test_memory_health.py --format table
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
 ```
 
 It checks:
@@ -465,7 +465,7 @@ repeats, and reports the list/match/read split per query, so do not hand-roll a
 timing loop.
 
 ```bash
-uv run python .claude/skills/memory/scripts/measure_memory_performance.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" \
     --iterations 5 --warmup 1 --format console
 ```
 

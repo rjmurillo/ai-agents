@@ -78,7 +78,7 @@ is raised unless the caller asked for `semantic_only`.
 The query is a **positional** argument. There is no `--query` flag.
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "git hooks" --format json
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
 ```
 
 Full option set:
@@ -371,7 +371,7 @@ instead of blocking queries.
 
 **Target**: router overhead under 50ms when Forgetful is available.
 
-Measure with `uv run python .claude/skills/memory/scripts/measure_memory_performance.py`.
+Measure with `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"`.
 
 ## Security
 
@@ -486,8 +486,8 @@ ls .serena/memories/*.md | head
 **Diagnosis**:
 
 ```bash
-time uv run python .claude/skills/memory/scripts/search_memory.py "test" --lexical-only
-time uv run python .claude/skills/memory/scripts/search_memory.py "test"
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --lexical-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test"
 ```
 
 **Solutions**:

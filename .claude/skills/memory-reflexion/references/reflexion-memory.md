@@ -337,7 +337,7 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-uv run python .claude/skills/memory/scripts/extract_session_episode.py <session-log-path> \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
     [--output-path DIR] [--force | --preserve] [--pending-stage]
 ```
 
@@ -362,7 +362,7 @@ uv run python .claude/skills/memory/scripts/extract_session_episode.py <session-
 **Example**:
 
 ```bash
-uv run python .claude/skills/memory/scripts/extract_session_episode.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     .agents/sessions/2026-01-01-session-126.json
 
 # Output:
@@ -385,7 +385,7 @@ The retrospective agent auto-extracts episodes at session end:
 ```bash
 SESSION_LOG=".agents/sessions/${SESSION_ID}.json"
 
-uv run python .claude/skills/memory/scripts/extract_session_episode.py "$SESSION_LOG"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
 ```
 
 ### With Session Protocol
@@ -406,7 +406,7 @@ Episode extraction is part of the session end checklist:
 `memory_router.search_memory` covers Serena and Forgetful only. The episode store is searched by the CLI wrapper:
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "routing decision"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "routing decision"
 ```
 
 ## Use Cases

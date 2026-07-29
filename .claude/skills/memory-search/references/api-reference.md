@@ -68,7 +68,7 @@ for r in search_memory("python arrays", max_results=5):
 **Command line**:
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "python arrays" --max-results 5
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "python arrays" --max-results 5
 ```
 
 ---
@@ -396,7 +396,7 @@ print(get_reflexion_memory_status()["Episodes"]["Count"])
 Command line wrapper over `memory_router`.
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py <query> \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" <query> \
     [--max-results N] [--lexical-only | --semantic-only] \
     [--format json|table] [--serena-path PATH] [--episodes-path PATH]
 ```
@@ -408,7 +408,7 @@ Unlike `memory_router.search_memory`, this script also searches the episode stor
 Extracts episode data from a session log.
 
 ```bash
-uv run python .claude/skills/memory/scripts/extract_session_episode.py <session-log-path> \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
     [--output-path DIR] [--force | --preserve] [--pending-stage]
 ```
 
@@ -427,7 +427,7 @@ uv run python .claude/skills/memory/scripts/extract_session_episode.py <session-
 **Example**:
 
 ```bash
-uv run python .claude/skills/memory/scripts/extract_session_episode.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     .agents/sessions/2026-01-01-session-126.json
 ```
 
