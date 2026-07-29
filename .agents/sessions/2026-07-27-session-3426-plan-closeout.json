@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3426,
+    "date": "2026-07-27",
+    "branch": "chore/3426-reclassify-stale-plans",
+    "startingCommit": "a0b322fdb",
+    "objective": "Fix issue #3426 by closing out stale execution plans and adding an advisory active-plan closeout check."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "activate_project tool was not exposed in this Copilot session; serena initial_instructions ran."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions returned the Serena Instructions Manual."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md lines 1-120 and SESSION-PROTOCOL.md lines 1-140."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created .agents/sessions/2026-07-27-session-3426-plan-closeout.json."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git status showed branch chore/3426-reclassify-stale-plans."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree is on chore/3426-reclassify-stale-plans, not main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Protocol checklist recorded in this session log."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "No new durable cross-session fact needed beyond committed code and docs."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 ran on changed markdown; repo config excludes .agents paths and reported 0 linted files, 0 issues."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Atomic commits are being created with this session log and the plan closeout changes."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Targeted ruff and pytest passed; pre_pr.py reported 36 total, 32 passed, 0 failed, 4 skipped."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue #3426",
+      "result": "Confirmed acceptance asks for advisory session-end or pre-push warning."
+    },
+    {
+      "action": "Closed stale execution plans",
+      "result": "Moved 11 plans to completed and 2 plans to abandoned with evidence notes."
+    },
+    {
+      "action": "Added active plan advisory",
+      "result": "pre_pr now warns when active plans have only closed tracking issues."
+    },
+    {
+      "action": "Committed closeout batch 1",
+      "result": "Updated plan lifecycle docs and abandoned the misnumbered REQ-008 findings note."
+    },
+    {
+      "action": "Committed closeout docs",
+      "result": "Updated lifecycle README files to point at completed and abandoned plan directories."
+    },
+    {
+      "action": "Committed closeout batch 2",
+      "result": "Moved superseded req-008 and stale SPEC-005 bundle plan into abandoned."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed Stage 1 vendor and knowledge integration plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed eval harness and PR iteration cost plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed dash enforcement and Step 0 plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed skill catalog triage and multi-tool artifact build plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed PR 1965 retro fixes and memory-first gate plans."
+    },
+    {
+      "action": "Committed completed plan batch",
+      "result": "Completed review axes convergence plan."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Abandoned req-008 findings note because REQ-017 superseded it."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Abandoned SPEC-005 bundle plan because issue #3424 tracks the stale registry replacement."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed Stage 1 Claude Kit vendor plan with PR #1633 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed knowledge integration through the kill gate with follow-on issue #3421."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed agent eval harness spike with issue #1854 and ADR-058 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed PR iteration cost plan with issues #1884 and #1885 closed."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed dash enforcement plan with PR #1930 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed Step 0 first principles plan with issue #1926 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed skill catalog triage plan with epic #1944 child closures."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed multi-tool artifact build plan with PR #1819 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed retro fixes plan with PR #1965 evidence."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed Step 0.5 memory-first gate plan with checked milestones."
+    },
+    {
+      "action": "Committed single plan closeout",
+      "result": "Completed review axes convergence plan with PR #1965 and PR #2043 evidence."
+    }
+  ],
+  "endingCommit": "b02150b671",
+  "nextSteps": [],
+  "workNotes": " | Retrospective evidence created for session. | Restructured repo param to break Semgrep taint chain via regex match sanitization. | Removed os.environ taint source for Semgrep compliance. | Expanded retrospective format, fixed dead code and numbering."
+}

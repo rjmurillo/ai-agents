@@ -237,7 +237,7 @@ US3 (vendored installer) requires `/review` to work without the full repository.
 
 ### Requirement Statement
 
-WHEN `pytest` runs on `tests/build_scripts/test_generate_pr_quality_prompts.py`, `tests/test_ai_review.py`, and `tests/hooks/test_drift_check.py`
+WHEN `pytest` runs on `tests/build_scripts/test_generate_pr_quality_prompts.py` and `tests/test_ai_review.py`
 THE SYSTEM SHALL exercise idempotency, partial-write recovery, schema validation, all verdict token combinations including `UNKNOWN`, `get_verdict_emoji`, and drift hook positive and negative paths
 SO THAT regressions in generation, merge logic, and drift detection are caught before merge.
 
@@ -245,7 +245,7 @@ SO THAT regressions in generation, merge logic, and drift detection are caught b
 
 - [ ] `tests/test_ai_review.py` achieves >=99% line and branch coverage on `scripts/ai_review_common/verdict.py` (the canonical source synced to `.claude/lib/ai_review_common/`). Verified: `pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch` reports 99% (1 line + 1 branch in pre-existing `get_labels_from_ai_output` defensive code path). The functions added by #1934 (`merge_verdicts` UNKNOWN handling, `extract_verdict`) are 100% covered by the truth-table tests. The full pytest suite runs under `.github/workflows/pytest.yml` with `pytest --cov`. A dedicated coverage gate IS pinned in `.github/workflows/pytest.yml`: the new step "Pin ai_review_common.verdict coverage at 98% (REQ-008-07)" runs `pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98` and fails the build on any drop below 98%. Actual coverage is 98.62% (1 unreachable defensive branch in pre-existing `get_labels_from_ai_output:251`). Reaching 100% requires excluding or covering that branch and is tracked by follow-up issue #1970. The 98% floor prevents silent drops while accepting the pre-existing unreachable. Amended PR #1965 per critic Finding 8.
 - [ ] `tests/build_scripts/test_generate_pr_quality_prompts.py` includes: (a) idempotency test (run twice, assert zero diff), (b) partial-write recovery test (simulate crash after tmp write, assert no corrupt output), (c) schema validation test (invalid filename, missing frontmatter key).
-- [ ] `tests/hooks/test_drift_check.py` includes: (a) positive test (canonical matches generated, no output, exit 0), (b) negative test (canonical differs, unified diff emitted, exit 1).
+- [ ] `tests/build_scripts/test_generate_pr_quality_prompts.py` includes: (a) positive test (canonical matches generated, no output, exit 0), (b) negative test (canonical differs, unified diff emitted, exit 1).
 - [ ] All tests pass with `pytest` 8+ and Python 3.14.
 - [ ] No test uses `Skip` or `pytest.mark.skip` without a linked issue.
 - [ ] No test modifies baseline fixtures to force a pass.

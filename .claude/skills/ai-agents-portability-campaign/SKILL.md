@@ -1,6 +1,6 @@
 ---
 name: ai-agents-portability-campaign
-description: Execute cross-harness hook changes for Claude Code and GitHub Copilot CLI using the settled official contract, versioned probes, generators, and runtime tests. Use for `run the portability campaign`, `port hooks to a new harness`, `copilot hook timeout regression`, or `new copilot cli release, recheck the contract`. Do NOT use for fact lookup alone (use `agent-harness-reference`).
+description: Execute cross-harness hook changes for Claude Code and GitHub Copilot CLI using the settled official contract, versioned probes, generators, and runtime tests. Use for `run the portability campaign`, `port hooks to a new harness`, `copilot hook timeout regression`, or `new copilot cli release, recheck the contract`. Do NOT use for fact lookup alone (use `agent-harness-reference`) or release generation ownership (use `ai-agents-generation-and-release`).
 version: 1.1.0
 license: MIT
 ---

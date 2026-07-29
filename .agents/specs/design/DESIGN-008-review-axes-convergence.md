@@ -343,9 +343,9 @@ Final verdict: [X] CRITICAL_FAIL
 
 | Test file | What it covers |
 |-----------|----------------|
-| `tests/lib/test_ai_review.py` | All `merge_verdicts` combinations, all `get_verdict_emoji` tokens, 100% coverage |
+| `tests/test_ai_review.py` | All `merge_verdicts` combinations, all `get_verdict_emoji` tokens, 100% coverage |
 | `tests/build_scripts/test_generate_pr_quality_prompts.py` | Idempotency, partial-write recovery, schema validation (filename regex, missing frontmatter), NO-REGEN sentinel, exit codes |
-| `tests/hooks/test_drift_check.py` | Pre-push drift step positive (no diff, exit 0) and negative (diff present, unified diff emitted, exit 1) |
+| `tests/build_scripts/test_generate_pr_quality_prompts.py` | Pre-push drift step positive (no diff, exit 0) and negative (diff present, unified diff emitted, exit 1) |
 | `tests/integration/test_vendored_install.py` | Fresh-checkout with only `.claude/` subtree; `/review` completes successfully |
 
 All tests: pytest 8+, Python 3.14. No `Skip` or `pytest.mark.skip` without linked issue.

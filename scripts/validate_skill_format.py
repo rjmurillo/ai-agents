@@ -30,6 +30,8 @@ def get_staged_memory_files() -> list[str]:
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         return []

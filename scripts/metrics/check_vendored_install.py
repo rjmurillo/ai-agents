@@ -48,6 +48,8 @@ def _run_vendored_suite() -> subprocess.CompletedProcess[str]:
         cwd=str(_PROJECT_ROOT),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=_PYTEST_TIMEOUT,
         check=False,
     )

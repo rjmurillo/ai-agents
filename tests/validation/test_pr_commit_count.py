@@ -8,6 +8,7 @@ GITHUB_OUTPUT emission and CLI exit codes, per TESTING-RIGOR.
 
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 import sys
@@ -45,12 +46,33 @@ def _commits_json(n: int) -> str:
         (14, "WARNING"),
         (15, "ALERT"),
         (19, "ALERT"),
-        (20, "BLOCKED"),
+        (20, "ALERT"),
+        (21, "BLOCKED"),
         (99, "BLOCKED"),
     ],
 )
 def test_classify_count_thresholds(count: int, expected: str) -> None:
     assert mod.classify_count(count) == expected
+
+
+@pytest.mark.parametrize(("count", "blocked"), [(19, False), (20, False), (21, True)])
+def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool) -> None:
+    """The two enforcement points must draw the line in the same place.
+
+    The local hook in ``scripts/validation/git_hook_policy.py`` allows a push
+    when ``commit_count <= limit``, and ``AGENTS.md`` states the rule as
+    ``<=20``. That ``limit`` is 20 by default, so at the default the two
+    points now agree: 20 passes both, 21 fails both. A count of 20 that
+    pushed cleanly and then failed the pull request check gave an author a red
+    pull request with no local signal (issue #3721).
+
+    The hook widens ``limit`` to 40 when the update contains a merge of main.
+    This check never sees the push shape, so it cannot mirror that widening,
+    and a main-merge push of 21 through 40 still needs the
+    commit-limit-bypass label. That gap is out of scope here and is not what
+    this test pins.
+    """
+    assert (mod.classify_count(count) == "BLOCKED") is blocked
 
 
 # ---------------------------------------------------------------------------
@@ -102,11 +124,19 @@ def test_fetch_healthy_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_fetch_healthy_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(20)))
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(21)))
     result = mod.fetch_commit_count(42, "o", "r")
     assert result.status == "BLOCKED"
-    assert result.count == 20
+    assert result.count == 21
     assert result.transient is False
+
+
+def test_fetch_at_the_limit_is_not_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A count the local hook accepts must survive the fetch path too (#3721)."""
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(0, _commits_json(20)))
+    result = mod.fetch_commit_count(42, "o", "r")
+    assert result.status == "ALERT"
+    assert result.count == 20
 
 
 def test_fetch_empty_list_is_ok_not_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -285,3 +315,233 @@ def test_main_blocked_emits_error_annotation(
     rc = mod.main(["--pr-number", "42"])
     assert rc == 0
     assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Issue #3596: the ADR-008 main-merge relief must apply in CI, not only in the
+# pre-push hook, and both ceilings must come from this module.
+# ---------------------------------------------------------------------------
+
+
+def _merge_commits_json(n: int, external_parent: bool) -> str:
+    """Build a commits payload whose last entry is a merge commit.
+
+    ``external_parent`` decides whether the merge's second parent is outside the
+    PR's own commit list, which is what marks a merge as coming from the base.
+    """
+    commits: list[dict[str, object]] = [
+        {"sha": f"{i:040x}", "parents": [{"sha": f"{i - 1:040x}"}]} for i in range(n - 1)
+    ]
+    second = "f" * 40 if external_parent else f"{0:040x}"
+    commits.append(
+        {"sha": f"{n - 1:040x}", "parents": [{"sha": f"{n - 2:040x}"}, {"sha": second}]}
+    )
+    return json.dumps(commits)
+
+
+def test_contains_base_merge_is_false_for_a_linear_branch() -> None:
+    payload = json.loads(_merge_commits_json(5, external_parent=False))
+    assert mod.contains_base_merge(payload) is False
+
+
+def test_contains_base_merge_is_true_when_a_merge_parent_is_outside_the_branch() -> None:
+    payload = json.loads(_merge_commits_json(5, external_parent=True))
+    assert mod.contains_base_merge(payload) is True
+
+
+def test_contains_base_merge_ignores_a_merge_between_two_branch_commits() -> None:
+    """An internal merge is the branch's own history, not a merge from main."""
+    payload = [
+        {"sha": "a" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "b" * 40, "parents": [{"sha": "0" * 40}]},
+        {"sha": "c" * 40, "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}]},
+    ]
+    assert mod.contains_base_merge(payload) is False
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        ["not-a-dict"],
+        [{"sha": "a" * 40}],
+        [{"sha": "a" * 40, "parents": "not-a-list"}],
+        [{"sha": "a" * 40, "parents": [{"sha": "b" * 40}, "not-a-dict"]}],
+    ],
+    ids=["empty", "non-dict", "no-parents", "parents-not-list", "parent-not-dict"],
+)
+def test_contains_base_merge_fails_closed_on_malformed_payloads(
+    payload: list[object],
+) -> None:
+    """Malformed data must not grant the relief: False keeps the stricter 20."""
+    assert mod.contains_base_merge(payload) is False
+
+
+def test_classify_count_honours_an_explicit_limit() -> None:
+    """The boundary is strict: the limit itself is allowed, one past it blocks.
+
+    The pre-push hook in ``git_hook_policy._check_commit_limit`` accepts
+    ``commit_count <= limit`` (issue #3721). Blocking at ``count == limit``
+    here would reject in CI the exact push the hook had just waved through.
+    """
+    assert mod.classify_count(20, mod.BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(21, mod.BLOCK_THRESHOLD) == "BLOCKED"
+    assert mod.classify_count(20, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(39, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(40, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "ALERT"
+    assert mod.classify_count(41, mod.MAIN_MERGE_BLOCK_THRESHOLD) == "BLOCKED"
+
+
+def test_classify_count_default_limit_is_unchanged() -> None:
+    """The default argument keeps every pre-existing caller on the 20 ceiling."""
+    assert mod.classify_count(21) == "BLOCKED"
+    assert mod.classify_count(20) == "ALERT"
+    assert mod.classify_count(19) == "ALERT"
+
+
+def test_a_branch_merging_main_is_not_blocked_below_forty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """25 commits with a merge from main passes CI, matching the pre-push hook."""
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, True))
+    )
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    assert mod.main(["--pr-number", "42"]) == 0
+    assert "::error::PR exceeds commit limit" not in capsys.readouterr().out
+    written = (tmp_path / "gh_out").read_text(encoding="utf-8")
+    assert "status=ALERT" in written
+    assert f"commit_limit={mod.MAIN_MERGE_BLOCK_THRESHOLD}" in written
+
+
+def test_a_linear_branch_of_twenty_five_is_still_blocked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control: the relief must not fire without a merge from the base."""
+    monkeypatch.setattr(
+        mod, "_run_gh", lambda argv: _completed(0, _merge_commits_json(25, False))
+    )
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "gh_out"))
+    assert mod.main(["--pr-number", "42"]) == 0
+    assert "::error::PR exceeds commit limit" in capsys.readouterr().out
+    written = (tmp_path / "gh_out").read_text(encoding="utf-8")
+    assert "status=BLOCKED" in written
+    assert f"commit_limit={mod.BLOCK_THRESHOLD}" in written
+
+
+_CEILING_NAMES = ("BLOCK_THRESHOLD", "MAIN_MERGE_BLOCK_THRESHOLD")
+
+
+def _ceilings_restated_in(source: str) -> set[str]:
+    """Return the ceiling names this source assigns instead of importing.
+
+    An identity assertion cannot answer the drift question: CPython interns
+    small integers, so ``a.BLOCK_THRESHOLD is b.BLOCK_THRESHOLD`` holds even
+    when both modules restate ``20`` independently. The property that actually
+    fails on drift is structural, so read it off the syntax tree.
+    """
+    tree = ast.parse(source)
+    restated: set[str] = set()
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id in _CEILING_NAMES:
+                restated.add(target.id)
+    return restated
+
+
+def _ceilings_imported_in(source: str) -> set[str]:
+    """Return the ceiling names this source pulls in through an import."""
+    imported: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in _CEILING_NAMES:
+                    imported.add(alias.name)
+    return imported
+
+
+def test_the_hook_and_ci_read_the_same_two_ceilings() -> None:
+    """Issue #3596: one number in one place. A second literal would drift."""
+    source = (
+        _PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py"
+    ).read_text(encoding="utf-8")
+
+    assert _ceilings_restated_in(source) == set()
+    assert _ceilings_imported_in(source) == set(_CEILING_NAMES)
+
+
+def test_the_drift_detector_flags_a_restated_ceiling() -> None:
+    """The detector must be able to fail, or the check above proves nothing.
+
+    This is the control the interned-integer assertion could never have: a
+    source that genuinely restates the literal is flagged, so a green run of
+    the test above is evidence rather than a tautology.
+    """
+    drifted = "BLOCK_THRESHOLD = 20\nMAIN_MERGE_BLOCK_THRESHOLD: int = 40\n"
+
+    assert _ceilings_restated_in(drifted) == set(_CEILING_NAMES)
+    assert _ceilings_imported_in(drifted) == set()
+
+
+def test_the_drift_detector_ignores_unrelated_assignments() -> None:
+    """Names that merely look similar must not be read as a restated ceiling."""
+    unrelated = "OTHER_BLOCK_THRESHOLD = 20\nthreshold = 40\n"
+
+    assert _ceilings_restated_in(unrelated) == set()
+
+
+# ---------------------------------------------------------------------------
+# contains_base_merge: malformed parents must not grant the relaxed ceiling
+# ---------------------------------------------------------------------------
+
+
+def _merge(*parent_entries: object) -> list[dict[str, object]]:
+    """Build a one-commit payload whose merge parents are the given entries."""
+    return [{"sha": "own", "parents": [{"sha": "own"}, *parent_entries]}]
+
+
+@pytest.mark.parametrize(
+    ("label", "payload"),
+    [
+        ("parent dict without a sha key", _merge({"url": "https://example"})),
+        ("parent sha is null", _merge({"sha": None})),
+        ("parent sha is empty", _merge({"sha": ""})),
+        ("parent sha is not a string", _merge({"sha": 17})),
+        ("every parent is malformed", _merge({"sha": None}, {"nope": 1})),
+    ],
+)
+def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
+    label: str, payload: list[dict[str, object]]
+) -> None:
+    """Malformed payloads fail closed, keeping the stricter 20-commit ceiling.
+
+    ``contains_base_merge`` gates an *exemption*: True raises the ceiling from
+    BLOCK_THRESHOLD to MAIN_MERGE_BLOCK_THRESHOLD. A parent entry we cannot
+    read is not evidence of a base merge, so it must not buy the relief.
+    """
+    assert mod.contains_base_merge(payload) is False, label
+
+
+@pytest.mark.parametrize(
+    ("label", "payload", "expected"),
+    [
+        ("parent outside the branch is a real base merge", _merge({"sha": "external"}), True),
+        ("all parents authored by the branch", _merge({"sha": "own"}), False),
+        ("parent entry is not a mapping", _merge("external"), False),
+        ("malformed beside a genuine external parent", _merge({"sha": None}, {"sha": "ext"}), True),
+        ("no merge commit at all", [{"sha": "own", "parents": [{"sha": "own"}]}], False),
+        ("parents key missing", [{"sha": "own"}], False),
+        ("commit is not a mapping", ["own"], False),
+        ("empty payload", [], False),
+    ],
+)
+def test_contains_base_merge_controls(
+    label: str, payload: list[object], expected: bool
+) -> None:
+    """Behaviour that must survive the malformed-parent narrowing unchanged."""
+    assert mod.contains_base_merge(payload) is expected, label

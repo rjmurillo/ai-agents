@@ -57,7 +57,14 @@ BOT_CATEGORIES: dict[str, list[str]] = {
 
 
 def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["gh", *args], capture_output=True, text=True, timeout=60)
+    return subprocess.run(
+        ["gh", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
 
 
 @dataclass

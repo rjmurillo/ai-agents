@@ -36,7 +36,13 @@ def _allowed_log_roots(project_root: Path) -> tuple[Path, ...]:
     """Return roots where skip logs may be written."""
     roots: list[Path] = []
     seen: set[Path] = set()
-    for candidate in (project_root, os.environ.get("TMPDIR"), tempfile.gettempdir()):
+    pytest_basetemp = os.environ.get("_PYTEST_BASETEMP")
+    for candidate in (
+        project_root,
+        os.environ.get("TMPDIR"),
+        pytest_basetemp,
+        tempfile.gettempdir(),
+    ):
         if not candidate:
             continue
         try:
