@@ -82,7 +82,7 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 
 Beyond pos+neg+edge, this repo demands three specific disciplines:
 
-**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 44-58) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:19-48), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:51-63). Consumer-repo simulation tests override that env var to `"0"`.
+**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:19-48), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:51-63). Consumer-repo simulation tests override that env var to `"0"`.
 
 **2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:30, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:63-70` requires: execute the shipped artifact under the host's real contract (foreign cwd, host-set env vars), assert the intended effect, and include a negative control proving the test CAN fail (a bare relative path must fail the same harness). The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 
@@ -145,7 +145,7 @@ Each row cost real time. Do not re-earn these lessons.
 | Happy-path-only test suite | PR #1756: 20 tests, 24% coverage, bots caught the rest | TESTING-RIGOR.md pos+neg+edge, BLOCKING |
 | Threshold detector never calibrated | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last ~5 real PRs before commit |
 | Guard not run on its own branch | #1989 M5: bot-cascade hook shipped but never applied to its own PR | Guard output on the shipping branch in the PR description |
-| Test mutates the real repo | Repo-root conftest.py:44-58 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
+| Test mutates the real repo | Repo-root conftest.py:315-386 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
 | Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
 | Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
 | Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:41 |
@@ -165,7 +165,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:44-58`, `tests/conftest.py:19-63`, `.github/workflows/pytest.yml:138-164`, `.claude/rules/generated-artifacts.md:63-70`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-03 against the working tree; the `pyproject.toml` and repo-root `conftest.py` citations were re-verified 2026-07-29 (issue #3828). Sources: `.agents/governance/TESTING-RIGOR.md:3-53`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-101`, `pyproject.toml:60-72`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-63`, `.github/workflows/pytest.yml:138-164`, `.claude/rules/generated-artifacts.md:63-70`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:739-800`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
