@@ -91,6 +91,9 @@ jobs:
               - '.claude/lib/**'
               - '.claude/.claude-plugin/plugin.json'
               - 'src/copilot-cli/.claude-plugin/plugin.json'
+              - 'src/claude/.claude-plugin/plugin.json'
+              - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
               - '.github/workflows/agent-drift-detection.yml'
 
       - name: Determine if validation should run
@@ -159,12 +162,12 @@ jobs:
           fi
           exit "$build_rc"
 
-      - name: Check plugin manifest version parity
+      - name: "Check plugin manifest parity and description counts"
         id: manifest-parity
         continue-on-error: true
         shell: bash
         run: |
-          echo "Checking .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json carry identical versions"
+          echo "Checking manifest version parity and description component counts"
           python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Show diff on failure
