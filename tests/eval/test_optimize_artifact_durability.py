@@ -22,6 +22,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -226,6 +227,47 @@ class TestThePosixBranch:
         oa._write_atomic(target, '{"n": 2}')
         assert target.read_text(encoding="utf-8") == '{"n": 2}'
         assert [p.name for p in tmp_path.iterdir()] == ["ledger.json"]
+
+
+class TestTheResolverFallsBackInsteadOfRaising:
+    """The resolver answers None for every reason it cannot produce a mover.
+
+    Two routes reach None and they are not the same. A host with no ``WinDLL``
+    at all leaves at the guard, which is the ordinary POSIX answer. A host that
+    has ``WinDLL`` but cannot complete the lookup leaves through the handler.
+    Both matter: the resolver runs on the write path, so a raise here would
+    turn a durability gap into a failed write.
+
+    ``test_a_healthy_lookup_still_produces_a_mover`` is the control. On POSIX
+    the guard returns None for its own reason, so without it every assertion
+    in this class would pass against a resolver that had been broken to
+    return None unconditionally.
+    """
+
+    @staticmethod
+    def _install(monkeypatch, win_dll):
+        monkeypatch.setattr(oa.ctypes, "WinDLL", win_dll, raising=False)
+
+    def test_a_healthy_lookup_still_produces_a_mover(self, monkeypatch):
+        def load(name, use_last_error):
+            return SimpleNamespace(MoveFileExW=Mover())
+
+        self._install(monkeypatch, load)
+
+        assert oa._win32_move_file_ex() is not None
+
+    def test_an_unloadable_kernel32_is_not_raised_at_the_caller(self, monkeypatch):
+        def refuse(name, use_last_error):
+            raise OSError("kernel32 not found")
+
+        self._install(monkeypatch, refuse)
+
+        assert oa._win32_move_file_ex() is None
+
+    def test_a_kernel32_without_the_entry_point_is_not_raised_either(self, monkeypatch):
+        self._install(monkeypatch, lambda name, use_last_error: SimpleNamespace())
+
+        assert oa._win32_move_file_ex() is None
 
 
 @pytest.mark.skipif(not ON_WINDOWS, reason="exercises the real Win32 MoveFileExW")

@@ -2461,18 +2461,26 @@ def _win32_move_file_ex() -> Callable[[str, str, int], int] | None:
     A missing Win32 layer is not a reason to refuse a write the caller can
     still perform less durably.
     """
+    # getattr rather than ctypes.WinDLL because WinDLL is a Windows-only
+    # attribute, so the direct reference is unresolvable to a type checker on
+    # every other platform. The three-argument form makes the POSIX answer an
+    # ordinary value instead of an exception, and it is the same guarded
+    # lookup _win32_last_error uses for get_last_error and FormatError.
+    load_library = getattr(ctypes, "WinDLL", None)
+    if load_library is None:
+        return None
     try:
         from ctypes import wintypes
 
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+        kernel32 = load_library("kernel32", use_last_error=True)
         move = kernel32.MoveFileExW
         move.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD)
         move.restype = wintypes.BOOL
         return cast(Callable[[str, str, int], int], move)
     except (AttributeError, ImportError, OSError):
-        # AttributeError is the POSIX answer: ctypes imports fine and has no
-        # WinDLL. The other two cover a Windows host whose kernel32 or whose
-        # wintypes cannot be loaded.
+        # A Windows host that has WinDLL but whose kernel32, whose
+        # MoveFileExW, or whose wintypes cannot be loaded. The plain POSIX
+        # case never reaches here; it left at the guard above.
         return None
 
 
