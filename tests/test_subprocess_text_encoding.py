@@ -69,6 +69,13 @@ _ALWAYS_TEXT_ATTRS = frozenset({"getoutput", "getstatusoutput"})
 
 _SUBPROCESS_ATTRS = _CAPTURING_ATTRS | _ALWAYS_TEXT_ATTRS
 
+# check_output passes stdout=PIPE itself, so it captures whatever the call
+# site says. Nothing in the source has to ask for capture, which means text
+# mode on its own is enough to decode. run and Popen are not like this: with
+# no capture keyword their output goes to the inherited handles and never
+# becomes a str.
+_ALWAYS_CAPTURING_ATTRS = frozenset({"check_output"})
+
 _PINNED_CODEC = "utf-8"
 _OS_POPEN = "os.popen"
 # Stands for a subprocess entry point selected at runtime, which no static
@@ -86,10 +93,16 @@ _PARTIAL = "functools.partial"
 # The literal container shapes an index can be read out of. Named so the
 # non-mapping branch of _element is known to carry elts.
 _Container = ast.Dict | ast.List | ast.Tuple
+<<<<<<< HEAD
+||||||| 76c96f36
+=======
+_Assign = ast.Assign | ast.AnnAssign | ast.NamedExpr | ast.AugAssign
+>>>>>>> origin/main
 
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 
+<<<<<<< HEAD
 # check_output passes stdout=PIPE itself, so it captures with no capture
 # keyword in sight and text mode alone is enough to decode. run and Popen
 # leave the child attached to this process unless a capture keyword says
@@ -107,6 +120,9 @@ _MUTATING_METHODS = frozenset(
     }
 )
 
+||||||| 76c96f36
+=======
+>>>>>>> origin/main
 # Per module, the names worth binding from a ``from ... import`` and what each
 # one resolves to. A table rather than a branch per module, so a new source of
 # subprocess entry points is one row.
@@ -245,7 +261,17 @@ def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr
         return None
     if isinstance(literal, ast.Dict):
         # A ``**splat`` key reads as ``None`` and can carry any name, so the
+<<<<<<< HEAD
         # keys on show are not the whole mapping.
+||||||| 76c96f36
+def _resolve_callable(
+    node: ast.expr, modules: set[str], functions: dict[str, str]
+=======
+        # keys on show are not the whole mapping. No test can pin the
+        # conditional, because ``_literal`` answers ``_UNKNOWN`` for ``None``
+        # anyway. It is the type checker that requires it: ``keys`` holds
+        # ``expr | None`` and ``_literal`` takes an ``expr``.
+>>>>>>> origin/main
         stored = [_literal(k) if k is not None else _UNKNOWN for k in literal.keys]
         if _UNKNOWN in stored:
             return None
@@ -342,9 +368,15 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
     Shapes that line up are matched element by element. When they do not line
     up the right side is unknown, so every name on the left is paired with the
     whole of it rather than dropped. An attribute target binds under its own
+<<<<<<< HEAD
     key, because the object holding it is out of reach of this scan. A
     subscript target binds the container name, because which slot receives the
     value is not modelled.
+||||||| 76c96f36
+    whole of it rather than dropped.
+=======
+    key, because the object holding it is out of reach of this scan.
+>>>>>>> origin/main
     """
     if isinstance(target, ast.Name):
         return [(target.id, value)]
@@ -355,8 +387,18 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
         # name alone carries the binding. The leading dot cannot appear in an
         # identifier, so these keys never collide with a plain name.
         return [(_ATTRIBUTE + target.attr, value)]
+<<<<<<< HEAD
     if isinstance(target, ast.Subscript):
         return _subscript_binding(target, value)
+||||||| 76c96f36
+=======
+    if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+        # ``H[0] = subprocess.run`` puts the value into H without rebinding
+        # the name, so the base takes the binding. Which slot it lands in
+        # does not matter: the write is what stops H being read from its
+        # literal, so the whole container has to answer for it.
+        return [(target.value.id, value)]
+>>>>>>> origin/main
     if not isinstance(target, (ast.Tuple, ast.List)):
         return []
     if isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == len(target.elts):
@@ -366,6 +408,31 @@ def _unpack(target: ast.expr, value: ast.expr) -> list[tuple[str, ast.expr]]:
             for pair in _unpack(sub, item)
         ]
     return [pair for sub in target.elts for pair in _unpack(sub, value)]
+
+
+<<<<<<< HEAD
+def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
+    """Pair each parameter of *spec* with its default, where it has one.
+||||||| 76c96f36
+def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
+    """Collect every ``name = value`` binding at any depth.
+=======
+def _iterated(target: ast.expr, iterable: ast.expr) -> list[tuple[str, ast.expr]]:
+    """Pair the names a loop target binds with the values it may take.
+
+    A loop target does not line up with the iterable, it lines up with one
+    item of it at a time, so unpacking it against the iterable reads the
+    wrong column: ``for label, runner in [(check_call, run)]`` would give
+    ``label`` the whole first item and ``runner`` the whole second, when the
+    source has only one item and two columns.
+
+    A literal iterable makes its items visible, so each name is paired with
+    every item it can take, one binding per item. Anything else is opaque and
+    keeps the old reading, where every name may hold any part of it.
+    """
+    if not isinstance(iterable, (ast.List, ast.Tuple, ast.Set)):
+        return _unpack(target, iterable)
+    return [pair for item in iterable.elts for pair in _unpack(target, item)]
 
 
 def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
@@ -385,6 +452,181 @@ def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
     return found
 
 
+def _receives(call: ast.Call) -> list[tuple[str, ast.expr]]:
+    """Pair the receiver of a method call with everything handed to it.
+
+    ``H.append(subprocess.run)`` puts a reference into H, and so does
+    ``H.update(k=subprocess.run)``. Telling a method that stores its argument
+    from one that only reads it needs the type of the receiver, which this
+    scan does not have, so every argument is treated as flowing in. The
+    direction is safe: a name that takes on a value it never really holds is
+    read too loudly, never too quietly.
+    """
+    if not isinstance(call.func, ast.Attribute):
+        return []
+    if not isinstance(call.func.value, ast.Name):
+        return []
+    name = call.func.value.id
+    handed = [*call.args, *(keyword.value for keyword in call.keywords)]
+    return [(name, value) for value in handed]
+
+
+def _written(tree: ast.AST) -> set[str]:
+    """Return every name whose object may change without receiving a value.
+
+    A literal answers for a name only while the object it built is untouched,
+    and most ways of touching one hand it something, so ``_bindings`` records
+    them and the count rule retires the name. Two shapes hand over nothing.
+    ``H.reverse()`` reorders in place, and no static scan can tell a method
+    that mutates from one that reads without knowing the type, so every
+    method call on a name counts. ``del H[0]`` drops an element and shifts
+    the rest. Both leave the literal stale with no value to record, which is
+    why they need a rule of their own.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name):
+                found.add(node.func.value.id)
+        elif isinstance(node, ast.Delete):
+            found.update(
+                target.value.id
+                for target in node.targets
+                if isinstance(target, ast.Subscript)
+                and isinstance(target.value, ast.Name)
+            )
+    return found
+
+
+def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
+    """Pair every attribute a class body binds with the value it receives.
+
+    A class body binds attributes without ever naming ``self``, so the names
+    are recorded under the attribute prefix and read back the same way.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for statement in node.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        for target in statement.targets:
+            found.extend(
+                (_ATTRIBUTE + name, bound)
+                for name, bound in _unpack(target, statement.value)
+            )
+    return found
+
+
+def _assigned(node: _Assign) -> list[tuple[str, ast.expr]]:
+    """Pair the names an assignment statement writes with the value it writes.
+
+    The four shapes differ only in where the target sits. An annotated
+    assignment with no value declares a type and binds nothing, so it is the
+    one shape that can come back empty.
+    """
+    if isinstance(node, ast.Assign):
+        return [pair for target in node.targets for pair in _unpack(target, node.value)]
+    if isinstance(node, ast.AnnAssign):
+        if node.value is None:
+            return []
+        return _unpack(node.target, node.value)
+    if isinstance(node, ast.NamedExpr):
+        return [(node.target.id, node.value)]
+    # ``H += [subprocess.run]`` rebinds H to something the first literal
+    # never showed, with no assignment statement to find.
+    return _unpack(node.target, node.value)
+
+
+def _captured(node: ast.Match) -> list[tuple[str, ast.expr]]:
+    """Pair every name a match statement captures with the subject it reads.
+
+    Structural patterns name a capture in exactly three places: ``case r``
+    and ``case P as r`` set ``MatchAs.name``, ``case [*rest]`` sets
+    ``MatchStar.name``, and ``case {**rest}`` sets ``MatchMapping.rest``.
+    Every other pattern is a shape holding those, so walking each case finds
+    all of them. ``case _`` leaves the name unset and captures nothing.
+
+    Which part of the subject a capture receives depends on the shape that
+    matched, which is a runtime question, so each one is paired with the
+    whole subject. That reads a sequence element as the whole sequence, and
+    the direction is safe: too loud, never too quiet.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for case in node.cases:
+        for pattern in ast.walk(case.pattern):
+            if isinstance(pattern, (ast.MatchAs, ast.MatchStar)):
+                name = pattern.name
+            elif isinstance(pattern, ast.MatchMapping):
+                name = pattern.rest
+            else:
+                continue
+            if name is not None:
+                found.append((name, node.subject))
+    return found
+
+
+def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
+    """Collect every ``name = value`` binding at any depth.
+>>>>>>> origin/main
+
+<<<<<<< HEAD
+    ``def go(runner=subprocess.run)`` binds the name once, when the function is
+    defined, and every call that leaves the argument out reads that binding.
+||||||| 76c96f36
+    Covers plain assignment, annotated assignment, and the walrus, which binds
+    a name in the middle of an expression and needs no statement of its own.
+    Assignment targets are unpacked, so a name bound by destructuring is as
+    visible as one bound on its own.
+=======
+    Covers plain assignment, annotated assignment, the walrus, loop and
+    comprehension targets, class bodies, match captures, values handed to a
+    method, and default arguments, every one of which binds a name without an
+    assignment statement to find.
+    Assignment targets are unpacked, so a name bound by destructuring is as
+    visible as one bound on its own.
+>>>>>>> origin/main
+    """
+<<<<<<< HEAD
+    positional = spec.posonlyargs + spec.args
+    filled = positional[len(positional) - len(spec.defaults) :]
+    found = [(arg.arg, default) for arg, default in zip(filled, spec.defaults, strict=True)]
+    found.extend(
+        (arg.arg, default)
+        for arg, default in zip(spec.kwonlyargs, spec.kw_defaults, strict=True)
+        if default is not None
+    )
+||||||| 76c96f36
+    found: list[tuple[str, ast.expr]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                found.extend(_unpack(target, node.value))
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.value is not None:
+                found.append((node.target.id, node.value))
+        elif isinstance(node, ast.NamedExpr):
+            found.append((node.target.id, node.value))
+=======
+    found: list[tuple[str, ast.expr]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, _Assign):
+            found.extend(_assigned(node))
+        elif isinstance(node, ast.Call):
+            found.extend(_receives(node))
+        elif isinstance(node, ast.Match):
+            found.extend(_captured(node))
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            # ``for runner in (subprocess.run,)`` binds a name with no
+            # assignment statement anywhere in sight.
+            found.extend(_iterated(node.target, node.iter))
+        elif isinstance(node, ast.ClassDef):
+            found.extend(_class_bindings(node))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            found.extend(_defaults(node.args))
+>>>>>>> origin/main
+    return found
+
+
+<<<<<<< HEAD
 def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     """Pair every attribute a class body binds with the value it receives.
 
@@ -587,6 +829,41 @@ def _containers(
                 and counts.get(target.id) == 1
                 and target.id not in mutated
             ):
+||||||| 76c96f36
+def _subprocess_names(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
+    """Collect every name in *tree* that reaches a subprocess entry point.
+=======
+def _containers(
+    tree: ast.AST, bindings: list[tuple[str, ast.expr]]
+) -> dict[str, _Container]:
+    """Map each name bound once to an untouched literal container, to that literal.
+
+    Two guarantees, and the literal is only worth reading when both hold.
+    Bound exactly once: a second binding anywhere, including a loop target or
+    a parameter default, means the name may hold something the literal does
+    not show. Never written to: a subscript write, a delete, or any method
+    call can change the object the literal built while the name stays put.
+    Indexing a stale literal answers for the wrong object either way, so such
+    names are left out and the caller falls back to tainting the container
+    whole.
+    """
+    counts = Counter(name for name, _ in bindings)
+    written = _written(tree)
+    found: dict[str, _Container] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if not isinstance(value, (ast.Dict, ast.List, ast.Tuple)):
+            continue
+        for target in targets:
+            if not isinstance(target, ast.Name) or target.id in written:
+                continue
+            if counts.get(target.id) == 1:
+>>>>>>> origin/main
                 found[target.id] = value
     return found
 
@@ -661,12 +938,27 @@ def _subprocess_names(
     queue = list(groups)
     while queue:
         value, names = groups[queue.pop()]
+<<<<<<< HEAD
         if all(name in functions for name in names):
             # Every name this group binds is already settled, and the first
             # binding of a name wins, so resolving again cannot change an
             # answer. Skipping before the walk is what keeps a value node that
             # reads N names from being re-walked once per name: 4000 names
             # took 3.26 seconds that way.
+||||||| 76c96f36
+        name, value = bindings[queue.pop()]
+        # The first binding of a name wins. That is what bounds the queue, and
+        # it is why a name rebound to an unrelated callable keeps reading as a
+        # subprocess entry point.
+        if name in functions:
+=======
+        # A group whose names are all known has nothing left to learn, and
+        # reading it again would walk the whole value for nothing. That walk
+        # is what turns one value reading many names quadratic, because each
+        # of those names resolving queues the group afresh: 4000 names took
+        # 3.28 seconds that way.
+        if all(name in functions for name in names):
+>>>>>>> origin/main
             continue
         resolved = _resolve_callable(value, modules, functions, containers)
         if resolved is None:
@@ -704,7 +996,13 @@ def _target(
     return fallback
 
 
+<<<<<<< HEAD
 def _captures_text(call: ast.Call, functions: dict[str, str], target: str = "") -> bool:
+||||||| 76c96f36
+def _captures_text(call: ast.Call, functions: dict[str, str]) -> bool:
+=======
+def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bool:
+>>>>>>> origin/main
     """Report whether *call* may decode captured output into ``str``.
 
     Deliberately conservative. Anything other than a literal ``False`` counts,
@@ -713,6 +1011,9 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str = "") 
 
     A ``functools.partial`` that selects text mode counts even with no capture
     keyword, because the capture can be supplied where the partial is called.
+    So does an entry point in :data:`_ALWAYS_CAPTURING_ATTRS`, which captures
+    without being asked, so *target* has to be known here rather than inferred
+    from the spelling at the call site.
 
     An entry point that captures on its own, such as ``check_output``, needs
     no capture keyword: text mode alone decides its codec.
@@ -734,9 +1035,16 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str = "") 
         # A partial can select text mode here and be handed capture_output at
         # the eventual call site, which this scan has no way to reach.
         return True
+<<<<<<< HEAD
     if target in _ALWAYS_CAPTURES:
         # check_output supplies stdout=PIPE itself. Text mode is the whole
         # condition, so requiring a capture keyword as well misses the decode.
+||||||| 76c96f36
+=======
+    if target in _ALWAYS_CAPTURING_ATTRS:
+        # The callee captures on its own behalf, so there is no capture
+        # keyword for this scan to find and none is needed.
+>>>>>>> origin/main
         return True
     capture = _keyword(call, "capture_output")
     if capture is not None and not _is_literal_false(capture):
@@ -825,6 +1133,18 @@ def test_the_scan_actually_reaches_files() -> None:
             "check_output",
         ),
         (
+            "import subprocess\nsubprocess.check_output(['x'], text=True)",
+            "check_output captures stdout with no capture keyword to read",
+        ),
+        (
+            "import subprocess\nsubprocess.check_output(['x'], universal_newlines=True)",
+            "check_output under the legacy text spelling",
+        ),
+        (
+            "from subprocess import check_output as co\nco(['x'], text=True)",
+            "an alias of check_output captures just the same",
+        ),
+        (
             "import subprocess\n"
             "subprocess.run(['x'], capture_output=True, universal_newlines=True)",
             "the legacy universal_newlines spelling",
@@ -851,6 +1171,29 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
         (
             'import subprocess\nsubprocess.run(["x"], text=True)',
             "nothing captured means nothing to decode",
+        ),
+        (
+            'import subprocess\nsubprocess.check_output(["x"])',
+            "check_output without text mode hands back bytes",
+        ),
+        (
+            'import subprocess\nH = [subprocess.check_call, subprocess.run]\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "a table nobody writes to still reads one element",
+        ),
+        (
+            'import subprocess\nH = [subprocess.check_call, subprocess.run]\n'
+            'G = [subprocess.run]\nG[0] = subprocess.run\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "writing to one table does not cost another its precision",
+        ),
+        (
+            'import subprocess\nsubprocess.check_output(["x"], text=True, encoding="utf-8")',
+            "check_output that pins its codec is compliant",
+        ),
+        (
+            'import subprocess\nsubprocess.Popen(["x"], text=True)',
+            "Popen captures nothing unless the call site asks it to",
         ),
         (
             'import subprocess\nsubprocess.run(["x"], capture_output=True, text=False)',
@@ -978,6 +1321,7 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "a walrus over an indexed table still selects the one element",
         ),
         (
+<<<<<<< HEAD
             "import subprocess\nfor a, b in [(subprocess.check_call, subprocess.run)]:\n"
             "    a(['x'], capture_output=True, text=True)",
             "a destructuring loop over a literal reads the column, not the whole list",
@@ -994,6 +1338,53 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
         (
             "import subprocess\nsubprocess.run(['x'], text=True)",
             "run without a capture keyword leaves the child attached",
+||||||| 76c96f36
+=======
+            'import subprocess\nH: object = [subprocess.check_call, subprocess.run]\n'
+            'H: object\n'
+            'H[0](["x"], capture_output=True, text=True)',
+            "a bare annotation declares a type and binds nothing",
+        ),
+        (
+            "import subprocess\nH = [[subprocess.check_call]]\ndel H[0][1]\n"
+            'H[0](["x"], capture_output=True, text=True)',
+            "a delete may reach through a subscript the scan cannot name",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case _:\n'
+            '        _(["x"], capture_output=True, text=True)',
+            "a wildcard pattern matches everything and captures nothing",
+        ),
+        (
+            'import subprocess\nmatch subprocess.check_call:\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a capture is only as loud as the subject it reads",
+        ),
+        (
+            'import subprocess\n'
+            'for label, runner in [(subprocess.check_call, subprocess.run)]:\n'
+            '    label(["x"], capture_output=True, text=True)',
+            "a loop target takes one column of the pairs, not both",
+        ),
+        (
+            'import subprocess\n'
+            'for label, runner in ((subprocess.check_call, 1), (subprocess.run, 2)):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "the second column of every pair is what the second name reads",
+        ),
+        (
+            'import subprocess\n'
+            'for label, runner in {(subprocess.check_call, subprocess.run)}:\n'
+            '    label(["x"], capture_output=True, text=True)',
+            "a set literal of pairs still has columns",
+        ),
+        (
+            'import subprocess\n'
+            'runner = other = subprocess.check_output\n'
+            'runner = subprocess.run\n'
+            'runner(["x"], text=True)',
+            "the first binding of a name wins over a later group it shares",
+>>>>>>> origin/main
         ),
     ],
 )
@@ -1294,6 +1685,7 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "a container holding os.popen may yield the one that cannot pin",
         ),
         (
+<<<<<<< HEAD
             "import subprocess\nsubprocess.check_output(['x'], text=True)",
             "check_output pipes stdout itself, so text mode alone decodes",
         ),
@@ -1329,6 +1721,121 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "import subprocess\nmatch subprocess.run:\n    case [*rest]:\n"
             "        rest(['x'], text=True, capture_output=True)",
             "a starred match capture binds a name too",
+||||||| 76c96f36
+=======
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H[0] = subprocess.run\nH[0](['x'], capture_output=True, text=True)",
+            "a list written through a subscript no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H.append(subprocess.run)\nH[0](['x'], capture_output=True, text=True)",
+            "a list appended to no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H += [subprocess.run]\nH[0](['x'], capture_output=True, text=True)",
+            "augmented assignment rebinds a name with no assignment in sight",
+        ),
+        (
+            "import subprocess\nH = {'a': subprocess.check_call}\n"
+            "H['b'] = subprocess.run\nH['a'](['x'], capture_output=True, text=True)",
+            "a mapping written through a key no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = {'a': subprocess.check_call}\n"
+            "H.update(b=subprocess.run)\nH['a'](['x'], capture_output=True, text=True)",
+            "a mapping updated by keyword no longer matches its literal",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call, subprocess.run]\n"
+            "del H[0]\nH[0](['x'], capture_output=True, text=True)",
+            "deleting an element shifts every index after it",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call, subprocess.run]\n"
+            "H.reverse()\nH[0](['x'], capture_output=True, text=True)",
+            "a method that takes no arguments can still reorder the container",
+        ),
+        (
+            "import subprocess\nH = [subprocess.check_call]\n"
+            "H[0], y = subprocess.run, 1\nH[0](['x'], capture_output=True, text=True)",
+            "a subscript inside a tuple target writes just the same",
+        ),
+        (
+            "import subprocess\nb = c = a\na = subprocess.run\n"
+            "b = subprocess.check_output\n"
+            'c(["x"], capture_output=True, text=True)',
+            "one name of a shared binding resolving does not answer for the rest",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a bare match case captures the subject under a new name",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case object() as runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "an as-pattern captures under a name too",
+        ),
+        (
+            'import subprocess\nmatch [subprocess.run]:\n    case [*rest]:\n'
+            '        rest[0](["x"], capture_output=True, text=True)',
+            "a star pattern collects the subject into a new container",
+        ),
+        (
+            'import subprocess\nmatch {"k": subprocess.run}:\n'
+            '    case {**rest}:\n'
+            '        rest["k"](["x"], capture_output=True, text=True)',
+            "a mapping rest pattern captures what the other keys left",
+        ),
+        (
+            'import subprocess\nmatch [subprocess.run]:\n    case [runner]:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a sequence pattern captures an element by position",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case runner if runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a guarded case still captures before the guard runs",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case object(__doc__=held):\n'
+            '        held(["x"], capture_output=True, text=True)',
+            "a class pattern captures through a keyword",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case [] | runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "an or-pattern captures in whichever alternative matches",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case []:\n'
+            '        pass\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a later case captures just as much as the first",
+        ),
+        (
+            'import subprocess\nheld = [subprocess.run]\n'
+            'for runner in held:\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "an opaque iterable still resolves through its own binding",
+        ),
+        (
+            'import subprocess\n'
+            'for runner in [subprocess.check_call, subprocess.run]:\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "every item of the iterable is a value the name can take",
+        ),
+        (
+            'import subprocess\n'
+            'def go(runner=subprocess.run, /):\n'
+            '    runner(["x"], capture_output=True, text=True)',
+            "a positional-only parameter takes a default like any other",
+>>>>>>> origin/main
         ),
     ],
 )
@@ -1363,6 +1870,26 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
             '    parser.run(["x"], capture_output=True, text=True)',
             "an unrelated object with a same-named method reads as the one bound",
         ),
+<<<<<<< HEAD
+||||||| 76c96f36
+=======
+        (
+            'import subprocess\n'
+            'held = [subprocess.run, subprocess.check_call]\n'
+            'held[True](["x"], capture_output=True, text=True)',
+            "a bool index is a valid int index, and reading it as one is a guess",
+        ),
+        (
+            'import subprocess\n'
+            'def read():\n'
+            '    held = [subprocess.check_call]\n'
+            '    held[0](["x"], capture_output=True, text=True)\n'
+            'def write():\n'
+            '    held = [subprocess.run]\n'
+            '    held[0](["x"], capture_output=True, text=True)',
+            "one name bound in two scopes reads as one name bound twice",
+        ),
+>>>>>>> origin/main
     ],
 )
 def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
@@ -1381,7 +1908,18 @@ def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
     through. Deciding which object an attribute hangs off would mean tracking
     types, and a wrapper that stores an entry point on ``self`` is the very
     shape a review executed against this scan, so the attribute name alone has
+<<<<<<< HEAD
     to carry the binding.
+||||||| 76c96f36
+    through.
+=======
+    to carry the binding. Reading ``held[True]`` as ``held[1]`` would mean
+    trusting that a bool index was meant as the int it equals, and a dispatch
+    table keyed on flags would then answer for the wrong branch. Telling two
+    ``held`` bindings apart would mean tracking scopes, and a name that a
+    nested function closes over belongs to neither scope alone, so one binding
+    per name across the file is what the scan can honestly claim.
+>>>>>>> origin/main
 
     No file in this repository trips any of these, which is what makes the
     trade cheap: the repo-wide scan above is green.
@@ -1441,6 +1979,7 @@ def test_unpacking_a_wide_container_stays_linear() -> None:
     assert elapsed < 3.0, f"unpacking took {elapsed:.1f}s for {width} names"
 
 
+<<<<<<< HEAD
 def test_one_value_reading_many_names_stays_linear() -> None:
     """A value node that reads N names must be walked once, not once per name.
 
@@ -1464,6 +2003,33 @@ def test_one_value_reading_many_names_stays_linear() -> None:
 
     assert flagged == [], "no call is made, so nothing can decode"
     assert elapsed < 1.0, f"resolution took {elapsed:.1f}s for {width} names"
+||||||| 76c96f36
+=======
+def test_a_value_reading_many_names_stays_linear() -> None:
+    """A binding that reads many names must be read once, not once per name.
+
+    The mirror of the case above. There one value was shared by many names;
+    here one value reads many names, and each of them resolving queues the
+    group that reads it. Reading that group again walks the whole node, so a
+    container of ``width`` names is walked ``width`` times: 4000 names took
+    3.28 seconds, growing fourfold for every doubling.
+
+    A group whose names are all resolved has nothing left to learn, so it can
+    be dropped without reading it. Every later queue entry for it is then
+    free, and the node is walked at most twice.
+    """
+    width = 4000
+    bindings = "\n".join(f"held{index} = subprocess.run" for index in range(width))
+    elements = ", ".join(f"held{index}" for index in range(width))
+    source = f"import subprocess\n{bindings}\nkept = [{elements}]\n"
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [], "no call is made, so nothing can decode"
+    assert elapsed < 1.5, f"resolution took {elapsed:.1f}s for {width} names"
+>>>>>>> origin/main
 
 
 @pytest.mark.parametrize(
