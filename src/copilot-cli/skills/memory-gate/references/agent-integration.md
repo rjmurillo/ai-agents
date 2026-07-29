@@ -39,7 +39,7 @@ This guide explains how AI agents integrate with the memory system. The memory s
 │                           │                                  │
 │  ┌────────────────────────▼───────────────────────────────┐ │
 │  │                 Reflexion Memory                        │ │
-│  │           (Episodes + Causal Reasoning)                 │ │
+│  │                 (Episodes, Tier 2)                      │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -79,11 +79,8 @@ python3 .claude/skills/memory/scripts/search_memory.py \
 
 # Extract episodes
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    --session-log-path ".agents/sessions/2026-01-01-session-130.json"
+    ".agents/sessions/2026-01-01-session-130.json"
 
-# Update causal graph
-python3 .claude/skills/memory/scripts/update_causal_graph.py \
-    --episode-path ".agents/memory/episodes/episode-2026-01-01-session-130.json"
 ```
 
 **Advantages**:
@@ -146,17 +143,7 @@ Per ADR-007, agents retrieve memory before reasoning:
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 3: Check Causal Patterns (Tier 3)                      │
-│                                                              │
-│  Get-Patterns -MinSuccessRate 0.7                            │
-│  Get-AntiPatterns -MaxSuccessRate 0.3                        │
-│                                                              │
-│  → Proven patterns to follow, anti-patterns to avoid         │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Step 4: Execute with Full Context                           │
+│  Step 3: Execute with Full Context                           │
 │                                                              │
 │  Agent reasoning grounded in past learnings                  │
 └─────────────────────────────────────────────────────────────┘
@@ -176,23 +163,14 @@ At session end, extract and persist learnings:
 │  Step 1: Extract Episode                                     │
 │                                                              │
 │  python3 scripts/extract_session_episode.py \                │
-│      --session-log-path ".agents/sessions/[session].md"      │
+│      ".agents/sessions/[session].md"      │
 │                                                              │
 │  → Structured episode from session transcript                │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 2: Update Causal Graph                                 │
-│                                                              │
-│  python3 scripts/update_causal_graph.py                       │
-│                                                              │
-│  → New nodes and edges from episode decisions/outcomes       │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Step 3: Store Key Memories                                  │
+│  Step 2: Store Key Memories                                  │
 │                                                              │
 │  mcp__serena__write_memory(...)                              │
 │  mcp__forgetful__execute_forgetful_tool("create_memory",...) │
@@ -225,8 +203,6 @@ foreach ($failure in $failures) {
     Write-Host "Lessons: $($failure.lessons -join '; ')"
 }
 
-# 3. Find common patterns in failures
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
 ```
 
 ## Agent-Specific Integration
@@ -242,11 +218,6 @@ $context = Search-Memory -Query "[task description]" -MaxResults 5
 # Review past similar task outcomes
 $pastTasks = Get-Episodes | Where-Object {
     $_.task -match "[task keywords]"
-}
-
-# Determine if specialized agent needed based on patterns
-$patterns = Get-Patterns | Where-Object {
-    $_.trigger -match "[task type]"
 }
 
 # Route to appropriate agent with context
@@ -265,27 +236,14 @@ $investigations = Get-Episodes | Where-Object {
     $_.task -match "investigate|research|analyze"
 }
 
-# Trace causal relationships
-$causalPath = Get-CausalPath -FromLabel "[cause]" -ToLabel "[effect]"
-
 # Build analysis from historical context
 ```
 
 ### Implementer Agent
 
-The implementer uses patterns to guide implementation:
+The implementer reviews past implementation decisions:
 
 ```powershell
-# Find relevant implementation patterns
-$patterns = Get-Patterns -MinSuccessRate 0.8 | Where-Object {
-    $_.action -match "[implementation type]"
-}
-
-# Check for anti-patterns to avoid
-$antiPatterns = Get-AntiPatterns | Where-Object {
-    $_.trigger -match "[implementation area]"
-}
-
 # Review past implementation decisions
 $decisions = Get-Episodes | ForEach-Object {
     $_.decisions | Where-Object { $_.type -eq "implementation" }
@@ -298,10 +256,8 @@ The retrospective agent captures learnings:
 
 ```bash
 # Extract session episode
-result=$(python3 scripts/extract_session_episode.py --session-log-path "[log]")
+result=$(python3 scripts/extract_session_episode.py "[log]")
 
-# Update causal graph
-python3 scripts/update_causal_graph.py --episode-path "[episode]"
 ```
 
 ## Session Protocol Integration
@@ -327,15 +283,12 @@ Per SESSION-PROTOCOL.md, agents MUST:
 
 ```bash
 # 1. Extract episode from session log
-python3 scripts/extract_session_episode.py --session-log-path "[log]"
+python3 scripts/extract_session_episode.py "[log]"
 
-# 2. Update causal graph
-python3 scripts/update_causal_graph.py
-
-# 3. Store cross-session context
+# 2. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
 
-# 4. Commit changes
+# 3. Commit changes
 git add .agents/memory/ .serena/memories/
 git commit -m "session: Extract episode and update memory"
 ```
@@ -360,9 +313,8 @@ git commit -m "session: Extract episode and update memory"
 ### For Episode Management
 
 1. **Extract Immediately**: Don't delay episode extraction
-2. **Update Graph**: Always update causal graph after extraction
-3. **Verify Outcomes**: Ensure decisions have outcome tracking
-4. **Store Lessons**: Make lessons actionable and specific
+2. **Verify Outcomes**: Ensure decisions have outcome tracking
+3. **Store Lessons**: Make lessons actionable and specific
 
 ## Error Handling
 
@@ -382,17 +334,9 @@ catch {
 
 ```bash
 # Check if episode exists, extract if not
-python3 scripts/extract_session_episode.py --session-log-path "[log]"
+python3 scripts/extract_session_episode.py "[log]"
 ```
 
-### Causal Graph Empty
-
-```bash
-# Rebuild causal graph from all episodes
-for episode in .agents/memory/episodes/*.json; do
-    python3 scripts/update_causal_graph.py --episode-path "$episode"
-done
-```
 
 ## Performance Considerations
 
@@ -402,7 +346,6 @@ done
 | Search-Memory (lexical) | 300-500ms | File-based search |
 | Search-Memory (semantic) | 500-1000ms | Depends on Forgetful |
 | Get-Episodes | 100-200ms | File enumeration |
-| Get-CausalPath | 50-100ms | In-memory graph |
 | Episode extraction | 2-5s | Parsing and analysis |
 
 ### Optimization Tips

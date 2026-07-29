@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-28-session-3626-skill-path-and-adr-attribution",
+  "session": "2026-07-28-session-3626-skill-path-and-adr-attribution",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Repair a broken executable path in the session-init skill and a false ADR-007 tier-taxonomy attribution in ADR-063 and the triage eval fixture.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3626. Four occurrences of a doubled artifact root, .agents/sessions/.agents/sessions/, remained in the session-init skill. Line 352 is executable: it pointed validate_session_json.py at a path that cannot exist, so an agent following the skill literally would fail its own session-end validation. Repaired the canonical skill and regenerated the Copilot mirror.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #3624. ADR-063 attributed the semantic / episodic / causal taxonomy to ADR-007. ADR-007's four tiers are storage backends (AgentDB, ReasoningBank, SQLite, JSON fallback); the semantic / episodic / causal taxonomy is ADR-038. Repointed the ADR-063 alternatives table and the triage eval fixture, which also asked for four tiers naming only two and predated ADR-089 removing Tier 3.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b520ca22e",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: df45cd953",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 2
+  },
+  "lessons": []
+}

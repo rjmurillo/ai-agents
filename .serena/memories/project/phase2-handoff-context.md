@@ -11,7 +11,7 @@ All P0 (Critical) tasks completed:
 - P0-1: Path normalization in `src/claude/explainer.md`
 - P0-2: PIV in `src/claude/security.md`
 - P0-3: Security flagging in `src/claude/implementer.md`
-- P0-4: CI script `build/scripts/Validate-PathNormalization.ps1`
+- P0-4: CI script `build/scripts/Validate-PathNormalization.ps1` (since migrated to `build/scripts/validate_path_normalization.py`)
 
 Additional work:
 
@@ -26,7 +26,7 @@ Additional work:
 | P1-1 | `src/claude/critic.md` | Escalation template with Verified Facts | 1 hr |
 | P1-2 | `src/claude/task-decomposer.md` | Estimate reconciliation (10% threshold) | 1.5 hr |
 | P1-3 | `src/claude/milestone-planner.md` | Condition traceability template | 2 hr |
-| P1-4 | `build/scripts/Validate-PlanningArtifacts.ps1` | Cross-doc validation CI | 2 hr |
+| P1-4 | `build/scripts/Validate-PlanningArtifacts.ps1` (now `build/scripts/validate_planning_artifacts.py`) | Cross-doc validation CI | 2 hr |
 
 ## Quick Start
 

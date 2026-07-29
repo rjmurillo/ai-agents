@@ -1,7 +1,7 @@
 ---
 name: requirements-interview
 version: 0.1.0
-description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer.
+description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", or "walk the design tree".
 allowed-tools:
   - Read
   - Glob

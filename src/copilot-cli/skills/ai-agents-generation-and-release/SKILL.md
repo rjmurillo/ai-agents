@@ -81,11 +81,11 @@ Facts that prevent confusion:
 
 Always commit the canonical edit and the regenerated output TOGETHER, in the same commit set, or the drift gates go red.
 
-Interpreter note: `python3 build/generate_agents.py` runs on bare python3 (no third-party imports). `build_all.py` and anything importing PyYAML needs the project venv; `uv run python build/scripts/build_all.py` always works. CI installs PyYAML and uses `python3`.
+Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` both import PyYAML through `build/scripts/yaml_loader.py`. Run them as `uv run python <script>` locally so the project venv supplies it. CI can invoke bare `python3` because `.github/actions/setup-code-env` installs the locked dependencies system-wide first.
 
 | You edited | Run | Then |
 |------------|-----|------|
-| `templates/agents/*.shared.md` | `python3 build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
+| `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
 | `.claude/skills/`, `.claude/commands/`, `.claude/rules/` | `uv run python build/scripts/build_all.py` | bump plugin versions (Phase 4), commit source + generated |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. Bump plugin versions. |
@@ -103,7 +103,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03
 
 | Gate | Catches | Local command | CI enforcement |
 |------|---------|---------------|----------------|
-| Agent template drift | templates edited without regen (or vice versa) | `python3 build/generate_agents.py --validate` | `validate-generated-agents.yml`, `agent-drift-detection.yml` |
+| Agent template drift | templates edited without regen (or vice versa) | `uv run python build/generate_agents.py --validate` | `validate-generated-agents.yml`, `agent-drift-detection.yml` |
 | Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
@@ -196,7 +196,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 
 Run this checklist before pushing any change that touched a canonical or generated surface:
 
-- [ ] `python3 build/generate_agents.py --validate` exits 0
+- [ ] `uv run python build/generate_agents.py --validate` exits 0
 - [ ] `uv run python build/scripts/build_all.py --check` exits 0 (2 means staleness: regenerate and stage)
 - [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
@@ -214,7 +214,7 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | OWNED_PREFIXES trio | build/scripts/build_all.py:722 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
 | .claude/ no-write invariant | build/scripts/build_all.py (REQ-003-010 block near line 962) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:11-21 | `sed -n '11,21p' build/scripts/build_all.py` |
-| generate_agents flags and exit codes | build/generate_agents.py:12-17,395-422 | `python3 build/generate_agents.py --help` |
+| generate_agents flags and exit codes | build/generate_agents.py:12-17,395-422 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:26-30 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations and current values | the three plugin.json files | `find . -path "*claude-plugin/plugin.json" -exec grep -H version {} \;` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |

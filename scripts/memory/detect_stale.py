@@ -56,6 +56,8 @@ def get_git_last_modified(file_path: Path) -> datetime | None:
             ["git", "log", "-1", "--format=%aI", "--", str(file_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode != 0:
