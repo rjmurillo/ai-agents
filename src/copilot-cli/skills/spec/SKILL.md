@@ -9,12 +9,13 @@ user-invocable: true
 
 <!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
 <!--
-size-exception rationale. Required by `.claude/rules/code-quality.md` ("Suppressions
-Are a Last Resort"), which says a suppression is a last resort and must carry a short
-note saying why it was the only option left.
+size-exception rationale. Required by the project's code quality guidance (see
+`src/copilot-cli/instructions/code-quality.instructions.md`, "Suppressions Are a Last
+Resort"), which says a suppression is a last resort and must carry a short note saying
+why it was the only option left.
 
-What the check wants: `scripts/validation/skill_size.py` blocks a file over 500 lines
-and tells you to move content into `references/`, `modules/`, or `scripts/`.
+What the check wants: the repository's size-linting validator blocks a file over 500
+lines and tells you to move content into `references/`, `modules/`, or `scripts/`.
 
 Why the idiomatic fix did not apply when the key was added: this command was already
 625 lines, so the overage was inherited, not introduced. The change that first
