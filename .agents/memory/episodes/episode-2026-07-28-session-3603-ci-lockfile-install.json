@@ -91,9 +91,11 @@
       "id": "e007",
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "test",
-      "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.  6",
+      "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e015"
+      ]
     },
     {
       "id": "e008",
@@ -176,6 +178,24 @@
         "e013"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran the full sequence into a scratch venv and then ran the repo's own tests under it: 207 passed. shellcheck clean at --severity=warning and bash -n clean on the extracted step body. uv lock --check confirms the lock is in sync, so uv export --frozen will not fail the gate on arrival.  6",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6c388333f",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -183,7 +203,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
