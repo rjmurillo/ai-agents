@@ -64,17 +64,17 @@
       "sessionLogComplete": {
         "complete": true,
         "level": "MUST",
-        "evidence": "This file completed before final commit"
+        "evidence": "This file, corrected after PR #3819 review caught sessionEnd evidence copied from session 3502"
       },
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Causal graph removal committed in scoped commits on chore/remove-causal-graph"
+        "evidence": "13 plan renames, both READMEs, and this log committed as be6c0878 on chore/plans-to-archive"
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "pytest memory and validation suites, ruff, and pre_pr.py run before push"
+        "evidence": "pre-pr-validation, staged-dash-policy, session-policy and markdown-check green at commit; 113 of 113 CI checks green on PR #3819"
       },
       "handoffPreserved": {
         "complete": true,
@@ -89,12 +89,12 @@
       "serenaMemoryUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Findings recorded as repository memories: graph is a derived cache with no readers; episodes have real consumers"
+        "evidence": "Updated .serena/memories/decision-plans-archive-not-completed.md with the 2026-07-27 round trip and its cause, so the next reader does not repeat it"
       },
       "checklistComplete": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Session-end checklist walked: log complete, HANDOFF untouched, lint run, gates green, commits scoped"
+        "evidence": "Session-end checklist walked: log complete, HANDOFF untouched, markdown lint run via lefthook, all commit gates green"
       }
     }
   },
@@ -127,11 +127,22 @@
         "Corrected .agents/plans/README.md: the Directory Structure table described completed/ and abandoned/ as terminal destinations while the paragraph below named the archive. Table now describes them as staging that should be empty at rest."
       ],
       "outcome": "13 plans in .agents/archive/plans/, both READMEs agree, zero em or en dashes."
+    },
+    {
+      "phase": "Review",
+      "actions": [
+        "PR #3819 review flagged three inconsistencies in the generated artifacts.",
+        "protocolCompliance.sessionEnd was copied wholesale from the session 3502 log and never audited: changesCommitted cited the causal graph removal and serenaMemoryUpdated cited graph and episode findings, neither of which happened in this session.",
+        "endingCommit was left empty while changesCommitted claimed complete.",
+        "The extracted episode recorded commits 0 against files_changed 17."
+      ],
+      "outcome": "All three corrected. The sessionEnd copy is the notable one: reusing a prior log as a template put false compliance evidence in the record, and only the bot review caught it."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "be6c0878",
   "nextSteps": [
     "The execution-plans skill still writes complete plan and abandon plan output to completed/ and abandoned/. That is the drift that caused this round trip; it ships in two plugin trees so it was left out of scope here and flagged on #3426.",
-    "scripts/validation/active_plan_closeout.py advises Move the plan to completed/ or abandoned/, which now names staging rather than the terminal destination."
+    "scripts/validation/active_plan_closeout.py advises Move the plan to completed/ or abandoned/, which now names staging rather than the terminal destination.",
+    "Episode metrics duration_minutes and tool_calls are still 0 in the extracted episode. Left alone rather than fabricated; sessions 3618 and 3619 are already working the endingCommit and episode-ordering gaps."
   ]
 }

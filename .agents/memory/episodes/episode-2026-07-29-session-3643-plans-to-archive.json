@@ -36,6 +36,26 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All three corrected. The sessionEnd copy is the notable one: reusing a prior log as a template put false compliance evidence in the record, and only the bot review caught it.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: be6c0878",
+      "caused_by": [],
       "leads_to": []
     }
   ],
@@ -44,7 +64,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 17
   },
   "lessons": []
