@@ -45,7 +45,7 @@ Unified validation orchestration that runs all shift-left validations in optimiz
 The runner is wired into lefthook pre-push, not a `.githooks/` script (`.githooks/pre-commit` no longer exists):
 
 ```yaml
-# lefthook.yml:337-341
+# lefthook.yml:345-349
 - name: pre-pr-validation
   timeout: 15m
   run: uv run --frozen python scripts/validation/pre_pr.py
@@ -56,7 +56,7 @@ The runner is wired into lefthook pre-push, not a `.githooks/` script (`.githook
 Pytest is a **separate** pre-push job, not part of the runner:
 
 ```yaml
-# lefthook.yml:343-345
+# lefthook.yml:351-353
 - name: python-tests
   timeout: 30m
   run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
@@ -92,7 +92,7 @@ Make changes → Quick validation → Fix → Commit → Full validation → Cre
 - `scripts/validation/pre_pr.py` - Main validation runner
 - `scripts/validation/pre_pr_sequence.py` - The ordered check sequence
 - `.agents/devops/validation-runner-pattern.md` - DevOps pattern documentation
-- `lefthook.yml:337-345` - Pre-push wiring (runner, then pytest separately)
+- `lefthook.yml:345-353` - Pre-push wiring (runner, then pytest separately)
 
 Both `.agents/SHIFT-LEFT.md` and `.githooks/pre-commit` were listed here until 2026-07-28. Neither exists; lefthook replaced the `.githooks/` layout.
 
