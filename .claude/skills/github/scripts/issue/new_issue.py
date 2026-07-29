@@ -52,6 +52,7 @@ from github_core.output import (  # noqa: E402
     write_skill_error,
     write_skill_output,
 )
+from github_core.validation import escaped_newline_body_error
 
 # Markers that confirm a real authentication failure in gh stderr. A transient
 # REST 5xx (the 503 "Unicorn" page in issue #3139) contains none of these, so
@@ -328,6 +329,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         body = body_path.read_text(encoding="utf-8")
+
+    body_error = escaped_newline_body_error(body)
+    if body_error:
+        write_skill_error(
+            body_error,
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 2
 
     create_result = _create_issue(owner, repo, args.title, body, fmt)
     if isinstance(create_result, int):
