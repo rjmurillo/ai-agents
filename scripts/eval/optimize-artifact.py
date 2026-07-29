@@ -41,6 +41,7 @@ module runs and prints its own plain-text usage to stderr.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import io
 import json
@@ -2437,25 +2438,13 @@ def _fsync_dir(directory: Path) -> None:
     parses.
 
     Windows cannot open a directory as a descriptor, so there is nothing to
-    sync and the step is skipped. The skip is a real gap, not a no-op, and
-    the reason usually offered for it answers a different question than the
-    one this function asks. ``os.replace`` is atomic on Windows, but the
-    paragraph above is about durability, not atomicity. CPython calls
-    ``MoveFileExW`` with ``MOVEFILE_REPLACE_EXISTING`` alone (see
-    ``Modules/posixmodule.c``), omitting ``MOVEFILE_WRITE_THROUGH``, the flag
-    Microsoft documents as waiting for the move to reach disk. A Windows host
-    that loses power just after a ledger charge can therefore come back with
-    the charge undone, which is the same loss an unsynced POSIX host takes.
-
-    The skip stays silent rather than warning like the failure path above,
-    because it is a property of the platform and not an anomaly in this run.
-    It holds for every write, so warning on each one would spend the stderr
-    channel's signal and teach the operator to ignore it. Recording it here
-    is the report. Closing it needs a Windows-only write-through path that
-    this repo's CI cannot exercise, so it is tracked in issue #3591 rather
-    than guessed at here.
+    sync and this function is not the durability primitive there.
+    ``_durable_replace`` reaches the same guarantee a different way, by asking
+    the move itself to write through, and only calls this on POSIX. The guard
+    below stays anyway: it costs one comparison and keeps the function total
+    if a second caller ever appears on a platform where the open would fail.
     """
-    if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
+    if _is_windows():  # pragma: no cover - POSIX-only durability primitive
         return
     try:
         fd = os.open(str(directory), os.O_RDONLY)
@@ -2476,6 +2465,135 @@ def _fsync_dir(directory: Path) -> None:
             f"directory ({exc}); the file is intact and its durability across a "
             "host crash is not guaranteed"
         )
+
+
+# Win32 MoveFileEx flags (winbase.h). REPLACE_EXISTING is what CPython already
+# passes; WRITE_THROUGH is the one it omits, and the one durability needs.
+_MOVEFILE_REPLACE_EXISTING = 0x1
+_MOVEFILE_WRITE_THROUGH = 0x8
+
+
+def _is_windows() -> bool:
+    """The platform question both durability paths ask.
+
+    A function rather than an inline ``os.name`` test so a test can take the
+    other branch without assigning to the real ``os`` module. That assignment
+    is not inert: CPython's own ``ctypes`` package reads ``os.name`` at import
+    and tries to pull Windows-only symbols when it says ``nt``, so a test that
+    flipped it globally broke an unrelated stdlib import inside the very
+    branch it was trying to reach.
+    """
+    return os.name == "nt"
+
+
+def _win32_move_file_ex() -> Callable[[str, str, int], int] | None:
+    """Resolve ``MoveFileExW``, or None when the Win32 layer is unreachable.
+
+    Resolved per call rather than cached at import. These writes are rare
+    (a ledger charge, a split, an artifact apply), so the lookup costs
+    nothing measurable, and module-level state would have to be reset between
+    tests to stay honest about which platform a test believes it is on.
+
+    Returning None instead of raising keeps the caller's fallback decidable.
+    A missing Win32 layer is not a reason to refuse a write the caller can
+    still perform less durably.
+    """
+    # getattr rather than ctypes.WinDLL because WinDLL is a Windows-only
+    # attribute, so the direct reference is unresolvable to a type checker on
+    # every other platform. The three-argument form makes the POSIX answer an
+    # ordinary value instead of an exception, and it is the same guarded
+    # lookup _win32_last_error uses for get_last_error and FormatError.
+    load_library = getattr(ctypes, "WinDLL", None)
+    if load_library is None:
+        return None
+    try:
+        from ctypes import wintypes
+
+        kernel32 = load_library("kernel32", use_last_error=True)
+        move = kernel32.MoveFileExW
+        move.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD)
+        move.restype = wintypes.BOOL
+        return cast(Callable[[str, str, int], int], move)
+    except (AttributeError, ImportError, OSError):
+        # A Windows host that has WinDLL but whose kernel32, whose
+        # MoveFileExW, or whose wintypes cannot be loaded. The plain POSIX
+        # case never reaches here; it left at the guard above.
+        return None
+
+
+def _win32_last_error() -> str:
+    """Describe the Win32 error the last call left behind.
+
+    Every lookup is guarded because ``get_last_error`` and ``FormatError``
+    are both Windows-only attributes of ``ctypes``. This runs only while
+    another failure is already being reported, so an ``AttributeError`` raised
+    here would replace the cause with a fault in the description of the cause,
+    which is the same trap ``_write_atomic``'s cleanup handler is written to
+    avoid. Reporting an unknown code is worse than a real one and much better
+    than losing the move failure entirely.
+    """
+    read_code = getattr(ctypes, "get_last_error", None)
+    if read_code is None:
+        return "Win32 error unavailable on this platform"
+    code = read_code()
+    describe = getattr(ctypes, "FormatError", None)
+    detail = describe(code) if describe is not None else "Win32 error"
+    return f"{detail} ({code})"
+
+
+def _durable_replace(source: Path, destination: Path) -> None:
+    """Move `source` onto `destination` so the entry survives a power cut.
+
+    Atomicity and durability are different guarantees, and this function
+    exists for the second one. Atomicity says no reader sees a half-written entry.
+    Durability says the entry is still there after the host loses power. The
+    consultation ledger charges before it scores precisely so a crash cannot
+    hand back a look for free, and a charge a crash can erase defeats that
+    ordering.
+
+    POSIX reaches durability in two steps: ``os.replace`` publishes the entry
+    and ``_fsync_dir`` pushes the parent directory to disk.
+
+    Windows cannot open a directory as a descriptor, so the second step has
+    nowhere to go and the guarantee has to come from the move itself.
+    ``os.replace`` alone does not supply it: CPython calls ``MoveFileExW``
+    with ``MOVEFILE_REPLACE_EXISTING`` and no ``MOVEFILE_WRITE_THROUGH``
+    (``Modules/posixmodule.c``), and Microsoft documents that second flag as
+    the one that waits for the move to reach disk. Calling ``MoveFileExW``
+    directly with both flags is the same operation CPython already performs
+    plus the wait, so it keeps the atomicity that was never in question and
+    adds the durability that was.
+
+    A failure raises, matching ``os.replace``. Every failure in
+    ``_write_atomic`` up to and including this call leaves the destination
+    untouched, so refusing costs the caller nothing; that is the same reason
+    ``_fsync_dir``, which runs after the entry is already published, warns
+    instead.
+    """
+    if not _is_windows():
+        os.replace(source, destination)
+        _fsync_dir(destination.parent)
+        return
+
+    move = _win32_move_file_ex()
+    if move is None:
+        # Warned rather than raised. The durability gap is worse than the
+        # status quo ante and better than refusing the write outright, and
+        # unlike the skip this replaced it is a genuine anomaly on this host
+        # rather than a property of every write, so it does not spend the
+        # stderr channel's signal the way a per-write notice would.
+        os.replace(source, destination)
+        _warn(
+            f"warning: wrote and renamed onto {destination}, but the Win32 "
+            "write-through move was unavailable; the file is intact and its "
+            "durability across a host crash is not guaranteed"
+        )
+        return
+
+    if not move(
+        str(source), str(destination), _MOVEFILE_REPLACE_EXISTING | _MOVEFILE_WRITE_THROUGH
+    ):
+        raise OSError(f"could not move {source} onto {destination}: {_win32_last_error()}")
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -2525,8 +2643,7 @@ def _write_atomic(path: Path, text: str) -> None:
             os.fsync(handle.fileno())
         if mode is not None:
             os.chmod(tmp, mode)
-        os.replace(tmp, path)
-        _fsync_dir(path.parent)
+        _durable_replace(tmp, path)
     except BaseException as exc:
         # Cleanup cannot stand in for the failure it cleans up after. An
         # OSError raised here would propagate from inside the handler, so the
