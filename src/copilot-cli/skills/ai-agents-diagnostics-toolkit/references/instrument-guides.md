@@ -1,6 +1,6 @@
 # Diagnostics Instrument Guides
 
-Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline (as of 2026-07-02; description budget and skill size re-measured 2026-07-03), the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
+Per-instrument detail for `ai-agents-diagnostics-toolkit`: the exact commands, the current repo baseline (as of 2026-07-29), the healthy and unhealthy readings, and the trap each instrument has already cost someone. The SKILL.md Instrument Index routes you here; consult the matching section when you run an instrument.
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
@@ -71,7 +71,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gol
 
 Three separate drift surfaces; run all three when you suspect any generation problem:
 
-| Gate | Command | Current reading (as of 2026-07-02) | Meaning of red |
+| Gate | Command | Current reading (as of 2026-07-29) | Meaning of red |
 |---|---|---|---|
 | Agents | `uv run python build/generate_agents.py --validate` | `VALIDATION PASSED`, 0.05s, exit 0 | `templates/agents/*.shared.md` and `src/` trees diverged |
 | Mirrors | `uv run python build/scripts/build_all.py --check` | exit 0 | A `.claude/` canonical edit was not regenerated, or a generated tree was hand-edited |
@@ -130,19 +130,21 @@ git rev-list --count HEAD ^origin/main
 
 Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `pr-validation.yml` and the pre-push hook). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
 
-## Current Baselines Summary (as of 2026-07-02; description budget and skill size re-measured 2026-07-03)
+## Current Baselines Summary (as of 2026-07-29)
 
 | Instrument | Reading | State |
 |---|---|---|
-| Description budget | 92 skills, 35892 chars, ~8973 est. tokens | Green, trend it |
-| Skill size | 26 warnings, 1 FAIL (SkillForge, 1033 lines) | Red on main |
-| Orphan refs (default targets) | 49 critical findings, CRITICAL_FAIL | Red on main |
-| Golden principles | 23 errors, 102 warnings, exit 10 | Red on main |
-| Agent drift | VALIDATION PASSED | Green |
+| Description budget | 98 skills, 40940 chars, ~10235 est. tokens | Red in gate mode: over the 8000 budget, exit 1 |
+| Skill size | 98 skills, 44 warnings, 0 failures, exit 0 | Green |
+| Orphan refs (default targets) | 190 files, 535 refs, 0 findings, `VERDICT: PASS`, exit 0 | Green, but 187 refs are directive-suppressed |
+| Golden principles | 7909 files, 109 errors, 92 warnings, exit 10 | Red on main |
+| Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
-| Plugin lib drift | in sync | Green |
-| Guard maturity | 3 guards, all Budding, 0 intercepts | Feed not wired |
+| Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
+| Guard maturity | 3 guards, all Budding, 0 intercepts, fitness -0.50 | Feed not wired |
 | Commit count | 0 on main | Green |
+
+Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Every other instrument is green.
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.
 
