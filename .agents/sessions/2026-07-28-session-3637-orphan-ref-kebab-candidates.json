@@ -140,6 +140,20 @@
       "action": "Measured KEBAB_DENYLIST and left it alone deliberately",
       "detail": "Emptying the entire ~90-entry KEBAB_DENYLIST changes nothing repo-wide: still exactly 90 findings, zero new tokens surfaced. It is now provably dead. Deleting it is a separate behavior change and was filed as its own issue so each change keeps an independent revert point.",
       "outcome": "Measured, reported, and scoped out on purpose."
+    },
+    {
+      "step": 9,
+      "timestamp": "2026-07-28T00:00:09Z",
+      "action": "Fixed vendor-portability drift the pre-push hook caught",
+      "detail": "The first push was rejected: check_skill_portability reported 17 upstream-path refs in the test file against a baseline of 11. The new tests had hard-coded .claude/skills and counted parents[4] to reach the repository root. Both are wrong in the generated mirror, which sits at a different depth. Replaced with a catalog resolved from the test's own location (parents[2] is the catalog in both trees), a repository root found by walking up to .git, and a fixture catalog located by shape. Refs returned to 11 and the check exits 0.",
+      "outcome": "No drift, and the new tests now work from the vendored copy too."
+    },
+    {
+      "step": 10,
+      "timestamp": "2026-07-28T00:00:10Z",
+      "action": "Scoped the drift guard to the canonical catalog after the mirror run failed",
+      "detail": "Running the mirrored copy failed the drift guard because the mirror's deletion history lists merge-resolver, which is live canonically. That exposed a separate defect: merge-resolver exists in .claude/skills but is absent from the generated src/copilot-cli/skills catalog, while AGENTS.md routes conflict resolution to it. Filed separately. The guard now skips in the mirror, since generated deletions are generation events rather than retirements, and the curated set describes retirements.",
+      "outcome": "Canonical 191 pass, mirror 190 pass 1 skip, both together 381 pass with no module-key collision."
     }
   ]
 }

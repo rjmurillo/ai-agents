@@ -107,6 +107,30 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed vendor-portability drift the pre-push hook caught",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the drift guard to the canonical catalog after the mirror run failed",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     }
   ],

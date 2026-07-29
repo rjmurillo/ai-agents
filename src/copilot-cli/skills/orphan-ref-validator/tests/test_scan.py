@@ -29,7 +29,7 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -97,6 +97,15 @@ def fake_repo(tmp_path: Path) -> Path:
 def write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def fixture_catalog(repo: Path) -> Path:
+    """Return the skills catalog a fixture repo built.
+
+    Found by shape rather than by spelling the canonical prefix again, so new
+    tests here do not add vendor-portability drift (issue #2050).
+    """
+    return next(repo.glob("*/skills"))
 
 
 def skill_dir(repo: Path, name: str) -> Path:
@@ -1847,6 +1856,37 @@ def _skill_names(result: ScanResult) -> set[str]:
     return {f.referenced_entity for f in result.findings if f.kind == "skill_name"}
 
 
+def _catalog() -> Path:
+    """Return the skills catalog holding this test, canonical or vendored.
+
+    The file sits at ``<catalog>/orphan-ref-validator/tests/test_scan.py`` in
+    both trees, so ``parents[2]`` is the catalog in either one. Naming the
+    canonical prefix literally would resolve to nothing from the vendored copy,
+    which is the portability drift issue #2050 exists to stop.
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _repo_root() -> Path:
+    """Return the checkout root, found by walking up rather than by index.
+
+    The canonical and vendored trees sit at different depths, so a fixed parent
+    index is correct in at most one of them.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".git").exists():
+            return parent
+    pytest.skip("not a git checkout")
+
+
+def _live_skills() -> set[str]:
+    """Return the names the catalog currently resolves."""
+    catalog = _catalog()
+    if not catalog.is_dir():
+        pytest.skip("no skills catalog in this checkout")
+    return {p.name for p in catalog.iterdir() if (p / "SKILL.md").is_file()}
+
+
 class TestKebabTokensNeedEvidence:
     """A backticked kebab token is a skill reference only with evidence.
 
@@ -1890,7 +1930,7 @@ class TestKebabTokensNeedEvidence:
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {name}
 
     def test_a_retired_name_that_is_live_again_is_not_flagged(self, fake_repo):
-        restored = fake_repo / ".claude" / "skills" / "doc-sync"
+        restored = fixture_catalog(fake_repo) / "doc-sync"
         restored.mkdir(parents=True)
         (restored / "SKILL.md").write_text("# stub\n", encoding="utf-8")
         write(fake_repo / "notes" / "s.md", "See `doc-sync` for details.\n")
@@ -1960,12 +2000,7 @@ class TestRetiredKebabSkillsStayHonest:
 
     def test_no_curated_name_is_currently_live(self):
         """A live name in the set is stale: the catalog already resolves it."""
-        repo_root = Path(__file__).resolve().parents[4]
-        catalog = repo_root / ".claude" / "skills"
-        if not catalog.is_dir():
-            pytest.skip("no .claude/skills catalog in this checkout")
-        live = {p.name for p in catalog.iterdir() if (p / "SKILL.md").is_file()}
-        assert _filters_module().KNOWN_KEBAB_SKILLS & live == set()
+        assert _filters_module().KNOWN_KEBAB_SKILLS & _live_skills() == set()
 
     def test_every_curated_name_is_hyphenated(self):
         """A single-word name belongs in KNOWN_SINGLE_WORD_SKILLS instead."""
@@ -1974,31 +2009,36 @@ class TestRetiredKebabSkillsStayHonest:
     def test_every_deleted_hyphenated_skill_is_curated_or_restored(self):
         """Drift guard: a deleted skill must be listed or it goes silent.
 
+        Scoped to the canonical catalog, which is what the curated set
+        describes. The generated mirror's deletion history records generation
+        events, not retirements: ``merge-resolver`` reads as deleted there
+        while it is live canonically, so asserting against it would fail for a
+        reason that has nothing to do with skill retirement.
+
         Skipped on a shallow clone, where the deletion history is absent and
         the derived set would be empty for the wrong reason.
         """
-        repo_root = Path(__file__).resolve().parents[4]
-        if not (repo_root / ".git").exists():
-            pytest.skip("not a git checkout")
+        if _MODULE_KEY.endswith("_mirror"):
+            pytest.skip("generated mirror: deletions are generation, not retirement")
+        repo_root = _repo_root()
         shallow = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
             capture_output=True, text=True, check=False,
         )
         if shallow.stdout.strip() != "false":
             pytest.skip("shallow clone: deletion history unavailable")
+        rel = _catalog().relative_to(repo_root).as_posix()
         log = subprocess.run(
             ["git", "-C", str(repo_root), "log", "--all", "--diff-filter=D",
-             "--name-only", "--format=", "--", ".claude/skills/*/SKILL.md"],
+             "--name-only", "--format=", "--", f"{rel}/*/SKILL.md"],
             capture_output=True, text=True, check=False,
         )
         deleted = {
-            line.split("/")[2]
+            PurePosixPath(line).parent.name
             for line in log.stdout.splitlines()
-            if line.startswith(".claude/skills/") and line.endswith("/SKILL.md")
+            if line.startswith(f"{rel}/") and line.endswith("/SKILL.md")
         }
-        catalog = repo_root / ".claude" / "skills"
-        live = {p.name for p in catalog.iterdir() if (p / "SKILL.md").is_file()}
-        gone = {n for n in deleted if n not in live and "-" in n}
+        gone = {n for n in deleted if n not in _live_skills() and "-" in n}
         assert gone <= _filters_module().KNOWN_KEBAB_SKILLS
 
 
@@ -2007,8 +2047,7 @@ class TestTheMemoryCorpusIsGateable:
 
     @staticmethod
     def _memories() -> Path:
-        repo_root = Path(__file__).resolve().parents[4]
-        target = repo_root / ".serena" / "memories"
+        target = _repo_root() / ".serena" / "memories"
         if not target.is_dir():
             pytest.skip("no .serena/memories in this checkout")
         return target
@@ -2022,14 +2061,14 @@ class TestTheMemoryCorpusIsGateable:
         suppressed.
         """
         target = self._memories()
-        result = scan([target], target.parents[1])
+        result = scan([target], _repo_root())
         assert _skill_names(result) == {"land-and-deploy"}
 
     def test_a_planted_reference_to_a_deleted_skill_is_still_caught(self, tmp_path):
         """The other half of the acceptance bar."""
-        repo_root = Path(__file__).resolve().parents[4]
-        if not (repo_root / ".claude" / "skills").is_dir():
-            pytest.skip("no .claude/skills catalog in this checkout")
+        repo_root = _repo_root()
+        if not _catalog().is_dir():
+            pytest.skip("no skills catalog in this checkout")
         planted = repo_root / ".serena" / "memories"
         if not planted.is_dir():
             pytest.skip("no .serena/memories in this checkout")
