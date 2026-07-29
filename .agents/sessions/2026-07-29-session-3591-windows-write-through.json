@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3591,
+    "date": "2026-07-29",
+    "branch": "fix/3591-windows-write-through",
+    "startingCommit": "95da12691",
+    "objective": "Make the eval atomic write crash-durable on Windows. CPython's os.replace calls MoveFileExW without MOVEFILE_WRITE_THROUGH, so a host that loses power just after a consultation is charged can come back with the charge undone, which defeats the charge-before-scoring ordering (issue #3591)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3591-windows-write-through origin/main; branch reported as fix/3591-windows-write-through."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch cut fresh from origin/main so it carries none of the other open PR branches in this campaign."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign. The dashboard has not changed since."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, written before the first commit on the branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP has been unavailable for the whole campaign; no serena/ or mcp__serena__ tool is exposed."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same cause. Fell back to reading the tree directly."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All workLog steps recorded with the measurements that produced them."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. 11 passed and 3 Windows-only skips in the new durability suite, 758 passed in tests/eval/test_optimize_artifact_cli.py, 155 passed across tests/workflows and tests/ci/test_pytest_non_tmp_policy.py."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown changed. The three changed files are Python, a test, and a workflow YAML."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run ruff check on both Python files: All checks passed. pytest.yml parses under yaml.safe_load."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item recorded with evidence."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable, so no memory could be written. The reusable finding, that monkeypatching os.name breaks CPython's own ctypes import, is recorded in the workLog and in the fixture docstring."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified (ADR-014)."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Fix, tests, workflow step, and this log committed on fix/3591-windows-write-through. The endingCommit SHA is recorded in a follow-up commit rather than by amending."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Checked the issue's own stated blocker before accepting its recommended outcome. The issue says both remaining options 'need a Windows runner to verify, which this repo's CI does not currently provide', and the _fsync_dir docstring repeated the claim as 'a Windows-only write-through path that this repo's CI cannot exercise'. The claim is false: .github/workflows/pytest.yml carries a test-windows-pwsh job on windows-latest that already runs uv run pytest across five steps. Counted across all workflows: 134 ubuntu-24.04-arm, 7 ubuntu-latest, 4 ubuntu-24.04, and 1 windows-latest. That reopened the fix rather than the accept-the-gap exit."
+    },
+    {
+      "step": "Confirmed the durability gap itself is real and is about durability rather than atomicity. CPython Modules/posixmodule.c passes MOVEFILE_REPLACE_EXISTING alone to MoveFileExW and omits MOVEFILE_WRITE_THROUGH, the flag Microsoft documents as waiting for the move to reach disk. Atomicity says no reader sees a half-written entry; durability says the entry survives a power cut. The ledger charges before it scores so a crash cannot hand back a look for free, so only the second one protects the ordering."
+    },
+    {
+      "step": "Added _durable_replace as the single seam _write_atomic calls, replacing the previous os.replace plus _fsync_dir pair at the call site. POSIX keeps both steps unchanged. Windows resolves MoveFileExW through ctypes and calls it with MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH, which is the same operation CPython already performs plus the wait."
+    },
+    {
+      "step": "Chose raise over warn for a failed move, matching os.replace and diverging from _fsync_dir on purpose. Every failure in _write_atomic up to and including this call leaves the destination untouched, so refusing costs the caller nothing. _fsync_dir warns because it runs after the entry is already published, where raising would spend a consultation and return no verdict. Verified the raise lands inside _write_atomic's existing handler, which unlinks the temp and converts OSError to ConfigError, rather than escaping as a traceback."
+    },
+    {
+      "step": "Chose warn over raise when the Win32 layer cannot be resolved at all. Refusing the write would turn a durability gap into an outage, which is worse than the status quo. Unlike the unconditional skip this replaced, an unreachable kernel32 is an anomaly on that host rather than a property of every write, so it does not spend the stderr channel's signal."
+    },
+    {
+      "step": "Measured before trusting: the constants combine to 0x9 and _win32_move_file_ex() returns None on Linux, both confirmed by importing the module and printing the values rather than by reading the source."
+    },
+    {
+      "step": "Broken probe caught by running it. The first fixture took the Windows branch by monkeypatching os.name to 'nt'. That assigns to the real os module, and CPython's ctypes/__init__.py reads os.name at import time and pulls Windows-only symbols when it says 'nt', so the test broke 'import ctypes' inside the very branch it was trying to reach and reported ImportError: cannot import name 'COMError' as though it were a product failure. Replaced with a module-level _is_windows() predicate the test patches instead, so no global interpreter state is touched. _fsync_dir now routes through the same predicate."
+    },
+    {
+      "step": "Second portability defect found the same way. ctypes.get_last_error and ctypes.FormatError are both Windows-only attributes, so the error path raised AttributeError on any host that reached it, replacing the move failure with a fault in the description of the move failure. Extracted _win32_last_error() with both lookups guarded, so a failed move is always reported as a failed move."
+    },
+    {
+      "step": "Wrote 14 tests. Eleven run everywhere by driving the Windows branch through a recording stand-in; three run only on Windows and exercise the real ctypes call. The Windows-only class is explicit that it does not prove durability, since power loss is not injectable here: it proves the call is reachable, correctly bound, and correct about the bytes, and the durability half rests on Microsoft's documented meaning of the flag, which is the same standard the POSIX side takes from fsync."
+    },
+    {
+      "step": "Mutation-tested the suite rather than assuming it was load-bearing. Dropping MOVEFILE_WRITE_THROUGH from the call fails test_write_through_is_requested on the bit assertion. Changing the constant from 0x8 to 0x4 fails that test and test_the_flag_values_match_winbase, which matters because MoveFileExW ignores unknown bits, so a wrong value would still return success and still lose the charge. Reverting the dispatch to plain os.replace fails five tests. Restoring the file returns to 11 passed, 3 skipped."
+    },
+    {
+      "step": "Added an isolating control for the fallback warning. test_the_fallback_is_not_what_a_healthy_host_takes asserts the success path emits nothing on stderr, so the warning assertion in the test above it cannot pass without the fallback branch actually existing."
+    },
+    {
+      "step": "Wired the new file into the test-windows-pwsh job in .github/workflows/pytest.yml with a comment naming the reason, so the ctypes path is not shipped unrun. Without that step it would never execute on any CI leg."
+    },
+    {
+      "step": "Regression checked the base. tests/eval/test_optimize_artifact_cli.py: 758 passed. tests/workflows plus tests/ci/test_pytest_non_tmp_policy.py: 155 passed, so no workflow-shape contract objects to the new step. Re-ran both suites after rebasing onto origin/main: 769 passed, 3 skipped."
+    }
+  ],
+  "nextSteps": [
+    "The Windows-only class cannot prove durability without power-cut injection. If that ever becomes available, the three tests in TestOnRealWindows are where the real proof belongs.",
+    "_write_atomic has four callers and only the ledger needs crash persistence. Making all four durable was simpler than special-casing one and costs a flag bit per write, so no caller-specific path was added."
+  ],
+  "endingCommit": ""
+}
