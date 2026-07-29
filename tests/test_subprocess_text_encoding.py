@@ -124,6 +124,60 @@ _ENTRY_MODULES = ("subprocess", "os")
 # ``text=True`` returns ``str``, exactly as the plain form does.
 _CALLABLE_ALIASES = frozenset({"__call__", "__func__", "__wrapped__"})
 
+#: Methods that hand back an element of the object they are called on. A
+#: container holding a runner yields that runner through any of them, so the
+#: owner is resolved and its element answers for the call. Unlike
+#: :data:`_CALLABLE_ALIASES` these do not name the same callable, they return
+#: one, but both reach a runner from an expression that never spells its name.
+_ELEMENT_METHODS = frozenset({"pop", "popleft", "popitem"})
+
+#: Builtins that pass an element of their argument straight back out.
+#: ``next(iter([subprocess.run]))`` reaches the runner with no comprehension
+#: and no attribute, so resolving the first argument is what closes it.
+_ELEMENT_BUILTINS = frozenset(
+    {"next", "iter", "list", "tuple", "set", "frozenset", "sorted", "reversed"}
+)
+
+
+def _comprehension_element(node: ast.expr) -> ast.expr | None:
+    """Return the expression a comprehension yields, or ``None``.
+
+    A comprehension is a container literal wearing a loop, so whatever it
+    yields is reachable the same way a literal element is.
+    """
+    if isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
+        return node.elt
+    if isinstance(node, ast.DictComp):
+        return node.value
+    return None
+
+
+def _element_expressions(node: ast.expr) -> list[ast.expr] | None:
+    """Return the expressions *node* may evaluate to, or ``None``.
+
+    One reading covers every shape that holds candidates rather than being
+    one: a literal container, a comprehension that builds one, a conditional
+    that picks an arm, and a boolean fallback that picks an operand. Each
+    hands back a list because any member may be the one that runs, and a
+    runner anywhere in the list has to answer for the call.
+
+    A dict answers with its values in both spellings. Keys are hashed, not
+    called, so a runner used as a key is not reachable through a lookup.
+    """
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return list(node.elts)
+    if isinstance(node, ast.Dict):
+        return [value for value in node.values if value is not None]
+    if isinstance(node, ast.IfExp):
+        # ``subprocess.run if capture else other`` picks a runner at runtime,
+        # so either arm may be the one that decodes.
+        return [node.body, node.orelse]
+    if isinstance(node, ast.BoolOp):
+        # ``runner or subprocess.run`` is the same choice spelled shorter.
+        return list(node.values)
+    element = _comprehension_element(node)
+    return None if element is None else [element]
+
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
     """Return the value node for keyword *name*, or ``None`` when absent."""
@@ -146,6 +200,28 @@ def _has_splat(call: ast.Call) -> bool:
 def _is_literal_false(node: ast.expr | None) -> bool:
     """Report whether *node* is the literal ``False``."""
     return isinstance(node, ast.Constant) and node.value is False
+
+
+def _is_literal_none(node: ast.expr | None) -> bool:
+    """Report whether *node* is the literal ``None``.
+
+    An explicit ``None`` is how a caller says *leave this stream alone*.
+    ``stdout=None`` inherits the parent's stream and leaves ``.stdout`` empty,
+    so no bytes reach a decoder and there is nothing for a codec to get wrong.
+    """
+    return isinstance(node, ast.Constant) and node.value is None
+
+
+def _is_capturing_stream(node: ast.expr | None) -> bool:
+    """Report whether a ``stdout`` or ``stderr`` value opens a pipe to read.
+
+    Each stream is read on its own, so a call that quiets one and pipes the
+    other still decodes. Only an explicit literal ``None`` is treated as no
+    capture: ``DEVNULL`` and a file object also leave the attribute empty, but
+    both are named indirectly and resolving them would trade a measured
+    over-approximation for a guess.
+    """
+    return node is not None and not _is_literal_none(node)
 
 
 def _selects_text(node: ast.expr | None) -> bool:
@@ -199,6 +275,15 @@ def _resolve_indirect(
     label = _call_label(call)
     if _is_partial(label, functions) and call.args:
         return _resolve_callable(call.args[0], modules, functions)
+    if label in _ELEMENT_BUILTINS and call.args:
+        # ``next(...)`` and friends hand back an element of their argument, so
+        # whatever that argument resolves to is what the caller ends up with.
+        return _resolve_callable(call.args[0], modules, functions)
+    if isinstance(call.func, ast.Attribute) and call.func.attr in _ELEMENT_METHODS:
+        # ``holder.pop()`` yields an element of the holder. The method itself
+        # is not the runner, which is why this is read here on the call and
+        # not in :func:`_attribute` where the attribute alone is resolved.
+        return _resolve_callable(call.func.value, modules, functions)
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
         if isinstance(attr, ast.Constant) and attr.value in _CALLABLE_ALIASES:
@@ -358,19 +443,9 @@ def _resolve_callable(
     if isinstance(node, ast.NamedExpr):
         # ``(r := subprocess.run)(...)`` binds and calls in one expression.
         return _resolve_callable(node.value, modules, functions, containers)
-    if isinstance(node, ast.IfExp):
-        # ``subprocess.run if capture else other`` picks a runner at runtime,
-        # so either arm may be the one that decodes.
-        return _resolve_elements([node.body, node.orelse], modules, functions)
-    if isinstance(node, ast.BoolOp):
-        # ``runner or subprocess.run`` is the same choice spelled shorter.
-        return _resolve_elements(list(node.values), modules, functions)
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return _resolve_elements(list(node.elts), modules, functions)
-    if isinstance(node, ast.Dict):
-        return _resolve_elements(
-            [value for value in node.values if value is not None], modules, functions
-        )
+    elements = _element_expressions(node)
+    if elements is not None:
+        return _resolve_elements(elements, modules, functions)
     return None
 
 
@@ -805,6 +880,15 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
     """
     if _has_splat(call):
         return True
+    if len(call.args) > 1:
+        # Only the command is ever passed positionally in this repository:
+        # every one of the 1079 entry-point calls under scan passes exactly
+        # one. A second positional lands in a parameter this scan does not
+        # track by index, and ``stdout`` and ``universal_newlines`` are both
+        # reachable that way, so the mode is unreadable and has to count.
+        # Reading position by index instead would pin this scan to one
+        # release's parameter order, which is the reason that was rejected.
+        return True
     if not any(_selects_text(_keyword(call, name)) for name in _TEXT_SELECTORS):
         return False
     if _is_partial(_call_label(call), functions):
@@ -816,9 +900,11 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
         # keyword for this scan to find and none is needed.
         return True
     capture = _keyword(call, "capture_output")
-    if capture is not None and not _is_literal_false(capture):
+    if capture is not None and not _is_literal_false(capture) and not _is_literal_none(capture):
         return True
-    return _keyword(call, "stdout") is not None or _keyword(call, "stderr") is not None
+    return any(
+        _is_capturing_stream(_keyword(call, name)) for name in ("stdout", "stderr")
+    )
 
 
 def _pins_utf8(call: ast.Call) -> bool:
@@ -946,6 +1032,11 @@ def test_the_scan_actually_reaches_files() -> None:
             "import subprocess\n"
             "subprocess.run(['x'], capture_output=True, encoding=CODEC)",
             "a codec named indirectly is not proof that the codec is UTF-8",
+        ),
+        (
+            "import subprocess\n"
+            "subprocess.run(['x'], stdout=None, stderr=subprocess.PIPE, text=True)",
+            "each stream keyword is read on its own, so a quiet stdout hides nothing",
         ),
     ],
 )
@@ -1249,6 +1340,18 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'class C:\n    async def m(self):\n        runner = subprocess.run\n'
             'C.runner(["x"], capture_output=True, text=True)',
             "a name bound in an async method is a local, not a class attribute",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], stdout=None, text=True)',
+            "stdout=None inherits the parent's stream, so nothing is captured to decode",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], stderr=None, text=True)',
+            "stderr=None inherits the parent's stream, so nothing is captured to decode",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=None, text=True)',
+            "capture_output=None is falsy, so subprocess never opens the pipes",
         ),
     ],
 )
@@ -1818,6 +1921,63 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'runner(["x"], capture_output=True, text=True)',
             "a boolean fallback picks a runner and the scan must read every operand",
         ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], -1, None, None, subprocess.PIPE, text=True)',
+            "stdout passed positionally captures, and the mode keyword still decodes",
+        ),
+        (
+            'import subprocess\n'
+            'subprocess.run(["x"], -1, None, None, subprocess.PIPE, None, None, True,'
+            ' False, None, None, True)',
+            "universal_newlines passed positionally selects text mode with no keyword",
+        ),
+        (
+            'import subprocess\n'
+            'next(r for r in [subprocess.run])(["x"], capture_output=True, text=True)',
+            "a generator expression yields the runner without naming it at the call",
+        ),
+        (
+            'import subprocess\n'
+            '[r for r in [subprocess.run]][0](["x"], capture_output=True, text=True)',
+            "a list comprehension is the same reference wearing a loop",
+        ),
+        (
+            'import subprocess\n'
+            '{r for r in [subprocess.run]}.pop()(["x"], capture_output=True, text=True)',
+            "popping a set comprehension hands back the runner it was built from",
+        ),
+        (
+            'import subprocess\n'
+            '{k: subprocess.run for k in "a"}["a"](["x"], capture_output=True, text=True)',
+            "a dict comprehension holds the runner in its values",
+        ),
+        (
+            'import subprocess\n'
+            'list(r for r in [subprocess.run])[0](["x"], capture_output=True, text=True)',
+            "list() of a generator is still the element the generator yields",
+        ),
+        (
+            'import subprocess\n'
+            'next(iter([subprocess.run]))(["x"], capture_output=True, text=True)',
+            "iter() and next() reach the element with no comprehension at all",
+        ),
+        (
+            'import subprocess\n'
+            'runner = None or subprocess.run\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a boolean fallback can hold the runner in any operand, not just the first",
+        ),
+        (
+            'import subprocess\n'
+            '(subprocess.run,)[0](["x"], capture_output=True, text=True)',
+            "an inline tuple holds a runner the same way an inline list does",
+        ),
+        (
+            'import subprocess\n'
+            '{subprocess.run}.pop()(["x"], capture_output=True, text=True)',
+            "an inline set holds a runner and pop hands it straight back",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -1866,6 +2026,10 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
             '    held = [subprocess.run]\n'
             '    held[0](["x"], capture_output=True, text=True)',
             "one name bound in two scopes reads as one name bound twice",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], -1)',
+            "a second positional argument lands in a parameter this scan cannot name",
         ),
     ],
 )
