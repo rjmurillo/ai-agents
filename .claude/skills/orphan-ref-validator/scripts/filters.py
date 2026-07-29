@@ -114,6 +114,21 @@ def foreign_skill_catalog(token: str) -> str | None:
     return FOREIGN_SKILL_CATALOGS.get(token)
 
 
+def is_qualified_foreign_skill(token: str, line: str) -> bool:
+    """Return True when ``line`` names the catalog that owns ``token``.
+
+    The token alone is not evidence. Issue #3728 asks for the exemption to
+    hold only for a catalog-qualified reference, so that an unqualified
+    mention of a skill this repository does not ship is still reported. The
+    qualifier is the owning catalog name appearing on the same line, which is
+    how the prose reads in practice: ``gstack `front-gate-before-pipeline` skill``.
+    """
+    catalog = FOREIGN_SKILL_CATALOGS.get(token)
+    if not catalog:
+        return False
+    return re.search(rf"\b{re.escape(catalog)}\b", line, re.IGNORECASE) is not None
+
+
 def is_known_single_word_skill(token: str) -> bool:
     """Return True if a single-word token is a curated known skill name.
 
