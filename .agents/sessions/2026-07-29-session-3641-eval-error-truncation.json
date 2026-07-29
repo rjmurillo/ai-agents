@@ -4,7 +4,7 @@
     "number": 3641,
     "date": "2026-07-29",
     "branch": "fix/3641-eval-error-truncation",
-    "startingCommit": "02bb54f7cc",
+    "startingCommit": "c77d2bf89",
     "objective": "Issue #3641 lists five pre-existing robustness gaps in the eval optimizer CLI and asserts that pull requests #3478, #3505, and #3560 do not cover them. Re-measure every claim before acting on it, fix what is genuinely open, and report the rest with evidence rather than re-fixing work that already shipped."
   },
   "protocolCompliance": {
@@ -125,11 +125,14 @@
     },
     {
       "step": "Full suite green: tests/eval/test_optimize_artifact_cli.py reports 766 passed, 8 of them new."
+    },
+    {
+      "step": "Rebased onto origin/main at c77d2bf89 after pull request #3752 restored the corpus gate. Re-ran the gate that had been red on main: TestTheMemoryCorpusIsGateable reports 2 passed, so this branch builds on a green base rather than inheriting the breakage."
     }
   ],
   "nextSteps": [
     "Gap 4 is real and reproducible but its remedy reverses a contract five explicit negative controls defend. Recorded on issue #3641 with the failing test names so the owner can decide whether an unexpected crash should keep exiting 1 or be reclassified.",
     "The success path echoes producer data too: a 20 MB fixture id produced 20,000,640 bytes of stdout on a successful extract. That is output proportional to input for a command whose job is extraction, so it is treated as by design and not changed."
   ],
-  "endingCommit": ""
+  "endingCommit": "098ccb9f3d2bfc2310a6468e3ced6901f9558028"
 }

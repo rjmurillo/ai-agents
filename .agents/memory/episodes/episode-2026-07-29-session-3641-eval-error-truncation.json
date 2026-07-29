@@ -189,13 +189,45 @@
       "caused_by": [
         "e013"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e016"
+      ]
     },
     {
       "id": "e015",
       "timestamp": "2026-07-29T00:00:00+00:00",
       "type": "test",
       "content": "Full suite green: tests/eval/test_optimize_artifact_cli.py reports 766 passed, 8 of them new.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased onto origin/main at c77d2bf89 after pull request #3752 restored the corpus gate. Re-ran the gate that had been red on main: TestTheMemoryCorpusIsGateable reports 2 passed, so this branch builds on a green base rather than inheriting the breakage.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Rebased onto origin/main at c77d2bf89 after pull request #3752 restored the corpus gate. Re-ran the gate that had been red on main: TestTheMemoryCorpusIsGateable reports 2 passed, so this branch builds on a green base rather than inheriting the breakage.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 098ccb9f3d2bfc2310a6468e3ced6901f9558028",
       "caused_by": [],
       "leads_to": []
     }
@@ -205,7 +237,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
