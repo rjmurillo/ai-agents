@@ -23,6 +23,8 @@ def _fetch_labels(repository: str, pr_number: str) -> tuple[int, list[str]]:
         check=False,
         stdout=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     labels = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     return result.returncode, labels

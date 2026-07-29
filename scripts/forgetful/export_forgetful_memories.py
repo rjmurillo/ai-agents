@@ -79,6 +79,8 @@ def run_sqlite3(db_path: str, query: str) -> str:
         ["sqlite3", db_path, query],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(f"sqlite3 failed: {result.stderr.strip()}")
