@@ -209,6 +209,42 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CI failed one of the new tests and the cause was a hidden dependency on how CI clones. test_an_orphaned_ending_commit_warns called validate_session_log with no repo argument, so the check ran against the ambient checkout rather than a purpose-built repo. The pytest job checks out at the actions/checkout default depth of 1, and the helper stays deliberately silent in a shallow clone, so the warning never appeared and the assertion failed. The same code passed locally against a full clone. Reproduced the split directly: commit_reachability_problem('0'*40, <shallow clone>) returns None while the identical call against the full repository returns 'names no commit in this repository'.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The sibling test had the mirror-image defect and would never have been caught by a red run. test_a_sound_ending_commit_does_not_warn asserts that no warning appears, which a silent helper satisfies vacuously, so in CI it passed for the wrong reason and measured nothing. Both tests now pin _PROJECT_ROOT to the class fixture's temp repo with monkeypatch, the pattern already used elsewhere in this file, which makes them hermetic and independent of clone depth.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-proved both repaired tests discriminate, with a two-sided control on the helper. Forcing it to always return None fails four tests including the orphan test; forcing it to always return a complaint fails seven including the sound-commit test. Each repaired test fails in its own direction, so neither is vacuous. session_scope.py was restored byte-identical afterwards and the full file passes at 233.",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": []
     }
   ],

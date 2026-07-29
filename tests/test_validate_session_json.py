@@ -2319,24 +2319,40 @@ class TestEndingCommitReachability:
         bare.mkdir()
         assert commit_reachability_problem("0" * 40, bare) is None
 
-    def test_an_orphaned_ending_commit_warns(self) -> None:
+    def test_an_orphaned_ending_commit_warns(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pinned to a purpose-built repo, not the ambient checkout.
+
+        Reading the ambient repository made this test depend on how CI clones.
+        The pytest job checks out at the actions/checkout default depth of 1, and
+        the helper stays deliberately silent in a shallow clone because older
+        commits are genuinely absent there. The assertion therefore passed
+        locally against a full clone and failed in CI against a shallow one, on
+        identical code. The sibling test below had the mirror-image defect: it
+        passed in CI for the wrong reason, because a silent helper satisfies a
+        no-warning assertion vacuously.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
         log = _make_valid_log()
         log["endingCommit"] = "0" * 40
         assert any(
             "issue #3618" in w for w in validate_session_log(log).warnings
         ), "an unresolvable endingCommit must be reported"
 
-    def test_a_sound_ending_commit_does_not_warn(self) -> None:
+    def test_a_sound_ending_commit_does_not_warn(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Guards against a check that simply always complains."""
-        head = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=Path(__file__).resolve().parents[1],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
+        from scripts import validate_session_json
+
+        repo, reachable, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
         log = _make_valid_log()
-        log["endingCommit"] = head
+        log["endingCommit"] = reachable
         assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
 
     def test_an_existing_log_is_never_rechecked(self) -> None:
