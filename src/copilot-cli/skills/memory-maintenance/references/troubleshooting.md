@@ -338,13 +338,14 @@ find .claude/skills -name "*.py" -type f
 
 ```bash
 # Check the module file
-test -f ".claude/skills/memory/memory_core/memory_router.py" && echo exists || echo missing
+ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+test -f "$ROOT/skills/memory/memory_core/memory_router.py" && echo exists || echo missing
 
 # Test the import the same way the tests do
 uv run python -c "
-import sys
-_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
-sys.path.insert(0, f"{_root}/skills/memory")
+import os, sys
+_root = os.environ.get('COPILOT_PLUGIN_ROOT') or os.environ.get('CLAUDE_PLUGIN_ROOT') or '.claude'
+sys.path.insert(0, f'{_root}/skills/memory')
 from memory_core.memory_router import search_memory
 print('OK')
 "
