@@ -55,7 +55,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:893`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:1005-1033`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -67,7 +67,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 ### Phase 3: Read the number against the baseline
 
-Compare against the "Current baseline" entry in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: three instruments are red on main today. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
+Compare against the "Current baseline" entry in each guide in [`references/instrument-guides.md`](references/instrument-guides.md). The repo baseline is NOT all green: golden principles is red on main today (exit 10, 109 errors), and it is the only red instrument. What matters for your change is the delta: your PR should add zero new findings, and should not grow a budget without saying so.
 
 ### Phase 4: Act on the reading
 
