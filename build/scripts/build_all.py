@@ -765,6 +765,35 @@ def _select_platform_configs(
 OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
 
 
+def _is_bytecode_artifact(path: Path) -> bool:
+    """Return True for paths CPython writes as import side effects.
+
+    The rule is deliberately wider than "is a ``.pyc``": any file under a
+    ``__pycache__`` directory matches, whatever its extension, plus any
+    ``.pyc`` or ``.pyo`` anywhere. CPython is not the only writer into
+    ``__pycache__`` (coverage and mypy drop their own caches there), and a
+    filter narrowed to bytecode extensions would let those reopen the race
+    this function exists to close. Do not narrow it to ``.pyc``/``.pyo``.
+
+    :func:`_ignored_paths` already excludes gitignored files, but it queries
+    git once per snapshot: a ``.pyc`` written after that query and before the
+    ``rglob`` walk still lands in the snapshot. The pre-push hook runs the
+    test suite concurrently with the REQ-003-010 guard (``lefthook.yml`` marks
+    that job group ``parallel: true``), so pytest importing ``.claude/lib``
+    writes bytecode inside the guard's snapshot window and the guard
+    attributes it to a generator (issue #3856).
+
+    Matching on path shape is race-immune because it does not depend on a
+    point-in-time query. Excluding bytecode cannot mask a real violation:
+    generators emit source and data files, never compiled bytecode.
+
+    Only the comparison path may use this. The ``--check`` snapshot/restore
+    path must not, or restore deletes pre-existing caches; see
+    :func:`_snapshot_owned_prefixes`.
+    """
+    return "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo")
+
+
 def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     """Return absolute paths of gitignored files under ``prefixes``.
 
@@ -842,9 +871,19 @@ def _snapshot_owned_prefixes(
     :func:`_build_directory_copy`.
 
     When ``exclude_ignored`` is set, gitignored runtime artifacts (see
-    :func:`_ignored_paths`) are omitted. The REQ-003-010 guard passes this
-    so a concurrent hook write to ``.claude/hooks/audit.log`` or a bytecode
-    recompile does not read as a generator write (issue #2992).
+    :func:`_ignored_paths`) and bytecode caches (see
+    :func:`_is_bytecode_artifact`) are omitted. The REQ-003-010 guard passes
+    this so a concurrent hook write to ``.claude/hooks/audit.log`` or a
+    bytecode recompile does not read as a generator write (issue #2992).
+
+    Both exclusions are tied to that flag on purpose. The guard only
+    *compares* two snapshots, so dropping a path merely stops it being
+    reported. ``--check`` *restores* from its snapshot, and
+    :func:`_restore_owned_prefixes` deletes anything on disk that the
+    snapshot does not name. Excluding bytecode there would delete every
+    pre-existing ``__pycache__`` under an owned prefix, which is the same
+    cache-eviction that makes the next run recompile inside the guard
+    window: the exact race issue #3856 closes.
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
@@ -865,7 +904,7 @@ def _snapshot_owned_prefixes(
         for path in root.rglob("*"):
             if not path.is_file() or path.is_symlink():
                 continue
-            if path in ignored:
+            if path in ignored or (exclude_ignored and _is_bytecode_artifact(path)):
                 continue
             try:
                 snapshot[path] = path.read_bytes()
