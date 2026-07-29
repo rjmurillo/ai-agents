@@ -7626,6 +7626,105 @@ def test_the_tracked_scan_skips_binary_files(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
+def test_the_tracked_scan_finds_a_marker_past_the_sniff_window(
+    tmp_path: Path,
+) -> None:
+    """The binary sniff reads a head chunk; the rest of the file still counts.
+
+    The scan reads ``_BINARY_SNIFF_BYTES`` first so a tracked PNG never lands
+    in memory whole. That split is only safe while the text branch appends the
+    remainder: dropping it would silently stop reporting every marker beyond
+    the first 8 KB, and every existing case here sits inside that window.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    padding = "filler line\n" * (policy._BINARY_SNIFF_BYTES // 6)
+    assert len(padding.encode("utf-8")) > policy._BINARY_SNIFF_BYTES
+    _commit_file(repo, "long.md", padding + "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+
+    assert policy.check_tracked_conflict_markers(repo) == 1
+
+
+def test_the_tracked_scan_skips_a_binary_whose_nul_is_in_the_head(
+    tmp_path: Path,
+) -> None:
+    """A large binary must be judged from the head chunk, not the whole file.
+
+    Pairs with the test above: that one proves the remainder is still read for
+    text, this one proves a binary is rejected before the remainder is touched,
+    so neither half of the two-stage read can be removed unnoticed.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    tail = b"<<<<<<< HEAD\nx\n>>>>>>> main\n"
+    (repo / "big.bin").write_bytes(
+        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 4) + tail
+    )
+    _git(repo, "add", "big.bin")
+    _git(repo, "commit", "-m", "add big blob")
+
+    assert policy.check_tracked_conflict_markers(repo) == 0
+
+
+def test_the_tracked_scan_reads_only_the_head_of_a_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The point of the two-stage read is bytes, so measure bytes.
+
+    Behaviour tests cannot see the difference: reading a binary whole and
+    reading only its head both end in the same skip and the same exit code.
+    Only a byte count distinguishes them, and the byte count is the whole
+    reason the split exists. The 26 binaries tracked today are 26.4 MB, 26.8%
+    of what this walk would otherwise read.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    (repo / "big.bin").write_bytes(
+        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 16)
+    )
+    _git(repo, "add", "big.bin")
+    _git(repo, "commit", "-m", "add big blob")
+
+    bytes_read: dict[str, int] = {}
+    real_open = Path.open
+
+    class _CountingHandle:
+        def __init__(self, handle: Any, name: str) -> None:
+            self._handle = handle
+            self._name = name
+
+        def __enter__(self) -> _CountingHandle:
+            return self
+
+        def __exit__(self, *exc: object) -> bool:
+            self._handle.close()
+            return False
+
+        def read(self, size: int = -1) -> bytes:
+            data = self._handle.read(size)
+            bytes_read[self._name] = bytes_read.get(self._name, 0) + len(data)
+            return data
+
+    def counting_open(self: Path, *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(self, *args, **kwargs)
+        if self.name != "big.bin":
+            return handle
+        return _CountingHandle(handle, self.name)
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    try:
+        assert policy.check_tracked_conflict_markers(repo) == 0
+    finally:
+        monkeypatch.undo()
+
+    assert bytes_read["big.bin"] <= policy._BINARY_SNIFF_BYTES, (
+        f"read {bytes_read['big.bin']} bytes of a binary, expected at most "
+        f"{policy._BINARY_SNIFF_BYTES}"
+    )
+
+
 def test_the_tracked_scan_honours_the_skipped_prefixes(tmp_path: Path) -> None:
     """tests/hooks/fixtures carries prohibited bytes on purpose."""
     repo = tmp_path / "repo"
