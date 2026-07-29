@@ -21,6 +21,7 @@ class CommandResult:
 
 def run_command(argv: Sequence[str]) -> CommandResult:
     try:
+        sys.stdout.flush()
         completed = subprocess.run(list(argv), check=False)
     except FileNotFoundError:
         return CommandResult(returncode=127)
