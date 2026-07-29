@@ -54,6 +54,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from scripts.github_core.validation import is_github_name_valid
+
 DEFAULT_STALE_DAYS = 60
 DEFAULT_DUP_THRESHOLD = 0.7
 PRIORITY_LABEL_PREFIX = "priority:"
@@ -464,6 +466,25 @@ def _run_gh(cmd: list[str]) -> str:
     return result.stdout or ""
 
 
+def _require_repo_identity(owner: str, repo: str) -> None:
+    """Reject owner/repo values that would change which endpoint gh talks to.
+
+    Both values are interpolated into a gh argument: ``--repo owner/repo`` for
+    the issue list and ``repos/{owner}/{repo}/...`` for the timeline API. A
+    value such as ``..`` silently retargets that path, so it is refused here
+    rather than at the CLI, which leaves direct importers and the
+    ``GITHUB_REPOSITORY`` fallback covered by the same check.
+
+    Raises:
+        ValueError: When either name fails GitHub's naming rules.
+    """
+
+    if not is_github_name_valid(owner, "owner"):
+        raise ValueError(f"invalid repository owner: {owner!r}")
+    if not is_github_name_valid(repo, "repo"):
+        raise ValueError(f"invalid repository name: {repo!r}")
+
+
 def fetch_open_issues(
     owner: str, repo: str, *, limit: int, since: str | None = None
 ) -> list[dict[str, Any]]:
@@ -476,6 +497,7 @@ def fetch_open_issues(
 
     if not 0 <= limit <= 1000:
         raise ValueError("limit must be between 0 and 1000")
+    _require_repo_identity(owner, repo)
     if limit == 0:
         return []
 
@@ -508,6 +530,7 @@ class LinkedPrFetchError(RuntimeError):
 def fetch_linked_prs(owner: str, repo: str, number: int) -> tuple[tuple[int, str], ...]:
     """Return (pr_number, state) for PRs cross-referenced from an issue timeline."""
 
+    _require_repo_identity(owner, repo)
     cmd = [
         "gh", "api",
         f"repos/{owner}/{repo}/issues/{number}/timeline",
