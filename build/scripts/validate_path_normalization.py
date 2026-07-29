@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -85,6 +86,42 @@ CODE_FENCE_PATTERN = re.compile(r"^\s*(`{3,}|~{3,})")
 INLINE_CODE_PATTERN = re.compile(r"`[^`]+`")
 
 
+def _filter_git_ignored(root: Path, files: list[Path]) -> list[Path]:
+    """Drop files ignored by git, failing open when git is unavailable."""
+    if not files:
+        return files
+
+    relatives = [path.relative_to(root).as_posix() for path in files]
+    payload = "\0".join(relatives).encode("utf-8") + b"\0"
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "--stdin", "-z"],
+            input=payload,
+            capture_output=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return files
+
+    if result.returncode not in (0, 1):
+        return files
+
+    ignored = {
+        item.decode("utf-8")
+        for item in result.stdout.split(b"\0")
+        if item
+    }
+    if not ignored:
+        return files
+
+    return [
+        path
+        for path, relative in zip(files, relatives, strict=True)
+        if relative not in ignored
+    ]
+
+
 def _should_use_color() -> bool:
     """Determine whether to use ANSI color codes in output."""
     if os.environ.get("NO_COLOR"):
@@ -124,7 +161,7 @@ def collect_files(
     extensions: list[str],
     exclude_paths: list[str],
 ) -> list[Path]:
-    """Collect files matching extensions, excluding specified paths."""
+    """Collect matching files, excluding configured and git-ignored paths."""
     files: list[Path] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
@@ -140,7 +177,7 @@ def collect_files(
                 break
         if not excluded:
             files.append(path)
-    return files
+    return _filter_git_ignored(root, files)
 
 
 def scan_file(

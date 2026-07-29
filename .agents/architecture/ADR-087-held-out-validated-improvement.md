@@ -583,15 +583,29 @@ first for that reason.
    cooperation. Two narrower changes were identified and deferred to their own
    issues rather than built here, since each changes behavior and this change
    is already large: making `extract` group-aware alongside a whole-universe
-   coverage check in the gate (#3452), and minimizing the gate payload so
-   diagnostics travel on a controller-only channel (#3453). The second carries a real tension:
+   coverage check in the gate (#3452, since closed: `extract --split --group`
+   emits one group, and the gate refuses any results file that does not cover
+   the full `opt + sel + test` universe before charging a consultation,
+   naming no group membership in the refusal), and minimizing the gate
+   payload so diagnostics travel on a controller-only channel (#3453). The
+   #3452 closure narrows the surface but does not discharge this requirement:
+   the optimizer still runs `extract` itself under the documented workflow,
+   task definitions still resolve to readable grading criteria, and `split`
+   still publishes `opt`. A trusted controller owning those surfaces remains
+   the prerequisite for the Decision statement's stronger form. The second carries a real tension:
    reporting `p` always and never enforcing it is load-bearing elsewhere in
    this ADR, and a `--diagnostics` flag the loop passes itself would be the
    same caller-supplied-restriction defect this document catalogs five times
    over. Under the current architecture that can only be a default.
 2. **Provenance binding between the compared artifacts and the results files**
-   (#3436). Nothing currently proves `candidate.json` was produced by the edit
-   under test rather than by a previous run.
+   (#3436, since closed). `extract` now stamps each results file with an
+   extraction-provenance envelope (schema, extractor version, input digest,
+   results digest, upstream scorer identity, group, split fingerprint), and
+   the gate refuses a comparison whose two files disagree on any provenance
+   field or whose results do not match their own digest. This proves the two
+   files came from the same extraction contract; it does not prove the
+   upstream scorer ran the edit under test, which stays with the trusted
+   controller in requirement 1.
 3. **A decision on the boolean seam** (#3437). Both code reviewers and both ADR
    reviewers argued for `{task_id: float}`. The boolean is what makes three
    unlike scorers commensurable, so this is a redesign, and it is the user's
