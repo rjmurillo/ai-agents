@@ -31,6 +31,13 @@ from checks_common import (  # noqa: E402
 )
 from checks_dash import _is_vendored  # noqa: E402
 
+MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
+# markdownlint-cli2 prints "Linting: 3 files" (or "Linting: 1 file") before it
+# reads anything. The trailing count in its "Summary" line is files *with
+# issues*, so a clean file and a file that was never selected both summarise as
+# "0 issues in 0 files". This line is the only one that distinguishes them.
+_LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
+
 
 def _find_latest_session_log(repo_root: Path) -> Path | None:
     """Find the most recent session log in .agents/sessions/."""
@@ -88,16 +95,29 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
     return bool(exit_code == 0)
 
 
-def validate_markdown_lint(repo_root: Path) -> bool:
-    """Validate branch Markdown, auto-fixing unless SKIP_AUTOFIX=1."""
+def validate_markdown_lint(
+    repo_root: Path,
+    explicit_targets: list[str] | None = None,
+) -> bool:
+    """Validate Markdown and report whether markdownlint selected any files.
+
+    ``explicit_targets`` is used by Lefthook's staged-file jobs. It keeps the
+    hook on the same reporting path as the pre-PR validator while still letting
+    markdownlint-cli2 apply ``ignores`` from ``.markdownlint-cli2.yaml``.
+    """
     if not shutil.which("npx"):
         print("[FAIL] npx not found (Node.js required)")
         print("  Install Node.js: https://nodejs.org/")
         return False
 
-    targets = _markdown_lint_targets(repo_root)
+    targets = (
+        explicit_targets
+        if explicit_targets is not None
+        else _markdown_lint_targets(repo_root)
+    )
+    scope_name = "selected" if explicit_targets is not None else "branch"
     if targets == []:
-        print("[PASS] Markdown linting (no markdown files on branch)")
+        print(f"[PASS] Markdown linting (no markdown files on {scope_name})")
         return True
 
     autofix = os.environ.get("SKIP_AUTOFIX") != "1"
@@ -106,12 +126,13 @@ def validate_markdown_lint(repo_root: Path) -> bool:
     scope = (
         "markdown files"
         if targets is None
-        else f"{len(target_args)} changed markdown file(s)"
+        else f"{len(target_args)} {scope_name} markdown file(s)"
     )
     print(f"{action} {scope}...")
-    command = ["npx", "markdownlint-cli2"]
+    command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
     if autofix:
         command.append("--fix")
+    command.append("--")
     command.extend(target_args)
 
     exit_code, stdout, stderr = _run_subprocess(command, cwd=repo_root)
@@ -140,13 +161,6 @@ def validate_markdown_lint(repo_root: Path) -> bool:
     print("  - MD040: Add language identifier to code blocks")
     print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
     return False
-
-
-# markdownlint-cli2 prints "Linting: 3 files" (or "Linting: 1 file") before it
-# reads anything. The trailing count in its "Summary" line is files *with
-# issues*, so a clean file and a file that was never selected both summarise as
-# "0 issues in 0 files". This line is the only one that distinguishes them.
-_LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
 
 
 def _linted_file_count(stdout: str) -> int | None:
