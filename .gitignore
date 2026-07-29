@@ -86,6 +86,10 @@ ENV/
 .agents/audit/pr*-reply.md
 .agents/audit/pr*-body-*.md
 
+# scripts/ci/build_pr_validation_report.py writes this to the repo root.
+# Harmless on an ephemeral runner, untracked litter in a working tree.
+/pr-validation-report.md
+
 # Hook runtime logs and caches
 .claude/hooks/audit.log
 
