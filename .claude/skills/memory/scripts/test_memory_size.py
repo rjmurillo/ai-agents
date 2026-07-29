@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402, I001
 """
 Validate Serena memory file sizes against context engineering thresholds.
 
@@ -32,6 +33,38 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
+
+
+_FENCE_OPEN_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})[^\r\n]*$")
+
+
+def _strip_fenced_code_blocks(content: str) -> str:
+    """Remove Markdown fenced code blocks before heading-count heuristics."""
+    visible_lines = []
+    fence_char = ""
+    fence_length = 0
+
+    for line in content.splitlines(keepends=True):
+        if fence_char:
+            stripped = line.strip()
+            if (
+                stripped.startswith(fence_char * fence_length)
+                and set(stripped) <= {fence_char}
+            ):
+                fence_char = ""
+                fence_length = 0
+            continue
+
+        match = _FENCE_OPEN_RE.match(line)
+        if match:
+            fence = match.group("fence")
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+
+        visible_lines.append(line)
+
+    return "".join(visible_lines)
 
 
 @dataclass
@@ -83,12 +116,14 @@ class MemorySizeValidator:
         # Count characters
         char_count = len(content)
 
+        heading_content = _strip_fenced_code_blocks(content)
+
         # Count skills (## level-2 headings)
-        skill_count = len(re.findall(r'^## ', content, re.MULTILINE))
+        skill_count = len(re.findall(r'^## ', heading_content, re.MULTILINE))
 
         # Count categories (heuristic: unique tags or top-level sections)
         # Look for common category markers: tags, labels, or h1 sections
-        category_count = self._count_categories(content)
+        category_count = self._count_categories(heading_content)
 
         # Check violations
         violations = []

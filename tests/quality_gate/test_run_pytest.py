@@ -88,7 +88,7 @@ class TestEnvironmentReady:
 
 class TestRunPytest:
     def test_pass_on_zero_exit(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check, encoding, errors):
             return subprocess.CompletedProcess(cmd, 0, stdout="5 passed in 1s\n", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -97,7 +97,7 @@ class TestRunPytest:
         assert summary == "5 passed in 1s"
 
     def test_fail_on_nonzero_exit(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check, encoding, errors):
             return subprocess.CompletedProcess(cmd, 1, stdout="1 failed in 1s\n", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -106,7 +106,7 @@ class TestRunPytest:
         assert summary == "1 failed in 1s"
 
     def test_timeout_is_error(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check, encoding, errors):
             raise subprocess.TimeoutExpired(cmd, timeout)
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -115,7 +115,7 @@ class TestRunPytest:
         assert "timed out" in summary
 
     def test_os_error_is_error_with_collapsed_newlines(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check, encoding, errors):
             raise OSError("line1\nline2")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -126,7 +126,7 @@ class TestRunPytest:
     def test_passes_project_root_as_cwd(self, tmp_path: Path, monkeypatch) -> None:
         seen = {}
 
-        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check, encoding, errors):
             seen["cwd"] = cwd
             return subprocess.CompletedProcess(cmd, 0, stdout="1 passed in 1s\n", stderr="")
 

@@ -47,8 +47,10 @@ import argparse
 import json
 import math
 import re
+import statistics
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,15 @@ MECHANISMS = ("baseline", "description", "full")
 MIN_ACTIVATION_SCORE = 3.5
 MIN_DELTA_VS_BASELINE = 0.5
 DEFAULT_SEED = 0
+DEFAULT_JUDGE_REPEATS = 3
+DEFAULT_JUDGE_REDUCER = "median"
+_SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
+_SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
+    "mean": statistics.fmean,
+    "min": min,
+    "max": max,
+    "median": statistics.median,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +375,15 @@ Respond in JSON only, no other text:
 
 
 def _clamp_score(value: object) -> int:
-    """Coerce a judge-supplied score to int in [0, 5]."""
+    """Coerce a judge-supplied score to int in [0, 5], failing closed.
+
+    Strings, None, out-of-range values, and non-finite floats all resolve to 0
+    or a clamped value. ``json.loads`` accepts ``Infinity``, ``-Infinity``, and
+    ``NaN`` by default, so a judge response can carry a non-finite float.
+    ``int(float("inf"))`` raises ``OverflowError`` and ``int(float("nan"))``
+    raises ``ValueError``; both are caught below so a garbage score lowers the
+    activation average instead of crashing the evaluator.
+    """
     if not isinstance(value, (int, float, str)):
         return 0
     try:
@@ -373,6 +392,28 @@ def _clamp_score(value: object) -> int:
         return 0
     return max(0, min(5, n))
 
+
+def _reduce_score_samples(
+    samples: list[dict[str, Any]],
+    reducer_name: str,
+) -> dict[str, Any]:
+    reducer = _SCORE_REDUCERS[reducer_name]
+    if any(sample.get("judge_failed") for sample in samples):
+        return {
+            "activation_score": 0,
+            "citation_score": 0,
+            "behavior_score": 0,
+            "judge_failed": True,
+            "score_reducer": reducer_name,
+            "sample_count": len(samples),
+        }
+    reduced: dict[str, Any] = {
+        key: reducer([float(sample[key]) for sample in samples]) for key in _SCORE_KEYS
+    }
+    reduced["judge_failed"] = False
+    reduced["score_reducer"] = reducer_name
+    reduced["sample_count"] = len(samples)
+    return reduced
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     required_fields = ("activation_score", "citation_score", "behavior_score")
@@ -393,6 +434,7 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     return None
 
 
+
 # ---------------------------------------------------------------------------
 # Eval driver
 # ---------------------------------------------------------------------------
@@ -406,6 +448,8 @@ def eval_one_scenario(
     model: str,
     dry_run: bool,
     seed: int | None = None,
+    judge_repeats: int = DEFAULT_JUDGE_REPEATS,
+    judge_reducer: str = DEFAULT_JUDGE_REDUCER,
 ) -> dict[str, Any]:
     """Run all mechanisms on one scenario."""
     result: dict[str, Any] = {
@@ -422,6 +466,9 @@ def eval_one_scenario(
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
                 "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+                "score_samples": [],
+                "judge_repeats": judge_repeats,
+                "score_reducer": judge_reducer,
                 "system_prompt_chars": len(system),
             }
             continue
@@ -481,19 +528,30 @@ def eval_one_scenario(
             continue
 
         time.sleep(RATE_LIMIT_SLEEP_SEC)
-        try:
-            scores = score_response(api_key, scenario, response, model=model, seed=seed)
-        except RuntimeError as e:
-            result["mechanisms"][mechanism] = {
-                "error": f"judge API failure: {e}",
-                "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
-                "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
-            }
-            continue
-        time.sleep(RATE_LIMIT_SLEEP_SEC)
+        score_samples: list[dict[str, Any]] = []
+        for sample_index in range(judge_repeats):
+            judge_seed = None if seed is None else seed + sample_index + 1
+            try:
+                sample = score_response(
+                    api_key, scenario, response, model=model, seed=judge_seed
+                )
+            except RuntimeError as e:
+                sample = {
+                    "judge_failed": True,
+                    "reasoning": f"judge API failure: {e}",
+                    "sample_index": sample_index,
+                }
+            else:
+                sample["sample_index"] = sample_index
+            score_samples.append(sample)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
+        scores = _reduce_score_samples(score_samples, judge_reducer)
         mechanism_result = {
             "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
             "scores": scores,
+            "score_samples": score_samples,
+            "judge_repeats": judge_repeats,
+            "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
         if routing is not None:
@@ -653,6 +711,18 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip API calls, print plan.",
     )
+    parser.add_argument(
+        "--judge-repeats",
+        type=int,
+        default=DEFAULT_JUDGE_REPEATS,
+        help="Number of judge samples per response.",
+    )
+    parser.add_argument(
+        "--judge-reducer",
+        default=DEFAULT_JUDGE_REDUCER,
+        choices=tuple(_SCORE_REDUCERS),
+        help="Reducer used for repeated judge samples.",
+    )
     return parser.parse_args()
 
 
@@ -729,6 +799,34 @@ def _resolve_rule_path(rule_path_str: str) -> Path | int:
     return rule_path
 
 
+def _resolve_skill_path(skill_path_str: str) -> Path | int:
+    """Resolve and validate skill_path stays under .claude/skills/ as SKILL.md.
+
+    The name check runs before the is_file() check so a crafted path targeting
+    another file in the skills tree is rejected on name alone. This keeps the
+    `full` mechanism from sending arbitrary skill-tree content to the API.
+    """
+    skill_path = (REPO_ROOT / skill_path_str).resolve()
+    try:
+        skill_path.relative_to(SKILLS_DIR)
+    except ValueError:
+        print(
+            f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if skill_path.name != "SKILL.md":
+        print(
+            f"ERROR: skill_path must be a SKILL.md file: {skill_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if not skill_path.is_file():
+        print(f"ERROR: skill not found: {skill_path}", file=sys.stderr)
+        return 2
+    return skill_path
+
+
 def _resolve_skill_reference(
     skill_path_str: str,
     reference_path_str: str,
@@ -767,40 +865,44 @@ def _resolve_skill_reference(
 
 
 def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path | None] | int:
-    """Resolve either a rule path or a skill reference target."""
+    """Resolve either a rule path or a skill target, with or without a reference.
+
+    A scenario file MUST set exactly one of `rule_path` or `skill_path`. When
+    `skill_path` is paired with `reference_path`, the skill is measured through
+    the two-hop progressive-disclosure route (skill router selects a
+    reference). When `skill_path` is set alone, the skill's own SKILL.md front
+    door is measured directly, the same way `rule_path` is measured.
+    """
     rule_path_str = data.get("rule_path")
     skill_path_str = data.get("skill_path")
-
-    # rule_path and skill_path are mutually exclusive; fail fast on ambiguity.
-    if (isinstance(rule_path_str, str) and rule_path_str.strip()) and (
-        isinstance(skill_path_str, str) and skill_path_str.strip()
-    ):
+    rule_ref = rule_path_str.strip() if isinstance(rule_path_str, str) else ""
+    skill_ref = skill_path_str.strip() if isinstance(skill_path_str, str) else ""
+    has_rule = bool(rule_ref)
+    has_skill = bool(skill_ref)
+    if has_rule == has_skill:
         print(
-            f"ERROR: rule_path and skill_path are mutually exclusive in {spath}",
+            "ERROR: scenario file must set exactly one of rule_path or "
+            f"skill_path in {spath}",
             file=sys.stderr,
         )
         return 2
 
-    if isinstance(rule_path_str, str) and rule_path_str.strip():
-        resolved = _resolve_rule_path(rule_path_str.strip())
+    if has_rule:
+        resolved = _resolve_rule_path(rule_ref)
         if isinstance(resolved, int):
             return resolved
         return resolved, None
 
     reference_path_str = data.get("reference_path")
-    if not isinstance(skill_path_str, str) or not skill_path_str.strip():
-        print(
-            f"ERROR: rule_path or skill_path must be a non-empty string in {spath}",
-            file=sys.stderr,
-        )
-        return 2
-    if not isinstance(reference_path_str, str) or not reference_path_str.strip():
-        print(
-            f"ERROR: reference_path must be a non-empty string in {spath}",
-            file=sys.stderr,
-        )
-        return 2
-    return _resolve_skill_reference(skill_path_str.strip(), reference_path_str.strip())
+    reference_ref = (
+        reference_path_str.strip() if isinstance(reference_path_str, str) else ""
+    )
+    if not reference_ref:
+        resolved = _resolve_skill_path(skill_ref)
+        if isinstance(resolved, int):
+            return resolved
+        return resolved, None
+    return _resolve_skill_reference(skill_ref, reference_ref)
 
 
 def _load_scenarios_file(
@@ -808,11 +910,13 @@ def _load_scenarios_file(
 ) -> tuple[dict[str, Any], tuple[Path, Path | None]] | int:
     """Return (scenarios_data, resolved target paths) on success, exit code on error.
 
-    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`, or the
-    pair of `skill_path` and `reference_path` MUST resolve to a skill SKILL.md
-    and one reference under that skill. A crafted scenario file cannot point at
-    config, secrets, or any other repository file: the `full` mechanism would
-    otherwise send that content to the LLM API.
+    A scenario file MUST set exactly one of `rule_path` or `skill_path`.
+    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. `skill_path`
+    MUST resolve to a `SKILL.md` file under `.claude/skills/`, optionally paired
+    with `reference_path` resolving to a `.md` file under that skill's
+    `references/`. A crafted scenario file cannot point at config, secrets, or
+    any other repository file: the `full` mechanism would otherwise send that
+    content to the LLM API.
     """
     spath = Path(scenario_file)
     if not spath.is_file():
@@ -840,21 +944,29 @@ def _process_one_rule(
     target_paths: tuple[Path, Path | None],
     args: argparse.Namespace,
 ) -> tuple[str, dict[str, Any] | None, int]:
-    """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
+    """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
     primary_path, reference_path = target_paths
-    rule_id = scenarios_data.get("rule_id", primary_path.stem)
+    default_id = (
+        primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
+    )
+    rule_id = (
+        scenarios_data.get("rule_id")
+        or scenarios_data.get("skill_id")
+        or default_id
+    )
     if reference_path is None:
         rule = parse_rule(primary_path)
     else:
         rule = parse_skill_reference(primary_path, reference_path)
     scenarios = scenarios_data.get("scenarios", [])
     route_calls = len(scenarios) if reference_path is not None else 0
-    n_calls = len(scenarios) * len(MECHANISMS) * 2 + route_calls
+    n_calls = len(scenarios) * len(MECHANISMS) * (1 + args.judge_repeats) + route_calls
 
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms x 2 (call + judge)"
+            f"{len(MECHANISMS)} mechanisms x "
+            f"{1 + args.judge_repeats} (call + judges)"
             f" + {route_calls} route calls = {n_calls} calls"
         )
         print(f"  description present: {bool(rule['description'])}")
@@ -873,6 +985,8 @@ def _process_one_rule(
             args.model,
             dry_run=False,
             seed=args.seed,
+            judge_repeats=args.judge_repeats,
+            judge_reducer=args.judge_reducer,
         )
         scenario_results.append(r)
 
@@ -890,6 +1004,9 @@ def _process_one_rule(
 
 def main() -> int:
     args = _parse_args()
+    if args.judge_repeats < 1:
+        print("ERROR: --judge-repeats must be positive", file=sys.stderr)
+        return 2
 
     if args.dry_run:
         api_key = ""

@@ -2977,6 +2977,78 @@ class TestReportWriterRecommendationPassThrough:
         assert "flaky fixtures are excluded" not in ci_section
 
 
+class TestTheHeaderCountNamesTheInventoryNotTheMeasurement:
+    """`fixture_ids` is the plan's roster, so the header cannot claim it ran.
+
+    `eval-agent-vs-baseline.py` fills `fixture_ids` from `plan.fixtures`
+    before a single fixture is dispatched, and the degraded write happens
+    inside the `except (EmptyRunError, ValueError)` arm, where aggregation
+    already failed. A header reading "Fixtures measured: 3" on that report
+    states a measurement that was never taken, which is the exact false
+    value this PR refuses everywhere else.
+    """
+
+    def _agg(self) -> AggregateResult:
+        return AggregateResult(
+            agent_recall=0.5,
+            baseline_recall=0.5,
+            recall_delta=0.0,
+            bootstrap_ci_95=(0.0, 0.0),
+            recall_with_errors=0.5,
+            recall_excluding_errors=0.5,
+            per_fixture_pass_rates={"F001": {"agent": [1.0], "baseline": [0.0]}},
+            flakiness=False,
+            flaky_fixtures_detected=[],
+            flaky_fixtures_excluded=[],
+            halt_due_to_flakiness=False,
+            total_tokens_in=1,
+            total_tokens_out=1,
+            cost_estimate_usd=0.0,
+            tokens_estimated=True,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+
+    def _render(self, tmp_path, **extra) -> str:
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._agg(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=1.0,
+            **extra,
+        )
+        return md_path.read_text(encoding="utf-8")
+
+    def test_a_degraded_report_does_not_claim_a_measurement(self, tmp_path):
+        md = self._render(
+            tmp_path,
+            fixture_ids=["F001", "F002", "F003"],
+            recommendation="form-factor-invalid",
+        )
+        assert "Fixtures measured" not in md
+        assert "Fixture inventory: 3" in md
+
+    def test_a_healthy_report_uses_the_same_label(self, tmp_path):
+        """One roster, one name, whatever the verdict."""
+        md = self._render(tmp_path, fixture_ids=["F001"])
+        assert "Fixtures measured" not in md
+        assert "Fixture inventory: 1" in md
+
+    def test_an_empty_roster_counts_zero(self, tmp_path):
+        md = self._render(tmp_path, fixture_ids=[])
+        assert "Fixture inventory: 0" in md
+
+    def test_the_other_header_rows_are_untouched(self, tmp_path):
+        """Negative control: the rename moves one row, not the header."""
+        md = self._render(tmp_path, fixture_ids=["F001"])
+        assert "- Model: `claude-sonnet-4-6`" in md
+        assert f"- Fixture set SHA: `{'c' * 16}...`" in md
+
+
 class TestCliInputValidators:
     """Allow-list validators on `--agent`, `--run-id`, and `--resume`
     prevent CWE-22 path traversal (PR 1873)."""

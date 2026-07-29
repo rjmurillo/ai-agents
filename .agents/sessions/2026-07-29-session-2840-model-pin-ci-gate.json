@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2840,
+    "date": "2026-07-29",
+    "branch": "fix/2840-model-pin-ci-gate",
+    "startingCommit": "1eb5bea17a",
+    "objective": "Wire the ADR-080 model-pin gate into CI. check_model_pins.py has shipped a working --mode enforce since ADR-080 was accepted, but nothing under .github/ ever invoked it, so a new unjustified model: pin was detected in warn mode and merged anyway."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/2840-model-pin-ci-gate after checkout -b from origin/main at 1eb5bea17a"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/2840-model-pin-ci-gate, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .agents/HANDOFF.md and the open issue backlog at campaign start; issue #2840 discourse read before measuring"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit so branch-context-policy resolves the branch"
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was not reachable in this harness. Fell back to reading .serena/memories/ directly per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not available; see serenaActivated"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read ADR-080 (model pins require cited eval evidence), .agents/architecture ADR-006 (no logic in workflow run blocks; this step calls a script and adds no logic), and the #3330 comment block in pr-validation.yml establishing the host-job precedent"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Enforce mode wired into the validate-pr job; four wiring tests added, each proven load-bearing by mutation"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable this session"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files changed in this commit; scoped lint is a no-op"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Single commit on fix/2840-model-pin-ci-gate covering the workflow step and its wiring tests"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/validate_workflows.py exits 0; uv run ruff check passes; yamllint warning count unchanged at 6 before and after; 42/42 tests pass in tests/ci/test_pr_validation_workflow.py"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Campaign is still in flight; the retrospective belongs at the end of it"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Re-measured every premise in #2840 before acting. The issue claims 71 skills carry model: pins across 5 distinct values with format drift (4-6 vs 4.6) and one bare alias. Measured today: 7 skills, all a single bare haiku value, no version drift. Four of the issue's five acceptance criteria are already met by work that landed after it was filed: ADR-080 accepted 2026-07-11 via PR #3028, scripts/eval/eval-model-panel.py sweep() for the model sweep, the 71-to-7 migration, and scripts/validation/model_pin_baseline.json as the single registry."
+    },
+    {
+      "step": "Isolated the one criterion still missing: the CI check. grep -rn check_model_pins .github/ returns nothing. The sole caller is checks_spec.validate_model_pins, which runs --mode warn; its docstring states enforcement stays in CI, and that was not true. Proved the gap by planting a pinned skill: warn mode printed VIOLATION: [new pin] bare alias 'opus' lacks a model-rationale field and exited 0. Enforce mode exited 1 on the identical tree."
+    },
+    {
+      "step": "Proved wiring is safe before wiring it. Enforce mode exits 0 against clean main today because model_pin_baseline.json grandfathers the 46-pin backlog and fails only on new or changed pins, so the new gate does not red main on arrival."
+    },
+    {
+      "step": "Hosted the step in the validate-pr job, following the precedent the #3330 comment block records for the workflow-YAML check: a model: pin can land in any skill, agent, or command file, so the gate must fire on every PR regardless of touched paths, and validate-pr is the only required check carrying no job-level if."
+    },
+    {
+      "step": "Added four wiring tests and mutation-tested each one. Deleting the step, switching it to warn mode, adding a job-level if to the host job, and planting a new unjustified pin each fail a distinct test; the warn-mode mutation fails two, which is correct because both the enforce assertion and the warn assertion are load-bearing. The first draft of the warn-mode test read the raw file text and was tripped by the explanatory comment naming warn mode; it was tightened to read parsed run blocks."
+    }
+  ],
+  "endingCommit": "28f31d60b",
+  "nextSteps": [
+    "Open the PR for #2840",
+    "Continue the open-issue campaign"
+  ]
+}

@@ -71,6 +71,7 @@ def tracked_python_files(repo_root: Path) -> list[str] | None:
             ["git", "-C", str(repo_root), "ls-files", "-z", "--", *_SCAN_GLOBS],
             capture_output=True,
             text=True,
+            errors="replace",
             encoding="utf-8",
             check=False,
         )
@@ -152,6 +153,7 @@ def current_count(repo_root: Path) -> int | None:
                 cwd=repo_root,
                 capture_output=True,
                 text=True,
+                errors="replace",
                 encoding="utf-8",
                 check=False,
             )
@@ -186,6 +188,7 @@ def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
             ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
             capture_output=True,
             text=True,
+            errors="replace",
             encoding="utf-8",
             check=False,
         )

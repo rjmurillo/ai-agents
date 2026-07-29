@@ -398,7 +398,6 @@ The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include 
 | **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates | both |
 | **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis | both |
 | **retrospective** | Learning extraction | Actionable insights, skill updates | both |
-| **memory** | Cross-session context | Retrieved knowledge, stored observations | both |
 | **skillbook** | Skill management | Atomic strategy updates | both |
 | **explainer** | PRDs and documentation | Specs, user guides | both |
 | **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |

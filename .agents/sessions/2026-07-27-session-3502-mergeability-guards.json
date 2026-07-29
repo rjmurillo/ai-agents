@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3502,
+    "date": "2026-07-27",
+    "branch": "fix/3502-mergeability-guards",
+    "startingCommit": "734cc457e",
+    "objective": "Fix issue #3502: make PR check reporting mergeability-aware, register merge drivers for runner merges, close fresh-clone registration gaps, and document the GitHub merge-ref limitation."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3502-mergeability-guards after worktree creation"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "AGENTS.md and loaded rule mirrors were present in session context; path-specific Python, testing, generated-artifact, CI, security, and plugin-version rules were read with view"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git fetch origin main completed; worktree created from origin/main at 734cc457e"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "User explicitly required gh issue view 3502 --comments as the first action. Handoff remained untouched and was not needed for issue-scoped work."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/3502-mergeability-guards"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena initial_instructions returned success before code work."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena initial_instructions returned the tool usage manual"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No usage-mandatory memory tool was available in this Copilot CLI session. Issue body and comments supplied the task context."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No durable new memory was needed. The durable merge-ref limitation was recorded beside the .gitattributes driver entry."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 --no-globs README.md CONTRIBUTING.md completed during final validation"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Changes committed in atomic commits with conventional subjects and Co-authored-by trailers"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Targeted pytest, ruff, workflow validation, plugin version validation, merge reproduction, markdownlint, security scan, and session validation were run; see workLog evidence."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3502 assigned to @me; no out-of-scope defect required a new issue"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not warranted; this was a bounded bug fix with tests and documentation"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #3502 and all comments with gh issue view 3502 --comments. The later owner comment changed the runner interpretation: plain runner registration is unsafe if it executes PR-controlled driver code with BOT_PAT in scope."
+    },
+    {
+      "step": "Captured the pre-fix live PR check proof on PR #3478: get_pr_checks.py returned exit 0 and AllPassing true without any MergeState fields."
+    },
+    {
+      "step": "Added red tests for MergeState propagation, CONFLICTING and UNKNOWN fail-closed behavior, and exit code 1 when checks pass but the merge ref is unusable. Initial targeted run: 5 failed, 77 passed."
+    },
+    {
+      "step": "Extended get_pr_checks.py to query mergeable and mergeStateStatus, emit MergeState, MergeStateStatus, MergeRefUsable, and MergeStateWarning, and return exit 1 when the merge ref is CONFLICTING, DIRTY, or UNKNOWN."
+    },
+    {
+      "step": "Added a trusted-copy mode to install_merge_drivers.py. CI registration copies the stdlib-only driver under the git common dir before checkout, then registers that copy so PR-controlled branches cannot replace the command run during merge."
+    },
+    {
+      "step": "Registered merge drivers inside resolve_pr_conflicts.py before local merges. Runner mode uses trusted-copy registration before checkout. Worktree mode registers before creating the merge worktree."
+    },
+    {
+      "step": "Registered trusted merge drivers in pr-maintenance.yml before its inline git merge steps. Workflow validation passed with the pre-existing ADR-006 size warning."
+    },
+    {
+      "step": "Closed the local-developer gap by running install_merge_drivers.py in bootstrap-vm.sh, documenting it in README.md and CONTRIBUTING.md setup, and adding a pre-push lefthook job so a missing driver self-heals or fails before push."
+    },
+    {
+      "step": "Recorded the GitHub merge-ref limitation in .gitattributes next to the causal graph driver. GitHub backend merge refs cannot use local git config or execute repository setup code; durable fixes are stop committing, shard, regenerate after merge, or accept merge-queue conflict handling."
+    },
+    {
+      "step": "Reproduced the merge-driver failure and fix with one constructed pair of commits: no driver produced CONFLICT and exit 1; installer and CI trusted-copy modes both merged cleanly to tree ff22fdb31d6953a85b089406d53f44498e246e73 with nodes feature, main, shared."
+    },
+    {
+      "step": "Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files."
+    }
+  ],
+  "endingCommit": "1d8da02a26",
+  "nextSteps": [
+    "Issue #3502 should close with this PR. Environment 2 remains an architectural owner decision because a merge driver cannot run inside GitHub's merge-ref backend.",
+    "Low-check-count heuristic was not added because this repository has no stable in-script measured baseline for normal check count. The mergeability signal is deterministic and cheaper to enforce."
+  ]
+}

@@ -338,6 +338,8 @@ def _get_staged_files() -> list[str]:
             ["git", "diff", "--cached", "--name-status"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
         return result.stdout.strip().splitlines()
