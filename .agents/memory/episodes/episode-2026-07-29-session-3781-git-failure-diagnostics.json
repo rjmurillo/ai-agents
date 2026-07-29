@@ -1,0 +1,135 @@
+{
+  "id": "episode-2026-07-29-session-3781-git-failure-diagnostics",
+  "session": "2026-07-29-session-3781-git-failure-diagnostics",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Stop two gates from turning a git failure into a confident wrong answer. is_safe_file_path silently swapped its path-traversal containment base to the working directory whenever git could not be asked, and three readers in validate_review_marker discarded git's own diagnostic so the ship gate reported a generic cause.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3781. get_repo_root returns None for two unrelated reasons: there is no repository, and git could not be asked. is_safe_file_path collapsed both into a fallback to os.getcwd(). The containment check then answered a question nobody asked, namely is this path under the current directory, instead of is this path inside the repository. The false accept is the dangerous half: a process running outside the repo with git failing accepted any path under its working directory.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Considered and rejected three cheaper designs. Failing closed on every None would have broken the legitimate no-repository case that assert_valid_body_file depends on. Walking up for a .git marker would have created a second implementation of git's own discovery rules, a DRY violation in a security path. Logging a warning would have left the false accept in place.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added resolve_repo_root, which returns (root, reason) with reason in {ok, not-a-repo, git-failed}, and reduced get_repo_root to a one-line wrapper over it. Zero callers change: the None contract is preserved for all 40-odd existing call sites, and only the security check reads the reason.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discriminating not-a-repo from git-failed uses git's own message rather than a reimplementation of its discovery. Git localizes fatal messages, so the probe pins LC_ALL=C to make the substring deterministic while preserving the rest of the inherited environment. Any failure whose stderr does not carry that message is treated as git-failed, so an unrecognized error fails closed rather than being guessed at.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified live before writing tests: inside the repo resolve_repo_root returns (repo path, ok); from a temp directory it returns (None, not-a-repo).",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested four guards for #3781. Restoring the conflated fallback fails 1 test, removing the LC_ALL pin fails 2, reading any non-zero exit as not-a-repo fails 2, and reading the exception arms as not-a-repo fails 3. One test I had written, asserting the false-reject case from a subdirectory, survived every mutation because both the old and new code return False there; the fix changes the reason, not the value. It detected nothing, so I deleted it and kept the reasoning in a code comment.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3782. Overturned the count in the issue body. It says two of three readers discard the diagnostic. Measured: three of four. read_marker_values, read_parent_shas and resolve_tree_sha all drop it; only resolve_sha_with_error preserves it. The third, resolve_tree_sha, feeds the generic message git could not compare commit trees.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Changed all three readers to return (value, error), matching the pattern resolve_sha_with_error already established in the same file, rather than adding a parallel set of _with_error variants. Each reader has exactly one production caller, so the signature change is contained to this module. Added _with_reason to format the outcome message once instead of at four call sites.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested five guards for #3782. Dropping the stderr in each of the three readers fails exactly one test each; making _with_reason never append fails 4; making it append unconditionally fails 1, which is the empty-stderr edge case that would otherwise produce a message ending in a dangling colon.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-synced both plugin mirrors. scripts/github_core and scripts/validation/validate_review_marker.py are canonical; scripts/sync_plugin_lib.py propagates to .claude/ and build/scripts/build_all.py propagates on to src/copilot-cli/. Bumped both plugin manifests from 0.6.230 to 0.6.231 and confirmed parity.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
