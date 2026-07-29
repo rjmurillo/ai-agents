@@ -100,10 +100,15 @@ Entry-to-manifest equality is **not** gated, and the docstring says so and why.
 
 ## Operational facts
 
-- The pattern is a count token, digits or spelled out, then at most **two**
-  intervening words, then a **plural** component noun. Both bounds are pinned by
-  tests: two words must match (`25 specialized agent definitions`), three must
-  not. "one" is excluded because "one of the skills" is prose.
+- The pattern is a count token, digits or spelled out, then at most **three**
+  intervening words, then a component noun that may be **singular or plural**.
+  Both bounds are pinned by tests: three words must match (`12 production-ready
+  specialized review agents`), four must not. Singular is accepted because the
+  count is what goes stale, not the grammar (`1 agent`, `25-agent toolkit`).
+  `one` is in the token set; only the partitive `one of the skills` is excluded,
+  by a `(?!of\b)` guard on the intervening words rather than by dropping the
+  token. The separator between all of these is `[-\s]+`, so a hyphen reads as a
+  word break and `twenty-odd agents` is a count.
 - Dropping source resolution deleted the whole path-traversal, `pluginRoot`, and
   containment surface. There is no longer any path built from marketplace input.
 - `_read_manifest` catches `(OSError, UnicodeDecodeError, ValueError,
