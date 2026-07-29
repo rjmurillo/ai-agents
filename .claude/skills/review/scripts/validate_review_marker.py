@@ -59,8 +59,6 @@ MARKER_TRAILER_KEY = "Reviewed-By"
 _MARKER_VALUE_RE = re.compile(
     r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on "
     r"(?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
-    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*)"
-    r" on (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
 
 
