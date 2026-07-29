@@ -1756,3 +1756,45 @@ class TestMirrorParity:
             "src/copilot-cli/lib/github_core/bot_config.py",
         ):
             assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror
+
+
+# ---------------------------------------------------------------------------
+# Captured-text decoding across github_core
+# ---------------------------------------------------------------------------
+
+
+class TestCapturedTextDecoding:
+    """Every captured-text reader in this package pins its codec.
+
+    Without an explicit ``encoding`` Python decodes with the locale's
+    preferred codec, so a cp1252 or cp932 runner turns the same bytes into
+    different characters without raising. `gh` emits raw UTF-8 and `git`
+    emits raw filesystem bytes, so both readers are exposed.
+    """
+
+    def test_rate_limit_pins_utf8(self):
+        from scripts.github_core import rate_limit
+
+        with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)) as run:
+            rate_limit._fetch_rate_limit()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert run.call_args.kwargs.get("errors") == "replace"
+
+    def test_repo_root_pins_utf8(self, tmp_path: Path):
+        from scripts.github_core import repo
+
+        with patch(
+            "subprocess.run", return_value=_completed(stdout=str(tmp_path))
+        ) as run:
+            repo.get_repo_root()
+        assert run.call_args.kwargs.get("encoding") == "utf-8"
+        assert run.call_args.kwargs.get("errors") == "replace"
+
+    def test_repo_root_survives_a_non_ascii_path(self, tmp_path: Path):
+        """The repo root seeds every derived path, so a mojibake read is load-bearing."""
+        from scripts.github_core import repo
+
+        root = tmp_path / "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8"
+        root.mkdir()
+        with patch("subprocess.run", return_value=_completed(stdout=f"{root}\n")):
+            assert repo.get_repo_root() == root
