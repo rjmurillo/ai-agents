@@ -4,7 +4,7 @@
 
 Memory search performance benchmarking tool for measuring Serena (lexical) and Forgetful (semantic) search latency.
 
-**Script**: `scripts/measure_memory_performance.py`
+**Script**: `.claude/skills/memory/scripts/measure_memory_performance.py`
 
 **Task**: M-008 (Phase 2A Memory System)
 
@@ -14,18 +14,18 @@ Memory search performance benchmarking tool for measuring Serena (lexical) and F
 
 ```bash
 # Run default benchmarks (8 queries, 5 iterations each)
-python3 scripts/measure_memory_performance.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"
 
 # Custom queries with more iterations
-python3 scripts/measure_memory_performance.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" \
     --queries "PowerShell arrays" "git hooks" \
     --iterations 10
 
 # Markdown report for documentation
-python3 scripts/measure_memory_performance.py > benchmark-report.md
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" > benchmark-report.md
 
 # JSON output for programmatic analysis
-python3 scripts/measure_memory_performance.py --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --format json
 ```
 
 ## Usage
@@ -34,7 +34,7 @@ python3 scripts/measure_memory_performance.py --format json
 
 ```bash
 # No import required - script is self-contained
-python3 scripts/measure_memory_performance.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"
 
 # Console output shows progress and results:
 # === Memory Performance Benchmark (M-008) ===
@@ -57,7 +57,7 @@ python3 scripts/measure_memory_performance.py
 
 ```bash
 # Define domain-specific queries
-python3 scripts/measure_memory_performance.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" \
     --queries \
         "PowerShell module patterns" \
         "Git pre-commit validation" \
@@ -70,7 +70,7 @@ python3 scripts/measure_memory_performance.py \
 
 ```bash
 # Skip Forgetful benchmarks (useful when MCP unavailable)
-python3 scripts/measure_memory_performance.py --serena-only
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --serena-only
 ```
 
 ### Output Formats
@@ -407,12 +407,12 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8020/health
 
 ```bash
 # Baseline measurement
-python3 scripts/measure_memory_performance.py --format json > baseline.json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --format json > baseline.json
 
 # ... apply optimization ...
 
 # Post-optimization measurement
-python3 scripts/measure_memory_performance.py --format json > optimized.json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --format json > optimized.json
 
 # Compare results
 python3 -c "
@@ -428,7 +428,7 @@ print(f'Serena improvement: {improvement}%')
 
 ```bash
 # Run with more iterations for statistical analysis
-python3 scripts/measure_memory_performance.py --iterations 20 --format json > results.json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --iterations 20 --format json > results.json
 
 python3 -c "
 import json, math
@@ -453,7 +453,7 @@ LOG_FILE="benchmark-history.jsonl"
 
 while true; do
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S")
-    RESULT=$(python3 scripts/measure_memory_performance.py --format json)
+    RESULT=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --format json)
 
     echo "$RESULT" | python3 -c "
 import sys, json
@@ -497,7 +497,7 @@ done
 
 ### Script Configuration
 
-Edit `scripts/measure_memory_performance.py` to customize:
+Edit `.claude/skills/memory/scripts/measure_memory_performance.py` to customize:
 
 ```python
 # Default queries
