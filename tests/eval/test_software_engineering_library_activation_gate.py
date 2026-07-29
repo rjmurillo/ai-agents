@@ -265,6 +265,7 @@ class TestValuesThatBecomeArgvAreNumericByContract:
 
         assert len(commands) == 1
         assert commands[0][:5] == ["gh", "issue", "comment", "3701", "--body-file"]
+        assert len(commands[0]) == 6
         assert Path(commands[0][5]).name == "comment-body.md"
 
     def test_no_call_hands_a_string_to_a_shell(self):
