@@ -2507,8 +2507,8 @@ def _win32_last_error() -> str:
 def _durable_replace(source: Path, destination: Path) -> None:
     """Move `source` onto `destination` so the entry survives a power cut.
 
-    Atomicity and durability are different guarantees and both callers need
-    the second one. Atomicity says no reader sees a half-written entry.
+    Atomicity and durability are different guarantees, and this function
+    exists for the second one. Atomicity says no reader sees a half-written entry.
     Durability says the entry is still there after the host loses power. The
     consultation ledger charges before it scores precisely so a crash cannot
     hand back a look for free, and a charge a crash can erase defeats that
