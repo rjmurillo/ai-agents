@@ -181,3 +181,25 @@ def escaped_newline_body_error(body: str) -> str | None:
         "every heading, list and table. Write the body to a file and pass "
         "--body-file, which cannot express this error."
     )
+
+
+def inline_body_error(body: str | None) -> str | None:
+    """Return the first problem with an inline ``--body``, or None.
+
+    Every skill script that accepts ``--body`` has to reject the same two
+    shapes: a body that is empty or whitespace-only, and a body whose line
+    breaks are literal backslash-n (see
+    :func:`escaped_newline_body_error`). Keeping both checks here means a
+    caller spends one branch instead of two, which matters because the
+    ``main`` functions that host them are already past the complexity
+    ceiling and carry a ``noqa: C901``.
+
+    Args:
+        body: The inline body text as received from the caller.
+
+    Returns:
+        An operator-facing message, or None when the body is usable.
+    """
+    if not body or not body.strip():
+        return "Body cannot be empty."
+    return escaped_newline_body_error(body)
