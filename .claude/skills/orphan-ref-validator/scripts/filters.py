@@ -145,15 +145,12 @@ KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
 })
 
 
-<<<<<<< HEAD
 METASYNTACTIC_PLACEHOLDERS: frozenset[str] = frozenset({
     # Conventional placeholder names used while documenting scanner syntax.
     # They remain non-candidates even when nearby prose says "skill" because
     # `Skill: `x`` describes the route grammar, not a real skill reference.
     "x", "y", "foo", "bar", "baz", "name",
 })
-||||||| 87b11766
-=======
 def is_known_retired_kebab_skill(token: str) -> bool:
     """Return True if a hyphenated token names a retired or renamed skill.
 
@@ -163,7 +160,6 @@ def is_known_retired_kebab_skill(token: str) -> bool:
     ``is_known_single_word_skill``.
     """
     return token in KNOWN_RETIRED_KEBAB_SKILLS
->>>>>>> origin/main
 
 
 def is_known_single_word_skill(token: str) -> bool:

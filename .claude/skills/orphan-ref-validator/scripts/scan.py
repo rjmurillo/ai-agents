@@ -88,17 +88,8 @@ if __package__ in (None, ""):
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
-    )
-<<<<<<< HEAD
-    from filters import (
-        is_known_kebab_word,
-        is_known_single_word_skill,
         is_metasyntactic_placeholder,
     )
-||||||| 87b11766
-    from filters import is_known_kebab_word, is_known_single_word_skill
-=======
->>>>>>> origin/main
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
@@ -133,17 +124,8 @@ else:
         is_known_kebab_word,
         is_known_retired_kebab_skill,
         is_known_single_word_skill,
-    )
-<<<<<<< HEAD
-    from .filters import (
-        is_known_kebab_word,
-        is_known_single_word_skill,
         is_metasyntactic_placeholder,
     )
-||||||| 87b11766
-    from .filters import is_known_kebab_word, is_known_single_word_skill
-=======
->>>>>>> origin/main
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
