@@ -431,28 +431,38 @@ def _subprocess_names(
     # which makes the work linear in the size of the file. A repeated sweep is
     # quadratic instead, and measurably so: a reverse-ordered chain of 2000
     # bindings took 0.41 seconds that way.
+    # Bindings that share a value node are read together. A left side that
+    # does not line up with the right side pairs every name with the whole of
+    # it, so one node can be shared by thousands of names, and reading it once
+    # per name is quadratic: 4000 names took 17.76 seconds that way. Every
+    # name in a group reads the same node, so one read answers for all of them.
     bindings = _bindings(tree)
     containers = _containers(tree, bindings)
+    groups: dict[int, tuple[ast.expr, list[str]]] = {}
+    for name, value in bindings:
+        groups.setdefault(id(value), (value, []))[1].append(name)
+
     dependents: dict[str, list[int]] = {}
-    for index, (_, value) in enumerate(bindings):
+    for key, (value, _) in groups.items():
         for free in {
             node.id for node in ast.walk(value) if isinstance(node, ast.Name)
         }:
-            dependents.setdefault(free, []).append(index)
+            dependents.setdefault(free, []).append(key)
 
-    queue = list(range(len(bindings)))
+    queue = list(groups)
     while queue:
-        name, value = bindings[queue.pop()]
-        # The first binding of a name wins. That is what bounds the queue, and
-        # it is why a name rebound to an unrelated callable keeps reading as a
-        # subprocess entry point.
-        if name in functions:
-            continue
+        value, names = groups[queue.pop()]
         resolved = _resolve_callable(value, modules, functions, containers)
         if resolved is None:
             continue
-        functions[name] = resolved
-        queue.extend(dependents.get(name, ()))
+        for name in names:
+            # The first binding of a name wins. That is what bounds the queue,
+            # and it is why a name rebound to an unrelated callable keeps
+            # reading as a subprocess entry point.
+            if name in functions:
+                continue
+            functions[name] = resolved
+            queue.extend(dependents.get(name, ()))
     return modules, functions, containers
 
 
@@ -984,6 +994,11 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "unpacking a name of unknown shape may hand it to either side",
         ),
         (
+            'import subprocess\nrunners = [subprocess.run, subprocess.run]\n'
+            'a, b = runners\nb(["x"], capture_output=True, text=True)',
+            "every name on the left of an unknown shape carries the same answer",
+        ),
+        (
             'import subprocess\nclass C:\n    def __init__(self):\n'
             '        self.run = subprocess.run\n'
             'C().run(["x"], capture_output=True, text=True)',
@@ -1114,6 +1129,31 @@ def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
 
     assert flagged, "a chain of any depth still reaches a subprocess entry point"
     assert elapsed < 10.0, f"name resolution took {elapsed:.1f}s for {depth} bindings"
+
+
+def test_unpacking_a_wide_container_stays_linear() -> None:
+    """One value shared by many names must be read once, not once per name.
+
+    A left side that does not line up with the right side pairs every name
+    with the whole of it, so ``width`` bindings share a single value node.
+    Reading that node once per binding walks the same subtree ``width`` times,
+    which is quadratic and measurably so: 4000 names took 17.76 seconds.
+
+    Grouping the bindings that share a value node bounds the work at one read
+    per node. Nothing here resolves, which is the point: the cost has to stay
+    bounded even when no answer is ever found.
+    """
+    width = 4000
+    names = ", ".join(f"a{index}" for index in range(width))
+    values = ", ".join(f"b{index}" for index in range(width))
+    source = f"import subprocess\n{names} = {{{values}}}\n"
+
+    started = time.perf_counter()
+    flagged = unpinned_lines(source)
+    elapsed = time.perf_counter() - started
+
+    assert flagged == [], "no call is made, so nothing can decode"
+    assert elapsed < 3.0, f"unpacking took {elapsed:.1f}s for {width} names"
 
 
 @pytest.mark.parametrize(
