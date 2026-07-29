@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-07-29-session-3779",
+  "session": "2026-07-29-session-3779",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make taste-lints error severity enforceable: add a whole-tree error-count ratchet to CI and stop the pre-commit hook from swallowing linter crashes (issue #3779).",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 13
+  },
+  "lessons": []
+}

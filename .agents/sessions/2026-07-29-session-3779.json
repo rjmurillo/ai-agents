@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3779,
+    "date": "2026-07-29",
+    "branch": "fix/3779-taste-error-ratchet",
+    "startingCommit": "653190a45",
+    "objective": "Make taste-lints error severity enforceable: add a whole-tree error-count ratchet to CI and stop the pre-commit hook from swallowing linter crashes (issue #3779)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3779-taste-error-ratchet"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3779-taste-error-ratchet"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "653190a45"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "See PR for issue #3779; tests/ci 440 passed, lefthook 506 passed, 11/11 mutants caught."
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}

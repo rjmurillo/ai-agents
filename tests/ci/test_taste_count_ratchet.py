@@ -1,0 +1,293 @@
+"""Tests for the whole-repo taste-lint error-count ratchet (issue #3779)."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from scripts.ci import count_ratchet
+from scripts.ci import taste_count_ratchet as ratchet
+
+
+def _report(error_count: int) -> str:
+    return json.dumps(
+        {
+            "files_scanned": 1,
+            "files_by_category": {"authored": 1},
+            "error_count": error_count,
+            "warning_count": 0,
+            "violations": [],
+        }
+    )
+
+
+def _fake_scan(
+    returncode: int,
+    error_count: int,
+    *,
+    tracked: tuple[str, ...] = ("pkg/mod.py",),
+    git_returncode: int = 0,
+    base_baseline: str | None = None,
+    lint_stdout: str | None = None,
+):
+    """subprocess.run stand-in for every leg of the scan.
+
+    ``git ls-files -z`` returns ``tracked`` NUL-joined; ``git show`` returns
+    ``base_baseline``; every linter invocation returns a report carrying
+    ``error_count`` unless ``lint_stdout`` overrides it. The report is emitted
+    once per linter call, so a multi-batch expectation must size ``tracked``
+    accordingly.
+    """
+
+    def _run(cmd, **kwargs):
+        if cmd[0] == "git" and "show" in cmd:
+            rc = 0 if base_baseline is not None else 128
+            return subprocess.CompletedProcess(
+                cmd, rc, stdout=(base_baseline or ""), stderr=""
+            )
+        if cmd[0] == "git":
+            stdout = "\0".join(tracked) + ("\0" if tracked else "")
+            return subprocess.CompletedProcess(cmd, git_returncode, stdout=stdout, stderr="")
+        stdout = lint_stdout if lint_stdout is not None else _report(error_count)
+        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
+
+    return _run
+
+
+def _write_baseline(tmp_path: Path, value: str) -> Path:
+    path = tmp_path / "taste_count_baseline.txt"
+    path.write_text(value, encoding="utf-8")
+    return path
+
+
+def test_count_equal_to_baseline_passes(tmp_path, monkeypatch, capsys):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_OK
+    # Holding steady is not an improvement. Reporting "improved 615 -> 615
+    # (-0)" would read as progress on a run that made none.
+    out = capsys.readouterr().out
+    assert "OK (count == baseline 615)" in out
+    assert "improved" not in out
+
+
+def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 616))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_REGRESSION
+
+
+def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_OK
+    assert baseline.read_text(encoding="utf-8").strip() == "615"
+
+
+def test_update_lowers_the_baseline(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
+    rc = ratchet.main(
+        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
+    )
+    assert rc == ratchet.EXIT_OK
+    assert baseline.read_text(encoding="utf-8").strip() == "600"
+
+
+def test_update_cannot_raise_the_baseline(tmp_path, monkeypatch):
+    # --update only ever lowers. A run that found more violations is a
+    # regression, and writing the higher number would launder the debt.
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 700))
+    rc = ratchet.main(
+        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
+    )
+    assert rc == ratchet.EXIT_REGRESSION
+    assert baseline.read_text(encoding="utf-8").strip() == "615"
+
+
+def test_a_raised_baseline_fails_against_the_base_ref(tmp_path, monkeypatch):
+    # The gate a PR would otherwise walk around: bump the baseline in the same
+    # commit that adds the violations and the count check passes.
+    baseline = _write_baseline(tmp_path, "700")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 700, base_baseline="615"))
+    rc = ratchet.main(
+        [
+            "--baseline",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+            "--base-ref",
+            "FETCH_HEAD",
+        ]
+    )
+    assert rc == ratchet.EXIT_REGRESSION
+
+
+def test_a_lowered_baseline_passes_against_the_base_ref(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "600")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600, base_baseline="615"))
+    rc = ratchet.main(
+        [
+            "--baseline",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+            "--base-ref",
+            "FETCH_HEAD",
+        ]
+    )
+    assert rc == ratchet.EXIT_OK
+
+
+def test_unreadable_base_ref_is_an_external_error(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615, base_baseline=None))
+    rc = ratchet.main(
+        [
+            "--baseline",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+            "--base-ref",
+            "FETCH_HEAD",
+        ]
+    )
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_missing_baseline_is_a_config_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615))
+    rc = ratchet.main(
+        ["--baseline", str(tmp_path / "absent.txt"), "--repo-root", str(tmp_path)]
+    )
+    assert rc == ratchet.EXIT_CONFIG
+
+
+def test_malformed_baseline_is_a_config_error(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "six hundred")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_CONFIG
+
+
+def test_git_failure_is_an_external_error(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 615, git_returncode=128))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_a_crashed_linter_is_not_a_clean_tree(tmp_path, monkeypatch):
+    """The failure mode that would disarm this gate permanently.
+
+    taste_lints.py exits 1 on a script error. If that were read as a count of
+    zero, the ratchet would report a 615-violation improvement, and a run with
+    --update would write 0 into the baseline. Nothing after that could ever
+    fail. So a non-scan exit code must be an external error, not a count.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 0, lint_stdout=""))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_a_crashed_linter_that_still_printed_a_report_is_rejected(tmp_path, monkeypatch):
+    """Isolating control for the exit-code guard specifically.
+
+    The JSON guard alone is not enough. A linter that crashed partway can still
+    have printed a well-formed report covering the files it managed to read,
+    and that report's count is not the tree's count. Only the exit code says
+    whether the scan finished, so it has to be checked on its own.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 0, lint_stdout=_report(0)))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_a_clean_exit_is_a_real_zero(tmp_path, monkeypatch):
+    # Exit 0 means the lint ran and found nothing. Unlike exit 1 it is a
+    # trustworthy count and must be accepted, or a genuinely clean tree could
+    # never lower the baseline.
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(0, 0))
+    rc = ratchet.main(
+        ["--baseline", str(baseline), "--repo-root", str(tmp_path), "--update"]
+    )
+    assert rc == ratchet.EXIT_OK
+    assert baseline.read_text(encoding="utf-8").strip() == "0"
+
+
+def test_unparseable_report_is_an_external_error(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 0, lint_stdout="not json"))
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_report_without_an_integer_count_is_an_external_error(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(
+        subprocess, "run", _fake_scan(10, 0, lint_stdout=json.dumps({"violations": []}))
+    )
+    rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+def test_counts_are_summed_across_batches(tmp_path, monkeypatch):
+    # 7,500 tracked paths do not fit one argv, so the scan is chunked and each
+    # batch reports its own count. Reading only the last would undercount.
+    tracked = tuple(f"{'p' * 200}/{index}.py" for index in range(400))
+    batches = len(count_ratchet.chunk(list(tracked)))
+    assert batches > 1, "fixture must span more than one batch to test summing"
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 1, tracked=tracked))
+    assert ratchet.current_count(tmp_path) == batches
+
+
+def test_an_empty_tracked_set_counts_zero(tmp_path, monkeypatch):
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 5, tracked=()))
+    assert ratchet.current_count(tmp_path) == 0
+
+
+def test_every_tracked_path_is_offered_to_the_linter(tmp_path, monkeypatch):
+    """Scope is the whole tracked set, not a suffix-filtered subset.
+
+    ``run_lint`` already skips anything outside its scannable-extension set.
+    Filtering here would duplicate that list and let the two drift, so a PR
+    adding a new scannable extension to the linter would silently stay
+    unratcheted.
+    """
+    seen: list[list[str]] = []
+
+    def _run(cmd, **kwargs):
+        seen.append(list(cmd))
+        if cmd[0] == "git":
+            return subprocess.CompletedProcess(cmd, 0, stdout="a.md\0b.py\0", stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout=_report(0), stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    ratchet.current_count(tmp_path)
+    assert seen[0][seen[0].index("--") + 1 :] == ["*"]
+    assert seen[1][-2:] == ["a.md", "b.py"]
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_the_shipped_baseline_matches_the_tracked_tree():
+    """The baseline must describe this repository, not a stale snapshot.
+
+    A baseline above the real count is dead allowance: violations could be
+    added up to the gap without the gate noticing. A baseline below it means
+    main is already red.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    baseline_path = repo_root / "scripts" / "ci" / "taste_count_baseline.txt"
+    baseline = int(baseline_path.read_text(encoding="utf-8").strip())
+    assert ratchet.current_count(repo_root) == baseline
