@@ -1156,6 +1156,54 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     assert _git_porcelain(repo) == "", "--check left working tree dirty"
 
 
+def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
+    tmp_path: Path,
+) -> None:
+    """A --check round trip must not evict caches it did not create.
+
+    ``_snapshot_owned_prefixes`` excludes bytecode only when
+    ``exclude_ignored`` is set, because ``_restore_owned_prefixes`` deletes
+    every on-disk path the snapshot does not name. Filtering bytecode on the
+    restore path would delete pre-existing ``__pycache__`` on every --check,
+    forcing the next run to recompile inside the guard's snapshot window:
+    the same race issue #3856 closes.
+    """
+    repo = tmp_path / "repo"
+    cache = repo / ".github" / "instructions" / "pkg" / "__pycache__"
+    cache.mkdir(parents=True)
+    pyc = cache / "mod.cpython-314.pyc"
+    pyc.write_bytes(b"PREEXISTING")
+    sibling = repo / ".github" / "instructions" / "rule-x.md"
+    sibling.write_text("committed A\n")
+
+    snapshot = build_all._snapshot_owned_prefixes(repo, build_all.OWNED_PREFIXES)
+    assert pyc in snapshot, "restore-path snapshot dropped pre-existing bytecode"
+
+    build_all._restore_owned_prefixes(repo, build_all.OWNED_PREFIXES, snapshot)
+
+    assert pyc.is_file(), "--check restore deleted a cache it did not create"
+    assert pyc.read_bytes() == b"PREEXISTING"
+    assert sibling.read_text() == "committed A\n"
+
+
+def test_guard_snapshot_still_excludes_bytecode(tmp_path: Path) -> None:
+    """The comparison path keeps the exclusion that closes #3856."""
+    repo = tmp_path / "repo"
+    cache = repo / ".claude" / "lib" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "mod.cpython-314.pyc").write_bytes(b"RACE")
+    (repo / ".claude" / "lib" / "mod.py").write_text("x = 1\n")
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert not any(
+        "__pycache__" in p.parts for p in snapshot
+    ), "guard snapshot captured bytecode; #3856 race reopens"
+    assert any(p.name == "mod.py" for p in snapshot)
+
+
 def test_restore_replaces_directory_conflicting_with_snapshot_file(tmp_path: Path) -> None:
     """#2440: restore handles file-to-directory conflicts."""
     repo = tmp_path / "repo"
@@ -1618,4 +1666,126 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
 
     assert build_all.assert_no_claude_writes(repo, baseline) == [
         ".claude/agents/leak.md"
+    ]
+
+
+# --- #3856: bytecode written inside the guard's snapshot window -----------
+#
+# The pre-push hook runs `python-tests` and `build-all-check` in the same
+# lefthook job group with `parallel: true`. Pytest imports .claude/lib, so
+# CPython writes __pycache__/*.pyc while the REQ-003-010 guard is walking
+# the same tree. _ignored_paths() queries git once per snapshot, so a .pyc
+# created after that query still lands in the walk and reads as a generator
+# write. _is_bytecode_artifact() filters on path shape, which no race can
+# invalidate.
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".claude/lib/github_core/__pycache__/__init__.cpython-314.pyc",
+        ".claude/lib/__pycache__/helper.cpython-313.pyc",
+        ".claude/lib/deep/nested/pkg/__pycache__/mod.cpython-314.pyc",
+        ".claude/lib/stray.pyc",
+        ".claude/lib/stray.pyo",
+        ".claude/lib/__pycache__/data.json",
+    ],
+)
+def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
+    """Anything under __pycache__, plus .pyc/.pyo anywhere, is an artifact.
+
+    The rule is path-shaped, not extension-shaped: ``data.json`` inside a
+    ``__pycache__`` directory matches, because tools other than CPython
+    write there too.
+    """
+    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is True
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".claude/agents/leak.md",
+        ".claude/lib/github_core/__init__.py",
+        ".claude/lib/pycache.py",
+        ".claude/lib/my__pycache__file.py",
+        ".claude/lib/notes.pyc.md",
+        ".claude/skills/x/SKILL.md",
+    ],
+)
+def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
+    """Paths that only resemble a cache are not artifacts.
+
+    Every case here sits outside a ``__pycache__`` directory and does not
+    end in ``.pyc``/``.pyo``. Being a data file is not itself
+    disqualifying: see the ``__pycache__/data.json`` case above.
+    """
+    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is False
+
+
+def _write_bytecode(pkg: Path) -> Path:
+    """Create a plausible CPython cache file under ``pkg`` and return it."""
+    cache = pkg / "__pycache__"
+    cache.mkdir(exist_ok=True)
+    pyc = cache / "__init__.cpython-314.pyc"
+    pyc.write_bytes(b"\x00bytecode")
+    return pyc
+
+
+def test_snapshot_excludes_bytecode_written_after_the_ignore_query(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#3856: a .pyc created between `git ls-files` and the tree walk must
+    not read as a generator write."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    pkg = repo / ".claude" / "lib" / "github_core"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    real_ignored_paths = build_all._ignored_paths
+
+    def _racing(root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+        # git ls-files runs, THEN the concurrent pytest import writes bytecode.
+        result = real_ignored_paths(root, prefixes)
+        _write_bytecode(pkg)
+        return result
+
+    monkeypatch.setattr(build_all, "_ignored_paths", _racing)
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == []
+
+
+def test_bytecode_filter_does_not_mask_a_concurrent_real_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control for #3856: a non-bytecode file appearing in the same
+    race window is still reported."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    pkg = repo / ".claude" / "lib" / "github_core"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    real_ignored_paths = build_all._ignored_paths
+
+    def _racing(root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+        result = real_ignored_paths(root, prefixes)
+        _write_bytecode(pkg)
+        (repo / ".claude" / "lib" / "leak.md").write_text(
+            "generated", encoding="utf-8"
+        )
+        return result
+
+    monkeypatch.setattr(build_all, "_ignored_paths", _racing)
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == [
+        ".claude/lib/leak.md"
     ]
