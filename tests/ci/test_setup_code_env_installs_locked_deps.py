@@ -207,3 +207,63 @@ class TestTheActionDelegates:
 
     def test_the_lock_file_the_action_depends_on_exists(self):
         assert (REPO_ROOT / "uv.lock").is_file()
+
+
+class TestTheExportPathCannotBecomeAFlag:
+    """The one externally-set value that reaches argv is the export path.
+
+    Semgrep flags the ``subprocess.run`` calls as command injection. They are
+    list-form with ``shell=False``, so no shell parses them and CWE-78 does not
+    reach: an argument containing ``; id`` is passed through literally. What
+    does survive that argument is CWE-88: ``RUNNER_TEMP`` is read from the
+    environment, and a value starting with ``-`` produces an argv entry shaped
+    like an option rather than a path.
+    """
+
+    @pytest.mark.parametrize(
+        ("runner_temp", "label"),
+        [
+            ("-rf", "a bare flag"),
+            ("--output-file=/etc/passwd", "a long option with a value"),
+            ("-", "a lone dash"),
+        ],
+    )
+    def test_a_flag_shaped_runner_temp_never_reaches_argv(
+        self, tmp_path, uv_calls, monkeypatch, runner_temp, label
+    ):
+        monkeypatch.setenv("RUNNER_TEMP", runner_temp)
+        ild.main([str(_project(tmp_path))])
+        for call in uv_calls():
+            for word in call.split():
+                assert not word.startswith(f"{runner_temp}/"), f"{label}: {call}"
+
+    @pytest.mark.parametrize(
+        ("runner_temp", "label"),
+        [
+            ("", "unset in practice"),
+            ("relative/dir", "not absolute"),
+        ],
+    )
+    def test_an_unusable_runner_temp_falls_back(
+        self, tmp_path, uv_calls, monkeypatch, runner_temp, label
+    ):
+        monkeypatch.setenv("RUNNER_TEMP", runner_temp)
+        ild.main([str(_project(tmp_path))])
+        exports = [c for c in uv_calls() if c.startswith("export ")]
+        assert exports, label
+        assert f"/tmp/{ild.EXPORT_NAME}" in exports[0], label
+
+    def test_an_absolute_runner_temp_is_still_honoured(self, tmp_path, uv_calls, monkeypatch):
+        """The narrowing must not break the real GitHub Actions value."""
+        target = tmp_path / "runner-temp"
+        target.mkdir()
+        monkeypatch.setenv("RUNNER_TEMP", str(target))
+        ild.main([str(_project(tmp_path))])
+        exports = [c for c in uv_calls() if c.startswith("export ")]
+        assert str(target / ild.EXPORT_NAME) in exports[0]
+
+    def test_the_subprocess_calls_stay_shell_free(self):
+        """A shell would make CWE-78 reachable. Hold the list form."""
+        source = SCRIPT.read_text(encoding="utf-8")
+        assert "shell=True" not in source
+        assert "os.system" not in source

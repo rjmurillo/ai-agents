@@ -56,6 +56,29 @@ def run(command: list[str]) -> None:
         sys.exit(completed.returncode)
 
 
+FALLBACK_TEMP = Path("/tmp")
+
+
+def _export_path() -> Path:
+    """Return the lock-export path, refusing a RUNNER_TEMP we cannot vouch for.
+
+    ``RUNNER_TEMP`` is the only externally-set value that reaches argv here.
+    The subprocess calls are list-form with ``shell=False``, so no shell parses
+    them and an argument cannot become a command. What it can become is an
+    option: a value starting with ``-`` yields an argv entry shaped like a flag
+    rather than a path (CWE-88). A relative value is a different failure, an
+    export written somewhere the caller did not intend.
+
+    Neither shape is worth guessing at, so both fall back to ``/tmp``, which is
+    what an unset ``RUNNER_TEMP`` already produced.
+    """
+    raw = os.environ.get("RUNNER_TEMP", "")
+    candidate = Path(raw)
+    if not raw or raw.startswith("-") or not candidate.is_absolute():
+        return FALLBACK_TEMP / EXPORT_NAME
+    return candidate / EXPORT_NAME
+
+
 def main(argv: list[str] | None = None) -> int:
     """Install from the lock, or fall back when there is nothing to lock to."""
     root = Path(argv[0]) if argv else Path.cwd()
@@ -72,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         run(["uv", "pip", "install", "--system", "-e", ".[dev]"])
         return 0
 
-    export = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / EXPORT_NAME
+    export = _export_path()
     run(
         [
             "uv",
