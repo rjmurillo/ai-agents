@@ -13,7 +13,8 @@ so the loop is drivable from a shell or from an agent's tool calls.
     optimize-artifact.py extract --kind agent --input report.json > base.json
     optimize-artifact.py split --results base.json --seed run-7 > split.json
     optimize-artifact.py budget --step 3 --total 12
-    optimize-artifact.py buffer-check --buffer rejected.json --patches p.json
+    optimize-artifact.py buffer-check --buffer rejected.json --patches p.json \\
+        --artifact target.md
     optimize-artifact.py apply --file target.md --patches p.json --budget 3
     # rerun the real scorer here, then extract its output to cand.json
     optimize-artifact.py gate --incumbent base.json --candidate cand.json \\
@@ -41,13 +42,15 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import os
 import re
+import stat
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from pathlib import Path
@@ -56,13 +59,24 @@ from typing import Any, NamedTuple, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _optimizer_adapters import (  # noqa: E402
+    _DEFAULT_REDUCER,
+    _DEFAULT_SAMPLE_REDUCER,
+    _DEFAULT_SKIP_POLICY,
+    _MAX_PASS_RATE,
+    _MAX_RULE_SCORE,
+    _REDUCERS,
+    _RULE_SCORE_KEYS,
+    _SKIP_POLICIES,
+    DEFAULT_MIN_ACTIVATION_SCORE,
     AdapterError,
     agent_results,
     pytest_results,
-    rule_results,
+    rule_results_multi,
 )
 from _optimizer_core import (  # noqa: E402
     Patch,
+    ScoreEvidence,
+    _ratio_display,
     apply_patches,
     buffer_contains,
     edit_budget,
@@ -101,9 +115,53 @@ def _emit(payload: object) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+class _DuplicateKeyError(ValueError):
+    """A JSON object stated the same key more than once.
+
+    Subclasses ValueError so `_corpus_header`, which promises to answer None
+    on any content problem, keeps that promise without naming this class.
+    """
+
+    def __init__(self, keys: list[str]) -> None:
+        self.keys = keys
+        super().__init__(f"duplicate JSON key(s): {', '.join(keys)}")
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build an object, refusing any key the document states more than once.
+
+    `json.loads` keeps the last value for a repeated key and reports nothing,
+    so `{"t0": false, "t0": true}` becomes `{'t0': True}`. Every validator
+    downstream then inspects a mapping the file does not contain: a repeated
+    verdict cannot be seen by `_checked_verdicts`, and the gate divides by a
+    denominator that never held the discarded task.
+
+    Two facts entering one key is the same defect as two rules rendering one
+    task id, and it gets the same answer. The gate refuses input it cannot
+    measure rather than picking a winner from a document that states both.
+    """
+    seen: dict[str, Any] = {}
+    repeated: list[str] = []
+    for key, value in pairs:
+        if key in seen:
+            repeated.append(key)
+        seen[key] = value
+    if repeated:
+        raise _DuplicateKeyError(sorted(set(repeated)))
+    return seen
+
+
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
+        )
+    except _DuplicateKeyError as exc:
+        raise ConfigError(
+            f"{path} repeats the key(s) {', '.join(repr(k) for k in exc.keys)} "
+            "inside one object; the decoder would keep only the last value, so "
+            "the document states more than one thing and cannot be measured"
+        ) from exc
     except FileNotFoundError as exc:
         raise ConfigError(f"no such file: {path}") from exc
     except UnicodeDecodeError as exc:
@@ -123,6 +181,53 @@ def _read_json(path: Path) -> object:
         raise ConfigError(f"{path} is nested too deeply to parse") from exc
     except OSError as exc:
         raise ConfigError(f"could not read {path}: {exc}") from exc
+
+
+def _absent(path: Path) -> bool:
+    """Whether `path` genuinely does not exist.
+
+    `Path.exists()` cannot answer this. It returns False when the file is
+    absent and also when whether it is absent is unknowable, because it
+    swallows every `OSError` from `stat` and reports the same False. Callers
+    that read that False as "nothing recorded yet" are right for the first
+    case and quietly wrong for the second: an unreadable rejection buffer
+    reads as an empty one, which un-rejects every patch in it, and an
+    unreadable ledger reads as an unspent budget.
+
+    Absence is asked of the directory entry with `lstat`, not of the target
+    with `stat`. A symlink is an entry that exists, and state readers reject
+    it rather than following it. A dangling buffer link un-rejects every patch
+    recorded in it, and a dangling ledger link resets the consultation budget.
+    A live symlink has the same integrity problem because the later atomic
+    write replaces the link itself rather than updating the target the operator
+    thought held state.
+
+    Only `FileNotFoundError` means absent. Everything else is a config error,
+    which is what `_read_json` already does one call further in, so the pair
+    now reports one failure one way.
+
+    Existence and entry kind are both read off the one `lstat` result. Asking
+    twice leaves a window between the calls in which the entry can change, so
+    the kind reported would belong to a different entry than the one whose
+    existence was decided.
+    """
+    try:
+        entry = path.lstat()
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        raise ConfigError(f"could not read {path}: {exc}") from exc
+    if stat.S_ISLNK(entry.st_mode):
+        target = "an unreadable target"
+        # readlink can fail if the entry changes underneath this handler, and
+        # an OSError raised inside it would escape `main`, which does not catch
+        # OSError, and exit 1. Exit 1 is the reject verdict.
+        with suppress(OSError):
+            target = os.readlink(path)
+        raise ConfigError(
+            f"{path} is a symlink to {target}: state paths must be real files"
+        )
+    return False
 
 
 def _read_text(path: Path) -> str:
@@ -170,9 +275,29 @@ class ResultsFile(NamedTuple):
 
     results: dict[str, bool]
     corpus: str | None
+    provenance: dict[str, Any]
 
 
 _RESULTS_SCHEMA = "optimizer-results/1"
+_PROVENANCE_SCHEMA = "optimizer-provenance/1"
+_EXTRACTOR_VERSION = "optimize-artifact/1"
+_REQUIRED_PROVENANCE_FIELDS = (
+    "schema",
+    "extractor_version",
+    "input_path",
+    "input_digest",
+    "results_digest",
+    "upstream_scorer",
+    "upstream_model",
+    "upstream_seed",
+    "kind",
+    "group",
+)
+_KIND_PROVENANCE_FIELDS = {
+    "agent": ("variant", "reduce", "pass_threshold"),
+    "rule": ("mechanism", "min_score"),
+    "hook": ("on_skip",),
+}
 
 # A corpus identity is the producer's sha256 hex digest of the task set. The
 # form is checked rather than taken on faith because an unchecked string makes
@@ -188,6 +313,97 @@ _CORPUS_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 # `None` cannot, because `None` is a legal pin. JSON cannot produce this value,
 # so no split file can forge an absent pin.
 _UNPINNED = object()
+
+
+class _Unreadable:
+    """What `_corpus_header` answers when it could not parse the file at all.
+
+    A class rather than a bare `object()` so the reader's return type states
+    the three answers it actually has. `str | object | None` collapses to
+    `object` and checks nothing.
+
+    Distinct from `None`, which means the file parsed and declared no corpus.
+    The gate reads those two facts differently: an absent corpus beside a pin
+    is the envelope strip and refuses as a REJECT, while an unparseable file
+    has declared nothing and belongs to the full reader, which reports it as a
+    config failure. Answering `None` for both sent malformed input down the
+    anti-strip path and turned it into a verdict on a file nobody could read.
+    """
+
+
+_UNREADABLE = _Unreadable()
+
+
+def _file_digest(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError as exc:
+        raise ConfigError(f"no such file: {path}") from exc
+    except OSError as exc:
+        raise ConfigError(f"could not read {path}: {exc}") from exc
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _results_digest(results: Mapping[str, bool]) -> str:
+    return hashlib.sha256(_canonical_json(dict(results)).encode("utf-8")).hexdigest()
+
+
+def _non_empty_string_field(path: Path, provenance: Mapping[str, Any], key: str) -> str:
+    value = provenance.get(key)
+    if not isinstance(value, str) or not value:
+        raise ConfigError(f"{path} provenance field {key!r} must be a non-empty string")
+    return value
+
+
+def _checked_provenance(
+    path: Path, data: Mapping[str, Any], results: Mapping[str, bool]
+) -> dict[str, Any]:
+    if "provenance" not in data:
+        raise ConfigError(f"{path} is missing extraction provenance")
+    raw = data["provenance"]
+    if raw is None:
+        raise ConfigError(f"{path} extraction provenance is null")
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{path} extraction provenance must be an object")
+    if not raw:
+        raise ConfigError(f"{path} extraction provenance is empty")
+    missing = [key for key in _REQUIRED_PROVENANCE_FIELDS if key not in raw]
+    if missing:
+        raise ConfigError(f"{path} extraction provenance is missing: {', '.join(missing)}")
+    provenance = dict(raw)
+    if _non_empty_string_field(path, provenance, "schema") != _PROVENANCE_SCHEMA:
+        raise ConfigError(f"{path} extraction provenance has an unsupported schema")
+    if _non_empty_string_field(path, provenance, "extractor_version") != _EXTRACTOR_VERSION:
+        raise ConfigError(f"{path} extraction provenance has an unsupported extractor")
+    for key in (
+        "input_path",
+        "input_digest",
+        "results_digest",
+        "upstream_scorer",
+        "upstream_model",
+        "upstream_seed",
+        "kind",
+        "group",
+    ):
+        _non_empty_string_field(path, provenance, key)
+    kind = provenance["kind"]
+    if kind not in _KIND_PROVENANCE_FIELDS:
+        raise ConfigError(f"{path} extraction provenance has unsupported kind {kind!r}")
+    missing = [key for key in _KIND_PROVENANCE_FIELDS[kind] if key not in provenance]
+    if missing:
+        raise ConfigError(f"{path} extraction provenance is missing: {', '.join(missing)}")
+    if provenance["group"] in _GROUPS and "split_fingerprint" not in provenance:
+        raise ConfigError(f"{path} extraction provenance is missing: split_fingerprint")
+    if not _CORPUS_RE.match(provenance["input_digest"]):
+        raise ConfigError(f"{path} provenance input_digest must be a sha256 hex digest")
+    if provenance["results_digest"] != _results_digest(results):
+        raise ConfigError(
+            f"{path} extraction provenance does not match its results; re-run extract"
+        )
+    return provenance
 
 
 def _checked_corpus(path: Path, value: object) -> str | None:
@@ -208,13 +424,12 @@ def _checked_corpus(path: Path, value: object) -> str | None:
 def _read_results(path: Path) -> ResultsFile:
     data = _read_json(path)
     if not isinstance(data, dict):
-        raise ConfigError(f"{path} must hold a JSON object of task id to boolean")
-    # A bare mapping is all-boolean by construction, so a string-valued
-    # `schema` is unambiguous. Keying on the presence of the word alone would
-    # misread a legacy file whose task happened to be named `schema`.
-    if isinstance(data.get("schema"), str):
-        return _read_results_envelope(path, data)
-    return ResultsFile(_checked_verdicts(path, data), None)
+        raise ConfigError(f"{path} must hold a results envelope object")
+    if not isinstance(data.get("schema"), str):
+        raise ConfigError(
+            f"{path} must be an {_RESULTS_SCHEMA!r} envelope with extraction provenance"
+        )
+    return _read_results_envelope(path, data)
 
 
 def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
@@ -227,32 +442,88 @@ def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
     results = data.get("results")
     if not isinstance(results, dict):
         raise ConfigError(f"{path} envelope needs a 'results' object of task id to boolean")
-    return ResultsFile(_checked_verdicts(path, results), _checked_corpus(path, data.get("corpus")))
+    checked = _checked_verdicts(path, results)
+    return ResultsFile(
+        checked,
+        _checked_corpus(path, data.get("corpus")),
+        _checked_provenance(path, data, checked),
+    )
 
 
-def _corpus_header(path: Path) -> str | None:
+def _corpus_header(path: Path) -> str | _Unreadable | None:
     """The file's declared corpus, read without validating anything else.
 
-    Best-effort on purpose: every content problem answers None rather than
-    raising. This runs before the ledger lock so the corpus refusal costs
-    nothing, and a read that could raise there would let a malformed verdict
-    mapping answer in place of the ledger. An exhausted budget is the
-    authoritative refusal and must not be masked by a parse error that the full
-    read, after the guards, reports properly anyway.
+    Best-effort on purpose: every content problem answers `_UNREADABLE` rather
+    than raising. This runs before the ledger lock so the corpus refusal costs
+    nothing, and a read that could raise here would let a malformed verdict
+    mapping answer in place of the ledger. A file that parses and declares this
+    schema is understood whatever its verdicts say, so an exhausted budget
+    still outranks a bad verdict mapping.
 
-    Only `OSError` escapes, and the caller runs this under `_digest_scrubbed`
-    because a failing open names the file. `RecursionError` joins `ValueError`
-    because a deeply nested array exhausts the decoder's stack rather than
-    failing its grammar, and letting it out would break the promise above.
+    Answering `_UNREADABLE` is not the whole story, but it is not the trigger
+    for anything either. `cmd_gate` refuses a file that will not parse through
+    `_refuse_unparseable_input`, which asks its own question rather than
+    reading this one's answer. It has to: the bare mapping form declares no
+    schema, so a valid legacy report answers `_UNREADABLE` here as well.
+
+    Three answers, not two. `None` means the file parsed and names no corpus,
+    which conflicts with a pin on purpose, because that is the envelope strip.
+    `_UNREADABLE` means the file has not declared anything this can compare, so
+    it conflicts with nothing: the preflight steps aside and the full read
+    reports the config failure. Collapsing the two answered a duplicate key
+    with `decision: REJECT` and a reason saying the files disagreed on a corpus
+    they in fact agreed on.
+
+    `_UNREADABLE` covers the field, not just the grammar. A file that parses
+    cleanly but carries a corpus `_checked_corpus` refuses, a truncated digest,
+    upper-case hex, an empty string, a number, has declared nothing comparable
+    either, and reading that as the envelope strip repeated the same wrong
+    verdict one input class over. So the split here mirrors `_checked_corpus`
+    exactly: absent or null is `None`, a valid digest is itself, and everything
+    that function would raise on is `_UNREADABLE`.
+
+    An open failure is not a content problem and does not answer
+    `_UNREADABLE`. The peek reads through `_read_text`, which converts
+    `OSError` into `ConfigError`, and `ConfigError` does not subclass
+    `ValueError`, so it travels straight past the clause below to the top
+    level and exits 2.
+
+    Both halves of that matter, and each was wrong once. Letting the raw
+    `OSError` out made the peek the layer that named the failure, and it named
+    it badly: `_digest_scrubbed` stringified the errno, so a mistyped
+    `--incumbent` reported `[Errno 2] No such file or directory` while a
+    mistyped `--split` reported `no such file:` from `_read_json`. The same
+    operator mistake read two ways depending on which flag carried it.
+    Answering `_UNREADABLE` instead fixed the message and broke something
+    worse: `_corpus_refused` declines to decide on an unreadable file, and the
+    full read that was supposed to catch it does not run next. `_guard` runs
+    next, and an exhausted consultation budget turned a missing file into a
+    REJECT decision at exit 1. A file that cannot be opened has to be refused
+    before anything that can emit a decision, and `_read_text` already owns
+    the message every other reader uses.
+
+    `RecursionError` joins `ValueError` because a deeply nested array
+    exhausts the decoder's stack rather than failing its grammar, and letting
+    it out would break the promise above.
+
+    The rule that makes this one strict while the file's other best-effort
+    readers can stay lax: a peek is dangerous exactly when its answer can reach
+    something that emits a decision. This one feeds `_corpus_conflict`, which
+    emits REJECT, so it has to carry every outcome the authoritative reader
+    carries. A peek whose worst answer resolves to a refusal, the degraded-rule
+    scan or the buffer dedup, can afford fewer branches, because the authority
+    behind it raises rather than deciding.
     """
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(_read_text(path), object_pairs_hook=_no_duplicate_keys)
     except (ValueError, RecursionError):
-        return None
+        return _UNREADABLE
     if not isinstance(data, dict) or data.get("schema") != _RESULTS_SCHEMA:
-        return None
+        return _UNREADABLE
     value = data.get("corpus")
-    return value if isinstance(value, str) and _CORPUS_RE.match(value) else None
+    if value is None:
+        return None
+    return value if isinstance(value, str) and _CORPUS_RE.match(value) else _UNREADABLE
 
 
 def _checked_verdicts(path: Path, data: dict[str, Any]) -> dict[str, bool]:
@@ -427,7 +698,8 @@ def _legacy_numeric_split_groups(
     if not 0.0 <= test_ratio < 1.0:
         raise ValueError(f"test_ratio must be in [0, 1), got {test_ratio}")
     if min_sel < 0:
-        raise ValueError(f"min_sel must be non-negative, got {min_sel}")
+        min_sel_display = _ratio_display(str(min_sel))
+        raise ValueError(f"min_sel must be non-negative, got {min_sel_display}")
     if sel_ratio + test_ratio >= 1.0:
         raise ValueError(
             f"sel_ratio + test_ratio must leave at least one opt task, "
@@ -470,8 +742,9 @@ def _legacy_numeric_split_groups(
             f"a gate needs at least one held-out task"
         )
     if n_sel < min_sel:
+        min_sel_display = _ratio_display(str(min_sel))
         raise ValueError(
-            f"held-out split has {n_sel} task(s), below min_sel={min_sel}; "
+            f"held-out split has {n_sel} task(s), below min_sel={min_sel_display}; "
             f"widen the eval set or lower min_sel to gate on it"
         )
 
@@ -523,23 +796,45 @@ def _rule_degraded_scenario_ids(
         scores = mech_data.get("scores")
         if _rule_score_block_is_degraded(scores):
             degraded.append(task_id)
+            continue
+        samples = mech_data.get("score_samples")
+        if samples is None:
+            continue
+        if not isinstance(samples, Sequence) or isinstance(samples, (str, bytes)) or not samples:
+            degraded.append(task_id)
+            continue
+        for sample in samples:
+            if not isinstance(sample, Mapping) or sample.get("judge_failed"):
+                degraded.append(task_id)
+                break
     return degraded
 
 
 def _rule_score_block_is_degraded(scores: object) -> bool:
+    """Whether a scenario's score block is too damaged to reduce.
+
+    The field names come from `_RULE_SCORE_KEYS` rather than a literal list.
+    The reduction reads that constant, so a copy here would let the two drift
+    into checking one set and averaging another, and a missing key reaches the
+    reduction as a zero the present scores then average away.
+    """
     if not isinstance(scores, Mapping) or not scores:
         return True
     if scores.get("judge_failed"):
         return True
-    for field in ("activation_score", "citation_score", "behavior_score"):
+    for field in _RULE_SCORE_KEYS:
         value = scores.get(field)
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-            or value < 0
-            or value > 5
-        ):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return True
+        # `math.isfinite` converts its argument to a float first, so a huge
+        # int raises `OverflowError` (a sibling of `ValueError`, not a
+        # subclass) instead of answering, which is the crash-instead-of-verdict
+        # shape this branch exists to remove. Only floats carry inf and nan;
+        # ints are finite by construction. The bound comparisons below are
+        # exact for int against float and never overflow.
+        if isinstance(value, float) and not math.isfinite(value):
+            return True
+        if value < 0 or value > _MAX_RULE_SCORE:
             return True
     return False
 
@@ -552,11 +847,13 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     raise ConfigError(
         "refusing to extract degraded rule report: "
         f"{len(task_ids)} scenario(s) have missing mechanism output, mechanism "
-        f"errors, missing scores, or judge failures: {shown}{suffix}"
+        f"errors, missing or incomplete scores, or judge failures: {shown}{suffix}"
     )
 
 
-def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str, bool]:
+def _extract_rules_envelope(
+    rules_runs: Sequence[Any], args: argparse.Namespace
+) -> dict[str, bool]:
     """Extract the multi-rule shape eval-rule-activation.py --output writes.
 
     Scenario ids restart at S1 inside every rule, so they are namespaced as
@@ -564,49 +861,191 @@ def _extract_rules_envelope(rules: object, args: argparse.Namespace) -> dict[str
     tests/evals/rule-scenarios/ produced 24 scenarios carrying only 4 distinct
     ids; merging them raw would silently drop 20 tasks, and a smaller
     denominator reads as a higher score.
+
+    `rules_runs` holds one envelope per run of the evaluator. Every run must
+    carry the same rule names, for the same reason the adapter makes every run
+    carry the same scenario ids: reducing across different task sets compares
+    unlike things.
     """
-    if not isinstance(rules, Mapping) or not rules:
-        raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
-    out: dict[str, bool] = {}
+    for rules in rules_runs:
+        if not isinstance(rules, Mapping) or not rules:
+            raise ConfigError("'rules' must be a non-empty mapping of rule name to result")
+    names = list(rules_runs[0])
+    expected = set(names)
+    for index, rules in enumerate(rules_runs[1:], start=2):
+        if set(rules) != expected:
+            differing = sorted(str(name) for name in expected.symmetric_difference(rules))
+            raise ConfigError(
+                f"every run must carry the same rules; run {index} of "
+                f"{len(rules_runs)} differs on: {', '.join(differing)}"
+            )
     degraded: list[str] = []
-    for name, entry in rules.items():
-        if not isinstance(entry, Mapping) or "scenarios" not in entry:
-            raise ConfigError(f"rule {name!r} has no 'scenarios' list")
-        scenarios = _rule_scenarios(entry)
-        degraded.extend(
-            _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
-        )
-        summary = entry.get("summary")
-        if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
-            if not any(task_id.startswith(f"{name}::") for task_id in degraded):
-                degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
-        scored: dict[str, bool] = rule_results(
-            scenarios, args.mechanism, min_score=args.min_score
+    # `list[Any]`, matching `_rule_scenarios`, not the `Sequence[object]` the
+    # degraded scan takes. `scenarios` is bound from that call below and reused
+    # as the loop variable, so a widened element type here makes the second
+    # binding an incompatible assignment to the first.
+    entries: list[tuple[str, list[list[Any]]]] = []
+    for name in names:
+        per_run: list[list[Any]] = []
+        for rules in rules_runs:
+            entry = rules[name]
+            if not isinstance(entry, Mapping) or "scenarios" not in entry:
+                raise ConfigError(f"rule {name!r} has no 'scenarios' list")
+            scenarios = _rule_scenarios(entry)
+            per_run.append(scenarios)
+            degraded.extend(
+                _rule_degraded_scenario_ids(scenarios, args.mechanism, prefix=str(name))
+            )
+            summary = entry.get("summary")
+            if isinstance(summary, Mapping) and summary.get("verdict") == "FAIL_JUDGE_ERRORS":
+                if not any(task_id.startswith(f"{name}::") for task_id in degraded):
+                    degraded.append(f"{name}::<FAIL_JUDGE_ERRORS>")
+        entries.append((str(name), per_run))
+    # Refuse before scoring any rule, the way the single-rule path already
+    # does. Scoring inside the collection loop let an adapter error about one
+    # scenario replace the scan's enumeration of every degraded scenario, and
+    # the enumeration is the whole reason the scan runs ahead of the adapter.
+    _refuse_degraded_rule_report(degraded)
+    out: dict[str, bool] = {}
+    # `<rule>::<scenario>` is not injective: rule 'a' with scenario 'b::c' and
+    # rule 'a::b' with scenario 'c' both render as 'a::b::c'. A plain
+    # assignment would keep whichever is written last and drop the other, and
+    # a dropped held-out task shrinks the denominator the gate divides by, so
+    # a swallowed failure reads as a cleaner candidate. Refuse instead, the
+    # way the single-rule and JUnit adapters already refuse duplicate ids.
+    origin: dict[str, tuple[str, str]] = {}
+    for name, per_run in entries:
+        scored: dict[str, bool] = rule_results_multi(
+            per_run,
+            args.mechanism,
+            min_score=args.min_score,
+            reduce=args.reduce,
+            reduce_samples=args.rule_reduce,
         )
         for sid, passed in scored.items():
-            out[f"{name}::{sid}"] = passed
-    _refuse_degraded_rule_report(degraded)
+            task_id = f"{name}::{sid}"
+            previous = origin.get(task_id)
+            if previous is not None:
+                raise ConfigError(
+                    f"task id {task_id!r} is produced by two different "
+                    f"rule and scenario pairs: rule {previous[0]!r} scenario "
+                    f"{previous[1]!r}, and rule {name!r} scenario {sid!r}; "
+                    "rename one so every held-out task stays countable"
+                )
+            origin[task_id] = (name, sid)
+            out[task_id] = passed
     return out
 
 
-def _extract_rule(payload: object, args: argparse.Namespace) -> dict[str, bool]:
-    # eval-rule-activation.py --output writes {"rules": {name: {...}}}. A bare
-    # scenario array and a {"scenarios": [...]} wrapper are also accepted so a
-    # caller can gate one rule without the envelope.
-    if isinstance(payload, dict) and "rules" in payload:
-        return _extract_rules_envelope(payload["rules"], args)
+def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[str, bool]:
+    """Score one or more rule reports, reducing across them.
+
+    eval-rule-activation.py --output writes {"rules": {name: {...}}}. A bare
+    scenario array and a {"scenarios": [...]} wrapper are also accepted so a
+    caller can gate one rule without the envelope.
+
+    Repeated runs are the rule path's only noise defense; see
+    `rule_results_multi`. Every run has to be the same shape, because an
+    envelope namespaces its task ids under a rule name and a bare array does
+    not, so reducing one against the other would compare `S1` with
+    `alpha::S1` and find neither.
+    """
+    envelopes = [
+        payload["rules"]
+        for payload in payloads
+        if isinstance(payload, dict) and "rules" in payload
+    ]
+    if envelopes and len(envelopes) != len(payloads):
+        raise ConfigError(
+            "every rule report must have the same shape; got a mix of the "
+            "multi-rule envelope and a bare scenario array, whose task ids are "
+            "namespaced differently and cannot be reduced against each other"
+        )
+    # Collecting the values instead of a parallel list of booleans is what lets
+    # this read them without re-indexing behind the check. `len ==` rather than
+    # a truth test so an empty input keeps taking the envelope path, which is
+    # what `all([])` did.
+    if len(envelopes) == len(payloads):
+        return _extract_rules_envelope(envelopes, args)
     # Annotated locals here and below: the sibling modules are imported by
     # path (this file is a hyphenated script), so mypy resolves them as Any
     # under ignore_missing_imports. The annotation restates the contract the
     # tests already enforce.
-    scenarios = _rule_scenarios(payload)
-    _refuse_degraded_rule_report(
-        _rule_degraded_scenario_ids(scenarios, args.mechanism)
-    )
-    extracted: dict[str, bool] = rule_results(
-        scenarios, args.mechanism, min_score=args.min_score
+    runs: list[list[Any]] = [_rule_scenarios(payload) for payload in payloads]
+    for scenarios in runs:
+        _refuse_degraded_rule_report(
+            _rule_degraded_scenario_ids(scenarios, args.mechanism)
+        )
+    extracted: dict[str, bool] = rule_results_multi(
+        runs,
+        args.mechanism,
+        min_score=args.min_score,
+        reduce=args.reduce,
+        reduce_samples=args.rule_reduce,
     )
     return extracted
+
+
+def _agent_task_inventory(report: Mapping[str, Any]) -> list[str]:
+    raw_ids = report.get("fixture_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise ConfigError(
+            "agent report needs a non-empty fixture_ids inventory before it "
+            "can be used for optimizer results"
+        )
+    task_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in raw_ids:
+        if not isinstance(raw_id, str) or not raw_id:
+            raise ConfigError("agent report fixture_ids must be non-empty strings")
+        if raw_id in seen:
+            raise ConfigError(f"agent report fixture_ids repeats {raw_id!r}")
+        seen.add(raw_id)
+        task_ids.append(raw_id)
+    return task_ids
+
+
+def _on_scale(flag: str, value: float, lo: float, hi: float) -> None:
+    """Refuse a bar that sits off the scale it is compared against.
+
+    `_as_float` already refuses a score outside its scale, because a value
+    outside the range decides a verdict without measuring anything. A bar is
+    the other side of that same comparison and had no check on the two extract
+    flags, so the identical defect was reachable from the command line.
+    Measured against a fixture whose pass rate is 0.0, `--pass-threshold -0.1`
+    reported it as passing: a fixture that satisfied none of its assertions,
+    admitted by a floor below the bottom of the scale.
+
+    One range test is enough for every bad value. Infinity leaves any bounded
+    interval, and every comparison against NaN is False, so both fail the same
+    check that catches -0.1 and 2.0 without a separate finiteness question.
+    That differs from `_as_float`, which keeps the two apart because a NaN in
+    a scorer's output says something specific about the producer. A flag has
+    no producer to diagnose; the caller typed it.
+
+    Bounds format with `g` so a whole number prints without its decimal tail,
+    which is what `--max-p` has said since it was added.
+    """
+    if not lo <= value <= hi:
+        raise ConfigError(f"{flag} must be in [{lo:g}, {hi:g}], got {value}")
+
+
+def _single_input(paths: Sequence[Path], kind: str) -> Path:
+    """Refuse several reports for a kind that has no cross-report reduction.
+
+    Only `--kind rule` reduces across runs, because it is the only adapter
+    with nothing else defending it: `pytest_results` is deterministic, so a
+    second run measures nothing new, and `agent_results` already averages the
+    runs inside one report. Reducing two agent reports would average an
+    average and weight the report with fewer runs equally, which is a quieter
+    wrong answer than refusing.
+    """
+    if len(paths) > 1:
+        raise ConfigError(
+            f"--kind {kind} reads one report, got {len(paths)}; only "
+            f"--kind rule reduces across repeated runs"
+        )
+    return paths[0]
 
 
 def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
@@ -634,25 +1073,140 @@ def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
     )
 
 
+def _inputs_path(paths: Sequence[Path]) -> str:
+    return ",".join(str(path) for path in paths)
+
+
+def _inputs_digest(paths: Sequence[Path]) -> str:
+    """One digest naming the input set; a single file keeps its bare digest."""
+    digests = [_file_digest(path) for path in paths]
+    if len(digests) == 1:
+        return digests[0]
+    return hashlib.sha256(":".join(digests).encode("utf-8")).hexdigest()
+
+
+def _universe_ids(split: Mapping[str, Any]) -> list[str]:
+    return [str(t) for group in _GROUPS for t in split[group]]
+
+
+def _covers_universe(results: Mapping[str, Any], split: Mapping[str, Any]) -> bool:
+    return all(isinstance(results.get(task_id), bool) for task_id in _universe_ids(split))
+
+
+def _upstream_value(value: object, fallback: str) -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    raise ConfigError(f"upstream metadata must be scalar, got {type(value).__name__}")
+
+
+def _extract_provenance(
+    args: argparse.Namespace,
+    results: Mapping[str, bool],
+    *,
+    report: Mapping[str, Any] | None = None,
+    group: str = "all",
+    split: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    upstream_model = args.upstream_model
+    upstream_seed = args.upstream_seed
+    if report is not None:
+        upstream_model = upstream_model or _upstream_value(report.get("model_id"), "unknown-model")
+        upstream_seed = upstream_seed or _upstream_value(report.get("seed"), "unseeded")
+    if upstream_model is None:
+        upstream_model = "not-applicable"
+    if upstream_seed is None:
+        upstream_seed = "not-applicable"
+    provenance: dict[str, Any] = {
+        "schema": _PROVENANCE_SCHEMA,
+        "extractor_version": _EXTRACTOR_VERSION,
+        "input_path": _inputs_path(args.input),
+        "input_digest": _inputs_digest(args.input),
+        "results_digest": _results_digest(results),
+        "upstream_scorer": args.kind,
+        "upstream_model": upstream_model,
+        "upstream_seed": upstream_seed,
+        "kind": args.kind,
+        "group": group,
+    }
+    if args.kind == "agent":
+        provenance.update(
+            {
+                "variant": args.variant,
+                "reduce": args.reduce,
+                "pass_threshold": args.pass_threshold,
+            }
+        )
+    elif args.kind == "rule":
+        provenance.update({"mechanism": args.mechanism, "min_score": args.min_score})
+    else:
+        provenance["on_skip"] = args.on_skip
+    if split is not None:
+        provenance["split_fingerprint"] = split["fingerprint"]
+    return provenance
+
+
+def _filter_results_to_group(
+    results: dict[str, bool], split: Mapping[str, Any], group: str
+) -> dict[str, bool]:
+    if not _covers_universe(results, split):
+        raise ConfigError(
+            "extracted results do not cover the whole task set; rerun the scorer "
+            "over the complete split universe before filtering a group"
+        )
+    return {task_id: results[task_id] for task_id in split[group]}
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
+    # Before the input is read. A bar off its scale is decidable on its own,
+    # and refusing it here means an unreadable file cannot mask a bad flag.
+    _on_scale("--pass-threshold", args.pass_threshold, 0.0, _MAX_PASS_RATE)
+    _on_scale("--min-score", args.min_score, 0.0, _MAX_RULE_SCORE)
     corpus: str | None = None
+    report: Mapping[str, Any] | None = None
     if args.kind == "hook":
-        results = pytest_results(_read_text(args.input), on_skip=args.on_skip)
+        results = pytest_results(
+            _read_text(_single_input(args.input, "hook")), on_skip=args.on_skip
+        )
     elif args.kind == "agent":
-        report = _read_json(args.input)
-        if not isinstance(report, Mapping):
-            raise ConfigError(f"{args.input} must hold an agent report object")
-        _refuse_degraded_agent_report(report)
-        corpus = _report_corpus(args.input, report)
+        path = _single_input(args.input, "agent")
+        raw_report = _read_json(path)
+        if not isinstance(raw_report, Mapping):
+            raise ConfigError(f"{path} must hold an agent report object")
+        _refuse_degraded_agent_report(raw_report)
+        report = raw_report
+        expected_task_ids = _agent_task_inventory(report)
+        corpus = _report_corpus(path, report)
         results = agent_results(
             report,
             args.variant,
             reduce=args.reduce,
             pass_threshold=args.pass_threshold,
+            expected_task_ids=expected_task_ids,
         )
     else:
-        results = _extract_rule(_read_json(args.input), args)
-    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
+        results = _extract_rule([_read_json(path) for path in args.input], args)
+    split = None
+    group = "all"
+    if args.split is not None or args.group is not None:
+        if args.split is None or args.group is None:
+            raise ConfigError("--split and --group must be supplied together")
+        split = _read_split(args.split)
+        group = args.group
+        results = _filter_results_to_group(results, split, group)
+    _emit(
+        {
+            "schema": _RESULTS_SCHEMA,
+            "corpus": corpus,
+            "provenance": _extract_provenance(
+                args, results, report=report, group=group, split=split
+            ),
+            "results": results,
+        }
+    )
     return EXIT_OK
 
 
@@ -680,18 +1234,13 @@ def _report_corpus(path: Path, report: Mapping[str, Any]) -> str | None:
 def cmd_split(args: argparse.Namespace) -> int:
     pinned: dict[str, Any] = {}
     if args.results:
-        source = _read_results(args.results)
-        task_ids = sorted(source.results)
-        # The baseline commitment carries the corpus rather than the comparison
-        # inferring it from the pair. Without the pin, a mismatch is reachable
-        # by omission: stripping the envelope off either side leaves two
-        # unknowns, and two unknowns have nothing to disagree about. The pin
-        # gives the gate a value neither results file can delete.
-        pinned["corpus"] = source.corpus
-    else:
-        task_ids = [
-            line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()
-        ]
+        raise ConfigError(
+            "split must be drawn from an authoritative task inventory with --tasks, "
+            "not from results being judged"
+        )
+    if args.corpus is not None:
+        pinned["corpus"] = _checked_corpus(Path("--corpus"), args.corpus)
+    task_ids = [line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()]
     try:
         result = split_tasks(
             task_ids,
@@ -801,6 +1350,14 @@ def cmd_score(args: argparse.Namespace) -> int:
 def cmd_apply(args: argparse.Namespace) -> int:
     document = _read_text(args.file)
     patches = _read_patches(args.patches)
+    if args.budget < 0:
+        # Checked ahead of the try, because the block below reports what it
+        # catches as a refused patch and a negative budget is not one. Left to
+        # fall through, an operator's argument error was published as
+        # `applied: 0`, which tells the loop its candidate proposed an
+        # unusable edit when the candidate did nothing. A negative `--min-sel`
+        # is already a config error; this matches it.
+        raise ConfigError(f"--budget must be non-negative, got {args.budget}")
     try:
         updated = apply_patches(document, patches, budget=args.budget)
     except ValueError as exc:
@@ -1078,18 +1635,197 @@ def _ledger_path(holdout_key: str) -> Path:
     return _ledger_root() / f"{holdout_key}.ledger"
 
 
+def _blocking_ancestor(lock: Path) -> Path | None:
+    """The nearest thing on the lock's path that exists and is not a directory.
+
+    `mkdir(parents=True)` reports the deepest path it tried, not the one that
+    stopped it. With the lock at `a/b/c/d.lock` and `a` a regular file, the
+    error names `a/b/c` and errno 20, and `a` is never mentioned. The operator
+    is handed a path that does not exist and told it is not a directory.
+
+    Walking finds the one they have to delete or move. `lexists` rather than
+    `exists` so a dangling symlink counts as present, which is what `mkdir`
+    sees, and so a symlink loop is named rather than skipped.
+
+    This runs inside an exception handler, where raising is the expensive
+    mistake: `main` catches `ConfigError` and not `OSError`, so a raise here
+    would replace a config failure at exit 2 with a traceback at exit 1, and
+    exit 1 is the reject verdict a driver branches on. There is no `suppress`
+    around it because both predicates already swallow. `os.path.lexists`
+    returns False on any `OSError`, and `Path.is_dir` returns False on
+    `OSError` or `ValueError`, which was checked against an unreadable
+    ancestor, a 5000-character name, an embedded null byte, and a symlink
+    loop. A `suppress` over calls that cannot raise would assert a risk that
+    is not there and hide the day one of them starts raising for real; the
+    tests pin the no-raise contract instead.
+
+    An unreadable ancestor yields no blame rather than the wrong blame:
+    `lexists` on a path under a mode-000 directory is False, so the candidate
+    fails the first half of the conjunction and never reaches `is_dir`.
+    """
+    for candidate in lock.parents:
+        if os.path.lexists(candidate) and not candidate.is_dir():
+            return candidate
+    return None
+
+
+def _lock_refused(lock: Path, exc: OSError) -> str:
+    """Why the lock could not be taken, in the shape the other errors use.
+
+    Named rather than inlined at both raise sites so the acquire and the pid
+    write cannot drift into reporting the same failure two ways.
+
+    `str(exc)` rather than `exc.strerror`, after a thirty-seventh review found
+    the bare text unusable. "File exists" beside a lock reads as contention,
+    which is the reading the round-35 acquire split exists to prevent, and no
+    errno number reached the operator to search on. The interpreter already
+    formats errno, text, and filename together; a second formatter here would
+    be a second thing to keep in step with the first.
+
+    The reviewer also said the offending path was lost. It is not lost for the
+    shallow case, where the failing ancestor is the lock's own parent and the
+    lock is already named. It is lost for the deep one, which is why the
+    ancestor is looked up rather than taken from `exc.filename`.
+    """
+    blocking = _blocking_ancestor(lock)
+    culprit = (
+        f" {blocking} exists and is not a directory;"
+        if blocking is not None and str(blocking) != (exc.filename or "")
+        else ""
+    )
+    return (
+        f"could not take the lock {lock} ({exc});{culprit} the "
+        f"read-modify-write it serializes was not attempted."
+    )
+
+
+def _close_quietly(handle: int) -> None:
+    """Release a descriptor when the failure that stopped the write is known.
+
+    POSIX frees the descriptor even when close reports an error, so there is
+    nothing to retry and nothing a caller can do with the news. Reporting it
+    would replace the cause an operator can act on with one raised while
+    cleaning up after it.
+    """
+    with suppress(OSError):
+        os.close(handle)
+
+
+@contextmanager
+def _lock_held(
+    lock: Path,
+    contention: str,
+    cleanup_warning: Callable[[OSError], str],
+) -> Iterator[None]:
+    """Serialize a read-modify-write on one file behind an exclusive create.
+
+    Atomic replacement keeps a file whole. It does not make the sequence that
+    produced the replacement a transaction, so two callers that read the same
+    document, each change their own copy, and each replace the file leave only
+    the later one's change. Both are told they succeeded.
+
+    An exclusive create is the lock rather than ``fcntl``, which is POSIX only.
+    A stale lock left by a killed process is reported rather than broken, since
+    guessing that the holder is gone is how a lock becomes advisory.
+
+    The two messages are the caller's because the two callers do not agree on
+    what may be said. A ledger lock's name digests held-out membership and has
+    to be withheld; a buffer lock's name came from the command line and
+    withholding it would turn a stale lock into a puzzle.
+
+    Every failure to take the lock is a `ConfigError`, which is what the rest
+    of this module does: `_read_buffer` reports "could not read", and
+    `_write_atomic` reports "could not write". This helper did not, and did not
+    have to, while its only caller ran inside `_digest_scrubbed`, whose handler
+    converts every `OSError` raised under the ledger. A thirty-third review
+    found that the extraction gave it a second caller with no such cover, so an
+    unwritable buffer directory printed a traceback where the module docstring
+    promises a JSON document and exited 1, the code a loop reads as a decision
+    rather than a crash. Converting here rather than at the new call site is
+    the same argument the scrub makes: a wrapper covers the caller someone
+    remembered. `_digest_scrubbed` catches `ConfigError` as well, so the ledger
+    caller's redaction survives the change.
+
+    A thirty-fourth review found that fix incomplete. The lock has five
+    filesystem stages, and it had converted three: a close-only failure still
+    escaped raw. That is not a rare shape, because a write to a network or
+    quota backed filesystem can be buffered past `os.write` and reported by
+    `close`, which is why POSIX documents `EIO` and `ENOSPC` there. Close now
+    converts too, and deliberately outside a `finally`: when the write has
+    already failed it is the cause an operator can act on, and a `finally`
+    that raised would replace it with the consequence.
+
+    The acquire runs its two calls under separate `try` blocks because they do
+    not agree on what `FileExistsError` means. For `os.open` with `O_EXCL` it
+    is the whole signal: a lock file already on disk is what one holder looks
+    like to another. For `mkdir` it is a different fact, since `exist_ok=True`
+    swallows the error only when what it found is a directory and re-raises
+    otherwise, so a plain file sitting where the lock's parent belongs raises
+    the same errno with nothing holding anything. Sharing one block told that
+    operator to wait for a process that does not exist. Splitting is preferred
+    to re-checking `is_dir()` in the handler, which would decide the cause from
+    a second look at a filesystem that has since been free to change.
+    """
+    try:
+        lock.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ConfigError(_lock_refused(lock, exc)) from exc
+    try:
+        handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise ConfigError(contention) from None
+    except OSError as exc:
+        raise ConfigError(_lock_refused(lock, exc)) from exc
+    try:
+        try:
+            os.write(handle, str(os.getpid()).encode("utf-8"))
+        except OSError as exc:
+            # Converted here rather than left to escape, for the reason above:
+            # the descriptor is released on the next line and the lock file by
+            # the outer finally, so the only thing left to decide is which
+            # document the caller reads.
+            _close_quietly(handle)
+            raise ConfigError(_lock_refused(lock, exc)) from exc
+        # Not in a `finally`. A close that fails while the write is already
+        # failing would replace the cause with the consequence, and the write
+        # is the one an operator can act on. Ordering the two statements says
+        # that; a `finally` cannot.
+        try:
+            os.close(handle)
+        except OSError as exc:
+            raise ConfigError(_lock_refused(lock, exc)) from exc
+        yield
+    finally:
+        try:
+            lock.unlink(missing_ok=True)
+        except OSError as exc:
+            # The command's own document is already on stdout. Letting this
+            # reach main would print a second JSON document after it and
+            # return the config-failure code for work that succeeded, and the
+            # module docstring promises one readable document. Silence would
+            # hide a lock that now blocks the next run, so it goes to stderr.
+            #
+            # Through _warn, which cannot itself fail: this sits in a finally
+            # after the result is already on stdout, so a closed stderr would
+            # replace completed work with a traceback about the cleanup.
+            _warn(cleanup_warning(exc))
+
+
 @contextmanager
 def _ledger_held(holdout_key: str) -> Iterator[None]:
     """Serialize the read, compare, and write of one ledger.
 
     Without this, two gates started together both read the same count, both
     compare, and both write count + 1, so N concurrent gates spend one
-    consultation between them. Atomic replacement keeps the file whole; it does
-    not make the read-modify-write sequence a transaction.
+    consultation between them.
 
-    An exclusive create is the lock rather than `fcntl`, which is POSIX only.
-    A stale lock left by a killed process is reported rather than broken, since
-    guessing that the holder is gone is how a lock becomes advisory.
+    The mechanism is `_lock_held`, shared with the rejection buffer. It was not
+    shared originally, and the cost was measurable: a thirty-first review found
+    `buffer-add` performing the same read-modify-write with no lock, losing a
+    rejection and reporting it stored. The analysis that would have prevented
+    it was already written here, one screen away, about a different file. What
+    stays here is what only the ledger needs: the digest scrub, and messages
+    that withhold a name the buffer's messages may print.
     """
     lock = _ledger_root() / f"{holdout_key}.lock"
     # The scrub spans the whole lifecycle, not just the acquire. A seventh
@@ -1103,52 +1839,30 @@ def _ledger_held(holdout_key: str) -> Iterator[None]:
     # The contention branch nests inside because its own message carries no
     # digest and an operator needs it to clear a stale lock.
     with _digest_scrubbed(holdout_key):
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            raise ConfigError(
-                f"another gate holds a lock under {lock.parent}; consultations "
-                f"against one held-out group are serialized so a concurrent "
-                f"pair cannot spend one budget twice. Remove the lock file "
-                f"there if no gate is running. Its name is withheld: the name "
-                f"digests the held-out membership, and an unsalted digest of a "
-                f"set the caller can enumerate is that set."
-            ) from None
-        try:
-            try:
-                os.write(handle, str(os.getpid()).encode("utf-8"))
-            finally:
-                # Its own finally, so a write that fails on a full disk still
-                # releases the descriptor. POSIX frees the descriptor even when
-                # close reports EIO, so this must never be retried.
-                os.close(handle)
+        contention = (
+            f"another gate holds a lock under {lock.parent}; consultations "
+            f"against one held-out group are serialized so a concurrent "
+            f"pair cannot spend one budget twice. Remove the lock file "
+            f"there if no gate is running. Its name is withheld: the name "
+            f"digests the held-out membership, and an unsalted digest of a "
+            f"set the caller can enumerate is that set."
+        )
+
+        def cleanup_warning(exc: OSError) -> str:
+            # Named by its directory rather than by itself, because naming a
+            # directory was justified in review by the claim that a directory
+            # carries no digest, and a tenth review falsified it:
+            # $EVAL_LEDGER_DIR can name one. Hence _warn, which scrubs.
+            return (
+                f"warning: could not remove the lock under {lock.parent} "
+                f"({exc.strerror or exc.errno}); the next gate against "
+                f"this held-out group reports contention until it is "
+                f"removed. Its name is withheld: the name digests the "
+                f"membership."
+            )
+
+        with _lock_held(lock, contention, cleanup_warning):
             yield
-        finally:
-            try:
-                lock.unlink(missing_ok=True)
-            except OSError as exc:
-                # The decision is already on stdout. Letting this reach main
-                # would print a second JSON document after it and return the
-                # config-failure code for a comparison that succeeded, and the
-                # module docstring promises one readable document. Silence
-                # would hide a lock that now blocks the next run, so it goes to
-                # stderr, named by its directory rather than by itself.
-                #
-                # Through _warn, because naming the directory was justified in
-                # review by the claim that a directory carries no digest, and a
-                # tenth review falsified it: $EVAL_LEDGER_DIR can name one. A
-                # twenty-first review then found this print unguarded: it sits
-                # in a finally after the decision is already on stdout, so a
-                # closed stderr would replace a completed comparison with a
-                # traceback about the cleanup.
-                _warn(
-                    f"warning: could not remove the lock under {lock.parent} "
-                    f"({exc.strerror or exc.errno}); the next gate against "
-                    f"this held-out group reports contention until it is "
-                    f"removed. Its name is withheld: the name digests the "
-                    f"membership."
-                )
 
 
 def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) -> int:
@@ -1173,7 +1887,7 @@ def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) ->
     into another group's place rather than an honest redraw: a genuinely new
     held-out group has a different key and therefore its own file.
     """
-    if not path.exists():
+    if _absent(path):
         return 0
     data = _read_json(path)
     if not isinstance(data, Mapping):
@@ -1265,12 +1979,44 @@ def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> st
         raise ConfigError(str(exc)) from exc
 
 
+def _json_strict_equal(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        right_dict = cast(dict[Any, Any], right)
+        if set(left) != set(right_dict):
+            return False
+        return all(_json_strict_equal(left[key], right_dict[key]) for key in left)
+    if isinstance(left, list):
+        right_list = cast(list[Any], right)
+        return len(left) == len(right_list) and all(
+            _json_strict_equal(a, b) for a, b in zip(left, right_list, strict=True)
+        )
+    if isinstance(left, float):
+        if left == 0.0 and right == 0.0:
+            return math.copysign(1.0, left) == math.copysign(1.0, right)
+    return left == right
+
+
+def _provenance_mismatch(
+    incumbent: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> str | None:
+    artifact_keys = {"input_path", "input_digest", "results_digest"}
+    keys = (set(incumbent) | set(candidate)) - artifact_keys
+    for key in sorted(keys):
+        if key not in incumbent or key not in candidate:
+            return f"extraction parameter mismatch: {key} differs"
+        if not _json_strict_equal(incumbent[key], candidate[key]):
+            return f"extraction parameter mismatch: {key} differs"
+    return None
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     # Before anything reads the split or the ledger. A bar outside [0, 1] is
     # decidable without the held-out group, so it must not cost a consultation
     # and must not be masked by an exhausted budget refusing first.
-    if args.max_p is not None and not 0.0 <= args.max_p <= 1.0:
-        raise ConfigError(f"--max-p must be in [0, 1], got {args.max_p}")
+    if args.max_p is not None:
+        _on_scale("--max-p", args.max_p, 0.0, 1.0)
 
     split = _read_split(args.split)
     if _split_drifted(split):
@@ -1297,7 +2043,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
         pin = split.get("corpus", _UNPINNED)
         incumbent_corpus = _corpus_header(args.incumbent)
         candidate_corpus = _corpus_header(args.candidate)
-    if _corpus_conflict(pin, incumbent_corpus, candidate_corpus):
+        _refuse_unparseable_input(args.incumbent)
+        _refuse_unparseable_input(args.candidate)
+    # A file nobody could parse gets no opinion on the corpus, and the read
+    # above already asked the authority to say why. Past this point both
+    # headers are values the conflict rule can compare.
+    if _corpus_refused(pin, incumbent_corpus, candidate_corpus):
         _emit(_corpus_refusal())
         return EXIT_LOGIC
 
@@ -1305,6 +2056,58 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # because that refusal reads no ledger and spends nothing.
     with _ledger_held(_holdout_key(split)):
         return _gate_decision(args, split)
+
+
+def _refuse_unparseable_input(path: Path) -> None:
+    """Refuse a report that is not a JSON document before any guard can rule.
+
+    A missing file already outranks an exhausted budget, because the peek
+    reads through `_read_text` and that reader's `ConfigError` travels out. A
+    file that opens but does not parse reached the operator as REJECT instead:
+    `_corpus_header` catches `ValueError`, `_corpus_refused` declines to
+    decide on an unreadable file, and `_guard` is what runs next. The reason
+    said the split was exhausted, so the operator's fix was to re-split, which
+    discards a held-out group's whole history to answer a typo in a file.
+
+    Both are the same situation and the file already states the rule for it. A
+    cap below one "is a caller mistake, not a gate verdict, so it becomes a
+    config error instead of a REJECT that would read as real discipline."
+
+    The line is drawn at parsing, not at approval, and that is the whole of
+    the narrowing. This asks one question no interpretation of the document
+    can answer differently: is there a document at all. Every later judgment,
+    the schema it declares, the corpus it names, whether its verdicts are
+    booleans, stays behind the guard where an exhausted budget outranks it. A
+    bad verdict mapping still yields to the ledger, which is the ordering the
+    guards are written for and the reason this is not simply an early
+    `_read_results`.
+
+    `_read_json` is the parse and nothing above it, so it is exactly the
+    question this asks and it raises the complaint every other reader raises.
+    Repeating the decode here would mean a second place that has to remember
+    duplicate keys, a nested array exhausting the decoder's stack rather than
+    failing its grammar, and that `UnicodeDecodeError` is a `ValueError`. The
+    result is discarded; the call is made for the refusal it can raise.
+    """
+    _read_json(path)
+
+
+def _corpus_refused(
+    pin: object,
+    incumbent: str | _Unreadable | None,
+    candidate: str | _Unreadable | None,
+) -> bool:
+    """Whether the header preflight refuses this pair before the full read.
+
+    Standing between the headers and `_corpus_conflict` so the unreadable case
+    is answered once, by name, instead of as a condition the conflict rule has
+    to carry. It also lets the type narrow: past the two isinstance checks both
+    values are the `str | None` the conflict rule is written against, which is
+    what caught this call site when the sentinel stopped being a bare object.
+    """
+    if isinstance(incumbent, _Unreadable) or isinstance(candidate, _Unreadable):
+        return False
+    return _corpus_conflict(pin, incumbent, candidate)
 
 
 def _corpus_conflict(pin: object, incumbent: str | None, candidate: str | None) -> bool:
@@ -1420,8 +2223,43 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         _emit(_corpus_refusal())
         return EXIT_LOGIC
 
+    mismatch = _provenance_mismatch(incumbent_file.provenance, candidate_file.provenance)
+    if mismatch is not None:
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": mismatch,
+                "consultations": 0,
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
     incumbent_results = incumbent_file.results
     candidate_results = candidate_file.results
+    if not _covers_universe(incumbent_results, split) or not _covers_universe(
+        candidate_results, split
+    ):
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    "the results do not cover the whole task set; score both "
+                    "artifacts over the complete split universe and gate again. "
+                    "Which tasks are missing is withheld."
+                ),
+                "consultations": 0,
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
     sel_ids = _group_ids(split, _GATE_GROUP)
 
     # Charge before reading the group, not after reaching a verdict. Two things
@@ -1465,8 +2303,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
     try:
         result = gate(
-            candidate,
-            incumbent,
+            ScoreEvidence(candidate, candidate_file.provenance),
+            ScoreEvidence(incumbent, incumbent_file.provenance),
             sel_consultations=spent,
             max_consultations=args.max_consultations,
             split_fingerprint=split["fingerprint"],
@@ -1562,8 +2400,23 @@ def _fsync_dir(directory: Path) -> None:
     parses.
 
     Windows cannot open a directory as a descriptor, so there is nothing to
-    sync and ``os.replace`` is atomic there regardless. That is a skip rather
-    than a warning.
+    sync and the step is skipped. The skip is a real gap, not a no-op, and
+    the reason usually offered for it answers a different question than the
+    one this function asks. ``os.replace`` is atomic on Windows, but the
+    paragraph above is about durability, not atomicity. CPython calls
+    ``MoveFileExW`` with ``MOVEFILE_REPLACE_EXISTING`` alone (see
+    ``Modules/posixmodule.c``), omitting ``MOVEFILE_WRITE_THROUGH``, the flag
+    Microsoft documents as waiting for the move to reach disk. A Windows host
+    that loses power just after a ledger charge can therefore come back with
+    the charge undone, which is the same loss an unsynced POSIX host takes.
+
+    The skip stays silent rather than warning like the failure path above,
+    because it is a property of the platform and not an anomaly in this run.
+    It holds for every write, so warning on each one would spend the stderr
+    channel's signal and teach the operator to ignore it. Recording it here
+    is the report. Closing it needs a Windows-only write-through path that
+    this repo's CI cannot exercise, so it is tracked in issue #3591 rather
+    than guessed at here.
     """
     if os.name == "nt":  # pragma: no cover - POSIX-only durability primitive
         return
@@ -1572,7 +2425,14 @@ def _fsync_dir(directory: Path) -> None:
         try:
             os.fsync(fd)
         finally:
-            os.close(fd)
+            # Quietly, for two reasons that point the same way. On the failure
+            # path the fsync is the actionable cause and a raising close would
+            # replace it, so the warning would name the wrong call. On the
+            # success path the guarantee already held and the replace already
+            # happened, and this runs inside `_write_atomic`'s try, so an
+            # escaping close error would report a completed write as a failed
+            # one. Either way the descriptor is freed regardless.
+            _close_quietly(fd)
     except OSError as exc:
         _warn(
             f"warning: wrote and renamed into {directory}, but could not fsync the "
@@ -1614,7 +2474,13 @@ def _write_atomic(path: Path, text: str) -> None:
             # comment that used to sit in the handler below claimed this was
             # already done. It was not: no call closed the descriptor, so this
             # path leaked one while the comment said otherwise.
-            os.close(fd)
+            #
+            # Quietly, because a primary failure is already in flight and this
+            # runs inside its handler. A raising close would propagate instead
+            # of the cause, and `fdopen` can fail for reasons that are not I/O
+            # at all, so the caller would get a `ConfigError` about the close
+            # standing in for something that was never an `OSError`.
+            _close_quietly(fd)
             raise
         with handle:
             handle.write(text)
@@ -1640,9 +2506,10 @@ def _write_atomic(path: Path, text: str) -> None:
 
 
 def _read_buffer(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        # A first run has no ledger yet. Treating that as empty keeps the loop
-        # from needing a separate init step.
+    if _absent(path):
+        # A first run has no buffer yet. Treating that as empty keeps the loop
+        # from needing a separate init step. `_absent` rather than `exists`,
+        # because a buffer that cannot be read is not one with nothing in it.
         return []
     data = _read_json(path)
     if not isinstance(data, list):
@@ -1653,32 +2520,99 @@ def _read_buffer(path: Path) -> list[dict[str, Any]]:
     return data
 
 
+def _artifact_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise ConfigError(f"could not read artifact {path}: {exc}") from exc
+    return digest.hexdigest()
+
+
 def cmd_buffer_check(args: argparse.Namespace) -> int:
+    # No lock. `_write_atomic` replaces the file, so a reader sees the whole
+    # old document or the whole new one, never a torn one, and serializing
+    # readers would let a stale lock block the question the loop asks most.
     entries = _read_buffer(args.buffer)
     patches = _read_patches(args.patches)
-    seen = buffer_contains(entries, patches)
-    _emit({"seen": seen, "fingerprint": patch_fingerprint(patches)})
+    artifact_fingerprint = _artifact_fingerprint(args.artifact)
+    seen = buffer_contains(
+        entries,
+        patches,
+        artifact_fingerprint=artifact_fingerprint,
+    )
+    _emit(
+        {
+            "seen": seen,
+            "fingerprint": patch_fingerprint(patches),
+            "artifact_fingerprint": artifact_fingerprint,
+        }
+    )
     return EXIT_LOGIC if seen else EXIT_OK
 
 
+def _buffer_lock(buffer: Path) -> Path:
+    """Beside the buffer rather than under the ledger root.
+
+    The buffer's path is a command-line argument and two loops can run against
+    two different buffers concurrently, so the lock has to be keyed by the
+    file it protects rather than by a single shared location.
+    """
+    return Path(f"{buffer}.lock")
+
+
 def cmd_buffer_add(args: argparse.Namespace) -> int:
-    entries = _read_buffer(args.buffer)
+    # Patches are parsed before the lock is taken. A malformed patch file is a
+    # refusal that touches no shared state, so serializing it would make one
+    # caller's bad argument another caller's contention error.
     patches = _read_patches(args.patches)
     fingerprint = patch_fingerprint(patches)
-    if any(e.get("fingerprint") == fingerprint for e in entries):
-        _emit({"added": False, "fingerprint": fingerprint, "entries": len(entries)})
-        return EXIT_OK
-    entries.append(
+    artifact_fingerprint = _artifact_fingerprint(args.artifact)
+    lock = _buffer_lock(args.buffer)
+    contention = (
+        f"another buffer-add holds {lock}; rejections against one buffer are "
+        f"serialized because the file is read, appended to, and replaced, and "
+        f"an unserialized pair loses the earlier append while telling its "
+        f"caller the rejection was stored. Remove that file if no buffer-add "
+        f"is running."
+    )
+
+    def cleanup_warning(exc: OSError) -> str:
+        return (
+            f"warning: could not remove {lock} "
+            f"({exc.strerror or exc.errno}); the next buffer-add against this "
+            f"buffer reports contention until it is removed."
+        )
+
+    with _lock_held(lock, contention, cleanup_warning):
+        entries = _read_buffer(args.buffer)
+        added = not any(
+            e.get("fingerprint") == fingerprint
+            and e.get("artifact_fingerprint") == artifact_fingerprint
+            for e in entries
+        )
+        if added:
+            entries.append(
+                {
+                    "fingerprint": fingerprint,
+                    "artifact_fingerprint": artifact_fingerprint,
+                    "reason": args.reason,
+                    "patches": [
+                        {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
+                    ],
+                }
+            )
+            _write_atomic(args.buffer, json.dumps(entries, indent=2))
+    _emit(
         {
+            "added": added,
             "fingerprint": fingerprint,
-            "reason": args.reason,
-            "patches": [
-                {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
-            ],
+            "artifact_fingerprint": artifact_fingerprint,
+            "entries": len(entries),
         }
     )
-    _write_atomic(args.buffer, json.dumps(entries, indent=2))
-    _emit({"added": True, "fingerprint": fingerprint, "entries": len(entries)})
     return EXIT_OK
 
 
@@ -1730,20 +2664,47 @@ def build_parser() -> argparse.ArgumentParser:
 
     extract = sub.add_parser("extract", help="convert a scorer's output to task pass or fail")
     extract.add_argument("--kind", choices=("agent", "rule", "hook"), required=True)
-    extract.add_argument("--input", type=Path, required=True)
+    extract.add_argument(
+        "--input",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="scorer output; --kind rule accepts several, one per run, and reduces them",
+    )
     extract.add_argument("--variant", default="agent", help="agent eval variant column")
-    extract.add_argument("--reduce", default="mean", choices=("mean", "min", "max", "median"))
+    extract.add_argument(
+        "--reduce", default=_DEFAULT_REDUCER, choices=tuple(_REDUCERS)
+    )
     extract.add_argument("--pass-threshold", type=float, default=1.0)
     extract.add_argument("--mechanism", default="full", help="rule eval mechanism column")
-    extract.add_argument("--min-score", type=float, default=3.5)
-    extract.add_argument("--on-skip", default="fail", choices=("fail", "exclude"))
+    extract.add_argument(
+        "--min-score", type=float, default=DEFAULT_MIN_ACTIVATION_SCORE
+    )
+    extract.add_argument(
+        "--rule-reduce",
+        default=_DEFAULT_SAMPLE_REDUCER,
+        choices=tuple(_REDUCERS),
+        help="reducer for repeated judge samples inside one run",
+    )
+    extract.add_argument(
+        "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES
+    )
+    extract.add_argument("--split", type=Path, help="split used to filter a group")
+    extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
+    extract.add_argument("--upstream-model", help="model id used by the upstream scorer")
+    extract.add_argument("--upstream-seed", help="seed used by the upstream scorer")
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")
     source = split.add_mutually_exclusive_group(required=True)
-    source.add_argument("--results", type=Path, help="extract output; task ids are its keys")
+    source.add_argument(
+        "--results",
+        type=Path,
+        help="deprecated: rejected because results are not the task inventory",
+    )
     source.add_argument("--tasks", type=Path, help="newline-delimited task ids")
     split.add_argument("--seed", required=True)
+    split.add_argument("--corpus", help="sha256 digest naming the authoritative task inventory")
     split.add_argument(
         "--out",
         type=Path,
@@ -1812,18 +2773,20 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("buffer-check", help="has this edit already been rejected")
     check.add_argument("--buffer", type=Path, required=True)
     check.add_argument("--patches", type=Path, required=True)
+    check.add_argument("--artifact", type=Path, required=True)
     check.set_defaults(func=cmd_buffer_check)
 
     add = sub.add_parser("buffer-add", help="record a rejected edit")
     add.add_argument("--buffer", type=Path, required=True)
     add.add_argument("--patches", type=Path, required=True)
+    add.add_argument("--artifact", type=Path, required=True)
     add.add_argument("--reason", required=True)
     add.set_defaults(func=cmd_buffer_add)
 
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _dispatch(argv: list[str] | None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
@@ -1847,5 +2810,78 @@ def main(argv: list[str] | None = None) -> int:
     return exit_code
 
 
+def main(argv: list[str] | None = None) -> int:
+    """Run one command, answering a dead output stream with EXIT_CONFIG.
+
+    `_emit` writes with `print`, and a closed reader makes that raise
+    `BrokenPipeError`. It is an `OSError`, so it slipped past the handler in
+    `_dispatch` and left `main`, and the interpreter answers an escape with
+    exit 1, which this CLI defines as REJECT. Measured before this guard:
+    `split` over 20000 tasks piped to a closed reader exited 1 with a
+    traceback. For `gate` the ledger write precedes the final emit, so the
+    consultation was already spent when the answer was lost.
+
+    The old handler answered a failed write with a second write on the same
+    stream. This one does not try. `_warn` is already guarded and goes to the
+    other stream, and the exit code carries the rest: no decision was made.
+
+    Parser construction is inside the guard because `print_help` writes to
+    stderr, which can be closed for the same reason stdout can.
+
+    `ValueError` joins `OSError` because a closed stream raises
+    "I/O operation on closed file", which is a ValueError, so an embedding
+    harness with a closed stdout got exit 1 and a traceback while a broken
+    pipe got exit 2. This gives up nothing: the handler in `_dispatch` already
+    maps every ValueError from the body to EXIT_CONFIG, so the only ones
+    reaching here come from that handler's own write and from parser
+    construction, which are the stream cases this exists for.
+    """
+    try:
+        return _dispatch(argv)
+    except (OSError, ValueError) as exc:
+        _warn(f"optimize-artifact could not write its result: {exc}")
+        return EXIT_CONFIG
+
+
+def _final_exit_code(code: int) -> int:
+    """Flush stdout here, where a failure can still change the answer.
+
+    CPython flushes stdout during shutdown, and when that fails it prints
+    "Exception ignored while flushing sys.stdout" and replaces the exit
+    status. Measured: a small payload piped to a closed reader exited 120
+    rather than the code `main` returned, so a caller reading the status saw
+    neither the verdict nor EXIT_CONFIG.
+
+    Flushing before the interpreter does turns that into an answer. The
+    descriptor is then pointed at the void so the implicit flush has nothing
+    left to fail on. A stand-in stream with no descriptor raises
+    `io.UnsupportedOperation`, a ValueError, which is why that joins OSError
+    in the suppression: this runs on the way out and must not become the
+    failure it is reporting.
+
+    It reports for the same reason `main` does. This path rewrites the status
+    the command computed, and an exit 2 with nothing on stderr leaves the
+    operator unable to tell a dead stream from a bad flag. `_warn` carries it
+    because it suppresses its own failure, which matters here: the two streams
+    tend to close together, so the report cannot assume the other one lived.
+
+    Replacing the stream is what actually stops the 120. The broken one has to
+    stop being `sys.stdout` before the interpreter flushes it again on the way
+    out, and an in-memory stand-in is the whole fix: it needs no descriptor, so
+    it works for the stream whose `fileno` raises as well as for the real
+    broken pipe, and it cannot fail to construct, so this path has no second
+    failure mode to handle. An `os.dup2` redirect onto devnull was measured
+    against it and came out identical on both, at the cost of a descriptor to
+    open, guard, and close.
+    """
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError) as exc:
+        _warn(f"optimize-artifact could not write its result: {exc}")
+        sys.stdout = io.StringIO()
+        return EXIT_CONFIG
+    return code
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    raise SystemExit(_final_exit_code(main()))

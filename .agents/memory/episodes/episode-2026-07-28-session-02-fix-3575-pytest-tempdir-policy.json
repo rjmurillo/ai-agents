@@ -1,0 +1,89 @@
+{
+  "id": "episode-2026-07-28-session-02-fix-3575-pytest-tempdir-policy",
+  "session": "2026-07-28-session-02-fix-3575-pytest-tempdir-policy",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3575 by providing one passing full-suite pytest configuration that does not depend on system /tmp.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prove issue #3575 still real",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Decide relation to PR #3561",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement supported full-suite path",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "test",
+      "content": "Full suite with PYTEST_NON_TMP_ROOT=../ai-agents-test-state/issue3575-full-non-tmp-final passed: 15873 passed, 26 skipped, 2 warnings in 258.75s.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative controls",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 71abbcaf",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": [
+    "A passing no-/tmp pytest policy needs both TMPDIR and basetemp outside the repository. Use a CI wrapper that rejects repository-contained temp roots and passes --basetemp explicitly."
+  ]
+}

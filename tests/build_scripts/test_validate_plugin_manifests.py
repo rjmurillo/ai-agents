@@ -452,6 +452,28 @@ def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:
     assert ".pytest_tmp" not in str(found[0])
 
 
+def test_find_manifests_skips_agent_tmp(tmp_path: Path) -> None:
+    """Pre-push pytest writes fixtures under .agent-tmp; they are not repo plugins."""
+    temp_manifest_dir = (
+        tmp_path
+        / ".agent-tmp"
+        / "pytest-of-richard"
+        / "pytest-1"
+        / "test_invalid_manifest0"
+        / ".claude-plugin"
+    )
+    temp_manifest_dir.mkdir(parents=True)
+    (temp_manifest_dir / "plugin.json").write_text("not json", encoding="utf-8")
+    real_manifest_dir = tmp_path / ".claude" / ".claude-plugin"
+    real_manifest_dir.mkdir(parents=True)
+    (real_manifest_dir / "plugin.json").write_text('{"name":"ok"}', encoding="utf-8")
+
+    found = vpm.find_manifests(tmp_path)
+
+    assert len(found) == 1
+    assert ".agent-tmp" not in str(found[0])
+
+
 def test_main_returns_zero_when_all_valid(tmp_path: Path, capsys) -> None:
     target = _write(tmp_path, {"name": "p"})
     assert vpm.main(["--manifest", str(target), "--root", str(tmp_path)]) == 0

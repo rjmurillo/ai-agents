@@ -117,6 +117,8 @@ if [[ -f "uv.lock" ]]; then
         uv run --frozen lefthook install --reset-hooks-path
         uv run --frozen lefthook check-install
         echo "✓ Lefthook installed"
+        uv run --frozen python scripts/maintenance/install_merge_drivers.py
+        echo "✓ Git merge drivers registered"
     fi
 
     # Put the project venv first on PATH for this run and future shells so

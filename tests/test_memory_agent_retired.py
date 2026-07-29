@@ -56,6 +56,19 @@ AGENT_PROMPT_DIRS = (
     REPO_ROOT / ".github" / "agents",
 )
 
+ACTIVE_MEMORY_AGENT_REFERENCE_FILES = (
+    REPO_ROOT / ".agents" / "AGENT-SYSTEM.md",
+    REPO_ROOT / ".github" / "copilot-code-review.md",
+    REPO_ROOT / ".github" / "labeler.yml",
+)
+
+STALE_ACTIVE_MEMORY_AGENT_REFERENCES = (
+    "src/claude/memory.md",
+    "memory.agent.md",
+    "templates/agents/memory.shared.md",
+    "@memory ",
+)
+
 _MEMORY_SUBAGENT_HANDOFF = re.compile(
     r"^\s*subagent_type\s*:\s*['\"]?memory['\"]?\s*(?:#.*)?$"
     r"|Task\(\s*subagent_type\s*=\s*['\"]memory['\"]"
@@ -109,4 +122,19 @@ def test_no_agent_prompt_reintroduces_memory_subagent() -> None:
         "These agent prompts reference a retired `memory` subagent via "
         f"subagent_type=\"memory\": {offenders}. Route memory work through "
         "Skill(\"memory\") instead (Issue #2102)."
+    )
+
+
+def test_active_docs_and_config_do_not_reference_retired_memory_agent() -> None:
+    """Active docs and label config must point at the memory skill, not an agent."""
+    offenders: list[str] = []
+    for path in ACTIVE_MEMORY_AGENT_REFERENCE_FILES:
+        text = path.read_text(encoding="utf-8")
+        for reference in STALE_ACTIVE_MEMORY_AGENT_REFERENCES:
+            if reference in text:
+                offenders.append(f"{path.relative_to(REPO_ROOT)} contains {reference!r}")
+
+    assert not offenders, (
+        "Active documentation or configuration still references the retired "
+        f"memory agent: {offenders}. Route memory work through the memory skill."
     )

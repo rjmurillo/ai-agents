@@ -23,7 +23,7 @@ Behavior:
 
 The commit count is fetched with ``per_page=100`` (the GitHub REST maximum for
 a single page) and is not paginated, so the reported count saturates at 100.
-Classification is unaffected: any PR at or above ``BLOCK_THRESHOLD`` (20) is
+Classification is unaffected: any PR above ``BLOCK_THRESHOLD`` (20) is
 ``BLOCKED``, and 100 far exceeds 20, so a PR with more than 100 commits is
 always ``BLOCKED`` regardless of the exact count. For such PRs the emitted
 ``commit_count`` is a floor.
@@ -50,9 +50,12 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.github_core.api import resolve_repo_params  # noqa: E402
 
-# Commit-count thresholds (issue #362). A PR at or above BLOCK_THRESHOLD is
+# Commit-count thresholds (issue #362). A PR above BLOCK_THRESHOLD is
 # blocked by the downstream Enforce Blocking Issues step unless it carries the
-# commit-limit-bypass label.
+# commit-limit-bypass label. The comparison is strict so this agrees with the
+# local pre-push limit (issue #3596): ``git_hook_policy._check_commit_limit``
+# imports this same BLOCK_THRESHOLD instead of keeping its own separate ceiling,
+# so a push the local hook accepts never lands a PR that CI then blocks.
 WARNING_THRESHOLD = 10
 ALERT_THRESHOLD = 15
 BLOCK_THRESHOLD = 20
@@ -95,7 +98,7 @@ class CountResult:
 
 def classify_count(count: int) -> str:
     """Map a commit count to a threshold status (issue #362)."""
-    if count >= BLOCK_THRESHOLD:
+    if count > BLOCK_THRESHOLD:
         return "BLOCKED"
     if count >= ALERT_THRESHOLD:
         return "ALERT"
@@ -146,7 +149,7 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
     raises FileNotFoundError so the caller can exit 2 (config error, ADR-035).
 
     The count is fetched with ``per_page=100`` and is not paginated, so it
-    saturates at 100. This does not change classification: any count at or above
+    saturates at 100. This does not change classification: any count above
     BLOCK_THRESHOLD (20) is BLOCKED, and 100 >> 20.
     """
     endpoint = f"repos/{owner}/{repo}/pulls/{pr_number}/commits?per_page=100"
@@ -251,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PR #{args.pr_number} has {count} commits (status: {outcome.status})")
     if outcome.status == "BLOCKED":
         print(
-            f"::error::PR exceeds commit limit ({count} >= {BLOCK_THRESHOLD}). "
+            f"::error::PR exceeds commit limit ({count} > {BLOCK_THRESHOLD}). "
             "Consider splitting this PR."
         )
     elif outcome.status == "ALERT":

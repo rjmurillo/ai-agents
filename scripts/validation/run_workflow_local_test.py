@@ -527,6 +527,26 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"|invalid literal for int\(\) with base 10: ''"
 )
 
+_ACT_SERVER_PORT_BIND_PATTERN = re.compile(
+    r"listen tcp [0-9.]+:\d+: bind: address already in use"
+)
+
+# act embeds its own artifact server, which lags the protobuf schema the current
+# actions/upload-artifact client sends. act rejects the body ("unknown field
+# mime_type"), the client reads the rejection as malformed JSON, retries, and
+# aborts. GitHub's real artifact service accepts the field, so this is
+# unreachable in CI.
+#
+# Anchored on the retry-exhaustion suffix, not on the artifact verb: that suffix
+# comes from the @actions/artifact transport retry helper and is emitted only
+# when the HTTP conversation itself fails. Artifact *defects* carry different
+# text ("No files were found with the provided path", "artifact name is not
+# valid") and keep blocking, which is the point of scoping it this way. See
+# issue #3690.
+_ACT_ARTIFACT_SERVICE_PATTERN = re.compile(
+    r"Failed to \w+: Failed to make request after \d+ attempts:"
+)
+
 # Known act-only limitation signatures. A nonzero act exit whose combined output
 # matches one of these rules can be a local environment gap, not a workflow
 # defect. The pull_request context rules are event-scoped in _act_limitation_hint;
@@ -550,6 +570,20 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload omits repository.default_branch, so "
         "dorny/paths-filter cannot resolve a comparison base. GitHub always "
         "populates it, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_SERVER_PORT_BIND_PATTERN.search(text)),
+        "act's local reusable-workflow server port is already bound by another "
+        "local act process. GitHub does not bind this local server in CI.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_ARTIFACT_SERVICE_PATTERN.search(text)),
+        "act's embedded artifact server rejects the request body the current "
+        "actions/upload-artifact client sends, so artifact transport fails only "
+        "in local act, not in CI. Artifact defects (no files matched, invalid "
+        "name) carry different text and still block.",
     ),
     (
         "pull_request",

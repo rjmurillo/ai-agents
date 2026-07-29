@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3509,
+    "date": "2026-07-29",
+    "branch": "fix/3509-trigger-phrase-provenance",
+    "startingCommit": "0f78e62fd5",
+    "objective": "Close the closed-loop gap in the skill trigger standard. Reproduce the claim that documented trigger phrases are authored rather than observed, record the measurement and the authoring rules in the standard, and settle sibling issue #3494 with data instead of shipping the phrase promotion it proposed."
+  },
+  "endingCommit": "87c2439de3",
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3509-trigger-phrase-provenance origin/main, then git branch --show-current returned fix/3509-trigger-phrase-provenance"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3509-trigger-phrase-provenance, cut fresh from origin/main so it does not sit on the in-flight fix/3602 branch."
+      },
+      "handoffRead": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not re-read for this branch. Work continues an in-flight autopilot campaign against the open issue queue whose state is tracked in the session triage table."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/sessions/2026-07-29-session-3509-trigger-phrase-provenance.json created before the first commit."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP tools were unavailable for the whole session. No serena/ or mcp__serena__ tool was exposed by the harness, so activate_project could not be called. Fell back to reading .agents/ and .claude/ directly as AGENTS.md directs."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "initial_instructions could not be called because Serena MCP was unavailable. Retrieval used the governance tree and the skill catalog on disk instead."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "workLog carries eight steps covering the failed probes, the corrected measurement, the reproduction, and the two narrowings that were rejected with data."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No QA skip claimed. The change is a governance document with no executable surface, so the evidence is the reproduction itself: two independent corpora measured and reported in the added section."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 selected zero files because .agents/** is excluded by .markdownlint-cli2.yaml. That is the trap recorded in session 3650, so the run is not evidence of cleanliness. Verified instead by byte scan: zero U+2014 and zero U+2013 in the file, and zero banned-vocabulary hits across the added lines."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "scripts/validate_session_json.py returned PASS on this log. Pre-push hooks ran the full gate set on the branch before the push was accepted."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every protocolCompliance item in this log carries an explicit complete flag and evidence string, including the two Serena items recorded as incomplete."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP was unavailable, so write_memory could not be called. Per the knowledge-persistence rule a binding convention belongs in the governance tree rather than in memory alone, and the finding was written to .agents/governance/skill-description-trigger-standard.md instead, which is the durable cross-harness surface."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md was not modified. git status shows the branch touching only the governance standard and this session log."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Single commit touching one governance file plus this session log."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #3494 and reproduced its measurement before trusting it. The issue claims 150 documented trigger phrases across 21 skills never reach the router. My first probe extracted the frontmatter description with a single-line regex and reported 15 skills and 70 phrases, with several descriptions measuring 2 bytes. Those 2-byte values were the YAML block scalar marker, which proved the probe was truncating multi-line descriptions rather than reading them."
+    },
+    {
+      "step": "Re-measured with a real YAML parse. Correct exact-substring figures are 48 skills carrying a Triggers table, 8 whose description matches zero documented phrases, 37 phrases in those 8, and 108 across all skills. The issue's headline of 150 phrases across 21 skills does not reproduce."
+    },
+    {
+      "step": "Checked the issue's designated first change, the 13 skills said to carry no quoted user phrase of any kind. That set is now empty. Every one of the 8 remaining skills carries between 1 and 4 quoted phrases in its description, so the scope the issue marked as actionable no longer exists."
+    },
+    {
+      "step": "Replaced the exact-substring test with a content-word overlap test, because the router is a language model doing semantic matching and not a substring matcher. Found and fixed a second probe defect on the way: the tokenizer kept hyphens, so the skill name chestertons-fence never matched the phrase chestertons fence. Corrected figures are 29 of 224 phrases below 50 percent coverage, across 21 skills."
+    },
+    {
+      "step": "Classified all 29 by hand. Eleven are not promotable at all: template placeholders such as improve skill {name} and execute the plan at plans/X.md, slash commands such as /spec, and single generic words such as research and scan that would cause false routing. The rest are near-miss paraphrases already covered by the description in prose."
+    },
+    {
+      "step": "Investigated a suspected over-claim in security-scan, whose description states that CWE-22 is delegated to CodeQL while its Triggers table lists check for path traversal. Read the table row before editing. The Operation column already reads NOT handled by this scanner, CWE-22 detection is delegated to CodeQL. The row is an honest redirect, not an over-claim, so no edit was made. This is the fourth time this session that reading the artifact before claiming a defect prevented a wrong change."
+    },
+    {
+      "step": "Read sibling issue #3509 and found it refutes #3494's fix direction. Mined 1713 local Claude Code transcripts for 524 unique user prompts and matched trigger phrases on word boundaries after dropping slash commands and single words. 5 of 211 table phrases and 7 of 280 description phrases have ever been typed, which is 2.4 and 2.5 percent against the 10.4 and 5.7 percent reported in #3509. Two independent corpora agree on direction. Also recorded that only 59 of 524 prompts carry promptSource typed, so most of the corpus is agent-injected and any realism figure must report that split."
+    },
+    {
+      "step": "Rejected two candidate changes with reasons rather than shipping them. First, bulk promotion of table phrases into descriptions, because it optimizes the closed loop and buys permanent context cost for phrases with a 2 to 10 percent chance of ever being typed. Second, the CI eval requested by #3509 item 1, because the transcript store lives on a developer machine and is absent on a runner, so the arm would be silently inert in the same way a git-history lookup would be under a depth-1 checkout. Recorded the reproduction procedure in the standard instead, and folded #3509 item 3 into the document because the knowledge-persistence rule puts binding conventions in the governance tree rather than in memory alone."
+    }
+  ],
+  "nextSteps": [
+    "Close #3494 with the corrected measurement and the provenance evidence from #3509.",
+    "Continue the open-issue campaign against the remaining P1 queue."
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3499,
+    "date": "2026-07-28",
+    "branch": "fix/3499-markdown-it-ast",
+    "startingCommit": "479bb906da",
+    "objective": "Remediate the adversarial review (gpt-5.6-sol) REQUEST CHANGES on PR #3567: close the maxNesting fail-open (Finding 1), relabel mutant-surviving tests as invariants (Finding 2), and close the zero-file-scan fail-open (Finding 3) in the Markdown portability validator."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3499-markdown-it-ast in isolated worktree wt-3567."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Work is on fix/3499-markdown-it-ast, never on main; the main checkout is read-only for this agent."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read this session and left unmodified (read-only per ADR-014); not in git status."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP is not available in the Copilot CLI harness; per AGENTS.md 'If unavailable: Skip Serena', used .agents governance docs and ADRs for context."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable in this harness; initial_instructions could not be called. Fell back to AGENTS.md and .agents rules."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Two atomic code commits f0a1cda3be and 4e45e6583e (2 files each) plus this session-log commit; working tree clean between steps."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Pre-push lefthook full run green: pre-pr-validation and python-tests passed, 15401 passed, 26 skipped, no failures, default out-of-tree TMPDIR. Ruff clean on all four changed files."
+      },
+      "testsRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "183 passed across parser and validator suites; full tests/validation 1081 passed, 1 skipped (unrelated resolver control); per-finding revert table S1 8/9, S2 3/3, S3 9/0 with zero survivors among evidence tests."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No Markdown files in the diff (scripts/ and tests/ only); markdownlint-cli2 config excludes .agents/**, so the session log is not a lint target."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; not in git status."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable in the Copilot CLI harness; learnings recorded in this session log instead (see learnings section)."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Finding 1: close the maxNesting 20 fail-open in blank_code_block_lines.",
+      "result": "Added MarkdownNestingError and a gated two-parse block-shape divergence check. Primary parse at maxNesting 20; when a token sits at the saturation level, re-parse at maxNesting times 2 and compare top-level BLOCK token shape; raise on divergence so the CLI exits 2 (incomplete scan), never 0. Rejected raising the limit because that moves the cliff, not removes it. Zero real-corpus cost: deepest block level in the 345-file tree is 9, below the 19 trigger.",
+      "files": ["scripts/utils/markdown_parser.py", "tests/test_markdown_parser.py"]
+    },
+    {
+      "action": "Finding 2: separate invariant tests from AST-behavior evidence tests.",
+      "result": "Split into TestBlankCodeBlockLinesInvariants (9, labeled not-evidence) and TestBlankCodeBlockLinesAstBehavior (4, RED under the old scanner). No coverage deleted.",
+      "files": ["tests/test_markdown_parser.py"]
+    },
+    {
+      "action": "Finding 3: close the zero-file-scan fail-open and surface traversal errors.",
+      "result": "MarkdownScan NamedTuple separates scanned from offending counts; os.walk with onerror surfaces PermissionError; a broken .md symlink raises OSError; a zero-file scan exits 2. Extracted _print_report to keep main under complexity 10. Confirmed the walker is not shared with the orphan-ref validator from PR #3550.",
+      "files": ["scripts/validation/check_skill_md_portability.py", "tests/validation/test_check_skill_md_portability.py"]
+    },
+    {
+      "action": "Session retrospective.",
+      "result": "Learnings captured: prefer a gated second parse over raising a parser limit; prove tests with an isolated per-finding revert harness that never runs git checkout on uncommitted work; report scanned-file counts separately from offending counts so a zero scan cannot read as healthy. Related prior retros live under .agents/retrospective/."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Gated two-parse divergence check for parser nesting exhaustion.",
+        "context": "markdown-it-py saturates token.level at maxNesting minus 1 for both legitimate deep content and truncated content, so a single parse cannot tell them apart.",
+        "application": "Early-return when the deepest level is provably below the cliff; only then re-parse at double the limit and compare block-token shape; refuse on divergence."
+      },
+      {
+        "pattern": "Per-finding revert (mutant) table as test evidence.",
+        "context": "A test that passes whether or not the fix is present proves nothing about the fix.",
+        "application": "Revert each fix in isolation in-place, keep new symbols defined so collection works, re-run targeted tests, and require every evidence test to fail under its own revert."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Raising a parser nesting limit to make a deep example parse.",
+        "consequence": "Moves the silent-truncation cliff to a larger depth without removing it; the fail-open returns at the new limit.",
+        "correction": "Detect truncation and refuse the file with a nonzero exit instead of trusting a larger bound."
+      },
+      {
+        "antipattern": "Reporting the offending-file count as though it were the scanned-file count.",
+        "consequence": "A zero-file scan reads identically to a healthy scan, so an empty or unreadable tree passes silently.",
+        "correction": "Track scanned and offending counts separately and refuse a zero-file scan."
+      }
+    ]
+  },
+  "endingCommit": "4e45e6583e",
+  "nextSteps": [
+    "Guarded background push of fix/3499-markdown-it-ast; capture new head SHA.",
+    "Report the SUBSUMED, PARTIAL, or WRONG verdict on rival bot PR #3558 and the #3567 plus #3558 combination coherence."
+  ]
+}

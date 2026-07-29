@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,20 +16,30 @@ import generate_skills  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 
 _GATED_SKILL_TREE_MIRRORS = (
+    "autoplan",
     "review",
     "cva-analysis",
+    "observability",
     "orphan-ref-validator",
     "security-detection",
     "slashcommandcreator",
+    "taste-lints",
 )
 _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
     {
+        "autoplan",
         "cva-analysis",
+        "observability",
         "orphan-ref-validator",
         "review",
         "security-detection",
         "slashcommandcreator",
+        "taste-lints",
     }
+)
+_SKILL_ROUTE_RE = re.compile(
+    r"^\|[^|\n]*\|\s*Skill:\s+([A-Za-z0-9][A-Za-z0-9-]*)",
+    re.MULTILINE,
 )
 _SKILLFORGE_TIMEOUT_SECONDS = 20
 
@@ -126,6 +137,22 @@ def test_committed_skill_tree_mirror_matches_source_skill_md(skill_name: str) ->
         else source_text
     )
     assert mirror.read_text(encoding="utf-8") == expected
+
+
+def test_copilot_skill_routes_resolve_inside_copilot_skill_tree() -> None:
+    """Every shipped Skill route points at a skill shipped in the same tree."""
+    skills_root = REPO_ROOT / "src" / "copilot-cli" / "skills"
+    unresolved: list[str] = []
+
+    for skill_md in sorted(skills_root.glob("*/SKILL.md")):
+        text = skill_md.read_text(encoding="utf-8")
+        for match in _SKILL_ROUTE_RE.finditer(text):
+            routed_skill = match.group(1)
+            if not (skills_root / routed_skill / "SKILL.md").is_file():
+                rel_path = skill_md.relative_to(REPO_ROOT).as_posix()
+                unresolved.append(f"{rel_path}: Skill: {routed_skill}")
+
+    assert not unresolved, "unresolved Copilot Skill routes:\n" + "\n".join(unresolved)
 
 
 @pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)

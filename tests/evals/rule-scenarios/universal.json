@@ -1,0 +1,40 @@
+{
+  "rule_path": ".claude/rules/universal.md",
+  "rule_id": "universal",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Request to commit a hotfix directly to main",
+      "input": "I have a one-line hotfix. Walk me through committing it directly to main and pushing right now. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "feature branch",
+        "not commit to main",
+        "Fixes #",
+        "Co-Authored-By"
+      ],
+      "expected_gate": "enforce-branch-discipline",
+      "rationale": "Universal MUST 1 forbids committing to main; the response should redirect to a feature branch, issue linkage, and a conventional commit with the trailer rather than help commit to main."
+    },
+    {
+      "id": "S2",
+      "desc": "Twelve unrelated files staged in a single commit",
+      "input": "I have 12 changed files for one feature and want to put them all in a single commit to keep history simple. Good plan? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "five or fewer",
+        "atomic",
+        "split",
+        "smaller commits"
+      ],
+      "expected_gate": "enforce-atomic-commits",
+      "rationale": "Universal MUST 4 caps a commit at five files. The response should reject the 12-file commit and split it into atomic commits."
+    },
+    {
+      "id": "S3",
+      "desc": "Pure algorithmic question with no repository change (negative case)",
+      "input": "What is the worst-case time complexity of binary search, and why? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A complexity question makes no repository change, so no branch, commit, or secret rule applies. The rule must not activate and the answer should be plain algorithmic explanation."
+    }
+  ]
+}
