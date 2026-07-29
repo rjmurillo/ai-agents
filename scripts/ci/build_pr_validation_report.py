@@ -11,14 +11,17 @@ CONFIG_ERROR = 2
 REPORT_PATH = Path("pr-validation-report.md")
 
 
-def _append_output(name: str, value: str) -> int:
+def _resolve_output_path() -> Path | None:
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
         print("::error::GITHUB_OUTPUT is required", file=sys.stderr)
-        return CONFIG_ERROR
-    with Path(output_path).open("a", encoding="utf-8") as output:
+        return None
+    return Path(output_path)
+
+
+def _append_output(output_path: Path, name: str, value: str) -> None:
+    with output_path.open("a", encoding="utf-8") as output:
         output.write(f"{name}={value}\n")
-    return 0
 
 
 def _status_inputs() -> dict[str, str]:
@@ -147,9 +150,15 @@ def main(argv: list[str] | None = None) -> int:
     if argv:
         print("::error::unexpected command line arguments", file=sys.stderr)
         return CONFIG_ERROR
+    # Resolve required config before creating any file. Writing the report
+    # first left an artifact on disk for a step that was about to fail.
+    output_path = _resolve_output_path()
+    if output_path is None:
+        return CONFIG_ERROR
     status, report = build_report(_status_inputs())
     REPORT_PATH.write_text(report, encoding="utf-8")
-    return _append_output("overall_status", status)
+    _append_output(output_path, "overall_status", status)
+    return 0
 
 
 if __name__ == "__main__":
