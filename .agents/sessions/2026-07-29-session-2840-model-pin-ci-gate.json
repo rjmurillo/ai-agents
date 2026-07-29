@@ -100,7 +100,7 @@
       "step": "Added four wiring tests and mutation-tested each one. Deleting the step, switching it to warn mode, adding a job-level if to the host job, and planting a new unjustified pin each fail a distinct test; the warn-mode mutation fails two, which is correct because both the enforce assertion and the warn assertion are load-bearing. The first draft of the warn-mode test read the raw file text and was tripped by the explanatory comment naming warn mode; it was tightened to read parsed run blocks."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "28f31d60b",
   "nextSteps": [
     "Open the PR for #2840",
     "Continue the open-issue campaign"
