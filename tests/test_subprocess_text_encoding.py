@@ -442,12 +442,41 @@ def _assigned(node: _Assign) -> list[tuple[str, ast.expr]]:
     return _unpack(node.target, node.value)
 
 
+def _captured(node: ast.Match) -> list[tuple[str, ast.expr]]:
+    """Pair every name a match statement captures with the subject it reads.
+
+    Structural patterns name a capture in exactly three places: ``case r``
+    and ``case P as r`` set ``MatchAs.name``, ``case [*rest]`` sets
+    ``MatchStar.name``, and ``case {**rest}`` sets ``MatchMapping.rest``.
+    Every other pattern is a shape holding those, so walking each case finds
+    all of them. ``case _`` leaves the name unset and captures nothing.
+
+    Which part of the subject a capture receives depends on the shape that
+    matched, which is a runtime question, so each one is paired with the
+    whole subject. That reads a sequence element as the whole sequence, and
+    the direction is safe: too loud, never too quiet.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for case in node.cases:
+        for pattern in ast.walk(case.pattern):
+            if isinstance(pattern, (ast.MatchAs, ast.MatchStar)):
+                name = pattern.name
+            elif isinstance(pattern, ast.MatchMapping):
+                name = pattern.rest
+            else:
+                continue
+            if name is not None:
+                found.append((name, node.subject))
+    return found
+
+
 def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     """Collect every ``name = value`` binding at any depth.
 
     Covers plain assignment, annotated assignment, the walrus, loop and
-    comprehension targets, class bodies, and default arguments, every one of
-    which binds a name without an assignment statement to find.
+    comprehension targets, class bodies, match captures, values handed to a
+    method, and default arguments, every one of which binds a name without an
+    assignment statement to find.
     Assignment targets are unpacked, so a name bound by destructuring is as
     visible as one bound on its own.
     """
@@ -457,6 +486,8 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             found.extend(_assigned(node))
         elif isinstance(node, ast.Call):
             found.extend(_receives(node))
+        elif isinstance(node, ast.Match):
+            found.extend(_captured(node))
         elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             # ``for runner in (subprocess.run,)`` binds a name with no
             # assignment statement anywhere in sight.
@@ -934,6 +965,16 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'H[0](["x"], capture_output=True, text=True)',
             "a delete may reach through a subscript the scan cannot name",
         ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case _:\n'
+            '        _(["x"], capture_output=True, text=True)',
+            "a wildcard pattern matches everything and captures nothing",
+        ),
+        (
+            'import subprocess\nmatch subprocess.check_call:\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a capture is only as loud as the subject it reads",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -1277,6 +1318,56 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             "b = subprocess.check_output\n"
             'c(["x"], capture_output=True, text=True)',
             "one name of a shared binding resolving does not answer for the rest",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a bare match case captures the subject under a new name",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case object() as runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "an as-pattern captures under a name too",
+        ),
+        (
+            'import subprocess\nmatch [subprocess.run]:\n    case [*rest]:\n'
+            '        rest[0](["x"], capture_output=True, text=True)',
+            "a star pattern collects the subject into a new container",
+        ),
+        (
+            'import subprocess\nmatch {"k": subprocess.run}:\n'
+            '    case {**rest}:\n'
+            '        rest["k"](["x"], capture_output=True, text=True)',
+            "a mapping rest pattern captures what the other keys left",
+        ),
+        (
+            'import subprocess\nmatch [subprocess.run]:\n    case [runner]:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a sequence pattern captures an element by position",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case runner if runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a guarded case still captures before the guard runs",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n'
+            '    case object(__doc__=held):\n'
+            '        held(["x"], capture_output=True, text=True)',
+            "a class pattern captures through a keyword",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case [] | runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "an or-pattern captures in whichever alternative matches",
+        ),
+        (
+            'import subprocess\nmatch subprocess.run:\n    case []:\n'
+            '        pass\n    case runner:\n'
+            '        runner(["x"], capture_output=True, text=True)',
+            "a later case captures just as much as the first",
         ),
     ],
 )
