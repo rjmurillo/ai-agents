@@ -88,6 +88,54 @@ CODE_FENCE_PATTERN = re.compile(r"^\s*(`{3,}|~{3,})")
 INLINE_CODE_PATTERN = re.compile(r"`[^`]+`")
 
 
+def _filter_git_ignored(root: Path, files: list[Path]) -> list[Path]:
+    """Drop files ignored by git, failing open when git is unavailable.
+
+    Scanning ignored trees made the gate fail on transient artifacts, for
+    example a `.pytest_cache/basetemp/` fixture holding a deliberate
+    `/home/runner` string. Naming each cache directory in the exclude list is
+    a blocklist that loses to the next tool; git already knows the answer.
+
+    The timeout is not decorative: this runs inside a pre-push hook, and a git
+    that blocks on an index lock would otherwise hang the push with no output.
+    """
+    if not files:
+        return files
+
+    relatives = [path.relative_to(root).as_posix() for path in files]
+    payload = "\0".join(relatives).encode("utf-8") + b"\0"
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "--stdin", "-z"],
+            input=payload,
+            capture_output=True,
+            timeout=GIT_CHECK_IGNORE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return files
+
+    # 0 means some paths are ignored, 1 means none are. Anything else (128 for
+    # "not a git repository") means the answer is unusable, so scan everything.
+    if result.returncode not in (0, 1):
+        return files
+
+    ignored = {
+        item.decode("utf-8")
+        for item in result.stdout.split(b"\0")
+        if item
+    }
+    if not ignored:
+        return files
+
+    return [
+        path
+        for path, relative in zip(files, relatives, strict=True)
+        if relative not in ignored
+    ]
+
+
 def _should_use_color() -> bool:
     """Determine whether to use ANSI color codes in output."""
     if os.environ.get("NO_COLOR"):
@@ -122,42 +170,12 @@ def _cyan(text: str, use_color: bool) -> str:
     return _color(text, "36", use_color)
 
 
-def _git_ignored(root: Path, candidates: list[Path]) -> set[Path]:
-    """Return the candidates Git ignores, or an empty set outside a repository.
-
-    Scanning ignored trees made the gate fail on transient artifacts, for
-    example a `.pytest_cache/basetemp/` fixture holding a deliberate
-    `/home/runner` string. Naming each cache directory in the exclude list is a
-    blocklist that loses to the next tool; Git already knows the answer.
-    """
-    if not candidates:
-        return set()
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "check-ignore", "--stdin", "-z"],
-            input="\0".join(str(path) for path in candidates),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_CHECK_IGNORE_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return set()
-    # 0 means some paths are ignored, 1 means none are. Anything else (128 for
-    # "not a git repository") means the answer is unusable, so scan everything.
-    if result.returncode not in (0, 1):
-        return set()
-    return {Path(line) for line in result.stdout.split("\0") if line}
-
-
 def collect_files(
     root: Path,
     extensions: list[str],
     exclude_paths: list[str],
 ) -> list[Path]:
-    """Collect files matching extensions, excluding specified paths."""
+    """Collect matching files, excluding configured and git-ignored paths."""
     files: list[Path] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
@@ -173,8 +191,7 @@ def collect_files(
                 break
         if not excluded:
             files.append(path)
-    ignored = _git_ignored(root, files)
-    return [path for path in files if path not in ignored]
+    return _filter_git_ignored(root, files)
 
 
 def scan_file(

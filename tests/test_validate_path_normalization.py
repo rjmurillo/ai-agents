@@ -17,6 +17,7 @@ import pytest
 _BUILD_SCRIPTS = Path(__file__).resolve().parent.parent / "build" / "scripts"
 sys.path.insert(0, str(_BUILD_SCRIPTS))
 
+import validate_path_normalization as vpn  # noqa: E402
 from validate_path_normalization import (  # noqa: E402
     FORBIDDEN_PATTERNS,
     ScanResult,
@@ -26,6 +27,10 @@ from validate_path_normalization import (  # noqa: E402
     scan_directory,
     scan_file,
 )
+
+
+def _init_git_repo(path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
 
 
 class TestForbiddenPatterns:
@@ -114,6 +119,41 @@ class TestCollectFiles:
             (sub / "file.md").write_text("content")
         files = collect_files(tmp_path, [".md"], [".git", "bin", "obj"])
         assert len(files) == 1
+
+    def test_omits_git_ignored_files(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n")
+        (tmp_path / "root.md").write_text("ok\n")
+        ignored = tmp_path / ".pytest_cache" / "basetemp" / "probe" / "repo" / "build"
+        ignored.mkdir(parents=True)
+        (ignored / "GENERATION-AUDIT.md").write_text("leaked /home/runner/cache\n")
+
+        files = collect_files(tmp_path, [".md"], [])
+
+        assert files == [tmp_path / "root.md"]
+
+    def test_scans_outside_repository_when_git_check_ignore_fails_open(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "bad.md").write_text("leaked /home/runner/cache\n")
+
+        result = scan_directory(tmp_path, [".md"], [], FORBIDDEN_PATTERNS)
+
+        assert result.files_scanned == 1
+        assert len(result.violations) == 1
+
+    def test_scans_all_files_when_git_binary_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def raise_not_found(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            raise FileNotFoundError
+
+        monkeypatch.setattr(vpn.subprocess, "run", raise_not_found)
+        (tmp_path / "doc.md").write_text("ok\n")
+
+        files = collect_files(tmp_path, [".md"], [])
+
+        assert files == [tmp_path / "doc.md"]
 
 
 class TestScanFile:
@@ -282,6 +322,29 @@ class TestMain:
         result = main(["--path", str(tmp_path), "--fail-on-violation"])
         assert result == 1
 
+    def test_returns_0_for_git_ignored_violation_with_fail_flag(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".pytest_cache/\n")
+        ignored = tmp_path / ".pytest_cache" / "basetemp" / "probe"
+        ignored.mkdir(parents=True)
+        (ignored / "GENERATION-AUDIT.md").write_text("leaked /home/runner/cache\n")
+        (tmp_path / "root.md").write_text("clean\n")
+
+        result = main(["--path", str(tmp_path), "--fail-on-violation"])
+
+        assert result == 0
+
+    def test_tracked_file_matching_ignore_pattern_still_fails(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text("*.md\n")
+        tracked = tmp_path / "tracked.md"
+        tracked.write_text("leaked /home/runner/cache\n")
+        subprocess.run(["git", "add", "-f", "tracked.md"], cwd=tmp_path, check=True)
+
+        result = main(["--path", str(tmp_path), "--fail-on-violation"])
+
+        assert result == 1
+
     def test_returns_0_no_files(self, tmp_path: Path) -> None:
         result = main(["--path", str(tmp_path)])
         assert result == 0
@@ -444,3 +507,76 @@ class TestGitIgnoredFilesAreSkipped:
         monkeypatch.setattr(module.subprocess, "run", _fail)
 
         assert collect_files(tmp_path, [".md"], []) == []
+
+
+class TestGitCheckIgnoreCannotHangThePush:
+    """A blocked `git check-ignore` must not stall the pre-push hook.
+
+    `collect_files` shells out to git on every push. Without a timeout, a git
+    that blocks on an index lock leaves the contributor staring at a hung
+    terminal with no output and no way to tell what is wrong. The gate would
+    rather scan an ignored file than never finish.
+    """
+
+    def test_a_timeout_is_passed_to_git(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "doc.md").write_text("ok\n", encoding="utf-8")
+        seen: dict[str, object] = {}
+        real_run = subprocess.run
+
+        def capture(*args, **kwargs):  # type: ignore[no-untyped-def]
+            if "check-ignore" in args[0]:
+                seen.update(kwargs)
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(vpn.subprocess, "run", capture)
+        collect_files(tmp_path, [".md"], [])
+
+        assert seen.get("timeout") == vpn.GIT_CHECK_IGNORE_TIMEOUT_SECONDS
+
+    def test_a_hung_git_fails_open_instead_of_raising(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        kept = tmp_path / "doc.md"
+        kept.write_text("ok\n", encoding="utf-8")
+
+        def hang(*args, **kwargs):  # type: ignore[no-untyped-def]
+            raise subprocess.TimeoutExpired(cmd="git", timeout=1)
+
+        monkeypatch.setattr(vpn.subprocess, "run", hang)
+
+        assert collect_files(tmp_path, [".md"], []) == [kept]
+
+    def test_any_subprocess_error_fails_open(self, tmp_path: Path, monkeypatch) -> None:
+        kept = tmp_path / "doc.md"
+        kept.write_text("ok\n", encoding="utf-8")
+
+        def explode(*args, **kwargs):  # type: ignore[no-untyped-def]
+            raise subprocess.SubprocessError("git died")
+
+        monkeypatch.setattr(vpn.subprocess, "run", explode)
+
+        assert collect_files(tmp_path, [".md"], []) == [kept]
+
+    def test_a_missing_git_binary_still_fails_open(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        kept = tmp_path / "doc.md"
+        kept.write_text("ok\n", encoding="utf-8")
+
+        def missing(*args, **kwargs):  # type: ignore[no-untyped-def]
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(vpn.subprocess, "run", missing)
+
+        assert collect_files(tmp_path, [".md"], []) == [kept]
+
+    def test_the_timeout_does_not_disable_filtering(self, tmp_path: Path) -> None:
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, capture_output=True)
+        (tmp_path / ".gitignore").write_text("cache/\n", encoding="utf-8")
+        cache = tmp_path / "cache"
+        cache.mkdir()
+        (cache / "artifact.md").write_text("x\n", encoding="utf-8")
+        kept = tmp_path / "doc.md"
+        kept.write_text("ok\n", encoding="utf-8")
+
+        assert collect_files(tmp_path, [".md"], []) == [kept]

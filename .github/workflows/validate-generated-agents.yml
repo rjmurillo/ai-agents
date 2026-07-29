@@ -174,7 +174,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: uv run python build/scripts/validate_templates_schema.py
 
-      - name: Validate plugin frontmatter self-containment (issue #3565)
+      - name: "Validate plugin frontmatter self-containment (issue #3565)"
         if: steps.should-run.outputs.skip != 'true'
         # A shipped `description` loads into every consumer session, so a path
         # into an upstream-only directory never resolves for them. The prose
@@ -221,7 +221,7 @@ jobs:
           echo "Running sync_plugin_lib.py --check..."
           uv run python scripts/sync_plugin_lib.py --check
 
-      - name: Plugin manifest version parity check (Issue #2222)
+      - name: "Plugin manifest version parity check (Issue #2222)"
         if: steps.should-run.outputs.skip != 'true'
         # Both `.claude/.claude-plugin/plugin.json` and
         # `src/copilot-cli/.claude-plugin/plugin.json` must declare
@@ -239,7 +239,7 @@ jobs:
           echo "Validating GitHub Actions SHA pinning..."
           uv run python scripts/validation/sha_pinning.py --ci
 
-      - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
+      - name: "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)"
         if: steps.should-run.outputs.skip != 'true'
         # Parse every .github/agents/*.agent.md frontmatter as a YAML loader
         # would. An unquoted plain-scalar description that embeds colon-bearing

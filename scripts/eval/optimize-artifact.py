@@ -74,6 +74,7 @@ from _optimizer_adapters import (  # noqa: E402
 )
 from _optimizer_core import (  # noqa: E402
     Patch,
+    ScoreEvidence,
     _ratio_display,
     apply_patches,
     buffer_contains,
@@ -276,9 +277,29 @@ class ResultsFile(NamedTuple):
 
     results: dict[str, bool]
     corpus: str | None
+    provenance: dict[str, Any]
 
 
 _RESULTS_SCHEMA = "optimizer-results/1"
+_PROVENANCE_SCHEMA = "optimizer-provenance/1"
+_EXTRACTOR_VERSION = "optimize-artifact/1"
+_REQUIRED_PROVENANCE_FIELDS = (
+    "schema",
+    "extractor_version",
+    "input_path",
+    "input_digest",
+    "results_digest",
+    "upstream_scorer",
+    "upstream_model",
+    "upstream_seed",
+    "kind",
+    "group",
+)
+_KIND_PROVENANCE_FIELDS = {
+    "agent": ("variant", "reduce", "pass_threshold"),
+    "rule": ("mechanism", "min_score"),
+    "hook": ("on_skip",),
+}
 
 # A corpus identity is the producer's sha256 hex digest of the task set. The
 # form is checked rather than taken on faith because an unchecked string makes
@@ -315,6 +336,78 @@ class _Unreadable:
 _UNREADABLE = _Unreadable()
 
 
+def _file_digest(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError as exc:
+        raise ConfigError(f"no such file: {path}") from exc
+    except OSError as exc:
+        raise ConfigError(f"could not read {path}: {exc}") from exc
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _results_digest(results: Mapping[str, bool]) -> str:
+    return hashlib.sha256(_canonical_json(dict(results)).encode("utf-8")).hexdigest()
+
+
+def _non_empty_string_field(path: Path, provenance: Mapping[str, Any], key: str) -> str:
+    value = provenance.get(key)
+    if not isinstance(value, str) or not value:
+        raise ConfigError(f"{path} provenance field {key!r} must be a non-empty string")
+    return value
+
+
+def _checked_provenance(
+    path: Path, data: Mapping[str, Any], results: Mapping[str, bool]
+) -> dict[str, Any]:
+    if "provenance" not in data:
+        raise ConfigError(f"{path} is missing extraction provenance")
+    raw = data["provenance"]
+    if raw is None:
+        raise ConfigError(f"{path} extraction provenance is null")
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{path} extraction provenance must be an object")
+    if not raw:
+        raise ConfigError(f"{path} extraction provenance is empty")
+    missing = [key for key in _REQUIRED_PROVENANCE_FIELDS if key not in raw]
+    if missing:
+        raise ConfigError(f"{path} extraction provenance is missing: {', '.join(missing)}")
+    provenance = dict(raw)
+    if _non_empty_string_field(path, provenance, "schema") != _PROVENANCE_SCHEMA:
+        raise ConfigError(f"{path} extraction provenance has an unsupported schema")
+    if _non_empty_string_field(path, provenance, "extractor_version") != _EXTRACTOR_VERSION:
+        raise ConfigError(f"{path} extraction provenance has an unsupported extractor")
+    for key in (
+        "input_path",
+        "input_digest",
+        "results_digest",
+        "upstream_scorer",
+        "upstream_model",
+        "upstream_seed",
+        "kind",
+        "group",
+    ):
+        _non_empty_string_field(path, provenance, key)
+    kind = provenance["kind"]
+    if kind not in _KIND_PROVENANCE_FIELDS:
+        raise ConfigError(f"{path} extraction provenance has unsupported kind {kind!r}")
+    missing = [key for key in _KIND_PROVENANCE_FIELDS[kind] if key not in provenance]
+    if missing:
+        raise ConfigError(f"{path} extraction provenance is missing: {', '.join(missing)}")
+    if provenance["group"] in _GROUPS and "split_fingerprint" not in provenance:
+        raise ConfigError(f"{path} extraction provenance is missing: split_fingerprint")
+    if not _CORPUS_RE.match(provenance["input_digest"]):
+        raise ConfigError(f"{path} provenance input_digest must be a sha256 hex digest")
+    if provenance["results_digest"] != _results_digest(results):
+        raise ConfigError(
+            f"{path} extraction provenance does not match its results; re-run extract"
+        )
+    return provenance
+
+
 def _checked_corpus(path: Path, value: object) -> str | None:
     """The value if it is a corpus identity, None if absent, else a refusal."""
     if value is None:
@@ -333,13 +426,12 @@ def _checked_corpus(path: Path, value: object) -> str | None:
 def _read_results(path: Path) -> ResultsFile:
     data = _read_json(path)
     if not isinstance(data, dict):
-        raise ConfigError(f"{path} must hold a JSON object of task id to boolean")
-    # A bare mapping is all-boolean by construction, so a string-valued
-    # `schema` is unambiguous. Keying on the presence of the word alone would
-    # misread a legacy file whose task happened to be named `schema`.
-    if isinstance(data.get("schema"), str):
-        return _read_results_envelope(path, data)
-    return ResultsFile(_checked_verdicts(path, data), None)
+        raise ConfigError(f"{path} must hold a results envelope object")
+    if not isinstance(data.get("schema"), str):
+        raise ConfigError(
+            f"{path} must be an {_RESULTS_SCHEMA!r} envelope with extraction provenance"
+        )
+    return _read_results_envelope(path, data)
 
 
 def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
@@ -352,7 +444,12 @@ def _read_results_envelope(path: Path, data: dict[str, Any]) -> ResultsFile:
     results = data.get("results")
     if not isinstance(results, dict):
         raise ConfigError(f"{path} envelope needs a 'results' object of task id to boolean")
-    return ResultsFile(_checked_verdicts(path, results), _checked_corpus(path, data.get("corpus")))
+    checked = _checked_verdicts(path, results)
+    return ResultsFile(
+        checked,
+        _checked_corpus(path, data.get("corpus")),
+        _checked_provenance(path, data, checked),
+    )
 
 
 def _corpus_header(path: Path) -> str | _Unreadable | None:
@@ -959,22 +1056,111 @@ def _refuse_degraded_agent_report(report: Mapping[str, object]) -> None:
     )
 
 
+def _inputs_path(paths: Sequence[Path]) -> str:
+    return ",".join(str(path) for path in paths)
+
+
+def _inputs_digest(paths: Sequence[Path]) -> str:
+    """One digest naming the input set; a single file keeps its bare digest."""
+    digests = [_file_digest(path) for path in paths]
+    if len(digests) == 1:
+        return digests[0]
+    return hashlib.sha256(":".join(digests).encode("utf-8")).hexdigest()
+
+
+def _universe_ids(split: Mapping[str, Any]) -> list[str]:
+    return [str(t) for group in _GROUPS for t in split[group]]
+
+
+def _covers_universe(results: Mapping[str, Any], split: Mapping[str, Any]) -> bool:
+    return all(isinstance(results.get(task_id), bool) for task_id in _universe_ids(split))
+
+
+def _upstream_value(value: object, fallback: str) -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    raise ConfigError(f"upstream metadata must be scalar, got {type(value).__name__}")
+
+
+def _extract_provenance(
+    args: argparse.Namespace,
+    results: Mapping[str, bool],
+    *,
+    report: Mapping[str, Any] | None = None,
+    group: str = "all",
+    split: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    upstream_model = args.upstream_model
+    upstream_seed = args.upstream_seed
+    if report is not None:
+        upstream_model = upstream_model or _upstream_value(report.get("model_id"), "unknown-model")
+        upstream_seed = upstream_seed or _upstream_value(report.get("seed"), "unseeded")
+    if upstream_model is None:
+        upstream_model = "not-applicable"
+    if upstream_seed is None:
+        upstream_seed = "not-applicable"
+    provenance: dict[str, Any] = {
+        "schema": _PROVENANCE_SCHEMA,
+        "extractor_version": _EXTRACTOR_VERSION,
+        "input_path": _inputs_path(args.input),
+        "input_digest": _inputs_digest(args.input),
+        "results_digest": _results_digest(results),
+        "upstream_scorer": args.kind,
+        "upstream_model": upstream_model,
+        "upstream_seed": upstream_seed,
+        "kind": args.kind,
+        "group": group,
+    }
+    if args.kind == "agent":
+        provenance.update(
+            {
+                "variant": args.variant,
+                "reduce": args.reduce,
+                "pass_threshold": args.pass_threshold,
+            }
+        )
+    elif args.kind == "rule":
+        provenance.update({"mechanism": args.mechanism, "min_score": args.min_score})
+    else:
+        provenance["on_skip"] = args.on_skip
+    if split is not None:
+        provenance["split_fingerprint"] = split["fingerprint"]
+    return provenance
+
+
+def _filter_results_to_group(
+    results: dict[str, bool], split: Mapping[str, Any], group: str
+) -> dict[str, bool]:
+    if not _covers_universe(results, split):
+        raise ConfigError(
+            "extracted results do not cover the whole task set; rerun the scorer "
+            "over the complete split universe before filtering a group"
+        )
+    return {task_id: results[task_id] for task_id in split[group]}
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     # Before the input is read. A bar off its scale is decidable on its own,
     # and refusing it here means an unreadable file cannot mask a bad flag.
     _on_scale("--pass-threshold", args.pass_threshold, 0.0, _MAX_PASS_RATE)
     _on_scale("--min-score", args.min_score, 0.0, _MAX_RULE_SCORE)
     corpus: str | None = None
+    report: Mapping[str, Any] | None = None
     if args.kind == "hook":
         results = pytest_results(
             _read_text(_single_input(args.input, "hook")), on_skip=args.on_skip
         )
     elif args.kind == "agent":
         path = _single_input(args.input, "agent")
-        report = _read_json(path)
-        if not isinstance(report, Mapping):
+        raw_report = _read_json(path)
+        if not isinstance(raw_report, Mapping):
             raise ConfigError(f"{path} must hold an agent report object")
-        _refuse_degraded_agent_report(report)
+        _refuse_degraded_agent_report(raw_report)
+        report = raw_report
         corpus = _report_corpus(path, report)
         results = agent_results(
             report,
@@ -984,7 +1170,24 @@ def cmd_extract(args: argparse.Namespace) -> int:
         )
     else:
         results = _extract_rule([_read_json(path) for path in args.input], args)
-    _emit({"schema": _RESULTS_SCHEMA, "corpus": corpus, "results": results})
+    split = None
+    group = "all"
+    if args.split is not None or args.group is not None:
+        if args.split is None or args.group is None:
+            raise ConfigError("--split and --group must be supplied together")
+        split = _read_split(args.split)
+        group = args.group
+        results = _filter_results_to_group(results, split, group)
+    _emit(
+        {
+            "schema": _RESULTS_SCHEMA,
+            "corpus": corpus,
+            "provenance": _extract_provenance(
+                args, results, report=report, group=group, split=split
+            ),
+            "results": results,
+        }
+    )
     return EXIT_OK
 
 
@@ -1012,18 +1215,13 @@ def _report_corpus(path: Path, report: Mapping[str, Any]) -> str | None:
 def cmd_split(args: argparse.Namespace) -> int:
     pinned: dict[str, Any] = {}
     if args.results:
-        source = _read_results(args.results)
-        task_ids = sorted(source.results)
-        # The baseline commitment carries the corpus rather than the comparison
-        # inferring it from the pair. Without the pin, a mismatch is reachable
-        # by omission: stripping the envelope off either side leaves two
-        # unknowns, and two unknowns have nothing to disagree about. The pin
-        # gives the gate a value neither results file can delete.
-        pinned["corpus"] = source.corpus
-    else:
-        task_ids = [
-            line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()
-        ]
+        raise ConfigError(
+            "split must be drawn from an authoritative task inventory with --tasks, "
+            "not from results being judged"
+        )
+    if args.corpus is not None:
+        pinned["corpus"] = _checked_corpus(Path("--corpus"), args.corpus)
+    task_ids = [line.strip() for line in _read_text(args.tasks).splitlines() if line.strip()]
     try:
         result = split_tasks(
             task_ids,
@@ -1762,6 +1960,38 @@ def _guard(args: argparse.Namespace, split: Mapping[str, Any], spent: int) -> st
         raise ConfigError(str(exc)) from exc
 
 
+def _json_strict_equal(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        right_dict = cast(dict[Any, Any], right)
+        if set(left) != set(right_dict):
+            return False
+        return all(_json_strict_equal(left[key], right_dict[key]) for key in left)
+    if isinstance(left, list):
+        right_list = cast(list[Any], right)
+        return len(left) == len(right_list) and all(
+            _json_strict_equal(a, b) for a, b in zip(left, right_list, strict=True)
+        )
+    if isinstance(left, float):
+        if left == 0.0 and right == 0.0:
+            return math.copysign(1.0, left) == math.copysign(1.0, right)
+    return left == right
+
+
+def _provenance_mismatch(
+    incumbent: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> str | None:
+    artifact_keys = {"input_path", "input_digest", "results_digest"}
+    keys = (set(incumbent) | set(candidate)) - artifact_keys
+    for key in sorted(keys):
+        if key not in incumbent or key not in candidate:
+            return f"extraction parameter mismatch: {key} differs"
+        if not _json_strict_equal(incumbent[key], candidate[key]):
+            return f"extraction parameter mismatch: {key} differs"
+    return None
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     # Before anything reads the split or the ledger. A bar outside [0, 1] is
     # decidable without the held-out group, so it must not cost a consultation
@@ -1974,8 +2204,43 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         _emit(_corpus_refusal())
         return EXIT_LOGIC
 
+    mismatch = _provenance_mismatch(incumbent_file.provenance, candidate_file.provenance)
+    if mismatch is not None:
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": mismatch,
+                "consultations": 0,
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
     incumbent_results = incumbent_file.results
     candidate_results = candidate_file.results
+    if not _covers_universe(incumbent_results, split) or not _covers_universe(
+        candidate_results, split
+    ):
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": (
+                    "the results do not cover the whole task set; score both "
+                    "artifacts over the complete split universe and gate again. "
+                    "Which tasks are missing is withheld."
+                ),
+                "consultations": 0,
+                "sel_consultations": spent,
+                "compared": False,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
+        return EXIT_LOGIC
+
     sel_ids = _group_ids(split, _GATE_GROUP)
 
     # Charge before reading the group, not after reaching a verdict. Two things
@@ -2019,8 +2284,8 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
     gain, loss, p_value = mcnemar_exact(incumbent_results, candidate_results, sel_ids)
     try:
         result = gate(
-            candidate,
-            incumbent,
+            ScoreEvidence(candidate, candidate_file.provenance),
+            ScoreEvidence(incumbent, incumbent_file.provenance),
             sel_consultations=spent,
             max_consultations=args.max_consultations,
             split_fingerprint=split["fingerprint"],
@@ -2405,13 +2670,22 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument(
         "--on-skip", default=_DEFAULT_SKIP_POLICY, choices=_SKIP_POLICIES
     )
+    extract.add_argument("--split", type=Path, help="split used to filter a group")
+    extract.add_argument("--group", choices=_GROUPS, help="group to emit from --split")
+    extract.add_argument("--upstream-model", help="model id used by the upstream scorer")
+    extract.add_argument("--upstream-seed", help="seed used by the upstream scorer")
     extract.set_defaults(func=cmd_extract)
 
     split = sub.add_parser("split", help="partition tasks into opt, sel, and test")
     source = split.add_mutually_exclusive_group(required=True)
-    source.add_argument("--results", type=Path, help="extract output; task ids are its keys")
+    source.add_argument(
+        "--results",
+        type=Path,
+        help="deprecated: rejected because results are not the task inventory",
+    )
     source.add_argument("--tasks", type=Path, help="newline-delimited task ids")
     split.add_argument("--seed", required=True)
+    split.add_argument("--corpus", help="sha256 digest naming the authoritative task inventory")
     split.add_argument(
         "--out",
         type=Path,

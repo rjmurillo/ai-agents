@@ -55,6 +55,7 @@ __all__ = [
     "AnchorNotFoundError",
     "BudgetExceededError",
     "GateResult",
+    "ScoreEvidence",
     "MissingResultError",
     "Patch",
     "PatchShapeError",
@@ -141,6 +142,14 @@ class TaskSplit:
     sel: tuple[str, ...]
     test: tuple[str, ...]
     fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScoreEvidence:
+    """A score plus the extraction provenance that produced it."""
+
+    value: float
+    provenance: Mapping[str, object]
 
 
 @dataclass(frozen=True)
@@ -659,9 +668,17 @@ def guard_refusal(
     return None
 
 
+def _score_from_evidence(name: str, evidence: ScoreEvidence) -> float:
+    if not isinstance(evidence, ScoreEvidence):
+        raise ValueError(f"{name} score requires extraction provenance")
+    if not evidence.provenance:
+        raise ValueError(f"{name} score requires non-empty extraction provenance")
+    return evidence.value
+
+
 def gate(
-    candidate: float,
-    incumbent: float,
+    candidate: ScoreEvidence,
+    incumbent: ScoreEvidence,
     *,
     sel_consultations: int = 0,
     max_consultations: int | None = None,
@@ -741,10 +758,12 @@ def gate(
             ``p_value`` or ``max_p`` outside ``[0, 1]``, or ``max_p`` given
             without both ``p_value`` and ``max_consultations``.
     """
-    if not 0.0 <= candidate <= 1.0:
-        raise ValueError(f"candidate score must be in [0, 1], got {candidate}")
-    if not 0.0 <= incumbent <= 1.0:
-        raise ValueError(f"incumbent score must be in [0, 1], got {incumbent}")
+    candidate_score = _score_from_evidence("candidate", candidate)
+    incumbent_score = _score_from_evidence("incumbent", incumbent)
+    if not 0.0 <= candidate_score <= 1.0:
+        raise ValueError(f"candidate score must be in [0, 1], got {candidate_score}")
+    if not 0.0 <= incumbent_score <= 1.0:
+        raise ValueError(f"incumbent score must be in [0, 1], got {incumbent_score}")
     if sel_consultations < 0:
         raise ValueError(f"sel_consultations must be non-negative, got {sel_consultations}")
     if max_consultations is not None and max_consultations < 1:
@@ -770,8 +789,8 @@ def gate(
         return GateResult(
             decision=decision,
             reason=reason,
-            candidate=candidate,
-            incumbent=incumbent,
+            candidate=candidate_score,
+            incumbent=incumbent_score,
             sel_consultations=sel_consultations,
             compared=compared,
         )
@@ -785,11 +804,11 @@ def gate(
     if refusal is not None:
         return _result("REJECT", refusal, compared=False)
 
-    if candidate > incumbent:
+    if candidate_score > incumbent_score:
         if discordant_loss:
             return _result(
                 "REJECT",
-                f"candidate {candidate:.4f} beats {incumbent:.4f} overall but "
+                f"candidate {candidate_score:.4f} beats {incumbent_score:.4f} overall but "
                 f"regressed {discordant_loss} held-out task(s) from pass to fail; "
                 f"a net gain does not buy back a broken task",
             )
@@ -801,17 +820,22 @@ def gate(
             if p_value > corrected:
                 return _result(
                     "REJECT",
-                    f"candidate {candidate:.4f} beats {incumbent:.4f} but the "
+                    f"candidate {candidate_score:.4f} beats {incumbent_score:.4f} but the "
                     f"one-sided exact McNemar tail is {p_value:g}, above the "
                     f"per-comparison bar of {corrected:g}, which is the "
                     f"{max_p:g} family bar divided across {max_consultations} "
                     f"consultation(s). The gain is not distinguishable from "
                     f"scorer variance at this held-out size",
                 )
-        return _result("ACCEPT", f"candidate {candidate:.4f} strictly beats {incumbent:.4f}")
-    if candidate == incumbent:
-        return _result("REJECT", f"tie at {candidate:.4f}; a tie does not earn an edit")
-    return _result("REJECT", f"candidate {candidate:.4f} regressed from {incumbent:.4f}")
+        return _result(
+            "ACCEPT",
+            f"candidate {candidate_score:.4f} strictly beats {incumbent_score:.4f}",
+        )
+    if candidate_score == incumbent_score:
+        return _result("REJECT", f"tie at {candidate_score:.4f}; a tie does not earn an edit")
+    return _result(
+        "REJECT", f"candidate {candidate_score:.4f} regressed from {incumbent_score:.4f}"
+    )
 
 
 def patch_fingerprint(patches: Sequence[Patch]) -> str:
