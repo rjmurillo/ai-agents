@@ -63,6 +63,12 @@ jobs:
               - '.github/actions/setup-code-env/action.yml'
               - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
+              # Episode JSON is a test input, not source: the store-clean pin in
+              # tests/skills/memory/test_extract_session_episode.py reads it. The
+              # population issue #3633 names is a hand edit or merge-conflict
+              # resolution touching only these files, which no '**/*.py' pattern
+              # catches.
+              - '.agents/memory/episodes/**'
 
       - name: Report path check result
         env:
@@ -205,7 +211,7 @@ jobs:
       # module-name form resolves correctly via conftest.py sys.path setup and
       # reports the actual 100%. Do not switch forms without re-verifying both
       # locally and in CI.
-      - name: Pin REQ-009 module coverage at 100% (PR #1989 user requirement)
+      - name: "Pin REQ-009 module coverage at 100% (PR #1989 user requirement)"
         if: steps.should-run.outputs.skip != 'true'
         run: |
           pytest \
