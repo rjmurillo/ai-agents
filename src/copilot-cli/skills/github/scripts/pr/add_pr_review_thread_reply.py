@@ -44,6 +44,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     gh_graphql,
 )
+from github_core.validation import inline_body_error  # noqa: E402
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
@@ -106,8 +107,9 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
     body = _resolve_body(args)
-    if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 2)
+    body_error = inline_body_error(body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     assert_gh_authenticated()
 

@@ -25,7 +25,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
+from validate_pr_description import (  # noqa: E402
+    _CONVENTIONAL_COMMIT_PATTERN,
+    validate_no_escaped_newlines,
+)
 
 # Em/en-dash detection regex for Validation 5. Inlined here rather than
 # imported from scripts.validation.pr_description because:
@@ -274,7 +277,7 @@ def run_validations(
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/5] Checking Session End protocol...")
+    print("[1/6] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -343,7 +346,7 @@ def run_validations(
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/5] Checking for skill violations...")
+    print("[2/6] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
     if os.path.exists(skill_script) and scannable_files:
@@ -364,7 +367,7 @@ def run_validations(
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/5] Checking test coverage...")
+    print("[3/6] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         failed = _run_warning_validator(
@@ -375,7 +378,7 @@ def run_validations(
 
     # Validation 4: PR Description validation (WARNING)
     print()
-    print("[4/5] Validating PR description...")
+    print("[4/6] Validating PR description...")
     validate_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "validate_pr_description.py",
@@ -409,7 +412,7 @@ def run_validations(
     # in the description despite local dash checks.
     # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
     print()
-    print("[5/5] Em/en-dash check on title and body...")
+    print("[5/6] Em/en-dash check on title and body...")
     body_content = body or ""
     if not body_content and body_file and os.path.exists(body_file):
         try:
@@ -451,6 +454,11 @@ def run_validations(
         )
         raise SystemExit(1)
     print("  No prohibited characters in title or body.")
+
+    print()
+    print("[6/6] Escaped-newline check on body...")
+    validate_no_escaped_newlines(body_content)
+    print("  Body line breaks are real newlines.")
 
     print()
     if unrun_validators:
