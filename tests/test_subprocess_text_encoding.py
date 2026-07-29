@@ -131,6 +131,28 @@ def _resolve_indirect(
     return None
 
 
+def _resolve_elements(
+    values: list[ast.expr], modules: set[str], functions: dict[str, str]
+) -> str | None:
+    """Return the entry point a container of *values* yields when subscripted.
+
+    The index is deliberately not modelled, so any element reaching subprocess
+    taints the whole container. Elements that disagree collapse to the dynamic
+    sentinel, which is the conservative reading: the subscript may select the
+    one that decodes.
+    """
+    found = {
+        resolved
+        for resolved in (
+            _resolve_callable(value, modules, functions) for value in values
+        )
+        if resolved is not None
+    }
+    if not found:
+        return None
+    return found.pop() if len(found) == 1 else _DYNAMIC
+
+
 def _resolve_callable(
     node: ast.expr, modules: set[str], functions: dict[str, str]
 ) -> str | None:
@@ -145,11 +167,29 @@ def _resolve_callable(
             return _OS_POPEN
     if isinstance(node, ast.Call):
         return _resolve_indirect(node, modules, functions)
+    if isinstance(node, ast.NamedExpr):
+        # ``(r := subprocess.run)(...)`` binds and calls in one expression.
+        return _resolve_callable(node.value, modules, functions)
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return _resolve_elements(list(node.elts), modules, functions)
+    if isinstance(node, ast.Dict):
+        return _resolve_elements(
+            [value for value in node.values if value is not None], modules, functions
+        )
+    if isinstance(node, ast.Subscript):
+        # ``RUNNERS[0](...)`` reaches whatever the container holds. Resolving
+        # the base rather than the index means a computed index cannot slip a
+        # subprocess reference past this scan.
+        return _resolve_callable(node.value, modules, functions)
     return None
 
 
 def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
-    """Collect every ``name = value`` binding, annotated or not, at any depth."""
+    """Collect every ``name = value`` binding at any depth.
+
+    Covers plain assignment, annotated assignment, and the walrus, which binds
+    a name in the middle of an expression and needs no statement of its own.
+    """
     found: list[tuple[str, ast.expr]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -161,6 +201,8 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
         elif isinstance(node, ast.AnnAssign):
             if isinstance(node.target, ast.Name) and node.value is not None:
                 found.append((node.target.id, node.value))
+        elif isinstance(node, ast.NamedExpr):
+            found.append((node.target.id, node.value))
     return found
 
 
@@ -561,6 +603,36 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess\nif True:\n    a = subprocess.run\n'
             'b = a\nb(["x"], capture_output=True, text=True)',
             "a nested binding is walked after the top-level one that uses it",
+        ),
+        (
+            'import subprocess\n'
+            '(r := subprocess.run)(["x"], capture_output=True, text=True)',
+            "a walrus binds and calls in one expression",
+        ),
+        (
+            'import subprocess\nif (r := subprocess.run):\n    pass\n'
+            'r(["x"], capture_output=True, text=True)',
+            "a name bound by a walrus is still bound at the later call",
+        ),
+        (
+            'import subprocess\nRUNNERS = [subprocess.run]\n'
+            'RUNNERS[0](["x"], capture_output=True, text=True)',
+            "a list can hold the entry point as readily as a bare name",
+        ),
+        (
+            'import subprocess\nR = {"go": subprocess.run}\n'
+            'R["go"](["x"], capture_output=True, text=True)',
+            "a dict value is reached by subscript, not by attribute",
+        ),
+        (
+            'import subprocess\nR = (subprocess.getoutput,)\n'
+            'R[0]("ls")',
+            "a tuple element that always decodes needs no text keyword",
+        ),
+        (
+            'import subprocess\nR = [subprocess.run, subprocess.getoutput]\n'
+            'R[1]("ls")',
+            "a mixed container may yield the member that decodes regardless",
         ),
     ],
 )
