@@ -126,18 +126,24 @@ class TestIsGitHubNameValid:
     def test_invalid_type_returns_false(self):
         assert is_github_name_valid("foo", "Invalid") is False
 
-    def test_repo_rejects_the_two_directory_aliases(self):
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["repo", "Repo", "REPO"])
+    def test_repo_rejects_the_two_directory_aliases(self, name: str, name_type: str):
         """`.` and `..` are the only names GitHub refuses outright.
 
         They are also the two that carry traversal meaning once a caller
         interpolates them into a URL path, which several callers do.
-        """
-        assert is_github_name_valid(".", "Repo") is False
-        assert is_github_name_valid("..", "Repo") is False
 
-    def test_owner_rejects_the_two_directory_aliases(self):
-        assert is_github_name_valid(".", "Owner") is False
-        assert is_github_name_valid("..", "Owner") is False
+        `name_type` is documented case-insensitive, so the rejection has to
+        hold for every spelling a caller may pass. Testing one spelling would
+        let a guard that keys off a single literal survive.
+        """
+        assert is_github_name_valid(name, name_type) is False
+
+    @pytest.mark.parametrize("name", [".", ".."])
+    @pytest.mark.parametrize("name_type", ["owner", "Owner", "OWNER"])
+    def test_owner_rejects_the_two_directory_aliases(self, name: str, name_type: str):
+        assert is_github_name_valid(name, name_type) is False
 
     def test_longer_dot_runs_stay_valid(self):
         """Only the two aliases are reserved. `...` is a legal repository name.
