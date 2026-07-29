@@ -149,7 +149,8 @@ class TestParallelStepExecutor:
         assert result.step_results[0].output == "output"
         runner.assert_called_once()
 
-    def test_parallel_execution_runs_concurrently(self) -> None:
+    @pytest.mark.parametrize("step_count", [2, 3, 5])
+    def test_parallel_execution_runs_concurrently(self, step_count: int) -> None:
         """Concurrency proven by rendezvous, not by a wall-clock ceiling.
 
         The previous form slept 0.1s in each of three steps and asserted the
@@ -160,32 +161,64 @@ class TestParallelStepExecutor:
         loaded CI runners the identical code measured 0.62s and 0.77s in two
         independent runs and blocked merges on unrelated pull requests.
 
-        A barrier tests the first claim alone. Three workers can only arrive at
-        a three-party rendezvous if they are running at the same time, so a
+        A barrier tests the first claim alone. Every worker can only arrive at
+        an N-party rendezvous if they are running at the same time, so a
         serialised pool cannot release it at any speed and fails through the
         timeout. A concurrent pool releases it immediately no matter how slow
         the host is, which removes the environment from the assertion entirely.
+
+        The party count is derived from the step list rather than written
+        twice. A literal would have to be kept in step with both the list and
+        ``max_workers``, and the failure mode when it drifts is a ten second
+        stall followed by an error about the wrong thing. Running the same
+        body at several widths is what holds that derivation in place.
         """
+        steps = [WorkflowStep(name=f"s{index}", agent="analyst") for index in range(step_count)]
         # Generous by design: thread start-up jitter is milliseconds, so this
         # only ever elapses when execution is genuinely serial.
-        barrier = threading.Barrier(3, timeout=10)
+        barrier = threading.Barrier(len(steps), timeout=10)
 
         def rendezvous_runner(step: WorkflowStep, inp: str, iteration: int) -> str:
             barrier.wait()
             return f"done-{step.name}"
 
-        executor = ParallelStepExecutor(runner=rendezvous_runner, max_workers=3)
+        executor = ParallelStepExecutor(runner=rendezvous_runner, max_workers=len(steps))
+
+        result = executor.execute_parallel(steps, {})
+
+        assert result.succeeded
+        assert len(result.step_results) == step_count
+        assert {r.output for r in result.step_results} == {f"done-{s.name}" for s in steps}
+
+    def test_a_serialised_pool_cannot_reach_the_rendezvous(self) -> None:
+        """The control that gives the rendezvous its meaning.
+
+        ``assert result.succeeded`` above proves nothing on its own; a test
+        that passes whatever the executor does is not a test. Holding the
+        steps and the barrier fixed and dropping the pool to a single worker
+        is the one change that should break it. The barrier then cannot fill,
+        every worker fails through the timeout, and the run is reported as
+        failed. That is what makes the passing case evidence of overlap rather
+        than evidence that the code ran at all.
+
+        The timeout is short here because this case is expected to elapse.
+        """
         steps = [
             WorkflowStep(name="a", agent="analyst"),
             WorkflowStep(name="b", agent="security"),
             WorkflowStep(name="c", agent="devops"),
         ]
+        barrier = threading.Barrier(len(steps), timeout=0.5)
+
+        def rendezvous_runner(step: WorkflowStep, inp: str, iteration: int) -> str:
+            barrier.wait()
+            return f"done-{step.name}"
+
+        executor = ParallelStepExecutor(runner=rendezvous_runner, max_workers=1)
 
         result = executor.execute_parallel(steps, {})
 
-        assert result.succeeded
-        assert len(result.step_results) == 3
-        assert {r.output for r in result.step_results} == {"done-a", "done-b", "done-c"}
+        assert not result.succeeded
 
     def test_failed_step_marks_result_failed(self) -> None:
         """A failing step sets succeeded=False."""
