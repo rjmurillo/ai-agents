@@ -278,3 +278,75 @@ class TestCreateIssueCommentWithClient:
             with pytest.raises(SystemExit) as exc:
                 create_issue_comment("o", "r", 42, "text")
             assert exc.value.code == 3
+
+
+# ---------------------------------------------------------------------------
+# GhCliClient: captured-text decoding
+# ---------------------------------------------------------------------------
+
+
+_CAPTURING_CALLS = (
+    ("rest_get", lambda c: c.rest_get("repos/o/r/issues/1")),
+    ("rest_post", lambda c: c.rest_post("repos/o/r/issues/1/comments", {"body": "x"})),
+    ("rest_patch", lambda c: c.rest_patch("repos/o/r/issues/1", {"state": "closed"})),
+    ("graphql", lambda c: c.graphql("query { viewer { login } }")),
+    ("is_authenticated", lambda c: c.is_authenticated()),
+)
+
+
+class TestGhCliClientDecoding:
+    """`gh` emits raw UTF-8, so every captured-text call has to pin the codec.
+
+    Without an explicit ``encoding``, Python decodes with the locale's
+    preferred codec. On a cp1252 or cp932 runner the bytes still decode, into
+    different characters, and ``json.loads`` accepts the result. The failure is
+    silent: no exception, wrong text.
+    """
+
+    @pytest.mark.parametrize(
+        ("name", "invoke"), _CAPTURING_CALLS, ids=[c[0] for c in _CAPTURING_CALLS]
+    )
+    def test_pins_utf8(self, name, invoke):
+        with patch("subprocess.run", return_value=_completed(stdout="{}")) as run:
+            invoke(GhCliClient())
+        assert run.called, f"{name} did not invoke subprocess.run"
+        assert run.call_args.kwargs.get("encoding") == "utf-8", f"{name} does not pin encoding"
+
+    @pytest.mark.parametrize(
+        ("name", "invoke"), _CAPTURING_CALLS, ids=[c[0] for c in _CAPTURING_CALLS]
+    )
+    def test_leaves_decode_errors_strict(self, name, invoke):
+        """Undecodable bytes must raise, not become U+FFFD inside parsed JSON.
+
+        ``json.loads`` accepts a replacement character without complaint, so a
+        lenient error handler would hand the caller a silently corrupted body.
+        The GitHub API emits valid UTF-8, so a decode failure means the stream
+        is broken and the caller needs to hear about it.
+        """
+        with patch("subprocess.run", return_value=_completed(stdout="{}")) as run:
+            invoke(GhCliClient())
+        assert "errors" not in run.call_args.kwargs, f"{name} weakens strict decoding"
+
+    @pytest.mark.parametrize(
+        ("name", "invoke"), _CAPTURING_CALLS, ids=[c[0] for c in _CAPTURING_CALLS]
+    )
+    def test_keeps_the_timeout(self, name, invoke):
+        """One helper now feeds every call, so a dropped timeout would hang all five."""
+        with patch("subprocess.run", return_value=_completed(stdout="{}")) as run:
+            invoke(GhCliClient())
+        assert run.call_args.kwargs.get("timeout") == 30, f"{name} does not set a timeout"
+
+    def test_real_api_bytes_survive_the_round_trip(self):
+        """Bytes taken from a live `gh api` comment payload, not invented.
+
+        cp1252 decodes the same bytes to 'ðŸ”´' and json.loads accepts it, so
+        the assertion is on the decoded text, not on the absence of an error.
+        """
+        raw = b'{"body": "Semgrep identified a blocking \xf0\x9f\x94\xb4 issue"}'
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=raw.decode("utf-8")),
+        ):
+            result = GhCliClient().rest_get("repos/o/r/issues/1")
+        assert result["body"] == "Semgrep identified a blocking \U0001f534 issue"
+        assert "\u00f0\u0178" not in result["body"]
