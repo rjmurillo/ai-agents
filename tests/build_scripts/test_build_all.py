@@ -1156,6 +1156,54 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     assert _git_porcelain(repo) == "", "--check left working tree dirty"
 
 
+def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
+    tmp_path: Path,
+) -> None:
+    """A --check round trip must not evict caches it did not create.
+
+    ``_snapshot_owned_prefixes`` excludes bytecode only when
+    ``exclude_ignored`` is set, because ``_restore_owned_prefixes`` deletes
+    every on-disk path the snapshot does not name. Filtering bytecode on the
+    restore path would delete pre-existing ``__pycache__`` on every --check,
+    forcing the next run to recompile inside the guard's snapshot window:
+    the same race issue #3856 closes.
+    """
+    repo = tmp_path / "repo"
+    cache = repo / ".github" / "instructions" / "pkg" / "__pycache__"
+    cache.mkdir(parents=True)
+    pyc = cache / "mod.cpython-314.pyc"
+    pyc.write_bytes(b"PREEXISTING")
+    sibling = repo / ".github" / "instructions" / "rule-x.md"
+    sibling.write_text("committed A\n")
+
+    snapshot = build_all._snapshot_owned_prefixes(repo, build_all.OWNED_PREFIXES)
+    assert pyc in snapshot, "restore-path snapshot dropped pre-existing bytecode"
+
+    build_all._restore_owned_prefixes(repo, build_all.OWNED_PREFIXES, snapshot)
+
+    assert pyc.is_file(), "--check restore deleted a cache it did not create"
+    assert pyc.read_bytes() == b"PREEXISTING"
+    assert sibling.read_text() == "committed A\n"
+
+
+def test_guard_snapshot_still_excludes_bytecode(tmp_path: Path) -> None:
+    """The comparison path keeps the exclusion that closes #3856."""
+    repo = tmp_path / "repo"
+    cache = repo / ".claude" / "lib" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "mod.cpython-314.pyc").write_bytes(b"RACE")
+    (repo / ".claude" / "lib" / "mod.py").write_text("x = 1\n")
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert not any(
+        "__pycache__" in p.parts for p in snapshot
+    ), "guard snapshot captured bytecode; #3856 race reopens"
+    assert any(p.name == "mod.py" for p in snapshot)
+
+
 def test_restore_replaces_directory_conflicting_with_snapshot_file(tmp_path: Path) -> None:
     """#2440: restore handles file-to-directory conflicts."""
     repo = tmp_path / "repo"
@@ -1644,7 +1692,12 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
     ],
 )
 def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
-    """Bytecode caches are recognized wherever they appear in the tree."""
+    """Anything under __pycache__, plus .pyc/.pyo anywhere, is an artifact.
+
+    The rule is path-shaped, not extension-shaped: ``data.json`` inside a
+    ``__pycache__`` directory matches, because tools other than CPython
+    write there too.
+    """
     assert build_all._is_bytecode_artifact(Path("/repo") / relative) is True
 
 
@@ -1660,7 +1713,12 @@ def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
     ],
 )
 def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
-    """Source and data files are never treated as bytecode."""
+    """Paths that only resemble a cache are not artifacts.
+
+    Every case here sits outside a ``__pycache__`` directory and does not
+    end in ``.pyc``/``.pyo``. Being a data file is not itself
+    disqualifying: see the ``__pycache__/data.json`` case above.
+    """
     assert build_all._is_bytecode_artifact(Path("/repo") / relative) is False
 
 
