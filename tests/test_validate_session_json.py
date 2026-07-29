@@ -13,9 +13,10 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any
 from unittest import mock
+from urllib.parse import urlparse
 
 import pytest
 
@@ -2300,7 +2301,7 @@ class TestEndingCommitReachability:
         repo, _, _ = self._make_repo(tmp_path)
         shallow = tmp_path / "shallow"
         subprocess.run(
-            ["git", "clone", "-q", "--depth", "1", f"file://{repo}", str(shallow)],
+            ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
             text=True,
             check=True,
@@ -2318,6 +2319,28 @@ class TestEndingCommitReachability:
         bare = tmp_path / "plain"
         bare.mkdir()
         assert commit_reachability_problem("0" * 40, bare) is None
+
+    def test_a_clone_source_is_built_as_a_uri_not_a_concatenation(
+        self, tmp_path: Path
+    ) -> None:
+        """`"file://" + path` is a URL only where the separator is already `/`.
+
+        On Windows the drive path carries no leading slash, so everything after
+        `file://` parses as the URL host and the path comes back empty. `git
+        clone` then looks for a host named `C:\\Users\\...` and the shallow-clone
+        test fails on the Windows job for a reason that has nothing to do with
+        reachability. `Path.as_uri()` emits the third slash and forward
+        separators, so the host stays empty on both platforms.
+        """
+        windows = PureWindowsPath(r"C:\Users\runner\Temp\repo")
+        naive = urlparse(f"file://{windows}")
+        assert naive.netloc == "C:\\Users\\runner\\Temp\\repo"
+        assert naive.path == ""
+
+        built = urlparse(tmp_path.as_uri())
+        assert built.netloc == ""
+        assert "\\" not in built.path
+        assert built.path.startswith("/")
 
     def test_an_orphaned_ending_commit_warns(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
