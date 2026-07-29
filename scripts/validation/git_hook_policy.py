@@ -107,8 +107,33 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
 # `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
 # string makes the interpreter token exact.
+# Only tolerate interpreters this repository actually declares. The four values
+# in use are `bash`, `pwsh`, `pwsh -NoProfile -Command "& '{0}'"`, and
+# `python3 {0}`, so `cmd`, `node`, `ruby`, and `perl` are speculative surface
+# with real teeth: `cmd` glues its command to the switch, so `/cbash` is a valid
+# flag shape that runs Bash, and `perl` execs the interpreter named in a `#!`
+# line, so the body itself can redirect execution into Bash no matter what this
+# value says. An unlisted interpreter is not tolerated, which blocks the push
+# rather than allowing it.
+#
+# The `.exe` suffix is deliberately absent. The runner names the temp script by
+# looking the first token up in its own extension table, whose keys are exactly
+# `cmd`, `pwsh`, `powershell`, `bash`, `sh`, and `python`. `pwsh` resolves to
+# `.ps1`, which PowerShell parses as PowerShell, but `pwsh.exe` misses the table
+# and yields a file with no extension, which PowerShell hands to the OS instead
+# of parsing. That turns a `#!/bin/bash` body into a Bash execution under a
+# PowerShell `shell:` value. No workflow here uses an `.exe` form, and the
+# runner rejects a bare `pwsh.exe` without a `{0}`, so nothing is lost by
+# refusing it. Refs #3663.
+#
+# The tolerated set is exactly what `.github/workflows/` declares: 38 `pwsh`,
+# 29 `bash`, 2 `python3`. This regex gates an exemption, not a warning, so a
+# name nothing declares is exempt surface bought for nothing. `python3?` also
+# matched bare `python`, a valid Actions keyword that no step here uses.
+# Narrowing to `python3` is fail-closed: an undeclared shell now gets
+# Bash-scanned instead of skipped. Widening it again needs a workflow to cite.
 NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
+    r"^\s*(?:pwsh|powershell|python3)(?=\s|$)",
     re.IGNORECASE,
 )
 # A `shell:` value naming a second interpreter cannot be trusted to describe what
@@ -116,18 +141,23 @@ NON_BASH_SHELL_RE = re.compile(
 # form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
 # declares Python and executes Bash. Refuse to classify the latter as non-Bash.
 FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
-# A custom shell template that hands the script to a repository file says nothing
-# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
-# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
-# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
-# file means the value is delegating and must not be trusted. Windows flags such as
-# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
-SCRIPT_FILE_RE = re.compile(
-    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
-    re.IGNORECASE,
-)
-RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
-MIN_PATH_SEPARATORS = 2
+# A custom shell template is attacker-controlled and may reach a POSIX shell
+# without ever naming one: `python3 -c "import os,sys;os.system(...)" {0}` runs
+# the body through `/bin/sh` while spelling neither `sh` nor `bash`. Scanning
+# the remainder for shell names is therefore a blocklist and is trivially
+# evaded, so the control is an allowlist: after the interpreter, the only
+# tokens permitted are flags, the `{0}` placeholder, and the PowerShell call
+# operator. Anything that can carry an inline program fails the check and the
+# step is not tolerated. Refs #3663.
+SHELL_FLAG_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+# A leading `#!` hands interpreter choice to the OS, so the `shell:` value stops
+# describing what runs. The kernel only honours `#!` at byte 0, so the leading
+# whitespace class here is deliberately stricter than it needs to be: it costs
+# nothing (no workflow in this repository opens a body with one) and it removes
+# the need to reason about who might normalise the body before the kernel sees
+# it. Being stricter fails closed, which blocks a push rather than allowing one.
+SHEBANG_RE = re.compile(r"^[ \t\r\n]*#!")
+SHELL_TEMPLATE_TOKENS = frozenset({"{0}", "&"})
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
@@ -2045,6 +2075,12 @@ def _added_suppression_violations(
     ]
     if not scan_paths:
         return []
+    pure_rename_destinations = _pure_scanned_rename_destinations(update, repo_root)
+    if pure_rename_destinations is None:
+        return None
+    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
+    if not scan_paths:
+        return []
     notebook_paths = [path for path in scan_paths if Path(path).suffix.lower() == ".ipynb"]
     diff_scan_paths = [path for path in scan_paths if Path(path).suffix.lower() != ".ipynb"]
     violations: list[str] = []
@@ -2075,6 +2111,55 @@ def _added_suppression_violations(
         return None
     violations.extend(notebook_violations)
     return violations
+
+
+def _pure_scanned_rename_destinations(
+    update: PushUpdate,
+    repo_root: Path,
+) -> set[str] | None:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _parse_pure_scanned_rename_destinations(result.stdout)
+
+
+def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
+    records = [record for record in output.split("\0") if record]
+    destinations: set[str] = set()
+    index = 0
+    while index < len(records):
+        status = records[index]
+        if index + 2 >= len(records):
+            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
+            return None
+        source = _safe_relative_path(records[index + 1])
+        destination = _safe_relative_path(records[index + 2])
+        if source is None or destination is None:
+            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
+            return None
+        if status == "R100" and _is_scanned_suppression_rename(source, destination):
+            destinations.add(destination)
+        index += 3
+    return destinations
+
+
+def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
+    return (
+        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+    )
 
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
@@ -2643,16 +2728,21 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _delegates_to_a_script(remainder: str) -> bool:
+def _remainder_is_inert_tokens_only(remainder: str) -> bool:
+    """Report whether every token after the interpreter is inert.
+
+    Inert means a flag, the `{0}` script placeholder, or the PowerShell call
+    operator. A token that is none of those can carry an inline program, and an
+    inline program can reach a POSIX shell without naming one.
+    """
     for token in remainder.split():
         candidate = token.strip("\"'")
-        if SCRIPT_FILE_RE.search(candidate):
-            return True
-        if candidate.startswith(RELATIVE_PATH_PREFIXES):
-            return True
-        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
-            return True
-    return False
+        if not candidate or candidate in SHELL_TEMPLATE_TOKENS:
+            continue
+        if SHELL_FLAG_RE.match(candidate):
+            continue
+        return False
+    return True
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
@@ -2664,7 +2754,7 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     remainder = shell[match.end() :]
     if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
         return False
-    return not _delegates_to_a_script(remainder)
+    return _remainder_is_inert_tokens_only(remainder)
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -2719,7 +2809,34 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     return result.returncode == 0
 
 
+def _body_declares_its_own_interpreter(run: str) -> bool:
+    """Report whether the body opens with a `#!` line.
+
+    GitHub Actions writes a custom-shell body to an executable temp file and
+    hands the path to the interpreter named in `shell:`. A `#!` line makes that
+    name a lie whenever the interpreter delegates unknown files to the OS. The
+    runner picks the temp file's extension by looking the first token up in a
+    fixed table, so an unmapped token yields a file with no extension at all.
+    PowerShell's call operator treats such a file as an external program, hands
+    it to the OS, and the kernel honours the shebang, so Bash runs the body.
+    Bash executes every command preceding a syntax error before reporting it,
+    so a trailing `if [` suppresses a Semgrep sub-parse finding while the
+    payload above it still runs.
+
+    Verified locally against pwsh 7: an extensionless file carrying
+    `#!/bin/bash` ran its payload under `pwsh -NoProfile -Command "& '<path>'"`,
+    the same file without the shebang failed with `Exec format error`, and the
+    same content named `.ps1` was rejected outright because PowerShell parses a
+    whole script before running any of it. The shebang is therefore load-bearing
+    for the bypass, and refusing any `#!` body closes it without depending on
+    which extension the runner happens to choose. Refs #3663.
+    """
+    return bool(SHEBANG_RE.match(run))
+
+
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
+    if _body_declares_its_own_interpreter(run):
+        return False
     if _is_non_bash_shell(shell):
         return True
     if not ACTIONS_EXPRESSION_RE.search(run):
@@ -3132,7 +3249,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     if bypass.returncode == 0:
         print(bypass.stdout, end="")
         return 0
-    _print_process_output(bypass)
+    _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1
 
@@ -3759,9 +3876,13 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
         print(f"WARNING: PR #{pr_number} last bot review is {age}s old (< 120s)")
 
 
-def _print_process_output(result: subprocess.CompletedProcess[str]) -> None:
+def _print_process_output(
+    result: subprocess.CompletedProcess[str],
+    stdout_stream: TextIO | None = None,
+) -> None:
+    target_stdout = stdout_stream or sys.stdout
     if result.stdout:
-        print(result.stdout, end="")
+        print(result.stdout, end="", file=target_stdout)
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
 
@@ -3770,7 +3891,7 @@ def _print_advisory_failure(
     label: str,
     result: subprocess.CompletedProcess[str],
 ) -> None:
-    _print_process_output(result)
+    _print_process_output(result, stdout_stream=sys.stderr)
     print(f"WARNING: {label} failed without blocking", file=sys.stderr)
 
 

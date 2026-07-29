@@ -216,6 +216,23 @@ class TestKnownAgents:
         self._agent(tmp_path, "orchestrator.shared.md")
         assert vamr.known_agents(tmp_path, ".shared.md") == {"orchestrator"}
 
+    def test_frontmatter_name_match_is_clean(self, tmp_path):
+        (tmp_path / "analyst.md").write_text(
+            "---\nname: analyst\ndescription: An agent.\n---\n\n# Analyst\n",
+            encoding="utf-8",
+        )
+        assert vamr.frontmatter_name_mismatches(tmp_path, Path("."), ".md") == []
+
+    def test_frontmatter_name_mismatch_is_recorded_with_both_values(self, tmp_path):
+        (tmp_path / "analyst.md").write_text(
+            "---\nname: researcher\ndescription: An agent.\n---\n\n# Analyst\n",
+            encoding="utf-8",
+        )
+        mismatches = vamr.frontmatter_name_mismatches(tmp_path, Path("."), ".md")
+        assert len(mismatches) == 1
+        assert mismatches[0].filename_name == "analyst"
+        assert mismatches[0].frontmatter_name == "researcher"
+
     def test_sibling_docs_without_frontmatter_are_excluded(self, tmp_path):
         """The Critical defect from round two of adversarial review.
 
@@ -866,6 +883,25 @@ class TestMainCli:
             complete=True,
         )
         assert vamr.main(["--repo-root", str(repo)]) == 1
+
+    def test_frontmatter_name_mismatch_exits_one_and_names_both_values(self, tmp_path, capsys):
+        repo = _repo(
+            tmp_path,
+            {_canonical_file("orchestrator"): BOLD_MATRIX},
+            {CANONICAL: ["analyst", "implementer"], ".claude/agents": ["analyst"]},
+            complete=True,
+        )
+        (repo / ".claude" / "agents" / "analyst.md").write_text(
+            "---\nname: researcher\ndescription: An agent.\n---\n\n# Analyst\n",
+            encoding="utf-8",
+        )
+
+        assert vamr.main(["--repo-root", str(repo)]) == 1
+        out = capsys.readouterr().out
+        assert "FRONTMATTER NAME MISMATCHES" in out
+        assert "frontmatter name 'researcher'" in out
+        assert "filename-derived name 'analyst'" in out
+        assert ".claude/agents/analyst.md" in out
 
     def test_phantom_row_in_an_indented_matrix_exits_one(self, tmp_path, capsys):
         """End-to-end proof that indent support closed the hole, not just parsing.

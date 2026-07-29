@@ -11,6 +11,10 @@ testResults.xml
 # Transient eval artifacts (ADR-057): re-runnable, not source of truth
 .agents/audit/eval-*/
 
+# Model sweep run artifacts: runtime evidence under a tracked fixture tree.
+evals/*/reports/sweep-*/
+evals/*/runs/sweep-*/
+
 # Transient PR-creation validation-skip audit logs: one record per
 # `new_pr.py --skip-validation` invocation; reproducible from git
 # history + hook output, not source of truth.
