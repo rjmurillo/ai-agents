@@ -13,7 +13,13 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+<<<<<<< HEAD
 from typing import NoReturn, Self, cast
+||||||| e5c1bac0
+from typing import NoReturn, Self
+=======
+from typing import Any, NoReturn, Self
+>>>>>>> origin/main
 
 import pytest
 import yaml
@@ -7447,6 +7453,7 @@ def test_non_bash_shell_path_does_not_require_a_parseable_body() -> None:
 
 
 # ---------------------------------------------------------------------------
+<<<<<<< HEAD
 # Adversarial review of the Semgrep gate (PR #3688). Four bypasses, each with a
 # negative control proving the fix does not over-tighten. Refs #3673.
 # ---------------------------------------------------------------------------
@@ -8117,3 +8124,217 @@ def test_sink_alias_resolution_terminates_on_a_cycle() -> None:
 def test_variable_word_recognises_only_a_bare_expansion(word: str, expected: str | None) -> None:
     """A word that merely contains a variable is not a reference to one."""
     assert policy._shell_variable_name(word) == expected
+||||||| e5c1bac0
+=======
+# Issue #3671: nothing stopped a git conflict marker reaching a commit. The
+# detector keys only on the labelled forms git writes and skips fenced code
+# blocks so documentation can quote a conflict.
+# ---------------------------------------------------------------------------
+
+_CONFLICT_MARKER_CASES = (
+    ("plain-conflict", "a\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> main\nb\n", True),
+    ("diff3-conflict", "<<<<<<< ours\nx\n||||||| base\nz\n=======\ny\n>>>>>>> theirs\n", True),
+    ("half-resolved-open", "<<<<<<< HEAD\nx\ny\n", True),
+    ("half-resolved-close", "x\ny\n>>>>>>> origin/main\n", True),
+    ("ancestor-marker-alone", "||||||| merged common ancestors\n", True),
+    ("conflict-after-a-closed-fence", "```\ncode\n```\n<<<<<<< HEAD\nx\n>>>>>>> main\n", True),
+    ("crlf-conflict", "a\r\n<<<<<<< HEAD\r\nx\r\n>>>>>>> main\r\n", True),
+    ("fenced-documentation", "text\n```\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> main\n```\n", False),
+    ("tilde-fenced-documentation", "text\n~~~\n<<<<<<< HEAD\n>>>>>>> main\n~~~\n", False),
+    ("fence-with-info-string", "```diff\n<<<<<<< HEAD\n>>>>>>> main\n```\n", False),
+    ("indented-fence", "text\n  ```\n<<<<<<< HEAD\n  ```\n", False),
+    ("rst-section-underline", "Title\n=======\nbody\n", False),
+    ("markdown-setext-heading", "Heading\n=======\n\ntext\n", False),
+    ("bare-equals-rule", "text\n=======\ntext\n", False),
+    ("unlabelled-markers", "<<<<<<<\n=======\n>>>>>>>\n", False),
+    ("six-angle-brackets", "<<<<<< HEAD\n", False),
+    ("eight-angle-brackets", "<<<<<<<< HEAD\n", False),
+    ("indented-marker", "    <<<<<<< HEAD\n", False),
+    ("marker-mid-line", "x <<<<<<< HEAD\n", False),
+    ("commented-equals-rule", "# =======\ncode\n", False),
+    ("markdown-table", "| a | b |\n|---|---|\n", False),
+    ("empty-file", "", False),
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "flagged"),
+    [pytest.param(body, flagged, id=name) for name, body, flagged in _CONFLICT_MARKER_CASES],
+)
+def test_conflict_marker_detection(body: str, flagged: bool) -> None:
+    violations = policy._conflict_marker_violations("f.md", body.encode("utf-8"))
+    assert bool(violations) is flagged
+
+
+def test_conflict_marker_violation_names_the_line_number() -> None:
+    violations = policy._conflict_marker_violations(
+        "doc.md", b"one\ntwo\n<<<<<<< HEAD\n"
+    )
+    assert violations == ["doc.md:3: <<<<<<< HEAD"]
+
+
+def test_conflict_marker_policy_reads_the_index_blob(tmp_path: Path) -> None:
+    """The gate must judge what is staged, not what is in the working tree."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "doc.md", "<<<<<<< HEAD\nx\n>>>>>>> main\n")
+    _git(repo, "add", "doc.md")
+    _write_file(repo, "doc.md", "working tree clean\n")
+
+    assert policy.check_staged_conflict_markers(["doc.md"], repo) == 1
+    assert policy.check_staged_conflict_markers([], repo) == 0
+    assert policy.check_staged_conflict_markers(["../doc.md"], repo) == 2
+
+
+def test_conflict_marker_policy_passes_a_clean_staged_file(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "clean\n")
+    _write_file(repo, "doc.md", "Title\n=======\nstill clean\n")
+    _git(repo, "add", "doc.md")
+
+    assert policy.check_staged_conflict_markers(["doc.md"], repo) == 0
+
+
+def test_conflict_marker_policy_skips_the_hook_fixture_prefix(tmp_path: Path) -> None:
+    """tests/hooks/fixtures carries prohibited bytes on purpose."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    fixture = "tests/hooks/fixtures/conflict.md"
+    (repo / "tests" / "hooks" / "fixtures").mkdir(parents=True)
+    (repo / fixture).write_text("<<<<<<< HEAD\nx\n>>>>>>> main\n", encoding="utf-8")
+    _git(repo, "add", fixture)
+
+    assert policy.check_staged_conflict_markers([fixture], repo) == 0
+
+
+def test_the_repository_itself_has_no_unfenced_conflict_markers() -> None:
+    """Real-corpus control: the rule must not fire on any tracked file today."""
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    offenders: list[str] = []
+    for raw in tracked:
+        if not raw:
+            continue
+        candidate = PROJECT_ROOT / raw.decode()
+        try:
+            data = candidate.read_bytes()
+        except OSError:
+            continue
+        if b"\0" in data[:4096]:
+            continue
+        offenders.extend(policy._conflict_marker_violations(raw.decode(), data))
+    assert offenders == []
+
+
+# ---------------------------------------------------------------------------
+# Issue #3610: the ceiling's only relief was a `commit-limit-bypass` label on an
+# open PR, which cannot exist on a branch's first push. A stacked branch that
+# inherits its ancestors' commits therefore deadlocked.
+# ---------------------------------------------------------------------------
+
+
+def _deny_bypass_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail only the bypass-label lookup, leaving real git calls intact.
+
+    `_run_git` is implemented on top of `_run_command`, so a blanket patch of
+    `_run_command` also breaks the rev-list the ceiling depends on and turns
+    every result into a config error.
+    """
+    real = policy._run_command
+
+    def fake(
+        argv: Sequence[str],
+        repo_root: Path,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        if any("check_pr_bypass_label" in str(part) for part in argv):
+            return _completed(1)
+        return real(argv, repo_root, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_command", fake)
+
+
+def _stacked_repo(tmp_path: Path, first: int, second: int) -> tuple[Path, str]:
+    """Build origin/main plus a pushed featA and an unpushed featB stacked on it."""
+    remote = tmp_path / "remote.git"
+    work = tmp_path / "work"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    _init_repo(work, branch="main")
+    _commit_file(work, "README.md", "seed\n")
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "push", "-q", "origin", "main")
+
+    _git(work, "checkout", "-q", "-b", "featA")
+    for index in range(first):
+        _commit_file(work, f"a{index}.txt", f"{index}\n")
+    _git(work, "push", "-q", "origin", "featA")
+
+    _git(work, "checkout", "-q", "-b", "featB")
+    for index in range(second):
+        _commit_file(work, f"b{index}.txt", f"{index}\n")
+    head = _git(work, "rev-parse", "HEAD").stdout.strip()
+    return work, head
+
+
+def _update_for(branch: str, head: str) -> policy.PushUpdate:
+    source = policy.PushRef(f"refs/heads/{branch}", head, f"refs/heads/{branch}", "0" * 40)
+    return policy.PushUpdate(source, "origin/main", head, f"origin/main..{head}", branch)
+
+
+def test_a_stacked_branch_counts_only_the_commits_it_adds(tmp_path: Path) -> None:
+    work, head = _stacked_repo(tmp_path, first=15, second=10)
+    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 25
+    assert policy._unpushed_commit_count(_update_for("featB", head), work) == 10
+
+
+def test_a_re_push_of_the_same_branch_gets_no_relief(tmp_path: Path) -> None:
+    """Negative control: excluding the branch's own remote ref would retire the
+    ceiling for every branch pushed more than once."""
+    work, _ = _stacked_repo(tmp_path, first=15, second=0)
+    _git(work, "checkout", "-q", "featA")
+    for index in range(6):
+        _commit_file(work, f"a2_{index}.txt", f"{index}\n")
+    head = _git(work, "rev-parse", "HEAD").stdout.strip()
+    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 21
+    assert policy._unpushed_commit_count(_update_for("featA", head), work) == 21
+
+
+def test_the_commit_limit_lets_a_stacked_first_push_through(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: no PR exists, the bypass label check fails, relief still applies."""
+    work, head = _stacked_repo(tmp_path, first=15, second=10)
+    _deny_bypass_label(monkeypatch)
+    assert policy._check_commit_limit(_update_for("featB", head), work) == 0
+
+
+def test_the_commit_limit_still_blocks_an_unstacked_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative control: 25 commits none of which another branch carries is blocked."""
+    work, _ = _stacked_repo(tmp_path, first=0, second=0)
+    _git(work, "checkout", "-q", "-b", "solo")
+    for index in range(25):
+        _commit_file(work, f"s{index}.txt", f"{index}\n")
+    head = _git(work, "rev-parse", "HEAD").stdout.strip()
+    _deny_bypass_label(monkeypatch)
+    assert policy._check_commit_limit(_update_for("solo", head), work) == 1
+
+
+def test_the_commit_ceilings_come_from_the_shared_module() -> None:
+    """Issue #3596: the hook must not restate the numbers CI enforces."""
+    from scripts.validation import pr_commit_count
+
+    assert policy.BLOCK_THRESHOLD == pr_commit_count.BLOCK_THRESHOLD == 20
+    assert (
+        policy.MAIN_MERGE_BLOCK_THRESHOLD
+        == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD
+        == 40
+    )
+>>>>>>> origin/main

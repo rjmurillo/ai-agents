@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3618,
+    "date": "2026-07-29",
+    "branch": "fix/3618-ending-commit-reachability",
+    "startingCommit": "0f78e62fd5",
+    "objective": "Make endingCommit a checked claim instead of a write-only field. A session log records the final commit SHA at authoring time and nothing ever looks at it again, so a value orphaned by a later amend or rebase survives into the record and seeds a causal-graph node pointing at a commit that does not exist (issue #3618)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3618-ending-commit-reachability origin/main; git branch --show-current returned fix/3618-ending-commit-reachability"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3618-ending-commit-reachability, not main. Created fresh from origin/main so it does not sit on any of the ten open PR branches."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign; the dashboard has not changed and this issue was already triaged into the P1 queue from it."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the code commit."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP has been unavailable for the whole campaign; no serena/ or mcp__serena__ tools were exposed. Context came from direct reads of scripts/validate_session_json.py and scripts/validation/session_scope.py."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not loaded, for the same reason serenaActivated is false."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. 233 tests in tests/test_validate_session_json.py pass, plus 572 in the downstream suites that import session_scope. A five-part isolating negative control proves each new guard is load-bearing."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No markdown changed. The three changed files are Python."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run ruff check on the three changed files: All checks passed. git_hook_policy.py mypy on the same three: Success, exit 0."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items recorded with evidence."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable all session, so no memory could be written. The finding that git fetch --unshallow backfills every local ref, not just the fetched one, is recorded in the workLog below and in the PR description."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified (ADR-014)."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Code, tests, and this log committed on fix/3618-ending-commit-reachability. The SHA is recorded in a follow-up commit rather than by amending, which is exactly the pattern this change teaches."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Measured the field before changing anything. Across 1003 committed session logs, 542 leave endingCommit empty, 332 name a SHA that is not an object in this repository at all, 95 name a real commit that is off the current history, and 34 are sound. Of the 461 non-empty values, 7.4 percent are usable. The field was write-only, so nothing ever noticed."
+    },
+    {
+      "step": "Read the issue discourse. It is bot noise apart from the proposed first step, which asks for existence and reachability checks in validate_session_json.py. Confirmed that shape and scoped to it."
+    },
+    {
+      "step": "Nearly shipped a false negative. Reasoned that the CI validate job checks out at the actions/checkout default depth of 1, so a correct endingCommit naming a non-HEAD branch commit would be absent and the check would be a false-positive generator. Tested the reasoning instead of trusting it: cloned the repo at --depth 1 on a five-commit branch, ran the workflow's own 'git fetch origin main --unshallow', and found every branch SHA present. --unshallow drops the shallow boundary for the whole repository and backfills all local refs, not only the ref fetched. The check is viable in CI. This is the seventh time this campaign that a confident assumption failed an empirical check."
+    },
+    {
+      "step": "Found the severity split already built. validate_evidence_agrees_with_session runs only when existing_log is false, so the check reaches new claims and never the 427 historical records that could not be repaired by any honest edit. That is the issue #3385 record-versus-claim line, and endingCommit soundness sits on the claim side. No new scoping code was needed."
+    },
+    {
+      "step": "Chose warning over error, and recorded why. An error is satisfiable through the tool's default path, because complete_session_log.py writes the pre-commit HEAD which then becomes the parent of the commit carrying the log. But a rebase orphans the SHA through no fault of the author, and the log stays new relative to the recomputed merge base, so the gate would go red on honest work with no clean remedy. Two gates were already rejected this campaign for that same property (the git log arm for #3637 under a depth-1 checkout, the transcript-mining arm for #3509 absent on a runner). Consistency requires rejecting the error here."
+    },
+    {
+      "step": "Put the git question in scripts/validation/session_scope.py rather than teaching a second module to shell out. It already owns read-only git questions asked by this validator and already has the timeout, encoding, and check=False idiom right. Added commit_reachability_problem(sha, repo_root), reusing _git. The module stays standard-library-only, which the workflow's bare python3 requires; the one new import is re."
+    },
+    {
+      "step": "Guarded the argument boundary. The SHA reaches git through argv, where a leading dash reads as an option (CWE-88), so a value that is not a bare hex SHA is rejected without asking git. The schema pattern already constrains the field, but schema errors are collected rather than fatal, so a malformed value still reaches this code."
+    },
+    {
+      "step": "Guarded the two cases where no honest answer exists: outside a work tree, and in a shallow clone where older commits are genuinely absent and any complaint would describe the clone rather than the log."
+    },
+    {
+      "step": "Wrote 11 tests covering positive, negative, and edge per TESTING-RIGOR: reachable, absent, present-but-off-history, dash-leading, shallow, non-repository, the integration warning, its negative direction, existing-log suppression, malformed-value deferral to the schema, and the empty-value warning staying distinct. Git-dependent tests build real temporary repositories rather than mocking, including a real --depth 1 clone."
+    },
+    {
+      "step": "Ran a five-part isolating negative control. Neutralising the call site fails only the integration test; removing the ancestry check fails only the off-history test; removing the existence check fails only the absent-SHA test; removing the shallow guard fails only the shallow test; removing the SHA boundary guard fails only the dash-leading test. Every component is individually load-bearing and every test is individually discriminating."
+    },
+    {
+      "step": "Repaired a test the change would have silently invalidated. tests/test_validate_session_json.py asserts session_scope's exact import list to enforce the standard-library-only rule; the new re import is stdlib, so the assertion was updated rather than weakened."
+    },
+    {
+      "step": "Caught an eighth probe defect while validating. A pytest invocation naming one real path and one path that does not exist reported success having collected zero items. Re-ran against real paths: 572 pass. Same family as the markdownlint exclusion trap, where a green result means nothing was selected rather than nothing was wrong."
+    },
+    {
+      "step": "Answered the open question about merge strategy, and it corrected the diagnosis. The repository allows squash merges only: allow_merge_commit and allow_rebase_merge are both false. A squash merge replaces every branch commit with one new commit on main, so a SHA naming the session's own final branch commit is unreachable from main the moment the PR lands. The 427 broken values are therefore mostly structural, not authoring mistakes, and the amend-and-rebase framing in the commit message understates that."
+    },
+    {
+      "step": "Checked the survivors rather than assuming. Only 12 endingCommit values are ancestors of origin/main, and their commit subjects all carry the (#NNNN) suffix that GitHub appends on squash merge, so they name commits that were already on main when the log was written. No session log in the corpus records its own final branch commit and survives. This does not weaken the check: it runs only on new logs, on the branch, before any squash, which is exactly where a correct value is reachable and an amended one is not."
+    },
+    {
+      "step": "The push gate rejected the first attempt and the fix went in at source. security-suppression-policy flagged a new '# noqa: E402' at scripts/validate_session_json.py:51, which appeared only because widening the existing single-name import into a parenthesized list rewrote the line that already carried that suppression. Restored the line byte-for-byte to match origin/main and moved the new name to a function-local import, which is below module scope and needs no E402 suppression at all. The net diff against origin/main now adds zero suppression comments."
+    },
+    {
+      "step": "CI failed one of the new tests and the cause was a hidden dependency on how CI clones. test_an_orphaned_ending_commit_warns called validate_session_log with no repo argument, so the check ran against the ambient checkout rather than a purpose-built repo. The pytest job checks out at the actions/checkout default depth of 1, and the helper stays deliberately silent in a shallow clone, so the warning never appeared and the assertion failed. The same code passed locally against a full clone. Reproduced the split directly: commit_reachability_problem('0'*40, <shallow clone>) returns None while the identical call against the full repository returns 'names no commit in this repository'."
+    },
+    {
+      "step": "The sibling test had the mirror-image defect and would never have been caught by a red run. test_a_sound_ending_commit_does_not_warn asserts that no warning appears, which a silent helper satisfies vacuously, so in CI it passed for the wrong reason and measured nothing. Both tests now pin _PROJECT_ROOT to the class fixture's temp repo with monkeypatch, the pattern already used elsewhere in this file, which makes them hermetic and independent of clone depth."
+    },
+    {
+      "step": "Re-proved both repaired tests discriminate, with a two-sided control on the helper. Forcing it to always return None fails four tests including the orphan test; forcing it to always return a complaint fails seven including the sound-commit test. Each repaired test fails in its own direction, so neither is vacuous. session_scope.py was restored byte-identical afterwards and the full file passes at 233."
+    }
+  ],
+  "endingCommit": "aabc1ef5985b07cefccc9d9e716364b475f66bff",
+  "nextSteps": [
+    "complete_session_log.py line 368 guards on 'if ending_commit and not session.get(\"endingCommit\")', so it fills the field only when empty and never refreshes a stale value. That file is mirrored under src/copilot-cli/skills/session-end/scripts/, so fixing it costs a mirror sync plus a plugin manifest bump. Separable from this change and deliberately out of scope.",
+    "The consumer side is untouched. extract_session_episode.py seeds a causal-graph node from endingCommit without checking it, so the 427 historical bad values still pollute the graph. Skipping unreachable SHAs at the consumer would fix the pollution durably, independent of log hygiene.",
+    "Reconsider whether endingCommit earns its place, now that the merge strategy is known. The repository squash-merges only, so a value naming the session's own final commit is unreachable from main by construction the moment the PR lands. Only 12 of 1003 logs hold a value that is an ancestor of origin/main, and every one of those names a commit that was already merged before the log was written. Either the field should name something that survives, such as the pull request number, or it should be removed. Filed for separate discussion rather than decided here."
+  ]
+}

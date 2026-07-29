@@ -35,6 +35,10 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
+from scripts.validation.pr_commit_count import (
+    BLOCK_THRESHOLD,
+    MAIN_MERGE_BLOCK_THRESHOLD,
+)
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
@@ -302,6 +306,13 @@ SKIPPED_DASH_PREFIXES = (
     ".serena/cache/",
     "tests/hooks/fixtures/",
 )
+# Issue #3671: a git conflict marker committed to a tracked file is never
+# intentional. Key only on the labelled `<<<`, `|||`, and `>>>` forms, which git
+# always writes with a trailing ref name. A bare `=======` line is deliberately
+# not a signal: reStructuredText section underlines and markdown setext headings
+# produce it legitimately, and every real conflict carries a labelled marker too.
+CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|\|{7}|>{7}) \S")
+MARKDOWN_FENCE_RE = re.compile(r"^\s*(?:`{3,}|~{3,})")
 GIT_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -1448,6 +1459,53 @@ def check_staged_dashes(paths: Sequence[str], repo_root: Path) -> int:
     print("ERROR: staged markdown contains prohibited Unicode dashes:", file=sys.stderr)
     for path in violations:
         print(f"  {path}", file=sys.stderr)
+    return 1
+
+
+def _conflict_marker_violations(path: str, content: bytes) -> list[str]:
+    """Report labelled conflict markers that sit outside a fenced code block.
+
+    Documentation that teaches conflict resolution quotes the markers inside a
+    fence; a real conflict written by git never is. Tracking the fence is what
+    keeps `.claude/skills/merge-resolver/references/strategies.md` clean.
+    """
+    violations: list[str] = []
+    inside_fence = False
+    lines = content.decode("utf-8", errors="replace").splitlines()
+    for line_number, line in enumerate(lines, start=1):
+        if MARKDOWN_FENCE_RE.match(line):
+            inside_fence = not inside_fence
+            continue
+        if inside_fence:
+            continue
+        if CONFLICT_MARKER_RE.match(line):
+            violations.append(f"{path}:{line_number}: {line[:40]}")
+    return violations
+
+
+def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
+    violations: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged path: {raw_path}", file=sys.stderr)
+            return 2
+        if path.startswith(SKIPPED_DASH_PREFIXES):
+            continue
+        content = _read_index_blob(repo_root, path)
+        if content is None:
+            continue
+        violations.extend(_conflict_marker_violations(path, content))
+    if not violations:
+        return 0
+    print("ERROR: staged content contains git conflict markers:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    print(
+        "Resolve the conflict and restage. To quote a marker in documentation, "
+        "put it inside a fenced code block.",
+        file=sys.stderr,
+    )
     return 1
 
 
@@ -4076,6 +4134,32 @@ def _merge_has_main_parent(
     return any(parent in trunk for parent in parents)
 
 
+def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
+    """Count commits in the push that no *other* remote branch already carries.
+
+    Issue #3610: the ceiling's only relief is a `commit-limit-bypass` label on an
+    open PR, and a first push has no PR to label, so a stacked branch deadlocks.
+    A third-level branch inherits its two ancestors' commits even though those
+    commits belong to their own PRs and already passed this gate.
+
+    The branch's own remote ref is deliberately kept in the count. Excluding it
+    would make every re-push measure only the newest commits, which would retire
+    the ceiling entirely for any branch pushed more than once.
+    """
+    branch = update.destination_branch or _branch_name(update.source.local_ref)
+    argv = ["rev-list", "--count", update.source.local_sha, "--not"]
+    if branch:
+        argv.append(f"--exclude=origin/{branch}")
+    argv.append("--remotes=origin")
+    result = _run_git(repo_root, argv)
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4085,7 +4169,11 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
         commit_count = int(result.stdout.strip())
     except ValueError:
         return 2
-    limit = 40 if _contains_main_merge(update, repo_root) else 20
+    limit = (
+        MAIN_MERGE_BLOCK_THRESHOLD
+        if _contains_main_merge(update, repo_root)
+        else BLOCK_THRESHOLD
+    )
     if commit_count <= limit:
         return 0
     branch = update.destination_branch or _branch_name(update.source.local_ref)
@@ -4095,6 +4183,14 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     bypass = _run_command(args, repo_root)
     if bypass.returncode == 0:
         print(bypass.stdout, end="")
+        return 0
+    unpushed = _unpushed_commit_count(update, repo_root)
+    if unpushed is not None and unpushed <= limit:
+        print(
+            f"NOTE: push has {commit_count} commits from origin/main, but only "
+            f"{unpushed} are not already carried by another pushed branch; "
+            f"limit is {limit}.",
+        )
         return 0
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
@@ -4774,6 +4870,10 @@ def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
 
 
+def _handle_staged_conflict_markers(args: argparse.Namespace) -> int:
+    return check_staged_conflict_markers(args.paths, _repo_root(args))
+
+
 def _handle_github_bash(args: argparse.Namespace) -> int:
     return check_github_bash_scripts(args.paths, _repo_root(args))
 
@@ -4903,6 +5003,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
         ("staged-action-pins", _handle_staged_action_pins),
+        ("staged-conflict-markers", _handle_staged_conflict_markers),
         ("github-bash", _handle_github_bash),
         ("security-suppressions", _handle_security_suppressions),
         ("mypy", _handle_mypy),
