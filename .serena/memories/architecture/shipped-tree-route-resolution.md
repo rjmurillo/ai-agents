@@ -154,7 +154,7 @@ correct. Round three found three of these and one false negative:
 - `` Skill: `merge-resolver` `` was reported malformed because every code span
   was dropped from the cell text. The shared parser now yields segments tagged
   code or text; the validator blanks a code span only when that span carries a
-  whole route, so `` `Skill: x` `` stays documentation and `` Skill: `x` ``
+  whole route, so `` `Skill: x` `` stays documentation and `` Skill: `x` `` <!-- orphan-ref-ignore -->
   stays a route. Policy belongs to the caller, not to `markdown_parser.py`.
 - `"Skill: x"` and `[Skill: x]` kept their punctuation. `_TRAILING` now strips
   quotes, brackets and braces.

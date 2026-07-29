@@ -27,6 +27,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -2136,3 +2137,84 @@ class TestTheMemoryCorpusIsGateable:
         finally:
             probe.unlink()
         assert _skill_names(result) == {"doc-coverage"}
+
+
+class TestDocumentationMayQuoteARouteWithoutBecomingOne:
+    """Issue #3749: prose that describes route syntax has to write route syntax.
+
+    The memory corpus documents the parser's own route-versus-documentation
+    rule, and to state the rule it spells both forms out. The scanner reads the
+    live form as a reference and blocks the push. The line-scoped
+    ``<!-- orphan-ref-ignore -->`` directive is the designed escape hatch; these
+    tests pin that it reaches ``skill_name`` findings, not only path findings,
+    and that it does not quietly blunt the detector for everyone else.
+    """
+
+    @staticmethod
+    def _write(tmp_path: Path, body: str) -> Path:
+        target = _repo_root() / f".orphan-ref-probe-{tmp_path.name}"
+        target.mkdir(exist_ok=True)
+        (target / "memo.md").write_text(body, encoding="utf-8")
+        return target
+
+    def test_an_undirected_route_in_prose_is_still_reported(self, tmp_path):
+        """Negative control: without the directive the detector must fire.
+
+        Without this the positive case below could pass because the scanner
+        stopped detecting anything at all.
+        """
+        probe = self._write(tmp_path, "prose about Skill: `zzznotaskill` here\n")
+        try:
+            result = scan([probe], _repo_root())
+        finally:
+            shutil.rmtree(probe)
+        assert _skill_names(result) == {"zzznotaskill"}
+
+    def test_the_directive_suppresses_a_skill_name_finding(self, tmp_path):
+        """Positive: the same line, plus the directive, is not a finding."""
+        probe = self._write(
+            tmp_path,
+            "prose about Skill: `zzznotaskill` here <!-- orphan-ref-ignore -->\n",
+        )
+        try:
+            result = scan([probe], _repo_root())
+        finally:
+            shutil.rmtree(probe)
+        assert _skill_names(result) == set()
+
+    def test_a_suppressed_route_is_recorded_rather_than_dropped(self, tmp_path):
+        """Edge: suppression must stay auditable.
+
+        A directive that silently deleted the reference would make the escape
+        hatch impossible to review. The reference has to survive in
+        ``directive_suppressed`` with its file and line.
+        """
+        probe = self._write(
+            tmp_path,
+            "prose about Skill: `zzznotaskill` here <!-- orphan-ref-ignore -->\n",
+        )
+        try:
+            result = scan([probe], _repo_root())
+        finally:
+            shutil.rmtree(probe)
+        assert [(ref.target_file, ref.line) for ref in result.directive_suppressed] == [
+            (f"{probe.name}/memo.md", 1)
+        ]
+
+    def test_the_directive_is_scoped_to_its_own_line(self, tmp_path):
+        """Edge: a directive on one line must not cover the next one.
+
+        A file-wide effect would let one directive hide every later drift in
+        the same memory. ``<!-- orphan-ref-ignore-file -->`` is the opt-in for
+        that, and it is a different directive.
+        """
+        probe = self._write(
+            tmp_path,
+            "first Skill: `zzzfirstskill` here <!-- orphan-ref-ignore -->\n"
+            "second Skill: `zzzsecondskill` here\n",
+        )
+        try:
+            result = scan([probe], _repo_root())
+        finally:
+            shutil.rmtree(probe)
+        assert _skill_names(result) == {"zzzsecondskill"}
