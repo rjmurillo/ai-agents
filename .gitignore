@@ -88,7 +88,25 @@ ENV/
 
 # scripts/ci/build_pr_validation_report.py writes this to the repo root.
 # Harmless on an ephemeral runner, untracked litter in a working tree.
+# tests/ci/test_workflow_artifacts_are_ignored.py keeps this list complete;
+# every rule stays anchored so it cannot hide a same-named file elsewhere.
 /pr-validation-report.md
+/metrics-report.txt
+/metrics.json
+/hook-bypass-count.txt
+/comment-body.md
+/comment.md
+/drift-count.txt
+/drift-details.md
+/drift-results.json
+/issue-body.md
+/homework-results.json
+/health-report.json
+/health-report.md
+/memory-health-report.md
+/memory-validation-results.json
+/quality-grades.json
+/quality-grades.md
 
 # Hook runtime logs and caches
 .claude/hooks/audit.log
