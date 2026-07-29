@@ -566,7 +566,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 71" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 63" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
