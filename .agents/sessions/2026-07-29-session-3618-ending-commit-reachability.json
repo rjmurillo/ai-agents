@@ -139,7 +139,7 @@
       "step": "Re-proved both repaired tests discriminate, with a two-sided control on the helper. Forcing it to always return None fails four tests including the orphan test; forcing it to always return a complaint fails seven including the sound-commit test. Each repaired test fails in its own direction, so neither is vacuous. session_scope.py was restored byte-identical afterwards and the full file passes at 233."
     }
   ],
-  "endingCommit": "309f8e141568b88cdb4bf46140f8a3887240caa2",
+  "endingCommit": "aabc1ef5985b07cefccc9d9e716364b475f66bff",
   "nextSteps": [
     "complete_session_log.py line 368 guards on 'if ending_commit and not session.get(\"endingCommit\")', so it fills the field only when empty and never refreshes a stale value. That file is mirrored under src/copilot-cli/skills/session-end/scripts/, so fixing it costs a mirror sync plus a plugin manifest bump. Separable from this change and deliberately out of scope.",
     "The consumer side is untouched. extract_session_episode.py seeds a causal-graph node from endingCommit without checking it, so the 427 historical bad values still pollute the graph. Skipping unreachable SHAs at the consumer would fix the pollution durably, independent of log hygiene.",
