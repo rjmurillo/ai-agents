@@ -334,7 +334,7 @@ def _render_markdown(
         f"- Agent prompt SHA: `{agent_prompt_sha[:16]}...`\n"
         f"- Baseline prompt SHA: `{baseline_prompt_sha[:16]}...`\n"
         f"- Fixture set SHA: `{fixture_set_sha[:16]}...`\n"
-        f"- Fixtures measured: {len(fixture_ids)}\n"
+        f"- Fixture inventory: {len(fixture_ids)}\n"
     )
     if system_fingerprints:
         rendered = ", ".join(f"`{value}`" for value in system_fingerprints)
