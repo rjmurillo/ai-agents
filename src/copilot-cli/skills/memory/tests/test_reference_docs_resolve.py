@@ -182,20 +182,46 @@ def test_skill_script_guard_rejects_a_phantom_portable_path() -> None:
     assert not (SKILLS_ROOT.parent / found[0]).is_file()
 
 
+def _fenced_code_blocks(text: str) -> list[str]:
+    """Return the fenced code blocks in a doc.
+
+    Scoped to blocks for two reasons. The portable recipe spans two lines, the
+    plugin-root lookup and the `sys.path.insert` that uses it, so a line-scoped
+    check reports the second line as an offender. And prose may legitimately
+    name a real file path next to the words `sys.path` without teaching a
+    recipe, because prose does not execute.
+    """
+    blocks: list[str] = []
+    current: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            if inside:
+                blocks.append("\n".join(current))
+                current = []
+            inside = not inside
+            continue
+        if inside:
+            current.append(line)
+    return blocks
+
+
 def test_docs_do_not_hard_code_a_tree_specific_sys_path() -> None:
     """No doc may teach `sys.path.insert(0, ".claude/skills/memory")`.
 
     That path does not exist in the `src/copilot-cli` tree or in an installed
     plugin, so the recipe fails for every reader outside one tree.
     """
-    offenders = [
-        _doc_id(doc)
-        for doc in DOCS
-        if any(
-            "sys.path" in line and ".claude/skills" in line
-            for line in doc.read_text(encoding="utf-8").splitlines()
-        )
-    ]
+    offenders = []
+    for doc in DOCS:
+        for block in _fenced_code_blocks(doc.read_text(encoding="utf-8")):
+            if (
+                "sys.path" in block
+                and "skills/memory" in block
+                and "PLUGIN_ROOT" not in block
+            ):
+                offenders.append(_doc_id(doc))
+                break
     assert not offenders, f"docs hard-code a tree-specific path: {offenders}"
 
 
