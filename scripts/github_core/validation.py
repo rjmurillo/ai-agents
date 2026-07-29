@@ -12,6 +12,12 @@ _OWNER_PATTERN = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$")
 # Repo: alphanumeric, hyphens, underscores, periods, 1-100 chars
 _REPO_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,100}$")
 
+# `.` and `..` are the two names GitHub refuses outright, because both are
+# directory aliases. Callers interpolate these values into URL paths, so a
+# name that means "parent directory" must not reach that position. Longer
+# dot runs such as `...` are legal repository names and stay allowed.
+_DIRECTORY_ALIASES = frozenset({".", ".."})
+
 _TRAVERSAL_PATTERN = re.compile(r"\.\.[/\\]")
 
 
@@ -28,6 +34,9 @@ def is_github_name_valid(name: str, name_type: str) -> bool:
         True if the name conforms to GitHub's rules.
     """
     if not name or not name.strip():
+        return False
+
+    if name in _DIRECTORY_ALIASES:
         return False
 
     normalized = name_type.lower()
