@@ -116,6 +116,43 @@ def _emit(payload: object) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+_MAX_ERROR_CHARS = 4096
+
+
+def _elide_middle(text: str, limit: int = _MAX_ERROR_CHARS) -> str:
+    """Bound a reported message, keeping both ends of the diagnostic.
+
+    Error text here is built by interpolating producer-controlled values into
+    a fixed sentence, so its length is the input's length. Measured: a report
+    naming a 5,000,000-character fixture id drove 5,000,110 bytes onto stdout,
+    the stream the module docstring promises is machine-readable JSON, so the
+    driver reading it wears the cost of a value it never chose.
+
+    The limit is calibrated, not picked. Across the 466 raised messages in
+    this command and its two helper modules, the longest fixed sentence is 226
+    characters, so this leaves roughly eighteen times that for the values
+    interpolated into it. No message the command raises today reaches it.
+
+    Elision is from the middle because the diagnostic lives at both ends. In
+    the measured case the message reads "fixture '<5MB of A>' variant 'agent'
+    run must be numeric, got 'not-a-number'": a head cut keeps the useless
+    half and drops the part naming what was actually wrong. Keeping both ends
+    keeps the subject and the verdict, and the marker states the count
+    dropped so the reader knows the value was long rather than absent.
+    """
+    if len(text) <= limit:
+        return text
+    template = " ... [{} characters elided] ... "
+    # Size the budget against the widest the marker can get, so the result
+    # cannot exceed the limit once the real (smaller) count is filled in.
+    budget = limit - len(template.format(len(text)))
+    if budget < 2:
+        return text[:limit]
+    head = budget // 2
+    tail = budget - head
+    return text[:head] + template.format(len(text) - budget) + text[-tail:]
+
+
 class _DuplicateKeyError(ValueError):
     """A JSON object stated the same key more than once.
 
@@ -2922,7 +2959,7 @@ def _dispatch(argv: list[str] | None) -> int:
         # ValueError joins them so the core's own validation surfaces the same
         # way. Wrapping one call site left the policy in two places and the
         # wrapper unreachable once its inputs were validated upstream.
-        _emit({"error": str(exc), "type": type(exc).__name__})
+        _emit({"error": _elide_middle(str(exc)), "type": type(exc).__name__})
         return EXIT_CONFIG
     return exit_code
 
