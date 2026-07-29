@@ -211,7 +211,7 @@ jobs:
       # module-name form resolves correctly via conftest.py sys.path setup and
       # reports the actual 100%. Do not switch forms without re-verifying both
       # locally and in CI.
-      - name: Pin REQ-009 module coverage at 100% (PR #1989 user requirement)
+      - name: "Pin REQ-009 module coverage at 100% (PR #1989 user requirement)"
         if: steps.should-run.outputs.skip != 'true'
         run: |
           pytest \
