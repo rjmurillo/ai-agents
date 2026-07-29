@@ -117,6 +117,13 @@ _IMPORTED_NAMES: dict[str, dict[str, str]] = {
 # the module it stands for, so ``import os as system`` still reaches popen.
 _ENTRY_MODULES = ("subprocess", "os")
 
+# Attribute names that hand back the same callable they are read from, so
+# ``subprocess.run.__call__`` is ``subprocess.run``. ``__get__`` is left out
+# on purpose: it returns a binding rather than the callable, so calling it
+# starts no process. Verified at runtime: ``subprocess.run.__call__`` with
+# ``text=True`` returns ``str``, exactly as the plain form does.
+_CALLABLE_ALIASES = frozenset({"__call__", "__func__", "__wrapped__"})
+
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
     """Return the value node for keyword *name*, or ``None`` when absent."""
@@ -194,6 +201,10 @@ def _resolve_indirect(
         return _resolve_callable(call.args[0], modules, functions)
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
+        if isinstance(attr, ast.Constant) and attr.value in _CALLABLE_ALIASES:
+            # ``getattr(subprocess.run, "__call__")`` is ``subprocess.run``,
+            # and the owner here can be any expression, not just a module.
+            return _resolve_callable(owner, modules, functions)
         origin = modules.get(owner.id) if isinstance(owner, ast.Name) else None
         if origin is None:
             return None
@@ -308,6 +319,8 @@ def _attribute(
     node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the entry point ``owner.attr`` names, or ``None``."""
+    if node.attr in _CALLABLE_ALIASES:
+        return _resolve_callable(node.value, modules, functions)
     if isinstance(node.value, ast.Name):
         found = _entry_point(modules.get(node.value.id), node.attr)
         if found is not None:
@@ -1085,6 +1098,24 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "fetching os.popen through getattr decodes nothing until it is called",
         ),
         (
+            'import subprocess\nsubprocess.run.__call__(["x"], '
+            'capture_output=True, encoding="utf-8")',
+            "forwarding through __call__ does not lose a pinned codec",
+        ),
+        (
+            'local.__call__(["x"], capture_output=True, text=True)',
+            "__call__ on an unrelated object reaches no entry point",
+        ),
+        (
+            'getattr(local, "__call__")(["x"], capture_output=True, text=True)',
+            "a dunder forward off an unrelated object is still unrelated",
+        ),
+        (
+            'import subprocess\nf = subprocess.run.__get__\n'
+            'f(["x"], capture_output=True, text=True)',
+            "__get__ hands back a binding, not the callable, so it runs nothing",
+        ),
+        (
             'import subprocess\nname = "run"\n'
             'getattr(subprocess, name)(["x"], capture_output=True, encoding="utf-8")',
             "a dynamic lookup that still pins the codec decodes correctly",
@@ -1351,6 +1382,30 @@ def test_detector_reports_every_offender_in_one_file() -> None:
         (
             'import os\ngetattr(os, "popen")("x").read()',
             "getattr reaches os.popen just as it reaches subprocess.run",
+        ),
+        (
+            'import subprocess\nsubprocess.run.__call__(["x"], '
+            'capture_output=True, text=True)',
+            "__call__ on an entry point is the entry point",
+        ),
+        (
+            'import subprocess as sp\nsp.run.__call__(["x"], '
+            'capture_output=True, text=True)',
+            "a module alias does not hide a dunder forward",
+        ),
+        (
+            'import subprocess\nr = subprocess.run\n'
+            'r.__call__(["x"], capture_output=True, text=True)',
+            "a bound name forwards through __call__ like the attribute does",
+        ),
+        (
+            'import os\nos.popen.__call__("x").read()',
+            "os.popen forwards through __call__ and still cannot be pinned",
+        ),
+        (
+            'import subprocess\ngetattr(subprocess.run, "__call__")'
+            '(["x"], capture_output=True, text=True)',
+            "getattr composed with a dunder forward reaches the entry point",
         ),
         (
             'import os\nname = "popen"\ngetattr(os, name)("x").read()',
