@@ -29,7 +29,7 @@ The skill ships with vendored installs. When a target path is not present (for e
 
 ## Path conventions
 
-Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`) assume the canonical Claude install layout under `.claude/`. The Copilot CLI mirror at `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py` is byte-identical Python; on Copilot CLI, replace `.claude/` with the install root the platform uses. The `Skill(skill="orphan-ref-validator")` invocation form is platform-agnostic and is what the `/build` gate uses.
+Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`) assume the canonical Claude install layout under `.claude/`. The Copilot CLI mirror at `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py` is byte-identical Python; on Copilot CLI, replace `.claude/` with the install root the platform uses. The `/build` gate invokes this skill through whichever invocation form its platform provides; each platform mirror runs its own copy of `scan.py`.
 
 ## Inputs
 

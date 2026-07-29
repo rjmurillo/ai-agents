@@ -311,6 +311,21 @@ def _contains_untranslated_arguments_token(body: str) -> bool:
     return "$ARGUMENTS" in body_without_code_spans
 
 
+def test_orphan_ref_validator_uses_platform_neutral_invocation_wording() -> None:
+    """The orphan-ref-validator prose must not claim one syntax works everywhere."""
+    source = REPO_ROOT / ".claude" / "skills" / "orphan-ref-validator" / "SKILL.md"
+    mirror = _COPILOT_SKILLS / "orphan-ref-validator" / "SKILL.md"
+    expected = (
+        "The `/build` gate invokes this skill through whichever invocation form "
+        "its platform provides; each platform mirror runs its own copy of `scan.py`."
+    )
+
+    for path in (source, mirror):
+        body = path.read_text(encoding="utf-8")
+        assert expected in body, f"missing platform-neutral wording in {path}"
+        assert "invocation form is platform-agnostic" not in body
+
+
 def test_committed_skills_have_no_untranslated_arguments_token() -> None:
     """No shipped Copilot skill body may carry unresolved `$ARGUMENTS` prose."""
     offenders = [
