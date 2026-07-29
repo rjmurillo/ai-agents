@@ -396,3 +396,13 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/integration/test_e2e_install.py -q
+
+      # Issue #3591: the ledger charge is only durable on Windows if the move
+      # asks for MOVEFILE_WRITE_THROUGH, which CPython's os.replace omits. The
+      # ctypes path that adds it cannot run on the POSIX legs, so without this
+      # step it would ship unexercised.
+      - name: Run atomic-write durability contract tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/eval/test_optimize_artifact_durability.py -v
