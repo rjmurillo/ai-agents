@@ -113,10 +113,16 @@ def _run_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
             ["git", "-C", str(repo_root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
         )
     except subprocess.TimeoutExpired:
         return -1, "", "git command timed out after 15s"
+    except UnicodeDecodeError:
+        # Commit messages and paths are raw bytes on POSIX. Strict UTF-8 keeps
+        # a bad decode from becoming a plausible wrong string, and this gate
+        # already reports failure through the return value rather than raising.
+        return -1, "", "git output was not valid UTF-8"
     return result.returncode, result.stdout, result.stderr
 
 
