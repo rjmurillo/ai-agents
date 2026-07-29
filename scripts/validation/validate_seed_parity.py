@@ -140,6 +140,8 @@ def _ci_source_from_main(role: str) -> str | None:
             ["git", "show", f"main:{rel}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(REPO_ROOT),
             check=False,
             timeout=10,
