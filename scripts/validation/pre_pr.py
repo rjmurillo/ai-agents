@@ -75,6 +75,7 @@ from checks_plugin import (  # noqa: E402, F401
     validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
+    validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_spec import (  # noqa: E402, F401

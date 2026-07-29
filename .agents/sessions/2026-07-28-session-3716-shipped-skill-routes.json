@@ -1,0 +1,347 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3716,
+    "date": "2026-07-28",
+    "branch": "fix/autoplan-dangling-skill-route",
+    "startingCommit": "95da12691b",
+    "objective": "Audit the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository, fix the shipped-plugin routing defect it predicted, and add a gate so the class cannot regress."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/autoplan-dangling-skill-route after checkout -b from origin/main at 95da12691b"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/autoplan-dangling-skill-route, not main"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Continued from the prior session's handoff in the same autopilot run; this branch was cut after PR #3714 reached CI-green"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, created before the first commit landed on the branch"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Serena MCP active for the parent autopilot session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Serena initial_instructions loaded for the parent autopilot session"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read .claude/rules/plugin-version-bump.md scope to confirm both .claude/** and src/copilot-cli/** were touched and therefore both manifests required the same strictly-greater bump"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All work-log entries closed with evidence"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified; it is read-only per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote .serena/memories/architecture/shipped-tree-route-resolution.md recording the invariant, the #2026 incident, and why generation-drift gates cannot see this class"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 run out-of-tree on the authored markdown, following the documented procedure in .serena/memories/linting/linting-exclusions.md because .serena/** and .agents/** are excluded by repo config"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Three atomic commits, each at or under five files: routing fix plus regeneration, gate plus tests plus registration, then manifests plus session artifacts"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "14 of 14 unit tests pass. Mutation control: neutering the gate's failure branch fails exactly the four negative tests and leaves the ten others green, so the tests have teeth. Negative control against the real historical defect: git stash of the routing fix makes both the script and its pre_pr wrapper exit non-zero with a precise message, and restoring the fix returns exit 0. Route resolution measured at 17 routes per tree, 0 unresolved in .claude and 1 unresolved in src/copilot-cli before the fix, 0 in both after. Reachability and paths-filter meta-tests pass at 136 of 138 with 2 pre-existing exemptions."
+      },
+      "retrospectiveInvoked": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/retrospective/2026-07-28-session-3716-shipped-skill-routes.md. Primary lesson: a defect can be invisible to every gate when two control planes are each internally consistent, because no gate asked the cross-plane question."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Audited the wiki concept 'Coordination Drift Is an Architecture Risk' against this repository. Its testable claim is that parallel discovery systems disagree about what is active while each passes its own tests. Probed skill-set parity across the two trees: .claude/skills has 97 entries, src/copilot-cli/skills has 110. The 12 Copilot-only entries are the documented commands-to-skills seam and are expected. merge-resolver exists in .claude/skills with no Copilot counterpart, which is not."
+    },
+    {
+      "step": "Traced the parity gap to a live consumer-facing defect. src/copilot-cli/skills/autoplan/SKILL.md line 93 routed merge-conflict work to 'Skill: merge-resolver', but the Copilot toolkit does not contain that skill. Verified the routing table uses only Skill: labels and never Agent: labels, so every route in it must resolve in its own tree."
+    },
+    {
+      "step": "Ran a systematic route-resolution scan across both trees to size the problem rather than assume it was isolated: 17 routes in each tree, 0 unresolved in .claude, 1 unresolved in src/copilot-cli. The defect was a single route, not a pattern."
+    },
+    {
+      "step": "Found the root cause in git history. merge-resolver was deliberately excluded from the Copilot shipping set in issue #2026 and commit 1159d8c5f2, because it is hard-wired to this repository's layout and useless in a consumer repo. templates/platforms/copilot-cli.yaml line 18 carries the exclusion and its rationale. The packaging edit was made; the routing prose was not updated."
+    },
+    {
+      "step": "Established why every existing gate passed. The packaging exclusion is self-consistent, and the routing table is byte-identical to its canonical source, where the route is correct because that tree has the skill. Generation-drift gates verify the shipped copy matches its source, which is a different question from whether the shipped copy's references resolve in the shipped tree."
+    },
+    {
+      "step": "Verified the capability itself was never lost before proposing a fix. src/copilot-cli/agents/merge-resolver.agent.md ships at 147 lines and is self-contained: it references neither the excluded skill directory nor resolve_pr_conflicts.py. Only .claude/agents/merge-resolver.md references the skill scripts, which is correct because that tree has them."
+    },
+    {
+      "step": "Confirmed the fix mechanism against the generator rather than assuming it. build/scripts/copilot_body_translation.py rewrites Task(subagent_type=\"X\") to an agent_type reference generically, verified against architect, analyst, implementer, and milestone-planner. The same autoplan table already uses that form for the orchestrator row, so the fix is idiomatic and needs no generator change."
+    },
+    {
+      "step": "Applied the one-line routing fix in the canonical tree, regenerated with build_all.py, and confirmed the shipped tree now carries the translated agent_type form. Re-ran the route scan: 0 unresolved in both trees."
+    },
+    {
+      "step": "Wrote scripts/validation/check_shipped_skill_routes.py encoding the cross-tree invariant, and designed for precision rather than recall. A bare Skill: regex produces a false positive on a checklist line where 'create' follows the label as an English verb. The filter reports a name only when it exists as a skill in the canonical tree, which is exactly the drift signature and kills the prose false positive. Fenced blocks are stripped with line numbers preserved, and a leading backtick or word character is rejected."
+    },
+    {
+      "step": "Ran a negative control against the real historical defect rather than a synthetic one. git stash of the routing fix makes the script exit 1 with the exact file, line, and missing path; restoring it returns exit 0."
+    },
+    {
+      "step": "Wrote 14 tests after discovering the first attempt was structurally wrong. Importlib loading of a module containing a dataclass fails at collection because the module is absent from sys.modules when the decorator runs. The repository's established pattern for validators is subprocess invocation, which also exercises the real CLI exit contract that TESTING-RIGOR requires. Rewrote to match."
+    },
+    {
+      "step": "Distrusted the tests because they validate a validator written in the same session, which is one closed loop. Broke the loop with a mutation control: neutering the failure branch fails exactly the four negative tests and leaves the ten others green."
+    },
+    {
+      "step": "Registered the gate in two places so it actually runs. scripts/validation/checks_plugin.py gains a wrapper that fails closed when the script is absent, following validate_agent_catalog rather than the MissingScriptSkip pattern, because a silent skip would defeat the gate. pre_pr_sequence.py calls it, and the pre_pr.py facade re-exports it. A CI step sits beside its sibling self-containment gate in validate-generated-agents.yml, whose paths filter already covers both trees."
+    },
+    {
+      "step": "Verified registration end-to-end rather than trusting the wiring. Called the wrapper directly against the fixed tree for exit true, then stashed the routing fix and called it again for exit false with the full diagnostic. Measured the gate at 137ms, which justifies paying for it in both the local pre-push path and CI."
+    },
+    {
+      "step": "Confirmed the new script satisfies tests/ci/test_validation_scripts_are_reachable.py, the guard that exists because issue #3329 shipped two gates with green tests and no caller anywhere."
+    },
+    {
+      "step": "Sent v1 of the gate to two adversarial reviews on different model families (gemini-3.1-pro-preview, gpt-5.6-sol). Both returned DO NOT SHIP. Verified every finding by execution rather than by vote: confirmed four, refuted one against the CommonMark spec (a longer outer fence is not closed by a shorter inner one), and refuted one proposed fix by running it against the live repository, where a strict per-root vacuity guard breaks immediately because src/claude ships a manifest and no skills."
+    },
+    {
+      "step": "Found a defect neither reviewer reported while probing an adjacent claim: an unterminated HTML comment never matched the <!--.*?--> strip, so commented-out content was scanned as live and failed the build on text no reader sees. A false positive in a push-blocking gate is worse than a miss."
+    },
+    {
+      "step": "Measured the pruning change before adopting it. Root-only pruning yields an identical 906 markdown files at identical speed, because every directory named in PRUNED_DIRS sits inside .claude/worktrees and is unreachable once that one directory is pruned at depth 0. All-depth pruning bought nothing and reserved worktrees, venv, and node_modules as illegal skill names."
+    },
+    {
+      "step": "Second review round identified the root cause: a pipe-shaped-line regex is not a Markdown model, and the core test fixture had no delimiter row, so it rendered as a paragraph and the suite asserted on a model markdown does not have."
+    },
+    {
+      "step": "Searched the repository before revising again and found markdown-it-py is a declared first-party dependency and scripts/utils/markdown_parser.py already existed to replace fragile regex patterns with an AST. Validated markdown-it against all 15 adversarial cases from both reviews, including 5 the regex got wrong."
+    },
+    {
+      "step": "Rewrote the validator core to delegate table scoping to the canonical parser, deleting the hand-rolled fence, HTML comment, inline-code, and table-row machinery. Added TableCell and iter_table_cell_text to the shared parser rather than duplicating it."
+    },
+    {
+      "step": "Closed the remaining fail-open paths: os.walk(onerror=) raising, strict UTF-8 decode, and parser exceptions as config errors. Added a literal keyword prefilter that cannot hide a route, holding the check at 1.3s against 2.5s for parsing every file."
+    },
+    {
+      "step": "Ran an 11-mutation battery. Ten mutations are caught; the one that survives is the performance prefilter, which is the proof it changes no outcome. The battery exposed eight vacuous tests whose fixtures omitted the table delimiter row, so they passed whether or not the defence they named existed. All eight were rewritten to carry real tables, and a missing test for the fail-closed nesting check was added."
+    },
+    {
+      "step": "Verified no regression in the shared parser's other consumers: 358 markdown-related tests pass and the full validation suite reports 1262 passed and 1 skipped, up exactly 17 from the 1245 baseline, matching the 44 minus 27 test growth."
+    },
+    {
+      "step": "Removed the '# noqa: E402' that blocked the push under security-suppression-policy. The sibling validator check_skill_md_portability.py inserts the repository root on sys.path and imports scripts.utils.*, which ruff does not flag; matching that convention removed the suppression instead of justifying it. Folded into the commit that introduced it, since all four commits were unpushed."
+    },
+    {
+      "step": "Round-3 adversarial review on two model families returned DO NOT SHIP independently. gpt-5.6-sol reported five findings with reproduction output; gemini-3.1-pro-preview reported seven, four of them the same defects. Every finding was re-verified by execution before any code changed."
+    },
+    {
+      "step": "Confirmed a false negative: the source-text prefilter skipped any file whose bytes lacked the literal word 'Skill', so 'Sk&#105;ll: ghost' rendered as a route and passed. Deleted the prefilter rather than widening it. The check now costs 2.8s against 1.3s, measured three times, which is 0.2% of a push that takes twelve minutes."
+    },
+    {
+      "step": "Retracted the claim that a surviving mutation proved the prefilter neutral. A surviving mutation means no test covers the case. The retrospective now records that."
+    },
+    {
+      "step": "Confirmed three false positives, the more expensive failure for a push-blocking gate: a code-styled name reported malformed because every code span was dropped, quoted and bracketed names keeping their punctuation, and 'Meta-Skill:' and 'Task/Skill:' read as routes. The live tree carries 148 of that last shape."
+    },
+    {
+      "step": "Moved code-span policy out of the shared parser. iter_table_cell_text now yields CellSegment values tagged code or text; the validator blanks a code span only when that span carries a whole route, so '`Skill: x`' stays documentation and 'Skill: `x`' stays a route. Testing the span against the route pattern keeps one definition of a route and avoids breaking the live 'Skill: SkillForge' name."
+    },
+    {
+      "step": "Made root discovery fail closed. Path.is_file and Path.is_dir answer False for a path they cannot stat, which dropped a whole plugin root and left its siblings to carry the pass. Discovery now uses stat(), treats only FileNotFoundError and NotADirectoryError as absent, and runs inside the config-error boundary so a permission error is exit 2 rather than a traceback."
+    },
+    {
+      "step": "Refuted one reviewer claim by execution. The symlink reproduction placed the drift in a real directory that os.walk visits, and the gate caught it. Drift reachable only through a symlink pointing outside the root did pass, so the finding is real but the reproduction was not."
+    },
+    {
+      "step": "Chose refusal over followlinks=True for symlinked directories. Measured a symlink cycle costing 82 redundant directory walks before the OS limit stopped it, and a file reachable two ways is reported twice. No plugin root ships a symlinked directory today, so the gate exits 2 with a message naming the path."
+    },
+    {
+      "step": "Refuted the proposal to drop empty route names. 'Skill:' with no name would be skipped to protect prose such as 'Select a Skill:'. Scanned every table cell in the 97 repository markdown files that mention the keyword and found zero instances, so the silent hole would cost more than the hypothetical false positive. Pinned the current behaviour with a test."
+    },
+    {
+      "step": "Fixed one more vacuous test found by the second reviewer. test_blockquote_support_does_not_readmit_indented_code carried no '>' marker, so it exercised a top-level indented code block rather than the blockquote path its name claims. The fixture now carries both shapes."
+    },
+    {
+      "step": "Extended the mutation battery from 11 to 18 and every mutation is now caught, with none surviving. The seven new mutations cover the entity prefilter, the compound-word boundary, quote and bracket stripping, three separate code-span policies, lenient stat, lenient iterdir, the symlink refusal, and skipping empty names."
+    },
+    {
+      "step": "Verified no regression: 54 gate tests pass, 877 markdown and portability tests pass, and the full validation suite reports 1272 passed and 1 skipped, up 10 from the 1262 recorded earlier in this session. ruff check is clean on all five changed files; the 20 errors under scripts/ are the pre-existing baseline, confirmed by stashing the change and re-running."
+    },
+    {
+      "step": "Ran a fourth adversarial review round on two model families (gpt-5.6-sol, gemini-3.1-pro-preview) against the round-three commits. Both returned DO NOT SHIP with six findings between them. Verified every claim by execution using the suite's own shipped_skill_routes_helpers rather than a hand-rolled fixture layout; the first hand-rolled probe produced all-rc=2 noise because it used the wrong directory shape."
+    },
+    {
+      "step": "Fixed G1, a fail-open defect: a code span holding only the keyword, as in `Skill:` ghost, matched the route pattern because the name group is optional, so the span was blanked and the dangling route disappeared entirely. The span is now blanked only when a name was actually captured."
+    },
+    {
+      "step": "Fixed G2, a push-blocking false positive: pruning applied at the walk root only, so a node_modules or .venv inside a skill was scanned. Third-party prose read as drift, and the interpreter symlinks a virtualenv carries tripped the symlink refusal at exit 2, which would block every push in the repository. Pruning is now by name at every depth, exempting directories directly under <root>/skills so a real skill whose name collides with a tooling name is still scanned."
+    },
+    {
+      "step": "Fixed G3, a second false positive: only the right end of a captured name was stripped, so Skill: (autoplan) and Skill: \"autoplan\" reported malformed. Added a leading punctuation set and strip both ends."
+    },
+    {
+      "step": "Fixed S2: _present returned False for a path that existed with the wrong kind, so making a plugin manifest a directory dropped that root silently and let its sibling carry the pass. Split the stat policy into three functions: _stat_mode holds the single fail-closed stat, _present asserts a required kind and raises on a mismatch, and _is_directory sifts candidates where a non-directory is an ordinary answer. Sifting src/ children with the assertion form was the bug that broke root discovery on first attempt, because src/AGENTS.md sits beside the roots."
+    },
+    {
+      "step": "Fixed S3: os.walk follows its own starting path, so a symlinked plugin root was walked while symlinked directories inside a root were refused. iter_markdown now rejects a symlinked root, applying one policy to the whole tree."
+    },
+    {
+      "step": "Declined S1 on measured evidence: a route inside a raw HTML <code> tag is read as a route while the same route in a backtick span is treated as documentation. Zero table cells across the three plugin roots contain a <code> tag, the current behaviour is the fail-closed direction, and the workaround is one backtick. Closing it would add HTML token-depth tracking, and a new fail-open path, to a markdown parser several gates share. Recorded as a known limitation in the module docstring and pinned by a test that states the reasoning."
+    },
+    {
+      "step": "Replaced a round-three test that pinned the G2 defect. test_route_under_a_directory_named_venv_is_still_checked asserted that a venv nested inside a skill is scanned, which is what the fix stops. Measured zero venv, .venv and node_modules directories across the three live plugin roots and zero skill directories named any pruned name, so both scenarios are hypothetical and cost asymmetry decides: a stray virtualenv blocks every push, a content directory named venv only skips a check. Three tests now pin the corrected policy, including that a skill directory named venv is still scanned."
+    },
+    {
+      "step": "Proved the pruning change did not silently shrink the live scan, which is the fail-open risk of the fix itself: 906 markdown files with the new all-depth rule, 906 with the old root-only rule measured by stashing the change. Live gate unchanged at 34 routes across 3 roots in 2.83s."
+    },
+    {
+      "step": "Extended the mutation battery from 18 to 25 with one mutation per new defence: bare-keyword blanking, root-only pruning restored, unconditional all-depth pruning, leading punctuation kept, wrong-kind path reported absent, symlinked root followed, skills directory sifted rather than asserted, stat OSError swallowed, and a non-directory sibling asserted as a root. 25 caught, 0 survived."
+    },
+    {
+      "step": "Verified after the fixes: 70 gate tests pass, up from 54; 1337 passed and 1 skipped across the shared markdown parser and the full validation suite; ruff clean on all three changed files; 0 em-dash and en-dash bytes."
+    },
+    {
+      "step": "Ran a fifth adversarial review on two model families. They contradicted each other: Gemini returned SHIP and approved every point, Sol returned DO NOT SHIP with four findings, each carrying an executed fixture."
+    },
+    {
+      "step": "Verified all four Sol findings by execution rather than by reading. Three were real defects introduced by the round-four fixes. Gemini had approved all three without running a fixture against any of them."
+    },
+    {
+      "step": "Sol #1 confirmed: the round-four change that stopped blanking a code span unless it carried a name made a bare `Skill:` span report as an empty malformed route, which blocks a push over documentation."
+    },
+    {
+      "step": "Sol #2 confirmed: the round-four exemption for the skills namespace was scoped by location, so a real .venv created directly under skills/ was walked and its interpreter symlinks tripped the symlink refusal at exit 2, blocking every push in the repository."
+    },
+    {
+      "step": "Sol #3 confirmed: the round-four leading-punctuation strip was unbalanced, so 'Skill: ((autoplan' resolved to an installed skill and reported a pass. Fail-open."
+    },
+    {
+      "step": "Sol #4 declined on measured evidence. A symlinked platform parent still scanned correctly and still found drift, and a symlinked manifest still passed, so neither is a coverage hole. Stricter lstat checks would add false-positive surface against a plausible monorepo layout."
+    },
+    {
+      "step": "Fixed Sol #1 by deciding a bare-keyword span from cell context rather than from the span alone: what follows it in the cell separates documentation from a route whose name sits outside the span."
+    },
+    {
+      "step": "Proved the Sol #1 fix closes an escape hatch rather than opening one: the plain and backticked forms of the same cell now return the same exit code for a resolving name, a drifting name, and trailing prose. Backticks on the keyword cannot silence a drift report."
+    },
+    {
+      "step": "Fixed Sol #2 by requiring a SKILL.md for the exemption, which is the same question skill_names asks, so a directory cannot count as a skill in one place and as tooling in the other. Introduced SKILL_FILE so both sites share one definition."
+    },
+    {
+      "step": "Fixed Sol #3 with balanced unwrapping: an opener is stripped only when its own closer is at the other end, alternated with a trailing strip so '(autoplan).' still reduces fully. Closers are still stripped alone because a link puts only the closing half inside the capture."
+    },
+    {
+      "step": "Ran a 24-probe battery across all three fixes plus controls. One reported failure was the probe's own fault: with the only route blanked the tree had zero routes and tripped the separate vacuity guard, so the probe was rebuilt with a companion route."
+    },
+    {
+      "step": "A second probe expectation was also wrong rather than the code. Prose after a bare keyword is indistinguishable from a misspelled target and both the plain and backticked forms report it, which is the fail-closed default."
+    },
+    {
+      "step": "Added 15 regression tests, taking the two gate suites from 70 to 85. Each covers a defect or an adjacent behaviour that must not change."
+    },
+    {
+      "step": "Retargeted the mutation battery from 25 to 30 and made a missing anchor count as a failure. An anchor that no longer matches is a mutation that never ran, and a battery reporting all-caught while silently skipping is the vacuous verification it exists to prevent."
+    },
+    {
+      "step": "One mutation survived. It was a badly-built mutation, not a coverage gap: stripping both ends of an unbalanced name mangles it so it fails to resolve for the wrong reason. Rebuilt to strip the opener only, which is what the original defect did, and it was caught."
+    },
+    {
+      "step": "Final battery: 30 mutations, 30 caught, 0 survived, 0 missing anchors."
+    },
+    {
+      "step": "Verified scan-neutrality again after narrowing the pruning exemption: 906 files, the same total as the round-four rule. Measured zero pruned-name collisions directly under skills/ in the live tree, so the narrowing is purely defensive."
+    },
+    {
+      "step": "Verified the whole suite: 85 gate tests, 1352 passed and 1 skipped across the shared markdown parser and the full validation suite, live gate PASS on 34 routes across 3 roots in 2.84s, ruff clean, 0 dash bytes, pre_pr.py all validations passed."
+    },
+    {
+      "step": "The source file crossed the 500-line taste lint at 541. Measured the split before acting: 304 lines of code and 237 of prose. Merged two duplicate limitation sections, then suppressed with an inline rationale after finding that a sibling check_ validator in the same directory suppresses the same rule for the same reason and that twelve tracked scripts already exceed the limit, one at 3757 lines."
+    },
+    {
+      "step": "The markdown test file crossed the same limit at 602. Suppressed on the same evidence: 49 tracked test files exceed it, the largest by a factor of eighteen, and the file is already the product of one split."
+    },
+    {
+      "step": "Committed in three atomic slices with all hooks green: the validator fix, the docstring merge and size trade, and the tests."
+    },
+    {
+      "step": "Ran a sixth adversarial round on two model families with a convergence gate: last round, and a finding changes code only if it arrives with a fixture showing a wrong exit code. The gate is the first concrete use of the audited wiki concept 'Self-Improvement Needs a Stop Condition'."
+    },
+    {
+      "step": "Sol returned four findings, each with an executed fixture. Re-ran all four rather than trusting the report. Three reproduced on the first attempt; the fourth needed Sol's exact shape, a skill directory whose name is also a pruned tooling name, before it reproduced."
+    },
+    {
+      "step": "F1: a forward read counted a code span that a later pass was about to blank, so two documentation spans in one cell reported drift. Fixed by scanning a survives list that empties any later span which itself documents a whole route."
+    },
+    {
+      "step": "F2: a broken SKILL.md symlink counted as an installed skill. The inventory globbed the dangling link while the pruner read it as absent, so a directory the inventory had already credited was never entered. This is the exact divergence round five claimed was impossible. Fixed by filtering the glob through the same presence call the pruner uses."
+    },
+    {
+      "step": "F3: mismatched wrappers still reduced to a real name. Balanced unwrapping removed the outer pair, then a blind trailing strip removed the leftover closer. Fixed by removing closers from the trailing set and spending a closer only when a bracket before the route in the rendered cell owes it."
+    },
+    {
+      "step": "F4: a broken manifest symlink hid an entire plugin root and the run still reported PASS. The stat helper mapped the dangling link's FileNotFoundError to genuine absence. Fixed by raising when the path is a link that does not resolve."
+    },
+    {
+      "step": "Probing the fixes caught a false positive the tests missed: a route wrapped in nested brackets reported malformed. The owed-closer stack was spent innermost first, but a captured name is stripped right to left and meets the outermost closer first. Third round running that a fix opened a new hole, and the second caught by probing rather than by a test."
+    },
+    {
+      "step": "Ran a twenty-eight case probe battery. Twenty-seven matched. The one mismatch was a wrong expectation of mine: a dangling non-markdown symlink cannot hide a route, so ignoring it is correct, while a dangling markdown symlink does exit 2."
+    },
+    {
+      "step": "Gemini returned two findings with fixtures after 198 tool calls. Declined both on measurement. Its first root cause is wrong: anchoring the forward search yields the identical capture, and the plain-text form of the same cell returns the identical exit code, so it is the fail-closed default on ambiguous input rather than a code-span defect. Its second needs a skill directory literally named 'my.skill.', and its proposed name pattern rejects every one-character skill name."
+    },
+    {
+      "step": "Recorded both declined findings as limitations in the validator docstring and pinned them with tests, including one that pins the cost of the rejected fix so a future reader cannot adopt it without seeing what it breaks."
+    },
+    {
+      "step": "Rebuilt the mutation battery: 38 mutations, every round-six defence given its own, including the innermost-first ordering bug the probe had caught. 38 caught, 0 survived, 0 missing anchors."
+    },
+    {
+      "step": "The filesystem suite crossed the 500-line limit. Split it rather than suppressing it, because a real seam existed: routing verdicts answer 'was this route resolved correctly' while path discipline answers 'was this route read at all'. Both round-six fail-opens were in the second category and neither was visible from a routing assertion. 189 and 407 lines, no suppression needed."
+    },
+    {
+      "step": "Re-ran the mutation battery after the split to prove the refactor preserved detection power: 38 caught, 0 survived."
+    },
+    {
+      "step": "Proved scan neutrality against the committed version rather than against memory. Both read the identical 906 files and return the identical verdict, so the fixes change behaviour only on the adversarial shapes."
+    },
+    {
+      "step": "Verified: 111 gate tests, 1378 passed and 1 skipped across tests/validation plus the parser suite, live gate PASS in 2.85s, ruff clean, zero dash bytes, pre_pr.py all validations passed."
+    }
+  ],
+  "endingCommit": "320b38c45f",
+  "nextSteps": [
+    "Open the PR with Fixes #3716. The description must state plainly that this fixes the route, not merge resolution on Copilot: project-toolkit:merge-resolver still returns BLOCKED in Phase 0 because it has no shell tool (issue #3719). Bundling the toolset grant is security-relevant and stays separate.",
+    "File the reviewer-evidence rule as its own atomic PR: a finding changes code only when it ships an executed fixture. Two rounds running, the reviewer that attached fixtures was right every time, and the reviewer that reasoned without them approved the exact symlink handling where two fail-opens were later confirmed. Needs the rule file, both generated mirrors, and three plugin manifest bumps.",
+    "Resume the knowledge audit at the wiki concept 'Self-Improvement Needs a Stop Condition'. The repository prunes individual guards through guard-maturity and has a held-out eval surface, but has no loop-level convergence gate and nothing that stops repeated rediscovery of known findings.",
+    "Consider a duplicate-test-name guard. Appending a test whose name already existed in the same module silently replaced the original definition, and only a collected-count check surfaced it."
+  ]
+}

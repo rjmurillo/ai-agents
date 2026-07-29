@@ -10,6 +10,7 @@ Exit codes follow ADR-035 when used as a standalone script.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from markdown_it import MarkdownIt
@@ -36,6 +37,34 @@ class ParsedTable:
 
     headers: list[str] = field(default_factory=list)
     rows: list[TableRow] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CellSegment:
+    """One inline run inside a table cell.
+
+    ``code`` marks a span written between backticks. A caller that treats a
+    code span as documentation rather than as content has to tell the two
+    apart, and only the token stream knows which is which. Keeping that
+    distinction here, instead of a policy decision about which spans matter,
+    leaves the policy with the caller that owns it.
+    """
+
+    content: str
+    code: bool
+
+
+@dataclass(frozen=True)
+class TableCell:
+    """A table cell's inline segments and its 1-based source line."""
+
+    segments: tuple[CellSegment, ...]
+    line: int
+
+    @property
+    def text(self) -> str:
+        """The cell's rendered text, code spans included."""
+        return "".join(segment.content for segment in self.segments)
 
 
 @dataclass
@@ -185,6 +214,52 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
         i += 1
 
     return tables
+
+
+def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
+    """Yield the rendered text of every table cell with its source line.
+
+    Only cells of tables the CommonMark parser actually recognises are
+    emitted, which is the point. A line-based scanner that calls any
+    pipe-shaped line a table row is wrong in both directions: it misses
+    tables written without outer pipes, inside a blockquote, or indented
+    under a list item, and it matches pipe-shaped prose that renders as a
+    paragraph because it has no delimiter row.
+
+    Each cell is yielded as its inline segments rather than as one string, so
+    a caller can decide what a code span means to it. Emphasis contributes its
+    text because the emphasis markers are not part of the rendered content.
+    Fenced and indented code blocks and HTML comments never parse as tables,
+    so they are excluded by construction rather than by a second stripping
+    pass.
+
+    Fails closed on input the parser cannot fully represent, for the reason
+    given in :class:`MarkdownNestingError`.
+    """
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    line = 0
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token.type == "tr_open" and token.map:
+            line = token.map[0] + 1
+        elif (
+            token.type in ("th_open", "td_open")
+            and index + 1 < len(tokens)
+            and tokens[index + 1].type == "inline"
+        ):
+            children = tokens[index + 1].children or []
+            segments = tuple(
+                CellSegment(content=child.content, code=child.type == "code_inline")
+                for child in children
+                if child.type in ("text", "code_inline")
+            )
+            yield TableCell(segments=segments, line=line)
+            index += 1
+        index += 1
 
 
 def _extract_table(tokens: list, start: int) -> ParsedTable | None:
