@@ -315,11 +315,17 @@ class TestGhCliClientDecoding:
     @pytest.mark.parametrize(
         ("name", "invoke"), _CAPTURING_CALLS, ids=[c[0] for c in _CAPTURING_CALLS]
     )
-    def test_replaces_undecodable_bytes(self, name, invoke):
-        """A truncated multi-byte read should not raise mid-response."""
+    def test_leaves_decode_errors_strict(self, name, invoke):
+        """Undecodable bytes must raise, not become U+FFFD inside parsed JSON.
+
+        ``json.loads`` accepts a replacement character without complaint, so a
+        lenient error handler would hand the caller a silently corrupted body.
+        The GitHub API emits valid UTF-8, so a decode failure means the stream
+        is broken and the caller needs to hear about it.
+        """
         with patch("subprocess.run", return_value=_completed(stdout="{}")) as run:
             invoke(GhCliClient())
-        assert run.call_args.kwargs.get("errors") == "replace", f"{name} does not pin errors"
+        assert "errors" not in run.call_args.kwargs, f"{name} weakens strict decoding"
 
     @pytest.mark.parametrize(
         ("name", "invoke"), _CAPTURING_CALLS, ids=[c[0] for c in _CAPTURING_CALLS]
