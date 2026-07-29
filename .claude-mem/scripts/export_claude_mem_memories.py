@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         security_script = _SCRIPT_DIR.parent.parent / "scripts" / "review_memory_export_security.py"
         if security_script.exists():
             print("\nRunning mandatory security review...")
+            sys.stdout.flush()
             sec_result = subprocess.run(
                 [sys.executable, str(security_script), "--export-file", str(output_path)]
             )
