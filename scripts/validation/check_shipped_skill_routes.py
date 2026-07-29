@@ -118,6 +118,21 @@ the three plugin roots contains a ``<code>`` tag. Closing it would mean
 teaching a markdown parser several gates share to track HTML token depth,
 which adds a fail-open path to shared code to serve zero present occurrences.
 
+A third limitation is that a cell holding two keywords with ambiguous text
+between them, ``Skill: (some text) Skill: autoplan``, reports the first as a
+malformed route. Rendered, that text does read as a route to ``(some text)``,
+so the report is the fail-closed default rather than a code-span defect: the
+plain and backticked spellings of that cell return the same exit code, which
+is the property that stops backticks from becoming a way to silence a report.
+
+A fourth is that ``_NAME_RE`` accepts a trailing dot that ``_unwrap`` always
+strips, so a skill directory named ``my.skill.`` could never be routed to.
+Tightening the pattern to forbid a trailing dot costs more than it saves: the
+obvious form, requiring the last character to be alphanumeric, rejects every
+one-character skill name. A directory whose name ends in a period is
+pathological and none exists in any root, while ``Skill: autoplan.`` ending a
+sentence is ordinary and has to keep working.
+
 Walk discipline
 ---------------
 
@@ -207,21 +222,55 @@ _PAIRS = {"(": ")", "[": "]", "{": "}", '"': '"', "'": "'", "“": "”", "‘":
 
 # Sentence and list punctuation that can trail a name. None of it is legal
 # inside a name, so stripping it cannot mask a real drift; leaving it on turns
-# a resolvable route into a false malformed report that blocks the push. The
-# closers appear here as well because a cell can carry only the closing half,
-# as in ``[Skill: merge-resolver]`` where the capture starts at the name.
-_TRAILING = ",;.:!?)]}\"'”’…"
+# a resolvable route into a false malformed report that blocks the push.
+_TRAILING = ",;.:!?\"'”’…"
+
+# Bracket pairs, the subset of ``_PAIRS`` that nests unambiguously. A cell can
+# carry only the closing half of one, as in ``[Skill: merge-resolver]`` where
+# the capture starts at the name, so a trailing closer has to be strippable.
+# Stripping it unconditionally is fail-open: ``Skill: (merge-resolver])``
+# reduces to an installed skill through a balanced strip followed by a blind
+# one. A closer is therefore stripped only when something before the route
+# opened it.
+_BRACKETS = {"(": ")", "[": "]", "{": "}"}
 
 
-def _unwrap(raw: str) -> str:
+def _awaited_closers(before: str) -> list[str]:
+    """Return the closers still owed by brackets opened before a route.
+
+    Outermost first, which is the order they arrive in when a captured name is
+    stripped from its right end: ``[see (Skill: autoplan)]`` captures
+    ``autoplan)]``, whose last character closes the outer bracket.
+
+    Quotes are excluded because the same character opens and closes them, so
+    nesting cannot be read from the text.
+    """
+    stack: list[str] = []
+    for char in before:
+        closer = _BRACKETS.get(char)
+        if closer is not None:
+            stack.append(closer)
+        elif stack and char == stack[-1]:
+            stack.pop()
+    return stack
+
+
+def _unwrap(raw: str, awaited: list[str] | None = None) -> str:
     """Strip balanced wrappers and trailing punctuation from a captured name.
 
     Alternates the two so a wrapper closed by a sentence, ``(autoplan).``,
     reduces fully, while an unmatched opener survives to be reported.
+    ``awaited`` carries the closers owed by brackets opened before the route,
+    outermost first, and each is spent as it is consumed, so a cell opening
+    one bracket cannot justify stripping two.
     """
+    owed = list(awaited or ())
     while raw:
         if len(raw) > 1 and _PAIRS.get(raw[0]) == raw[-1]:
             raw = raw[1:-1]
+        elif owed and raw[-1] == owed[0]:
+            raw = raw[:-1]
+            owed.pop(0)
         elif raw[-1] in _TRAILING:
             raw = raw[:-1]
         else:
@@ -260,11 +309,21 @@ class CheckError(Exception):
 
 
 def skill_names(root: Path) -> set[str]:
-    """Return the skill directory names that have a SKILL.md in ``root``."""
+    """Return the skill directory names that have a SKILL.md in ``root``.
+
+    Each marker is checked with ``_present`` rather than trusted from the
+    glob, because a glob lists a broken symlink the same as a real file. The
+    walk's pruning exemption asks the same question through the same call, so
+    a directory cannot count as a skill here and as tooling there.
+    """
     skills_dir = root / "skills"
     if not _present(skills_dir, directory=True):
         return set()
-    return {p.parent.name for p in skills_dir.glob(f"*/{SKILL_FILE}")}
+    return {
+        marker.parent.name
+        for marker in skills_dir.glob(f"*/{SKILL_FILE}")
+        if _present(marker, directory=False)
+    }
 
 
 def _stat_mode(path: Path) -> int | None:
@@ -275,10 +334,17 @@ def _stat_mode(path: Path) -> int | None:
     would silently drop a plugin root from the scan and leave the remaining
     roots to carry a pass. Only a genuinely absent path is None here.
     Anything else raises, matching the posture the walk and the decode take.
+
+    A broken symlink raises rather than reading as absent. The link is a
+    deliberate statement that something should be there, so treating it as
+    nothing drops whatever it named: a broken manifest link removes a whole
+    plugin root from discovery and lets the surviving roots report a pass.
     """
     try:
         return path.stat().st_mode
-    except (FileNotFoundError, NotADirectoryError):
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        if os.path.islink(path):
+            raise CheckError(f"cannot resolve symlink {path}: {exc}") from exc
         return None
     except OSError as exc:
         raise CheckError(f"cannot stat {path}: {exc}") from exc
@@ -406,8 +472,23 @@ def _cell_text(cell: TableCell) -> str:
     route whose name sits outside it, and blanking would delete the keyword
     and hide the route. A `` `Skill:` `` with nothing after it is documenting
     the keyword and is blanked like any other syntax example.
+
+    The forward read skips later spans that are themselves whole routes. Those
+    are documentation and get blanked, so letting one satisfy the bare span
+    would keep a keyword whose only name is about to be erased, and the cell
+    would report an empty malformed route.
     """
-    contents = [segment.content for segment in cell.segments]
+
+    def documents_a_route(segment: CellSegment) -> bool:
+        if not segment.code:
+            return False
+        match = _ROUTE_RE.search(segment.content)
+        return match is not None and bool(match.group(1))
+
+    survives = [
+        "" if documents_a_route(segment) else segment.content
+        for segment in cell.segments
+    ]
 
     def blanked(index: int, segment: CellSegment) -> str:
         if not segment.code:
@@ -416,7 +497,7 @@ def _cell_text(cell: TableCell) -> str:
         if match is None:
             return segment.content
         if not match.group(1):
-            trailing = "".join(contents[index + 1 :])
+            trailing = "".join(survives[index + 1 :])
             carried = _ROUTE_RE.search(segment.content + trailing)
             if carried is not None and carried.group(1):
                 return segment.content
@@ -433,8 +514,10 @@ def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
     instead of passing as a route nobody validated.
     """
     for cell in iter_table_cell_text(text):
-        for match in _ROUTE_RE.finditer(_cell_text(cell)):
-            raw = _unwrap(match.group(1) or "")
+        rendered = _cell_text(cell)
+        for match in _ROUTE_RE.finditer(rendered):
+            awaited = _awaited_closers(rendered[: match.start()])
+            raw = _unwrap(match.group(1) or "", awaited)
             yield cell.line, raw, bool(raw) and bool(_NAME_RE.match(raw))
 
 
