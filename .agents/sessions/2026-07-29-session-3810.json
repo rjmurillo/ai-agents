@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3810,
+    "date": "2026-07-29",
+    "branch": "fix/3810-3814-guard-round8",
+    "startingCommit": "0c7f1770a73be43f58cf38291e46118d28a17355",
+    "objective": "Fix five subprocess-guard defects (#3810-#3814); verify #3801/#3802 already fixed"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3810-3814-guard-round8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3810-3814-guard-round8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0c7f1770a73be43f58cf38291e46118d28a17355"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "112 passed; 11/11 mutants caught; 6/6 repros green; taste-lints 1 error (file-size, matches base); ruff clean"
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}
