@@ -236,3 +236,55 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def validate_no_escaped_newlines(body_content: str) -> None:
+    """Reject a body whose line breaks are literal backslash-n. Issue #3777.
+
+    Issues #3598 and #3646 shipped with every line break written as the two
+    characters backslash and n, so GitHub rendered each as one unbroken
+    paragraph and dropped every heading, list and table. Nothing errored.
+
+    Canonical implementation:
+    scripts/github_core/validation.py::escaped_newline_body_error. That
+    module is copied here rather than imported for the same reason _DASH_RE
+    is inlined above: new_pr.py runs on the push path and resolves only its
+    own directory on sys.path, so importing github_core would mean adding
+    the lib bootstrap the other skill scripts use, which hard-exits 2
+    whenever .claude/lib is absent. That trades a rendering bug for an
+    outage. The canonical predicate quoted verbatim is::
+
+        count = body.count("\\n")
+        if count == 0 or "\n" in body.strip():
+            return None
+
+    strip() is load-bearing. The premise in #3777 says the two bad bodies
+    have no real newlines; measured, #3598 has 15 literal sequences and 1
+    real newline and #3646 has 9 and 1, in both cases a trailing newline
+    from the API. A plain membership test misses both.
+
+    Keep the two copies in step. tests/test_github_core.py pins the shared
+    version; tests/test_new_pr.py::TestValidation6EscapedNewlineCheck pins
+    this one and asserts the citation above still names its source.
+
+    Args:
+        body_content: Resolved body text, from --body or --body-file.
+
+    Raises:
+        SystemExit: Exit 1 when the body carries the corruption.
+    """
+    escaped_count = body_content.count("\\n")
+    if not escaped_count or "\n" in body_content.strip():
+        return
+    print(
+        f"ERROR: Body carries {escaped_count} literal backslash-n"
+        " sequence(s) and no line break, so GitHub would render it as one"
+        " unbroken paragraph and drop every heading, list and table.",
+        file=sys.stderr,
+    )
+    print(
+        "  Write the body to a file and pass --body-file, which cannot"
+        " express this error.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)

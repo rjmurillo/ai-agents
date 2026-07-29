@@ -25,7 +25,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
+from validate_pr_description import (  # noqa: E402
+    _CONVENTIONAL_COMMIT_PATTERN,
+    validate_no_escaped_newlines,
+)
 
 # Em/en-dash detection regex for Validation 5. Inlined here rather than
 # imported from scripts.validation.pr_description because:
@@ -452,36 +455,9 @@ def run_validations(
         raise SystemExit(1)
     print("  No prohibited characters in title or body.")
 
-    # Validation 6: literal backslash-n in an inline --body.
-    #
-    # Canonical implementation:
-    # scripts/github_core/validation.py::escaped_newline_body_error, whose
-    # docstring records the two issues (#3598, #3646) that motivated it.
-    # That module is quoted here rather than imported for the same reason
-    # _DASH_RE is inlined above: new_pr.py runs on the push path and resolves
-    # only its own directory on sys.path, so importing github_core would mean
-    # adding a lib bootstrap that hard-exits 2 whenever .claude/lib is absent.
-    # The canonical predicate is:
-    #     count = body.count("\\n")
-    #     if count == 0 or "\n" in body.strip(): return None
-    # Keep the two copies in step; tests/test_github_core.py pins the shared
-    # behaviour and tests/skills/test_new_pr_escaped_newline.py pins this copy.
     print()
     print("[6/6] Escaped-newline check on body...")
-    escaped_count = body_content.count("\\n")
-    if escaped_count and "\n" not in body_content.strip():
-        print(
-            f"ERROR: Body carries {escaped_count} literal backslash-n"
-            " sequence(s) and no line break, so GitHub would render it as one"
-            " unbroken paragraph and drop every heading, list and table.",
-            file=sys.stderr,
-        )
-        print(
-            "  Write the body to a file and pass --body-file, which cannot"
-            " express this error.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+    validate_no_escaped_newlines(body_content)
     print("  Body line breaks are real newlines.")
 
     print()
