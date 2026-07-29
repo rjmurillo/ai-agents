@@ -291,7 +291,7 @@ After initialization (or immediately if not a new session), plan the PR review w
 
 ### 3. Memory Inventory
 
-After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a comprehensive memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
+After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a full memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
 
 ### 4. Memory Relevance Evaluation
 
@@ -670,15 +670,27 @@ Outcomes:
 - **Base is an ancestor AND trial merge is clean**: `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"` is stale. Issue a safe base-ref refresh (below). Do not treat the PR as permanently blocked.
 - **Trial merge reports conflicts**: the conflict is real and authoritative. Resolve it via the merge-resolver skill; do not refresh-and-hope. `StaleDirtySuspected` being `true` does not override a failing trial merge.
 
-Safe base-ref refresh (no force; runs the same merge as the Branch Update path, which is a no-op when already an ancestor and harmless otherwise):
+Safe base-ref refresh has two paths. Use the local merge path when it creates or advances a ref. When the merge and push are both no-ops, use the GitHub update-branch API so GitHub recalculates PR state for the unchanged head.
 
 ```bash
-git -C "$WT" merge origin/"$BASE" --no-edit   # no-op when already an ancestor
-git -C "$WT" push origin "$BRANCH"            # fast-forward-friendly; no --force
+git -C "$WT" merge origin/"$BASE" --no-edit
+remote_before="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+git -C "$WT" push origin "$BRANCH"
+remote_after="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+
+if [ "$remote_before" = "$remote_after" ]; then
+  echo "Already up to date."
+  echo "Everything up-to-date"
+  echo "remote ref is unchanged; requesting GitHub recalculation"
+  HEAD_SHA="$(git -C "$WT" rev-parse HEAD)"
+  gh api -X PUT "repos/{owner}/{repo}/pulls/$PR/update-branch" \
+    -f "expected_head_sha=$HEAD_SHA"
+fi
+
 git worktree remove --force "$WT"
 ```
 
-Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push, then re-run the completion gate. After the push, GitHub recomputes mergeability from the fresh ref and clears the stale cache.
+Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push. If `remote_before` equals `remote_after`, do not claim the push refreshed the ref. The API call is the recalculation request. Re-run the completion gate after either the push advances the remote ref or the update-branch API returns success.
 
 ## Branch Update Against Main
 
@@ -732,9 +744,10 @@ When any of these signal a force-reset, restore by force-pushing the last-known-
 ## Key Commands Used
 
 **Note**: Replace placeholders with actual values:
-- `{owner}` → Repository owner (e.g., `rjmurillo`)
-- `{repo}` → Repository name (e.g., `ai-agents`)
-- `{number}` → PR number (e.g., `255`)
+
+- `{owner}` -> Repository owner (e.g., `rjmurillo`)
+- `{repo}` -> Repository name (e.g., `ai-agents`)
+- `{number}` -> PR number (e.g., `255`)
 
 Use the Python skill scripts instead of raw `gh` commands. The project hook blocks raw `gh` usage.
 
@@ -847,6 +860,7 @@ For dependency update PRs (e.g., Renovate updating the same action across branch
 **Immediate fix**: Re-run the cancelled workflow run for each affected PR.
 
 **Durable fix options**:
+
 - Remove `cancel-in-progress: true` from PR validation workflows
 - Add `renovate[bot]` to the bot skip list alongside `dependabot[bot]`
 - Filter `edited` events for bot actors in workflow conditions
