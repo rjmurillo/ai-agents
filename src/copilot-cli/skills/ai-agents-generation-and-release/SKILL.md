@@ -8,7 +8,7 @@ license: MIT
 # ai-agents Generation and Release
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03; re-verify with the one-liners in Provenance before trusting a volatile number.
+Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
 
@@ -99,7 +99,7 @@ Useful flags, verified against source:
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
 
-Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03):
+Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29):
 
 | Gate | Catches | Local command | CI enforcement |
 |------|---------|---------------|----------------|
@@ -170,7 +170,7 @@ the Claude kit into consumer repos. Release procedure (source: `RELEASING.md`,
 repo root):
 
 1. Bump `packages/ai-agents-cli/package.json` version. Tag/version mismatch is a listed failure mode.
-2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`. As of 2026-07-29 `bun run typecheck` exits 1 on this package: TypeScript 7.0.2 does not resolve the `node:*` imports in `src/cli.ts` against the declared `@types/node` 26.0.0, so every builtin import raises TS2591. No workflow runs typecheck, so CI does not catch it. Read a red typecheck here as the known repo state, not as your change.
+2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`. As of 2026-07-29 `bun run typecheck` exits 1 on this package with 38 `TS2591` errors. `@types/node` 26.0.0 is installed, but the package `tsconfig.json` sets no `types` field, and TypeScript 7.0.2 no longer auto-includes it the way 5.9.3 does, so Node builtins are absent from the compilation. No workflow runs typecheck, so CI does not catch it. Tracked in issue #3865. Read a red typecheck here as the known repo state, not as your change.
 3. Commit to main via normal PR flow (branch discipline still applies; see `ai-agents-change-control`).
 4. `git tag vX.Y.Z` then `git push origin main --tags`.
 5. `.github/workflows/publish.yml` fires on `v*` tags: validates package metadata, publishes with OIDC provenance (`id-token: write`; `NPM_TOKEN` is fallback only). `workflow_dispatch` offers a dry-run input defaulting to `true`.
@@ -219,7 +219,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | Plugin manifest locations and current values | the three plugin.json files | `git ls-files '*claude-plugin/plugin.json' | xargs grep -H version` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
-| Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:143-168 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
+| Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | pyproject.toml:129-130 | `grep -n "src/copilot-cli" pyproject.toml` |
