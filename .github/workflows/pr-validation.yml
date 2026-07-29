@@ -194,7 +194,7 @@ jobs:
       # (which hosts the ruff ratchets) only runs when Python files change.
       - name: Run ADR-006 run-block ratchet
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 71
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 66
 
       # Issue #3330: workflow *schema* validation had no required CI gate. YAML
       # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,

@@ -169,6 +169,135 @@ def test_large_pure_output_block_is_not_flagged():
     assert scanner.is_violation(block, scanner._DEFAULT_THRESHOLD) is False
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _run_block(*lines: str) -> scanner.RunBlock:
+    """Build a single run: block from body lines and scan it."""
+    body = "\n".join(f"          {line}" for line in lines)
+    return scanner.scan_text("steps:\n  - run: |\n" + body + "\n")[0]
+
+
+class TestProseInOutputCommandsIsNotLogic:
+    """English words in a remediation message are not shell keywords.
+
+    ``_LOGIC`` matches ``if``/``for``/``while`` by word boundary. Remediation
+    text says things like "Use forward slashes (/) for cross-platform
+    compatibility", so a block of pure ``echo`` lines was reported as business
+    logic in YAML. Six live blocks were flagged on the words "for" and "if"
+    alone. The scanner's own contract already says a pure output block is not
+    a violation; these tests pin the fix that makes that true for real prose.
+    """
+
+    def test_prose_containing_shell_keywords_is_not_logic(self) -> None:
+        """Positive: the bug. Every keyword appears only as English."""
+        block = _run_block(
+            *(
+                f'echo "  {i}. Use forward slashes for cross-platform work"'
+                for i in range(8)
+            ),
+            'echo "Check if the file exists, then retry while it is locked"',
+            'echo "Handle the case where the path is absolute"',
+            'echo "Review each violation for correctness"',
+            'echo "See the docs for guidance"',
+        )
+        assert block.code_lines > scanner._DEFAULT_THRESHOLD
+        assert block.has_logic is False
+        assert scanner.is_violation(block, scanner._DEFAULT_THRESHOLD) is False
+
+    def test_real_conditional_beside_prose_is_still_logic(self) -> None:
+        """Negative: blanking the message must not hide adjacent shell."""
+        block = _run_block(
+            *(f'echo "line {i} for the reader"' for i in range(11)),
+            'if [ -f out.txt ]; then exit 1; fi',
+        )
+        assert block.has_logic is True
+
+    def test_command_substitution_inside_quotes_is_still_logic(self) -> None:
+        """Negative: a quoted operand that evaluates is not message text."""
+        block = _run_block(
+            *(f'echo "plain {i}"' for i in range(11)),
+            'echo "$(gh pr list --json number)"',
+        )
+        assert block.has_logic is True
+
+    def test_parameter_expansion_inside_quotes_is_still_logic(self) -> None:
+        """Negative: ``${VAR}`` keeps the operand intact."""
+        block = _run_block(
+            *(f'echo "plain {i}"' for i in range(11)),
+            'echo "issue ${ISSUE_NUMBER} for triage" >> notes.txt',
+            'RESULT=1',
+        )
+        assert block.has_logic is True
+
+    def test_redirect_outside_the_quotes_is_still_logic(self) -> None:
+        """Negative: only the quoted text is blanked, never the redirect.
+
+        This is the live ``copilot-context-synthesis.yml`` shape: pure echo
+        lines that assemble the job summary. Output assembly is a deliberate
+        ``_LOGIC`` marker and must survive.
+        """
+        block = _run_block(
+            *(f'echo "summary line {i}" >> $GITHUB_STEP_SUMMARY' for i in range(12)),
+        )
+        assert block.has_logic is True
+
+    def test_pipe_outside_the_quotes_is_still_logic(self) -> None:
+        """Negative: a parsing pipe after the message still counts."""
+        block = _run_block(
+            *(f'echo "plain {i}"' for i in range(11)),
+            'echo "payload" | jq .',
+        )
+        assert block.has_logic is True
+
+    def test_escaped_quote_does_not_end_the_operand_early(self) -> None:
+        """Edge: a backslash-escaped quote stays inside the message."""
+        stripped = scanner._strip_static_output(r'echo "a \" for b"')
+        assert "for" not in stripped
+
+    def test_escaped_backtick_is_message_text_not_substitution(self) -> None:
+        """Edge: escaped backticks are literal, so the operand is blanked."""
+        stripped = scanner._strip_static_output(r'echo "share the same \`id\` for now"')
+        assert "for" not in stripped
+
+    def test_unescaped_backtick_keeps_the_operand(self) -> None:
+        """Edge: a live backtick substitution is not message text."""
+        line = 'echo "result `date` for now"'
+        assert scanner._strip_static_output(line) == line
+
+    def test_non_output_commands_are_untouched(self) -> None:
+        """Edge: only echo and printf are treated as message carriers."""
+        line = 'grep "search for this" file.txt'
+        assert scanner._strip_static_output(line) == line
+
+    def test_printf_operands_are_blanked_too(self) -> None:
+        """Edge: printf carries message text the same way echo does."""
+        stripped = scanner._strip_static_output(r'printf "%s\n" "retry for me"')
+        assert "for" not in stripped
+
+    def test_the_four_remediation_workflows_are_clean(self) -> None:
+        """Edge: the live blocks this fix clears report no violation.
+
+        These four workflows carry exactly one flagged block each, and each is
+        a static remediation message. They are the reason issues #3535, #3545,
+        #3546, and #3549 were filed; the extraction those issues ask for would
+        move help text into a script for no benefit.
+        """
+        for name in (
+            "validate-paths.yml",
+            "validate-planning-artifacts.yml",
+            "validate-spec-id-uniqueness.yml",
+            "validate-vendor-portability.yml",
+        ):
+            path = REPO_ROOT / ".github" / "workflows" / name
+            violations = [
+                block
+                for block in scanner.scan_text(path.read_text(encoding="utf-8"))
+                if scanner.is_violation(block, scanner._DEFAULT_THRESHOLD)
+            ]
+            assert violations == [], name
+
+
 if __name__ == "__main__":
     import pytest
 

@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-29-session-3535-adr006-echo-prose",
+  "session": "2026-07-29-session-3535-adr006-echo-prose",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix a false-positive class in the ADR-006 run-block scanner. The logic detector matched English words inside echo message text, so blocks containing no shell logic at all were counted as ADR-006 violations. Six of the 71 reported violations were pure-output blocks flagged only because remediation prose contains the words 'if' or 'for'.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the premise of the ADR-006 extraction family before writing any extraction. The scanner flags a run block when it exceeds 10 code lines AND matches a logic pattern. The logic pattern includes word-boundary \\bif\\b and \\bfor\\b, which match English prose inside echo message text. Example from validate-paths.yml: echo \"  3. Use forward slashes (/) for cross-platform compatibility\" matches \\bfor\\b. Six of 71 reported violations are pure-output blocks containing zero shell logic.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found decisive corroboration inside the scanner's own test suite. test_large_pure_output_block_is_not_flagged already asserts that a large pure-output block is not a violation. It passes only because its synthetic fixture uses echo \"line 0\", which contains no English keyword. The intended behavior was already specified; the implementation did not deliver it against real prose.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established this is a bug fix, not a policy loosening. scan_text already strips '#' comments with the stated reason of avoiding keyword false positives from comment text. Blanking the quoted operands of echo and printf is the same idea applied to the other place static text lives in a run block.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Designed _strip_static_output conservatively so it can only shrink false positives, never hide real logic. It touches a line only when the command is echo or printf. Within such a line it blanks only fully quoted operands that contain no expansion. An operand carrying $( or ${ or $VAR or an unescaped backtick is left intact. Everything outside the quotes survives, so a redirect to $GITHUB_STEP_SUMMARY, a pipe into jq, and a trailing if all still match.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the effect: 71 violations drop to 66. Exactly five blocks clear and zero blocks are newly flagged. Cleared: validate-paths.yml:95, validate-planning-artifacts.yml:78, validate-spec-id-uniqueness.yml:71, validate-vendor-portability.yml:102, agent-drift-detection.yml:296. Correctly not cleared: copilot-context-synthesis.yml:130, which redirects to $GITHUB_STEP_SUMMARY and interpolates ${ISSUE_NUMBER}.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 12 tests covering the positive prose case, five negative controls (adjacent real if, command substitution, brace expansion, step-summary redirect, pipe into jq), and edge cases (escaped quote, escaped backtick, live backtick, non-output command, printf, and the four live workflows now scanning clean).",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested all three guards independently. Disabling the strip entirely fails 2 tests. Removing the expansion guard fails 3. Removing the echo/printf command restriction fails 1. Each guard is individually load-bearing; none is decorative.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Lowered the CI ratchet from --max 71 to --max 66 in .github/workflows/pr-validation.yml and its assertion in tests/ci/test_pr_validation_workflow.py. Verified the new ceiling is tight: the scanner exits 0 at 66 and exits 1 at 65, so the gate cannot silently absorb a regression.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope note for reviewers: issues #3549, #3545, #3546 and #3535 each named a file whose only reported violation was one of these false positives, so the scanner fix closes them without any workflow edit. Issue #3521 (agent-drift-detection.yml) has a second, genuine violation at line 149 and stays open.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
