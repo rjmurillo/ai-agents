@@ -64,7 +64,7 @@
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity at 0.6.215."
+        "evidence": "instruction_budget.py exit 0, ruff clean on all changed files, generate_rules.py idempotent, manifest parity re-verified at 0.6.539 after main advanced to 0.6.427; the earlier 0.6.215 reading was taken before two later re-bumps and no longer described the tree."
       },
       "serenaMemoryUpdated": {
         "complete": false,
@@ -123,5 +123,5 @@
     "Two touched test files are now past 340 lines against a 500 line advisory ceiling. Extraction should be planned before the next addition to either.",
     "#3746 is the same family but a different root cause: external_tmp_path resolving inside the repo from a nested worktree. Not fixed here."
   ],
-  "endingCommit": ""
+  "endingCommit": "d5e894636cb25ca82f3d37f1e5bb046e8fc97581"
 }
