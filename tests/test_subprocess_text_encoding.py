@@ -90,6 +90,14 @@ _Container = ast.Dict | ast.List | ast.Tuple
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 
+# Per module, the names worth binding from a ``from ... import`` and what each
+# one resolves to. A table rather than a branch per module, so a new source of
+# subprocess entry points is one row.
+_IMPORTED_NAMES: dict[str, dict[str, str]] = {
+    "subprocess": {attr: attr for attr in _SUBPROCESS_ATTRS},
+    "functools": {"partial": _PARTIAL},
+}
+
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
     """Return the value node for keyword *name*, or ``None`` when absent."""
@@ -239,6 +247,22 @@ def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr
     return literal.elts[key] if -len(literal.elts) <= key < len(literal.elts) else None
 
 
+def _attribute(
+    node: ast.Attribute, modules: set[str], functions: dict[str, str]
+) -> str | None:
+    """Return the subprocess entry point ``owner.attr`` names, or ``None``."""
+    if isinstance(node.value, ast.Name):
+        owner, attr = node.value.id, node.attr
+        if owner in modules and attr in _SUBPROCESS_ATTRS:
+            return attr
+        if owner == "os" and attr == "popen":
+            return _OS_POPEN
+    # No partial filter here, unlike the bare-name branch in the caller. The
+    # sentinel is only ever written for an imported name, and every attribute
+    # binding is resolved through that branch, which drops it.
+    return functions.get(_ATTRIBUTE + node.attr)
+
+
 def _resolve_callable(
     node: ast.expr,
     modules: set[str],
@@ -260,16 +284,7 @@ def _resolve_callable(
         resolved = functions.get(node.id)
         return None if resolved == _PARTIAL else resolved
     if isinstance(node, ast.Attribute):
-        if isinstance(node.value, ast.Name):
-            owner, attr = node.value.id, node.attr
-            if owner in modules and attr in _SUBPROCESS_ATTRS:
-                return attr
-            if owner == "os" and attr == "popen":
-                return _OS_POPEN
-        # No partial filter here, unlike the bare-name branch above. The
-        # sentinel is only ever written for an imported name, and every
-        # attribute binding is resolved through that branch, which drops it.
-        return functions.get(_ATTRIBUTE + node.attr)
+        return _attribute(node, modules, functions)
     if isinstance(node, ast.Call):
         return _resolve_indirect(node, modules, functions)
     if isinstance(node, ast.NamedExpr):
@@ -329,6 +344,24 @@ def _defaults(spec: ast.arguments) -> list[tuple[str, ast.expr]]:
     return found
 
 
+def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
+    """Pair every attribute a class body binds with the value it receives.
+
+    A class body binds attributes without ever naming ``self``, so the names
+    are recorded under the attribute prefix and read back the same way.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for statement in node.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        for target in statement.targets:
+            found.extend(
+                (_ATTRIBUTE + name, bound)
+                for name, bound in _unpack(target, statement.value)
+            )
+    return found
+
+
 def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     """Collect every ``name = value`` binding at any depth.
 
@@ -353,14 +386,7 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
             # assignment statement anywhere in sight.
             found.extend(_unpack(node.target, node.iter))
         elif isinstance(node, ast.ClassDef):
-            # A class body binds attributes without ever naming ``self``.
-            for statement in node.body:
-                if isinstance(statement, ast.Assign):
-                    for target in statement.targets:
-                        found.extend(
-                            (_ATTRIBUTE + name, bound)
-                            for name, bound in _unpack(target, statement.value)
-                        )
+            found.extend(_class_bindings(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             found.extend(_defaults(node.args))
     return found
@@ -394,15 +420,12 @@ def _containers(
     return found
 
 
-def _subprocess_names(
-    tree: ast.Module,
-) -> tuple[set[str], dict[str, str], dict[str, _Container]]:
-    """Collect every name in *tree* that reaches a subprocess entry point.
+def _imports(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
+    """Collect the module aliases and imported names that reach subprocess.
 
     ``import subprocess as sp`` and ``from subprocess import run`` are both
     ordinary Python, and an owner-name check that only knows the literal word
-    ``subprocess`` misses each of them. So is ``_run = subprocess.run``, which
-    needs no import statement at all.
+    ``subprocess`` misses each of them.
     """
     modules = {"subprocess"}
     functions: dict[str, str] = {}
@@ -411,14 +434,35 @@ def _subprocess_names(
             for alias in node.names:
                 if alias.name == "subprocess":
                     modules.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+        elif isinstance(node, ast.ImportFrom):
+            wanted = _IMPORTED_NAMES.get(node.module or "", {})
             for alias in node.names:
-                if alias.name in _SUBPROCESS_ATTRS:
-                    functions[alias.asname or alias.name] = alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module == "functools":
-            for alias in node.names:
-                if alias.name == "partial":
-                    functions[alias.asname or alias.name] = _PARTIAL
+                if alias.name in wanted:
+                    functions[alias.asname or alias.name] = wanted[alias.name]
+    return modules, functions
+
+
+def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list[int]]:
+    """Map each name a binding group reads to the groups that read it."""
+    found: dict[str, list[int]] = {}
+    for key, (value, _) in groups.items():
+        for free in {
+            node.id for node in ast.walk(value) if isinstance(node, ast.Name)
+        }:
+            found.setdefault(free, []).append(key)
+    return found
+
+
+def _subprocess_names(
+    tree: ast.Module,
+) -> tuple[set[str], dict[str, str], dict[str, _Container]]:
+    """Collect every name in *tree* that reaches a subprocess entry point.
+
+    Imports seed the search, and every binding is then resolved against what
+    is known so far. ``_run = subprocess.run`` needs no import statement at
+    all, so the binding pass is what closes that shape.
+    """
+    modules, functions = _imports(tree)
 
     # Assignments resolve against names discovered so far, so one pass is not
     # enough: ``ast.walk`` is breadth first, so ``b = a`` at the top level is
@@ -442,14 +486,22 @@ def _subprocess_names(
     for name, value in bindings:
         groups.setdefault(id(value), (value, []))[1].append(name)
 
-    dependents: dict[str, list[int]] = {}
-    for key, (value, _) in groups.items():
-        for free in {
-            node.id for node in ast.walk(value) if isinstance(node, ast.Name)
-        }:
-            dependents.setdefault(free, []).append(key)
-
+    dependents = _dependents(groups)
     queue = list(groups)
+    while queue:
+        value, names = groups[queue.pop()]
+        resolved = _resolve_callable(value, modules, functions, containers)
+        if resolved is None:
+            continue
+        for name in names:
+            # The first binding of a name wins. That is what bounds the queue,
+            # and it is why a name rebound to an unrelated callable keeps
+            # reading as a subprocess entry point.
+            if name in functions:
+                continue
+            functions[name] = resolved
+            queue.extend(dependents.get(name, ()))
+    return modules, functions, containers
     while queue:
         value, names = groups[queue.pop()]
         resolved = _resolve_callable(value, modules, functions, containers)
@@ -711,6 +763,11 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import shutil\n_run = shutil.run\n'
             '_run(["x"], capture_output=True, text=True)',
             "an alias of a same-named function on another module is not ours",
+        ),
+        (
+            'from mypackage import run, getoutput\n'
+            'run(["x"], capture_output=True, text=True)\ngetoutput("x")',
+            "a from-import of a same-named function elsewhere is not ours",
         ),
         (
             'import subprocess\n'
