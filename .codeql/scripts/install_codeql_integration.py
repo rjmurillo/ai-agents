@@ -94,6 +94,7 @@ def step_install_cli(repo_root: str, ci: bool) -> str:
     if ci:
         cmd.append("--ci")
 
+    sys.stdout.flush()
     result = subprocess.run(cmd, timeout=600, check=False)
     if result.returncode == 0:
         write_status("CodeQL CLI installed successfully", "success")
