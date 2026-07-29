@@ -96,6 +96,11 @@ _ATTRIBUTE = "."
 _UNKNOWN = object()
 _PARTIAL = "functools.partial"
 
+# The nodes that open a namespace of their own. A binding inside one belongs
+# to that scope, so any walk looking for names of the enclosing scope stops
+# here rather than reading a local as an attribute of the block around it.
+_OWN_SCOPE = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
 # The literal container shapes an index can be read out of. Named so the
 # non-mapping branch of _element is known to carry elts.
 _Container = ast.Dict | ast.List | ast.Tuple
@@ -596,7 +601,7 @@ def _class_scope(body: list[ast.stmt]) -> list[ast.stmt]:
     """
     found: list[ast.stmt] = []
     for statement in body:
-        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if isinstance(statement, _OWN_SCOPE):
             continue
         found.append(statement)
         for field in ("body", "orelse", "finalbody"):
@@ -605,6 +610,27 @@ def _class_scope(body: list[ast.stmt]) -> list[ast.stmt]:
             getattr(statement, "cases", ())
         ):
             found.extend(_class_scope(block.body))
+    return found
+
+
+def _nested_walrus(statement: ast.stmt) -> list[ast.NamedExpr]:
+    """Return every walrus in *statement* that binds in the enclosing scope.
+
+    A walrus binds wherever it appears, not only as a statement of its own, so
+    an ``if`` test, a call argument and an operand of a boolean expression all
+    leave a name behind. The walk stops at a nested function, class or lambda,
+    because a walrus inside one of those binds in that scope instead and
+    reading it here would report a local as a class attribute.
+    """
+    found: list[ast.NamedExpr] = []
+    stack: list[ast.AST] = [statement]
+    while stack:
+        for child in ast.iter_child_nodes(stack.pop()):
+            if isinstance(child, _OWN_SCOPE):
+                continue
+            if isinstance(child, ast.NamedExpr):
+                found.append(child)
+            stack.append(child)
     return found
 
 
@@ -619,9 +645,9 @@ def _class_bindings(node: ast.ClassDef) -> list[tuple[str, ast.expr]]:
     """
     found: list[tuple[str, ast.expr]] = []
     for statement in _class_scope(node.body):
-        if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.NamedExpr):
-            pairs = _assigned(statement.value)
-        elif isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        for named in _nested_walrus(statement):
+            found.extend((_ATTRIBUTE + name, bound) for name, bound in _assigned(named))
+        if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             pairs = _assigned(statement)
         elif isinstance(statement, (ast.For, ast.AsyncFor)):
             pairs = _iterated(statement.target, statement.iter)
@@ -1353,6 +1379,19 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import subprocess\nsubprocess.run(["x"], capture_output=None, text=True)',
             "capture_output=None is falsy, so subprocess never opens the pipes",
         ),
+        (
+            'import subprocess\n'
+            'class C:\n    def g(self):\n        if (runner := subprocess.run):\n'
+            '            pass\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus inside a method binds a method local, not a class attribute",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    f = lambda: (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a lambda opens a scope of its own, so a walrus in one stays inside it",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -1978,6 +2017,36 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '{subprocess.run}.pop()(["x"], capture_output=True, text=True)',
             "an inline set holds a runner and pop hands it straight back",
         ),
+        (
+            'import subprocess\n'
+            'class C:\n    if (runner := subprocess.run):\n        pass\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus in an if test binds a class attribute like any other walrus",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    print(runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus inside a call argument still outlives the statement",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    ok = True and (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus nested in an assigned expression binds two names, not one",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    assert (outer := (runner := subprocess.run))\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a walrus inside another walrus binds both names, so the walk descends",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    assert (first := 1) and (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "one statement can hold several walruses and every one of them binds",
+        ),
     ],
 )
 def test_detector_closes_the_evasions(source: str, why: str) -> None:
@@ -2030,6 +2099,12 @@ def test_detector_closes_the_evasions(source: str, why: str) -> None:
         (
             'import subprocess\nsubprocess.run(["x"], -1)',
             "a second positional argument lands in a parameter this scan cannot name",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    class D:\n        assert (runner := subprocess.run)\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "an attribute is keyed by its name alone, so the owning class is not read",
         ),
     ],
 )
