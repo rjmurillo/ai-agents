@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-29-session-3777-escaped-newline-bodies",
+  "session": "2026-07-29-session-3777-escaped-newline-bodies",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #3777: six github skill scripts pass an inline --body straight to gh, so a body whose line breaks are written as the two characters backslash and n reaches GitHub verbatim and renders as one unbroken paragraph. Two shipped issues (#3598, #3646) already carry that corruption. Add a shared predicate, wire it at all six sites, and pin it with an isolating control per site.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the first leak from git status after an unrelated push: untracked issue-body.md and comment-body.md in the repository root. Traced to relative Path() writes in scripts/eval/software_engineering_library_activation_ci.py, which resolve against the process working directory. Reproduced in isolation: the gate test module alone left both files.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Took a find snapshot of the whole tree before and after a full run rather than trusting git status. That surfaced two more paths git status omits, and checking each against git check-ignore separated the gitignored from the untracked.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 1 on gemini-3.1-pro. Accepted the finding that fixing only the test treats the symptom, and moved the fix to the production write target. Overruled the proposed remedy of swapping --body-file for --body, because the repo already uses a body file for the same purpose in .github/workflows/ai-metrics-analysis.yml.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 2 on gpt-5.6-sol returned five findings. Verified every factual claim before acting. Two of its corrections were right (the workflow uploads four artifact paths, not one; the two body files are visible to git status and my message said otherwise). One was wrong: it counted three sibling modules using .pytest_tmp where the grep shows the count depends on whether a module that only patches a helper of that name is included.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured rather than deferred on the TMPDIR finding. The reviewer broke a test by pointing TMPDIR inside the checkout and proposed validating the scratch parent in production. tests/test_pytest_repo_local_temp_roots.py deliberately runs pytest with TMPDIR inside the checkout, so that rule would contradict a committed guard. Deleted the over-specified test instead of adding production complexity.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "That same search showed the rule text I had written was wrong. It required scratch to land outside the checkout, which the repo does not hold. Rewrote MUST NOT 4 to name .pytest_tmp as the sanctioned root and cite the two validators that skip it.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the remaining three leaks: renamed the hyphenated scratch root, added .gitkeep files matching the worktrees/.gitkeep already committed beside them, and mocked save_failed_comment_artifact at its boundary in the 403 test whose git rev-parse returns rc=1 and falls back to os.getcwd().",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a spelling guard in tests/test_pytest_repo_local_temp_roots.py and proved it non-vacuous by reinstating the hyphenated name. It initially failed on its own docstring, so the docstring was reworded rather than the file excluded, which would have blinded the guard to a real offense in it.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the main negative control after the first attempt silently failed to patch. The first run reported four passes because the replacement string never matched; the corrected control fails three of four guards, with the fourth being the feature's own negative control.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
