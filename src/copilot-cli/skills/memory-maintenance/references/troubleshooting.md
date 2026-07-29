@@ -63,8 +63,10 @@ because Serena and the episode store both still answer.
 **Diagnosis**:
 
 ```python
+import os
 import sys
-sys.path.insert(0, ".claude/skills/memory")
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
 from memory_core.memory_router import get_memory_router_status
 
 status = get_memory_router_status()
@@ -341,7 +343,8 @@ test -f ".claude/skills/memory/memory_core/memory_router.py" && echo exists || e
 # Test the import the same way the tests do
 uv run python -c "
 import sys
-sys.path.insert(0, '.claude/skills/memory')
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
 from memory_core.memory_router import search_memory
 print('OK')
 "
@@ -351,7 +354,7 @@ print('OK')
 
 | Cause | Solution |
 |-------|----------|
-| Skill dir not on `sys.path` | `sys.path.insert(0, ".claude/skills/memory")` first |
+| Skill dir not on `sys.path` | the plugin root on `sys.path` first (see the snippet above) |
 | Wrong working directory | Run from project root |
 | Module file missing | Verify `.claude/skills/memory/memory_core/` |
 | Syntax error in module | Check Python syntax |
