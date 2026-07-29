@@ -52,6 +52,7 @@ fail towards a redundant keyword, never towards a missed decode.
 from __future__ import annotations
 
 import ast
+import codecs
 import time
 from collections import Counter
 from pathlib import Path
@@ -109,7 +110,12 @@ _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
 _IMPORTED_NAMES: dict[str, dict[str, str]] = {
     "subprocess": {attr: attr for attr in _SUBPROCESS_ATTRS},
     "functools": {"partial": _PARTIAL},
+    "os": {"popen": _OS_POPEN},
 }
+
+# Modules whose attributes name an entry point. An alias is recorded against
+# the module it stands for, so ``import os as system`` still reaches popen.
+_ENTRY_MODULES = ("subprocess", "os")
 
 
 def _keyword(call: ast.Call, name: str) -> ast.expr | None:
@@ -175,7 +181,7 @@ def _is_partial(label: str, functions: dict[str, str]) -> bool:
 
 
 def _resolve_indirect(
-    call: ast.Call, modules: set[str], functions: dict[str, str]
+    call: ast.Call, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Resolve a wrapper call that yields a subprocess entry point.
 
@@ -188,20 +194,20 @@ def _resolve_indirect(
         return _resolve_callable(call.args[0], modules, functions)
     if label == "getattr" and len(call.args) >= 2:
         owner, attr = call.args[0], call.args[1]
-        if not (isinstance(owner, ast.Name) and owner.id in modules):
+        origin = modules.get(owner.id) if isinstance(owner, ast.Name) else None
+        if origin is None:
             return None
         if not isinstance(attr, ast.Constant):
             # ``getattr(subprocess, name)`` hides which entry point it reaches.
             # Nothing in this repository needs that, so the safe reading is
             # that it reaches one of them.
             return _DYNAMIC
-        if attr.value in _SUBPROCESS_ATTRS:
-            return str(attr.value)
+        return _entry_point(origin, attr.value)
     return None
 
 
 def _resolve_elements(
-    values: list[ast.expr], modules: set[str], functions: dict[str, str]
+    values: list[ast.expr], modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
     """Return the entry point a container of *values* yields when subscripted.
 
@@ -282,16 +288,30 @@ def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr
     return literal.elts[key] if -len(literal.elts) <= key < len(literal.elts) else None
 
 
+def _entry_point(origin: str | None, attr: object) -> str | None:
+    """Return the entry point that ``origin.attr`` names, or ``None``.
+
+    One table serving the two syntaxes that reach a module attribute: the
+    plain ``os.popen`` form and the ``getattr(os, "popen")`` form. Holding the
+    mapping in a single place is what stops those two from drifting apart,
+    which is exactly how ``getattr`` kept reaching ``os.popen`` unguarded
+    while the attribute form was closed.
+    """
+    if origin == "subprocess" and attr in _SUBPROCESS_ATTRS:
+        return str(attr)
+    if origin == "os" and attr == "popen":
+        return _OS_POPEN
+    return None
+
+
 def _attribute(
-    node: ast.Attribute, modules: set[str], functions: dict[str, str]
+    node: ast.Attribute, modules: dict[str, str], functions: dict[str, str]
 ) -> str | None:
-    """Return the subprocess entry point ``owner.attr`` names, or ``None``."""
+    """Return the entry point ``owner.attr`` names, or ``None``."""
     if isinstance(node.value, ast.Name):
-        owner, attr = node.value.id, node.attr
-        if owner in modules and attr in _SUBPROCESS_ATTRS:
-            return attr
-        if owner == "os" and attr == "popen":
-            return _OS_POPEN
+        found = _entry_point(modules.get(node.value.id), node.attr)
+        if found is not None:
+            return found
     # No partial filter here, unlike the bare-name branch in the caller. The
     # sentinel is only ever written for an imported name, and every attribute
     # binding is resolved through that branch, which drops it.
@@ -300,7 +320,7 @@ def _attribute(
 
 def _resolve_callable(
     node: ast.expr,
-    modules: set[str],
+    modules: dict[str, str],
     functions: dict[str, str],
     containers: dict[str, _Container] | None = None,
 ) -> str | None:
@@ -325,6 +345,13 @@ def _resolve_callable(
     if isinstance(node, ast.NamedExpr):
         # ``(r := subprocess.run)(...)`` binds and calls in one expression.
         return _resolve_callable(node.value, modules, functions, containers)
+    if isinstance(node, ast.IfExp):
+        # ``subprocess.run if capture else other`` picks a runner at runtime,
+        # so either arm may be the one that decodes.
+        return _resolve_elements([node.body, node.orelse], modules, functions)
+    if isinstance(node, ast.BoolOp):
+        # ``runner or subprocess.run`` is the same choice spelled shorter.
+        return _resolve_elements(list(node.values), modules, functions)
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return _resolve_elements(list(node.elts), modules, functions)
     if isinstance(node, ast.Dict):
@@ -629,20 +656,22 @@ def _containers(
     return found
 
 
-def _imports(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
-    """Collect the module aliases and imported names that reach subprocess.
+def _imports(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
+    """Collect the module aliases and imported names that reach an entry point.
 
     ``import subprocess as sp`` and ``from subprocess import run`` are both
     ordinary Python, and an owner-name check that only knows the literal word
-    ``subprocess`` misses each of them.
+    ``subprocess`` misses each of them. ``os`` is tracked the same way, because
+    ``os.popen`` decodes with the locale codec and offers no parameter to pin
+    it, so an aliased import of it is the worst case this scan has.
     """
-    modules = {"subprocess"}
+    modules = {name: name for name in _ENTRY_MODULES}
     functions: dict[str, str] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "subprocess":
-                    modules.add(alias.asname or alias.name)
+                if alias.name in _ENTRY_MODULES:
+                    modules[alias.asname or alias.name] = alias.name
         elif isinstance(node, ast.ImportFrom):
             wanted = _IMPORTED_NAMES.get(node.module or "", {})
             for alias in node.names:
@@ -664,7 +693,7 @@ def _dependents(groups: dict[int, tuple[ast.expr, list[str]]]) -> dict[str, list
 
 def _subprocess_names(
     tree: ast.Module,
-) -> tuple[set[str], dict[str, str], dict[str, _Container]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, _Container]]:
     """Collect every name in *tree* that reaches a subprocess entry point.
 
     Imports seed the search, and every binding is then resolved against what
@@ -722,7 +751,7 @@ def _subprocess_names(
 
 def _target(
     call: ast.Call,
-    modules: set[str],
+    modules: dict[str, str],
     functions: dict[str, str],
     containers: dict[str, _Container] | None = None,
 ) -> str | None:
@@ -734,10 +763,11 @@ def _target(
     # the partial is built, not where the result is finally called, so the
     # partial itself has to be treated as the subprocess call.
     fallback = _resolve_indirect(call, modules, functions)
-    if fallback == _DYNAMIC:
-        # A bare ``getattr(subprocess, name)`` only fetches. It decodes
-        # nothing until something calls the result, and that call is the node
-        # this scan flags instead.
+    if _call_label(call) == "getattr":
+        # ``getattr(os, "popen")`` only fetches. It decodes nothing until
+        # something calls the result, and that call is the node this scan
+        # flags instead. ``functools.partial`` is the opposite case above: it
+        # fixes the codec where it is built, so it stays.
         return None
     return fallback
 
@@ -781,14 +811,23 @@ def _captures_text(call: ast.Call, functions: dict[str, str], target: str) -> bo
 def _pins_utf8(call: ast.Call) -> bool:
     """Report whether *call* proves its codec is UTF-8 at the call site.
 
-    ``encoding=None`` is an explicit request for the locale codec, a name or
-    attribute cannot be resolved statically, and ``utf-8-sig`` quietly strips a
-    byte order mark, so only the literal string counts.
+    ``encoding=None`` is an explicit request for the locale codec and a name or
+    attribute cannot be resolved statically, so only a literal string counts.
+    The string is compared the way the interpreter compares it, through
+    :func:`codecs.lookup`, because ``UTF-8``, ``utf8`` and ``UTF_8`` all select
+    the same codec and flagging them is a false positive on a correct call.
+    Normalising does not widen the check: ``utf-8-sig`` resolves to its own
+    name, so it stays out, and it quietly strips a byte order mark.
     """
     encoding = _keyword(call, "encoding")
-    if encoding is None:
+    if not isinstance(encoding, ast.Constant) or not isinstance(encoding.value, str):
         return False
-    return isinstance(encoding, ast.Constant) and encoding.value == _PINNED_CODEC
+    try:
+        return codecs.lookup(encoding.value).name == _PINNED_CODEC
+    except LookupError:
+        # An unknown codec name raises at runtime before anything decodes, so
+        # nothing is pinned and nothing is read.
+        return False
 
 
 def unpinned_lines(source: str) -> list[int]:
@@ -802,7 +841,7 @@ def unpinned_lines(source: str) -> list[int]:
         target = _target(node, modules, functions, containers)
         if target is None:
             continue
-        if target == "os.popen":
+        if target == _OS_POPEN:
             # os.popen has no encoding parameter at all, so the only compliant
             # move is to not use it.
             offenders.append(node.lineno)
@@ -1038,6 +1077,14 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "getattr only counts when it names our module and our function",
         ),
         (
+            'import os\ngetattr(os, "run")(["x"], capture_output=True, text=True)',
+            "a subprocess attribute name on the os module is not our entry point",
+        ),
+        (
+            'import os\nf = getattr(os, "popen")',
+            "fetching os.popen through getattr decodes nothing until it is called",
+        ),
+        (
             'import subprocess\nname = "run"\n'
             'getattr(subprocess, name)(["x"], capture_output=True, encoding="utf-8")',
             "a dynamic lookup that still pins the codec decodes correctly",
@@ -1153,6 +1200,24 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             "import subprocess\n"
             "subprocess.run(['x'], capture_output=True, universal_newlines=None)",
             "the legacy spelling is falsy under None just as the new one is",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, encoding="UTF-8")',
+            "codec lookup folds case, so UTF-8 is the pinned codec",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, encoding="utf8")',
+            "codec lookup ignores the hyphen, so utf8 is the pinned codec",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, encoding="UTF_8")',
+            "codec lookup folds the underscore too, so UTF_8 is the pinned codec",
+        ),
+        (
+            'import subprocess\n'
+            'class C:\n    async def m(self):\n        runner = subprocess.run\n'
+            'C.runner(["x"], capture_output=True, text=True)',
+            "a name bound in an async method is a local, not a class attribute",
         ),
     ],
 )
@@ -1282,6 +1347,24 @@ def test_detector_reports_every_offender_in_one_file() -> None:
         (
             'import os\np = os.popen\np("x").read()',
             "os.popen can be rebound as readily as run",
+        ),
+        (
+            'import os\ngetattr(os, "popen")("x").read()',
+            "getattr reaches os.popen just as it reaches subprocess.run",
+        ),
+        (
+            'import os\nname = "popen"\ngetattr(os, name)("x").read()',
+            "a computed name on os can land on popen, which cannot be pinned",
+        ),
+        (
+            'import subprocess\nr = None if flag else subprocess.run\n'
+            'r(["x"], capture_output=True, text=True)',
+            "a conditional hides the runner in either arm, not just the first",
+        ),
+        (
+            'import subprocess\nsubprocess.run(["x"], capture_output=True, '
+            'text=True, encoding="not-a-codec")',
+            "an unknown codec name pins nothing, it raises before decoding",
         ),
         (
             'import subprocess\nname = "run"\n'
@@ -1655,6 +1738,30 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'for runner, unused in [(subprocess.run, 1), (subprocess.run, 1)]:\n    pass\n'
             'runner(["x"], capture_output=True, text=True)',
             "skipping a repeated item must not drop the binding it already read",
+        ),
+        (
+            'from os import popen\nout = popen("x").read()',
+            "os.popen always decodes and has no codec knob, so an import of it is the worst case",
+        ),
+        (
+            'from os import popen as spawn\nout = spawn("x").read()',
+            "renaming os.popen on import does not stop it decoding",
+        ),
+        (
+            'import os as system\nout = system.popen("x").read()',
+            "renaming the os module on import does not stop popen decoding",
+        ),
+        (
+            'import subprocess\n'
+            'runner = subprocess.run if True else None\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a conditional expression picks a runner and the scan must read both arms",
+        ),
+        (
+            'import subprocess\n'
+            'runner = subprocess.run or None\n'
+            'runner(["x"], capture_output=True, text=True)',
+            "a boolean fallback picks a runner and the scan must read every operand",
         ),
     ],
 )
