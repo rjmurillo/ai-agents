@@ -131,11 +131,11 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:119-166` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,46` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |
 | Plugin versions (volatile) | three `.claude-plugin/plugin.json` files | `grep -m1 version .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
-| NON_COMPLIANT verdict string | `.github/workflows/ai-session-protocol.yml:247` | `grep -n "NON_COMPLIANT" .github/workflows/ai-session-protocol.yml` |
+| NON_COMPLIANT verdict string | `.github/workflows/ai-session-protocol.yml:261` | `grep -n "NON_COMPLIANT" .github/workflows/ai-session-protocol.yml` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:137-147` (issue #1963) | `grep -n "63%" .github/workflows/pytest.yml` |
 | Module-name --cov form requirement | `.github/workflows/pytest.yml:150-165` (issue #2063, PR #2078) | `grep -n "Module never imported" .github/workflows/pytest.yml` |
 | Syntax gate parses at 3.10 floor | `scripts/validation/validate_python_syntax.py:2-49` (issue #2655) | `sed -n '1,50p' scripts/validation/validate_python_syntax.py` |
