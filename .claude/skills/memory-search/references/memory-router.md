@@ -99,12 +99,15 @@ that tier carry `source: "Episodes"`.
 ### Python Import
 
 `memory_core` is a package under the skill, not an installed distribution. Add
-the skill directory to `sys.path` first. `.claude/skills/memory/tests/conftest.py`
+the skill directory to `sys.path` first. The `skills/memory/tests/conftest.py`
+file in this tree
 does exactly this.
 
 ```python
+import os
 import sys
-sys.path.insert(0, ".claude/skills/memory")
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
 
 from memory_core.memory_router import search_memory
 

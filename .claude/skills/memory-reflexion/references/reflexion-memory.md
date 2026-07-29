@@ -102,8 +102,10 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 `memory_core` is a package under the memory skill, not an installed distribution. Put the skill root on `sys.path` first:
 
 ```python
+import os
 import sys
-sys.path.insert(0, ".claude/skills/memory")
+_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
+sys.path.insert(0, f"{_root}/skills/memory")
 
 from memory_core.reflexion_memory import (
     get_episode,
