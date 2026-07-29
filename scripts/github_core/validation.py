@@ -142,7 +142,7 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
     error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
 
 
-def escaped_newline_body_error(body: str) -> str | None:
+def escaped_newline_body_error(body: str | None) -> str | None:
     """Detect a body whose line breaks arrived as literal backslash-n text.
 
     A caller that builds a Markdown body in a shell without escape
@@ -162,6 +162,10 @@ def escaped_newline_body_error(body: str) -> str | None:
     ``strip()`` guards the common single-line-plus-trailing-newline shape,
     which is what the two issues that prompted this check actually looked
     like.
+
+    ``None`` is a live input, not just a test shape: edit_issue_body.py
+    declares ``--body`` with ``default=None``, so the annotation has to
+    admit it. mypy caught the narrower version on the diff-line ratchet.
 
     Args:
         body: The inline body text as received from the caller.
