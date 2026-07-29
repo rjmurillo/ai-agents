@@ -42,6 +42,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.validation import escaped_newline_body_error  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +84,10 @@ def main(argv: list[str] | None = None) -> int:
     body = _resolve_body(args)
     if not body or not body.strip():
         error_and_exit("Body cannot be empty.", 2)
+
+    body_error = escaped_newline_body_error(body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     pr = args.pull_request
 

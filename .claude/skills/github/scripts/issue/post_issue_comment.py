@@ -51,6 +51,7 @@ from github_core.output import (  # noqa: E402
     get_output_format,
     write_skill_output,
 )
+from github_core.validation import escaped_newline_body_error  # noqa: E402
 
 _SCRIPT_NAME = "post_issue_comment.py"
 
@@ -185,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     if not body or not body.strip():
         error_and_exit("Body cannot be empty.", 2)
+
+    body_error = escaped_newline_body_error(body)
+    if body_error:
+        error_and_exit(body_error, 2)
 
     # Marker / idempotency check
     if args.marker:
