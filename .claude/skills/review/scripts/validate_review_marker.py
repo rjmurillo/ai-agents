@@ -57,7 +57,8 @@ MARKER_TRAILER_KEY = "Reviewed-By"
 # more comma-separated stems; it must be non-empty. The SHA is 40 (sha1) or 64
 # (sha256) lowercase hex characters, matching git object-name widths.
 _MARKER_VALUE_RE = re.compile(
-    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
+    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*)"
+    r" on (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
 
 
