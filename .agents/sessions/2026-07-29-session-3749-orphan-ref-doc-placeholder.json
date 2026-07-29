@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3749,
+    "date": "2026-07-29",
+    "branch": "fix/3749-orphan-ref-doc-placeholder",
+    "startingCommit": "08f9e0c655",
+    "objective": "Return main to green. Two pull requests that were each green on their own merged four minutes apart and left main red, which blocks every push in the repository because the pre-push hook runs the full suite. Restore the gate by applying the validator's own line-scoped ignore directive to the one line of documentation prose that trips it (issue #3749)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git checkout -b fix/3749-orphan-ref-doc-placeholder origin/main; branch reported as fix/3749-orphan-ref-doc-placeholder at 08f9e0c655."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch is fix/3749-orphan-ref-doc-placeholder, cut fresh from origin/main so it carries none of the open pull request branches."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Read earlier in this multi-issue campaign. The dashboard has not changed since."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, written before the first commit on the branch."
+      },
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP has been unavailable for the whole campaign; no serena/ or mcp__serena__ tool is exposed."
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Same cause. Fell back to reading the tree directly."
+      }
+    },
+    "sessionEnd": {
+      "logCompleted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All workLog steps recorded with the measurements that produced them."
+      },
+      "qaSkipDocumented": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Full QA ran. Both orphan-ref-validator suites pass, 387 passing tests, and the fix was mutation tested in both directions."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "The one changed markdown file is a Serena memory. MD013 is disabled repository wide (.markdownlint-cli2.yaml line 20), so appending the directive to the end of line 157 cannot trip a line-length rule, and an HTML comment is valid markdown that renders as nothing."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest on both orphan-ref-validator trees: 387 passed, 1 skipped. The two bundle-suite tests that were red on main are green."
+      },
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item recorded with evidence."
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Serena MCP unavailable, so no memory could be written. The reusable finding, that a corpus gate merged after the content that trips it is invisible to per-pull-request CI while the merge policy is non-strict, is recorded in the workLog and in issue #3749."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "HANDOFF.md not modified (ADR-014)."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "The memory fix and this log committed on fix/3749-orphan-ref-doc-placeholder. The endingCommit SHA is recorded in a follow-up commit rather than by amending, since an amend would orphan the value it just wrote."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Reproduced the failure before reading the issue. uv run pytest on TestTheMemoryCorpusIsGateable failed with AssertionError: assert {'x'} == set(). The orphan skill name is the single character x."
+    },
+    {
+      "step": "Proved the breakage lives in main rather than in the branch that surfaced it. Added a detached worktree at pristine origin/main 476facc4d and ran the same test there: 1 failed, 1 passed. Re-fetched after PR #3735 merged and re-ran at 08f9e0c65 across both bundle trees: 2 failed, 2 passed. main is red on its own, so every push in the repository is blocked."
+    },
+    {
+      "step": "Checked whether the already-merged PR #3735 was the fix, because its branch tightened these same candidate rules. Its branch tip 609f33c65 passed 2 of 2, but merged main still fails, so the tightening is not sufficient and the corpus content is the remaining cause. Recording this because the branch-passes result on its own would have been a false all-clear."
+    },
+    {
+      "step": "Located the exact finding rather than inferring it. Ran the scanner directly over .serena/memories and dumped all 31 findings. Exactly one is kind skill_name: target_file .serena/memories/architecture/shipped-tree-route-resolution.md, line 157, referenced_entity x, severity critical."
+    },
+    {
+      "step": "Read the line before deciding what was wrong with it. Line 157 reads: whole route, so `` `Skill: x` `` stays documentation and `` Skill: `x` `` stays a route. The memory documents the route parser's own syntax, and to document it, it writes it. The sentence literally asserts that the second form is a route, and the scanner agrees. Neither the prose nor the scanner is defective; the collision is between a corpus gate and documentation of that gate's grammar."
+    },
+    {
+      "step": "Identified which pattern fires, so the fix targets the real cause. SKILL_TYPED_REF_RE (patterns.py line 76) has a key-value alternative, skill followed by a colon and a quote character, which matches Skill: `x` and does not match `Skill: x`. That is exactly the distinction the prose describes."
+    },
+    {
+      "step": "Rejected a scanner length heuristic, which was the tempting general fix. Excluding single-character tokens would silence this instance only. The same sentence could have used foo or bar as its placeholder and the gate would still be red, so a length rule is strictly weaker than it looks while also loosening a gate that issue #3637 had just calibrated. The placeholder is arbitrary; its length is not the defect."
+    },
+    {
+      "step": "Chose the mechanism the validator already ships for this case: the line-scoped `<!-- orphan-ref-ignore -->` directive, IGNORE_DIRECTIVE_RE at patterns.py line 63. Confirmed from extract_directive_suppressed_refs that the directive is same-line, not previous-line, so it belongs on line 157 itself."
+    },
+    {
+      "step": "Confirmed the directive records rather than discards. After the fix the scanner reports skill_name findings: 0 and carries an audit entry, target_file shipped-tree-route-resolution.md, line 157, referenced_entity x, reason line ignore directive. The suppression is visible in the envelope, which is why this is the right escape hatch and not a silent exemption."
+    },
+    {
+      "step": "Confirmed the edit cannot trip markdown lint. MD013 line length is disabled at .markdownlint-cli2.yaml line 20, so extending line 157 by 26 characters is safe."
+    },
+    {
+      "step": "Verified the fix across both shipped trees, since the test runs once per bundle tree and both read the same repository-root corpus. 4 passed for the two TestTheMemoryCorpusIsGateable classes, then 387 passed and 1 skipped for the two full orphan-ref-validator suites."
+    },
+    {
+      "step": "Mutation tested the fix in both directions. Removed the directive: 1 failed, 1 passed, the original assertion. Restored it: green, and git diff --stat reports exactly 1 file changed, 1 insertion, 1 deletion. The directive is load-bearing and the diff carries nothing else."
+    },
+    {
+      "step": "Measured the merge policy that allowed the race, rather than asserting it. The repository has no legacy branch protection on main (HTTP 404) and one active ruleset, id 11104075, whose required_status_checks rule sets strict_required_status_checks_policy to false. Pull requests are therefore not required to be up to date with main before merging, which is precisely how #3741 and #3735 merged four minutes apart into a red main with both showing green."
+    }
+  ],
+  "nextSteps": [
+    "The non-strict merge policy is the general cause and is a repository-settings decision for the owner, not a code change. Recorded on issue #3749 with the ruleset id and the exact parameter so the owner can weigh it.",
+    "Any future memory that documents reference grammar will hit the same trap. The directive is the standing answer; no scanner change is warranted."
+  ],
+  "endingCommit": ""
+}
