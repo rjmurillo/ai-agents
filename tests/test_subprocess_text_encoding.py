@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import ast
 import time
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -79,7 +80,12 @@ _DYNAMIC = "subprocess.<dynamic>"
 # subprocess names for want of a second one to thread, and filtered out of
 # every path that answers "is this a subprocess entry point".
 _ATTRIBUTE = "."
+_UNKNOWN = object()
 _PARTIAL = "functools.partial"
+
+# The literal container shapes an index can be read out of. Named so the
+# non-mapping branch of _element is known to carry elts.
+_Container = ast.Dict | ast.List | ast.Tuple
 
 # Entry points that hand back str no matter what keywords a call passes.
 _DECODES_UNCONDITIONALLY = _ALWAYS_TEXT_ATTRS | frozenset({_DYNAMIC})
@@ -183,17 +189,73 @@ def _resolve_elements(
     return sorted(found)[0]
 
 
+def _literal(node: ast.expr) -> object:
+    """Return the constant *node* spells, or ``_UNKNOWN`` when it spells none.
+
+    ``ast.literal_eval`` reads a negative index, which the parser stores as a
+    unary operation rather than a constant, and refuses anything computed. It
+    evaluates no code, so a hostile subscript cannot reach this scan.
+    """
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return _UNKNOWN
+
+
+def _element(node: ast.Subscript, containers: dict[str, _Container]) -> ast.expr | None:
+    """Return the one element *node* selects, when the scan can name it.
+
+    Only a literal index into a name bound exactly once to a literal container
+    qualifies. Everything else returns ``None``, which leaves the caller
+    holding the whole container. That is the safe direction: a dispatch table
+    is flagged wholesale rather than read wrongly.
+    """
+    if not isinstance(node.value, ast.Name):
+        return None
+    literal = containers.get(node.value.id)
+    if literal is None:
+        return None
+    key = _literal(node.slice)
+    if key is _UNKNOWN:
+        return None
+    if isinstance(literal, ast.Dict):
+        # A ``**splat`` key reads as ``None`` and can carry any name, so the
+        # keys on show are not the whole mapping.
+        stored = [_literal(k) if k is not None else _UNKNOWN for k in literal.keys]
+        if _UNKNOWN in stored:
+            return None
+        for held, value in zip(stored, literal.values, strict=True):
+            # ``True`` equals ``1`` and ``1`` equals ``1.0`` in Python, but a
+            # dict written with one of them was not written with the other.
+            if type(held) is type(key) and held == key:
+                return value
+        return None
+    if not isinstance(key, int) or isinstance(key, bool):
+        return None
+    if any(isinstance(element, ast.Starred) for element in literal.elts):
+        # A starred element expands to an unknown count, so every index after
+        # it names something the scan cannot see.
+        return None
+    return literal.elts[key] if -len(literal.elts) <= key < len(literal.elts) else None
+
+
 def _resolve_callable(
-    node: ast.expr, modules: set[str], functions: dict[str, str]
+    node: ast.expr,
+    modules: set[str],
+    functions: dict[str, str],
+    containers: dict[str, _Container] | None = None,
 ) -> str | None:
     """Return the subprocess entry point *node* evaluates to, or ``None``."""
     while isinstance(node, ast.Subscript):
-        # ``RUNNERS[0](...)`` reaches whatever the container holds. Resolving
-        # the base rather than the index means a computed index cannot slip a
-        # subprocess reference past this scan. A subscript chain is left
+        # ``RUNNERS[0](...)`` reaches whatever the container holds. A literal
+        # index into a literal container names one element, so a dispatch
+        # table does not taint every handler in it. Anything less certain
+        # resolves the base instead, which means a computed index cannot slip
+        # a subprocess reference past this scan. A subscript chain is left
         # recursive, so the parser caps no depth and unwinding it must not
         # recurse.
-        node = node.value
+        selected = _element(node, containers) if containers else None
+        node = node.value if selected is None else selected
     if isinstance(node, ast.Name):
         resolved = functions.get(node.id)
         return None if resolved == _PARTIAL else resolved
@@ -212,7 +274,7 @@ def _resolve_callable(
         return _resolve_indirect(node, modules, functions)
     if isinstance(node, ast.NamedExpr):
         # ``(r := subprocess.run)(...)`` binds and calls in one expression.
-        return _resolve_callable(node.value, modules, functions)
+        return _resolve_callable(node.value, modules, functions, containers)
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return _resolve_elements(list(node.elts), modules, functions)
     if isinstance(node, ast.Dict):
@@ -304,7 +366,37 @@ def _bindings(tree: ast.Module) -> list[tuple[str, ast.expr]]:
     return found
 
 
-def _subprocess_names(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
+def _containers(
+    tree: ast.AST, bindings: list[tuple[str, ast.expr]]
+) -> dict[str, _Container]:
+    """Map each name bound exactly once to a literal container, to that literal.
+
+    Bound exactly once is the whole guarantee. A second binding anywhere,
+    including a loop target or a parameter default, means the name may hold
+    something the literal does not show, and indexing the literal would then
+    answer for the wrong object. Such names are left out, so the caller falls
+    back to tainting the container whole.
+    """
+    counts = Counter(name for name, _ in bindings)
+    found: dict[str, _Container] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if not isinstance(value, (ast.Dict, ast.List, ast.Tuple)):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and counts.get(target.id) == 1:
+                found[target.id] = value
+    return found
+
+
+def _subprocess_names(
+    tree: ast.Module,
+) -> tuple[set[str], dict[str, str], dict[str, _Container]]:
     """Collect every name in *tree* that reaches a subprocess entry point.
 
     ``import subprocess as sp`` and ``from subprocess import run`` are both
@@ -340,6 +432,7 @@ def _subprocess_names(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
     # quadratic instead, and measurably so: a reverse-ordered chain of 2000
     # bindings took 0.41 seconds that way.
     bindings = _bindings(tree)
+    containers = _containers(tree, bindings)
     dependents: dict[str, list[int]] = {}
     for index, (_, value) in enumerate(bindings):
         for free in {
@@ -355,17 +448,22 @@ def _subprocess_names(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
         # subprocess entry point.
         if name in functions:
             continue
-        resolved = _resolve_callable(value, modules, functions)
+        resolved = _resolve_callable(value, modules, functions, containers)
         if resolved is None:
             continue
         functions[name] = resolved
         queue.extend(dependents.get(name, ()))
-    return modules, functions
+    return modules, functions, containers
 
 
-def _target(call: ast.Call, modules: set[str], functions: dict[str, str]) -> str | None:
+def _target(
+    call: ast.Call,
+    modules: set[str],
+    functions: dict[str, str],
+    containers: dict[str, _Container] | None = None,
+) -> str | None:
     """Return the subprocess entry point *call* reaches, or ``None``."""
-    direct = _resolve_callable(call.func, modules, functions)
+    direct = _resolve_callable(call.func, modules, functions, containers)
     if direct is not None:
         return direct
     # ``functools.partial(subprocess.run, text=True)`` decides the codec where
@@ -429,12 +527,12 @@ def _pins_utf8(call: ast.Call) -> bool:
 def unpinned_lines(source: str) -> list[int]:
     """Return the line numbers of text-capturing calls that do not pin UTF-8."""
     tree = ast.parse(source)
-    modules, functions = _subprocess_names(tree)
+    modules, functions, containers = _subprocess_names(tree)
     offenders: list[int] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        target = _target(node, modules, functions)
+        target = _target(node, modules, functions, containers)
         if target is None:
             continue
         if target == "os.popen":
@@ -619,6 +717,26 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'import subprocess\nname = "run"\nf = getattr(subprocess, name)',
             "fetching an attribute decodes nothing until something calls it",
         ),
+        (
+            'import subprocess\nH = {"run": subprocess.run, "build": local}\n'
+            'H["build"](["x"], capture_output=True, text=True)',
+            "a literal key selects one handler, and this one is not an entry point",
+        ),
+        (
+            'import subprocess\nR = [local, subprocess.run]\n'
+            'R[0](["x"], capture_output=True, text=True)',
+            "a literal index selects one element, and this one is not an entry point",
+        ),
+        (
+            'import subprocess\nR = [subprocess.run, local]\n'
+            'R[-1](["x"], capture_output=True, text=True)',
+            "a negative index counts from the end of the literal",
+        ),
+        (
+            'import subprocess\nH = {"a": local, "b": subprocess.run}\n'
+            '(f := H["a"])(["x"], capture_output=True, text=True)',
+            "a walrus over an indexed table still selects the one element",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -787,6 +905,48 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             'import subprocess\nR = {"go": subprocess.run}\n'
             'R["go"](["x"], capture_output=True, text=True)',
             "a dict value is reached by subscript, not by attribute",
+        ),
+        (
+            'import subprocess\nH = {"go": subprocess.run}\nk = "go"\n'
+            'H[k](["x"], capture_output=True, text=True)',
+            "a computed key names no element the scan can read, so all of them count",
+        ),
+        (
+            'import subprocess\nH = {"go": subprocess.run}\n'
+            'H["absent"](["x"], capture_output=True, text=True)',
+            "a key that is not in the literal says nothing about what is",
+        ),
+        (
+            'import subprocess\nH = {1: local, "go": subprocess.run}\n'
+            'H[True](["x"], capture_output=True, text=True)',
+            "True equals 1 in Python but names no key a dict was written with",
+        ),
+        (
+            'import subprocess\nbase = {"safe": subprocess.run}\n'
+            'H = {**base, "safe": local}\n'
+            'H["safe"](["x"], capture_output=True, text=True)',
+            "a mapping splat can carry an entry point under any key",
+        ),
+        (
+            'import subprocess\nR = [*others, subprocess.run]\n'
+            'R[0](["x"], capture_output=True, text=True)',
+            "a starred element shifts every index after it",
+        ),
+        (
+            'import subprocess\nR = [local, subprocess.run]\n'
+            'R[7](["x"], capture_output=True, text=True)',
+            "an index past the end of the literal reads nothing from it",
+        ),
+        (
+            'import subprocess\nR = [local, subprocess.run]\n'
+            'R[0:1][0](["x"], capture_output=True, text=True)',
+            "a slice yields a container the scan did not build",
+        ),
+        (
+            'import subprocess\nH = {"safe": subprocess.run}\n'
+            'H = {"safe": local}\n'
+            'H["safe"](["x"], capture_output=True, text=True)',
+            "a name bound twice names no one literal the scan can index",
         ),
         (
             'import subprocess\nR = (subprocess.getoutput,)\n'
