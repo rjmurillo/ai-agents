@@ -5561,8 +5561,9 @@ def test_advisories_warn_but_generators_block_before_staging(
 
     assert policy.run_planning_advisory(tmp_path) == 0
     assert policy.run_taste_advisory([], tmp_path) == 0
-    # Exit 1 is taste_lints.py reporting a script error, not findings. It used
-    # to be reported as "findings are advisory" and swallowed (issue #3779).
+    # taste_lints.py exit 1 is a script error, not findings, so the wrapper maps
+    # it to its own 2 (blocking). Exit 10 would be findings and would map to 0.
+    # The swallowing of exit 1 as "findings are advisory" is issue #3779.
     assert policy.run_taste_advisory(["source.py"], tmp_path) == 2
     assert policy.generate_mcp_advisory(tmp_path) == 1
     assert policy.generate_agents_advisory(tmp_path) == 1

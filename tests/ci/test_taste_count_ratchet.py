@@ -33,6 +33,8 @@ def _fake_scan(
     git_returncode: int = 0,
     base_baseline: str | None = None,
     lint_stdout: str | None = None,
+    base_baseline_absent: bool = False,
+    base_ref_resolves: bool = True,
 ):
     """subprocess.run stand-in for every leg of the scan.
 
@@ -41,9 +43,19 @@ def _fake_scan(
     ``error_count`` unless ``lint_stdout`` overrides it. The report is emitted
     once per linter call, so a multi-batch expectation must size ``tracked``
     accordingly.
+
+    ``base_ref_resolves`` and ``base_baseline_absent`` drive the two probes that
+    separate the bootstrap case from a real failure: ``git rev-parse`` proves
+    the ref exists and ``git cat-file -e`` proves whether it carries a baseline.
     """
 
     def _run(cmd, **kwargs):
+        if cmd[0] == "git" and "rev-parse" in cmd:
+            rc = 0 if base_ref_resolves else 128
+            return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="")
+        if cmd[0] == "git" and "cat-file" in cmd:
+            rc = 1 if base_baseline_absent else 0
+            return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="")
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
             return subprocess.CompletedProcess(
@@ -161,6 +173,119 @@ def test_unreadable_base_ref_is_an_external_error(tmp_path, monkeypatch):
         ]
     )
     assert rc == ratchet.EXIT_EXTERNAL
+
+
+def _base_ref_argv(baseline: Path, tmp_path: Path) -> list[str]:
+    return [
+        "--baseline",
+        str(baseline),
+        "--repo-root",
+        str(tmp_path),
+        "--base-ref",
+        "FETCH_HEAD",
+    ]
+
+
+def test_a_base_ref_without_a_baseline_yet_is_the_bootstrap_case(
+    tmp_path, monkeypatch, capsys
+):
+    """The PR that introduces a ratchet is the PR that adds its baseline.
+
+    Its base branch therefore has no baseline file, so the one-directional
+    check has no earlier value to compare against. Reading that as an external
+    error made the introducing PR red on arrival: `pr-validation` failed with
+    "could not read the baseline at FETCH_HEAD" and exit 3 even though the
+    count was exactly at baseline. There is nothing to raise on a first run.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_scan(10, 615, base_baseline=None, base_baseline_absent=True),
+    )
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_OK
+    assert "bootstrap" in capsys.readouterr().out
+
+
+def test_bootstrap_still_enforces_the_count_check(tmp_path, monkeypatch):
+    """Bootstrap waives the baseline comparison, never the regression check.
+
+    Waiving both would make the gate inert on the one run where its baseline is
+    established, so a PR could introduce the ratchet and blow past it at once.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_scan(10, 700, base_baseline=None, base_baseline_absent=True),
+    )
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_REGRESSION
+
+
+def test_an_unresolvable_base_ref_is_not_read_as_bootstrap(tmp_path, monkeypatch):
+    """Fail closed. Only a resolvable ref that lacks the file is a first run.
+
+    A typo'd ref, a missing fetch, or an absent git binary all make the read
+    fail. Treating any of them as "nothing to compare against" would disarm the
+    one-directional guard silently, which is the single outcome a ratchet must
+    never produce.
+    """
+    baseline = _write_baseline(tmp_path, "615")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_scan(
+            10,
+            615,
+            base_baseline=None,
+            base_baseline_absent=True,
+            base_ref_resolves=False,
+        ),
+    )
+    rc = ratchet.main(_base_ref_argv(baseline, tmp_path))
+    assert rc == ratchet.EXIT_EXTERNAL
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_baseline_absence_is_discriminated_against_real_git(tmp_path):
+    """Pin the probes against git itself, not against a stand-in.
+
+    The monkeypatched tests above assert the branch logic but would pass just
+    as happily if the ref syntax were wrong, because the fake matches on the
+    subcommand alone. This exercises `rev-parse --verify` and `cat-file -e`
+    for real, so a malformed revision expression fails here instead of in CI.
+    """
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "t@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True
+    )
+    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "seed.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "seed"], check=True)
+
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("615\n", encoding="utf-8")
+
+    # Committed nowhere yet: this is the bootstrap shape.
+    assert count_ratchet.baseline_absent_at_ref(tmp_path, "HEAD", baseline) is True
+
+    subprocess.run(["git", "-C", str(tmp_path), "add", "baseline.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "add"], check=True)
+
+    # Present at HEAD: not bootstrap, and readable through the same ref syntax.
+    assert count_ratchet.baseline_absent_at_ref(tmp_path, "HEAD", baseline) is False
+    assert count_ratchet.baseline_at_ref(tmp_path, "HEAD", baseline) == 615
+
+    # An unresolvable ref is never bootstrap.
+    assert (
+        count_ratchet.baseline_absent_at_ref(tmp_path, "nosuchref", baseline) is False
+    )
 
 
 def test_missing_baseline_is_a_config_error(tmp_path, monkeypatch):

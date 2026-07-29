@@ -3490,8 +3490,10 @@ def run_planning_advisory(repo_root: Path) -> int:
 
 
 def run_taste_advisory(paths: Sequence[str], repo_root: Path) -> int:
-    """Report taste-lint findings locally without blocking the commit.
+    """Report taste-lint findings locally; block only when the lint cannot run.
 
+    Findings never block. A lint that failed to produce findings does, because
+    "no findings" and "no scan" are indistinguishable to the caller otherwise.
     Local scope is the staged set, so a contributor who touches one line of a
     900-line file would be blocked for a size violation they did not create.
     That is the "inherit latent debt on contact" failure issue #2993 recorded

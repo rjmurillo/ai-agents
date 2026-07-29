@@ -99,15 +99,58 @@ def read_baseline(path: Path) -> int | None:
         return None
 
 
-def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
-    """Baseline value recorded at ``ref``, or None when it cannot be read."""
+def _baseline_rel(repo_root: Path, baseline: Path) -> str:
+    """Repo-relative POSIX path of ``baseline``, for addressing it inside a ref."""
     try:
-        rel = baseline.resolve().relative_to(repo_root)
+        return baseline.resolve().relative_to(repo_root).as_posix()
     except ValueError:
-        rel = baseline
+        return baseline.as_posix()
+
+
+def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
+    """Exit status of a git command, or None when git could not be launched."""
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo_root), "show", f"{ref}:{rel.as_posix()}"],
+            ["git", "-C", str(repo_root), *argv],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"git could not be launched: {exc}\n")
+        return None
+    return proc.returncode
+
+
+def baseline_absent_at_ref(repo_root: Path, ref: str, baseline: Path) -> bool:
+    """True when ``ref`` resolves but records no baseline file yet.
+
+    This is the bootstrap case. The PR that introduces a ratchet is also the PR
+    that adds its baseline file, so the base branch has none and there is no
+    earlier value that could be raised. Comparing against a ref that predates
+    the gate is not an error, it is the first run.
+
+    Every other read failure stays external. The check is an allowlist -- the
+    ref must resolve AND the path must be the only thing missing -- because a
+    gate that reads any git error as "nothing to compare against" would fail
+    open on a typo'd ref or a missing git binary, which is the one outcome a
+    ratchet must never produce.
+    """
+    if _git_rc(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]) != 0:
+        return False
+    rel = _baseline_rel(repo_root, baseline)
+    rc = _git_rc(repo_root, ["cat-file", "-e", f"{ref}:{rel}"])
+    return rc is not None and rc != 0
+
+
+def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
+    """Baseline value recorded at ``ref``, or None when it cannot be read."""
+    rel = _baseline_rel(repo_root, baseline)
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
             capture_output=True,
             text=True,
             errors="replace",
@@ -172,21 +215,30 @@ def run(
         return EXIT_CONFIG
 
     if args.base_ref:
-        base = baseline_at_ref(args.repo_root.resolve(), args.base_ref, args.baseline)
-        if base is None:
+        root = args.repo_root.resolve()
+        if baseline_absent_at_ref(root, args.base_ref, args.baseline):
             print(
-                f"error: could not read the baseline at {args.base_ref}",
-                file=sys.stderr,
+                f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
+                f"so there is no earlier value to raise. The one-directional "
+                f"check starts once this baseline lands."
             )
-            return EXIT_EXTERNAL
-        if baseline > base:
-            print(
-                f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                f"(+{baseline - base}) against {args.base_ref}. The baseline may "
-                f"only fall. Fix the violations instead of widening the allowance.",
-                file=sys.stderr,
-            )
-            return EXIT_REGRESSION
+        else:
+            base = baseline_at_ref(root, args.base_ref, args.baseline)
+            if base is None:
+                print(
+                    f"error: could not read the baseline at {args.base_ref}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXTERNAL
+            if baseline > base:
+                print(
+                    f"{label}: BASELINE RAISED. {base} -> {baseline} "
+                    f"(+{baseline - base}) against {args.base_ref}. The baseline "
+                    f"may only fall. Fix the violations instead of widening the "
+                    f"allowance.",
+                    file=sys.stderr,
+                )
+                return EXIT_REGRESSION
 
     count = counter(args.repo_root.resolve())
     if count is None:
