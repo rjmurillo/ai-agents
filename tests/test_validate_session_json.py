@@ -44,6 +44,7 @@ from scripts.validate_session_json import (
     validate_session_section,
     validate_session_start,
 )
+from scripts.validation.session_scope import commit_reachability_problem
 
 
 def _make_complete_start_section(**overrides: dict) -> dict:
@@ -1929,6 +1930,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             if line.startswith(("import ", "from ")) and "__future__" not in line
         ]
         assert imports == [
+            "import re",
             "import subprocess",
             "from collections.abc import Iterable",
             "from pathlib import Path",
@@ -2234,3 +2236,127 @@ class TestBranchEvidenceMayDescribeARelationship:
         """Logs abbreviate their own branch; that is not a second session."""
         log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
         assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+
+class TestEndingCommitReachability:
+    """`endingCommit` was written once and never revalidated (issue #3618).
+
+    Of 1003 committed logs, 542 leave the field empty, 332 name a SHA that is
+    not an object in this repository at all, and 95 name a real commit that is
+    off the current history. 34 are sound. Nothing ever looked, so a value
+    orphaned by a later amend or rebase stayed in the record and seeded a
+    causal-graph node pointing at a commit that does not exist.
+    """
+
+    @staticmethod
+    def _make_repo(tmp_path: Path) -> tuple[Path, str, str]:
+        """Build a repo and return (root, reachable_sha, existing_offbranch_sha)."""
+        repo = tmp_path / "r"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+            ).stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        (repo / "a.txt").write_text("a", encoding="utf-8")
+        git("add", "a.txt")
+        git("commit", "-qm", "a")
+        reachable = git("rev-parse", "HEAD")
+        git("checkout", "-qb", "side")
+        (repo / "b.txt").write_text("b", encoding="utf-8")
+        git("add", "b.txt")
+        git("commit", "-qm", "b")
+        offbranch = git("rev-parse", "HEAD")
+        git("checkout", "-q", "main")
+        return repo, reachable, offbranch
+
+    def test_a_reachable_commit_raises_no_complaint(self, tmp_path: Path) -> None:
+        repo, reachable, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem(reachable, repo) is None
+
+    def test_a_sha_that_is_no_object_is_named(self, tmp_path: Path) -> None:
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("0" * 40, repo) == "names no commit in this repository"
+
+    def test_a_real_commit_off_the_history_is_named(self, tmp_path: Path) -> None:
+        """The amend case: the commit still exists, but nothing reaches it."""
+        repo, _, offbranch = self._make_repo(tmp_path)
+        assert (
+            commit_reachability_problem(offbranch, repo)
+            == "names a commit that is not an ancestor of HEAD"
+        )
+
+    def test_a_dash_leading_value_never_reaches_git(self, tmp_path: Path) -> None:
+        """The value lands in argv, where a leading dash reads as an option (CWE-88)."""
+        repo, _, _ = self._make_repo(tmp_path)
+        assert commit_reachability_problem("--upload-pack=touch", repo) == "is not a commit SHA"
+
+    def test_a_shallow_clone_stays_silent(self, tmp_path: Path) -> None:
+        """Older commits are genuinely absent, so any complaint describes the clone."""
+        repo, _, _ = self._make_repo(tmp_path)
+        shallow = tmp_path / "shallow"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth", "1", f"file://{repo}", str(shallow)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=shallow,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip() == "true"
+        assert commit_reachability_problem("0" * 40, shallow) is None
+
+    def test_a_directory_that_is_no_repository_stays_silent(self, tmp_path: Path) -> None:
+        bare = tmp_path / "plain"
+        bare.mkdir()
+        assert commit_reachability_problem("0" * 40, bare) is None
+
+    def test_an_orphaned_ending_commit_warns(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        assert any(
+            "issue #3618" in w for w in validate_session_log(log).warnings
+        ), "an unresolvable endingCommit must be reported"
+
+    def test_a_sound_ending_commit_does_not_warn(self) -> None:
+        """Guards against a check that simply always complains."""
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        log = _make_valid_log()
+        log["endingCommit"] = head
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_existing_log_is_never_rechecked(self) -> None:
+        """427 committed logs carry a broken SHA. They are records, not claims,
+        and no honest edit could repair them, so the check sits on the claim
+        side of the issue #3385 line with the other cross-field checks."""
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        result = validate_session_log(log, existing_log=True)
+        assert not any("issue #3618" in w for w in result.warnings)
+
+    def test_a_malformed_value_is_left_to_the_schema(self) -> None:
+        """Reporting it here too would print one fact under two spellings."""
+        log = _make_valid_log()
+        log["endingCommit"] = "not-a-sha"
+        assert not any("issue #3618" in w for w in validate_session_log(log).warnings)
+
+    def test_an_empty_value_keeps_its_own_warning(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        warnings = validate_session_log(log).warnings
+        assert any("endingCommit is empty" in w for w in warnings)
+        assert not any("issue #3618" in w for w in warnings)

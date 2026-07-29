@@ -1,0 +1,180 @@
+{
+  "id": "episode-2026-07-29-session-3618-ending-commit-reachability",
+  "session": "2026-07-29-session-3618-ending-commit-reachability",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make endingCommit a checked claim instead of a write-only field. A session log records the final commit SHA at authoring time and nothing ever looks at it again, so a value orphaned by a later amend or rebase survives into the record and seeds a causal-graph node pointing at a commit that does not exist (issue #3618).",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Chose warning over error, and recorded why. An error is satisfiable through the tool's default path, because complete_session_log.py writes the pre-commit HEAD which then becomes the parent of the commit carrying the log. But a rebase orphans the SHA through no fault of the author, and the log stays new relative to the recomputed merge base, so the gate would go red on honest work with no clean remedy. Two gates were already rejected this campaign for that same property (the git log arm for #3637 under a depth-1 checkout, the transcript-mining arm for #3509 absent on a runner). Consistency requires rejecting the error here.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "context": "",
+      "chosen": "Caught an eighth probe defect while validating. A pytest invocation naming one real path and one path that does not exist reported success having collected zero items. Re-ran against real paths: 572 pass. Same family as the markdownlint exclusion trap, where a green result means nothing was selected rather than nothing was wrong.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the field before changing anything. Across 1003 committed session logs, 542 leave endingCommit empty, 332 name a SHA that is not an object in this repository at all, 95 name a real commit that is off the current history, and 34 are sound. Of the 461 non-empty values, 7.4 percent are usable. The field was write-only, so nothing ever noticed.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the issue discourse. It is bot noise apart from the proposed first step, which asks for existence and reachability checks in validate_session_json.py. Confirmed that shape and scoped to it.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Nearly shipped a false negative. Reasoned that the CI validate job checks out at the actions/checkout default depth of 1, so a correct endingCommit naming a non-HEAD branch commit would be absent and the check would be a false-positive generator. Tested the reasoning instead of trusting it: cloned the repo at --depth 1 on a five-commit branch, ran the workflow's own 'git fetch origin main --unshallow', and found every branch SHA present. --unshallow drops the shallow boundary for the whole repository and backfills all local refs, not only the ref fetched. The check is viable in CI. This is the seventh time this campaign that a confident assumption failed an empirical check.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the severity split already built. validate_evidence_agrees_with_session runs only when existing_log is false, so the check reaches new claims and never the 427 historical records that could not be repaired by any honest edit. That is the issue #3385 record-versus-claim line, and endingCommit soundness sits on the claim side. No new scoping code was needed.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose warning over error, and recorded why. An error is satisfiable through the tool's default path, because complete_session_log.py writes the pre-commit HEAD which then becomes the parent of the commit carrying the log. But a rebase orphans the SHA through no fault of the author, and the log stays new relative to the recomputed merge base, so the gate would go red on honest work with no clean remedy. Two gates were already rejected this campaign for that same property (the git log arm for #3637 under a depth-1 checkout, the transcript-mining arm for #3509 absent on a runner). Consistency requires rejecting the error here.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Put the git question in scripts/validation/session_scope.py rather than teaching a second module to shell out. It already owns read-only git questions asked by this validator and already has the timeout, encoding, and check=False idiom right. Added commit_reachability_problem(sha, repo_root), reusing _git. The module stays standard-library-only, which the workflow's bare python3 requires; the one new import is re.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guarded the argument boundary. The SHA reaches git through argv, where a leading dash reads as an option (CWE-88), so a value that is not a bare hex SHA is rejected without asking git. The schema pattern already constrains the field, but schema errors are collected rather than fatal, so a malformed value still reaches this code.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guarded the two cases where no honest answer exists: outside a work tree, and in a shallow clone where older commits are genuinely absent and any complaint would describe the clone rather than the log.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 11 tests covering positive, negative, and edge per TESTING-RIGOR: reachable, absent, present-but-off-history, dash-leading, shallow, non-repository, the integration warning, its negative direction, existing-log suppression, malformed-value deferral to the schema, and the empty-value warning staying distinct. Git-dependent tests build real temporary repositories rather than mocking, including a real --depth 1 clone.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a five-part isolating negative control. Neutralising the call site fails only the integration test; removing the ancestry check fails only the off-history test; removing the existence check fails only the absent-SHA test; removing the shallow guard fails only the shallow test; removing the SHA boundary guard fails only the dash-leading test. Every component is individually load-bearing and every test is individually discriminating.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired a test the change would have silently invalidated. tests/test_validate_session_json.py asserts session_scope's exact import list to enforce the standard-library-only rule; the new re import is stdlib, so the assertion was updated rather than weakened.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught an eighth probe defect while validating. A pytest invocation naming one real path and one path that does not exist reported success having collected zero items. Re-ran against real paths: 572 pass. Same family as the markdownlint exclusion trap, where a green result means nothing was selected rather than nothing was wrong.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
