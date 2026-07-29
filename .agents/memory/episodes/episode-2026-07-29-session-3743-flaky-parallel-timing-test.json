@@ -1,0 +1,159 @@
+{
+  "id": "episode-2026-07-29-session-3743-flaky-parallel-timing-test",
+  "session": "2026-07-29-session-3743-flaky-parallel-timing-test",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Remove a wall-clock ceiling from the parallel-executor concurrency test. It asserted that three 0.1s steps finish inside 0.25s, which measures the host as much as the code, and it failed twice on loaded CI runners while blocking an unrelated pull request (issue #3743).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the failure is not caused by the pull request that surfaced it. PR #3740 changes one integer in scripts/ci/ruff_count_baseline.txt and touches nothing on this code path, yet the same test failed in two independent runs, 30416044969 at 0.6224s and 30416078819 at 0.7704s, while 17169 other tests passed in each.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the assertion before proposing a threshold change. tests/test_workflow_parallel.py ran three steps that each sleep 0.1s across max_workers=3 and asserted elapsed < 0.25. The assertion carries two claims at once: that the steps overlapped, which is a property of ParallelStepExecutor and is what the test name promises, and that the host finished three sleeps plus thread setup inside 0.25s, which is a property of the machine. Raising the ceiling would swap one arbitrary number for another and would weaken the real claim at the same time, so it was rejected.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the mechanism the fix depends on before writing it. scripts/workflow/parallel.py line 225 catches any exception from future.result(), appends a FAILED StepResult, and sets result.succeeded = False. A barrier timeout therefore surfaces as a failed assertion rather than propagating out of the executor, which is the same shape test_failed_step_marks_result_failed already relies on.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the sleep and the ceiling with a threading.Barrier(3, timeout=10) rendezvous inside the runner. Three workers can arrive at a three-party barrier only if they are running at the same time, so concurrent execution releases it immediately at any host speed and serial execution cannot release it at any speed. The timeout is generous on purpose: thread start-up jitter is milliseconds, so it can only elapse when execution is genuinely serial.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the now-unused import time. It was used only by this test, so leaving it would have added an F401 and tripped the ruff ratchet in scripts/ci/ruff_count_baseline.txt on the next run. Confirmed with uv run ruff check: All checks passed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolating control 1, does the new test still catch the regression it replaced. Forced max_workers=1 so the pool serialises. Result: 'Parallel step c failed', 1 failed in 10.11s, the barrier timeout. The test detects serialisation.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Isolating control 1, does the new test still catch the regression it replaced. Forced max_workers=1 so the pool serialises. Result: 'Parallel step c failed', 1 failed in 10.11s, the barrier timeout. The test detects serialisation.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolating control 2, does the new test survive the condition that broke the old one. Kept concurrency and made each step slow, 0.5s instead of 0.1s. Result: 1 passed in 0.60s. That wall clock sits inside the 0.62s to 0.77s band measured on the two failing CI runs, so the new form is immune to exactly the condition that produced the false positives.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Isolating control 2, does the new test survive the condition that broke the old one. Kept concurrency and made each step slow, 0.5s instead of 0.1s. Result: 1 passed in 0.60s. That wall clock sits inside the 0.62s to 0.77s band measured on the two failing CI runs, so the new form is immune to exactly the condition that produced the false positives.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolating control 3, does the old assertion actually fail on a correctly behaving executor. Ran the original slow_runner shape against the real ParallelStepExecutor with a 0.5s sleep. Three 0.5s steps completed in 0.5016s total, so they overlapped almost perfectly and serial execution would have taken about 1.5s, yet the old assertion elapsed < 0.25 evaluates to FAIL. The old test reports failure while the code under test is correct. That is a false positive by construction, not a race.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored the working tree after the controls and proved it. diff against the backup taken before control 1 is empty, and the full file passes 23 of 23 in 0.23s, down from the previous runtime because the three 0.1s sleeps are gone.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3743 with the two CI run URLs, the reproduction, and the control-3 output, so the defect is on record independently of this branch.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2a14478b53576856c0fb2ccf758473e896c07a06",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

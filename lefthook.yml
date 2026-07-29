@@ -106,7 +106,17 @@ pre-commit:
 
           - name: actionlint
             timeout: 5m
-            run: actionlint {staged_files}
+            # Issue #2374: shellcheck's `info` and `style` tiers (SC2086
+            # quoting advice, SC2129 grouped redirects) are advisory here, and
+            # the workflow tree carries them on baseline. Raise the floor to
+            # `warning` so this hook enforces the same policy as
+            # `scripts/validation/checks_tooling.py:validate_workflow_yaml` and
+            # `scripts/validation/run_workflow_local_test.py`, which already
+            # do. Without it this hook blocks any commit touching one of the
+            # six workflow files that carry baseline advisory findings.
+            run: >-
+              SHELLCHECK_OPTS="${SHELLCHECK_OPTS:+$SHELLCHECK_OPTS }--severity=warning"
+              actionlint {staged_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
             skip:
               - run: >-
