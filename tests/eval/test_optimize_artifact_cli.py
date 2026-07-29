@@ -10971,6 +10971,94 @@ class TestDuplicateKeysAreRefusedBeforeAnythingReadsTheObject:
         assert issubclass(oa._DuplicateKeyError, ValueError)
 
 
+_ELISION_RE = re.compile(r" \.\.\. \[(\d+) characters elided\] \.\.\. ")
+
+
+def _elision_parts(result: str) -> tuple[str, int, str]:
+    """Split an elided message into (head, stated drop count, tail)."""
+    match = _ELISION_RE.search(result)
+    assert match is not None, f"no elision marker in {result[:120]!r}"
+    return result[: match.start()], int(match.group(1)), result[match.end() :]
+
+
+class TestAReportedErrorCannotBeLongerThanTheValueThatCausedIt:
+    """Issue #3641 gap 5: producer data reaches the error stream unbounded.
+
+    Every error the command reports is a fixed sentence with producer-supplied
+    values interpolated into it, and `_dispatch` writes all of them through one
+    `_emit`. Measured before the fix: a report naming a 5,000,000-character
+    fixture id put 5,000,110 bytes on stdout, the stream the module docstring
+    promises is machine-readable JSON.
+
+    The elision is from the middle on purpose. The measured message reads
+    "fixture '<padding>' variant 'agent' run must be numeric, got
+    'not-a-number'", so the part naming what was wrong is at the tail; a
+    head-truncating fix would have kept the padding and dropped the diagnosis.
+    """
+
+    def test_a_message_within_the_limit_is_reported_verbatim(self):
+        message = "fixture 'a' variant 'agent' run must be numeric"
+        assert oa._elide_middle(message) == message
+        assert _ELISION_RE.search(oa._elide_middle(message)) is None
+
+    def test_a_message_exactly_at_the_limit_is_reported_verbatim(self):
+        message = "x" * oa._MAX_ERROR_CHARS
+        assert oa._elide_middle(message) == message
+
+    def test_one_character_past_the_limit_is_elided(self):
+        message = "x" * (oa._MAX_ERROR_CHARS + 1)
+        result = oa._elide_middle(message)
+        assert result != message
+        assert len(result) <= oa._MAX_ERROR_CHARS
+
+    def test_an_oversized_message_is_bounded_by_the_limit(self):
+        result = oa._elide_middle("x" * 5_000_000)
+        assert len(result) <= oa._MAX_ERROR_CHARS
+
+    def test_both_ends_of_the_diagnostic_survive_elision(self):
+        # The head names the subject and the tail names the verdict. A
+        # prefix-cutting fix passes the length assertion above and fails here,
+        # which is the whole reason this control is separate from it.
+        message = f"fixture '{'A' * 5_000_000}' run must be numeric, got 'nan'"
+        result = oa._elide_middle(message)
+        assert result.startswith("fixture '")
+        assert result.endswith("run must be numeric, got 'nan'")
+
+    def test_the_marker_accounts_for_every_dropped_character(self):
+        message = "y" * 100_000
+        head, dropped, tail = _elision_parts(oa._elide_middle(message))
+        assert len(head) + dropped + len(tail) == len(message)
+        assert head and tail
+
+    def test_a_limit_too_small_for_the_marker_still_bounds_the_result(self):
+        # Guards the branch where the marker cannot fit in the budget.
+        result = oa._elide_middle("z" * 500, limit=8)
+        assert len(result) <= 8
+
+    def test_the_cli_bounds_an_error_naming_an_oversized_fixture_id(
+        self, tmp_path, capsys
+    ):
+        # End-to-end regression for the reported reproduction, at a size that
+        # keeps the suite fast while staying far past the limit.
+        big = "A" * 200_000
+        report = tmp_path / "report.json"
+        report.write_text(
+            json.dumps(
+                {
+                    "error_count": 0,
+                    "fixture_ids": [big],
+                    "per_fixture_pass_rates": {big: {"agent": ["not-a-number"]}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = _run(capsys, "extract", "--kind", "agent", "--input", report)
+        assert code == EXIT_CONFIG
+        assert out["type"] == "AdapterError"
+        assert len(out["error"]) <= oa._MAX_ERROR_CHARS
+        assert out["error"].endswith("must be numeric, got 'not-a-number'")
+
+
 class TestEveryFlagDocumentsItself:
     """A flag with no help text is undiscoverable from the CLI. Refs #3616.
 
