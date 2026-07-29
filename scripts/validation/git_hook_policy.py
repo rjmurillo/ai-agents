@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 
 from __future__ import annotations
@@ -24,6 +25,11 @@ from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
@@ -35,12 +41,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
+ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
+SESSION_PROTOCOL_PATH_RE = re.compile(r"(?:^|[\\/])SESSION-PROTOCOL\.md$", re.IGNORECASE)
+# Composed rather than written out again: the two halves disagreed about
+# anchoring for as long as they were separate strings, and a path merely ending
+# in the protocol's filename read as the protocol itself.
 ADR_REVIEW_PATH_RE = re.compile(
-    r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|SESSION-PROTOCOL\.md$",
+    f"{ADR_PATH_RE.pattern}|{SESSION_PROTOCOL_PATH_RE.pattern}",
     re.IGNORECASE,
 )
-ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+PATH_SEPARATOR_RE = re.compile(r"[\\/]")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
     re.compile(r"/adr-review"),
@@ -102,8 +113,33 @@ SEMGREP_PARTIAL_RULE_RE = re.compile(
 # The lookahead is load-bearing. With a plain `\b`, `python-shim` matches on its
 # `python` prefix, because a hyphen ends a word. Requiring whitespace or end of
 # string makes the interpreter token exact.
+# Only tolerate interpreters this repository actually declares. The four values
+# in use are `bash`, `pwsh`, `pwsh -NoProfile -Command "& '{0}'"`, and
+# `python3 {0}`, so `cmd`, `node`, `ruby`, and `perl` are speculative surface
+# with real teeth: `cmd` glues its command to the switch, so `/cbash` is a valid
+# flag shape that runs Bash, and `perl` execs the interpreter named in a `#!`
+# line, so the body itself can redirect execution into Bash no matter what this
+# value says. An unlisted interpreter is not tolerated, which blocks the push
+# rather than allowing it.
+#
+# The `.exe` suffix is deliberately absent. The runner names the temp script by
+# looking the first token up in its own extension table, whose keys are exactly
+# `cmd`, `pwsh`, `powershell`, `bash`, `sh`, and `python`. `pwsh` resolves to
+# `.ps1`, which PowerShell parses as PowerShell, but `pwsh.exe` misses the table
+# and yields a file with no extension, which PowerShell hands to the OS instead
+# of parsing. That turns a `#!/bin/bash` body into a Bash execution under a
+# PowerShell `shell:` value. No workflow here uses an `.exe` form, and the
+# runner rejects a bare `pwsh.exe` without a `{0}`, so nothing is lost by
+# refusing it. Refs #3663.
+#
+# The tolerated set is exactly what `.github/workflows/` declares: 38 `pwsh`,
+# 29 `bash`, 2 `python3`. This regex gates an exemption, not a warning, so a
+# name nothing declares is exempt surface bought for nothing. `python3?` also
+# matched bare `python`, a valid Actions keyword that no step here uses.
+# Narrowing to `python3` is fail-closed: an undeclared shell now gets
+# Bash-scanned instead of skipped. Widening it again needs a workflow to cite.
 NON_BASH_SHELL_RE = re.compile(
-    r"^\s*(?:pwsh|powershell|python3?|node|ruby|perl|cmd)(?:\.exe)?(?=\s|$)",
+    r"^\s*(?:pwsh|powershell|python3)(?=\s|$)",
     re.IGNORECASE,
 )
 # A `shell:` value naming a second interpreter cannot be trusted to describe what
@@ -111,18 +147,23 @@ NON_BASH_SHELL_RE = re.compile(
 # form and names only pwsh, while `python3 -c "...os.system('bash ' + argv[1])"`
 # declares Python and executes Bash. Refuse to classify the latter as non-Bash.
 FOREIGN_SHELL_REFERENCE_RE = re.compile(r"\b(?:bash|sh|zsh|dash|ksh|ash)\b", re.IGNORECASE)
-# A custom shell template that hands the script to a repository file says nothing
-# about what finally runs it: `node ./tools/wrapper.js {0}` names no shell yet the
-# wrapper is free to exec Bash. Every `shell:` value in this repository is either a
-# bare interpreter or flags plus the `{0}` placeholder, so a token naming a script
-# file means the value is delegating and must not be trusted. Windows flags such as
-# the `/C` in `cmd /C` are not paths and stay allowed. Refs #3663.
-SCRIPT_FILE_RE = re.compile(
-    r"\.(?:js|mjs|cjs|py|rb|pl|ps1|psm1|sh|bash|bat|cmd|exe|jar)\b",
-    re.IGNORECASE,
-)
-RELATIVE_PATH_PREFIXES = ("./", "../", ".\\", "..\\", "~/")
-MIN_PATH_SEPARATORS = 2
+# A custom shell template is attacker-controlled and may reach a POSIX shell
+# without ever naming one: `python3 -c "import os,sys;os.system(...)" {0}` runs
+# the body through `/bin/sh` while spelling neither `sh` nor `bash`. Scanning
+# the remainder for shell names is therefore a blocklist and is trivially
+# evaded, so the control is an allowlist: after the interpreter, the only
+# tokens permitted are flags, the `{0}` placeholder, and the PowerShell call
+# operator. Anything that can carry an inline program fails the check and the
+# step is not tolerated. Refs #3663.
+SHELL_FLAG_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+# A leading `#!` hands interpreter choice to the OS, so the `shell:` value stops
+# describing what runs. The kernel only honours `#!` at byte 0, so the leading
+# whitespace class here is deliberately stricter than it needs to be: it costs
+# nothing (no workflow in this repository opens a body with one) and it removes
+# the need to reason about who might normalise the body before the kernel sees
+# it. Being stricter fails closed, which blocks a push rather than allowing one.
+SHEBANG_RE = re.compile(r"^[ \t\r\n]*#!")
+SHELL_TEMPLATE_TOKENS = frozenset({"{0}", "&"})
 ACTIONS_EXPRESSION_RE = re.compile(r"\$\{\{.+?\}\}", re.DOTALL)
 # `bash -n` parses without executing. A body it accepts is valid shell, so a
 # Semgrep sub-parse failure on it is Semgrep's limitation rather than evidence
@@ -662,14 +703,37 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     return best
 
 
-def _split_frontmatter(content: str) -> tuple[str, str]:
+def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
+    """Split a document into its frontmatter and its body, without decoding.
+
+    The body is what callers compare for "unchanged", and that question is
+    about bytes. Decoding first with ``errors="replace"`` maps every byte the
+    decoder cannot read to the same replacement character, so two bodies
+    holding different invalid bytes came back equal and a real body edit rode
+    in under a metadata change.
+    """
     lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return "", content
+    if not lines or lines[0].strip() != b"---":
+        return b"", content
     for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
-            return "".join(lines[1:index]), "".join(lines[index + 1 :])
-    return "", content
+        if lines[index].strip() == b"---":
+            return b"".join(lines[1:index]), b"".join(lines[index + 1 :])
+    return b"", content
+
+
+def _decoded_frontmatter(raw: bytes) -> str | None:
+    """Decode frontmatter strictly, or report that it cannot be reasoned about.
+
+    Frontmatter has to become text to be parsed as YAML. Decoding it lossily
+    would let two different field values collide on the replacement character
+    and drop out of the changed-key set, hiding an edit the exemption was never
+    meant to cover. Bytes YAML could not have meant are a reason to run the
+    validator, so this fails closed instead.
+    """
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
@@ -715,16 +779,37 @@ def _only_implemented_field_changed(
     return bool(changed) and changed <= {"implemented"}
 
 
-def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
+def _frontmatter_pair_for_a_body_unchanged_edit(
+    path: str,
+    repo_root: Path,
+) -> tuple[str, str] | None:
+    """Return HEAD and staged frontmatter for an edit that left the body alone.
+
+    `None` means no exemption is on offer: a blob is missing, either document
+    has no frontmatter, the bodies differ, or a frontmatter holds bytes UTF-8
+    cannot read. Both exemptions ask this same question and differ only in
+    which changed fields they will then accept.
+    """
     old_blob = _read_head_blob(repo_root, path)
     new_blob = _read_index_blob(repo_root, path)
     if old_blob is None or new_blob is None:
-        return False
-    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
-    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
+        return None
+    old_frontmatter, old_body = _split_frontmatter(old_blob)
+    new_frontmatter, new_body = _split_frontmatter(new_blob)
     if not old_frontmatter or not new_frontmatter or old_body != new_body:
+        return None
+    old_text = _decoded_frontmatter(old_frontmatter)
+    new_text = _decoded_frontmatter(new_frontmatter)
+    if old_text is None or new_text is None:
+        return None
+    return old_text, new_text
+
+
+def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
+    pair = _frontmatter_pair_for_a_body_unchanged_edit(path, repo_root)
+    if pair is None:
         return False
-    return _only_implemented_field_changed(old_frontmatter, new_frontmatter)
+    return _only_implemented_field_changed(*pair)
 
 
 def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
@@ -735,8 +820,8 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     (required and allowed keys). A body-unchanged edit cannot regress the
     structural verdict, but a frontmatter edit still can, so this exemption is
     deliberately narrow: it skips validation only when the body text is
-    unchanged from HEAD (bodies decoded as UTF-8 with ``errors="replace"`` and
-    compared as strings, not raw bytes) AND the sole changed frontmatter keys
+    unchanged from HEAD (bodies compared as the bytes git stored, never as
+    decoded text) AND the sole changed frontmatter keys
     are the ADR-080 model-pin
     fields (``model``, ``model-rationale``). Any other frontmatter delta, for
     example deleting ``name``/``description`` or introducing an unexpected key,
@@ -746,15 +831,10 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     Returns False for newly added skills (no HEAD blob) so genuinely new skills
     are always validated.
     """
-    old_blob = _read_head_blob(repo_root, path)
-    new_blob = _read_index_blob(repo_root, path)
-    if old_blob is None or new_blob is None:
+    pair = _frontmatter_pair_for_a_body_unchanged_edit(path, repo_root)
+    if pair is None:
         return False
-    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
-    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
-    if not old_frontmatter or not new_frontmatter or old_body != new_body:
-        return False
-    return _only_model_pin_fields_changed(old_frontmatter, new_frontmatter)
+    return _only_model_pin_fields_changed(*pair)
 
 
 _ADR080_MODEL_PIN_FIELDS = frozenset({"model", "model-rationale"})
@@ -927,55 +1007,201 @@ def _head_copy_is_one_main_has_carried(repo_root: Path, path: str) -> bool:
     """Report whether HEAD's copy of a path is a state `origin/main` has held.
 
     A path HEAD does not carry cannot be a regression of local work, so it
-    passes. Otherwise the copy has to appear somewhere in `origin/main`'s
-    history for that ADR. The history walk follows renames and records the path
-    name each commit used, so an ADR that main moved and revised still finds
-    older carried bytes under the former name.
+    passes. Otherwise the copy has to be one of the blobs this file has held
+    in `origin/main`. Walking the file's own history keeps this to the handful
+    of commits that touched one ADR rather than the whole branch.
+
+    Identity is the blob id, not the bytes, because git already computed the
+    answer and an id cannot be normalized into agreeing with a different blob.
 
     `origin/main` is a local cache of main, so a branch that has not fetched
     in a while can fail this on content main really does carry. That
     direction is the safe one: the answer is review evidence demanded for a
     file that did not need it, and a fetch clears it.
     """
-    head_blob = _read_head_blob(repo_root, path)
-    if head_blob is None:
+    head_blob_id = _blob_id_at(repo_root, "HEAD", path)
+    if head_blob_id is None:
         return True
-    for commit, carried_path in _origin_main_path_history(repo_root, path):
-        if _read_commit_blob_bytes(repo_root, commit, carried_path) == head_blob:
-            return True
-    return False
+    return head_blob_id in _origin_main_blob_ids(repo_root, path)
 
 
-def _origin_main_path_history(repo_root: Path, path: str) -> list[tuple[str, str]]:
-    """Return origin/main commits with the path name that commit used."""
-    result = _run_git(
+def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", f"{commit}:{path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _governed_document_identity(path: str) -> str | None:
+    """Which record `path` holds, or None if this gate does not govern it.
+
+    Scoping a followed history to governed paths does not tell two decision
+    records apart: both are governed. Records written from one template share
+    most of their lines, so git reads a commit that drops one and adds another
+    as a rename of it, and the walk crosses from one decision into the other.
+
+    The number in the filename is what says which decision a path holds. The
+    protocol has no number and stands for itself.
+    """
+    if ADR_PATH_RE.search(path):
+        # Read the number from the final segment, which is where the path test
+        # anchors. Across the whole path the first number wins, so a directory
+        # named for another record would shadow the one the file holds and two
+        # decisions would share one identity.
+        identifier = ADR_ID_RE.search(PATH_SEPARATOR_RE.split(path)[-1])
+        return _normalized_record_number(identifier.group(0)) if identifier else None
+    if SESSION_PROTOCOL_PATH_RE.search(path):
+        return "SESSION-PROTOCOL"
+    return None
+
+
+def _normalized_record_number(identifier: str) -> str:
+    """One record's number, written the one way, so a repad is not a new record.
+
+    This repo renamed `ADR-0003-...` to `ADR-003-...`. Compared as text those
+    are two identities, and the walk stops at the rename between them, which
+    refuses states the record plainly held.
+
+    Only the leading zeros go, and they go as text. Reading the number as an
+    integer instead would fold two records together twice over: `\\d` matches
+    every decimal digit, so a name written in another script is governed too
+    and would take the identity of the ASCII record holding the same value,
+    and a new file would inherit a real record's reviewed history. Stripping
+    zeros anywhere rather than in front would fold `ADR-100` into `ADR-1` the
+    same way. Text stripping leaves both pairs distinct.
+    """
+    prefix, _, number = identifier.upper().partition("-")
+    return f"{prefix}-{number.lstrip('0') or '0'}"
+
+
+def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
+    """Blob ids from one `--follow` traversal of `path` on `origin/main`.
+
+    Reading ids out of the raw diff rather than re-reading the file at each
+    commit is what makes `--follow` useful here: at the older commits the
+    current name does not exist yet.
+
+    `diff_merges` is named rather than left to `-m`, which means
+    `--diff-merges=on` and takes its format from the user's `log.diffMerges`.
+    Set to `combined` or `dense-combined`, a merge prints one `::` record whose
+    fourth field is the first parent's pre-image, so the post-image this reads
+    would be the wrong blob. What this gate accepts is not a readability
+    preference.
+    """
+    result = _run_git_bytes(
         repo_root,
-        ["log", "--follow", "--format=%H", "--name-only", "origin/main", "--", path],
+        [
+            "log",
+            f"--diff-merges={diff_merges}",
+            # `log.showSignature` prefixes each commit's raw records with the
+            # verification result, and the first field of the stream then
+            # begins with that text rather than the colon a record starts
+            # with. Every record is skipped and the walk reports that main
+            # carried nothing here, which refuses records main did carry, for
+            # whichever developers hold that setting. What this gate accepts
+            # is not a display preference.
+            "--no-show-signature",
+            "--follow",
+            "--format=",
+            "--raw",
+            "--no-abbrev",
+            # Paths arrive raw and NUL-separated. Left to the default, git
+            # quotes any path outside ASCII or carrying a quote, a backslash
+            # or a control character, and the scope test below ends on an
+            # anchor the closing quote defeats, so such an ADR would read as
+            # having no history. It also stops a tab inside a name from
+            # looking like the separator before a second path.
+            "-z",
+            "origin/main",
+            "--",
+            path,
+        ],
     )
     if result.returncode != 0:
-        return []
-    history: list[tuple[str, str]] = []
-    commit: str | None = None
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
-        if not line:
+        return set()
+    # An unrecognised path carries no identity, so nothing below matches it and
+    # the caller is told main has carried nothing here. That refuses; it cannot
+    # exempt.
+    followed = _governed_document_identity(path)
+    blob_ids: set[str] = set()
+    # Decoded here rather than by the pipe. A text mode read applies universal
+    # newline translation, so a path ending in a carriage return arrives ending
+    # in a newline, and the scope test below anchors with `$`, which matches
+    # before a trailing newline. A path this gate does not govern then reads as
+    # one and its blobs join the carried set, which exempts content that never
+    # sat at a governed path. That is what this read fixes. The error handler
+    # is `surrogateescape` because it round trips and costs nothing, not
+    # because it changes a verdict: identity here is the record's number, so a
+    # byte spent elsewhere in the path reaches no decision either way, and a
+    # mutation to `replace` survives the suite for that reason.
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
+    index = 0
+    while index < len(fields):
+        record = fields[index]
+        index += 1
+        if not record.startswith(":") or record.startswith("::"):
+            # A `::` record lists one pre-image per parent before the
+            # post-image, so its fourth field is a pre-image and its width
+            # depends on the parent count. Naming the format should keep these
+            # away; skipping them is what keeps that true if one arrives. The
+            # paths that follow one fail this same test and are skipped too.
             continue
-        if _is_full_object_id(line):
-            commit = line
+        metadata = record.split()
+        if len(metadata) < 5:
             continue
-        if commit is None:
+        # A rename or a copy names a source and then a destination. Every
+        # other status names one path.
+        wanted = 2 if metadata[4][:1] in ("R", "C") else 1
+        paths = fields[index : index + wanted]
+        index += wanted
+        if len(paths) < wanted:
+            break
+        if _governed_document_identity(paths[-1]) != followed:
+            # `--follow` rewrites the path it tracks whenever it scores a drop
+            # and an add as a rename, which is similarity and not provenance.
+            # Crossing into a file this gate does not govern would read that
+            # file's states as states of this record, and they never faced ADR
+            # review; crossing into another record would read a decision
+            # somebody reviewed under a different number as this one. The
+            # post-image belongs to the record's destination path, so that is
+            # the path that has to qualify.
             continue
-        safe_path = _safe_relative_path(line)
-        if safe_path is None:
-            continue
-        history.append((commit, safe_path))
-        commit = None
-    return history
+        blob_ids.add(metadata[3])
+    # A deletion names no blob afterwards, and the width of that field follows
+    # the repository's hash.
+    return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
 
 
-def _is_full_object_id(value: str) -> bool:
-    return len(value) in ZERO_SHA_LENGTHS and bool(value) and all(
-        character in "0123456789abcdefABCDEF" for character in value
+def _origin_main_blob_ids(repo_root: Path, path: str) -> set[str]:
+    """Every blob `path` has held in `origin/main`, following it through renames.
+
+    Asking `rev-list` for one pathname stops at the rename, so an ADR that was
+    moved and revised on main left its earlier states behind under the former
+    name. A branch that had also moved the file then held a copy main really
+    had carried, failed this check on the name alone, and had review evidence
+    demanded of it for someone else's revision.
+
+    Two traversals, because neither answers the question alone.
+
+    `separate` splits a merge into one diff per parent, which is what makes a
+    conflict main resolved leave an id behind. `--raw` prints nothing for a
+    merge otherwise, so an ADR whose only appearance in some state was a
+    resolution was invisible here.
+
+    `off` is not redundant with it. `--follow` rewrites the path it follows
+    each time it detects a rename, so which renames are visible decides which
+    lineage it walks. With merge diffs asked for, the merge-versus-first-parent
+    rename becomes visible, following it walks main's side, and a side branch
+    that renamed the file is reported as a deletion rather than crossed into.
+    The states on that side are states of this file on `origin/main`, and
+    asking for the resolution must not cost them.
+
+    Every id either traversal reports comes from a commit reachable from
+    `origin/main`, so the union widens exactly one file's lineage rather than
+    admitting any blob the branch happens to contain.
+    """
+    return _followed_blob_ids(repo_root, path, "off") | _followed_blob_ids(
+        repo_root, path, "separate"
     )
 
 
@@ -1024,6 +1250,15 @@ def _commit_is_origin_main_ancestor(repo_root: Path, commit: str) -> bool:
 
 
 def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) -> bytes | None:
+    """Read a blob as the bytes git stored, not as text that survived a decode.
+
+    The three readers here answer one question, whether two blobs are the same
+    blob, and a text pipe cannot answer it. `encoding=` puts the pipe in text
+    mode, which folds `\\r\\n` and lone `\\r` into `\\n`, and `errors="replace"`
+    turns every byte the decoder cannot read into one replacement character.
+    Both are lossy in the same direction: distinct blobs come back equal, and
+    the ADR gate reads equal as "the merge carried main's content".
+    """
     result = _run_git_bytes(repo_root, ["show", f"{commit}:{relative_path}"])
     if result.returncode != 0:
         return None
@@ -1846,6 +2081,12 @@ def _added_suppression_violations(
     ]
     if not scan_paths:
         return []
+    pure_rename_destinations = _pure_scanned_rename_destinations(update, repo_root)
+    if pure_rename_destinations is None:
+        return None
+    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
+    if not scan_paths:
+        return []
     notebook_paths = [path for path in scan_paths if Path(path).suffix.lower() == ".ipynb"]
     diff_scan_paths = [path for path in scan_paths if Path(path).suffix.lower() != ".ipynb"]
     violations: list[str] = []
@@ -1876,6 +2117,55 @@ def _added_suppression_violations(
         return None
     violations.extend(notebook_violations)
     return violations
+
+
+def _pure_scanned_rename_destinations(
+    update: PushUpdate,
+    repo_root: Path,
+) -> set[str] | None:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _parse_pure_scanned_rename_destinations(result.stdout)
+
+
+def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
+    records = [record for record in output.split("\0") if record]
+    destinations: set[str] = set()
+    index = 0
+    while index < len(records):
+        status = records[index]
+        if index + 2 >= len(records):
+            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
+            return None
+        source = _safe_relative_path(records[index + 1])
+        destination = _safe_relative_path(records[index + 2])
+        if source is None or destination is None:
+            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
+            return None
+        if status == "R100" and _is_scanned_suppression_rename(source, destination):
+            destinations.add(destination)
+        index += 3
+    return destinations
+
+
+def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
+    return (
+        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+    )
 
 
 def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
@@ -2444,16 +2734,21 @@ def _semgrep_line_matches_pattern(
     return expected_index == len(expected)
 
 
-def _delegates_to_a_script(remainder: str) -> bool:
+def _remainder_is_inert_tokens_only(remainder: str) -> bool:
+    """Report whether every token after the interpreter is inert.
+
+    Inert means a flag, the `{0}` script placeholder, or the PowerShell call
+    operator. A token that is none of those can carry an inline program, and an
+    inline program can reach a POSIX shell without naming one.
+    """
     for token in remainder.split():
         candidate = token.strip("\"'")
-        if SCRIPT_FILE_RE.search(candidate):
-            return True
-        if candidate.startswith(RELATIVE_PATH_PREFIXES):
-            return True
-        if candidate.count("/") + candidate.count("\\") >= MIN_PATH_SEPARATORS:
-            return True
-    return False
+        if not candidate or candidate in SHELL_TEMPLATE_TOKENS:
+            continue
+        if SHELL_FLAG_RE.match(candidate):
+            continue
+        return False
+    return True
 
 
 def _is_non_bash_shell(shell: str | None) -> bool:
@@ -2465,7 +2760,7 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     remainder = shell[match.end() :]
     if FOREIGN_SHELL_REFERENCE_RE.search(remainder):
         return False
-    return not _delegates_to_a_script(remainder)
+    return _remainder_is_inert_tokens_only(remainder)
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -2520,7 +2815,34 @@ def _body_is_valid_shell_syntax(run: str) -> bool:
     return result.returncode == 0
 
 
+def _body_declares_its_own_interpreter(run: str) -> bool:
+    """Report whether the body opens with a `#!` line.
+
+    GitHub Actions writes a custom-shell body to an executable temp file and
+    hands the path to the interpreter named in `shell:`. A `#!` line makes that
+    name a lie whenever the interpreter delegates unknown files to the OS. The
+    runner picks the temp file's extension by looking the first token up in a
+    fixed table, so an unmapped token yields a file with no extension at all.
+    PowerShell's call operator treats such a file as an external program, hands
+    it to the OS, and the kernel honours the shebang, so Bash runs the body.
+    Bash executes every command preceding a syntax error before reporting it,
+    so a trailing `if [` suppresses a Semgrep sub-parse finding while the
+    payload above it still runs.
+
+    Verified locally against pwsh 7: an extensionless file carrying
+    `#!/bin/bash` ran its payload under `pwsh -NoProfile -Command "& '<path>'"`,
+    the same file without the shebang failed with `Exec format error`, and the
+    same content named `.ps1` was rejected outright because PowerShell parses a
+    whole script before running any of it. The shebang is therefore load-bearing
+    for the bypass, and refusing any `#!` body closes it without depending on
+    which extension the runner happens to choose. Refs #3663.
+    """
+    return bool(SHEBANG_RE.match(run))
+
+
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
+    if _body_declares_its_own_interpreter(run):
+        return False
     if _is_non_bash_shell(shell):
         return True
     if not ACTIONS_EXPRESSION_RE.search(run):
@@ -2866,26 +3188,51 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
     result = _run_git(repo_root, ["rev-list", "--merges", update.range_spec])
     if result.returncode != 0:
         return False
-    return any(
-        _merge_has_main_parent(merge_sha, repo_root)
-        for merge_sha in result.stdout.splitlines()
-        if merge_sha
+    merges = [merge_sha for merge_sha in result.stdout.splitlines() if merge_sha]
+    if not merges:
+        return False
+    # Every merge is read against the same trunk, and a push may carry many.
+    # Reading it here keeps the walk once per push rather than once per merge.
+    trunk = _main_trunk_commits(repo_root)
+    return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
+
+
+def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
+    """Read the commits `origin/main` reaches by first parent alone.
+
+    A branch main has landed is an ancestor of main, but it is not one of
+    these. It sits on the second parent of the merge that landed it. Merging
+    such a branch brings in no history main had not already handed out, so
+    asking only whether main can reach a parent answers a wider question than
+    the raised limit is for.
+    """
+    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
+    if result.returncode != 0:
+        return frozenset()
+    return frozenset(result.stdout.split())
+
+
+def _merge_has_main_parent(
+    merge_sha: str,
+    repo_root: Path,
+    trunk: frozenset[str] | None = None,
+) -> bool:
+    # `log.showSignature` makes `show` report the signature check before the
+    # commit, and the first field of the split is then a word of that report
+    # rather than the merge's own first parent. Skipping the first field would
+    # then leave the first parent in the parents searched for main, and a merge
+    # of a side branch would read as a merge of main and double the commit
+    # limit. What this gate accepts is not a display preference.
+    result = _run_git(
+        repo_root,
+        ["show", "-s", "--no-show-signature", "--format=%P", merge_sha],
     )
-
-
-def _merge_has_main_parent(merge_sha: str, repo_root: Path) -> bool:
-    result = _run_git(repo_root, ["show", "-s", "--format=%P", merge_sha])
     if result.returncode != 0:
         return False
-    parents = result.stdout.split()
-    for parent in parents[1:]:
-        ancestor = _run_git(
-            repo_root,
-            ["merge-base", "--is-ancestor", parent, "origin/main"],
-        )
-        if ancestor.returncode == 0:
-            return True
-    return False
+    parents = result.stdout.split()[1:]
+    if trunk is None:
+        trunk = _main_trunk_commits(repo_root)
+    return any(parent in trunk for parent in parents)
 
 
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
@@ -2908,7 +3255,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     if bypass.returncode == 0:
         print(bypass.stdout, end="")
         return 0
-    _print_process_output(bypass)
+    _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1
 
@@ -3535,9 +3882,13 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
         print(f"WARNING: PR #{pr_number} last bot review is {age}s old (< 120s)")
 
 
-def _print_process_output(result: subprocess.CompletedProcess[str]) -> None:
+def _print_process_output(
+    result: subprocess.CompletedProcess[str],
+    stdout_stream: TextIO | None = None,
+) -> None:
+    target_stdout = stdout_stream or sys.stdout
     if result.stdout:
-        print(result.stdout, end="")
+        print(result.stdout, end="", file=target_stdout)
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
 
@@ -3546,7 +3897,7 @@ def _print_advisory_failure(
     label: str,
     result: subprocess.CompletedProcess[str],
 ) -> None:
-    _print_process_output(result)
+    _print_process_output(result, stdout_stream=sys.stderr)
     print(f"WARNING: {label} failed without blocking", file=sys.stderr)
 
 

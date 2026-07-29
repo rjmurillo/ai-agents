@@ -89,7 +89,7 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Classify complexity and route area for issue #${{ matrix.number }}
+      - name: "Classify complexity and route area for issue #${{ matrix.number }}"
         id: classify
         uses: ./.github/actions/ai-review
         with:
@@ -101,7 +101,7 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Record triage result for issue #${{ matrix.number }}
+      - name: "Record triage result for issue #${{ matrix.number }}"
         env:
           ISSUE_NUMBER: ${{ matrix.number }}
           ISSUE_TITLE: ${{ matrix.title }}

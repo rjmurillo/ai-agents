@@ -1,0 +1,179 @@
+{
+  "id": "episode-2026-07-28-session-3652-workflow-quoting-and-injection",
+  "session": "2026-07-28-session-3652-workflow-quoting-and-injection",
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close issue #3652 (workflow step names truncated at an unquoted YAML comment marker) and issue #3664 (script injection through workflow_dispatch inputs), and replace the expression-injection blocklist that let #3664 through with an allowlist plus one-hop taint propagation.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scanned every file under .github/workflows for plain scalars truncated by an unquoted comment marker. Found ten, not the five reported on issue #3652. The five the issue missed each wrap a matrix expression, so every parallel job in backlog-triage and pr-maintenance rendered under the same name in the Actions UI.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Quoted all ten values and confirmed the re-scan reports zero.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Threat-modelled issue #3664. Attack surface: the workflow_dispatch input 'days' in agent-metrics.yml, declared type string with no constraint, interpolated straight into a run block. Actor: anyone able to dispatch the workflow, which includes the autonomous agents in this repository that hold tokens. Impact: arbitrary command execution on the runner with the job token and any runner-scoped secret. CWE-78. The same shape appears in copilot-context-synthesis.yml.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the taint past the first hop. Both workflows write the input to $GITHUB_OUTPUT and re-interpolate it in a later step, so binding only the first hop through env: would have left the hole open. Bound every hop and added a digit check at each boundary.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced _DANGEROUS_PATTERNS in scripts/validate_workflows.py with an allowlist. The blocklist is why #3664 existed: it enumerated dangerous contexts, so every context nobody had listed defaulted to safe. Classification now enumerates the context references inside an expression rather than its leading token, which keeps hashFiles safe while flagging fromJSON of an input.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added one-hop taint propagation. A step that reads an unsafe expression and writes to $GITHUB_OUTPUT marks its own outputs unsafe for the rest of the job. Running it against the pre-fix tree reproduced all nine injection findings at both hops; running it against the repaired tree reports zero.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a name-truncation check operating on raw text, because by the time the YAML loader runs the truncation has already happened and left nothing to compare.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inverted one pre-existing test that asserted inputs.* was safe, which was the vulnerable behavior written down. Added 40 tests covering the allowlist, taint propagation, truncation detection, and two live-tree regression pins with a did-the-scan-actually-run control. 80 pass, ruff clean.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9e34893ba",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 43ac3fdb2",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 239c17fb0",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3737267b5",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fdb9e04da",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-28T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4299eff34",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 2
+  },
+  "lessons": []
+}

