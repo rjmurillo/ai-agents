@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-07-29-session-3653-force-with-lease-pinned",
+  "session": "2026-07-29-session-3653-force-with-lease-pinned",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #3653: agent-facing force-push instructions use bare --force-with-lease, which a concurrent git fetch defeats, letting one agent destroy another's commits. Pin the lease to the observed head.sha and add a regression guard.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read #3653 and #3413. Both describe the same failure: a second agent force-pushes a PR branch and removes the first agent's commits. #3653 names the fix directly, an atomic compare-and-swap on push.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched the corpus for force-push call sites. Found .github/scripts/safe_push_pr_branch.py already refuses --force-with-lease unless --expected-remote-sha is supplied, building --force-with-lease=<dest>:<sha>. The correct contract already exists in this repository.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found three agent-facing documents handing out the unsafe bare form on a SHA refspec: .claude/commands/pr-autofix.md, docs/autonomous-pr-monitor.md, and the generated src/copilot-cli/skills/pr-autofix/SKILL.md.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked ADR-076 (accepted, implemented false) and confirmed .claude/skills/github/scripts/pr/pr_autofix_lease.py already exists, so #3413's coordination lease is largely built. The unfixed gap is the transport-layer guard #3653 asks for.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the defect empirically in two throwaway clones rather than arguing from documentation. Agent A pushed commit Y; agent B fetched (the documented defeat condition) then force-pushed with the bare form. The push SUCCEEDED and Y was destroyed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the isolating control on the same repo state: restored Y, then retried the identical push with --force-with-lease=main:<the SHA B last observed>. Git rejected it with 'stale info' and Y survived. Only the lease form differed, so the explicit SHA is individually load-bearing.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned the lease in both canonical documents to the head.sha the agent already reads from get_pr_context.py, and recorded why the preceding rev-parse check cannot substitute: it is a separate read, so it leaves a check-to-push window that only the lease closes atomically.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot mirror with build/scripts/generate_commands.py rather than hand-editing it (14 commands processed, 14 skills written).",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/test_pr_autofix_force_push_lease.py: six unit tests over the detector itself including two-sided controls for the shell line-continuation handling, plus a per-document corpus guard and a vacuity guard asserting each guarded document still contains a refspec push at all.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the guard is not retrospective theatre by running the detector against git show origin/main content for all three files. Pre-fix: all three flagged. Post-fix: all three clean.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Left the bare --force-with-lease examples in git-advanced-workflows out of scope. They teach an ordinary single-branch rebase flow rather than the concurrent-agent refspec path, so this guard deliberately stays silent on them; flagged in the PR body instead of widened into this change.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f7963ef89",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
