@@ -5,9 +5,13 @@ Verifies ADR parsing, requirement counting, and protocol reference checking.
 
 from __future__ import annotations
 
+import ast
+import subprocess
+import sys
 from pathlib import Path
 
 from scripts.sync_adr_protocol import (
+    DANGLING_WORDS,
     AdrRequirements,
     SyncReport,
     check_protocol_reference,
@@ -80,6 +84,30 @@ class TestParseAdrStatus:
         content = '---\nstatus: "accepted"\n---\n\n# ADR-066\n'
         assert parse_adr_status(content) == "accepted"
 
+    def test_frontmatter_tolerates_crlf_and_a_trailing_space(self) -> None:
+        """The sibling reader compares stripped fence lines; so must this one."""
+        assert parse_adr_status("---\r\nstatus: accepted\r\n---\r\n\r\n# A\r\n") == "accepted"
+        assert parse_adr_status("---  \nstatus: accepted\n---\n\n# A\n") == "accepted"
+
+    def test_frontmatter_strips_an_inline_comment(self) -> None:
+        content = "---\nstatus: accepted  # backfilled 2026-07-20\n---\n\n# A\n"
+        assert parse_adr_status(content) == "accepted"
+
+    def test_non_scalar_frontmatter_status_falls_through(self) -> None:
+        """A list, a mapping, or an empty value is not a lifecycle state."""
+        for value in ("[a, b]", "{k: v}", "", "|", ">"):
+            content = f"---\nstatus: {value}\n---\n\n# A\n\n## Status\n\nProposed\n"
+            assert parse_adr_status(content) == "Proposed", value
+
+    def test_ignores_an_indented_status_key(self) -> None:
+        """Only a top-level frontmatter key is lifecycle state."""
+        content = "---\nmeta:\n  status: sneaky\n---\n\n# A\n\n## Status\n\nProposed\n"
+        assert parse_adr_status(content) == "Proposed"
+
+    def test_horizontal_rule_is_not_frontmatter(self) -> None:
+        content = "Some prose.\n\n---\n\nMore prose.\n"
+        assert parse_adr_status(content) == "Unknown"
+
     def test_frontmatter_without_closing_delimiter_is_ignored(self) -> None:
         content = "---\nstatus: accepted\n\n# ADR-001\n\n## Status\n\nProposed\n"
         assert parse_adr_status(content) == "Proposed"
@@ -97,9 +125,17 @@ class TestParseAdrStatus:
     def test_joins_a_status_wrapped_across_lines(self) -> None:
         """ADR-004 wraps its status; reading one line truncates it."""
         content = "# ADR-004\n\n## Status\n\nSuperseded by\n[ADR-086](ADR-086.md) on 2026-07-20.\n"
-        assert parse_adr_status(content) == (
-            "Superseded by [ADR-086](ADR-086.md) on 2026-07-20."
-        )
+        assert parse_adr_status(content) == "Superseded by [ADR-086](ADR-086.md) on 2026-07-20."
+
+    def test_join_stops_at_a_subheading(self) -> None:
+        """A '###' inside the section is structure, not status."""
+        content = "# A\n\n## Status\n\nAccepted\n### Sub-note\nNot the status\n"
+        assert parse_adr_status(content) == "Accepted"
+
+    def test_bold_emphasis_is_not_a_list_marker(self) -> None:
+        """ADR-039 opens its status with '**PROVISIONAL**'."""
+        content = "# A\n\n## Status\n\n**PROVISIONAL** (2026-01-03 to 2026-01-17)\n"
+        assert parse_adr_status(content) == "**PROVISIONAL** (2026-01-03 to 2026-01-17)"
 
     def test_empty_status_section_falls_through(self) -> None:
         """An empty '## Status' must not report the next heading as the status."""
@@ -135,7 +171,7 @@ class TestStatusParsingCoversTheRealCorpus:
     def test_no_status_is_truncated_mid_sentence(self) -> None:
         """ADR-004 wraps its status; a line-at-a-time read ends on 'Superseded by'."""
         adr_dir = Path(__file__).resolve().parents[1] / ".agents" / "architecture"
-        dangling = ("by", "and", "on", "the", "a", "to", "of", "in", "for", "with")
+        dangling = DANGLING_WORDS
         truncated = [
             f"{path.name}: {status}"
             for path in sorted(adr_dir.glob("ADR-*.md"))
@@ -335,3 +371,37 @@ class TestScanAdrs:
         (adr_dir / "ADR-099-secret.md").symlink_to(secret)
         results = scan_adrs(adr_dir)
         assert len(results) == 0
+
+
+class TestRunsOnAStdlibOnlyInterpreter:
+    """CONTRIBUTING.md and SESSION-PROTOCOL.md document invoking this script
+    as bare ``python3``, which resolves outside the project venv. A
+    third-party import would turn a missing optional dependency into a tool
+    that never starts."""
+
+    def test_imports_nothing_outside_the_standard_library(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "sync_adr_protocol.py"
+        tree = ast.parse(script.read_text(encoding="utf-8"))
+        imported = {
+            (node.module or "").split(".")[0]
+            if isinstance(node, ast.ImportFrom)
+            else alias.name.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import | ast.ImportFrom)
+            for alias in getattr(node, "names", [None]) or [None]
+        }
+        outside = sorted(imported - set(sys.stdlib_module_names) - {"", "__future__"})
+        assert not outside, f"third-party imports break the documented entrypoint: {outside}"
+
+    def test_runs_with_site_packages_disabled(self) -> None:
+        """python3 -S is the closest reproduction of an interpreter with no
+        PyYAML on sys.path."""
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [sys.executable, "-S", str(root / "scripts" / "sync_adr_protocol.py")],
+            capture_output=True,
+            text=True,
+            cwd=root,
+        )
+        assert "ModuleNotFoundError" not in result.stderr, result.stderr
+        assert "[Unknown]" not in result.stdout

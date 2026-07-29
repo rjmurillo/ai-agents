@@ -21,8 +21,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 # Exit codes per ADR-035
 EXIT_SUCCESS = 0
 EXIT_GAPS_DETECTED = 1
@@ -37,6 +35,15 @@ RFC2119_PATTERN = re.compile(
 # ADR number extraction from filename
 ADR_NUMBER_PATTERN = re.compile(r"ADR-(\d+)")
 INLINE_STATUS_PATTERN = re.compile(r"^\*\*Status\*\*\s*:\s*(.+?)\s*$", re.MULTILINE)
+
+# Matches `_split_frontmatter` in
+# .claude/skills/adr-review/scripts/detect_adr_changes.py, which compares
+# `lines[0].strip()` against this same literal.
+FRONTMATTER_DELIM = "---"
+
+# A status ending on one of these is a wrapped line, not a finished value.
+# Used by the corpus regression test to detect truncation.
+DANGLING_WORDS = frozenset({"by", "and", "on", "the", "a", "to", "of", "in", "for", "with"})
 
 
 @dataclass
@@ -106,8 +113,17 @@ def parse_adr_title(content: str) -> str:
 def _status_from_heading(content: str) -> str | None:
     """Read the prose under a ``## Status`` section, joining wrapped lines.
 
-    ADR-004 wraps its status across two lines, so reading only the first
-    would report the truncated "Superseded by".
+    ADR-004 wraps its status as "Superseded by" / "[ADR-086](...) on
+    2026-07-20.", so reading one line reports the truncated "Superseded by".
+    The block ends at a blank line or the next heading.
+
+    Rejected alternative: join only while the text ends on a word from
+    :data:`DANGLING_WORDS`. That reads ADR-004 more precisely, but measured
+    against the corpus it truncated ADR-072 mid-sentence at "this" and left
+    ADR-039 unreadable, because ADR-039 opens with ``**PROVISIONAL**`` and a
+    bullet-style stop cannot tell bold emphasis from a list marker. Stopping
+    only at a heading loses nothing: no ADR's status block contains a
+    subheading, list, fence, quote, or table row.
     """
     in_status = False
     collected: list[str] = []
@@ -116,14 +132,15 @@ def _status_from_heading(content: str) -> str | None:
         if stripped == "## Status":
             in_status = True
             continue
-        if in_status:
-            if stripped.startswith("## "):
+        if not in_status:
+            continue
+        if not stripped:
+            if collected:
                 break
-            if not stripped:
-                if collected:
-                    break
-                continue
-            collected.append(stripped)
+            continue
+        if stripped.startswith("#"):
+            break
+        collected.append(stripped)
     return " ".join(collected) or None
 
 
@@ -141,24 +158,59 @@ def _status_from_inline(content: str) -> str | None:
 def _status_from_frontmatter(content: str) -> str | None:
     """Read ``status:`` from the YAML frontmatter block (ADR-073).
 
-    Parsed as YAML so quoting and comments resolve to the scalar value
-    rather than to raw text.
+    Delimiter handling matches the sibling ADR frontmatter reader,
+    ``.claude/skills/adr-review/scripts/detect_adr_changes.py``, whose
+    ``_split_frontmatter`` compares stripped lines:
+
+        lines = content.splitlines(keepends=True)
+        if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+            return "", content
+
+    Comparing stripped lines tolerates CRLF and a trailing space on the
+    fence. A ``content.startswith("---\\n")`` test does not, and would drop
+    frontmatter this repo's other reader accepts.
+
+    Stricter than canonical: that reader hands the block to ``yaml`` and
+    needs every key. This one needs a single scalar, so it stays on the
+    standard library. ``CONTRIBUTING.md`` and ``.agents/SESSION-PROTOCOL.md``
+    both document invoking this script as bare ``python3``, which resolves
+    outside the project venv and has no PyYAML guarantee. A third-party
+    import here would turn a missing optional dependency into a tool that
+    never starts.
     """
-    if not content.startswith("---\n"):
+    block = _frontmatter_lines(content)
+    if block is None:
         return None
-    match = re.search(r"^---[ \t]*$", content[4:], re.MULTILINE)
-    if match is None:
-        return None
-    try:
-        data = yaml.safe_load(content[4 : 4 + match.start()])
-    except yaml.YAMLError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    status = data.get("status")
-    if isinstance(status, str) and status.strip():
-        return status.strip()
+    for line in block:
+        if not line.startswith("status:"):
+            continue
+        return _scalar_value(line[len("status:") :])
     return None
+
+
+def _frontmatter_lines(content: str) -> list[str] | None:
+    """Return the lines inside a complete frontmatter block, else None."""
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+        return None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == FRONTMATTER_DELIM:
+            return lines[1:idx]
+    return None
+
+
+def _scalar_value(raw: str) -> str | None:
+    """Resolve a YAML scalar to its text, or None when it is not a scalar."""
+    value = raw.strip()
+    if not value:
+        return None
+    if value[0] in "\"'":
+        end = value.find(value[0], 1)
+        return value[1:end].strip() or None if end > 0 else None
+    if value[0] in "[{|>&*!":
+        return None
+    value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+    return value or None
 
 
 def parse_adr_status(content: str) -> str:
