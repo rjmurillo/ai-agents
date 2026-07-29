@@ -7698,9 +7698,8 @@ def test_the_tracked_scan_reads_only_the_head_of_a_binary(
         def __enter__(self) -> _CountingHandle:
             return self
 
-        def __exit__(self, *exc: object) -> bool:
+        def __exit__(self, *exc: object) -> None:
             self._handle.close()
-            return False
 
         def read(self, size: int = -1) -> bytes:
             data = self._handle.read(size)
