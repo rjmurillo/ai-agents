@@ -313,6 +313,55 @@ def test_report_missing_output_is_config_error(monkeypatch: pytest.MonkeyPatch):
     assert report_mod.main() == 2
 
 
+def test_a_config_error_writes_no_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Required config is validated before the report file is created.
+
+    ``main`` used to write ``REPORT_PATH`` and only then check
+    ``GITHUB_OUTPUT``, so the config-error path still left a report on disk.
+    In this repo that landed as an untracked ``pr-validation-report.md`` at
+    the root every time the suite ran, which a careless ``git add -A`` would
+    have committed. On a runner it leaves an artifact for a step that is
+    about to fail.
+    """
+    report = tmp_path / "report.md"
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    assert report_mod.main() == 2
+    assert not report.exists()
+
+
+def test_a_valid_config_still_writes_the_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Negative control: moving the check must not stop the success path."""
+    report = tmp_path / "report.md"
+    output = tmp_path / "out.txt"
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+
+    assert report_mod.main() == 0
+    assert "PR Validation Report" in report.read_text(encoding="utf-8")
+
+
+def test_argv_rejection_still_precedes_every_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Negative control: the argv guard already ran first and still does."""
+    report = tmp_path / "report.md"
+    output = tmp_path / "out.txt"
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+
+    assert report_mod.main(["unexpected"]) == 2
+    assert not report.exists()
+    assert output.read_text(encoding="utf-8") == ""
+
+
 def test_workflow_delegates_first_pr_validation_blocks():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -515,3 +564,106 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/adr006_run_block_scanner.py --max 71" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
+
+
+class TestBlockedMessageNamesTheLimitThatWasApplied:
+    """The block message must report the ceiling the check actually used.
+
+    ADR-008 relieves the ceiling from 20 to 40 for a branch that merges its
+    base (issue #3596), and `pr_commit_count` publishes the applied value as
+    the `commit_limit` output. The workflow already binds it into the
+    environment as COMMIT_LIMIT. This script ignored it and printed a literal
+    20, so a branch blocked at 41 commits was told the limit was 20 and that
+    splitting to 25 would clear it. It would not.
+
+    The inline PowerShell this script replaced carried the same literal, and
+    the fix to read the variable was written against that inline body. The
+    extraction to Python landed separately and did not carry it across, so
+    the defect survived the rewrite that removed the code it lived in.
+    """
+
+    @staticmethod
+    def _run(monkeypatch: pytest.MonkeyPatch, capsys, **env: str) -> tuple[int, str]:
+        for key in ("OVERALL_STATUS", "COMMIT_STATUS", "COMMIT_COUNT", "COMMIT_LIMIT"):
+            monkeypatch.delenv(key, raising=False)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv("PR_NUMBER", "1")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+        monkeypatch.setattr(enforce_mod, "_fetch_labels", lambda *_: (0, []))
+        code = enforce_mod.main([])
+        return code, capsys.readouterr().err
+
+    def test_the_widened_ceiling_is_reported(self, monkeypatch, capsys) -> None:
+        """Positive: a main-merge branch is told 40, not 20."""
+        code, err = self._run(
+            monkeypatch,
+            capsys,
+            OVERALL_STATUS="PASS",
+            COMMIT_STATUS="BLOCKED",
+            COMMIT_COUNT="41",
+            COMMIT_LIMIT="40",
+        )
+        assert code == enforce_mod.LOGIC_ERROR
+        assert "limit: 40" in err
+        assert "limit: 20" not in err
+
+    def test_the_default_ceiling_is_reported(self, monkeypatch, capsys) -> None:
+        """Positive: the ordinary case still reads 20, from the variable."""
+        _, err = self._run(
+            monkeypatch,
+            capsys,
+            OVERALL_STATUS="PASS",
+            COMMIT_STATUS="BLOCKED",
+            COMMIT_COUNT="21",
+            COMMIT_LIMIT="20",
+        )
+        assert "limit: 20" in err
+
+    @pytest.mark.parametrize("value", ["", "  "])
+    def test_a_blank_limit_names_no_number(self, monkeypatch, capsys, value: str) -> None:
+        """Negative: with nothing to report, do not invent a ceiling.
+
+        Falling back to a literal 20 here would reintroduce the same wrong
+        claim this change removes, just on a narrower path.
+        """
+        _, err = self._run(
+            monkeypatch,
+            capsys,
+            OVERALL_STATUS="PASS",
+            COMMIT_STATUS="BLOCKED",
+            COMMIT_COUNT="41",
+            COMMIT_LIMIT=value,
+        )
+        assert "limit:" not in err
+        assert "41 commits" in err
+
+    def test_an_absent_limit_names_no_number(self, monkeypatch, capsys) -> None:
+        """Edge: unset is the same as blank, not a reason to guess."""
+        _, err = self._run(
+            monkeypatch,
+            capsys,
+            OVERALL_STATUS="PASS",
+            COMMIT_STATUS="BLOCKED",
+            COMMIT_COUNT="41",
+        )
+        assert "limit:" not in err
+        assert "41 commits" in err
+
+    def test_the_remediation_survives_every_shape(self, monkeypatch, capsys) -> None:
+        """Edge: the actionable half of the message is never dropped."""
+        for limit in ("40", ""):
+            _, err = self._run(
+                monkeypatch,
+                capsys,
+                OVERALL_STATUS="PASS",
+                COMMIT_STATUS="BLOCKED",
+                COMMIT_COUNT="41",
+                COMMIT_LIMIT=limit,
+            )
+            assert enforce_mod.BYPASS_LABEL in err
+            assert "split this PR" in err
+
+    def test_the_workflow_still_supplies_the_variable(self) -> None:
+        """Edge: the fix is inert unless the workflow binds COMMIT_LIMIT."""
+        assert "COMMIT_LIMIT:" in WORKFLOW.read_text(encoding="utf-8")
