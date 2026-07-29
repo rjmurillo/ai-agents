@@ -937,3 +937,142 @@ class TestCapturedOutputPinsItsCodec:
         assert self._capturing_runs(
             "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
         ) == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: Validation 6 (escaped-newline check on body, Issue #3777)
+# ---------------------------------------------------------------------------
+
+
+class TestValidation6EscapedNewlineCheck:
+    """Validation 6 rejects an inline body whose line breaks are literal.
+
+    Issue #3777. Two issues (#3598, #3646) shipped with every line break
+    written as the two characters backslash and n, so GitHub rendered each as
+    one unbroken paragraph and dropped every heading, list and table.
+
+    new_pr.py carries a second copy of the predicate rather than importing
+    scripts/github_core/validation.py::escaped_newline_body_error, because
+    new_pr.py resolves only its own directory on sys.path and a lib bootstrap
+    would hard-exit 2 whenever .claude/lib is absent on the push path. These
+    tests pin the copy; tests/test_github_core.py pins the canonical version.
+    """
+
+    @staticmethod
+    def _validate(tmp_path, *, body, body_file=None):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            run_validations(
+                str(tmp_path), "main", "feat/branch",
+                title="feat: clean title",
+                body=body,
+                body_file=body_file,
+            )
+
+    def test_escaped_newlines_with_no_real_break_blocks(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="## Summary\\n\\nDetail\\n- item")
+        assert excinfo.value.code == 1
+
+    def test_error_names_the_count_and_the_remedy(self, tmp_path, capsys):
+        with pytest.raises(SystemExit):
+            self._validate(tmp_path, body="a\\nb\\nc")
+        err = capsys.readouterr().err
+        assert "2 literal backslash-n" in err
+        assert "--body-file" in err
+
+    def test_trailing_newline_only_body_still_blocks(self, tmp_path):
+        """The measured shape of #3598: 15 escapes plus 1 real newline."""
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="## Summary\\n\\nDetail\\n" + "\n")
+        assert excinfo.value.code == 1
+
+    def test_escaped_newline_inside_a_real_multiline_body_passes(
+        self, tmp_path, capsys
+    ):
+        self._validate(
+            tmp_path, body='## Notes\n\n```python\nprint("a\\nb")\n```\n'
+        )
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_normal_body_passes(self, tmp_path, capsys):
+        self._validate(tmp_path, body="## Summary\n\nDetail\n")
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_single_line_body_without_escapes_passes(self, tmp_path, capsys):
+        self._validate(tmp_path, body="Just one line.")
+        assert "Body line breaks are real newlines" in capsys.readouterr().out
+
+    def test_body_file_contents_are_checked_too(self, tmp_path):
+        """--body-file is the recommended remedy, so it must not be a bypass."""
+        path = tmp_path / "body.md"
+        path.write_text("## Summary\\n\\nDetail", encoding="utf-8")
+        with pytest.raises(SystemExit) as excinfo:
+            self._validate(tmp_path, body="", body_file=str(path))
+        assert excinfo.value.code == 1
+
+    def test_quoted_canonical_predicate_is_verbatim(self):
+        """The docstring calls its quote verbatim, so check it against source.
+
+        The first version of this quote was a fragment: it omitted the
+        ``if not body`` guard, so "verbatim" was false. The docstring was
+        also a non-raw string, which turned the quoted ``"\\n"`` into a real
+        newline at runtime, so even the fragment was not reproduced. Both
+        defects are invisible to a reader who trusts the word "verbatim",
+        which is why this compares the two texts instead.
+        """
+        import ast
+        import textwrap
+
+        repo_root = Path(__file__).resolve().parent.parent
+        canonical = repo_root / "scripts" / "github_core" / "validation.py"
+        tree = ast.parse(canonical.read_text(encoding="utf-8"))
+        func = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef)
+            and n.name == "escaped_newline_body_error"
+        )
+        # Skip the docstring statement; the quote covers the code that follows.
+        body_start = func.body[1].lineno
+        lines = canonical.read_text(encoding="utf-8").splitlines()
+
+        for mirror in (
+            ".claude/skills/github/scripts/pr/validate_pr_description.py",
+            "src/copilot-cli/skills/github/scripts/pr/validate_pr_description.py",
+        ):
+            mod = ast.parse((repo_root / mirror).read_text(encoding="utf-8"))
+            copy = next(
+                n
+                for n in ast.walk(mod)
+                if isinstance(n, ast.FunctionDef)
+                and n.name == "validate_no_escaped_newlines"
+            )
+            doc = ast.get_docstring(copy, clean=False)
+            assert doc is not None, mirror
+            marker = "body::"
+            assert marker in doc, f"{mirror}: citation marker missing"
+            quoted = textwrap.dedent(
+                doc.split(marker, 1)[1].split("\n\n", 2)[1]
+            ).strip("\n")
+            quoted_lines = quoted.splitlines()
+            # Without this, an empty quote would compare [] to [] and pass.
+            assert len(quoted_lines) >= 5, (
+                f"{mirror}: quote too short to be the guard plus predicate: "
+                f"{quoted_lines!r}"
+            )
+            actual = [
+                line[4:] for line in lines[body_start - 1 : body_start - 1 + len(quoted_lines)]
+            ]
+            assert quoted_lines == actual, (
+                f"{mirror}: quote is not verbatim.\n"
+                f"quoted={quoted_lines!r}\nactual={actual!r}"
+            )
+
+    def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):
+        self._validate(tmp_path, body="## Summary\n\nDetail\n")
+        out = capsys.readouterr().out
+        for step in range(1, 7):
+            assert f"[{step}/6]" in out, f"missing step {step}/6"
