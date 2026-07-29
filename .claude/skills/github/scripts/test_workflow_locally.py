@@ -492,6 +492,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     try:
+        sys.stdout.flush()
         result = subprocess.run(
             [*act_argv, *act_args],
             cwd=repo_root,
