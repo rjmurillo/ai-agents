@@ -31,7 +31,7 @@ Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block 
 | How the harness itself behaves (payload shapes, plugin roots) | `agent-harness-reference` |
 | Fix a NON_COMPLIANT session log | `session-log-fixer` |
 | Classify guard health from telemetry | `guard-maturity` |
-| Resolve merge conflicts | `merge-resolver` |
+| Resolve merge conflicts | Agent: merge-resolver |
 | Query agent JSONL event logs | `observability` |
 
 ## Process
