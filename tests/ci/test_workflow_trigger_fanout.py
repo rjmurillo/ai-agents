@@ -7,9 +7,14 @@ identical job names, so every one of those jobs ran twice against the same
 SHA.
 
 Measured on PR #3836 before the fix: 146 check runs, 40 of them a repeat of a
-name already present. With two dozen PRs open the redundant half of that
-queue starved the required checks, which then never reported, which left
-every PR blocked on checks that could not arrive.
+name already present. That is the measured waste and it is the whole case for
+this change.
+
+An earlier version of this docstring attributed a set of blocked PRs to that
+waste starving the required checks. Re-measured: the blocking came from the
+branch ruleset requiring ``code_quality`` and ``copilot_code_review``, not from
+queue pressure. The starvation story is withdrawn. The duplicate runs are still
+pure waste, which is reason enough to remove them.
 
 Keeping ``main`` under ``push:`` preserves post-merge validation. A branch
 without a PR loses pre-PR feedback, which the ``pull_request`` trigger
