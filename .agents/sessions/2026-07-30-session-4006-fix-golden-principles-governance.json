@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4006,
+    "date": "2026-07-30",
+    "branch": "fix/golden-principles-governance",
+    "startingCommit": "b5ddf441e",
+    "objective": "Fix GP-003 skill-frontmatter scanner to treat model field as optional per ADR-080; close #4000 after re-measuring actual line count"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed by this harness; files read directly per the documented fallback"
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not available in this harness; fallback path used"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md is read-only; referenced ADR-014; session proceeds from issue text and direct file reads"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/golden-principles-governance, branched from origin/main at b5ddf441e"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/golden-principles-governance confirmed via git status"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff format/check passed; mypy passed; 15 tests passed; 5/5 mutants killed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP not available in this harness. ADR-080 context is captured in .agents/governance/golden-principles.md (GP-003 update) and the updated scan_principles.py docstrings."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on golden-principles.md; .agents excluded by .markdownlint-cli2.yaml (0 linted, 0 issues)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed scan_principles.py, test_scan_principles.py, golden-principles.md, and both plugin.json manifests"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check all checks passed; mypy no issues in 2 source files; pytest 15 passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4006 fixed; issue #4000 closed with measured evidence"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Re-measure #4006 premise",
+      "outcome": "Confirmed: REQUIRED_SKILL_FIELDS at scan_principles.py:38 includes model. ADR-080 decision point 1 says omit model is the correct default. Exact contradiction at scan_principles.py line 38 vs ADR-080."
+    },
+    {
+      "task": "Re-measure #4000 premise",
+      "outcome": "rule-audit-procedure.md is 355 lines (not 464 as stated). taste-lints shows WARNING only (355 > 301 threshold), 0 errors, 145 lines of buffer before hard ceiling (501). Issue premise no longer holds; closed with evidence."
+    },
+    {
+      "task": "Fix scan_principles.py for ADR-080",
+      "outcome": "Removed model from REQUIRED_SKILL_FIELDS. Added _ALLOWED_MODEL_ALIASES and _MODEL_FIELD_RE. Added ADR-080 validation when model is present. Fixed remediation template to omit versioned-id example."
+    },
+    {
+      "task": "Update golden-principles.md GP-003",
+      "outcome": "Rewrote GP-003 text to describe model as optional per ADR-080 with valid states."
+    },
+    {
+      "task": "Update and add tests",
+      "outcome": "Updated one existing test; added 7 new tests; 15 total passing. Isolating negative control confirms the ADR-080 check is individually load-bearing."
+    },
+    {
+      "task": "Mutation harness (mut_gold.py)",
+      "outcome": "5 mutants, all killed. One comment-only mutant replaced with behavioral mutation (nullify model_match) after first run found it survived."
+    },
+    {
+      "task": "Close issue #4000",
+      "outcome": "Closed with gh issue close 4000 --comment citing measured 355-line count and 145-line buffer."
+    }
+  ],
+  "endingCommit": "52a2e3daf",
+  "nextSteps": [
+    "Push branch and open PR referencing Fixes #4006."
+  ]
+}
