@@ -1,0 +1,100 @@
+{
+  "id": "episode-2026-07-30-session-3996-memory-enhancement-cli-docs",
+  "session": "2026-07-30-session-3996-memory-enhancement-cli-docs",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct memory_enhancement CLI documentation to the measured command surface and install an executable guard",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built an executable guard that parses every documented memory_enhancement invocation against the real argparse parser, with negative and positive controls.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A self-written control caught the detector mistaking a global option value for a subcommand name; added _VALUE_TAKING_GLOBALS and a dedicated control.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read confidence.py, verification.py, health.py, and serena_integration.py to establish the measured formulas and citation source types.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built probe repositories and captured real CLI output for every documented example instead of inventing output.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote SKILL.md, confidence-scoring.md, examples.md, CITATION-SCHEMA.md, and the reflect Phase 4 section against measured behavior.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved citations parse inline but links are dropped unless they end their line, and that an unrecognized source type drops the citation while the memory still exits 0.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote memory-citation-guide.md from 378 lines to 150, removing a duplicated and fabricated schema in favour of a pointer to CITATION-SCHEMA.md.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed via git history that the issue-998 memory was accurate when written and superseded by PR 1576; annotated rather than rewrote the record.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Widened the guard to bare subcommand fragments; the new controls exposed a pre-existing normalizer bug where the '>' closing a placeholder was treated as a shell redirect.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot CLI skill mirrors with build/scripts/generate_skills.py and bumped both project-toolkit manifests to 0.6.5431.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
