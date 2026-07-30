@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-07-29-session-3726",
+  "session": "2026-07-29-session-3726",
+  "timestamp": "2026-07-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix the orphan-ref-validator false-positive and budget cluster: issues #3726, #3727, #3728, #3753.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced all four issues before editing. #3727: default scope carried 1 duplicate, the full corpus 8. #3728: claim-verification-before-ingest and front-gate-before-pipeline both reported as critical orphans. #3753: git log --all yielded 77 deletion rows against origin/main's 8. #3726: measured, then overturned twice (see below).",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Overturned #3726's headline claim, then overturned my own overturn. The issue says emptying KEBAB_DENYLIST surfaces 0 new tokens. First measurement said +2, so I recorded the issue as wrong. That measurement was pinned by the 500-finding MAX_FINDINGS cap; raising it to 100000 and diffing by finding key showed the apparent new findings were the same two findings at shifted line numbers, because deleting 98 entries shortened filters.py. The issue was right.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Explained why the denylist was dead rather than only measuring it. PR #3698 replaced denying non-skills with requiring a type claim or a retired-skill allowlist entry before a bare token is a candidate at all, and its own comment records that enumerating the non-skill universe never terminates. That migration left the denylist behind. Deleted the 101-entry frozenset and its arm, kept the hyphen and model-identifier arms.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the tautological test that validated the denylist using the denylist. The old test asserted a denylisted token was not flagged. Three replacements assert behaviour instead: a hyphenated non-skill is flagged once prose calls it a skill, is silent without the type claim, and a model identifier is never a candidate.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deduplicated findings on (target_file, line, kind, referenced_entity) before the truncation check, so a repeat returns its budget slot rather than only tidying the report. Duplicates arise when one token appears twice on a line, as in ADR-040 line 232 and the scanner's own patterns.py line 65.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stopped reading a noun adjunct as a type claim. In 'the rule or skill `description` field' the token names a part of a skill, not a skill. Added a negative lookahead for a following field noun to the skill-before-token arm of SKILL_TYPED_REF_RE.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added FOREIGN_SKILL_CATALOGS so a reference to another repository's skill is treated as correct prose. The old finding offered three remedies, all wrong: the reference was already right and the skill is not ours to restore.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Swapped git log --all for HEAD in the retired-skill honesty test, in both the canonical tests and the generated mirror. --all reads every ref the clone happens to hold, including refs/remotes/pr/* caches and local branches, which is a property of the clone rather than the repository.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested every fix. Eight isolating mutants: dedup call removed, dedup key missing line, dedup key missing kind, kebab filter always true, model-identifier arm off, field-noun lookahead removed, foreign catalog emptied, foreign skip removed. The first run left the dedup-call mutant alive because the tests exercised the function directly and never proved it was wired into scan, so an end-to-end test was added.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved a discrepancy carried from the previous segment, where the same uncapped scan read 1219 findings in one run and 1211 in another. The comparison script coerced findings to a set. 1219 is the raw count and 1211 the unique count; the gap was the 8 duplicates this change removes.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refuted a defect I had been about to file, that --output json writes a VERDICT line to stdout after the JSON so json.load raises. The trailer is the documented ADR-056 envelope contract and scan.py already ships _strip_verdict_suffix for consumers.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ed10ae4da01e6de644b06dcc9752c9d45e528b29",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 16
+  },
+  "lessons": []
+}
