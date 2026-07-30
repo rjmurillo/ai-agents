@@ -1625,34 +1625,6 @@ def test_a_value_token_past_the_integer_conversion_limit_does_not_raise(
     assert result["judge_failed"] is True
 
 
-def test_ordinary_sentence_punctuation_after_a_score_is_not_a_disagreement(
-    monkeypatch,
-):
-    """``"activation_score": 5.`` restates 5; the period closes the sentence.
-
-    Comparing the raw token refused every judge who ended a sentence on the
-    number, which is the most ordinary way to write one. Closers are stripped
-    only from the end, so ``1.5`` keeps its decimal and stays uncomparable.
-    """
-    for closer in (".", ";", ")", "`", "!", "?"):
-        payload = json.dumps(
-            {
-                "activation_score": 5,
-                "citation_score": 4,
-                "behavior_score": 5,
-                "reasoning": f'I set "activation_score": 5{closer} The rule fired.',
-            }
-        )
-        monkeypatch.setattr(
-            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
-        )
-
-        result = eval_mod.score_response(
-            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-        )
-
-        assert result["judge_failed"] is False, closer
-        assert result["activation_score"] == 5, closer
 
 
 def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
@@ -1677,6 +1649,137 @@ def test_a_leading_zero_spelling_is_not_an_exact_restatement(monkeypatch):
     )
 
     assert result["judge_failed"] is True
+
+
+def test_a_restated_score_field_is_uncomparable_and_refused(monkeypatch):
+    """Naming a score field in a decoded string makes the payload ambiguous.
+
+    This test used to assert the opposite, that a judge writing
+    ``I assigned "activation_score": 5 because ...`` beside a filed 5 had
+    restated its answer and should score. The argument was that a dropped
+    sample moves a published median exactly as a fabricated one does, so an
+    over-eager refusal is a defect in the same family as an over-eager accept.
+    That argument still holds. What changed is the evidence that the
+    restatement can be recognised at all.
+
+    Three rounds of adversarial review broke three successive proofs of
+    equality. Comparing the value token accepted ``5 - 1``. Naming the
+    operators that could follow accepted ``5 ^ 1`` and ``5 if False else 1``.
+    Requiring a second digit accepted ``5 - True`` and ``5 minus one``, and
+    refused ``5 because all 3 concepts were present``, which is ordinary
+    judge prose. Each proof was lexical, and lexical equality over prose is
+    not equality.
+
+    The cost of giving up is measured, not assumed. Across the 1732 strings
+    in the recovered payload archive, zero name a score field in a decoded
+    layer beyond the top-level object, so this refuses no sample any real
+    judge has produced.
+    """
+    for reasoning in (
+        'I assigned "activation_score": 5 because the rule was applied.',
+        'I set "activation_score": 5 (the rule clearly applied)',
+        'I set "activation_score": 5. The rule fired throughout.',
+        'Restating: {"activation_score":5,"citation_score":4,"behavior_score":5}',
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": reasoning,
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is True, reasoning
+
+
+def test_no_written_form_of_a_second_verdict_is_accepted(monkeypatch):
+    """The forms that broke each previous proof, kept as a regression set.
+
+    Every entry here published a fabricated score under some earlier version
+    of this check. They are grouped because the fix is one rule rather than
+    one clause per form: none of them is recognised, so none of them is
+    accepted. An operand need not be a digit (``True``, ``len([None])``,
+    ``one``), punctuation is not always punctuation (``5!`` is a factorial),
+    and a delimiter can arrive before the correction does
+    (``5, but corrected it to 1``).
+    """
+    for expression in (
+        "5 - 1",
+        "5-1",
+        "5 ^ 1",
+        "5 & 1",
+        "5 << 1",
+        "5 and 0",
+        "5 if False else 1",
+        "5 ? 0 : 1",
+        "5 - True",
+        "5 ^ True",
+        "5 - len([None])",
+        "5 if False else True",
+        "5 minus one",
+        "5!",
+        "5, but corrected it to 1.",
+        "5 \\\n- True",
+        "05",
+        "1.5",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": f'Corrected: "activation_score": {expression}',
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is True, expression
+
+
+def test_reasoning_that_names_no_score_field_still_scores(monkeypatch):
+    """The refusal must key on the field name, not on prose or on digits.
+
+    Without this, "refuse anything ambiguous" could quietly widen until it
+    dropped every judge who wrote a number in a sentence, and the sample loss
+    would show up only as a smaller denominator. These are the payloads the
+    check has to keep letting through.
+    """
+    for reasoning in (
+        "The rule was applied and cited, scoring 5 on the 1-5 scale.",
+        "All 3 expected concepts were present throughout the response.",
+        "Rung 1 was followed, then rung 2; the citation appears at line 40.",
+        "No score field is named here at all.",
+    ):
+        payload = json.dumps(
+            {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": reasoning,
+            }
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
+
+        result = eval_mod.score_response(
+            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
+        )
+
+        assert result["judge_failed"] is False, reasoning
+        assert (
+            result["activation_score"],
+            result["citation_score"],
+            result["behavior_score"],
+        ) == (5, 4, 5), reasoning
 
 
 def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
@@ -1719,143 +1822,12 @@ def test_a_nested_verdict_disagreeing_on_a_later_field_is_still_detected(
     assert result["judge_failed"] is True
 
 
-def test_a_nested_object_restating_every_filed_score_still_scores(monkeypatch):
-    """The run has to stop at the JSON delimiter, or agreement never matches.
-
-    A judge that repeats its whole verdict as an object writes
-    ``{"activation_score":5,"citation_score":4,"behavior_score":5}``. Read
-    without a terminator, the run for the first field is the rest of that
-    object, which carries the other two numbers and refuses. The bound is what
-    lets an exact restatement compare equal, and nothing else in the suite
-    fails when it is removed.
-    """
-    payload = json.dumps(
-        {
-            "activation_score": 5,
-            "citation_score": 4,
-            "behavior_score": 5,
-            "reasoning": (
-                'Restating: {"activation_score":5,"citation_score":4,'
-                '"behavior_score":5}'
-            ),
-        }
-    )
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
-
-    result = eval_mod.score_response(
-        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-    )
-
-    assert result["judge_failed"] is False
-    assert (
-        result["activation_score"],
-        result["citation_score"],
-        result["behavior_score"],
-    ) == (5, 4, 5)
 
 
-def test_no_arithmetic_form_restates_a_filed_score(monkeypatch):
-    """An operator blocklist is unbounded; the allowlist is what holds.
-
-    ``5 - 1`` motivated a blocklist, and ``^``, ``&``, ``|``, ``<<``, ``>>``,
-    ``and``, ``or``, and ``if/else`` each walked through the list built from
-    the ones before it. The rule that stops all of them names none of them: an
-    expression carries a second number, and prose does not.
-    """
-    for expression in (
-        "5 - 1",
-        "5-1",
-        "5 ^ 1",
-        "5 & 1",
-        "5 | 2",
-        "5 << 1",
-        "5 >> 1",
-        "5 and 0",
-        "5 or 9",
-        "5 if False else 1",
-        "5 ? 0 : 1",
-        "5 * 2",
-        "5 % 3",
-        "int(5) - 1",
-    ):
-        payload = json.dumps(
-            {
-                "activation_score": 5,
-                "citation_score": 4,
-                "behavior_score": 5,
-                "reasoning": f'Corrected: "activation_score": {expression}',
-            }
-        )
-        monkeypatch.setattr(
-            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
-        )
-
-        result = eval_mod.score_response(
-            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-        )
-
-        assert result["judge_failed"] is True, expression
 
 
-def test_prose_continuing_past_a_restated_score_still_scores(monkeypatch):
-    """The allowlist must admit prose, or it trades one defect for another.
-
-    These are the sentences the digit clause has to let through. Refusing them
-    would be a visible cost paid on every ordinary judge, to guard against
-    expressions that all carry a second number.
-    """
-    for tail in (
-        "because the rule was explicitly applied",
-        "(the rule clearly applied)",
-        ". The rule fired throughout.",
-        "; the citation was present as well",
-        " and the behavior followed from it",
-    ):
-        payload = json.dumps(
-            {
-                "activation_score": 5,
-                "citation_score": 4,
-                "behavior_score": 5,
-                "reasoning": f'I set "activation_score": 5{tail}',
-            }
-        )
-        monkeypatch.setattr(
-            eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p
-        )
-
-        result = eval_mod.score_response(
-            "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-        )
-
-        assert result["judge_failed"] is False, tail
-        assert result["activation_score"] == 5, tail
 
 
-def test_a_parenthetical_after_a_score_is_not_an_expression(monkeypatch):
-    """``5 (the rule applied)`` is prose; no language continues a bare number.
-
-    Nothing here names ``(``. An earlier fix did, listing it among the
-    characters that could continue an expression, and that refused every judge
-    who annotated a score. The clause that admits this sentence is the same one
-    that refuses ``5 - 1``: an expression carries a second number and a
-    parenthetical does not.
-    """
-    payload = json.dumps(
-        {
-            "activation_score": 5,
-            "citation_score": 4,
-            "behavior_score": 5,
-            "reasoning": 'I set "activation_score": 5 (the rule clearly applied)',
-        }
-    )
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: payload)
-
-    result = eval_mod.score_response(
-        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-    )
-
-    assert result["judge_failed"] is False
-    assert result["activation_score"] == 5
 
 
 def test_the_ambiguity_walkers_terminate_on_a_self_referential_object():
@@ -1928,45 +1900,6 @@ def test_a_verdict_spelled_with_unicode_escapes_is_still_two_verdicts(monkeypatc
     assert control["activation_score"] == 5
 
 
-def test_restating_a_filed_score_in_prose_is_not_a_second_verdict(monkeypatch):
-    """Naming a score you already filed is a restatement, not another answer.
-
-    Refusing it is not the conservative choice. A dropped sample moves a
-    published median exactly as a fabricated one does, so an over-eager refusal
-    is a defect in the same family as an over-eager accept, not a safe default.
-
-    The discriminator is disagreement: the same field with a different value is
-    a second candidate, the same field with the same value is not.
-    """
-    agrees = (
-        '{"activation_score":5,"citation_score":4,"behavior_score":5,'
-        '"reasoning":"I assigned \\"activation_score\\": 5 because the rule'
-        ' was explicitly applied."}'
-    )
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: agrees)
-    result = eval_mod.score_response(
-        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-    )
-    assert result["judge_failed"] is False
-    assert (
-        result["activation_score"],
-        result["citation_score"],
-        result["behavior_score"],
-    ) == (5, 4, 5)
-
-    disagrees = agrees.replace('\\"activation_score\\": 5', '\\"activation_score\\": 2')
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: disagrees)
-    conflict = eval_mod.score_response(
-        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-    )
-    assert conflict["judge_failed"] is True
-
-    unquantified = agrees.replace('\\"activation_score\\": 5', '\\"activation_score\\": high')
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: unquantified)
-    vague = eval_mod.score_response(
-        "sk-test", {"input": "x", "expected_gate": "apply-rule"}, "response"
-    )
-    assert vague["judge_failed"] is True
 
 
 def test_a_healthy_payload_with_deep_nesting_still_scores(monkeypatch):
