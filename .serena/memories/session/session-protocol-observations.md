@@ -10,9 +10,9 @@
 - Verify no BLOCKING synthesis issues before PR creation - architect blocks MUST be enforced (PR #908, 2026-01-15)
   - Evidence: PR #908 created despite architect P1 BLOCKING review in DESIGN-REVIEW-skill-reflect.md, leading to 228+ comments
   - Reference: Issue #934 (pre-PR validation)
-- Check commit count during session against ADR-008 limit (max 20 commits per PR) (PR #908, 2026-01-15)
+- Check commit count during session against the enforced limit (block above 20 commits per PR, warn at 10) (PR #908, 2026-01-15)
   - Evidence: PR #908 reached 59 commits (3× limit) without agent awareness, no visibility of limit during session
-  - Actionable: Display "Commit X/20 (ADR-008)" after each commit
+  - Actionable: Display "Commit X/20" after each commit; thresholds live in `scripts/validation/pr_commit_count.py`
 - Run scoped markdownlint on changed files only, not entire repository (PR #908, 2026-01-15)
   - Evidence: `markdownlint --fix **/*.md` reformatted 53 memory files in PR #908 that were unrelated to the feature
   - Actionable: Use `markdownlint --fix $(git diff --name-only '*.md')` instead
@@ -36,7 +36,7 @@
 Key learnings from PR #908 retrospective that inform session protocol:
 
 1. **Pre-PR validation is critical**: PR created with unresolved architect BLOCKING review
-2. **Commit limits need visibility**: 59 commits exceeded ADR-008 limit invisibly
+2. **Commit limits need visibility**: 59 commits exceeded the commit limit invisibly
 3. **Tool scope matters**: Broad markdownlint bundled 53 unrelated files
 
 See: `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`
