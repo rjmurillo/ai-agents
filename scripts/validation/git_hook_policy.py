@@ -4720,6 +4720,46 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 _NEEDS_SPLIT_LABEL = "needs-split"
 
 
+def _check_needs_split_bypass(
+    update: PushUpdate, branch: str | None, repo_root: Path
+) -> int | None:
+    """Return 0 if needs-split label permits this push, None if not.
+
+    Checks the PR for a needs-split label and validates that the number of new
+    commits in this push stays within _NEEDS_SPLIT_NEW_COMMIT_CAP (issue #3895).
+    """
+    split_args = [
+        sys.executable,
+        "scripts/validation/check_pr_bypass_label.py",
+        "--label",
+        _NEEDS_SPLIT_LABEL,
+    ]
+    if branch:
+        split_args.extend(["--branch", branch])
+    split_check = _run_command(split_args, repo_root)
+    if split_check.returncode != 0:
+        return None
+    new_count = _new_commits_for_branch(update, branch, repo_root)
+    if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
+        print(
+            f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
+            f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
+            "Allowing while splitting is in progress.",
+        )
+        return 0
+    cap_msg = (
+        f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
+        if new_count is not None
+        else "could not count new commits"
+    )
+    print(
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
+        "use commit-limit-bypass to override the ceiling entirely.",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4755,34 +4795,9 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
     # author can address review comments without being forced onto --no-verify.
     # commit-limit-bypass (checked above) remains the unconditional escape.
-    split_args = [
-        sys.executable,
-        "scripts/validation/check_pr_bypass_label.py",
-        "--label",
-        _NEEDS_SPLIT_LABEL,
-    ]
-    if branch:
-        split_args.extend(["--branch", branch])
-    split_check = _run_command(split_args, repo_root)
-    if split_check.returncode == 0:
-        new_count = _new_commits_for_branch(update, branch, repo_root)
-        if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
-            print(
-                f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
-                f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
-                "Allowing while splitting is in progress.",
-            )
-            return 0
-        cap_msg = (
-            f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
-            if new_count is not None
-            else "could not count new commits"
-        )
-        print(
-            f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-            "use commit-limit-bypass to override the ceiling entirely.",
-            file=sys.stderr,
-        )
+    needs_split_rc = _check_needs_split_bypass(update, branch, repo_root)
+    if needs_split_rc is not None:
+        return needs_split_rc
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1

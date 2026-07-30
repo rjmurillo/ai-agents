@@ -291,6 +291,42 @@ def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
     )
 
 
+def _print_portability_results(
+    args: argparse.Namespace,
+    regressions: list[str],
+    improvements: list[str],
+    current: dict[str, int],
+    baseline: dict[str, int],
+) -> None:
+    if args.output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "regressions": regressions,
+                    "improvements": improvements,
+                    "current_total": sum(current.values()),
+                    "baseline_total": sum(baseline.values()),
+                },
+                indent=2,
+            )
+        )
+        return
+    if improvements:
+        print("Portability improved (tighten the baseline with --update-baseline):")
+        for line in improvements:
+            print(f"  [IMPROVED] {line}")
+    if regressions:
+        print("Vendor-portability drift detected (issue #2050):")
+        for line in regressions:
+            print(f"  [DRIFT] {line}")
+    else:
+        print(
+            f"No vendor-portability drift. "
+            f"{sum(current.values())} grandfathered refs across "
+            f"{len(current)} scripts (baseline {sum(baseline.values())})."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -328,33 +364,7 @@ def main(argv: list[str] | None = None) -> int:
 
     regressions, improvements = diff_against_baseline(current, baseline)
 
-    if args.output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "regressions": regressions,
-                    "improvements": improvements,
-                    "current_total": sum(current.values()),
-                    "baseline_total": sum(baseline.values()),
-                },
-                indent=2,
-            )
-        )
-    else:
-        if improvements:
-            print("Portability improved (tighten the baseline with --update-baseline):")
-            for line in improvements:
-                print(f"  [IMPROVED] {line}")
-        if regressions:
-            print("Vendor-portability drift detected (issue #2050):")
-            for line in regressions:
-                print(f"  [DRIFT] {line}")
-        else:
-            print(
-                f"No vendor-portability drift. "
-                f"{sum(current.values())} grandfathered refs across "
-                f"{len(current)} scripts (baseline {sum(baseline.values())})."
-            )
+    _print_portability_results(args, regressions, improvements, current, baseline)
 
     # Fail when the baseline has slack (current < baseline). Slack means the
     # baseline is stale and would allow future regressions to sneak in unnoticed
