@@ -36,14 +36,36 @@ _PYTHON_EXTS: frozenset[str] = frozenset({".py", ".pyi"})
 # Pattern templates for non-Python languages. {name} is replaced with
 # re.escape(func_name) at call time.
 _LANG_PATTERN_TEMPLATES: dict[str, str] = {
-    ".ts": r"\bfunction\s+{name}\b",
-    ".tsx": r"\bfunction\s+{name}\b",
-    ".js": r"\bfunction\s+{name}\b",
-    ".jsx": r"\bfunction\s+{name}\b",
-    ".cs": r"\b{name}\s*\(",
-    ".ps1": r"\bfunction\s+{name}\b",
-    ".psm1": r"\bfunction\s+{name}\b",
+    ".ts": r"^[ \t]*(?:(?:export|default|async)\s+)*function(?:\s*\*)?\s+{name}\b",
+    ".tsx": r"^[ \t]*(?:(?:export|default|async)\s+)*function(?:\s*\*)?\s+{name}\b",
+    ".js": r"^[ \t]*(?:(?:export|default|async)\s+)*function(?:\s*\*)?\s+{name}\b",
+    ".jsx": r"^[ \t]*(?:(?:export|default|async)\s+)*function(?:\s*\*)?\s+{name}\b",
+    ".cs": (
+        r"^[ \t]*(?!return\b|await\b|throw\b|yield\b|new\b)"
+        r"(?:(?:public|private|protected|internal|static|virtual|override|"
+        r"abstract|async|sealed|extern|new|partial|unsafe|readonly)\s+)*"
+        r"(?:[\w<>\[\],.?]+\s+)+{name}\s*\("
+    ),
+    ".ps1": r"^[ \t]*(?:function|filter|workflow)\s+(?:(?:global|script|local|private):)?{name}\b",
+    ".psm1": r"^[ \t]*(?:function|filter|workflow)\s+(?:(?:global|script|local|private):)?{name}\b",
 }
+
+_C_STYLE_EXTS: frozenset[str] = frozenset({".ts", ".tsx", ".js", ".jsx", ".cs"})
+_POWERSHELL_EXTS: frozenset[str] = frozenset({".ps1", ".psm1"})
+_C_STYLE_NON_CODE_PATTERN = re.compile(
+    r'//[^\n]*|/\*.*?(?:\*/|\Z)|@"(?:""|[^"])*(?:"|\Z)|'
+    r'"(?:\\.|[^"\\])*(?:"|\Z)|'
+    r"'(?:\\.|[^'\\])*(?:'|\Z)|"
+    r"`(?:\\.|[^`\\])*(?:`|\Z)",
+    re.DOTALL,
+)
+_POWERSHELL_NON_CODE_PATTERN = re.compile(
+    r'@"[ \t]*$[\s\S]*?(?:^"@[ \t]*$|\Z)|'
+    r"@'[ \t]*$[\s\S]*?(?:^'@[ \t]*$|\Z)|"
+    r'<#.*?(?:#>|\Z)|#[^\n]*|"(?:`.|[^"`])*(?:"|\Z)|'
+    r"'(?:''|[^'])*(?:'|\Z)",
+    re.DOTALL | re.MULTILINE,
+)
 
 
 def verify_citation(citation: Citation, repo_root: Path) -> VerificationResult:
@@ -221,10 +243,29 @@ def _search_function_in_file(
             "use file or file:line citation instead",
         )
 
-    pattern = re.compile(template.format(name=re.escape(func_name)))
-    if pattern.search(content):
+    searchable_content = _mask_non_code(content, ext)
+    flags = re.MULTILINE | (re.IGNORECASE if ext in _POWERSHELL_EXTS else 0)
+    pattern = re.compile(template.format(name=re.escape(func_name)), flags)
+    if pattern.search(searchable_content):
         return VerificationResult.create(citation, True, f"Function '{func_name}' found")
     return VerificationResult.create(citation, False, f"Function '{func_name}' not found in file")
+
+
+def _mask_non_code(content: str, extension: str) -> str:
+    """Replace comments and strings with whitespace while preserving line breaks."""
+    if extension in _C_STYLE_EXTS:
+        pattern = _C_STYLE_NON_CODE_PATTERN
+    elif extension in _POWERSHELL_EXTS:
+        pattern = _POWERSHELL_NON_CODE_PATTERN
+    else:
+        return content
+
+    return pattern.sub(lambda match: _mask_text(match.group()), content)
+
+
+def _mask_text(text: str) -> str:
+    """Preserve line positions while removing non-code content."""
+    return "".join("\n" if char == "\n" else " " for char in text)
 
 
 def _search_python_function(citation: Citation, func_name: str, content: str) -> VerificationResult:

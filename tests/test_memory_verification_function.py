@@ -163,6 +163,51 @@ class TestVerifyFunctionCitationMultiLanguage:
         assert result.is_valid is False
 
     @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "// function ghost(): void {}\n",
+            "/*\nfunction ghost(): void {}\n*/\n",
+            'const example = "function ghost(): void {}";\n',
+        ],
+    )
+    def test_typescript_non_code_function_not_found(self, tmp_path, content):
+        """TypeScript comments and strings must not satisfy a citation."""
+        (tmp_path / "app.ts").write_text(content)
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="app.ts::ghost",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_unterminated_typescript_string_does_not_hang(self, tmp_path):
+        """An unterminated TypeScript string masks its remaining content in linear time."""
+        escaped_quotes = '\\"' * 100
+        (tmp_path / "app.ts").write_text(
+            f'const doc = "{escaped_quotes}\nfunction ghost(): void {{}}\n'
+        )
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="app.ts::ghost",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_unterminated_typescript_block_comment_does_not_hang(self, tmp_path):
+        """An unterminated block comment masks its remaining content in linear time."""
+        comment_openers = "/*\n" * 100
+        (tmp_path / "app.ts").write_text(f"{comment_openers}function ghost(): void {{}}\n")
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="app.ts::ghost",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
     def test_javascript_function_found(self, tmp_path):
         """JavaScript: 'function processEvent()' is found."""
         (tmp_path / "handler.js").write_text("function processEvent(e) { return e; }\n")
@@ -223,6 +268,27 @@ class TestVerifyFunctionCitationMultiLanguage:
         assert result.is_valid is False
 
     @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "DoThing();\n",
+            "return DoThing();\n",
+            "// public void DoThing() {}\n",
+            "/*\npublic void DoThing() {}\n*/\n",
+            'var example = "public void DoThing() {}";\n',
+        ],
+    )
+    def test_csharp_call_or_non_code_method_not_found(self, tmp_path, content):
+        """C# calls, comments, and strings must not satisfy a citation."""
+        (tmp_path / "Service.cs").write_text(content)
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="Service.cs::DoThing",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
     def test_powershell_function_found(self, tmp_path):
         """PowerShell: 'function Invoke-Deploy' is found."""
         (tmp_path / "deploy.ps1").write_text("function Invoke-Deploy { param([string]$Env) }\n")
@@ -245,6 +311,80 @@ class TestVerifyFunctionCitationMultiLanguage:
         )
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "# function Invoke-Deploy { }\n",
+            "<#\nfunction Invoke-Deploy { }\n#>\n",
+            '$example = "function Invoke-Deploy { }"\n',
+            '@"\nfunction Invoke-Deploy { }\n"@\n',
+            "@'\nfunction Invoke-Deploy { }\n'@\n",
+            '$doc = @"\nThe "deploy" command\nfunction Invoke-Deploy { }\n"@\n',
+            "$doc = @'\nfunction Invoke-Deploy { }\n'@\n",
+        ],
+    )
+    def test_powershell_non_code_function_not_found(self, tmp_path, content):
+        """PowerShell comments and strings must not satisfy a citation."""
+        (tmp_path / "deploy.ps1").write_text(content)
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="deploy.ps1::Invoke-Deploy",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_unterminated_powershell_here_string_does_not_hang(self, tmp_path):
+        """An unterminated here-string masks its remaining content in linear time."""
+        decoys = "\n".join(
+            f"function Decoy-{index} {{ Write-Output fake }}" for index in range(100)
+        )
+        (tmp_path / "deploy.ps1").write_text(f'$doc = @"\n{decoys}\nfunction Invoke-Deploy {{ }}\n')
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="deploy.ps1::Invoke-Deploy",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_unterminated_powershell_string_does_not_hang(self, tmp_path):
+        """An unterminated PowerShell string masks its remaining content in linear time."""
+        escaped_quotes = '`"' * 100
+        (tmp_path / "deploy.ps1").write_text(
+            f'$doc = "{escaped_quotes}\nfunction Invoke-Deploy {{ }}\n'
+        )
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="deploy.ps1::Invoke-Deploy",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_unterminated_powershell_block_comment_does_not_hang(self, tmp_path):
+        """An unterminated block comment masks its remaining content in linear time."""
+        comment_openers = "<#\n" * 100
+        (tmp_path / "deploy.ps1").write_text(f"{comment_openers}function Invoke-Deploy {{ }}\n")
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="deploy.ps1::Invoke-Deploy",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is False
+
+    @pytest.mark.unit
+    def test_powershell_function_match_is_case_insensitive(self, tmp_path):
+        """PowerShell names use case-insensitive matching."""
+        (tmp_path / "deploy.ps1").write_text("function Invoke-Deploy { }\n")
+        c = Citation(
+            source_type=SourceType.FUNCTION,
+            target="deploy.ps1::invoke-deploy",
+            context="",
+        )
+        assert verify_citation(c, tmp_path).is_valid is True
 
     @pytest.mark.unit
     def test_unsupported_extension_returns_unsupported(self, tmp_path):
