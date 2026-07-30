@@ -572,15 +572,75 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
 # failure signal this module can attribute to a specific cause.
 _ACT_ERROR_ANNOTATION = "::error::"
 
+# Required-check aggregator jobs commonly echo ``::<error>::<upstream> result:
+# failure`` from ``needs.<job>.result`` so branch protection sees FAILURE instead
+# of SKIPPED. When that upstream job has an act-only limitation already
+# explained, the aggregator annotation is a cascade symptom (#3869).
+_ACT_LOG_SCOPE = re.compile(r"^\[(?P<scope>[^\]]+)\]")
+_ACT_AGGREGATOR_RESULT_ANNOTATION = re.compile(
+    r"::error::(?P<upstream>[^\n:]+?)\s+result: "
+    r"(?:failure|cancelled|skipped|timed_out)\b",
+    re.IGNORECASE,
+)
 
-def _unexplained_error_annotations(combined: str, event: str | None) -> list[str]:
+
+def _normalized_act_label(value: str) -> str:
+    """Return a case-insensitive label suitable for act job/step matching."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", value.lower()).split())
+
+
+def _act_scope_label(line: str) -> str | None:
+    """Return the rightmost act log scope label from ``[workflow/job]``."""
+    match = _ACT_LOG_SCOPE.match(line.strip())
+    if match is None:
+        return None
+    label = match.group("scope").rsplit("/", 1)[-1]
+    normalized = _normalized_act_label(label)
+    return normalized or None
+
+
+def _explained_act_limitation_labels(combined: str, event: str | None) -> set[str]:
+    """Act log scope labels whose own output matches a known limitation."""
+    labels: set[str] = set()
+    for line in combined.splitlines():
+        if any(
+            (scope is None or scope == event) and matches(line)
+            for scope, matches, _ in _ACT_LIMITATION_RULES
+        ):
+            label = _act_scope_label(line)
+            if label is not None:
+                labels.add(label)
+    return labels
+
+
+def _is_aggregator_cascade_annotation(
+    line: str,
+    explained_limitation_labels: set[str],
+) -> bool:
+    """True when an aggregator reports an already-explained upstream job."""
+    match = _ACT_AGGREGATOR_RESULT_ANNOTATION.search(line)
+    if match is None:
+        return False
+    upstream = _normalized_act_label(match.group("upstream"))
+    return upstream in explained_limitation_labels
+
+
+def _unexplained_error_annotations(
+    combined: str,
+    event: str | None,
+    *,
+    explained_limitation_labels: set[str] | None = None,
+) -> list[str]:
     """``::error::`` lines that no known act limitation explains.
 
     Without this the downgrade is output-wide: one limitation anywhere in a
     workflow's act run would excuse every other failure in the same run. Scoping
     the match to individual annotation lines means a genuine action failure
-    alongside a limitation still blocks.
+    alongside a limitation still blocks. Aggregator ``needs.*.result``
+    annotations are ignored only when their named upstream job has matched a
+    known act-only limitation; otherwise, they remain unexplained.
     """
+    labels = explained_limitation_labels or set()
     unexplained = []
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
@@ -589,6 +649,8 @@ def _unexplained_error_annotations(combined: str, event: str | None) -> list[str
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
         ):
+            continue
+        if labels and _is_aggregator_cascade_annotation(line, labels):
             continue
         unexplained.append(line.strip())
     return unexplained
@@ -617,7 +679,11 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     )
     if hint is None:
         return None
-    unexplained = _unexplained_error_annotations(combined, event)
+    unexplained = _unexplained_error_annotations(
+        combined,
+        event,
+        explained_limitation_labels=_explained_act_limitation_labels(combined, event),
+    )
     if unexplained:
         return None
     return hint
