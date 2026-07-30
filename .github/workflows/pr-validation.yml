@@ -80,6 +80,10 @@ jobs:
           # closed, and a branch that really does merge main is held to 20 here
           # while the pre-push hook allows it 40. That is the exact divergence
           # issue #3997 exists to remove, so the ref has to be present.
+          # Cost: an unshallow fetch of ~165 MiB against a 10-minute job budget,
+          # which is what 20+ workflows in this repo already pay. A shallower
+          # option would answer wrongly rather than fail closed, because a
+          # truncated trunk still reads as a trunk.
           fetch-depth: 0
 
       - name: Setup PowerShell

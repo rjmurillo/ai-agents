@@ -67,11 +67,12 @@ MAIN_MERGE_BLOCK_THRESHOLD = 40
 # Sentinel status emitted when a transient API failure prevents a real count.
 STATUS_UNKNOWN = "UNKNOWN"
 
-# Wall-clock bound on this module's git calls. The trunk read is one
-# `rev-list --first-parent`, so seconds is generous; the bound exists so a
-# wedged git cannot hold the CI step open until the job timeout, or hold a
-# push open in the pre-push hook that shares this module's trunk reader.
-_GIT_TIMEOUT_SECONDS = 30
+# Wall-clock bound on this module's git calls. Matched to
+# `git_hook_policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS` on purpose: the two gates
+# read the same trunk, so giving CI a shorter budget would let a slow runner
+# time out on a walk the hook completes, and the ceilings would diverge again on
+# nothing but machine speed. The hosting CI job caps itself at 10 minutes.
+_GIT_TIMEOUT_SECONDS = 90
 
 # A git runner: given a repo root and git arguments, return the finished
 # process. `git_hook_policy` supplies its own so a trunk read inside a hook
@@ -158,7 +159,11 @@ def _run_git(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProces
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(command, 124, "", "timeout was reached")
+        # Deliberately not the wording in _TRANSIENT_MARKERS. That vocabulary is
+        # for gh transport noise, where degrading to UNKNOWN is right. A git
+        # timeout here denies relief instead, and the two must not be confused
+        # if this result ever reaches is_transient_error.
+        return subprocess.CompletedProcess(command, 124, "", "git rev-list exceeded its budget")
     except OSError:
         # FileNotFoundError (git absent) and its OSError siblings are config
         # problems, not merge evidence. Fail closed to the 20-commit ceiling.
@@ -246,7 +251,9 @@ def contains_base_merge(commits: list[Any]) -> bool:
     return bool(_external_non_first_parent_shas(commits))
 
 
-def contains_main_merge(commits: list[Any], repo_root: Path) -> bool:
+def contains_main_merge(
+    commits: list[Any], repo_root: Path, run_git: GitRunner | None = None
+) -> bool:
     """True when the PR carries a merge of origin/main's direct trunk.
 
     The single shared predicate for the 40-commit-limit relief: a non-first
@@ -260,15 +267,42 @@ def contains_main_merge(commits: list[Any], repo_root: Path) -> bool:
     shared implementation.
 
     Fails closed (returns False) when git is unavailable or origin/main does
-    not exist.
+    not exist. Use main_merge_evidence when the caller needs to tell that case
+    apart from an honest "this branch merges nothing on the trunk".
+    """
+    return main_merge_evidence(commits, repo_root, run_git).granted
+
+
+@dataclass(frozen=True)
+class ReliefEvidence:
+    """Why the commit-limit relief was granted or withheld.
+
+    ``granted`` is the decision. ``trunk_unreadable`` separates the two ways of
+    withholding it: the branch merges nothing on origin/main's trunk, or the
+    trunk could not be read at all. Both deny relief, but only the second is an
+    infrastructure fault, and a gate that cannot say which one it hit sends an
+    author to re-cut a branch that was never the problem.
+    """
+
+    granted: bool
+    trunk_unreadable: bool
+
+
+def main_merge_evidence(
+    commits: list[Any], repo_root: Path, run_git: GitRunner | None = None
+) -> ReliefEvidence:
+    """Decide the relief and report whether the trunk was actually readable.
+
+    One trunk read serves both answers, so asking for the diagnostic costs no
+    extra git call. See contains_main_merge for the predicate's contract.
     """
     external_shas = _external_non_first_parent_shas(commits)
     if not external_shas:
-        return False
-    trunk = main_first_parent_shas(repo_root)
+        return ReliefEvidence(granted=False, trunk_unreadable=False)
+    trunk = main_first_parent_shas(repo_root, run_git)
     if not trunk:
-        return False
-    return bool(external_shas & trunk)
+        return ReliefEvidence(granted=False, trunk_unreadable=True)
+    return ReliefEvidence(granted=bool(external_shas & trunk), trunk_unreadable=False)
 
 
 def is_transient_error(stderr: str) -> bool:
@@ -347,9 +381,16 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
         )
 
     count = len(commits)
-    limit = (
-        MAIN_MERGE_BLOCK_THRESHOLD if contains_main_merge(commits, Path.cwd()) else BLOCK_THRESHOLD
-    )
+    evidence = main_merge_evidence(commits, Path.cwd())
+    if evidence.trunk_unreadable:
+        print(
+            "::warning::Could not read origin/main's first-parent history, so the "
+            "commit-limit relief was denied without being evaluated and this PR is "
+            "held to the base ceiling. The checkout must populate "
+            "refs/remotes/origin/main; pr-validation.yml pins fetch-depth: 0 for "
+            "that reason (issue #3997)."
+        )
+    limit = MAIN_MERGE_BLOCK_THRESHOLD if evidence.granted else BLOCK_THRESHOLD
     return CountResult(classify_count(count, limit), count, transient=False, limit=limit)
 
 
