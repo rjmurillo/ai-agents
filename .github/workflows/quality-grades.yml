@@ -52,25 +52,11 @@ jobs:
         env:
           TOP_N: ${{ inputs.top_n || '0' }}
         run: |
-          TOP_N_FLAG=""
-          if [ "$TOP_N" != "0" ] && [ -n "$TOP_N" ]; then
-            if ! [[ "$TOP_N" =~ ^[0-9]+$ ]]; then
-              echo "Error: top_n must be numeric" >&2
-              exit 2
-            fi
-            TOP_N_FLAG="--top-n ${TOP_N}"
-          fi
-
-          python3 .claude/skills/quality-grades/scripts/grade_domains.py \
-            --format json $TOP_N_FLAG > quality-grades.json
-
-          python3 .claude/skills/quality-grades/scripts/grade_domains.py \
-            --format markdown $TOP_N_FLAG > quality-grades.md
-
-          # Write markdown report to job summary
-          echo "## Quality Grades Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          cat quality-grades.md >> $GITHUB_STEP_SUMMARY
+          python3 scripts/ci/run_quality_grades.py \
+            --grader .claude/skills/quality-grades/scripts/grade_domains.py \
+            --json-out quality-grades.json \
+            --markdown-out quality-grades.md \
+            --top-n "$TOP_N"
 
       - name: Check for degraded grades
         id: check
