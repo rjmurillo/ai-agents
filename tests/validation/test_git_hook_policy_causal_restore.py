@@ -166,7 +166,7 @@ def _run_real_suppression_push(repo: Path, head: str) -> int:
     return policy.check_pushed_suppressions(stdin, repo)
 
 
-def _write_ruff_notebook(path: Path, source: str) -> None:
+def _write_ruff_notebook(path: Path, source: str | list[str]) -> None:
     notebook = {
         "cells": [
             {
@@ -174,7 +174,7 @@ def _write_ruff_notebook(path: Path, source: str) -> None:
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
-                "source": [source],
+                "source": [source] if isinstance(source, str) else source,
             }
         ],
         "metadata": {
@@ -774,6 +774,42 @@ class TestStagedSuppressionPolicy:
 """
         assert self._run_staged(monkeypatch, tmp_path, diff) == 0
 
+    @pytest.mark.parametrize(
+        "directive",
+        (
+            "# ruff: no" "qa",
+            "# ruff: no" "qa: S602",
+            "# flake8: no" "qa",
+        ),
+    )
+    def test_staged_file_level_security_noqa_is_blocked(
+        self,
+        tmp_path,
+        monkeypatch,
+        directive,
+    ):
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++{directive}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 1
+
+    def test_staged_file_level_non_security_noqa_is_not_blocked(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        directive = "# ruff: no" "qa: E402"
+        diff = f"""diff --git a/pkg/module.py b/pkg/module.py
+--- a/pkg/module.py
++++ b/pkg/module.py
+@@ -0,0 +1 @@
++{directive}
+"""
+        assert self._run_staged(monkeypatch, tmp_path, diff) == 0
+
     def test_empty_staged_diff_passes(self, tmp_path, monkeypatch):
         assert self._run_staged(monkeypatch, tmp_path, "") == 0
 
@@ -826,6 +862,32 @@ class TestStagedSuppressionPolicy:
         assert policy.check_staged_suppressions(repo) == 1
         assert "notebooks/analysis.ipynb:1" in capsys.readouterr().err
 
+    def test_staged_notebook_split_source_suppression_is_blocked(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "notebooks" / "analysis.ipynb"
+        path.parent.mkdir()
+        _write_ruff_notebook(path, ["import os  # no", "qa: S603\n"])
+        _git(repo, "add", str(path.relative_to(repo)))
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "notebooks/analysis.ipynb:1" in capsys.readouterr().err
+
+    def test_staged_type_change_to_python_file_is_blocked(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        path = repo / "module.py"
+        path.symlink_to("README.md")
+        _commit(repo, "add Python symlink")
+        path.unlink()
+        path.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _git(repo, "add", str(path.relative_to(repo)))
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "module.py:1" in capsys.readouterr().err
+
     def test_staged_pure_python_rename_is_allowed(self, tmp_path):
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -856,6 +918,7 @@ class TestStagedSuppressionPolicy:
         incoming = repo / "incoming.py"
         incoming.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
         _commit(repo, "incoming suppression")
+        _point_origin_main_at_head(repo)
 
         _git(repo, "checkout", "topic")
         (repo / "local.py").write_text("local = True\n", encoding="utf-8")
@@ -876,6 +939,7 @@ class TestStagedSuppressionPolicy:
         _git(repo, "checkout", "main")
         (repo / "incoming.py").write_text("incoming = True\n", encoding="utf-8")
         _commit(repo, "incoming work")
+        _point_origin_main_at_head(repo)
 
         _git(repo, "checkout", "topic")
         local = repo / "local.py"
@@ -886,6 +950,37 @@ class TestStagedSuppressionPolicy:
 
         assert policy.check_staged_suppressions(repo) == 1
         assert "local.py:1" in capsys.readouterr().err
+
+    def test_merge_blocks_suppression_from_unapproved_merge_head(
+        self,
+        tmp_path,
+        capsys,
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_push_repo(repo)
+        _git(repo, "checkout", "-b", "side", "main")
+        side = repo / "side.py"
+        side.write_text("import subprocess  # no" "sec\n", encoding="utf-8")
+        _commit(repo, "side suppression")
+
+        _git(repo, "checkout", "topic")
+        (repo / "local.py").write_text("local = True\n", encoding="utf-8")
+        _commit(repo, "local work")
+        merge = _run(["git", "merge", "--no-edit", "--no-commit", "side"], repo)
+        assert merge.returncode == 0, merge.stderr
+
+        assert policy.check_staged_suppressions(repo) == 1
+        assert "side.py:1" in capsys.readouterr().err
+
+    def test_precommit_globs_cover_all_suppression_suffixes(self):
+        config = (_ROOT / "lefthook.yml").read_text(encoding="utf-8")
+        start = config.index("- name: security-suppressions-staged")
+        end = config.index("\n    - group:", start)
+        hook = config[start:end]
+
+        for suffix in policy.SECURITY_SUPPRESSION_SUFFIXES:
+            assert f'"**/*{suffix}"' in hook
 
 
 class TestAdrReviewPolicyMergeScope:

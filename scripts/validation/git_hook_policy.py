@@ -87,6 +87,7 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r"lgtm\[|"
     r"nosec\b|"
     r"nosem(?:grep)?\b|"
+    r"(?:(?:ruff|flake8)\s*:\s*)?"
     r"noqa\b(?:\s*:\s*[^\r\n]*\bS\d+|(?!\s*:))|"
     r"cwe-suppress\b"
     r")"
@@ -2400,7 +2401,8 @@ def check_staged_suppressions(repo_root: Path) -> int:
 
 
 def _staged_suppression_base(repo_root: Path) -> str:
-    return "MERGE_HEAD" if _merge_in_progress(repo_root) else "HEAD"
+    merge_heads = _approved_merge_head_commits(repo_root)
+    return merge_heads[0] if len(merge_heads) == 1 else "HEAD"
 
 
 def _staged_suppression_paths(repo_root: Path, base_ref: str) -> list[str] | None:
@@ -2411,7 +2413,7 @@ def _staged_suppression_paths(repo_root: Path, base_ref: str) -> list[str] | Non
             "--cached",
             "--name-only",
             "-z",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             base_ref,
         ],
     )
@@ -2555,9 +2557,7 @@ def _notebook_code_lines(text: str) -> list[str]:
         if isinstance(source, str):
             lines.extend(source.splitlines())
         elif isinstance(source, list):
-            for item in source:
-                if isinstance(item, str):
-                    lines.extend(item.splitlines())
+            lines.extend("".join(item for item in source if isinstance(item, str)).splitlines())
     return lines
 
 

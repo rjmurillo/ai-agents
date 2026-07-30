@@ -173,6 +173,8 @@ pre-commit:
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
             glob:
               - "**/*.py"
+              - "**/*.pyi"
+              - "**/*.pyw"
               - "**/*.js"
               - "**/*.ts"
               - "**/*.ps1"
