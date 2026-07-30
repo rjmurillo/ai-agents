@@ -1640,8 +1640,15 @@ def _conflict_marker_violations(path: str, content: bytes) -> list[str]:
     return violations
 
 
+def _is_unmerged_path(repo_root: Path, relative_path: str) -> bool:
+    """A path in the index but not at stage 0 is mid-conflict."""
+    result = _run_git(repo_root, ["ls-files", "-u", "--", relative_path])
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
 def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
     violations: list[str] = []
+    unmerged: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
         if path is None:
@@ -1651,8 +1658,21 @@ def check_staged_conflict_markers(paths: Sequence[str], repo_root: Path) -> int:
             continue
         content = _read_index_blob(repo_root, path)
         if content is None:
+            # Stage 0 is absent during a conflict; say so instead of
+            # skipping the one state this gate exists to catch (issue #3770).
+            if _is_unmerged_path(repo_root, path):
+                unmerged.append(path)
             continue
         violations.extend(_conflict_marker_violations(path, content))
+    if unmerged:
+        print("ERROR: paths have unresolved merge conflicts:", file=sys.stderr)
+        for path in unmerged:
+            print(f"  {path}", file=sys.stderr)
+        print(
+            "Resolve the conflict and `git add` each path before committing.",
+            file=sys.stderr,
+        )
+        return 1
     if not violations:
         return 0
     print("ERROR: staged content contains git conflict markers:", file=sys.stderr)

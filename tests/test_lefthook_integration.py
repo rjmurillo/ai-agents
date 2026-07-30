@@ -7492,6 +7492,41 @@ def test_conflict_marker_policy_passes_a_clean_staged_file(tmp_path: Path) -> No
     assert policy.check_staged_conflict_markers(["doc.md"], repo) == 0
 
 
+def test_conflict_marker_policy_reports_an_unmerged_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A conflicted, unstaged path produces a message rather than exit 0.
+
+    Stage 0 is absent mid-conflict, so the index read fails and the old code
+    skipped the path silently (issue #3770, AC3).
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "doc.md", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "doc.md", "feature\n")
+    _git(repo, "merge", "other", check=False)
+
+    assert policy.check_staged_conflict_markers(["doc.md"], repo) == 1
+    error = capsys.readouterr().err
+    assert "unresolved merge conflicts" in error
+    assert "doc.md" in error
+
+
+def test_conflict_marker_policy_still_skips_a_path_not_in_the_index(
+    tmp_path: Path,
+) -> None:
+    """Negative control: absent-from-index stays a silent skip, not an error."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "doc.md", "base\n")
+
+    assert policy.check_staged_conflict_markers(["missing.md"], repo) == 0
+
+
 def test_conflict_marker_policy_skips_the_hook_fixture_prefix(tmp_path: Path) -> None:
     """tests/hooks/fixtures carries prohibited bytes on purpose."""
     repo = tmp_path / "repo"
