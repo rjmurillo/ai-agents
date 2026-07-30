@@ -86,20 +86,36 @@ Check in this order:
 
 ## What the instrument can and cannot resolve
 
-Measured 2026-07-29 on `unified-software-engineering.json`, two identical
-Opus 5 runs:
+**Read this before believing any number the eval prints.**
 
-| Run | baseline | description | full |
-|---|---|---|---|
-| A | 3.78 | 3.89 (+0.11) | 3.89 (+0.11) |
-| B | 3.83 | 3.67 (-0.16) | 4.11 (+0.28) |
+The repo already knew this before the 2026-07-29 audit re-derived it.
+`scripts/eval/README.md` records that scoring identical rule text twice moved
+**5 of 24 tasks** across the pass threshold (ADR-087 Open Requirement 6,
+issue #3445). The rule path is single-shot against an LLM judge and cannot
+average that away.
 
-The `description` delta **flipped sign between identical runs**. Run-to-run
-swing was about 0.27, which is larger than most effects worth arguing about.
+Measured 2026-07-29 on `unified-software-engineering.json`, repeat runs of
+identical inputs through `EVAL_PROVIDER=copilot-cli`:
 
-**Practical rule: at 3 positive scenarios, treat any delta under roughly 0.3
-as noise.** Do not cut or keep content on a smaller signal. To resolve
-something smaller, add scenarios or repeat runs and report the spread.
+| Model | run | baseline | description | full |
+|---|---|---|---|---|
+| Opus 5 | A | 3.83 | 3.67 (-0.16) | 4.11 (+0.28) |
+| Opus 5 | B | 3.67 | 3.89 (+0.22) | 4.78 (+1.11) |
+| Sol 5.6 | A | 3.89 | 3.78 (-0.11) | 3.56 (-0.33) |
+| Sol 5.6 | B | 3.44 | 3.33 (-0.11) | 4.22 (+0.78) |
+
+Run-to-run spread on the `full` delta was **0.83 on Opus 5 and 1.11 on
+Sol 5.6**. Sol's `full` delta changed sign, from -0.33 to +0.78, on identical
+inputs. Opus's `description` delta changed sign too.
+
+**Practical rule: at 3 positive scenarios and one generation per cell, this
+instrument cannot resolve an effect smaller than about 1.0 on a 0-5 scale.**
+That is most of the usable range. Treat a single run as a point estimate with
+no error bar, and do not cut or keep content on one.
+
+An earlier draft of this document put the floor near 0.3, from two runs. Three
+more runs widened it more than threefold. Expect the same if you add runs: the
+number below is a lower bound on the noise, not a measurement of it.
 
 Other limits, all real:
 
@@ -109,8 +125,14 @@ Other limits, all real:
   validity weakness, not a settled one.
 - **Per-cell scores are a median of 3 judge samples.** That smooths judge
   noise, not model noise. Model noise needs repeat runs.
-- **A single run reports no variance.** The script gives you a point estimate
-  with no error bar. Run it at least twice before believing a delta.
+- **The Copilot provider does not test passive context.** Copilot CLI has no
+  separate system channel, so `_CopilotCLIProvider` folds the treatment into
+  the user prompt (`scripts/eval/_providers.py`). A `copilot-cli` result
+  measures user-message priming. Whether it transfers to always-on placement
+  is an assumption, not a measurement (issue #3934).
+- **Negative scenarios cannot fail a rule.** `aggregate` computes the negative
+  average and the verdict never reads it (issue #3933). Over-activation is
+  invisible to the verdict.
 
 ## Step 3. Decide
 
