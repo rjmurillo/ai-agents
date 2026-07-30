@@ -28,7 +28,7 @@
 
 ## Context
 
-Always-on context is for what the model can't know: repo gotchas, local conventions, non-obvious tool behavior. Generic engineering knowledge doesn't earn a slot without evidence it changes behavior; the burden is on the content. Depth -> progressive disclosure. Actions -> skills. This is the admission test for new content. Three book rules (`code-quality`, `pragmatic-programmer`, `unified-software-engineering`, ~34KB) predate it and are still always-on: no scenario file exists for two of them, so removal cannot be eval-gated yet (#3935).
+Always-on context is for what the model can't know: repo gotchas, local conventions, non-obvious tool behavior. Generic engineering knowledge doesn't earn a slot without evidence it changes behavior; the burden is on the content. Arbitration between principles is not restatement of them and does earn a slot: `unified-software-engineering` (tiebreaker rule) beat baseline in 7 of 8 eval runs across Opus 5 and Sol 5.6, its description alone in 1 of 8. `code-quality` and `pragmatic-programmer` have no scenario file, so they are unmeasured, not vindicated (#3935). Depth -> progressive disclosure. Actions -> skills.
 Budget is measured, not asserted: `python3 scripts/validation/instruction_budget.py`. This line used to claim <8KB, which was Vercel's compressed-context figure adopted in #1022; the always-on corpus is now ~95KB on a `.py` edit, roughly 12x that. Ceilings ratchet to measured size, so a passing gate is not evidence the corpus is small.
 
 ## Gotchas
