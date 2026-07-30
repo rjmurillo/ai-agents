@@ -162,8 +162,24 @@ _TEXT_MODE_KEYWORDS = ("text", "universal_newlines", "encoding", "errors")
 # the round trip and the chain has to follow.
 _PASS_THROUGH = frozenset(
     {"list", "tuple", "set", "frozenset", "sorted", "reversed", "iter", "zip",
-     "enumerate"}
+     "enumerate", "chain"}
 )
+
+# Callables that yield elements of the containers handed to them, but only
+# after a leading argument that is not one: a predicate for the itertools
+# filters, a count for the heapq selectors. Reading that leading argument as a
+# container would flag ``filter(subprocess.run, rows)``, where the runner
+# merely decides which row comes out and never starts a process itself.
+_TRAILING_CONTAINERS = frozenset(
+    {"filter", "filterfalse", "takewhile", "dropwhile", "nlargest", "nsmallest"}
+)
+
+# Every callable that yields elements of its arguments, mapped to the first
+# argument that is a container. One table rather than a branch per family, so
+# a new element-yielding callable is one row and the resolution reads once.
+_CONTAINER_ARGS: dict[str, int] = {
+    label: 0 for label in _ELEMENT_BUILTINS | _PASS_THROUGH
+} | {label: 1 for label in _TRAILING_CONTAINERS}
 
 # Dict methods that yield a view, mapped to the halves of the literal the view
 # reads. ``items`` yields both, so both taint what the loop target binds.
@@ -380,10 +396,14 @@ def _resolve_indirect(
         if label in _DEFAULTING_METHODS:
             reached.extend(call.args[1:])
         return _resolve_elements(reached, modules, functions)
-    if label in _ELEMENT_BUILTINS and call.args:
-        return _resolve_elements(list(call.args), modules, functions)
-    if label in _PASS_THROUGH:
-        return _resolve_elements(list(call.args), modules, functions)
+    first = _CONTAINER_ARGS.get(label)
+    if first is not None and len(call.args) > first:
+        # ``list(RUNNERS)`` reads every argument; ``filter(None, RUNNERS)`` and
+        # ``nlargest(1, RUNNERS)`` read every argument after the first, because
+        # theirs is a predicate or a count. Reading that leading argument as a
+        # container would flag a runner that only decides which element comes
+        # out and never starts a process itself.
+        return _resolve_elements(list(call.args[first:]), modules, functions)
     view = _dict_view(call)
     if view is not None:
         return _resolve_elements(view, modules, functions)
@@ -1733,6 +1753,30 @@ def test_detector_flags_an_unpinned_call(source: str, why: str) -> None:
             'go(subprocess.run)',
             "a runner handed in is still pinned by the call site that uses it",
         ),
+        (
+            'import subprocess\n'
+            'next(filter(subprocess.run, [print]))(["x"], capture_output=True, text=True)',
+            "a filter predicate decides which element comes out and is not one",
+        ),
+        (
+            'import subprocess\n'
+            'from heapq import nlargest\n'
+            'nlargest(1, [print])[0](["x"], capture_output=True, text=True)',
+            "a selector over a container of something else selects something else",
+        ),
+        (
+            'import subprocess\n'
+            'from itertools import chain\n'
+            'next(chain())(["x"], capture_output=True, text=True)',
+            "chain with nothing to chain yields nothing that starts a process",
+        ),
+        (
+            'import subprocess\n'
+            'next(filter(None, [subprocess.run]))(\n'
+            '    ["x"], capture_output=True, text=True, encoding="utf-8"\n'
+            ')',
+            "a runner reached through a filter is still pinned by its call site",
+        ),
     ],
 )
 def test_detector_stays_quiet(source: str, why: str) -> None:
@@ -2538,6 +2582,47 @@ def test_detector_reports_every_offender_in_one_file() -> None:
             '    inner(runner)\n'
             'outer(subprocess.run)',
             "a runner forwarded through a second definition still arrives",
+        ),
+        (
+            'import subprocess\n'
+            'next(filter(None, [subprocess.run]))(["x"], capture_output=True, text=True)',
+            "filter yields the elements it was handed, so the runner comes out",
+        ),
+        (
+            'import subprocess\n'
+            'from itertools import filterfalse\n'
+            'next(filterfalse(None, [subprocess.run]))(["x"], capture_output=True, text=True)',
+            "filterfalse keeps what filter drops and yields the same elements",
+        ),
+        (
+            'import subprocess\n'
+            'from itertools import takewhile\n'
+            'next(takewhile(None, [subprocess.run]))(["x"], capture_output=True, text=True)',
+            "takewhile yields a prefix of its input, and a prefix holds elements",
+        ),
+        (
+            'import subprocess\n'
+            'from itertools import dropwhile\n'
+            'next(dropwhile(None, [subprocess.run]))(["x"], capture_output=True, text=True)',
+            "dropwhile yields a suffix of its input, and a suffix holds elements",
+        ),
+        (
+            'import subprocess\n'
+            'from itertools import chain\n'
+            'next(chain([], [subprocess.run]))(["x"], capture_output=True, text=True)',
+            "chain yields the elements of every container handed to it",
+        ),
+        (
+            'import subprocess\n'
+            'from heapq import nlargest\n'
+            'nlargest(1, [subprocess.run])[0](["x"], capture_output=True, text=True)',
+            "nlargest returns a list of the elements it selected from",
+        ),
+        (
+            'import subprocess\n'
+            'from heapq import nsmallest\n'
+            'nsmallest(1, [subprocess.run])[0](["x"], capture_output=True, text=True)',
+            "nsmallest selects from the same container from the other end",
         ),
     ],
 )
