@@ -1217,7 +1217,7 @@ echo "[PASS] All CI checks passing ($passed checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| All comments resolved | `grep -c -e "Status: \[COMPLETE\]" -e "\[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
 | CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
